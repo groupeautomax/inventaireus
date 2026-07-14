@@ -194,13 +194,15 @@
   </div>
 
   <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
-    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--stamp-red);margin-bottom:10px;">Suppression en lot</div>
-    <textarea id="delete-bulk-input" rows="4" placeholder="Un VIN par ligne — ces véhicules seront supprimés définitivement du registre.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
+    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Vérification d'inventaire</div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px;">Collez votre liste physique de VIN (un par ligne) pour la comparer au registre Google Sheet actuel.</p>
+    <textarea id="verif-input" rows="5" placeholder="Un VIN par ligne — votre inventaire physique actuel.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
-      <span style="font-size:12px;color:var(--ink-soft);" id="delete-bulk-count"></span>
-      <button id="delete-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--stamp-red);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Supprimer le lot</button>
+      <span style="font-size:12px;color:var(--ink-soft);" id="verif-count"></span>
+      <button id="verif-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Comparer</button>
     </div>
+    <div id="verif-results" style="margin-top:14px;"></div>
   </div>
 
   <div class="toolbar">
@@ -505,41 +507,45 @@ document.getElementById('status-bulk-btn').addEventListener('click', async ()=>{
   render();
 });
 
-function updateDeleteBulkCount(){
-  const text = document.getElementById('delete-bulk-input').value;
+function updateVerifCount(){
+  const text = document.getElementById('verif-input').value;
   const n = parseVinLines(text).length;
-  document.getElementById('delete-bulk-count').textContent = n > 0 ? `${n} VIN à supprimer` : '';
+  document.getElementById('verif-count').textContent = n > 0 ? `${n} VIN dans votre liste` : '';
 }
-document.getElementById('delete-bulk-input').addEventListener('input', updateDeleteBulkCount);
+document.getElementById('verif-input').addEventListener('input', updateVerifCount);
 
-document.getElementById('delete-bulk-btn').addEventListener('click', async ()=>{
-  const textEl = document.getElementById('delete-bulk-input');
-  const vins = parseVinLines(textEl.value);
-  if(vins.length === 0) return;
-  const confirme = confirm(`Supprimer définitivement ${vins.length} véhicule(s) du registre ? Cette action est irréversible.`);
-  if(!confirme) return;
-  textEl.value = '';
-  updateDeleteBulkCount();
-
-  if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
-  setSynced(`Suppression de ${vins.length} véhicule(s)...`);
-  try{
-    const resp = await fetch(scriptUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action:'deleteByVinBulk', vins, sheet: SHEET_SOURCE })
-    });
-    const data = await resp.json();
-    vehicules = data.vehicules || [];
-    if(data.notFound && data.notFound.length > 0){
-      setSynced(`Supprimé · ${data.notFound.length} VIN introuvable(s) : ${data.notFound.join(', ')}`);
-    } else {
-      setSynced('Connecté à Google Sheet · synchronisé');
-    }
-  }catch(e){
-    setSynced('Échec de la suppression. Réessayez.');
+document.getElementById('verif-btn').addEventListener('click', ()=>{
+  const listePhysique = parseVinLines(document.getElementById('verif-input').value).map(v=>v.toUpperCase());
+  const resultsEl = document.getElementById('verif-results');
+  if(listePhysique.length === 0){
+    resultsEl.innerHTML = '';
+    return;
   }
-  render();
+  const listeSysteme = vehicules.map(v=>v.vin.toUpperCase());
+
+  const manquants = vehicules.filter(v => !listePhysique.includes(v.vin.toUpperCase()));
+  const inconnus = listePhysique.filter(vin => !listeSysteme.includes(vin));
+
+  let html = '';
+  html += `<div style="font-size:12px;font-weight:600;color:var(--stamp-red);margin-bottom:6px;">Dans le registre mais absents de votre liste physique (${manquants.length})</div>`;
+  if(manquants.length === 0){
+    html += `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;">Aucun — tout ce qui est dans le registre a été trouvé dans votre liste.</div>`;
+  } else {
+    html += `<div style="border:1px solid var(--stamp-red-bg);background:var(--stamp-red-bg);padding:8px 10px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.9;">`;
+    html += manquants.map(v => `${v.vin} <span style="font-family:'Inter',sans-serif;color:var(--ink-soft);">— ${v.modele} (${statusMeta(v.statut).label})</span>`).join('<br>');
+    html += `</div>`;
+  }
+
+  html += `<div style="font-size:12px;font-weight:600;color:var(--stamp-amber);margin-bottom:6px;">Dans votre liste physique mais absents du registre (${inconnus.length})</div>`;
+  if(inconnus.length === 0){
+    html += `<div style="font-size:12px;color:var(--ink-soft);">Aucun — tous les véhicules de votre liste sont déjà dans le registre.</div>`;
+  } else {
+    html += `<div style="border:1px solid var(--stamp-amber-bg);background:var(--stamp-amber-bg);padding:8px 10px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.9;">`;
+    html += inconnus.join('<br>');
+    html += `</div>`;
+  }
+
+  resultsEl.innerHTML = html;
 });
 
 function updateDocBulkCount(){

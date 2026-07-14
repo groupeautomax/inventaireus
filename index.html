@@ -230,7 +230,7 @@
 
 <script>
 const URL_KEY = 'apps_script_url_us';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxo7REMp_xVhAgq-amkPBoAaIPvNLcASjHZVml32wrhE-Gl6GoHnauf-XX0PWrhSGUSAA/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZ_nr-X21ToePqBbBp6qIqjDn7oupibxU75X1X3KEcSvfMPJnwnGKIy8KMXzfFzZAR1g/exec';
 const SHEET_SOURCE = 'US';
 let vehicules = [];
 let currentFilter = 'all';
@@ -387,6 +387,7 @@ function render(){
       <td>
         <div class="row-actions">
           ${meta.next ? `<button class="action-btn" data-action="advance" data-id="${v.id}">${meta.nextLabel}</button>` : ''}
+          <button class="action-btn" data-action="transfer" data-id="${v.id}" title="Déplace ce véhicule vers le registre Canada">Transférer → CAN</button>
           <button class="action-btn danger" data-action="delete" data-id="${v.id}">Supprimer</button>
         </div>
       </td>
@@ -616,6 +617,10 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
     const cycle = { 'non':'oui-bon', 'oui-bon':'oui-mauvais', 'oui-mauvais':'non' };
     const newVal = cycle[cur] || 'oui-bon';
     await postToSheet({ action:'setDoc', id, value: newVal });
+  } else if(action === 'transfer'){
+    const confirme = confirm(`Transférer le véhicule ${v.vin} vers le registre Canada ? Il sera retiré du registre É.-U. et ajouté au registre Canada avec le statut "Acheté".`);
+    if(!confirme) return;
+    await postToSheet({ action:'transfer', id, toSheet: 'CAN' });
   }
 });
 

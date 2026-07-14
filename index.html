@@ -201,6 +201,7 @@
 
 <script>
 const URL_KEY = 'apps_script_url';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyBXl8lQrLkvLuks_Ai8NKFQke5LP7MZ4ArCf9u1ZXCDK2J_VCl3aIuQkJaiTArsPu87Q/exec';
 let vehicules = [];
 let currentFilter = 'all';
 let searchTerm = '';
@@ -209,11 +210,12 @@ let scriptUrl = '';
 async function loadScriptUrl(){
   try{
     const saved = localStorage.getItem(URL_KEY);
-    if(saved){
-      scriptUrl = saved;
-      document.getElementById('script-url').value = scriptUrl;
-    }
-  }catch(e){}
+    scriptUrl = saved || DEFAULT_SCRIPT_URL;
+    document.getElementById('script-url').value = scriptUrl;
+  }catch(e){
+    scriptUrl = DEFAULT_SCRIPT_URL;
+    document.getElementById('script-url').value = scriptUrl;
+  }
 }
 
 async function saveScriptUrl(url){

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Suivi d'inventaire — véhicules export É.-U.</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
+
+  :root{
+    --paper: #EEF0F1;
+    --paper-card: #FFFFFF;
+    --ink: #1B2A4A;
+    --ink-soft: #4A5A78;
+    --line: #D3D8DD;
+    --stamp-red: #B3392F;
+    --stamp-red-bg: #F7E5E2;
+    --stamp-amber: #A66A1E;
+    --stamp-amber-bg: #FBEEDD;
+    --stamp-teal: #1E6E63;
+    --stamp-teal-bg: #E1EFEC;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 60px;}
+
+  .manifest-head{
+    border:1px solid var(--ink);
+    background:var(--paper-card);
+    padding:20px 24px;
+    margin-bottom:20px;
+    position:relative;
+  }
+  .manifest-head::before{
+    content:"MANIFESTE";
+    position:absolute; top:-11px; left:20px;
+    background:var(--paper);
+    padding:0 10px;
+    font-family:'Oswald',sans-serif;
+    font-size:11px;
+    letter-spacing:2px;
+    color:var(--ink-soft);
+  }
+  .manifest-title{
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    font-size:24px;
+    letter-spacing:0.5px;
+    margin:6px 0 2px;
+  }
+  .manifest-sub{font-size:13px;color:var(--ink-soft);margin:0 0 18px;}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);}
+  .stat{background:var(--paper-card);padding:12px 14px;}
+  .stat .num{font-family:'Oswald',sans-serif;font-size:26px;font-weight:600;}
+  .stat .lbl{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin-top:2px;}
+  .stat.alert .num{color:var(--stamp-red);}
+
+  .toolbar{display:flex;gap:10px;margin:20px 0 14px;flex-wrap:wrap;align-items:center;}
+  input[type=text], select{
+    font-family:'Inter',sans-serif;font-size:13px;
+    padding:9px 10px;border:1px solid var(--line);background:#fff;color:var(--ink);
+  }
+  #search{flex:1;min-width:180px;}
+  .filter-btn{
+    font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
+    padding:8px 12px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;
+  }
+  .filter-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .add-form{
+    display:grid;grid-template-columns:1fr 1fr auto;gap:10px;
+    background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;
+  }
+  .add-form button{
+    font-family:'Inter',sans-serif;font-weight:500;font-size:13px;
+    background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;
+  }
+  .add-form button:hover{background:#12203a;}
+
+  table{width:100%;border-collapse:collapse;background:var(--paper-card);border:1px solid var(--line);}
+  th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;
+    color:var(--ink-soft);font-weight:500;padding:10px 12px;border-bottom:1px solid var(--ink);
+  }
+  td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .vin{font-family:'IBM Plex Mono',monospace;font-weight:500;letter-spacing:0.5px;}
+
+  .stamp{
+    display:inline-block;font-family:'Oswald',sans-serif;font-size:11px;font-weight:600;
+    letter-spacing:0.5px;text-transform:uppercase;padding:4px 10px;
+    border:1.5px solid; border-radius:3px; transform:rotate(-1.5deg);
+  }
+  .stamp.stock{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);}
+  .stamp.transit{color:var(--stamp-amber);border-color:var(--stamp-amber);background:var(--stamp-amber-bg);}
+  .stamp.arrive{color:var(--stamp-teal);border-color:var(--stamp-teal);background:var(--stamp-teal-bg);}
+
+  .doc-badge{
+    display:inline-block;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;
+    padding:4px 9px;border-radius:3px;cursor:pointer;border:1px solid;
+  }
+  .doc-badge.oui{color:var(--stamp-teal);border-color:var(--stamp-teal);background:var(--stamp-teal-bg);}
+  .doc-badge.non{color:var(--ink-soft);border-color:var(--line);background:#fff;}
+  .doc-badge.late{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);font-weight:600;}
+  tr.row-late{background:var(--stamp-red-bg);}
+  tr.row-late td{border-bottom-color:#EBC6C2;}
+
+  .date-cell{font-size:12px;color:var(--ink-soft);}
+
+  .row-actions{display:flex;gap:6px;justify-content:flex-end;}
+  .action-btn{
+    font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;
+    padding:6px 9px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;
+  }
+  .action-btn:hover{border-color:var(--ink);}
+  .action-btn.danger{color:var(--stamp-red);}
+
+  .empty{padding:30px;text-align:center;color:var(--ink-soft);font-size:13px;}
+  .synced{font-size:11px;color:var(--ink-soft);margin-top:8px;text-align:right;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="manifest-head">
+    <div class="manifest-title">Suivi d'inventaire — véhicules export É.-U.</div>
+    <p class="manifest-sub">Connecté à votre Google Sheet. Chaque mise à jour de statut est horodatée automatiquement.</p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="add-form" id="config-form" style="grid-template-columns:1fr auto;">
+    <input type="text" id="script-url" placeholder="Collez ici l'URL de votre déploiement Apps Script (se termine par /exec)">
+    <button id="save-url-btn">Connecter le Sheet</button>
+  </div>
+
+  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
+    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Ajout en lot</div>
+    <textarea id="bulk-input" rows="4" placeholder="Un VIN par ligne — marque, modèle et année sont détectés automatiquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456&#10;&#10;(Vous pouvez aussi préciser vous-même : VIN, Modèle)"
+      style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+      <span style="font-size:12px;color:var(--ink-soft);" id="bulk-count"></span>
+      <button id="bulk-add-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Ajouter tout le lot</button>
+    </div>
+  </div>
+
+  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
+    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Mise à jour de statut en lot</div>
+    <textarea id="status-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
+      style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--ink-soft);" id="status-bulk-count"></span>
+      <div style="display:flex;gap:8px;">
+        <select id="status-bulk-target">
+          <option value="transit">Marquer expédié</option>
+          <option value="arrive">Marquer vendu É.-U.</option>
+        </select>
+        <select id="status-bulk-importateur" style="display:none;">
+          <option value="">Importateur...</option>
+          <option value="DENT">DENT</option>
+          <option value="Direct">Direct</option>
+        </select>
+        <button id="status-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Mettre à jour le lot</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
+    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Registre / enregistrement reçu — mise à jour en lot</div>
+    <textarea id="doc-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
+      style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
+      <span style="font-size:12px;color:var(--ink-soft);" id="doc-bulk-count"></span>
+      <div style="display:flex;gap:8px;">
+        <select id="doc-bulk-target">
+          <option value="oui">Marquer reçu</option>
+          <option value="non">Marquer non reçu</option>
+        </select>
+        <button id="doc-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Mettre à jour le lot</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Rechercher par VIN ou modèle...">
+    <button class="filter-btn active" data-filter="all">Tous</button>
+    <button class="filter-btn" data-filter="stock">En stock (pas parti)</button>
+    <button class="filter-btn" data-filter="transit">Expédié</button>
+    <button class="filter-btn" data-filter="arrive">Vendu</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>VIN</th><th>Modèle</th><th>Statut</th><th>Importateur</th><th>Registre reçu</th><th>Dernière mise à jour</th><th></th></tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+  </table>
+  <div class="empty" id="empty-msg" style="display:none;">Aucun véhicule ne correspond à ce filtre.</div>
+  <p class="synced" id="synced-msg">Synchronisation...</p>
+
+</div>
+
+<script>
+const URL_KEY = 'apps_script_url';
+let vehicules = [];
+let currentFilter = 'all';
+let searchTerm = '';
+let scriptUrl = '';
+
+async function loadScriptUrl(){
+  try{
+    const saved = localStorage.getItem(URL_KEY);
+    if(saved){
+      scriptUrl = saved;
+      document.getElementById('script-url').value = scriptUrl;
+    }
+  }catch(e){}
+}
+
+async function saveScriptUrl(url){
+  scriptUrl = url;
+  try{ localStorage.setItem(URL_KEY, url); }catch(e){}
+}
+
+function fmtDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+
+function statusMeta(s){
+  if(s==='stock') return {cls:'stock', label:'En stock', next:'transit', nextLabel:'Marquer expédié'};
+  if(s==='transit') return {cls:'transit', label:'Expédié', next:'arrive', nextLabel:'Marquer vendu'};
+  return {cls:'arrive', label:'Vendu É.-U.', next:null, nextLabel:null};
+}
+
+function setSynced(msg){
+  document.getElementById('synced-msg').textContent = msg;
+}
+
+async function fetchFromSheet(){
+  if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
+  setSynced('Chargement depuis Google Sheet...');
+  try{
+    const resp = await fetch(scriptUrl, { method: 'GET' });
+    const data = await resp.json();
+    vehicules = data.vehicules || [];
+    setSynced('Connecté à Google Sheet · synchronisé');
+  }catch(e){
+    setSynced('Impossible de joindre le Google Sheet. Vérifiez l\'URL et les permissions de partage.');
+  }
+  render();
+}
+
+async function postToSheet(payload){
+  if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
+  setSynced('Enregistrement dans Google Sheet...');
+  try{
+    const resp = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    vehicules = data.vehicules || [];
+    setSynced('Connecté à Google Sheet · synchronisé');
+  }catch(e){
+    setSynced('Échec de l\'enregistrement dans Google Sheet. Réessayez.');
+  }
+  render();
+}
+
+async function loadData(){
+  await loadScriptUrl();
+  if(scriptUrl){ await fetchFromSheet(); } else { setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); render(); }
+}
+
+function joursDepuis(iso){
+  const ms = Date.now() - new Date(iso).getTime();
+  return Math.floor(ms / (1000*60*60*24));
+}
+function estEnRetard(v){
+  return v.enregistrement !== 'oui' && joursDepuis(v.dateAjout) >= 7;
+}
+
+function computeStats(){
+  const total = vehicules.length;
+  const stock = vehicules.filter(v=>v.statut==='stock').length;
+  const transit = vehicules.filter(v=>v.statut==='transit').length;
+  const arrive = vehicules.filter(v=>v.statut==='arrive').length;
+  const retard = vehicules.filter(estEnRetard).length;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="num">${total}</div><div class="lbl">Total véhicules</div></div>
+    <div class="stat alert"><div class="num">${stock}</div><div class="lbl">Pas encore parti</div></div>
+    <div class="stat"><div class="num">${transit}</div><div class="lbl">En transit</div></div>
+    <div class="stat"><div class="num">${arrive}</div><div class="lbl">Vendus</div></div>
+  `;
+  if(retard > 0){
+    document.getElementById('stats').innerHTML += `
+      <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-red-bg);"><div class="num">${retard}</div><div class="lbl">Registre non reçu depuis 7 jours ou plus</div></div>
+    `;
+  }
+}
+
+function render(){
+  computeStats();
+  let list = vehicules.slice().sort((a,b)=> new Date(b.maj) - new Date(a.maj));
+  if(currentFilter !== 'all') list = list.filter(v=>v.statut===currentFilter);
+  if(searchTerm){
+    const t = searchTerm.toLowerCase();
+    list = list.filter(v=> v.vin.toLowerCase().includes(t) || v.modele.toLowerCase().includes(t));
+  }
+  const tbody = document.getElementById('table-body');
+  const emptyMsg = document.getElementById('empty-msg');
+  tbody.innerHTML = '';
+  if(list.length === 0){
+    emptyMsg.style.display = 'block';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  list.forEach(v=>{
+    const meta = statusMeta(v.statut);
+    const tr = document.createElement('tr');
+    const docOui = v.enregistrement === 'oui';
+    const enRetard = estEnRetard(v);
+    if(enRetard) tr.classList.add('row-late');
+    const docLabel = docOui ? 'Reçu' : (enRetard ? `Non reçu · ${joursDepuis(v.dateAjout)} j` : 'Non reçu');
+    tr.innerHTML = `
+      <td class="vin">${v.vin}</td>
+      <td>${v.modele}</td>
+      <td><span class="stamp ${meta.cls}">${meta.label}</span></td>
+      <td style="font-size:13px;color:${v.importateur?'var(--ink)':'var(--ink-soft)'};">${v.importateur || '—'}</td>
+      <td><span class="doc-badge ${docOui?'oui':(enRetard?'late':'non')}" data-action="toggle-doc" data-id="${v.id}" data-current="${v.enregistrement}">${docLabel}</span></td>
+      <td class="date-cell">${fmtDate(v.maj)}</td>
+      <td>
+        <div class="row-actions">
+          ${meta.next ? `<button class="action-btn" data-action="advance" data-id="${v.id}">${meta.nextLabel}</button>` : ''}
+          <button class="action-btn danger" data-action="delete" data-id="${v.id}">Supprimer</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('save-url-btn').addEventListener('click', async ()=>{
+  const url = document.getElementById('script-url').value.trim();
+  if(!url) return;
+  await saveScriptUrl(url);
+  await fetchFromSheet();
+});
+
+async function decodeVinsBatch(vins){
+  if(vins.length === 0) return {};
+  try{
+    const body = new URLSearchParams();
+    body.append('format', 'json');
+    body.append('data', vins.join(';'));
+    const resp = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/', {
+      method: 'POST',
+      body
+    });
+    const data = await resp.json();
+    const map = {};
+    (data.Results || []).forEach(r=>{
+      const parts = [r.Make, r.Model, r.ModelYear].filter(p=>p && p.trim().length>0);
+      map[r.VIN] = parts.length > 0 ? parts.join(' ') : null;
+    });
+    return map;
+  }catch(e){
+    return {};
+  }
+}
+
+function parseBulkLines(text){
+  return text.split('\n')
+    .map(l=>l.trim())
+    .filter(l=>l.length>0)
+    .map(l=>{
+      const parts = l.split(',');
+      const vin = (parts[0]||'').trim();
+      const modele = parts.slice(1).join(',').trim();
+      return { vin, modele };
+    })
+    .filter(v=>v.vin.length>0);
+}
+
+function updateBulkCount(){
+  const text = document.getElementById('bulk-input').value;
+  const n = parseBulkLines(text).length;
+  document.getElementById('bulk-count').textContent = n > 0 ? `${n} véhicule${n>1?'s':''} prêt${n>1?'s':''} à ajouter` : '';
+}
+document.getElementById('bulk-input').addEventListener('input', updateBulkCount);
+
+document.getElementById('bulk-add-btn').addEventListener('click', async ()=>{
+  const textEl = document.getElementById('bulk-input');
+  const parsed = parseBulkLines(textEl.value);
+  if(parsed.length === 0) return;
+  textEl.value = '';
+  updateBulkCount();
+
+  const toDecode = parsed.filter(v=>!v.modele).map(v=>v.vin);
+  let decodedMap = {};
+  if(toDecode.length > 0){
+    setSynced(`Décodage automatique de ${toDecode.length} VIN...`);
+    decodedMap = await decodeVinsBatch(toDecode);
+  }
+  const vehiculesLot = parsed.map(v=>({
+    vin: v.vin,
+    modele: v.modele || decodedMap[v.vin] || '(modèle non reconnu — à préciser)'
+  }));
+  await postToSheet({ action:'addBulk', vehicules: vehiculesLot });
+});
+
+function parseVinLines(text){
+  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+}
+
+function updateStatusBulkCount(){
+  const text = document.getElementById('status-bulk-input').value;
+  const n = parseVinLines(text).length;
+  document.getElementById('status-bulk-count').textContent = n > 0 ? `${n} VIN à mettre à jour` : '';
+}
+document.getElementById('status-bulk-input').addEventListener('input', updateStatusBulkCount);
+
+document.getElementById('status-bulk-target').addEventListener('change', (e)=>{
+  const importateurSelect = document.getElementById('status-bulk-importateur');
+  importateurSelect.style.display = e.target.value === 'transit' ? 'inline-block' : 'none';
+});
+document.getElementById('status-bulk-importateur').style.display =
+  document.getElementById('status-bulk-target').value === 'transit' ? 'inline-block' : 'none';
+
+document.getElementById('status-bulk-btn').addEventListener('click', async ()=>{
+  const textEl = document.getElementById('status-bulk-input');
+  const vins = parseVinLines(textEl.value);
+  if(vins.length === 0) return;
+  const newStatut = document.getElementById('status-bulk-target').value;
+  const importateurEl = document.getElementById('status-bulk-importateur');
+  let importateur = '';
+  if(newStatut === 'transit'){
+    importateur = importateurEl.value;
+    if(!importateur){
+      setSynced('Choisissez un importateur (DENT ou Direct) avant de continuer.');
+      return;
+    }
+  }
+  textEl.value = '';
+  updateStatusBulkCount();
+
+  if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
+  setSynced(`Mise à jour de ${vins.length} véhicule(s)...`);
+  try{
+    const resp = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'updateStatusByVinBulk', vins, newStatut, importateur })
+    });
+    const data = await resp.json();
+    vehicules = data.vehicules || [];
+    if(data.notFound && data.notFound.length > 0){
+      setSynced(`Mis à jour · ${data.notFound.length} VIN introuvable(s) : ${data.notFound.join(', ')}`);
+    } else {
+      setSynced('Connecté à Google Sheet · synchronisé');
+    }
+  }catch(e){
+    setSynced('Échec de la mise à jour. Réessayez.');
+  }
+  render();
+});
+
+function updateDocBulkCount(){
+  const text = document.getElementById('doc-bulk-input').value;
+  const n = parseVinLines(text).length;
+  document.getElementById('doc-bulk-count').textContent = n > 0 ? `${n} VIN à mettre à jour` : '';
+}
+document.getElementById('doc-bulk-input').addEventListener('input', updateDocBulkCount);
+
+document.getElementById('doc-bulk-btn').addEventListener('click', async ()=>{
+  const textEl = document.getElementById('doc-bulk-input');
+  const vins = parseVinLines(textEl.value);
+  if(vins.length === 0) return;
+  const value = document.getElementById('doc-bulk-target').value;
+  textEl.value = '';
+  updateDocBulkCount();
+
+  if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
+  setSynced(`Mise à jour de ${vins.length} véhicule(s)...`);
+  try{
+    const resp = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'updateDocByVinBulk', vins, value })
+    });
+    const data = await resp.json();
+    vehicules = data.vehicules || [];
+    if(data.notFound && data.notFound.length > 0){
+      setSynced(`Mis à jour · ${data.notFound.length} VIN introuvable(s) : ${data.notFound.join(', ')}`);
+    } else {
+      setSynced('Connecté à Google Sheet · synchronisé');
+    }
+  }catch(e){
+    setSynced('Échec de la mise à jour. Réessayez.');
+  }
+  render();
+});
+
+document.getElementById('table-body').addEventListener('click', async (e)=>{
+  const el = e.target.closest('[data-action]');
+  if(!el) return;
+  const id = el.dataset.id;
+  const action = el.dataset.action;
+  const v = vehicules.find(x=>x.id===id);
+  if(!v) return;
+  if(action === 'advance'){
+    const meta = statusMeta(v.statut);
+    if(meta.next){ await postToSheet({ action:'advance', id, newStatut: meta.next }); }
+  } else if(action === 'delete'){
+    await postToSheet({ action:'delete', id });
+  } else if(action === 'toggle-doc'){
+    const newVal = el.dataset.current === 'oui' ? 'non' : 'oui';
+    await postToSheet({ action:'setDoc', id, value: newVal });
+  }
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    render();
+  });
+});
+
+document.getElementById('search').addEventListener('input', (e)=>{
+  searchTerm = e.target.value;
+  render();
+});
+
+loadData();
+</script>
+</body>
+</html>

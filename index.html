@@ -91,6 +91,7 @@
     letter-spacing:0.5px;text-transform:uppercase;padding:4px 10px;
     border:1.5px solid; border-radius:3px; transform:rotate(-1.5deg);
   }
+  .stamp.achete{color:var(--ink-soft);border-color:var(--line);background:#fff;}
   .stamp.stock{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);}
   .stamp.transit{color:var(--stamp-amber);border-color:var(--stamp-amber);background:var(--stamp-amber-bg);}
   .stamp.arrive{color:var(--stamp-teal);border-color:var(--stamp-teal);background:var(--stamp-teal-bg);}
@@ -105,6 +106,8 @@
   .doc-badge.late{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);font-weight:600;}
   tr.row-late{background:var(--stamp-red-bg);}
   tr.row-late td{border-bottom-color:#EBC6C2;}
+  tr.row-late-achat{background:var(--stamp-amber-bg);}
+  tr.row-late-achat td{border-bottom-color:#F3DBB4;}
 
   .date-cell{font-size:12px;color:var(--ink-soft);}
 
@@ -160,6 +163,7 @@
       <span style="font-size:12px;color:var(--ink-soft);" id="status-bulk-count"></span>
       <div style="display:flex;gap:8px;">
         <select id="status-bulk-target">
+          <option value="stock">Marquer en stock</option>
           <option value="transit">Marquer expédié</option>
           <option value="arrive">Marquer vendu É.-U.</option>
         </select>
@@ -193,6 +197,7 @@
   <div class="toolbar">
     <input type="text" id="search" placeholder="Rechercher par VIN ou modèle...">
     <button class="filter-btn active" data-filter="all">Tous</button>
+    <button class="filter-btn" data-filter="achete">Acheté</button>
     <button class="filter-btn" data-filter="stock">En stock (pas parti)</button>
     <button class="filter-btn" data-filter="transit">Expédié</button>
     <button class="filter-btn" data-filter="arrive">Vendu</button>
@@ -211,7 +216,7 @@
 
 <script>
 const URL_KEY = 'apps_script_url';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyBXl8lQrLkvLuks_Ai8NKFQke5LP7MZ4ArCf9u1ZXCDK2J_VCl3aIuQkJaiTArsPu87Q/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzw8h7SY4EoQQ_8sqp4dvAuZaLbZGDaW9SCS4nSazIv27uSbiI8IMy4c5xqPOTB3rlNjg/exec';
 let vehicules = [];
 let currentFilter = 'all';
 let searchTerm = '';
@@ -239,6 +244,7 @@ function fmtDate(iso){
 }
 
 function statusMeta(s){
+  if(s==='achete') return {cls:'achete', label:'Acheté', next:'stock', nextLabel:'Marquer en stock'};
   if(s==='stock') return {cls:'stock', label:'En stock', next:'transit', nextLabel:'Marquer expédié'};
   if(s==='transit') return {cls:'transit', label:'Expédié', next:'arrive', nextLabel:'Marquer vendu'};
   return {cls:'arrive', label:'Vendu É.-U.', next:null, nextLabel:null};
@@ -292,22 +298,35 @@ function joursDepuis(iso){
 function estEnRetard(v){
   return !v.enregistrement.startsWith('oui') && joursDepuis(v.dateAjout) >= 7;
 }
+function estEnRetardAchat(v){
+  return v.statut === 'achete' && joursDepuis(v.dateAjout) >= 15;
+}
 
 function computeStats(){
   const total = vehicules.length;
+  const achete = vehicules.filter(v=>v.statut==='achete').length;
   const stock = vehicules.filter(v=>v.statut==='stock').length;
   const transit = vehicules.filter(v=>v.statut==='transit').length;
   const arrive = vehicules.filter(v=>v.statut==='arrive').length;
   const retard = vehicules.filter(estEnRetard).length;
+  const retardAchat = vehicules.filter(estEnRetardAchat).length;
   document.getElementById('stats').innerHTML = `
     <div class="stat"><div class="num">${total}</div><div class="lbl">Total véhicules</div></div>
-    <div class="stat alert"><div class="num">${stock}</div><div class="lbl">Pas encore parti</div></div>
+    <div class="stat"><div class="num">${achete}</div><div class="lbl">Achetés — pas encore en stock</div></div>
+    <div class="stat alert"><div class="num">${stock}</div><div class="lbl">En stock — pas encore parti</div></div>
     <div class="stat"><div class="num">${transit}</div><div class="lbl">En transit</div></div>
-    <div class="stat"><div class="num">${arrive}</div><div class="lbl">Vendus</div></div>
+  `;
+  document.getElementById('stats').innerHTML += `
+    <div class="stat" style="grid-column:1/-1;"><div class="num">${arrive}</div><div class="lbl">Vendus</div></div>
   `;
   if(retard > 0){
     document.getElementById('stats').innerHTML += `
       <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-red-bg);"><div class="num">${retard}</div><div class="lbl">Registre non reçu depuis 7 jours ou plus</div></div>
+    `;
+  }
+  if(retardAchat > 0){
+    document.getElementById('stats').innerHTML += `
+      <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-amber-bg);"><div class="num">${retardAchat}</div><div class="lbl">Acheté mais pas encore en stock depuis 15 jours ou plus</div></div>
     `;
   }
 }
@@ -334,7 +353,9 @@ function render(){
     const tr = document.createElement('tr');
     const docStatut = v.enregistrement === 'oui' ? 'oui-bon' : v.enregistrement; // compatibilité avec l'ancien format
     const enRetard = estEnRetard(v);
+    const enRetardAchat = estEnRetardAchat(v);
     if(enRetard) tr.classList.add('row-late');
+    else if(enRetardAchat) tr.classList.add('row-late-achat');
     let docCls, docLabel;
     if(docStatut === 'oui-bon'){ docCls='oui'; docLabel='Reçu · bon nom'; }
     else if(docStatut === 'oui-mauvais'){ docCls='wrongname'; docLabel='Reçu · mauvais nom'; }
@@ -343,7 +364,7 @@ function render(){
       <td class="vin">${v.vin}</td>
       <td>${v.modele}</td>
       <td style="font-size:13px;font-weight:500;">${v.compagnie || '—'}</td>
-      <td><span class="stamp ${meta.cls}">${meta.label}</span></td>
+      <td><span class="stamp ${meta.cls}">${meta.label}</span>${enRetardAchat ? `<div style="font-size:11px;color:var(--stamp-amber);font-weight:500;margin-top:3px;">Acheté depuis ${joursDepuis(v.dateAjout)} j</div>` : ''}</td>
       <td style="font-size:13px;color:${v.importateur?'var(--ink)':'var(--ink-soft)'};">${v.importateur || '—'}</td>
       <td><span class="doc-badge ${docCls}" data-action="toggle-doc" data-id="${v.id}" data-current="${docStatut}">${docLabel}</span></td>
       <td class="date-cell">${fmtDate(v.maj)}</td>

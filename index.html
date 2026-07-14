@@ -156,6 +156,23 @@
   </div>
 
   <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
+    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Registre / enregistrement reçu — mise à jour en lot</div>
+    <textarea id="doc-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
+      style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
+      <span style="font-size:12px;color:var(--ink-soft);" id="doc-bulk-count"></span>
+      <div style="display:flex;gap:8px;">
+        <select id="doc-bulk-target">
+          <option value="oui-bon">Marquer reçu — bon nom</option>
+          <option value="oui-mauvais">Marquer reçu — mauvais nom</option>
+          <option value="non">Marquer non reçu</option>
+        </select>
+        <button id="doc-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Mettre à jour le lot</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
     <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Mise à jour de statut en lot</div>
     <textarea id="status-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
@@ -173,23 +190,6 @@
           <option value="Direct">Direct</option>
         </select>
         <button id="status-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Mettre à jour le lot</button>
-      </div>
-    </div>
-  </div>
-
-  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
-    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Registre / enregistrement reçu — mise à jour en lot</div>
-    <textarea id="doc-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
-      style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
-      <span style="font-size:12px;color:var(--ink-soft);" id="doc-bulk-count"></span>
-      <div style="display:flex;gap:8px;">
-        <select id="doc-bulk-target">
-          <option value="oui-bon">Marquer reçu — bon nom</option>
-          <option value="oui-mauvais">Marquer reçu — mauvais nom</option>
-          <option value="non">Marquer non reçu</option>
-        </select>
-        <button id="doc-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Mettre à jour le lot</button>
       </div>
     </div>
   </div>

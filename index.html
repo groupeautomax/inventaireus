@@ -230,8 +230,8 @@
   </div>
 
   <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
-    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Vérification des rappels de sécurité (NHTSA)</div>
-    <p style="font-size:12px;color:var(--ink-soft);margin:0;">Vérifié automatiquement à l'ajout d'un véhicule. Pour revérifier un véhicule précis, cliquez directement sur son badge « Rappel ouvert » / « Aucun rappel » / « Non vérifié » dans le tableau ci-dessous.</p>
+    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Vérification des rappels de sécurité</div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:0;">Cliquez sur le bouton « Rappels constructeur » d'un véhicule dans le tableau ci-dessous pour ouvrir la page officielle du fabricant et vérifier manuellement les rappels avec le VIN.</p>
   </div>
 
   <div class="toolbar">
@@ -267,15 +267,6 @@
       </select>
     </div>
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
-      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par rappel</label>
-      <select id="filter-rappel" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
-        <option value="">Tous</option>
-        <option value="oui">Rappel ouvert</option>
-        <option value="non">Aucun rappel</option>
-        <option value="inconnu">Non vérifié</option>
-      </select>
-    </div>
-    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par importateur</label>
       <select id="filter-importateur" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
         <option value="">Tous</option>
@@ -296,7 +287,7 @@
 
   <table>
     <thead>
-      <tr><th>VIN</th><th>Modèle</th><th>Compagnie</th><th>Origine</th><th>Statut</th><th>Jours</th><th>Rappel</th><th>Importateur</th><th>Registre reçu</th><th>Coût</th><th>Dernière mise à jour</th><th></th></tr>
+      <tr><th>VIN</th><th>Modèle</th><th>Compagnie</th><th>Origine</th><th>Statut</th><th>Jours</th><th>Importateur</th><th>Registre reçu</th><th>Coût</th><th>Dernière mise à jour</th><th></th></tr>
     </thead>
     <tbody id="table-body"></tbody>
   </table>
@@ -333,6 +324,46 @@ async function saveScriptUrl(url){
 function fmtDate(iso){
   const d = new Date(iso);
   return d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+
+function windowStickerHtml(v){
+  const brand = (v.modele || '').trim().split(' ')[0].toUpperCase();
+  const GM_BRANDS = ['CHEVROLET','GMC','BUICK','CADILLAC'];
+  if(GM_BRANDS.includes(brand)){
+    return `<a class="action-btn" href="https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">Window Sticker</a>`;
+  }
+  if(brand === 'FORD'){
+    return `<a class="action-btn" href="https://www.windowsticker.ford.com/vin/${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">Window Sticker</a>`;
+  }
+  return `<span class="action-btn" style="opacity:0.5;cursor:not-allowed;" title="Lien Window Sticker non disponible pour cette marque">Window Sticker (n/d)</span>`;
+}
+
+const MANUFACTURER_RECALL_URLS = {
+  'FORD': 'https://www.ford.ca/support/recalls-details/',
+  'LINCOLN': 'https://www.ford.ca/support/recalls-details/',
+  'CHEVROLET': 'https://experience.gm.ca/en/ownercenter/recalls',
+  'GMC': 'https://experience.gm.ca/en/ownercenter/recalls',
+  'BUICK': 'https://experience.gm.ca/en/ownercenter/recalls',
+  'CADILLAC': 'https://experience.gm.ca/en/ownercenter/recalls',
+  'CHRYSLER': 'https://www.mopar.com/en-ca/my-vehicle/recalls/search.html',
+  'DODGE': 'https://www.mopar.com/en-ca/my-vehicle/recalls/search.html',
+  'JEEP': 'https://www.mopar.com/en-ca/my-vehicle/recalls/search.html',
+  'RAM': 'https://www.mopar.com/en-ca/my-vehicle/recalls/search.html',
+  'BMW': 'https://www.bmw.ca/en/ssl/VehicleRecall.html',
+  'VOLKSWAGEN': 'https://www.vw.ca/en/owners-and-drivers/recalls.html',
+  'VW': 'https://www.vw.ca/en/owners-and-drivers/recalls.html',
+  'KIA': 'https://www.kia.ca/en/owners/recalls',
+  'TOYOTA': 'https://www.toyota.ca/en/owners/recalls/',
+  'ACURA': 'https://www.acura.ca/en/recalls'
+};
+
+function manufacturerRecallHtml(v){
+  const brand = (v.modele || '').trim().split(' ')[0].toUpperCase();
+  const url = MANUFACTURER_RECALL_URLS[brand];
+  if(!url){
+    return `<span class="action-btn" style="opacity:0.5;cursor:not-allowed;" title="Page de rappels non répertoriée pour cette marque">Rappels constructeur (n/d)</span>`;
+  }
+  return `<a class="action-btn" href="${url}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;" title="Collez le VIN ${v.vin} sur cette page pour vérifier les rappels">Rappels constructeur</a>`;
 }
 
 function statusMeta(s){
@@ -440,10 +471,6 @@ function render(){
   if(filtreCompagnie) list = list.filter(v=>v.compagnie===filtreCompagnie);
   const filtreOrigine = document.getElementById('filter-origine').value;
   if(filtreOrigine) list = list.filter(v=>v.origine===filtreOrigine);
-  const filtreRappel = document.getElementById('filter-rappel').value;
-  if(filtreRappel === 'oui') list = list.filter(v=>v.rappel==='oui');
-  else if(filtreRappel === 'non') list = list.filter(v=>v.rappel==='non');
-  else if(filtreRappel === 'inconnu') list = list.filter(v=>!v.rappel);
   const filtreImportateur = document.getElementById('filter-importateur').value;
   if(filtreImportateur) list = list.filter(v=>v.importateur===filtreImportateur);
   const filtreRegistre = document.getElementById('filter-registre').value;
@@ -485,7 +512,6 @@ function render(){
       <td style="font-size:13px;">${v.origine || '—'}</td>
       <td><span class="stamp ${meta.cls}">${meta.label}</span>${enRetardAchat ? `<div style="font-size:11px;color:var(--stamp-amber);font-weight:500;margin-top:3px;">Acheté depuis ${joursDepuis(v.dateAjout)} j</div>` : ''}</td>
       <td style="font-size:11.5px;color:var(--ink-soft);line-height:1.6;"><div>Achat : ${joursAchat} j</div>${joursTransitTxt}</td>
-      <td>${v.rappel==='oui' ? `<span class="recall-badge oui" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="${v.rappelDetail||''} — cliquer pour revérifier">Rappel ouvert</span>` : v.rappel==='non' ? `<span class="recall-badge non" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="Cliquer pour revérifier">Aucun rappel</span>` : `<span class="recall-badge inconnu" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="Cliquer pour vérifier">Non vérifié</span>`}</td>
       <td style="font-size:13px;color:${v.importateur?'var(--ink)':'var(--ink-soft)'};">${v.importateur || '—'}</td>
       <td><span class="doc-badge ${docCls}" data-action="toggle-doc" data-id="${v.id}" data-current="${docStatut}">${docLabel}</span></td>
       <td><input type="number" step="0.01" class="cost-input" data-id="${v.id}" value="${v.cout || ''}" placeholder="—" style="width:90px;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:5px 6px;border:1px solid var(--line);"></td>
@@ -493,7 +519,8 @@ function render(){
       <td>
         <div class="row-actions">
           ${meta.next ? `<button class="action-btn" data-action="advance" data-id="${v.id}">${meta.nextLabel}</button>` : ''}
-          <a class="action-btn" href="https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">Window Sticker</a>
+          ${windowStickerHtml(v)}
+          ${manufacturerRecallHtml(v)}
           <select class="action-btn transfer-select" data-id="${v.id}" style="cursor:pointer;">
             <option value="">Transférer vers...</option>
             <option value="CAN">Canada</option>
@@ -535,69 +562,6 @@ async function decodeVinsBatch(vins){
   }
 }
 
-async function decodeVinsBatchDetailed(vins){
-  if(vins.length === 0) return {};
-  try{
-    const body = new URLSearchParams();
-    body.append('format', 'json');
-    body.append('data', vins.join(';'));
-    const resp = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/', {
-      method: 'POST',
-      body
-    });
-    const data = await resp.json();
-    const map = {};
-    (data.Results || []).forEach(r=>{
-      map[r.VIN] = { make: r.Make || '', model: r.Model || '', year: r.ModelYear || '' };
-    });
-    return map;
-  }catch(e){
-    return {};
-  }
-}
-
-const recallCache = {};
-async function getRecallsForVehicle(make, model, year){
-  const key = `${make}|${model}|${year}`.toUpperCase();
-  if(recallCache[key] !== undefined) return recallCache[key];
-  try{
-    const url = `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`;
-    const resp = await fetch(url);
-    const data = await resp.json();
-    recallCache[key] = data.results || [];
-  }catch(e){
-    recallCache[key] = null; // null = erreur réseau, distinct de [] = aucun rappel trouvé
-  }
-  return recallCache[key];
-}
-
-async function recheckOneRecall(v){
-  const key = null; // le cache sera vidé ci-dessous pour ce véhicule précis
-  const decoded = await decodeVinsBatchDetailed([v.vin]);
-  const info = decoded[v.vin];
-  let rappel = '';
-  let rappelDetail = '';
-  if(info && info.make && info.model && info.year){
-    const cacheKey = `${info.make}|${info.model}|${info.year}`.toUpperCase();
-    delete recallCache[cacheKey]; // on force une nouvelle consultation, pas le cache
-    const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
-    if(recalls === null){
-      rappel = '';
-    } else if(recalls.length > 0){
-      rappel = 'oui';
-      rappelDetail = recalls.map(r=>r.Component || 'Composant non précisé').join(', ');
-    } else {
-      rappel = 'non';
-    }
-  }
-  await fetch(scriptUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action:'updateRecallResults', results: [{ vin: v.vin, rappel, rappelDetail }], sheet: SHEET_SOURCE })
-  });
-  await fetchFromSheet();
-}
-
 function parseBulkLines(text){
   return text.split('\n')
     .map(l=>l.trim())
@@ -635,36 +599,18 @@ document.getElementById('bulk-add-btn').addEventListener('click', async ()=>{
   textEl.value = '';
   updateBulkCount();
 
-  setSynced(`Décodage de ${parsed.length} VIN...`);
-  const allVins = parsed.map(v=>v.vin);
-  const decodedDetailed = await decodeVinsBatchDetailed(allVins);
-
-  setSynced(`Vérification des rappels NHTSA pour ${parsed.length} VIN...`);
-  const vehiculesLot = new Array(parsed.length);
-  const CONCURRENCE = 8;
-  for(let i = 0; i < parsed.length; i += CONCURRENCE){
-    const lot = parsed.slice(i, i + CONCURRENCE);
-    await Promise.all(lot.map(async (v, j) => {
-      const info = decodedDetailed[v.vin];
-      const modeleAuto = info && info.make ? [info.make, info.model, info.year].filter(Boolean).join(' ') : null;
-      const modele = v.modele || modeleAuto || '(modèle non reconnu — à préciser)';
-
-      let rappel = '';
-      let rappelDetail = '';
-      if(info && info.make && info.model && info.year){
-        const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
-        if(recalls === null){
-          rappel = '';
-        } else if(recalls.length > 0){
-          rappel = 'oui';
-          rappelDetail = recalls.map(r=>r.Component || 'Composant non précisé').join(', ');
-        } else {
-          rappel = 'non';
-        }
-      }
-      vehiculesLot[i + j] = { vin: v.vin, modele, origine, compagnie, rappel, rappelDetail };
-    }));
+  setSynced(`Décodage automatique de ${parsed.length} VIN...`);
+  const toDecode = parsed.filter(v=>!v.modele).map(v=>v.vin);
+  let decodedMap = {};
+  if(toDecode.length > 0){
+    decodedMap = await decodeVinsBatch(toDecode);
   }
+  const vehiculesLot = parsed.map(v=>({
+    vin: v.vin,
+    modele: v.modele || decodedMap[v.vin] || '(modèle non reconnu — à préciser)',
+    origine,
+    compagnie
+  }));
 
   await postToSheet({ action:'addBulk', vehicules: vehiculesLot });
 });
@@ -823,15 +769,11 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
     const confirme = confirm(`Transférer le véhicule ${v.vin} vers le registre Canada ? Il sera retiré du registre É.-U. et ajouté au registre Canada avec le statut "Acheté".`);
     if(!confirme) return;
     await postToSheet({ action:'transfer', id, toSheet: 'CAN' });
-  } else if(action === 'recheck-recall'){
-    el.textContent = '...';
-    await recheckOneRecall(v);
   }
 });
 
 document.getElementById('filter-compagnie').addEventListener('change', render);
 document.getElementById('filter-origine').addEventListener('change', render);
-document.getElementById('filter-rappel').addEventListener('change', render);
 document.getElementById('filter-importateur').addEventListener('change', render);
 document.getElementById('filter-registre').addEventListener('change', render);
 

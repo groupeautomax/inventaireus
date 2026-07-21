@@ -229,12 +229,13 @@
 
   <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
     <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Vérification des rappels de sécurité (NHTSA)</div>
-    <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px;">Collez des VIN (un par ligne) pour vérifier s'il existe des rappels ouverts, à partir de la base publique du NHTSA.</p>
-    <textarea id="recall-input" rows="5" placeholder="Un VIN par ligne.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
-      style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
+    <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px;">Vérifie automatiquement tous les véhicules actuellement dans le registre — aucun VIN à saisir. Le résultat s'affiche directement dans la colonne « Rappel » du tableau.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <span style="font-size:12px;color:var(--ink-soft);" id="recall-count"></span>
-      <button id="recall-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Vérifier les rappels</button>
+      <div style="display:flex;gap:8px;">
+        <button id="recall-btn-missing" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Vérifier les véhicules non vérifiés</button>
+        <button id="recall-btn-all" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:#fff;color:var(--ink);border:1px solid var(--line);padding:9px 18px;cursor:pointer;">Tout revérifier</button>
+      </div>
     </div>
     <div id="recall-results" style="margin-top:14px;"></div>
   </div>
@@ -260,6 +261,30 @@
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par origine</label>
       <select id="filter-origine" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
         <option value="">Toutes</option>
+      </select>
+    </div>
+    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
+      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par rappel</label>
+      <select id="filter-rappel" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+        <option value="">Tous</option>
+        <option value="oui">Rappel ouvert</option>
+        <option value="non">Aucun rappel</option>
+        <option value="inconnu">Non vérifié</option>
+      </select>
+    </div>
+    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
+      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par importateur</label>
+      <select id="filter-importateur" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+        <option value="">Tous</option>
+      </select>
+    </div>
+    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
+      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par registre</label>
+      <select id="filter-registre" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+        <option value="">Tous</option>
+        <option value="oui-bon">Reçu · bon nom</option>
+        <option value="oui-mauvais">Reçu · mauvais nom</option>
+        <option value="non">Non reçu</option>
       </select>
     </div>
   </div>
@@ -335,14 +360,19 @@ async function fetchFromSheet(){
 function populateFilterDropdowns(){
   const compagnieSel = document.getElementById('filter-compagnie');
   const origineSel = document.getElementById('filter-origine');
+  const importateurSel = document.getElementById('filter-importateur');
   const compagnieVal = compagnieSel.value;
   const origineVal = origineSel.value;
+  const importateurVal = importateurSel.value;
   const compagnies = [...new Set(vehicules.map(v=>v.compagnie).filter(Boolean))].sort();
   const origines = [...new Set(vehicules.map(v=>v.origine).filter(Boolean))].sort();
+  const importateurs = [...new Set(vehicules.map(v=>v.importateur).filter(Boolean))].sort();
   compagnieSel.innerHTML = '<option value="">Toutes</option>' + compagnies.map(c=>`<option value="${c}">${c}</option>`).join('');
   origineSel.innerHTML = '<option value="">Toutes</option>' + origines.map(o=>`<option value="${o}">${o}</option>`).join('');
+  importateurSel.innerHTML = '<option value="">Tous</option>' + importateurs.map(i=>`<option value="${i}">${i}</option>`).join('');
   compagnieSel.value = compagnies.includes(compagnieVal) ? compagnieVal : '';
   origineSel.value = origines.includes(origineVal) ? origineVal : '';
+  importateurSel.value = importateurs.includes(importateurVal) ? importateurVal : '';
 }
 
 async function postToSheet(payload){
@@ -412,12 +442,24 @@ function computeStats(){
 
 function render(){
   computeStats();
+  updateRecallCount();
   let list = vehicules.slice().sort((a,b)=> new Date(b.maj) - new Date(a.maj));
   if(currentFilter !== 'all') list = list.filter(v=>v.statut===currentFilter);
   const filtreCompagnie = document.getElementById('filter-compagnie').value;
   if(filtreCompagnie) list = list.filter(v=>v.compagnie===filtreCompagnie);
   const filtreOrigine = document.getElementById('filter-origine').value;
   if(filtreOrigine) list = list.filter(v=>v.origine===filtreOrigine);
+  const filtreRappel = document.getElementById('filter-rappel').value;
+  if(filtreRappel === 'oui') list = list.filter(v=>v.rappel==='oui');
+  else if(filtreRappel === 'non') list = list.filter(v=>v.rappel==='non');
+  else if(filtreRappel === 'inconnu') list = list.filter(v=>!v.rappel);
+  const filtreImportateur = document.getElementById('filter-importateur').value;
+  if(filtreImportateur) list = list.filter(v=>v.importateur===filtreImportateur);
+  const filtreRegistre = document.getElementById('filter-registre').value;
+  if(filtreRegistre) list = list.filter(v=>{
+    const docStatut = v.enregistrement === 'oui' ? 'oui-bon' : v.enregistrement;
+    return docStatut === filtreRegistre;
+  });
   if(searchTerm){
     const t = searchTerm.toLowerCase();
     list = list.filter(v=> v.vin.toLowerCase().includes(t) || v.modele.toLowerCase().includes(t));
@@ -536,43 +578,45 @@ async function getRecallsForVehicle(make, model, year){
 }
 
 function updateRecallCount(){
-  const text = document.getElementById('recall-input').value;
-  const n = parseVinLines(text).length;
-  document.getElementById('recall-count').textContent = n > 0 ? `${n} VIN à vérifier` : '';
+  const total = vehicules.length;
+  const nonVerifies = vehicules.filter(v => !v.rappel).length;
+  document.getElementById('recall-count').textContent = total > 0 ? `${nonVerifies} sur ${total} véhicule(s) non encore vérifié(s)` : '';
 }
-document.getElementById('recall-input').addEventListener('input', updateRecallCount);
 
-document.getElementById('recall-btn').addEventListener('click', async ()=>{
-  const vins = parseVinLines(document.getElementById('recall-input').value);
+async function runRecallCheck(vehiculesACheck){
   const resultsEl = document.getElementById('recall-results');
-  if(vins.length === 0){ resultsEl.innerHTML = ''; return; }
+  if(vehiculesACheck.length === 0){
+    resultsEl.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);">Aucun véhicule à vérifier.</div>`;
+    return;
+  }
 
-  resultsEl.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);">Décodage des VIN et consultation du NHTSA...</div>`;
+  resultsEl.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);">Décodage de ${vehiculesACheck.length} VIN et consultation du NHTSA...</div>`;
+  const vins = vehiculesACheck.map(v=>v.vin);
   const decoded = await decodeVinsBatchDetailed(vins);
 
   const avecRappel = [];
   const sansRappel = [];
   const nonDecode = [];
 
-  for(const vin of vins){
-    const info = decoded[vin];
+  for(const v of vehiculesACheck){
+    const info = decoded[v.vin];
     if(!info || !info.make || !info.model || !info.year){
-      nonDecode.push(vin);
+      nonDecode.push(v.vin);
       continue;
     }
     const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
     if(recalls === null){
-      nonDecode.push(vin);
+      nonDecode.push(v.vin);
     } else if(recalls.length > 0){
-      avecRappel.push({ vin, info, recalls });
+      avecRappel.push({ vin: v.vin, info, recalls });
     } else {
-      sansRappel.push({ vin, info });
+      sansRappel.push({ vin: v.vin, info });
     }
   }
 
   let html = `<div style="font-size:13px;font-weight:600;color:var(--stamp-red);margin-bottom:6px;">Véhicules avec rappel(s) ouvert(s) (${avecRappel.length})</div>`;
   if(avecRappel.length === 0){
-    html += `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:18px;">Aucun rappel ouvert trouvé parmi les VIN vérifiés.</div>`;
+    html += `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:18px;">Aucun rappel ouvert trouvé parmi les véhicules vérifiés.</div>`;
   } else {
     html += `<div style="margin-bottom:18px;">`;
     avecRappel.forEach(item=>{
@@ -619,8 +663,16 @@ document.getElementById('recall-btn').addEventListener('click', async ()=>{
         body: JSON.stringify({ action:'updateRecallResults', results: resultsToPersist, sheet: SHEET_SOURCE })
       });
       await fetchFromSheet();
+      updateRecallCount();
     }catch(e){}
   }
+}
+
+document.getElementById('recall-btn-missing').addEventListener('click', ()=>{
+  runRecallCheck(vehicules.filter(v => !v.rappel));
+});
+document.getElementById('recall-btn-all').addEventListener('click', ()=>{
+  runRecallCheck(vehicules.slice());
 });
 
 function parseBulkLines(text){
@@ -849,6 +901,9 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
 
 document.getElementById('filter-compagnie').addEventListener('change', render);
 document.getElementById('filter-origine').addEventListener('change', render);
+document.getElementById('filter-rappel').addEventListener('change', render);
+document.getElementById('filter-importateur').addEventListener('change', render);
+document.getElementById('filter-registre').addEventListener('change', render);
 
 document.getElementById('table-body').addEventListener('change', async (e)=>{
   const input = e.target.closest('.cost-input');

@@ -92,6 +92,7 @@
     border:1.5px solid; border-radius:3px; transform:rotate(-1.5deg);
   }
   .stamp.achete{color:var(--ink-soft);border-color:var(--line);background:#fff;}
+  .stamp.transitqc{color:#5B4B8A;border-color:#5B4B8A;background:#EEEAF6;}
   .stamp.stock{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);}
   .stamp.transit{color:var(--stamp-amber);border-color:var(--stamp-amber);background:var(--stamp-amber-bg);}
   .stamp.arrive{color:var(--stamp-teal);border-color:var(--stamp-teal);background:var(--stamp-teal-bg);}
@@ -201,6 +202,7 @@
       <span style="font-size:12px;color:var(--ink-soft);" id="status-bulk-count"></span>
       <div style="display:flex;gap:8px;">
         <select id="status-bulk-target">
+          <option value="transitqc">Marquer transit QC</option>
           <option value="stock">Marquer en stock</option>
           <option value="transit">Marquer expédié</option>
           <option value="arrive">Marquer vendu</option>
@@ -237,6 +239,7 @@
       <select id="filter-statut" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
         <option value="all">Tous</option>
         <option value="achete">Acheté</option>
+        <option value="transitqc">Transit QC</option>
         <option value="stock">En stock (pas parti)</option>
         <option value="transit">Expédié</option>
         <option value="arrive">Vendu</option>
@@ -320,7 +323,8 @@ function fmtDate(iso){
 }
 
 function statusMeta(s){
-  if(s==='achete') return {cls:'achete', label:'Acheté', next:'stock', nextLabel:'Marquer en stock'};
+  if(s==='achete') return {cls:'achete', label:'Acheté', next:'transitqc', nextLabel:'Marquer transit QC'};
+  if(s==='transitqc') return {cls:'transitqc', label:'Transit QC', next:'stock', nextLabel:'Marquer en stock'};
   if(s==='stock') return {cls:'stock', label:'En stock', next:'transit', nextLabel:'Marquer expédié'};
   if(s==='transit') return {cls:'transit', label:'Expédié', next:'arrive', nextLabel:'Marquer vendu'};
   return {cls:'arrive', label:'Vendu', next:null, nextLabel:null};
@@ -382,7 +386,7 @@ function estEnRetard(v){
   return !v.enregistrement.startsWith('oui') && joursDepuis(v.dateAjout) >= 10;
 }
 function estEnRetardAchat(v){
-  return v.statut === 'achete' && joursDepuis(v.dateAjout) >= 7;
+  return (v.statut === 'achete' || v.statut === 'transitqc') && joursDepuis(v.dateAjout) >= 7;
 }
 
 function computeStats(){

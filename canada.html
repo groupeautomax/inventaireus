@@ -468,7 +468,7 @@ function render(){
       <td style="font-size:13px;font-weight:500;">${v.compagnie || '—'}</td>
       <td style="font-size:13px;">${v.origine || '—'}</td>
       <td><span class="stamp ${meta.cls}">${meta.label}</span>${enRetardAchat ? `<div style="font-size:11px;color:var(--stamp-amber);font-weight:500;margin-top:3px;">Acheté depuis ${joursDepuis(v.dateAjout)} j</div>` : ''}</td>
-      <td>${v.rappel==='oui' ? `<span class="recall-badge oui" title="${v.rappelDetail||''}">Rappel ouvert</span>` : v.rappel==='non' ? `<span class="recall-badge non">Aucun</span>` : `<span class="recall-badge inconnu">Non vérifié</span>`}</td>
+      <td>${v.rappel==='oui' ? `<span class="recall-badge oui" title="${v.rappelDetail||''}">Rappel ouvert</span>` : v.rappel==='non' ? `<span class="recall-badge non">Aucun rappel</span>` : `<span class="recall-badge inconnu">Non vérifié</span>`}</td>
       <td><span class="doc-badge ${docCls}" data-action="toggle-doc" data-id="${v.id}" data-current="${docStatut}">${docLabel}</span></td>
       <td><input type="number" step="0.01" class="cost-input" data-id="${v.id}" value="${v.cout || ''}" placeholder="—" style="width:90px;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:5px 6px;border:1px solid var(--line);"></td>
       <td class="date-cell">${fmtDate(v.maj)}</td>
@@ -571,20 +571,25 @@ async function runRecallCheck(vehiculesACheck){
   const sansRappel = [];
   const nonDecode = [];
 
-  for(const v of vehiculesACheck){
-    const info = decoded[v.vin];
-    if(!info || !info.make || !info.model || !info.year){
-      nonDecode.push(v.vin);
-      continue;
-    }
-    const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
-    if(recalls === null){
-      nonDecode.push(v.vin);
-    } else if(recalls.length > 0){
-      avecRappel.push({ vin: v.vin, info, recalls });
-    } else {
-      sansRappel.push({ vin: v.vin, info });
-    }
+  const CONCURRENCE = 8;
+  for(let i = 0; i < vehiculesACheck.length; i += CONCURRENCE){
+    const lot = vehiculesACheck.slice(i, i + CONCURRENCE);
+    resultsEl.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);">Vérification NHTSA... ${Math.min(i+CONCURRENCE, vehiculesACheck.length)} / ${vehiculesACheck.length}</div>`;
+    await Promise.all(lot.map(async (v) => {
+      const info = decoded[v.vin];
+      if(!info || !info.make || !info.model || !info.year){
+        nonDecode.push(v.vin);
+        return;
+      }
+      const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
+      if(recalls === null){
+        nonDecode.push(v.vin);
+      } else if(recalls.length > 0){
+        avecRappel.push({ vin: v.vin, info, recalls });
+      } else {
+        sansRappel.push({ vin: v.vin, info });
+      }
+    }));
   }
 
   let html = `<div style="font-size:13px;font-weight:600;color:var(--stamp-red);margin-bottom:6px;">Véhicules avec rappel(s) ouvert(s) (${avecRappel.length})</div>`;
@@ -606,14 +611,7 @@ async function runRecallCheck(vehiculesACheck){
     html += `</div>`;
   }
 
-  html += `<div style="font-size:13px;font-weight:600;color:var(--stamp-teal);margin-bottom:6px;">Aucun rappel trouvé (${sansRappel.length})</div>`;
-  if(sansRappel.length === 0){
-    html += `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:18px;">—</div>`;
-  } else {
-    html += `<div style="border:1px solid var(--stamp-teal-bg);background:var(--stamp-teal-bg);padding:10px 12px;margin-bottom:18px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.9;">`;
-    html += sansRappel.map(item => `${item.vin} <span style="font-family:'Inter',sans-serif;color:var(--ink-soft);">— ${item.info.make} ${item.info.model} ${item.info.year}</span>`).join('<br>');
-    html += `</div>`;
-  }
+  html += `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:18px;">${sansRappel.length} véhicule(s) sans rappel — non listés ici.</div>`;
 
   if(nonDecode.length > 0){
     html += `<div style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;">Non vérifiables (VIN non reconnu ou erreur réseau) (${nonDecode.length})</div>`;
@@ -690,26 +688,30 @@ document.getElementById('bulk-add-btn').addEventListener('click', async ()=>{
   const decodedDetailed = await decodeVinsBatchDetailed(allVins);
 
   setSynced(`Vérification des rappels NHTSA pour ${parsed.length} VIN...`);
-  const vehiculesLot = [];
-  for(const v of parsed){
-    const info = decodedDetailed[v.vin];
-    const modeleAuto = info && info.make ? [info.make, info.model, info.year].filter(Boolean).join(' ') : null;
-    const modele = v.modele || modeleAuto || '(modèle non reconnu — à préciser)';
+  const vehiculesLot = new Array(parsed.length);
+  const CONCURRENCE = 8;
+  for(let i = 0; i < parsed.length; i += CONCURRENCE){
+    const lot = parsed.slice(i, i + CONCURRENCE);
+    await Promise.all(lot.map(async (v, j) => {
+      const info = decodedDetailed[v.vin];
+      const modeleAuto = info && info.make ? [info.make, info.model, info.year].filter(Boolean).join(' ') : null;
+      const modele = v.modele || modeleAuto || '(modèle non reconnu — à préciser)';
 
-    let rappel = '';
-    let rappelDetail = '';
-    if(info && info.make && info.model && info.year){
-      const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
-      if(recalls === null){
-        rappel = '';
-      } else if(recalls.length > 0){
-        rappel = 'oui';
-        rappelDetail = recalls.map(r=>r.Component || 'Composant non précisé').join(', ');
-      } else {
-        rappel = 'non';
+      let rappel = '';
+      let rappelDetail = '';
+      if(info && info.make && info.model && info.year){
+        const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
+        if(recalls === null){
+          rappel = '';
+        } else if(recalls.length > 0){
+          rappel = 'oui';
+          rappelDetail = recalls.map(r=>r.Component || 'Composant non précisé').join(', ');
+        } else {
+          rappel = 'non';
+        }
       }
-    }
-    vehiculesLot.push({ vin: v.vin, modele, origine, compagnie, rappel, rappelDetail });
+      vehiculesLot[i + j] = { vin: v.vin, modele, origine, compagnie, rappel, rappelDetail };
+    }));
   }
 
   await postToSheet({ action:'addBulk', vehicules: vehiculesLot });

@@ -235,24 +235,33 @@
 
   <div class="toolbar">
     <input type="text" id="search" placeholder="Rechercher par VIN ou modèle...">
-    <button class="filter-btn active" data-filter="all">Tous</button>
-    <button class="filter-btn" data-filter="achete">Acheté</button>
-    <button class="filter-btn" data-filter="stock">En stock (pas parti)</button>
-    <button class="filter-btn" data-filter="transit">Expédié</button>
-    <button class="filter-btn" data-filter="arrive">Vendu</button>
   </div>
 
   <div class="toolbar">
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
+      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par statut</label>
+      <select id="filter-statut" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+        <option value="all">Tous</option>
+        <option value="achete">Acheté</option>
+        <option value="stock">En stock (pas parti)</option>
+        <option value="transit">Expédié</option>
+        <option value="arrive">Vendu</option>
+      </select>
+    </div>
+    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par compagnie</label>
       <select id="filter-compagnie" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
         <option value="">Toutes</option>
+        <option value="HAWKS">HAWKS</option>
+        <option value="STM">STM</option>
       </select>
     </div>
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par origine</label>
       <select id="filter-origine" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
         <option value="">Toutes</option>
+        <option value="Achat">Achat</option>
+        <option value="Échange">Échange</option>
       </select>
     </div>
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
@@ -343,16 +352,8 @@ async function fetchFromSheet(){
 }
 
 function populateFilterDropdowns(){
-  const compagnieSel = document.getElementById('filter-compagnie');
-  const origineSel = document.getElementById('filter-origine');
-  const compagnieVal = compagnieSel.value;
-  const origineVal = origineSel.value;
-  const compagnies = [...new Set(vehicules.map(v=>v.compagnie).filter(Boolean))].sort();
-  const origines = [...new Set(vehicules.map(v=>v.origine).filter(Boolean))].sort();
-  compagnieSel.innerHTML = '<option value="">Toutes</option>' + compagnies.map(c=>`<option value="${c}">${c}</option>`).join('');
-  origineSel.innerHTML = '<option value="">Toutes</option>' + origines.map(o=>`<option value="${o}">${o}</option>`).join('');
-  compagnieSel.value = compagnies.includes(compagnieVal) ? compagnieVal : '';
-  origineSel.value = origines.includes(origineVal) ? origineVal : '';
+  // Les options de Compagnie et Origine sont maintenant fixes dans le HTML,
+  // plus besoin de les reconstruire dynamiquement à partir des données.
 }
 
 async function postToSheet(payload){
@@ -477,7 +478,6 @@ function render(){
           ${meta.next ? `<button class="action-btn" data-action="advance" data-id="${v.id}">${meta.nextLabel}</button>` : ''}
           <a class="action-btn" href="https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">Window Sticker</a>
           <button class="action-btn" data-action="transfer" data-id="${v.id}" title="Déplace ce véhicule vers le registre É.-U.">Transférer → US</button>
-          <button class="action-btn danger" data-action="delete" data-id="${v.id}">Supprimer</button>
         </div>
       </td>
     `;
@@ -871,13 +871,9 @@ document.getElementById('table-body').addEventListener('change', async (e)=>{
   await postToSheet({ action:'setCost', id, value });
 });
 
-document.querySelectorAll('.filter-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    currentFilter = btn.dataset.filter;
-    render();
-  });
+document.getElementById('filter-statut').addEventListener('change', (e)=>{
+  currentFilter = e.target.value;
+  render();
 });
 
 document.getElementById('search').addEventListener('input', (e)=>{

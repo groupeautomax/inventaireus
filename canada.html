@@ -104,6 +104,14 @@
   .doc-badge.non{color:var(--ink-soft);border-color:var(--line);background:#fff;}
   .doc-badge.wrongname{color:var(--stamp-amber);border-color:var(--stamp-amber);background:var(--stamp-amber-bg);font-weight:600;}
   .doc-badge.late{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);font-weight:600;}
+
+  .recall-badge{
+    display:inline-block;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;
+    padding:4px 9px;border-radius:3px;border:1px solid;
+  }
+  .recall-badge.oui{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);}
+  .recall-badge.non{color:var(--stamp-teal);border-color:var(--stamp-teal);background:var(--stamp-teal-bg);}
+  .recall-badge.inconnu{color:var(--ink-soft);border-color:var(--line);background:#fff;font-weight:400;}
   tr.row-late{background:var(--stamp-red-bg);}
   tr.row-late td{border-bottom-color:#EBC6C2;}
   tr.row-late-achat{background:var(--stamp-amber-bg);}
@@ -156,6 +164,11 @@
           <option value="HAWKS">HAWKS</option>
           <option value="STM">STM</option>
         </select>
+        <select id="bulk-origine">
+          <option value="">Origine...</option>
+          <option value="Achat">Achat</option>
+          <option value="Échange">Échange</option>
+        </select>
         <button id="bulk-add-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Ajouter tout le lot</button>
       </div>
     </div>
@@ -207,6 +220,18 @@
     <div id="verif-results" style="margin-top:14px;"></div>
   </div>
 
+  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
+    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Vérification des rappels de sécurité (NHTSA)</div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px;">Collez des VIN (un par ligne) pour vérifier s'il existe des rappels ouverts, à partir de la base publique du NHTSA.</p>
+    <textarea id="recall-input" rows="5" placeholder="Un VIN par ligne.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
+      style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
+      <span style="font-size:12px;color:var(--ink-soft);" id="recall-count"></span>
+      <button id="recall-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Vérifier les rappels</button>
+    </div>
+    <div id="recall-results" style="margin-top:14px;"></div>
+  </div>
+
   <div class="toolbar">
     <input type="text" id="search" placeholder="Rechercher par VIN ou modèle...">
     <button class="filter-btn active" data-filter="all">Tous</button>
@@ -216,9 +241,24 @@
     <button class="filter-btn" data-filter="arrive">Vendu</button>
   </div>
 
+  <div class="toolbar">
+    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
+      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par compagnie</label>
+      <select id="filter-compagnie" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+        <option value="">Toutes</option>
+      </select>
+    </div>
+    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
+      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par origine</label>
+      <select id="filter-origine" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+        <option value="">Toutes</option>
+      </select>
+    </div>
+  </div>
+
   <table>
     <thead>
-      <tr><th>VIN</th><th>Modèle</th><th>Compagnie</th><th>Statut</th><th>Registre reçu</th><th>Dernière mise à jour</th><th></th></tr>
+      <tr><th>VIN</th><th>Modèle</th><th>Compagnie</th><th>Origine</th><th>Statut</th><th>Rappel</th><th>Registre reçu</th><th>Coût</th><th>Dernière mise à jour</th><th></th></tr>
     </thead>
     <tbody id="table-body"></tbody>
   </table>
@@ -229,7 +269,7 @@
 
 <script>
 const URL_KEY = 'apps_script_url_can';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZ_nr-X21ToePqBbBp6qIqjDn7oupibxU75X1X3KEcSvfMPJnwnGKIy8KMXzfFzZAR1g/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzhlWYOTlp4RBDLOfiBCr8ohzLuUwPK2GR7kcIHLXZ-LM9eoFHZr4gIPDnwbRzP9D5d2A/exec';
 const SHEET_SOURCE = 'CAN';
 let vehicules = [];
 let currentFilter = 'all';
@@ -279,7 +319,21 @@ async function fetchFromSheet(){
   }catch(e){
     setSynced('Impossible de joindre le Google Sheet. Vérifiez l\'URL et les permissions de partage.');
   }
+  populateFilterDropdowns();
   render();
+}
+
+function populateFilterDropdowns(){
+  const compagnieSel = document.getElementById('filter-compagnie');
+  const origineSel = document.getElementById('filter-origine');
+  const compagnieVal = compagnieSel.value;
+  const origineVal = origineSel.value;
+  const compagnies = [...new Set(vehicules.map(v=>v.compagnie).filter(Boolean))].sort();
+  const origines = [...new Set(vehicules.map(v=>v.origine).filter(Boolean))].sort();
+  compagnieSel.innerHTML = '<option value="">Toutes</option>' + compagnies.map(c=>`<option value="${c}">${c}</option>`).join('');
+  origineSel.innerHTML = '<option value="">Toutes</option>' + origines.map(o=>`<option value="${o}">${o}</option>`).join('');
+  compagnieSel.value = compagnies.includes(compagnieVal) ? compagnieVal : '';
+  origineSel.value = origines.includes(origineVal) ? origineVal : '';
 }
 
 async function postToSheet(payload){
@@ -311,10 +365,10 @@ function joursDepuis(iso){
   return Math.floor(ms / (1000*60*60*24));
 }
 function estEnRetard(v){
-  return !v.enregistrement.startsWith('oui') && joursDepuis(v.dateAjout) >= 7;
+  return !v.enregistrement.startsWith('oui') && joursDepuis(v.dateAjout) >= 10;
 }
 function estEnRetardAchat(v){
-  return v.statut === 'achete' && joursDepuis(v.dateAjout) >= 15;
+  return v.statut === 'achete' && joursDepuis(v.dateAjout) >= 7;
 }
 
 function computeStats(){
@@ -336,12 +390,12 @@ function computeStats(){
   `;
   if(retard > 0){
     document.getElementById('stats').innerHTML += `
-      <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-red-bg);"><div class="num">${retard}</div><div class="lbl">Registre non reçu depuis 7 jours ou plus</div></div>
+      <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-red-bg);"><div class="num">${retard}</div><div class="lbl">Registre non reçu depuis 10 jours ou plus</div></div>
     `;
   }
   if(retardAchat > 0){
     document.getElementById('stats').innerHTML += `
-      <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-amber-bg);"><div class="num">${retardAchat}</div><div class="lbl">Acheté mais pas encore en stock depuis 15 jours ou plus</div></div>
+      <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-amber-bg);"><div class="num">${retardAchat}</div><div class="lbl">Non reçu en stock depuis 7 jours ou plus après l'achat</div></div>
     `;
   }
 }
@@ -350,6 +404,10 @@ function render(){
   computeStats();
   let list = vehicules.slice().sort((a,b)=> new Date(b.maj) - new Date(a.maj));
   if(currentFilter !== 'all') list = list.filter(v=>v.statut===currentFilter);
+  const filtreCompagnie = document.getElementById('filter-compagnie').value;
+  if(filtreCompagnie) list = list.filter(v=>v.compagnie===filtreCompagnie);
+  const filtreOrigine = document.getElementById('filter-origine').value;
+  if(filtreOrigine) list = list.filter(v=>v.origine===filtreOrigine);
   if(searchTerm){
     const t = searchTerm.toLowerCase();
     list = list.filter(v=> v.vin.toLowerCase().includes(t) || v.modele.toLowerCase().includes(t));
@@ -379,12 +437,16 @@ function render(){
       <td class="vin">${v.vin}</td>
       <td>${v.modele}</td>
       <td style="font-size:13px;font-weight:500;">${v.compagnie || '—'}</td>
+      <td style="font-size:13px;">${v.origine || '—'}</td>
       <td><span class="stamp ${meta.cls}">${meta.label}</span>${enRetardAchat ? `<div style="font-size:11px;color:var(--stamp-amber);font-weight:500;margin-top:3px;">Acheté depuis ${joursDepuis(v.dateAjout)} j</div>` : ''}</td>
+      <td>${v.rappel==='oui' ? `<span class="recall-badge oui" title="${v.rappelDetail||''}">Rappel ouvert</span>` : v.rappel==='non' ? `<span class="recall-badge non">Aucun</span>` : `<span class="recall-badge inconnu">Non vérifié</span>`}</td>
       <td><span class="doc-badge ${docCls}" data-action="toggle-doc" data-id="${v.id}" data-current="${docStatut}">${docLabel}</span></td>
+      <td><input type="number" step="0.01" class="cost-input" data-id="${v.id}" value="${v.cout || ''}" placeholder="—" style="width:90px;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:5px 6px;border:1px solid var(--line);"></td>
       <td class="date-cell">${fmtDate(v.maj)}</td>
       <td>
         <div class="row-actions">
           ${meta.next ? `<button class="action-btn" data-action="advance" data-id="${v.id}">${meta.nextLabel}</button>` : ''}
+          <a class="action-btn" href="https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">Window Sticker</a>
           <button class="action-btn" data-action="transfer" data-id="${v.id}" title="Déplace ce véhicule vers le registre É.-U.">Transférer → US</button>
           <button class="action-btn danger" data-action="delete" data-id="${v.id}">Supprimer</button>
         </div>
@@ -423,6 +485,130 @@ async function decodeVinsBatch(vins){
   }
 }
 
+async function decodeVinsBatchDetailed(vins){
+  if(vins.length === 0) return {};
+  try{
+    const body = new URLSearchParams();
+    body.append('format', 'json');
+    body.append('data', vins.join(';'));
+    const resp = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/', {
+      method: 'POST',
+      body
+    });
+    const data = await resp.json();
+    const map = {};
+    (data.Results || []).forEach(r=>{
+      map[r.VIN] = { make: r.Make || '', model: r.Model || '', year: r.ModelYear || '' };
+    });
+    return map;
+  }catch(e){
+    return {};
+  }
+}
+
+const recallCache = {};
+async function getRecallsForVehicle(make, model, year){
+  const key = `${make}|${model}|${year}`.toUpperCase();
+  if(recallCache[key] !== undefined) return recallCache[key];
+  try{
+    const url = `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    recallCache[key] = data.results || [];
+  }catch(e){
+    recallCache[key] = null;
+  }
+  return recallCache[key];
+}
+
+function updateRecallCount(){
+  const text = document.getElementById('recall-input').value;
+  const n = parseVinLines(text).length;
+  document.getElementById('recall-count').textContent = n > 0 ? `${n} VIN à vérifier` : '';
+}
+document.getElementById('recall-input').addEventListener('input', updateRecallCount);
+
+document.getElementById('recall-btn').addEventListener('click', async ()=>{
+  const vins = parseVinLines(document.getElementById('recall-input').value);
+  const resultsEl = document.getElementById('recall-results');
+  if(vins.length === 0){ resultsEl.innerHTML = ''; return; }
+
+  resultsEl.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);">Décodage des VIN et consultation du NHTSA...</div>`;
+  const decoded = await decodeVinsBatchDetailed(vins);
+
+  const avecRappel = [];
+  const sansRappel = [];
+  const nonDecode = [];
+
+  for(const vin of vins){
+    const info = decoded[vin];
+    if(!info || !info.make || !info.model || !info.year){
+      nonDecode.push(vin);
+      continue;
+    }
+    const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
+    if(recalls === null){
+      nonDecode.push(vin);
+    } else if(recalls.length > 0){
+      avecRappel.push({ vin, info, recalls });
+    } else {
+      sansRappel.push({ vin, info });
+    }
+  }
+
+  let html = `<div style="font-size:13px;font-weight:600;color:var(--stamp-red);margin-bottom:6px;">Véhicules avec rappel(s) ouvert(s) (${avecRappel.length})</div>`;
+  if(avecRappel.length === 0){
+    html += `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:18px;">Aucun rappel ouvert trouvé parmi les VIN vérifiés.</div>`;
+  } else {
+    html += `<div style="margin-bottom:18px;">`;
+    avecRappel.forEach(item=>{
+      html += `<div style="border:1px solid var(--stamp-red-bg);background:var(--stamp-red-bg);padding:10px 12px;margin-bottom:8px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;">${item.vin} <span style="font-family:'Inter',sans-serif;color:var(--ink-soft);font-weight:400;">— ${item.info.make} ${item.info.model} ${item.info.year}</span></div>`;
+      item.recalls.forEach(r=>{
+        html += `<div style="font-size:12px;margin-top:6px;padding-top:6px;border-top:1px solid #EBC6C2;">
+          <div style="font-weight:600;">${r.Component || 'Composant non précisé'} <span style="font-weight:400;color:var(--ink-soft);">(campagne ${r.NHTSACampaignNumber || '—'})</span></div>
+          <div style="color:var(--ink-soft);margin-top:2px;">${r.Summary || ''}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `<div style="font-size:13px;font-weight:600;color:var(--stamp-teal);margin-bottom:6px;">Aucun rappel trouvé (${sansRappel.length})</div>`;
+  if(sansRappel.length === 0){
+    html += `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:18px;">—</div>`;
+  } else {
+    html += `<div style="border:1px solid var(--stamp-teal-bg);background:var(--stamp-teal-bg);padding:10px 12px;margin-bottom:18px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.9;">`;
+    html += sansRappel.map(item => `${item.vin} <span style="font-family:'Inter',sans-serif;color:var(--ink-soft);">— ${item.info.make} ${item.info.model} ${item.info.year}</span>`).join('<br>');
+    html += `</div>`;
+  }
+
+  if(nonDecode.length > 0){
+    html += `<div style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;">Non vérifiables (VIN non reconnu ou erreur réseau) (${nonDecode.length})</div>`;
+    html += `<div style="border:1px solid var(--line);background:#fff;padding:10px 12px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.9;">`;
+    html += nonDecode.join('<br>');
+    html += `</div>`;
+  }
+
+  resultsEl.innerHTML = html;
+
+  const resultsToPersist = [
+    ...avecRappel.map(item => ({ vin: item.vin, rappel: 'oui', rappelDetail: item.recalls.map(r=>r.Component || 'Composant non précisé').join(', ') })),
+    ...sansRappel.map(item => ({ vin: item.vin, rappel: 'non', rappelDetail: '' }))
+  ];
+  if(resultsToPersist.length > 0 && scriptUrl){
+    try{
+      await fetch(scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action:'updateRecallResults', results: resultsToPersist, sheet: SHEET_SOURCE })
+      });
+      await fetchFromSheet();
+    }catch(e){}
+  }
+});
+
 function parseBulkLines(text){
   return text.split('\n')
     .map(l=>l.trim())
@@ -452,20 +638,41 @@ document.getElementById('bulk-add-btn').addEventListener('click', async ()=>{
     setSynced('Choisissez une compagnie (HAWKS ou STM) avant de continuer.');
     return;
   }
+  const origine = document.getElementById('bulk-origine').value;
+  if(!origine){
+    setSynced('Choisissez une origine (Achat ou Échange) avant de continuer.');
+    return;
+  }
   textEl.value = '';
   updateBulkCount();
 
-  const toDecode = parsed.filter(v=>!v.modele).map(v=>v.vin);
-  let decodedMap = {};
-  if(toDecode.length > 0){
-    setSynced(`Décodage automatique de ${toDecode.length} VIN...`);
-    decodedMap = await decodeVinsBatch(toDecode);
+  setSynced(`Décodage de ${parsed.length} VIN...`);
+  const allVins = parsed.map(v=>v.vin);
+  const decodedDetailed = await decodeVinsBatchDetailed(allVins);
+
+  setSynced(`Vérification des rappels NHTSA pour ${parsed.length} VIN...`);
+  const vehiculesLot = [];
+  for(const v of parsed){
+    const info = decodedDetailed[v.vin];
+    const modeleAuto = info && info.make ? [info.make, info.model, info.year].filter(Boolean).join(' ') : null;
+    const modele = v.modele || modeleAuto || '(modèle non reconnu — à préciser)';
+
+    let rappel = '';
+    let rappelDetail = '';
+    if(info && info.make && info.model && info.year){
+      const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
+      if(recalls === null){
+        rappel = '';
+      } else if(recalls.length > 0){
+        rappel = 'oui';
+        rappelDetail = recalls.map(r=>r.Component || 'Composant non précisé').join(', ');
+      } else {
+        rappel = 'non';
+      }
+    }
+    vehiculesLot.push({ vin: v.vin, modele, origine, compagnie, rappel, rappelDetail });
   }
-  const vehiculesLot = parsed.map(v=>({
-    vin: v.vin,
-    modele: v.modele || decodedMap[v.vin] || '(modèle non reconnu — à préciser)',
-    compagnie
-  }));
+
   await postToSheet({ action:'addBulk', vehicules: vehiculesLot });
 });
 
@@ -608,6 +815,17 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
     if(!confirme) return;
     await postToSheet({ action:'transfer', id, toSheet: 'US' });
   }
+});
+
+document.getElementById('filter-compagnie').addEventListener('change', render);
+document.getElementById('filter-origine').addEventListener('change', render);
+
+document.getElementById('table-body').addEventListener('change', async (e)=>{
+  const input = e.target.closest('.cost-input');
+  if(!input) return;
+  const id = input.dataset.id;
+  const value = input.value.trim();
+  await postToSheet({ action:'setCost', id, value });
 });
 
 document.querySelectorAll('.filter-btn').forEach(btn=>{

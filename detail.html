@@ -132,6 +132,36 @@
 </style>
 </head>
 <body>
+<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#EEF0F1;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
+  <div style="background:#fff;border:1px solid #1B2A4A;padding:32px 36px;max-width:340px;width:90%;text-align:center;">
+    <div style="font-family:'Oswald',Arial,sans-serif;font-weight:600;font-size:16px;letter-spacing:0.5px;color:#1B2A4A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
+    <p style="font-size:12.5px;color:#4A5A78;margin:0 0 16px;">Entrez le mot de passe pour continuer</p>
+    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #D3D8DD;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
+    <button id="pg-submit" style="width:100%;background:#1B2A4A;color:#fff;border:none;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
+    <div id="pg-error" style="color:#B3392F;font-size:12px;margin-top:10px;display:none;">Mot de passe incorrect.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var PG_PASSWORD = 'STMHAWKS666';
+  var gate = document.getElementById('password-gate');
+  function unlock(){
+    gate.style.display = 'none';
+    try{ sessionStorage.setItem('pg_unlocked_v1', '1'); }catch(e){}
+  }
+  try{
+    if(sessionStorage.getItem('pg_unlocked_v1') === '1'){ unlock(); }
+  }catch(e){}
+  document.getElementById('pg-submit').addEventListener('click', check);
+  document.getElementById('pg-input').addEventListener('keydown', function(e){ if(e.key === 'Enter') check(); });
+  function check(){
+    var val = document.getElementById('pg-input').value;
+    if(val === PG_PASSWORD){ unlock(); }
+    else{ document.getElementById('pg-error').style.display = 'block'; }
+  }
+})();
+</script>
+
 <div class="wrap">
 
   <div style="text-align:right;margin-bottom:8px;">
@@ -224,7 +254,7 @@
 
   <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
     <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Vérification des rappels de sécurité</div>
-    <p style="font-size:12px;color:var(--ink-soft);margin:0;">Cliquez sur le bouton « Rappels constructeur » d'un véhicule dans le tableau ci-dessous pour ouvrir la page officielle du fabricant et vérifier manuellement les rappels avec le VIN.</p>
+    <p style="font-size:12px;color:var(--ink-soft);margin:0;">Vérifié automatiquement (NHTSA) à l'ajout d'un véhicule — cliquez sur le badge « Rappel ouvert » / « Aucun rappel » / « Non vérifié » pour revérifier. Le bouton « Rappels constructeur » ouvre en plus la page officielle du fabricant pour une double-vérification manuelle avec le VIN.</p>
   </div>
 
   <div class="toolbar">
@@ -267,11 +297,20 @@
         <option value="non">Non reçu</option>
       </select>
     </div>
+    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
+      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par rappel</label>
+      <select id="filter-rappel" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+        <option value="">Tous</option>
+        <option value="oui">Rappel ouvert</option>
+        <option value="non">Aucun rappel</option>
+        <option value="inconnu">Non vérifié</option>
+      </select>
+    </div>
   </div>
 
   <table>
     <thead>
-      <tr><th>VIN</th><th>Modèle</th><th>Compagnie</th><th>Origine</th><th>Statut</th><th>Registre reçu</th><th>Coût</th><th>Dernière mise à jour</th><th></th></tr>
+      <tr><th>VIN</th><th>Modèle</th><th>Compagnie</th><th>Origine</th><th>Statut</th><th>Rappel</th><th>Registre reçu</th><th>Coût</th><th>Dernière mise à jour</th><th></th></tr>
     </thead>
     <tbody id="table-body"></tbody>
   </table>
@@ -454,6 +493,10 @@ function render(){
   if(filtreCompagnie) list = list.filter(v=>v.compagnie===filtreCompagnie);
   const filtreOrigine = document.getElementById('filter-origine').value;
   if(filtreOrigine) list = list.filter(v=>v.origine===filtreOrigine);
+  const filtreRappel = document.getElementById('filter-rappel').value;
+  if(filtreRappel === 'oui') list = list.filter(v=>v.rappel==='oui');
+  else if(filtreRappel === 'non') list = list.filter(v=>v.rappel==='non');
+  else if(filtreRappel === 'inconnu') list = list.filter(v=>!v.rappel);
   const filtreRegistre = document.getElementById('filter-registre').value;
   if(filtreRegistre) list = list.filter(v=>{
     const docStatut = v.enregistrement === 'oui' ? 'oui-bon' : v.enregistrement;
@@ -490,6 +533,7 @@ function render(){
       <td style="font-size:13px;font-weight:500;">${v.compagnie || '—'}</td>
       <td style="font-size:13px;">${v.origine || '—'}</td>
       <td><span class="stamp ${meta.cls}">${meta.label}</span>${enRetardAchat ? `<div style="font-size:11px;color:var(--stamp-amber);font-weight:500;margin-top:3px;">Acheté depuis ${joursDepuis(v.dateAjout)} j</div>` : ''}</td>
+      <td>${v.rappel==='oui' ? `<span class="recall-badge oui" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="${v.rappelDetail||''} — cliquer pour revérifier">Rappel ouvert</span>` : v.rappel==='non' ? `<span class="recall-badge non" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="Cliquer pour revérifier">Aucun rappel</span>` : `<span class="recall-badge inconnu" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="Cliquer pour vérifier">Non vérifié</span>`}</td>
       <td><span class="doc-badge ${docCls}" data-action="toggle-doc" data-id="${v.id}" data-current="${docStatut}">${docLabel}</span></td>
       <td><input type="number" step="0.01" class="cost-input" data-id="${v.id}" value="${v.cout || ''}" placeholder="—" style="width:90px;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:5px 6px;border:1px solid var(--line);"></td>
       <td class="date-cell">${fmtDate(v.maj)}</td>
@@ -539,6 +583,68 @@ async function decodeVinsBatch(vins){
   }
 }
 
+async function decodeVinsBatchDetailed(vins){
+  if(vins.length === 0) return {};
+  try{
+    const body = new URLSearchParams();
+    body.append('format', 'json');
+    body.append('data', vins.join(';'));
+    const resp = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/', {
+      method: 'POST',
+      body
+    });
+    const data = await resp.json();
+    const map = {};
+    (data.Results || []).forEach(r=>{
+      map[r.VIN] = { make: r.Make || '', model: r.Model || '', year: r.ModelYear || '' };
+    });
+    return map;
+  }catch(e){
+    return {};
+  }
+}
+
+const recallCache = {};
+async function getRecallsForVehicle(make, model, year){
+  const key = `${make}|${model}|${year}`.toUpperCase();
+  if(recallCache[key] !== undefined) return recallCache[key];
+  try{
+    const url = `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    recallCache[key] = data.results || [];
+  }catch(e){
+    recallCache[key] = null;
+  }
+  return recallCache[key];
+}
+
+async function recheckOneRecall(v){
+  const decoded = await decodeVinsBatchDetailed([v.vin]);
+  const info = decoded[v.vin];
+  let rappel = '';
+  let rappelDetail = '';
+  if(info && info.make && info.model && info.year){
+    const cacheKey = `${info.make}|${info.model}|${info.year}`.toUpperCase();
+    delete recallCache[cacheKey];
+    const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
+    if(recalls === null){
+      rappel = '';
+    } else if(recalls.length > 0){
+      rappel = 'oui';
+      rappelDetail = recalls.map(r=>r.Component || 'Composant non précisé').join(', ');
+    } else {
+      rappel = 'non';
+    }
+  }
+  await fetch(scriptUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action:'updateRecallResults', results: [{ vin: v.vin, rappel, rappelDetail }], sheet: SHEET_SOURCE })
+  });
+  await fetchFromSheet();
+}
+
 function parseBulkLines(text){
   return text.split('\n')
     .map(l=>l.trim())
@@ -576,18 +682,36 @@ document.getElementById('bulk-add-btn').addEventListener('click', async ()=>{
   textEl.value = '';
   updateBulkCount();
 
-  setSynced(`Décodage automatique de ${parsed.length} VIN...`);
-  const toDecode = parsed.filter(v=>!v.modele).map(v=>v.vin);
-  let decodedMap = {};
-  if(toDecode.length > 0){
-    decodedMap = await decodeVinsBatch(toDecode);
+  setSynced(`Décodage de ${parsed.length} VIN...`);
+  const allVins = parsed.map(v=>v.vin);
+  const decodedDetailed = await decodeVinsBatchDetailed(allVins);
+
+  setSynced(`Vérification des rappels NHTSA pour ${parsed.length} VIN...`);
+  const vehiculesLot = new Array(parsed.length);
+  const CONCURRENCE = 8;
+  for(let i = 0; i < parsed.length; i += CONCURRENCE){
+    const lot = parsed.slice(i, i + CONCURRENCE);
+    await Promise.all(lot.map(async (v, j) => {
+      const info = decodedDetailed[v.vin];
+      const modeleAuto = info && info.make ? [info.make, info.model, info.year].filter(Boolean).join(' ') : null;
+      const modele = v.modele || modeleAuto || '(modèle non reconnu — à préciser)';
+
+      let rappel = '';
+      let rappelDetail = '';
+      if(info && info.make && info.model && info.year){
+        const recalls = await getRecallsForVehicle(info.make, info.model, info.year);
+        if(recalls === null){
+          rappel = '';
+        } else if(recalls.length > 0){
+          rappel = 'oui';
+          rappelDetail = recalls.map(r=>r.Component || 'Composant non précisé').join(', ');
+        } else {
+          rappel = 'non';
+        }
+      }
+      vehiculesLot[i + j] = { vin: v.vin, modele, origine, compagnie, rappel, rappelDetail };
+    }));
   }
-  const vehiculesLot = parsed.map(v=>({
-    vin: v.vin,
-    modele: v.modele || decodedMap[v.vin] || '(modèle non reconnu — à préciser)',
-    origine,
-    compagnie
-  }));
 
   await postToSheet({ action:'addBulk', vehicules: vehiculesLot });
 });
@@ -730,11 +854,15 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
     const confirme = confirm(`Transférer le véhicule ${v.vin} vers le registre É.-U. ? Il sera retiré du registre Canada et ajouté au registre É.-U. avec le statut "Acheté".`);
     if(!confirme) return;
     await postToSheet({ action:'transfer', id, toSheet: 'US' });
+  } else if(action === 'recheck-recall'){
+    el.textContent = '...';
+    await recheckOneRecall(v);
   }
 });
 
 document.getElementById('filter-compagnie').addEventListener('change', render);
 document.getElementById('filter-origine').addEventListener('change', render);
+document.getElementById('filter-rappel').addEventListener('change', render);
 document.getElementById('filter-registre').addEventListener('change', render);
 
 document.getElementById('table-body').addEventListener('change', async (e)=>{

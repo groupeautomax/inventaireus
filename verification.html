@@ -120,6 +120,36 @@
 </style>
 </head>
 <body>
+<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#EEF0F1;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
+  <div style="background:#fff;border:1px solid #1B2A4A;padding:32px 36px;max-width:340px;width:90%;text-align:center;">
+    <div style="font-family:'Oswald',Arial,sans-serif;font-weight:600;font-size:16px;letter-spacing:0.5px;color:#1B2A4A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
+    <p style="font-size:12.5px;color:#4A5A78;margin:0 0 16px;">Entrez le mot de passe pour continuer</p>
+    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #D3D8DD;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
+    <button id="pg-submit" style="width:100%;background:#1B2A4A;color:#fff;border:none;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
+    <div id="pg-error" style="color:#B3392F;font-size:12px;margin-top:10px;display:none;">Mot de passe incorrect.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var PG_PASSWORD = 'STMHAWKS666';
+  var gate = document.getElementById('password-gate');
+  function unlock(){
+    gate.style.display = 'none';
+    try{ sessionStorage.setItem('pg_unlocked_v1', '1'); }catch(e){}
+  }
+  try{
+    if(sessionStorage.getItem('pg_unlocked_v1') === '1'){ unlock(); }
+  }catch(e){}
+  document.getElementById('pg-submit').addEventListener('click', check);
+  document.getElementById('pg-input').addEventListener('keydown', function(e){ if(e.key === 'Enter') check(); });
+  function check(){
+    var val = document.getElementById('pg-input').value;
+    if(val === PG_PASSWORD){ unlock(); }
+    else{ document.getElementById('pg-error').style.display = 'block'; }
+  }
+})();
+</script>
+
 <div class="wrap">
 
   <div style="text-align:right;margin-bottom:8px;">

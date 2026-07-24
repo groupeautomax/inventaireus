@@ -265,11 +265,12 @@
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par statut</label>
       <select id="filter-statut" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
-        <option value="all">Tous</option>
+        <option value="all">Tous (actifs — sans les vendus)</option>
         <option value="achete">Acheté</option>
         <option value="stock">En stock (pas parti)</option>
         <option value="transit">Expédié</option>
         <option value="arrive">Vendu</option>
+        <option value="tousavecvendu">Tous, incluant les vendus</option>
       </select>
     </div>
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
@@ -321,7 +322,7 @@
 
 <script>
 const URL_KEY = 'apps_script_url_detail';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyz_pShZbTYyxUO72lwAy-7auV57jb9CSYqKGX5-Ewam-QAkhpMhx_pmzSE80Iwg7RJrA/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOg0ROCZYykhCTKXhFpanTegEYDpUdb9YiyoaBrrVcPc-oDtBGt-b4RSjWc840duC6jQ/exec';
 const SHEET_SOURCE = 'DETAIL';
 let vehicules = [];
 let currentFilter = 'all';
@@ -433,7 +434,13 @@ async function postToSheet(payload){
     });
     const data = await resp.json();
     vehicules = data.vehicules || [];
-    setSynced('Connecté à Google Sheet · synchronisé');
+    if(data.doublonsIgnores && data.doublonsIgnores.length > 0){
+      setSynced(`Enregistré · ${data.doublonsIgnores.length} VIN déjà existant(s) ignoré(s) : ${data.doublonsIgnores.join(', ')}`);
+    } else if(data.doublonIgnore){
+      setSynced(`VIN déjà existant, non ajouté : ${data.doublonIgnore}`);
+    } else {
+      setSynced('Connecté à Google Sheet · synchronisé');
+    }
   }catch(e){
     setSynced('Échec de l\'enregistrement dans Google Sheet. Réessayez.');
   }
@@ -488,7 +495,8 @@ function computeStats(){
 function render(){
   computeStats();
   let list = vehicules.slice().sort((a,b)=> new Date(b.maj) - new Date(a.maj));
-  if(currentFilter !== 'all') list = list.filter(v=>v.statut===currentFilter);
+  if(currentFilter === 'all') list = list.filter(v=>v.statut!=='arrive');
+  else if(currentFilter !== 'tousavecvendu') list = list.filter(v=>v.statut===currentFilter);
   const filtreCompagnie = document.getElementById('filter-compagnie').value;
   if(filtreCompagnie) list = list.filter(v=>v.compagnie===filtreCompagnie);
   const filtreOrigine = document.getElementById('filter-origine').value;
@@ -667,8 +675,34 @@ document.getElementById('bulk-input').addEventListener('input', updateBulkCount)
 
 document.getElementById('bulk-add-btn').addEventListener('click', async ()=>{
   const textEl = document.getElementById('bulk-input');
-  const parsed = parseBulkLines(textEl.value);
+  let parsed = parseBulkLines(textEl.value);
   if(parsed.length === 0) return;
+
+  const vusDansLot = new Set();
+  const doublonsInternes = [];
+  parsed = parsed.filter(v=>{
+    const vinMaj = v.vin.toUpperCase();
+    if(vusDansLot.has(vinMaj)){ doublonsInternes.push(v.vin); return false; }
+    vusDansLot.add(vinMaj);
+    return true;
+  });
+
+  const vinsExistants = new Set(vehicules.map(v=>v.vin.toUpperCase()));
+  const dejaPresents = [];
+  parsed = parsed.filter(v=>{
+    if(vinsExistants.has(v.vin.toUpperCase())){ dejaPresents.push(v.vin); return false; }
+    return true;
+  });
+
+  if(doublonsInternes.length > 0 || dejaPresents.length > 0){
+    let msg = '';
+    if(doublonsInternes.length > 0) msg += `${doublonsInternes.length} VIN en double dans votre liste ignoré(s). `;
+    if(dejaPresents.length > 0) msg += `${dejaPresents.length} VIN déjà dans le registre ignoré(s) : ${dejaPresents.join(', ')}`;
+    setSynced(msg);
+  }
+
+  if(parsed.length === 0) return;
+
   const compagnie = document.getElementById('bulk-compagnie').value;
   if(!compagnie){
     setSynced('Choisissez une compagnie (HAWKS ou STM) avant de continuer.');

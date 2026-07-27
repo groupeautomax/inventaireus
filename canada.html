@@ -171,6 +171,8 @@
     <a href="detail.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Voir le suivi Detail →</a>
     <span style="color:var(--line);margin:0 6px;">|</span>
     <a href="verification.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Vérification d'inventaire →</a>
+  <span style="color:var(--line);margin:0 6px;">|</span>
+    <a href="achat.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Fiche d'achat →</a>
   </div>
 
   <div class="manifest-head">
@@ -325,7 +327,7 @@
 
 <script>
 const URL_KEY = 'apps_script_url_can';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOg0ROCZYykhCTKXhFpanTegEYDpUdb9YiyoaBrrVcPc-oDtBGt-b4RSjWc840duC6jQ/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyozDZPXRXDXeBjrXJEvAjovORuD_CqffBfnX8BE_8s5R_6LjWhImbMordn4984Ew_sWw/exec';
 const SHEET_SOURCE = 'CAN';
 let vehicules = [];
 let currentFilter = 'all';
@@ -540,7 +542,7 @@ function render(){
     else if(docStatut === 'oui-mauvais'){ docCls='wrongname'; docLabel='Reçu · mauvais nom'; }
     else { docCls = enRetard ? 'late' : 'non'; docLabel = enRetard ? `Non reçu · ${joursDepuis(v.dateAjout)} j` : 'Non reçu'; }
     tr.innerHTML = `
-      <td class="vin">${v.vin}</td>
+      <td><a href="achat.html?vin=${encodeURIComponent(v.vin)}" target="_blank" class="vin" style="text-decoration:none;cursor:pointer;color:${v.ficheStockRempli ? 'var(--stamp-teal)' : (v.ficheExiste ? 'var(--stamp-red)' : 'var(--ink)')};" title="${v.ficheExiste ? (v.ficheStockRempli ? 'Fiche achat complete (stock inscrit) - cliquer pour voir' : 'Fiche achat - stock non inscrit - cliquer pour voir') : 'Aucune fiche achat - cliquer pour en creer une'}">${v.vin}</a></td>
       <td>${v.modele}</td>
       <td style="font-size:13px;font-weight:500;">${v.compagnie || '—'}</td>
       <td style="font-size:13px;">${v.origine || '—'}</td>

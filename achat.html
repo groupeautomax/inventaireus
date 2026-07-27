@@ -102,9 +102,28 @@
   .btn.primary{background:var(--ink);color:#fff;}
 
   @media print{
-    body{background:#fff;}
-    .toolbar-actions{display:none;}
-    .section{break-inside:avoid;}
+    @page{ size: letter; margin: 0.3in; }
+    body{background:#fff;font-size:9px;}
+    .wrap{max-width:100%;padding:0;}
+    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub{display:none;}
+    .manifest-head{padding:6px 10px;margin-bottom:6px;border-width:1px;}
+    .manifest-head img{height:26px;margin-bottom:4px;}
+    .manifest-title{font-size:14px;margin:2px 0;}
+    .section{padding:6px 10px;margin-bottom:6px;break-inside:avoid;}
+    .section-title{font-size:9px;margin-bottom:6px;padding-bottom:4px;}
+    .field label{font-size:8px;margin-bottom:0;}
+    .field input, .field select{font-size:9px;padding:3px 4px;}
+    .grid{gap:4px 8px;}
+    .grid-3{grid-template-columns:repeat(4,1fr);}
+    .checklist{gap:4px 12px;}
+    .chk{font-size:9px;}
+    .chk input{width:11px;height:11px;}
+    .subsection{margin-top:6px;padding-top:6px;}
+    .subsection-title{font-size:9px;margin-bottom:6px;}
+    .summary{padding:6px 10px;margin-bottom:6px;gap:8px;}
+    .summary .item .num{font-size:13px;}
+    .summary .item .lbl{font-size:7px;}
+    p{display:none;}
   }
 
   @media (max-width:700px){
@@ -146,7 +165,7 @@
 
 <div class="wrap">
 
-  <div style="text-align:right;margin-bottom:8px;">
+  <div id="nav-links" style="text-align:right;margin-bottom:8px;">
     <a href="index.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Voir le suivi É.-U. →</a>
     <span style="color:var(--line);margin:0 6px;">|</span>
     <a href="canada.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Voir le suivi Canada →</a>
@@ -160,7 +179,7 @@
     <p class="manifest-sub">Achat / Échange / US / Détail — la fiche est liée au NIV du véhicule.</p>
   </div>
 
-  <div class="section" style="background:var(--paper-card);">
+  <div class="section" id="vin-lookup-section" style="background:var(--paper-card);">
     <div class="section-title">Lien avec le registre (par VIN)</div>
     <div class="grid grid-3">
       <div class="field"><label>NIV à charger</label><input type="text" id="vin-lookup" placeholder="Collez ou tapez le VIN complet"></div>
@@ -228,7 +247,16 @@
           <label><input type="radio" name="lien-vehicule" value="non"> Non</label>
         </div>
       </div>
-      <div class="field"><label>Acheteur (interne)</label><input type="text" id="f-acheteur"></div>
+      <div class="field">
+        <label>Acheteur (interne)</label>
+        <select id="f-acheteur">
+          <option value="">Choisir...</option>
+          <option value="Marc-André">Marc-André</option>
+          <option value="Tristan">Tristan</option>
+          <option value="Fred">Fred</option>
+          <option value="Matjul">Matjul</option>
+        </select>
+      </div>
     </div>
   </div>
 
@@ -398,7 +426,7 @@ function last6(vin){
 
 function collectFormData(){
   const data = {};
-  document.querySelectorAll('.section input[id], .section input[type=text], .section input[type=date], .section input[type=number], .section input[type=checkbox]').forEach(el=>{
+  document.querySelectorAll('.section input[id], .section select[id]').forEach(el=>{
     if(el.type === 'radio') return;
     if(!el.id) return;
     if(el.type === 'checkbox') data[el.id] = el.checked;
@@ -424,6 +452,21 @@ function populateFormData(data){
   recalcule();
 }
 
+async function decodeVinAuto(vin){
+  try{
+    const body = new URLSearchParams();
+    body.append('format', 'json');
+    body.append('data', vin);
+    const resp = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/', { method: 'POST', body });
+    const data = await resp.json();
+    const r = (data.Results || [])[0];
+    if(!r) return;
+    if(r.Make && !document.getElementById('f-marque').value) document.getElementById('f-marque').value = r.Make;
+    if(r.Model && !document.getElementById('f-modele').value) document.getElementById('f-modele').value = r.Model;
+    if(r.ModelYear && !document.getElementById('f-annee').value) document.getElementById('f-annee').value = r.ModelYear;
+  }catch(e){ /* décodage silencieux — champs restent modifiables manuellement si ça échoue */ }
+}
+
 document.getElementById('charger-btn').addEventListener('click', async ()=>{
   const vin = document.getElementById('vin-lookup').value.trim();
   const statutEl = document.getElementById('lien-statut');
@@ -438,8 +481,9 @@ document.getElementById('charger-btn').addEventListener('click', async ()=>{
       statutEl.textContent = 'Fiche existante chargée — VIN se terminant par ' + last6(vin) + ' (mise à jour le ' + new Date(data.dateMaj).toLocaleString('fr-CA') + ')';
     } else {
       document.getElementById('f-niv').value = vin;
-      statutEl.textContent = 'Aucune fiche existante pour ce VIN — nouvelle fiche prête à remplir.';
+      statutEl.textContent = 'Aucune fiche existante pour ce VIN — nouvelle fiche prête à remplir. Décodage année/modèle...';
     }
+    if(vin.length >= 11) await decodeVinAuto(vin);
   }catch(e){
     statutEl.textContent = 'Impossible de joindre le registre. Vérifiez votre connexion.';
   }
@@ -473,6 +517,9 @@ document.getElementById('f-niv').addEventListener('blur', function(){
   const vin = this.value.trim();
   if(vin.length >= 6){
     document.getElementById('vin-lookup').value = vin;
+  }
+  if(vin.length >= 11){
+    decodeVinAuto(vin);
   }
 });
 

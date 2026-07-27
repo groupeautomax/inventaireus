@@ -199,16 +199,9 @@
   <!-- ===================== IDENTIFICATION ===================== -->
   <div class="section">
     <div class="section-title">Identification du véhicule</div>
-    <div class="grid grid-6">
+    <div class="grid grid-5">
       <div class="field"><label>Date</label><input type="date" id="f-date"></div>
       <div class="field"><label>Stock #</label><input type="text" id="f-stock"></div>
-      <div class="field">
-        <label>Type de stock</label>
-        <div class="radio-row">
-          <label><input type="radio" name="type-stock" value="wholesale"> Wholesale</label>
-          <label><input type="radio" name="type-stock" value="usa"> USA</label>
-        </div>
-      </div>
       <div class="field">
         <label>Compagnie</label>
         <select id="f-compagnie">
@@ -320,7 +313,7 @@
       <div class="field"><label>Wholesale — Prix ($)</label><input type="number" step="0.01" class="cout-wholesale" id="f-wsprix"></div>
       <div class="field"><label>Wholesale — Date de livraison</label><input type="date" id="f-wsdate"></div>
     </div>
-    <div class="subsection">
+    <div class="subsection" id="export-subsection">
       <div class="subsection-title">Export</div>
       <div class="grid grid-4">
         <div class="field"><label>MMR initial ($)</label><input type="number" step="0.01" id="f-mmrinitial"></div>
@@ -464,6 +457,14 @@ document.querySelectorAll('input').forEach(el => {
 });
 recalcule();
 
+function toggleExportVisibility(){
+  const dest = document.getElementById('f-destination').value;
+  const exportSection = document.getElementById('export-subsection');
+  exportSection.style.display = (dest === 'CAN' || dest === 'DETAIL') ? 'none' : 'block';
+}
+document.getElementById('f-destination').addEventListener('change', toggleExportVisibility);
+toggleExportVisibility();
+
 document.getElementById('print-btn').addEventListener('click', () => window.print());
 document.getElementById('reset-btn').addEventListener('click', () => {
   if(confirm('Vider tous les champs de la fiche ?')){
@@ -509,6 +510,7 @@ function populateFormData(data){
     }
   });
   recalcule();
+  toggleExportVisibility();
 }
 
 document.getElementById('taux-auto-btn').addEventListener('click', async ()=>{

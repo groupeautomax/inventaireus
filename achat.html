@@ -105,7 +105,7 @@
     @page{ size: letter; margin: 0.3in; }
     body{background:#fff;font-size:9px;}
     .wrap{max-width:100%;padding:0;}
-    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub{display:none;}
+    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub, #taux-auto-btn{display:none;}
     .manifest-head{padding:6px 10px;margin-bottom:6px;border-width:1px;}
     .manifest-head img{height:26px;margin-bottom:4px;}
     .manifest-title{font-size:14px;margin:2px 0;}
@@ -315,7 +315,13 @@
         <div class="field"><label>MMR livraison — date</label><input type="date" id="f-mmrlivraisondate"></div>
       </div>
       <div class="grid grid-4" style="margin-top:12px;">
-        <div class="field"><label>Taux de change USD→CAD (taux XE − 2%)</label><input type="number" step="0.0001" id="f-taux" placeholder="ex : 1,3200"></div>
+        <div class="field">
+          <label>Taux de change USD→CAD (taux − 2%)</label>
+          <div style="display:flex;gap:6px;">
+            <input type="number" step="0.0001" id="f-taux" placeholder="ex : 1,3200" style="flex:1;">
+            <button type="button" class="btn" id="taux-auto-btn" style="padding:8px 10px;font-size:11px;white-space:nowrap;">Obtenir (auto −2%)</button>
+          </div>
+        </div>
         <div class="field"><label>MMR converti (CAD) — MMR x Taux</label><input type="text" id="f-mmrxtaux" readonly style="background:#F7F8F9;"></div>
         <div class="field"><label>Dépense ($)</label><input type="number" step="0.01" id="f-defense"></div>
         <div class="field"><label>Prix final à payer ($)</label><input type="text" id="f-prixfinalpayer" readonly style="background:#F7F8F9;font-weight:600;"></div>
@@ -456,6 +462,31 @@ function populateFormData(data){
   });
   recalcule();
 }
+
+document.getElementById('taux-auto-btn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('taux-auto-btn');
+  const original = btn.textContent;
+  btn.textContent = 'Recherche...';
+  btn.disabled = true;
+  try{
+    const resp = await fetch('https://api.frankfurter.app/latest?from=USD&to=CAD');
+    const data = await resp.json();
+    const tauxBrut = data.rates && data.rates.CAD;
+    if(tauxBrut){
+      const tauxAjuste = tauxBrut * 0.98; // taux du marché moins 2%
+      document.getElementById('f-taux').value = tauxAjuste.toFixed(4);
+      recalcule();
+      btn.textContent = 'Taux : ' + tauxBrut.toFixed(4) + ' → ' + tauxAjuste.toFixed(4);
+      setTimeout(()=>{ btn.textContent = original; btn.disabled = false; }, 4000);
+    } else {
+      btn.textContent = 'Échec — entrez manuellement';
+      setTimeout(()=>{ btn.textContent = original; btn.disabled = false; }, 3000);
+    }
+  }catch(e){
+    btn.textContent = 'Échec — entrez manuellement';
+    setTimeout(()=>{ btn.textContent = original; btn.disabled = false; }, 3000);
+  }
+});
 
 async function decodeVinAuto(vin){
   try{

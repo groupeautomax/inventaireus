@@ -314,10 +314,11 @@
         <div class="field"><label>MMR livraison ($)</label><input type="number" step="0.01" id="f-mmrlivraison"></div>
         <div class="field"><label>MMR livraison — date</label><input type="date" id="f-mmrlivraisondate"></div>
       </div>
-      <div class="grid grid-3" style="margin-top:12px;">
-        <div class="field"><label>Taux (%)</label><input type="number" step="0.01" id="f-taux"></div>
-        <div class="field"><label>MMR x Taux ($)</label><input type="text" id="f-mmrxtaux" readonly style="background:#F7F8F9;"></div>
-        <div class="field"><label>Défense ($)</label><input type="number" step="0.01" id="f-defense"></div>
+      <div class="grid grid-4" style="margin-top:12px;">
+        <div class="field"><label>Taux de change USD→CAD (taux XE − 2%)</label><input type="number" step="0.0001" id="f-taux" placeholder="ex : 1,3200"></div>
+        <div class="field"><label>MMR converti (CAD) — MMR x Taux</label><input type="text" id="f-mmrxtaux" readonly style="background:#F7F8F9;"></div>
+        <div class="field"><label>Dépense ($)</label><input type="number" step="0.01" id="f-defense"></div>
+        <div class="field"><label>Prix final à payer ($)</label><input type="text" id="f-prixfinalpayer" readonly style="background:#F7F8F9;font-weight:600;"></div>
       </div>
     </div>
   </div>
@@ -396,7 +397,11 @@ function recalcule(){
   // formule MMR x Taux
   const mmr = parseNum('f-mmrinitial');
   const taux = parseNum('f-taux');
-  document.getElementById('f-mmrxtaux').value = (mmr * taux / 100).toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const mmrConverti = mmr * taux;
+  document.getElementById('f-mmrxtaux').value = mmrConverti.toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const depense = parseNum('f-defense');
+  const prixFinalPayer = mmrConverti - depense;
+  document.getElementById('f-prixfinalpayer').value = prixFinalPayer.toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' $';
 }
 
 document.querySelectorAll('input').forEach(el => {

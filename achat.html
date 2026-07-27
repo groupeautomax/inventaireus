@@ -107,7 +107,7 @@
     @page{ size: letter; margin: 0.3in; }
     body{background:#fff;font-size:9px;}
     .wrap{max-width:100%;padding:0;}
-    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub, #taux-auto-btn, #decision-inventaire-section{display:none;}
+    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub, #taux-auto-btn, #btn-add-inventaire, #add-inventaire-statut{display:none;}
     .manifest-head{padding:6px 10px;margin-bottom:6px;border-width:1px;}
     .manifest-head img{height:26px;margin-bottom:4px;}
     .manifest-title{font-size:14px;margin:2px 0;}
@@ -199,7 +199,7 @@
   <!-- ===================== IDENTIFICATION ===================== -->
   <div class="section">
     <div class="section-title">Identification du véhicule</div>
-    <div class="grid grid-5">
+    <div class="grid grid-6">
       <div class="field"><label>Date</label><input type="date" id="f-date"></div>
       <div class="field"><label>Stock #</label><input type="text" id="f-stock"></div>
       <div class="field">
@@ -226,7 +226,12 @@
           <option value="CAN">Canada</option>
         </select>
       </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button type="button" class="btn primary" id="btn-add-inventaire" style="padding:6px 8px;">Ajouter au registre</button>
+      </div>
     </div>
+    <div id="add-inventaire-statut" style="font-size:12px;color:var(--ink-soft);margin-top:8px;"></div>
     <div class="grid grid-4" style="margin-top:12px;">
       <div class="field vin"><label>NIV</label><input type="text" id="f-niv" placeholder="Numéro d'identification"></div>
       <div class="field"><label>Marque</label><input type="text" id="f-marque"></div>
@@ -390,16 +395,7 @@
     </div>
   </div>
 
-  <!-- ===================== DÉCISION D'INVENTAIRE ===================== -->
-  <div class="section" id="decision-inventaire-section">
-    <div class="section-title">Ajouter ce véhicule au registre</div>
-    <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 10px;">Utilise la destination choisie dans l'identification ci-dessus. Le NIV, le modèle et la compagnie seront transmis automatiquement.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <button type="button" class="btn primary" id="btn-add-inventaire">Ajouter au registre choisi</button>
-    </div>
-    <div id="add-inventaire-statut" style="font-size:12px;color:var(--ink-soft);margin-top:10px;"></div>
-  </div>
-
+  <!-- (Ajout à l'inventaire déplacé dans la section Identification, à côté de Compagnie) -->
   <div class="summary">
     <div class="item"><div class="num" id="s-coutant">0,00 $</div><div class="lbl">Coûtant total</div></div>
     <div class="item"><div class="num" id="s-prixvente">0,00 $</div><div class="lbl">Prix de vente retenu (détail ou wholesale)</div></div>

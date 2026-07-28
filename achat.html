@@ -293,10 +293,10 @@
       <div class="field"><label>Nom du transporteur</label><input type="text" id="f-transporteur"></div>
     </div>
     <div class="grid grid-4" style="margin-top:12px;">
-      <div class="field"><label>PAD Détail (499$)</label><input type="checkbox" id="c-pad499" style="width:20px;height:20px;accent-color:var(--ink);"></div>
-      <div class="field"><label>PAD USA (350$)</label><input type="checkbox" id="c-pad350" style="width:20px;height:20px;accent-color:var(--ink);"></div>
-      <div class="field"><label>PAD Échange (50$)</label><input type="checkbox" id="c-pad50" style="width:20px;height:20px;accent-color:var(--ink);"></div>
-      <div class="field"><label>PAD Wholesale (212$)</label><input type="checkbox" id="c-pad212" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+      <div class="field" id="pad-detail-field"><label>PAD Détail (499$)</label><input type="checkbox" id="c-pad499" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+      <div class="field" id="pad-usa-field"><label>PAD USA (350$)</label><input type="checkbox" id="c-pad350" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+      <div class="field" id="pad-echange-field"><label>PAD Échange (50$)</label><input type="checkbox" id="c-pad50" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+      <div class="field" id="pad-canada-field"><label>PAD Canada (212$)</label><input type="checkbox" id="c-pad212" style="width:20px;height:20px;accent-color:var(--ink);"></div>
     </div>
     <div class="grid grid-4" style="margin-top:12px;align-items:end;">
       <div class="chk"><input type="checkbox" id="c-presafety"><label for="c-presafety">Pré-safety</label></div>
@@ -461,6 +461,20 @@ function toggleExportVisibility(){
   const dest = document.getElementById('f-destination').value;
   const exportSection = document.getElementById('export-subsection');
   exportSection.style.display = (dest === 'CAN' || dest === 'DETAIL') ? 'none' : 'block';
+
+  const padUsaVisible = (dest === 'US');
+  const padDetailVisible = (dest === 'DETAIL');
+  const padCanadaVisible = (dest === 'CAN');
+
+  document.getElementById('pad-usa-field').style.display = padUsaVisible ? 'flex' : 'none';
+  document.getElementById('pad-detail-field').style.display = padDetailVisible ? 'flex' : 'none';
+  document.getElementById('pad-canada-field').style.display = padCanadaVisible ? 'flex' : 'none';
+  document.getElementById('pad-echange-field').style.display = 'flex'; // toujours visible (US, Detail, Canada)
+
+  if(!padUsaVisible) document.getElementById('c-pad350').checked = false;
+  if(!padDetailVisible) document.getElementById('c-pad499').checked = false;
+  if(!padCanadaVisible) document.getElementById('c-pad212').checked = false;
+  recalcule();
 }
 document.getElementById('f-destination').addEventListener('change', toggleExportVisibility);
 toggleExportVisibility();

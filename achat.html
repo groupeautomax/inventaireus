@@ -193,7 +193,6 @@
   <div class="toolbar-actions">
     <button class="btn" id="reset-btn">Vider la fiche</button>
     <button class="btn" id="print-btn">Imprimer / Enregistrer en PDF</button>
-    <button class="btn primary" id="save-fiche-btn">Enregistrer la fiche</button>
   </div>
 
   <!-- ===================== IDENTIFICATION ===================== -->
@@ -589,7 +588,22 @@ async function ajouterInventaire(sheetCode, sheetLabel){
   const annee = document.getElementById('f-annee').value.trim();
   const modele = [marque, modeleVal, annee].filter(v=>v).join(' ') || '(modèle non précisé)';
 
-  statutEl.textContent = `Ajout à ${sheetLabel} en cours...`;
+  // 1) Enregistrer d'abord la fiche complète (tous les champs), indexée par ce VIN
+  statutEl.textContent = 'Enregistrement de la fiche...';
+  try{
+    const data = collectFormData();
+    await fetch(DEFAULT_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'saveFiche', vin: vin, data: data })
+    });
+  }catch(e){
+    statutEl.textContent = 'Échec de l\'enregistrement de la fiche. Réessayez.';
+    return;
+  }
+
+  // 2) Ajouter (ou confirmer l'existence) du véhicule dans l'inventaire choisi
+  statutEl.textContent = `Fiche enregistrée — ajout à ${sheetLabel} en cours...`;
   try{
     const resp = await fetch(DEFAULT_SCRIPT_URL, {
       method: 'POST',
@@ -598,12 +612,12 @@ async function ajouterInventaire(sheetCode, sheetLabel){
     });
     const result = await resp.json();
     if(result.doublonIgnore){
-      statutEl.textContent = `Ce VIN existe déjà dans ${sheetLabel} — non ajouté en double.`;
+      statutEl.textContent = `✓ Fiche enregistrée. Ce VIN existe déjà dans ${sheetLabel} — non ajouté en double.`;
     } else {
-      statutEl.textContent = `✓ Véhicule ajouté à ${sheetLabel} avec succès (statut « Acheté »).`;
+      statutEl.textContent = `✓ Fiche enregistrée et véhicule ajouté à ${sheetLabel} (statut « Acheté »).`;
     }
   }catch(e){
-    statutEl.textContent = `Échec de l'ajout à ${sheetLabel}. Réessayez.`;
+    statutEl.textContent = `Fiche enregistrée, mais échec de l'ajout à ${sheetLabel}. Réessayez l'ajout.`;
   }
 }
 
@@ -652,28 +666,6 @@ document.getElementById('charger-btn').addEventListener('click', async ()=>{
   }
 });
 
-document.getElementById('save-fiche-btn').addEventListener('click', async ()=>{
-  const vin = document.getElementById('f-niv').value.trim();
-  const statutEl = document.getElementById('lien-statut');
-  if(!vin){
-    statutEl.textContent = 'Le champ NIV doit être rempli avant d\'enregistrer.';
-    document.getElementById('f-niv').focus();
-    return;
-  }
-  statutEl.textContent = 'Enregistrement en cours...';
-  const data = collectFormData();
-  try{
-    const resp = await fetch(DEFAULT_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'saveFiche', vin: vin, data: data })
-    });
-    const result = await resp.json();
-    statutEl.textContent = '✓ Fiche enregistrée — VIN se terminant par ' + last6(vin) + ' (' + new Date(result.dateMaj).toLocaleString('fr-CA') + ')';
-  }catch(e){
-    statutEl.textContent = 'Échec de l\'enregistrement. Réessayez.';
-  }
-});
 
 // Chargement automatique si un VIN est déjà tapé dans le champ NIV puis qu'on quitte le champ
 document.getElementById('f-niv').addEventListener('blur', function(){

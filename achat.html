@@ -333,7 +333,7 @@
             <button type="button" class="btn" id="taux-auto-btn" style="padding:8px 10px;font-size:11px;white-space:nowrap;">Obtenir (auto −2%)</button>
           </div>
         </div>
-        <div class="field"><label>Dépense ($)</label><input type="number" step="0.01" id="f-defense"></div>
+        <div class="field"><label>Dépense ($) — déjà nette dans le prix de vente</label><input type="number" step="0.01" id="f-defense"></div>
         <div class="field"><label>Prix de vente estimé ($)</label><input type="text" id="f-prixfinalpayer" readonly style="background:#F7F8F9;font-weight:600;"></div>
         <input type="hidden" id="f-mmrxtaux">
       </div>
@@ -409,7 +409,7 @@ function fmt(n){
 
 const coutFields = ['f-fraisencan','f-fraisautres','f-fraistransport','f-carfax','f-prixachat','f-coutestime',
   'f-accessoires','f-carrosserie','f-service','f-lavage','f-lavagelivraison','f-enregistrementcout',
-  'f-adj1montant','f-adj2montant','f-presafetymontant','f-defense'];
+  'f-adj1montant','f-adj2montant','f-presafetymontant'];
 
 function recalcule(){
   let coutant = 0;

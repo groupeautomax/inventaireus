@@ -5,127 +5,131 @@
 <title>Vérification d'inventaire</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
 
   :root{
-    --paper: #EEF0F1;
+    --paper: #F4F6F9;
     --paper-card: #FFFFFF;
-    --ink: #1B2A4A;
-    --ink-soft: #4A5A78;
-    --line: #D3D8DD;
-    --stamp-red: #B3392F;
-    --stamp-red-bg: #F7E5E2;
-    --stamp-amber: #A66A1E;
-    --stamp-amber-bg: #FBEEDD;
-    --stamp-teal: #1E6E63;
-    --stamp-teal-bg: #E1EFEC;
+    --ink: #1E2A3A;
+    --ink-soft: #6B7684;
+    --line: #E4E7EC;
+    --accent: #2563EB;
+    --accent-bg: #EFF6FF;
+    --stamp-red: #DC2626;
+    --stamp-red-bg: #FEF2F2;
+    --stamp-amber: #D97706;
+    --stamp-amber-bg: #FFFBEB;
+    --stamp-teal: #059669;
+    --stamp-teal-bg: #ECFDF5;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);}
-  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px;}
+  body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);font-size:13px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:16px 16px 40px;}
 
   .manifest-head{
-    border:1px solid var(--ink);
     background:var(--paper-card);
-    padding:20px 24px;
-    margin-bottom:24px;
-    position:relative;
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:0 1px 2px rgba(16,24,40,0.04);
+    padding:14px 16px;
+    margin-bottom:14px;
   }
   .manifest-head::before{
     content:"VÉRIFICATION";
-    position:absolute; top:-11px; left:20px;
-    background:var(--paper);
-    padding:0 10px;
-    font-family:'Oswald',sans-serif;
-    font-size:11px;
-    letter-spacing:2px;
-    color:var(--ink-soft);
+    display:block;
+    font-size:10px;
+    letter-spacing:1.5px;
+    color:var(--accent);
+    font-weight:600;
+    margin-bottom:2px;
   }
   .manifest-title{
-    font-family:'Oswald',sans-serif;
     font-weight:600;
-    font-size:24px;
-    letter-spacing:0.5px;
-    margin:6px 0 2px;
+    font-size:18px;
+    letter-spacing:-0.2px;
+    margin:2px 0 1px;
   }
-  .manifest-sub{font-size:13px;color:var(--ink-soft);margin:0;}
+  .manifest-sub{font-size:12px;color:var(--ink-soft);margin:0;}
 
-  .group-section{margin-bottom:44px;}
+  .group-section{margin-bottom:28px;}
   .group-title{
-    font-family:'Oswald',sans-serif;font-weight:600;font-size:18px;letter-spacing:0.5px;
-    margin:0 0 4px;color:var(--ink);
+    font-weight:600;font-size:15px;letter-spacing:-0.1px;
+    margin:0 0 2px;color:var(--ink);
   }
-  .group-sub{font-size:12.5px;color:var(--ink-soft);margin:0 0 16px;}
+  .group-sub{font-size:11.5px;color:var(--ink-soft);margin:0 0 10px;}
 
-  .sources{display:grid;gap:14px;margin-bottom:18px;}
+  .sources{display:grid;gap:10px;margin-bottom:12px;}
   .source-card{
-    background:var(--paper-card);border:1px solid var(--line);padding:16px;
-    display:flex;flex-direction:column;gap:10px;
+    background:var(--paper-card);border:1px solid var(--line);border-radius:8px;padding:11px;
+    display:flex;flex-direction:column;gap:7px;
   }
-  .source-label{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);}
+  .source-label{font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);}
   .file-input-wrap{
-    border:1.5px dashed var(--line);padding:16px;text-align:center;cursor:pointer;
-    font-size:12.5px;color:var(--ink-soft);transition:border-color .15s;
+    border:1.5px dashed var(--line);border-radius:8px;padding:12px;text-align:center;cursor:pointer;
+    font-size:11.5px;color:var(--ink-soft);transition:border-color .15s;
   }
-  .file-input-wrap:hover{border-color:var(--ink-soft);}
+  .file-input-wrap:hover{border-color:var(--accent);}
   .file-input-wrap.loaded{border-color:var(--stamp-teal);border-style:solid;background:var(--stamp-teal-bg);color:var(--stamp-teal);font-weight:500;}
   .file-input-wrap input{display:none;}
-  .col-select-row{display:flex;flex-direction:column;gap:4px;}
-  .col-select-row label{font-size:11.5px;color:var(--ink-soft);}
+  .col-select-row{display:flex;flex-direction:column;gap:3px;}
+  .col-select-row label{font-size:10.5px;color:var(--ink-soft);}
   select{
-    font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);
+    font-family:'Inter',sans-serif;font-size:12px;padding:5px 7px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink);
   }
-  .count-line{font-size:12px;color:var(--ink-soft);}
+  select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
+  .count-line{font-size:11px;color:var(--ink-soft);}
   .count-line b{color:var(--ink);font-family:'IBM Plex Mono',monospace;}
 
-  .compare-bar{text-align:center;margin-bottom:22px;}
+  .compare-bar{text-align:center;margin-bottom:14px;}
   .compare-btn{
-    font-family:'Inter',sans-serif;font-weight:500;font-size:14px;
-    background:var(--ink);color:#fff;border:none;padding:12px 32px;cursor:pointer;
+    font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;border-radius:6px;
+    background:var(--accent);color:#fff;border:none;padding:9px 24px;cursor:pointer;
   }
+  .compare-btn:hover{background:#1D4ED8;}
   .compare-btn:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed;}
 
-  .stats{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:20px;}
-  .stat{background:var(--paper-card);padding:12px 14px;}
-  .stat .num{font-family:'Oswald',sans-serif;font-size:26px;font-weight:600;}
-  .stat .lbl{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin-top:2px;}
+  .stats{display:grid;gap:8px;margin-bottom:12px;}
+  .stat{background:var(--paper-card);border:1px solid var(--line);border-radius:8px;padding:9px 11px;}
+  .stat .num{font-size:19px;font-weight:600;}
+  .stat .lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.4px;color:var(--ink-soft);margin-top:1px;}
   .stat.alert .num{color:var(--stamp-red);}
   .stat.ok .num{color:var(--stamp-teal);}
 
-  .toolbar{display:flex;gap:10px;margin:0 0 14px;flex-wrap:wrap;align-items:center;}
-  .search-input{flex:1;min-width:180px;font-family:'Inter',sans-serif;font-size:13px;padding:9px 10px;border:1px solid var(--line);background:#fff;color:var(--ink);}
+  .toolbar{display:flex;gap:8px;margin:0 0 10px;flex-wrap:wrap;align-items:center;}
+  .search-input{flex:1;min-width:160px;font-family:'Inter',sans-serif;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink);}
+  .search-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
   .filter-btn{
-    font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
-    padding:8px 12px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;
+    font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;border-radius:6px;
+    padding:6px 10px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;
   }
-  .filter-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 
-  table{width:100%;border-collapse:collapse;background:var(--paper-card);border:1px solid var(--line);}
+  table{width:100%;border-collapse:collapse;background:var(--paper-card);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
   th{
-    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;
-    color:var(--ink-soft);font-weight:500;padding:10px 12px;border-bottom:1px solid var(--ink);
+    text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.4px;
+    color:var(--ink-soft);font-weight:600;padding:7px 9px;background:#FAFBFC;border-bottom:1px solid var(--line);
   }
-  td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;}
+  td{padding:7px 9px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:middle;}
   tr:last-child td{border-bottom:none;}
   tr.row-mismatch{background:var(--stamp-red-bg);}
-  tr.row-mismatch td{border-bottom-color:#EBC6C2;}
-  .vin{font-family:'IBM Plex Mono',monospace;font-weight:500;letter-spacing:0.5px;}
+  tr.row-mismatch td{border-bottom-color:#F7D2D2;}
+  .vin{font-family:'IBM Plex Mono',monospace;font-weight:500;letter-spacing:0.2px;}
 
-  .check{font-family:'Oswald',sans-serif;font-weight:600;font-size:15px;}
+  .check{font-weight:600;font-size:14px;}
   .check.yes{color:var(--stamp-teal);}
   .check.no{color:var(--stamp-red);}
 
-  .empty{padding:30px;text-align:center;color:var(--ink-soft);font-size:13px;}
-  hr.sep{border:none;border-top:1px solid var(--line);margin:36px 0;}
+  .empty{padding:20px;text-align:center;color:var(--ink-soft);font-size:12.5px;}
+  hr.sep{border:none;border-top:1px solid var(--line);margin:24px 0;}
 </style>
 </head>
 <body>
-<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#EEF0F1;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
-  <div style="background:#fff;border:1px solid #1B2A4A;padding:32px 36px;max-width:340px;width:90%;text-align:center;">
-    <div style="font-family:'Oswald',Arial,sans-serif;font-weight:600;font-size:16px;letter-spacing:0.5px;color:#1B2A4A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
-    <p style="font-size:12.5px;color:#4A5A78;margin:0 0 16px;">Entrez le mot de passe pour continuer</p>
-    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #D3D8DD;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
-    <button id="pg-submit" style="width:100%;background:#1B2A4A;color:#fff;border:none;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
+<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#F4F6F9;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
+  <div style="background:#fff;border:1px solid #E4E7EC;border-radius:12px;box-shadow:0 4px 16px rgba(16,24,40,0.08);padding:28px 32px;max-width:340px;width:90%;text-align:center;">
+    <div style="font-family:'Inter',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:0.3px;color:#1E2A3A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
+    <p style="font-size:12.5px;color:#6B7684;margin:0 0 16px;">Entrez le mot de passe pour continuer</p>
+    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #E4E7EC;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
+    <button id="pg-submit" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
     <div id="pg-error" style="color:#B3392F;font-size:12px;margin-top:10px;display:none;">Mot de passe incorrect.</div>
   </div>
 </div>
@@ -158,6 +162,8 @@
     <a href="canada.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Voir le suivi Canada →</a>
     <span style="color:var(--line);margin:0 6px;">|</span>
     <a href="detail.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Voir le suivi Detail →</a>
+  <span style="color:var(--line);margin:0 6px;">|</span>
+    <a href="achat.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Fiche d'achat →</a>
   </div>
 
   <div class="manifest-head">

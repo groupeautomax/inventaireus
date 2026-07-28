@@ -4,62 +4,63 @@
 <meta charset="UTF-8">
 <title>Fiche d'achat — Véhicule</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
 
   :root{
-    --paper: #EEF0F1;
+    --paper: #F4F6F9;
     --paper-card: #FFFFFF;
-    --ink: #1B2A4A;
-    --ink-soft: #4A5A78;
-    --line: #D3D8DD;
-    --stamp-red: #B3392F;
-    --stamp-red-bg: #F7E5E2;
-    --stamp-amber: #A66A1E;
-    --stamp-amber-bg: #FBEEDD;
-    --stamp-teal: #1E6E63;
-    --stamp-teal-bg: #E1EFEC;
+    --ink: #1E2A3A;
+    --ink-soft: #6B7684;
+    --line: #E4E7EC;
+    --accent: #2563EB;
+    --accent-bg: #EFF6FF;
+    --stamp-red: #DC2626;
+    --stamp-red-bg: #FEF2F2;
+    --stamp-amber: #D97706;
+    --stamp-amber-bg: #FFFBEB;
+    --stamp-teal: #059669;
+    --stamp-teal-bg: #ECFDF5;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);}
-  .wrap{max-width:980px;margin:0 auto;padding:20px 20px 40px;}
+  body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);font-size:13px;}
+  .wrap{max-width:1040px;margin:0 auto;padding:14px 16px 30px;}
 
   .manifest-head{
-    border:1px solid var(--ink);
     background:var(--paper-card);
-    padding:14px 18px;
-    margin-bottom:14px;
-    position:relative;
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:0 1px 2px rgba(16,24,40,0.04);
+    padding:10px 14px;
+    margin-bottom:10px;
   }
   .manifest-head::before{
     content:"FICHE D'ACHAT";
-    position:absolute; top:-11px; left:20px;
-    background:var(--paper);
-    padding:0 10px;
-    font-family:'Oswald',sans-serif;
-    font-size:11px;
-    letter-spacing:2px;
-    color:var(--ink-soft);
+    display:block;
+    font-size:10px;
+    letter-spacing:1.5px;
+    color:var(--accent);
+    font-weight:600;
+    margin-bottom:2px;
   }
   .manifest-title{
-    font-family:'Oswald',sans-serif;
     font-weight:600;
-    font-size:19px;
-    letter-spacing:0.5px;
-    margin:4px 0 1px;
+    font-size:16px;
+    letter-spacing:-0.2px;
+    margin:2px 0 1px;
   }
-  .manifest-sub{font-size:12px;color:var(--ink-soft);margin:0;}
+  .manifest-sub{font-size:11.5px;color:var(--ink-soft);margin:0;}
 
   .section{
-    background:var(--paper-card);border:1px solid var(--line);
-    padding:12px 16px;margin-bottom:10px;
+    background:var(--paper-card);border:1px solid var(--line);border-radius:8px;
+    box-shadow:0 1px 2px rgba(16,24,40,0.03);
+    padding:9px 12px;margin-bottom:8px;
   }
   .section-title{
-    font-family:'Oswald',sans-serif;font-size:11.5px;font-weight:600;letter-spacing:0.5px;
-    text-transform:uppercase;color:var(--ink-soft);margin:0 0 10px;
-    border-bottom:1px solid var(--line);padding-bottom:6px;
+    font-size:10px;font-weight:600;letter-spacing:0.4px;
+    text-transform:uppercase;color:var(--ink-soft);margin:0 0 7px;
   }
 
-  .grid{display:grid;gap:8px 12px;}
+  .grid{display:grid;gap:6px 10px;}
   .grid-2{grid-template-columns:repeat(2,1fr);}
   .grid-3{grid-template-columns:repeat(3,1fr);}
   .grid-4{grid-template-columns:repeat(4,1fr);}
@@ -67,51 +68,54 @@
   .grid-6{grid-template-columns:repeat(6,1fr);}
 
   .field{display:flex;flex-direction:column;gap:2px;}
-  .field label{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.3px;}
+  .field label{font-size:9.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.2px;}
   .field input, .field select{
-    font-family:'Inter',sans-serif;font-size:13px;padding:6px 8px;
+    font-family:'Inter',sans-serif;font-size:12px;padding:5px 7px;border-radius:6px;
     border:1px solid var(--line);background:#fff;color:var(--ink);width:100%;
   }
+  .field input:focus, .field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
   .field input[type="number"]{font-family:'IBM Plex Mono',monospace;}
-  .field.vin input{font-family:'IBM Plex Mono',monospace;letter-spacing:0.5px;}
+  .field.vin input{font-family:'IBM Plex Mono',monospace;letter-spacing:0.3px;}
 
-  .checklist{display:flex;flex-wrap:wrap;gap:6px 18px;}
-  .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;}
-  .chk input{width:15px;height:15px;accent-color:var(--ink);cursor:pointer;}
+  .checklist{display:flex;flex-wrap:wrap;gap:5px 14px;}
+  .chk{display:flex;align-items:center;gap:5px;font-size:11.5px;}
+  .chk input{width:13px;height:13px;accent-color:var(--accent);cursor:pointer;}
   .chk label{cursor:pointer;color:var(--ink);}
 
-  .radio-row{display:flex;gap:16px;align-items:center;}
-  .radio-row label{display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;}
-  .radio-row input{accent-color:var(--ink);cursor:pointer;}
+  .radio-row{display:flex;gap:14px;align-items:center;}
+  .radio-row label{display:flex;align-items:center;gap:4px;font-size:11.5px;cursor:pointer;}
+  .radio-row input{accent-color:var(--accent);cursor:pointer;}
 
-  .subsection{border-top:1px dashed var(--line);margin-top:10px;padding-top:10px;}
-  .subsection-title{font-size:11px;font-weight:600;color:var(--ink);margin-bottom:8px;}
+  .subsection{border-top:1px dashed var(--line);margin-top:8px;padding-top:8px;}
+  .subsection-title{font-size:10.5px;font-weight:600;color:var(--ink);margin-bottom:6px;}
 
   .summary{
-    background:var(--ink);color:#fff;padding:14px 16px;display:grid;
-    grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:10px;
+    background:var(--ink);color:#fff;border-radius:10px;padding:11px 14px;display:grid;
+    grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px;
   }
-  .summary .item .num{font-family:'Oswald',sans-serif;font-size:21px;font-weight:600;}
-  .summary .item .num.neg{color:#F2A79A;}
-  .summary .item .num.pos{color:#8FD4C4;}
-  .summary .item .lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#B7C0D6;margin-top:1px;}
+  .summary .item .num{font-size:17px;font-weight:600;}
+  .summary .item .num.neg{color:#FCA5A5;}
+  .summary .item .num.pos{color:#6EE7B7;}
+  .summary .item .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:0.4px;color:#9CA9C0;margin-top:1px;}
 
-  .toolbar-actions{display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;}
+  .toolbar-actions{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px;}
   .btn{
-    font-family:'Inter',sans-serif;font-weight:500;font-size:13px;
-    padding:10px 18px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;
+    font-family:'Inter',sans-serif;font-weight:500;font-size:12px;
+    padding:7px 14px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);cursor:pointer;
   }
-  .btn.primary{background:var(--ink);color:#fff;}
+  .btn:hover{border-color:var(--accent);color:var(--accent);}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn.primary:hover{background:#1D4ED8;color:#fff;}
 
   @media print{
     @page{ size: letter; margin: 0.3in; }
     body{background:#fff;font-size:9px;}
     .wrap{max-width:100%;padding:0;}
-    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub, #taux-auto-btn, #btn-add-inventaire, #add-inventaire-statut{display:none;}
-    .manifest-head{padding:6px 10px;margin-bottom:6px;border-width:1px;}
+    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub, #taux-auto-btn, #btn-add-inventaire, #add-inventaire-statut, #carfax-btn{display:none;}
+    .manifest-head{padding:6px 10px;margin-bottom:6px;border-width:1px;box-shadow:none;}
     .manifest-head img{height:26px;margin-bottom:4px;}
     .manifest-title{font-size:14px;margin:2px 0;}
-    .section{padding:6px 10px;margin-bottom:6px;break-inside:avoid;}
+    .section{padding:6px 10px;margin-bottom:6px;break-inside:avoid;box-shadow:none;}
     .section-title{font-size:9px;margin-bottom:6px;padding-bottom:4px;}
     .field label{font-size:8px;margin-bottom:0;}
     .field input, .field select{font-size:9px;padding:3px 4px;}
@@ -122,7 +126,7 @@
     .chk input{width:11px;height:11px;}
     .subsection{margin-top:6px;padding-top:6px;}
     .subsection-title{font-size:9px;margin-bottom:6px;}
-    .summary{padding:6px 10px;margin-bottom:6px;gap:8px;}
+    .summary{padding:6px 10px;margin-bottom:6px;gap:8px;box-shadow:none;}
     .summary .item .num{font-size:13px;}
     .summary .item .lbl{font-size:7px;}
     p{display:none;}
@@ -135,12 +139,12 @@
 </style>
 </head>
 <body>
-<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#EEF0F1;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
-  <div style="background:#fff;border:1px solid #1B2A4A;padding:32px 36px;max-width:340px;width:90%;text-align:center;">
-    <div style="font-family:'Oswald',Arial,sans-serif;font-weight:600;font-size:16px;letter-spacing:0.5px;color:#1B2A4A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
-    <p style="font-size:12.5px;color:#4A5A78;margin:0 0 16px;">Entrez le mot de passe pour continuer</p>
-    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #D3D8DD;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
-    <button id="pg-submit" style="width:100%;background:#1B2A4A;color:#fff;border:none;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
+<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#F4F6F9;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
+  <div style="background:#fff;border:1px solid #E4E7EC;border-radius:12px;box-shadow:0 4px 16px rgba(16,24,40,0.08);padding:28px 32px;max-width:340px;width:90%;text-align:center;">
+    <div style="font-family:'Inter',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:0.3px;color:#1E2A3A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
+    <p style="font-size:12.5px;color:#6B7684;margin:0 0 16px;">Entrez le mot de passe pour continuer</p>
+    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #E4E7EC;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
+    <button id="pg-submit" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
     <div id="pg-error" style="color:#B3392F;font-size:12px;margin-top:10px;display:none;">Mot de passe incorrect.</div>
   </div>
 </div>
@@ -283,7 +287,13 @@
       <div class="field"><label>Frais Encan ($)</label><input type="number" step="0.01" class="cout" id="f-fraisencan"></div>
       <div class="field"><label>Frais autres ou crédit ($)</label><input type="number" step="0.01" class="cout" id="f-fraisautres"></div>
       <div class="field"><label>Frais transport ($)</label><input type="number" step="0.01" class="cout" id="f-fraistransport"></div>
-      <div class="field"><label>Carfax ($)</label><input type="number" step="0.01" class="cout" id="f-carfax"></div>
+      <div class="field">
+        <label>Carfax ($)</label>
+        <div style="display:flex;gap:6px;">
+          <input type="number" step="0.01" class="cout" id="f-carfax" style="flex:1;">
+          <a href="https://vhr.carfax.ca/fr/" target="_blank" id="carfax-btn" class="btn" style="padding:6px 10px;font-size:11px;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;">Carfax</a>
+        </div>
+      </div>
     </div>
     <div class="grid grid-4" style="margin-top:12px;">
       <div class="field"><label>Mise en ligne — date</label><input type="date" id="f-miseligne"></div>

@@ -4,141 +4,145 @@
 <meta charset="UTF-8">
 <title>Suivi d'inventaire — véhicules Canada</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
 
   :root{
-    --paper: #EEF0F1;
+    --paper: #F4F6F9;
     --paper-card: #FFFFFF;
-    --ink: #1B2A4A;
-    --ink-soft: #4A5A78;
-    --line: #D3D8DD;
-    --stamp-red: #B3392F;
-    --stamp-red-bg: #F7E5E2;
-    --stamp-amber: #A66A1E;
-    --stamp-amber-bg: #FBEEDD;
-    --stamp-teal: #1E6E63;
-    --stamp-teal-bg: #E1EFEC;
+    --ink: #1E2A3A;
+    --ink-soft: #6B7684;
+    --line: #E4E7EC;
+    --accent: #2563EB;
+    --accent-bg: #EFF6FF;
+    --stamp-red: #DC2626;
+    --stamp-red-bg: #FEF2F2;
+    --stamp-amber: #D97706;
+    --stamp-amber-bg: #FFFBEB;
+    --stamp-teal: #059669;
+    --stamp-teal-bg: #ECFDF5;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);}
-  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 60px;}
+  body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);font-size:13px;}
+  .wrap{max-width:1060px;margin:0 auto;padding:16px 16px 36px;}
 
   .manifest-head{
-    border:1px solid var(--ink);
     background:var(--paper-card);
-    padding:20px 24px;
-    margin-bottom:20px;
-    position:relative;
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:0 1px 2px rgba(16,24,40,0.04);
+    padding:14px 16px;
+    margin-bottom:12px;
   }
   .manifest-head::before{
-    content:"MANIFESTE";
-    position:absolute; top:-11px; left:20px;
-    background:var(--paper);
-    padding:0 10px;
-    font-family:'Oswald',sans-serif;
-    font-size:11px;
-    letter-spacing:2px;
-    color:var(--ink-soft);
+    content:"REGISTRE";
+    display:block;
+    font-size:10px;
+    letter-spacing:1.5px;
+    color:var(--accent);
+    font-weight:600;
+    margin-bottom:2px;
   }
   .manifest-title{
-    font-family:'Oswald',sans-serif;
     font-weight:600;
-    font-size:24px;
-    letter-spacing:0.5px;
-    margin:6px 0 2px;
+    font-size:18px;
+    letter-spacing:-0.2px;
+    margin:0 0 2px;
+    color:var(--ink);
   }
-  .manifest-sub{font-size:13px;color:var(--ink-soft);margin:0 0 18px;}
+  .manifest-sub{font-size:12px;color:var(--ink-soft);margin:0;}
 
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);}
-  .stat{background:var(--paper-card);padding:12px 14px;}
-  .stat .num{font-family:'Oswald',sans-serif;font-size:26px;font-weight:600;}
-  .stat .lbl{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin-top:2px;}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .stat{background:var(--paper-card);border:1px solid var(--line);border-radius:8px;padding:9px 11px;}
+  .stat .num{font-size:19px;font-weight:600;color:var(--ink);}
+  .stat .lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-soft);margin-top:1px;}
   .stat.alert .num{color:var(--stamp-red);}
 
-  .toolbar{display:flex;gap:10px;margin:20px 0 14px;flex-wrap:wrap;align-items:center;}
-  input[type=text], select{
-    font-family:'Inter',sans-serif;font-size:13px;
-    padding:9px 10px;border:1px solid var(--line);background:#fff;color:var(--ink);
+  .toolbar{display:flex;gap:8px;margin:10px 0 8px;flex-wrap:wrap;align-items:center;}
+  input[type=text], select, input[type=date], input[type=number]{
+    font-family:'Inter',sans-serif;font-size:12.5px;
+    padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);
   }
-  #search{flex:1;min-width:180px;}
+  input:focus, select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
+  #search{flex:1;min-width:160px;}
   .filter-btn{
-    font-family:'Inter',sans-serif;font-size:12px;font-weight:500;
-    padding:8px 12px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;
+    font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;
+    padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink-soft);cursor:pointer;
   }
-  .filter-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 
   .add-form{
-    display:grid;grid-template-columns:1fr 1fr auto;gap:10px;
-    background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;
+    display:grid;grid-template-columns:1fr 1fr auto;gap:8px;
+    background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:12px;
   }
   .add-form button{
-    font-family:'Inter',sans-serif;font-weight:500;font-size:13px;
-    background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;
+    font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;
+    background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;
   }
-  .add-form button:hover{background:#12203a;}
+  .add-form button:hover{background:#1D4ED8;}
 
-  table{width:100%;border-collapse:collapse;background:var(--paper-card);border:1px solid var(--line);}
+  table{width:100%;border-collapse:collapse;background:var(--paper-card);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
   th{
-    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;
-    color:var(--ink-soft);font-weight:500;padding:10px 12px;border-bottom:1px solid var(--ink);
+    text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.4px;
+    color:var(--ink-soft);font-weight:600;padding:7px 9px;background:#FAFBFC;border-bottom:1px solid var(--line);
   }
-  td{padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;}
+  td{padding:7px 9px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:middle;}
   tr:last-child td{border-bottom:none;}
-  .vin{font-family:'IBM Plex Mono',monospace;font-weight:500;letter-spacing:0.5px;}
+  .vin{font-family:'IBM Plex Mono',monospace;font-weight:500;letter-spacing:0.2px;}
 
   .stamp{
-    display:inline-block;font-family:'Oswald',sans-serif;font-size:11px;font-weight:600;
-    letter-spacing:0.5px;text-transform:uppercase;padding:4px 10px;
-    border:1.5px solid; border-radius:3px; transform:rotate(-1.5deg);
+    display:inline-block;font-family:'Inter',sans-serif;font-size:10.5px;font-weight:600;
+    letter-spacing:0.2px;padding:3px 9px;
+    border:1px solid; border-radius:999px;
   }
-  .stamp.achete{color:var(--ink-soft);border-color:var(--line);background:#fff;}
-  .stamp.transitqc{color:#5B4B8A;border-color:#5B4B8A;background:#EEEAF6;}
-  .stamp.stock{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);}
-  .stamp.transit{color:var(--stamp-amber);border-color:var(--stamp-amber);background:var(--stamp-amber-bg);}
-  .stamp.arrive{color:var(--stamp-teal);border-color:var(--stamp-teal);background:var(--stamp-teal-bg);}
+  .stamp.achete{color:var(--ink-soft);border-color:var(--line);background:#F7F8FA;}
+  .stamp.transitqc{color:#6D4FC7;border-color:#D9CFF5;background:#F3EFFC;}
+  .stamp.stock{color:var(--stamp-red);border-color:#FBD5D5;background:var(--stamp-red-bg);}
+  .stamp.transit{color:var(--stamp-amber);border-color:#FDE3B3;background:var(--stamp-amber-bg);}
+  .stamp.manheimpa{color:#0E7CA6;border-color:#BFE3F0;background:#EAF6FA;}
+  .stamp.arrive{color:var(--stamp-teal);border-color:#B6EDD4;background:var(--stamp-teal-bg);}
 
   .doc-badge{
-    display:inline-block;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;
-    padding:4px 9px;border-radius:3px;cursor:pointer;border:1px solid;
+    display:inline-block;font-family:'Inter',sans-serif;font-size:10.5px;font-weight:500;
+    padding:3px 8px;border-radius:999px;cursor:pointer;border:1px solid;
   }
-  .doc-badge.oui{color:var(--stamp-teal);border-color:var(--stamp-teal);background:var(--stamp-teal-bg);}
+  .doc-badge.oui{color:var(--stamp-teal);border-color:#B6EDD4;background:var(--stamp-teal-bg);}
   .doc-badge.non{color:var(--ink-soft);border-color:var(--line);background:#fff;}
-  .doc-badge.wrongname{color:var(--stamp-amber);border-color:var(--stamp-amber);background:var(--stamp-amber-bg);font-weight:600;}
-  .doc-badge.late{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);font-weight:600;}
+  .doc-badge.wrongname{color:var(--stamp-amber);border-color:#FDE3B3;background:var(--stamp-amber-bg);font-weight:600;}
+  .doc-badge.late{color:var(--stamp-red);border-color:#FBD5D5;background:var(--stamp-red-bg);font-weight:600;}
 
   .recall-badge{
-    display:inline-block;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;
-    padding:4px 9px;border-radius:3px;border:1px solid;
+    display:inline-block;font-family:'Inter',sans-serif;font-size:10.5px;font-weight:600;
+    padding:3px 8px;border-radius:999px;border:1px solid;
   }
-  .recall-badge.oui{color:var(--stamp-red);border-color:var(--stamp-red);background:var(--stamp-red-bg);}
-  .recall-badge.non{color:var(--stamp-teal);border-color:var(--stamp-teal);background:var(--stamp-teal-bg);}
+  .recall-badge.oui{color:var(--stamp-red);border-color:#FBD5D5;background:var(--stamp-red-bg);}
+  .recall-badge.non{color:var(--stamp-teal);border-color:#B6EDD4;background:var(--stamp-teal-bg);}
   .recall-badge.inconnu{color:var(--ink-soft);border-color:var(--line);background:#fff;font-weight:400;}
   tr.row-late{background:var(--stamp-red-bg);}
-  tr.row-late td{border-bottom-color:#EBC6C2;}
+  tr.row-late td{border-bottom-color:#F7D2D2;}
   tr.row-late-achat{background:var(--stamp-amber-bg);}
-  tr.row-late-achat td{border-bottom-color:#F3DBB4;}
+  tr.row-late-achat td{border-bottom-color:#FBE7BE;}
 
-  .date-cell{font-size:12px;color:var(--ink-soft);}
+  .date-cell{font-size:11px;color:var(--ink-soft);}
 
-  .row-actions{display:flex;gap:6px;justify-content:flex-end;}
+  .row-actions{display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap;}
   .action-btn{
-    font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;
-    padding:6px 9px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;
+    font-family:'Inter',sans-serif;font-size:10.5px;font-weight:500;
+    padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);cursor:pointer;
   }
-  .action-btn:hover{border-color:var(--ink);}
+  .action-btn:hover{border-color:var(--accent);color:var(--accent);}
   .action-btn.danger{color:var(--stamp-red);}
 
-  .empty{padding:30px;text-align:center;color:var(--ink-soft);font-size:13px;}
-  .synced{font-size:11px;color:var(--ink-soft);margin-top:8px;text-align:right;}
+  .empty{padding:22px;text-align:center;color:var(--ink-soft);font-size:12.5px;}
+  .synced{font-size:10.5px;color:var(--ink-soft);margin-top:6px;text-align:right;}
 </style>
 </head>
 <body>
-<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#EEF0F1;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
-  <div style="background:#fff;border:1px solid #1B2A4A;padding:32px 36px;max-width:340px;width:90%;text-align:center;">
-    <div style="font-family:'Oswald',Arial,sans-serif;font-weight:600;font-size:16px;letter-spacing:0.5px;color:#1B2A4A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
-    <p style="font-size:12.5px;color:#4A5A78;margin:0 0 16px;">Entrez le mot de passe pour continuer</p>
-    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #D3D8DD;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
-    <button id="pg-submit" style="width:100%;background:#1B2A4A;color:#fff;border:none;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
+<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#F4F6F9;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
+  <div style="background:#fff;border:1px solid #E4E7EC;border-radius:12px;box-shadow:0 4px 16px rgba(16,24,40,0.08);padding:28px 32px;max-width:340px;width:90%;text-align:center;">
+    <div style="font-family:'Inter',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:0.3px;color:#1E2A3A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
+    <p style="font-size:12.5px;color:#6B7684;margin:0 0 16px;">Entrez le mot de passe pour continuer</p>
+    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #E4E7EC;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
+    <button id="pg-submit" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
     <div id="pg-error" style="color:#B3392F;font-size:12px;margin-top:10px;display:none;">Mot de passe incorrect.</div>
   </div>
 </div>
@@ -187,8 +191,8 @@
     <button id="save-url-btn">Connecter le Sheet</button>
   </div>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
-    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Ajout en lot</div>
+  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
+    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Ajout en lot</div>
     <textarea id="bulk-input" rows="4" placeholder="Un VIN par ligne — marque, modèle et année sont détectés automatiquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456&#10;&#10;(Vous pouvez aussi préciser vous-même : VIN, Modèle)"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;">
@@ -204,13 +208,13 @@
           <option value="Achat">Achat</option>
           <option value="Échange">Échange</option>
         </select>
-        <button id="bulk-add-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Ajouter tout le lot</button>
+        <button id="bulk-add-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;">Ajouter tout le lot</button>
       </div>
     </div>
   </div>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
-    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Registre / enregistrement reçu — mise à jour en lot</div>
+  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
+    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Registre / enregistrement reçu — mise à jour en lot</div>
     <textarea id="doc-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
@@ -221,13 +225,13 @@
           <option value="oui-mauvais">Marquer reçu — mauvais nom</option>
           <option value="non">Marquer non reçu</option>
         </select>
-        <button id="doc-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Mettre à jour le lot</button>
+        <button id="doc-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;">Mettre à jour le lot</button>
       </div>
     </div>
   </div>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
-    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Mise à jour de statut en lot</div>
+  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
+    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Mise à jour de statut en lot</div>
     <textarea id="status-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;">
@@ -239,25 +243,25 @@
           <option value="transit">Marquer expédié</option>
           <option value="arrive">Marquer vendu</option>
         </select>
-        <button id="status-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Mettre à jour le lot</button>
+        <button id="status-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;">Mettre à jour le lot</button>
       </div>
     </div>
   </div>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
-    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Vérification d'inventaire</div>
+  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
+    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Vérification d'inventaire</div>
     <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px;">Collez votre liste physique de VIN (un par ligne) pour la comparer au registre Google Sheet actuel.</p>
     <textarea id="verif-input" rows="5" placeholder="Un VIN par ligne — votre inventaire physique actuel.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
       <span style="font-size:12px;color:var(--ink-soft);" id="verif-count"></span>
-      <button id="verif-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:13px;background:var(--ink);color:#fff;border:none;padding:9px 18px;cursor:pointer;">Comparer</button>
+      <button id="verif-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;">Comparer</button>
     </div>
     <div id="verif-results" style="margin-top:14px;"></div>
   </div>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);padding:14px;margin-bottom:20px;">
-    <div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;">Vérification des rappels de sécurité</div>
+  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
+    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Vérification des rappels de sécurité</div>
     <p style="font-size:12px;color:var(--ink-soft);margin:0;">Vérifié automatiquement (NHTSA) à l'ajout d'un véhicule — cliquez sur le badge « Rappel ouvert » / « Aucun rappel » / « Non vérifié » pour revérifier. Le bouton « Rappels constructeur » ouvre en plus la page officielle du fabricant pour une double-vérification manuelle avec le VIN.</p>
   </div>
 
@@ -268,7 +272,7 @@
   <div class="toolbar">
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par statut</label>
-      <select id="filter-statut" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+      <select id="filter-statut" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
         <option value="all">Tous (actifs — sans les vendus)</option>
         <option value="achete">Acheté</option>
         <option value="transitqc">Transit QC</option>
@@ -280,7 +284,7 @@
     </div>
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par compagnie</label>
-      <select id="filter-compagnie" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+      <select id="filter-compagnie" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
         <option value="">Toutes</option>
         <option value="HAWKS">HAWKS</option>
         <option value="STM">STM</option>
@@ -288,7 +292,7 @@
     </div>
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par origine</label>
-      <select id="filter-origine" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+      <select id="filter-origine" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
         <option value="">Toutes</option>
         <option value="Achat">Achat</option>
         <option value="Échange">Échange</option>
@@ -296,7 +300,7 @@
     </div>
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par registre</label>
-      <select id="filter-registre" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+      <select id="filter-registre" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
         <option value="">Tous</option>
         <option value="oui-bon">Reçu · bon nom</option>
         <option value="oui-mauvais">Reçu · mauvais nom</option>
@@ -305,7 +309,7 @@
     </div>
     <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
       <label style="font-size:11px;color:var(--ink-soft);">Filtrer par rappel</label>
-      <select id="filter-rappel" style="font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px;border:1px solid var(--line);background:#fff;color:var(--ink);">
+      <select id="filter-rappel" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
         <option value="">Tous</option>
         <option value="oui">Rappel ouvert</option>
         <option value="non">Aucun rappel</option>
@@ -555,6 +559,7 @@ function render(){
         <div class="row-actions">
           ${meta.next ? `<button class="action-btn" data-action="advance" data-id="${v.id}">${meta.nextLabel}</button>` : ''}
           ${windowStickerHtml(v)}
+          <a class="action-btn" href="https://vhr.carfax.ca/fr/" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;" title="Coller le VIN ${v.vin} sur Carfax">Carfax</a>
           ${manufacturerRecallHtml(v)}
           <select class="action-btn transfer-select" data-id="${v.id}" style="cursor:pointer;">
             <option value="">Transférer vers...</option>

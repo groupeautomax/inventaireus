@@ -334,11 +334,11 @@
           </div>
         </div>
         <div class="field"><label>Dépense ($) — déjà nette dans le prix de vente</label><input type="number" step="0.01" id="f-defense"></div>
-        <div class="field"><label>Prix de vente estimé ($)</label><input type="text" id="f-prixfinalpayer" readonly style="background:#F7F8F9;font-weight:600;"></div>
-        <input type="hidden" id="f-mmrxtaux">
+        <div class="field"><label>Prix de vente estimé ($) — basé sur MMR initial</label><input type="text" id="f-prixfinalpayer" readonly style="background:#F7F8F9;font-weight:600;"></div>
       </div>
       <div class="grid grid-2" style="margin-top:12px;">
-        <div class="field"><label>Écart prix de vente vs MMR initial</label><input type="text" id="f-ecartventeinitial" readonly style="background:#F7F8F9;"></div>
+        <div class="field"><label>Prix de vente estimé ($) — basé sur MMR livraison</label><input type="text" id="f-prixventelivraison" readonly style="background:#F7F8F9;"></div>
+        <div class="field"><label>Écart entre les deux prix de vente (livraison − initial)</label><input type="text" id="f-ecartventeinitial" readonly style="background:#F7F8F9;font-weight:600;"></div>
       </div>
     </div>
   </div>
@@ -426,13 +426,18 @@ function recalcule(){
   document.getElementById('f-ecartmmr').value = (ecartMmr>=0?'+':'') + ecartMmr.toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' $';
   document.getElementById('f-ecartmmrpct').value = mmr !== 0 ? ((ecartMmr>=0?'+':'') + (100*ecartMmr/mmr).toFixed(1) + ' %') : '—';
   const taux = parseNum('f-taux');
-  const mmrConverti = mmr * taux;
-  document.getElementById('f-mmrxtaux').value = mmrConverti.toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2});
   const depense = parseNum('f-defense');
-  const prixFinalPayer = mmrConverti - depense;
+
+  // Prix de vente estimé basé sur MMR initial (référence principale)
+  const prixFinalPayer = (mmr * taux) - depense;
   document.getElementById('f-prixfinalpayer').value = prixFinalPayer.toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' $';
 
-  const ecartVenteInitial = prixFinalPayer - mmr;
+  // Prix de vente estimé basé sur MMR livraison (même taux, même dépense — comparaison cohérente)
+  const prixVenteLivraison = (mmrLivraison * taux) - depense;
+  document.getElementById('f-prixventelivraison').value = prixVenteLivraison.toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' $';
+
+  // Écart entre les deux prix de vente — reflète l'écart MMR converti au taux de change (la dépense s'annule)
+  const ecartVenteInitial = prixVenteLivraison - prixFinalPayer;
   document.getElementById('f-ecartventeinitial').value = (ecartVenteInitial>=0?'+':'') + ecartVenteInitial.toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' $';
 
   // Prix de vente retenu et profit — dépendent de la destination choisie

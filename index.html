@@ -56,6 +56,9 @@
   .stat .num{font-size:19px;font-weight:600;color:var(--ink);}
   .stat .lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-soft);margin-top:1px;}
   .stat.alert .num{color:var(--stamp-red);}
+  .stat:hover{border-color:var(--accent);box-shadow:0 1px 4px rgba(37,99,235,0.12);}
+  .stat.active-stat{border-color:var(--accent);background:var(--accent-bg);}
+  .stat.active-stat .num{color:var(--accent);}
 
   .toolbar{display:flex;gap:8px;margin:10px 0 8px;flex-wrap:wrap;align-items:center;}
   input[type=text], select, input[type=date], input[type=number]{
@@ -499,25 +502,58 @@ function computeStats(){
   const arrive = vehicules.filter(v=>v.statut==='arrive').length;
   const retard = vehicules.filter(estEnRetard).length;
   const retardAchat = vehicules.filter(estEnRetardAchat).length;
+  const activeAttr = (type) => activeStatFilter === type ? 'active-stat' : '';
   document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="num">${total}</div><div class="lbl">Total véhicules</div></div>
-    <div class="stat"><div class="num">${achete}</div><div class="lbl">Achetés — pas encore en stock</div></div>
-    <div class="stat alert"><div class="num">${stock}</div><div class="lbl">En stock — pas encore parti</div></div>
-    <div class="stat"><div class="num">${transit}</div><div class="lbl">En transit</div></div>
+    <div class="stat ${activeAttr('total')}" data-stat="total" style="cursor:pointer;"><div class="num">${total}</div><div class="lbl">Total véhicules</div></div>
+    <div class="stat ${activeAttr('achete')}" data-stat="achete" style="cursor:pointer;"><div class="num">${achete}</div><div class="lbl">Achetés — pas encore en stock</div></div>
+    <div class="stat alert ${activeAttr('stock')}" data-stat="stock" style="cursor:pointer;"><div class="num">${stock}</div><div class="lbl">En stock — pas encore parti</div></div>
+    <div class="stat ${activeAttr('transit')}" data-stat="transit" style="cursor:pointer;"><div class="num">${transit}</div><div class="lbl">En transit</div></div>
   `;
   document.getElementById('stats').innerHTML += `
-    <div class="stat" style="grid-column:1/-1;"><div class="num">${arrive}</div><div class="lbl">Vendus</div></div>
+    <div class="stat ${activeAttr('arrive')}" data-stat="arrive" style="grid-column:1/-1;cursor:pointer;"><div class="num">${arrive}</div><div class="lbl">Vendus</div></div>
   `;
   if(retard > 0){
     document.getElementById('stats').innerHTML += `
-      <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-red-bg);"><div class="num">${retard}</div><div class="lbl">Registre non reçu depuis 10 jours ou plus</div></div>
+      <div class="stat alert ${activeAttr('retard')}" data-stat="retard" style="grid-column:1/-1;border-top:1px solid var(--stamp-red-bg);cursor:pointer;"><div class="num">${retard}</div><div class="lbl">Registre non reçu depuis 10 jours ou plus</div></div>
     `;
   }
   if(retardAchat > 0){
     document.getElementById('stats').innerHTML += `
-      <div class="stat alert" style="grid-column:1/-1;border-top:1px solid var(--stamp-amber-bg);"><div class="num">${retardAchat}</div><div class="lbl">Non reçu en stock depuis 7 jours ou plus après l'achat</div></div>
+      <div class="stat alert ${activeAttr('retardAchat')}" data-stat="retardAchat" style="grid-column:1/-1;border-top:1px solid var(--stamp-amber-bg);cursor:pointer;"><div class="num">${retardAchat}</div><div class="lbl">Non reçu en stock depuis 7 jours ou plus après l'achat</div></div>
     `;
   }
+  document.querySelectorAll('#stats [data-stat]').forEach(el=>{
+    el.addEventListener('click', ()=> clickStat(el.dataset.stat));
+  });
+}
+
+let activeStatFilter = null;
+
+function resetDropdownFilters(){
+  document.getElementById('filter-compagnie').value = '';
+  document.getElementById('filter-origine').value = '';
+  document.getElementById('filter-rappel').value = '';
+  document.getElementById('filter-importateur').value = '';
+  document.getElementById('filter-registre').value = '';
+  const searchEl = document.getElementById('search');
+  if(searchEl) searchEl.value = '';
+  searchTerm = '';
+}
+
+function clickStat(type){
+  activeStatFilter = (activeStatFilter === type) ? null : type;
+  resetDropdownFilters();
+  const statutMap = { achete:'achete', stock:'stock', transit:'transit', arrive:'arrive' };
+  if(activeStatFilter && statutMap[activeStatFilter]){
+    currentFilter = statutMap[activeStatFilter];
+  } else if(activeStatFilter){
+    currentFilter = 'tousavecvendu';
+  } else {
+    currentFilter = 'all';
+  }
+  document.getElementById('filter-statut').value = currentFilter;
+  render();
+  document.getElementById('table-body').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function render(){
@@ -544,6 +580,8 @@ function render(){
     const t = searchTerm.toLowerCase();
     list = list.filter(v=> v.vin.toLowerCase().includes(t) || v.modele.toLowerCase().includes(t));
   }
+  if(activeStatFilter === 'retard') list = list.filter(estEnRetard);
+  else if(activeStatFilter === 'retardAchat') list = list.filter(estEnRetardAchat);
   const tbody = document.getElementById('table-body');
   const emptyMsg = document.getElementById('empty-msg');
   tbody.innerHTML = '';
@@ -950,11 +988,11 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
   }
 });
 
-document.getElementById('filter-compagnie').addEventListener('change', render);
-document.getElementById('filter-origine').addEventListener('change', render);
-document.getElementById('filter-rappel').addEventListener('change', render);
-document.getElementById('filter-importateur').addEventListener('change', render);
-document.getElementById('filter-registre').addEventListener('change', render);
+document.getElementById('filter-compagnie').addEventListener('change', ()=>{ activeStatFilter=null; render(); });
+document.getElementById('filter-origine').addEventListener('change', ()=>{ activeStatFilter=null; render(); });
+document.getElementById('filter-rappel').addEventListener('change', ()=>{ activeStatFilter=null; render(); });
+document.getElementById('filter-importateur').addEventListener('change', ()=>{ activeStatFilter=null; render(); });
+document.getElementById('filter-registre').addEventListener('change', ()=>{ activeStatFilter=null; render(); });
 
 document.getElementById('table-body').addEventListener('change', async (e)=>{
   const input = e.target.closest('.cost-input');
@@ -980,11 +1018,13 @@ document.getElementById('table-body').addEventListener('change', async (e)=>{
 
 document.getElementById('filter-statut').addEventListener('change', (e)=>{
   currentFilter = e.target.value;
+  activeStatFilter = null;
   render();
 });
 
 document.getElementById('search').addEventListener('input', (e)=>{
   searchTerm = e.target.value;
+  activeStatFilter = null;
   render();
 });
 

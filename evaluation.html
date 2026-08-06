@@ -155,9 +155,12 @@
       <div class="field"><label>Année</label><input type="number" id="e-annee"></div>
     </div>
     <div class="grid grid-4" style="margin-top:8px;">
-      <div class="field"><label>Kilométrage</label><input type="number" id="e-km"></div>
+      <div class="field"><label>Kilométrage du véhicule à évaluer</label><input type="number" id="e-km"></div>
+      <div class="field"><label>Taux d'ajustement ($/km)</label><input type="number" step="0.01" id="e-taux-km" value="0.10"></div>
       <div class="field" style="justify-content:flex-end;"><button type="button" class="btn" id="decode-btn">Décoder le VIN</button></div>
+      <div class="field" style="justify-content:flex-end;"><button type="button" class="btn primary" id="save-eval-btn">Enregistrer l'évaluation</button></div>
     </div>
+    <div id="eval-statut" style="font-size:11px;color:var(--ink-soft);margin-top:6px;"></div>
   </div>
 
   <div class="section">
@@ -174,10 +177,16 @@
 
   <div class="summary">
     <div class="item"><div class="num" id="s-count">0</div><div class="lbl">Comparables</div></div>
-    <div class="item"><div class="num" id="s-avg">—</div><div class="lbl">Moyenne</div></div>
-    <div class="item"><div class="num" id="s-median">—</div><div class="lbl">Médiane</div></div>
-    <div class="item"><div class="num" id="s-range">—</div><div class="lbl">Fourchette</div></div>
+    <div class="item"><div class="num" id="s-avg">—</div><div class="lbl">Moyenne brute</div></div>
+    <div class="item"><div class="num" id="s-median">—</div><div class="lbl">Médiane brute</div></div>
+    <div class="item"><div class="num" id="s-range">—</div><div class="lbl">Fourchette brute</div></div>
   </div>
+  <div class="summary" style="background:var(--accent);">
+    <div class="item"><div class="num" id="s-avg-adj">—</div><div class="lbl">Moyenne ajustée au KM</div></div>
+    <div class="item"><div class="num" id="s-median-adj">—</div><div class="lbl">Médiane ajustée au KM</div></div>
+    <div class="item"><div class="num" id="s-range-adj">—</div><div class="lbl">Fourchette ajustée</div></div>
+  </div>
+  <p style="font-size:10.5px;color:var(--ink-soft);margin:-4px 0 12px;">La valeur ajustée ramène chaque comparable au kilométrage de votre véhicule (comparable_price − (KM véhicule − KM comparable) × taux) — ça évite qu'un comparable à très faible ou très haut kilométrage fausse la moyenne.</p>
 
 </div>
 
@@ -239,16 +248,19 @@ addCompRow(); addCompRow(); addCompRow();
 function fmt(n){ return n.toLocaleString('fr-CA', {maximumFractionDigits:0}) + ' $'; }
 
 function recalcule(){
-  const prix = [...document.querySelectorAll('.comp-prix')]
-    .map(el => parseFloat(el.value))
-    .filter(v => !isNaN(v) && v > 0)
-    .sort((a,b)=>a-b);
+  const comps = [...document.querySelectorAll('.comp-row')].map(row => ({
+    source: row.querySelector('.comp-source').value,
+    prix: parseFloat(row.querySelector('.comp-prix').value),
+    km: parseFloat(row.querySelector('.comp-km').value)
+  })).filter(c => !isNaN(c.prix) && c.prix > 0);
+
+  const prix = comps.map(c=>c.prix).sort((a,b)=>a-b);
 
   document.getElementById('s-count').textContent = prix.length;
   if(prix.length === 0){
-    document.getElementById('s-avg').textContent = '—';
-    document.getElementById('s-median').textContent = '—';
-    document.getElementById('s-range').textContent = '—';
+    ['s-avg','s-median','s-range','s-avg-adj','s-median-adj','s-range-adj'].forEach(id=>{
+      document.getElementById(id).textContent = '—';
+    });
     return;
   }
   const avg = prix.reduce((a,b)=>a+b,0) / prix.length;
@@ -257,7 +269,98 @@ function recalcule(){
   document.getElementById('s-avg').textContent = fmt(avg);
   document.getElementById('s-median').textContent = fmt(median);
   document.getElementById('s-range').textContent = fmt(prix[0]) + ' – ' + fmt(prix[prix.length-1]);
+
+  // Ajustement au kilométrage : ramène chaque comparable au KM du véhicule évalué
+  const kmVehicule = parseFloat(document.getElementById('e-km').value);
+  const tauxKm = parseFloat(document.getElementById('e-taux-km').value) || 0;
+  if(!isNaN(kmVehicule)){
+    const prixAjustes = comps
+      .map(c => isNaN(c.km) ? c.prix : c.prix - (kmVehicule - c.km) * tauxKm)
+      .sort((a,b)=>a-b);
+    const avgAdj = prixAjustes.reduce((a,b)=>a+b,0) / prixAjustes.length;
+    const midAdj = Math.floor(prixAjustes.length/2);
+    const medianAdj = prixAjustes.length % 2 === 0 ? (prixAjustes[midAdj-1]+prixAjustes[midAdj])/2 : prixAjustes[midAdj];
+    document.getElementById('s-avg-adj').textContent = fmt(avgAdj);
+    document.getElementById('s-median-adj').textContent = fmt(medianAdj);
+    document.getElementById('s-range-adj').textContent = fmt(prixAjustes[0]) + ' – ' + fmt(prixAjustes[prixAjustes.length-1]);
+  } else {
+    document.getElementById('s-avg-adj').textContent = 'Entrez le KM du véhicule';
+    document.getElementById('s-median-adj').textContent = '—';
+    document.getElementById('s-range-adj').textContent = '—';
+  }
 }
+document.getElementById('e-km').addEventListener('input', recalcule);
+document.getElementById('e-taux-km').addEventListener('input', recalcule);
+
+// ================= Sauvegarde et chargement liés au VIN =================
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyozDZPXRXDXeBjrXJEvAjovORuD_CqffBfnX8BE_8s5R_6LjWhImbMordn4984Ew_sWw/exec';
+
+function collectEvalData(){
+  return {
+    marque: document.getElementById('e-marque').value,
+    modele: document.getElementById('e-modele').value,
+    annee: document.getElementById('e-annee').value,
+    km: document.getElementById('e-km').value,
+    tauxKm: document.getElementById('e-taux-km').value,
+    comparables: [...document.querySelectorAll('.comp-row')].map(row => ({
+      source: row.querySelector('.comp-source').value,
+      prix: row.querySelector('.comp-prix').value,
+      km: row.querySelector('.comp-km').value
+    }))
+  };
+}
+
+function populateEvalData(data){
+  if(data.marque) document.getElementById('e-marque').value = data.marque;
+  if(data.modele) document.getElementById('e-modele').value = data.modele;
+  if(data.annee) document.getElementById('e-annee').value = data.annee;
+  if(data.km) document.getElementById('e-km').value = data.km;
+  if(data.tauxKm) document.getElementById('e-taux-km').value = data.tauxKm;
+  if(data.comparables && data.comparables.length){
+    document.getElementById('comp-rows').innerHTML = '';
+    data.comparables.forEach(c => addCompRow(c.source, c.prix, c.km));
+  }
+  recalcule();
+}
+
+document.getElementById('save-eval-btn').addEventListener('click', async ()=>{
+  const statutEl = document.getElementById('eval-statut');
+  const vin = document.getElementById('e-niv').value.trim();
+  if(!vin){ statutEl.textContent = 'Entrez un VIN dans le champ NIV pour pouvoir enregistrer.'; return; }
+  statutEl.textContent = 'Enregistrement en cours...';
+  try{
+    const data = collectEvalData();
+    const resp = await fetch(DEFAULT_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'saveEvaluation', vin: vin, data: data })
+    });
+    const result = await resp.json();
+    statutEl.textContent = '✓ Évaluation enregistrée pour ce VIN (' + new Date(result.dateMaj).toLocaleString('fr-CA') + ')';
+  }catch(e){
+    statutEl.textContent = 'Échec de l\'enregistrement. Réessayez.';
+  }
+});
+
+document.getElementById('e-niv').addEventListener('blur', async function(){
+  const vin = this.value.trim();
+  const statutEl = document.getElementById('eval-statut');
+  if(vin.length < 11) return;
+  statutEl.textContent = 'Recherche d\'une évaluation existante...';
+  try{
+    const resp = await fetch(DEFAULT_SCRIPT_URL + '?evalVin=' + encodeURIComponent(vin));
+    const result = await resp.json();
+    if(result.trouve){
+      populateEvalData(result.donnees);
+      statutEl.textContent = 'Évaluation existante chargée (mise à jour le ' + new Date(result.dateMaj).toLocaleString('fr-CA') + ')';
+    } else {
+      decodeVinAuto(vin);
+      statutEl.textContent = 'Aucune évaluation existante pour ce VIN — nouvelle évaluation.';
+    }
+  }catch(e){
+    statutEl.textContent = '';
+  }
+});
 recalcule();
 </script>
 </body>

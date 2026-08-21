@@ -447,6 +447,7 @@ function recalcule(){
   if(document.getElementById('c-pad350').checked) coutant += 350;
   if(document.getElementById('c-pad50').checked) coutant += 50;
   if(document.getElementById('c-pad212').checked) coutant += 212;
+  window._coutantActuel = coutant; // exposé pour la sauvegarde vers l'inventaire (voir collectFormData)
 
   // MMR et prix de vente estimé (US) — calculé avant le profit, car le profit US en dépend
   const mmr = parseNum('f-mmrinitial');
@@ -566,6 +567,7 @@ function collectFormData(){
   document.querySelectorAll('input[type=radio]:checked').forEach(el=>{
     data[el.name] = el.value;
   });
+  data['_coutantTotal'] = window._coutantActuel || 0;
   return data;
 }
 

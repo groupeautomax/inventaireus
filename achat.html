@@ -242,6 +242,70 @@
       <div class="field"><label>Fournisseur</label><input type="text" id="f-fournisseur"></div>
       <div class="field"><label>Vendeur</label><input type="text" id="f-vendeur"></div>
     </div>
+    <div class="grid grid-4" style="margin-top:12px;">
+      <div class="field"><label>Ville de provenance</label><input type="text" id="f-villeprovenance"></div>
+      <div class="field">
+        <label>Acheteur (interne)</label>
+        <select id="f-acheteur">
+          <option value="">Choisir...</option>
+          <option value="Marc-André">Marc-André</option>
+          <option value="Tristan">Tristan</option>
+          <option value="Fred">Fred</option>
+          <option value="Mathieu">Mathieu</option>
+          <option value="Julien">Julien</option>
+          <option value="Max F">Max F</option>
+          <option value="HOUSE">HOUSE</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== COÛTS (inclut Frais et ajustements) ===================== -->
+  <div class="section">
+    <div class="section-title">Coûts</div>
+    <div class="grid grid-4">
+      <div class="field"><label>Prix Achat ($)</label><input type="number" step="0.01" class="cout" id="f-prixachat"></div>
+      <div class="field"><label>Coût estimé ($)</label><input type="number" step="0.01" class="cout" id="f-coutestime"></div>
+      <div class="field"><label>Accessoires ($)</label><input type="number" step="0.01" class="cout" id="f-accessoires"></div>
+      <div class="field"><label>Carrosserie ($)</label><input type="number" step="0.01" class="cout" id="f-carrosserie"></div>
+    </div>
+    <div class="grid grid-4" style="margin-top:12px;">
+      <div class="field"><label>Service ($)</label><input type="number" step="0.01" class="cout" id="f-service"></div>
+      <div class="field"><label>Lavage ($)</label><input type="number" step="0.01" class="cout" id="f-lavage"></div>
+      <div class="field"><label>Lavage livraison ($)</label><input type="number" step="0.01" class="cout" id="f-lavagelivraison"></div>
+      <div class="field"><label>Enregistrement ($)</label><input type="number" step="0.01" class="cout" id="f-enregistrementcout"></div>
+    </div>
+    <div class="grid grid-4" style="margin-top:12px;">
+      <div class="field"><label>Prix Encan ($)</label><input type="number" step="0.01" id="f-prixencan"></div>
+      <div class="field"><label>Ajustement 1 ($)</label><input type="number" step="0.01" class="cout" id="f-adj1montant"></div>
+      <div class="field"><label>Ajustement 2 ($)</label><input type="number" step="0.01" class="cout" id="f-adj2montant"></div>
+      <div class="field"><label>Autorisé par</label><input type="text" id="f-autorisepar"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-title">Frais et ajustements</div>
+      <div class="grid grid-4">
+        <div class="field"><label>Frais Encan ($)</label><input type="number" step="0.01" class="cout" id="f-fraisencan"></div>
+        <div class="field"><label>Frais autres ou crédit ($)</label><input type="number" step="0.01" class="cout" id="f-fraisautres"></div>
+        <div class="field"><label>Frais transport ($)</label><input type="number" step="0.01" class="cout" id="f-fraistransport"></div>
+        <div class="field">
+          <label>Carfax ($)</label>
+          <div style="display:flex;gap:6px;">
+            <input type="number" step="0.01" class="cout" id="f-carfax" style="flex:1;">
+            <a href="https://vhr.carfax.ca/fr/" target="_blank" id="carfax-btn" class="btn" style="padding:6px 10px;font-size:11px;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;">Carfax</a>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-4" style="margin-top:12px;">
+        <div class="field"><label>Mise en ligne — date</label><input type="date" id="f-miseligne"></div>
+        <div class="field"><label>Ajustement 1 — date</label><input type="date" id="f-adj1date"></div>
+        <div class="field"><label>Ajustement 2 — date</label><input type="date" id="f-adj2date"></div>
+        <div class="field"><label>Nom du transporteur</label><input type="text" id="f-transporteur"></div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;align-items:baseline;gap:10px;">
+      <span style="font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;">Total cumulé des coûts</span>
+      <span id="s-coutant-inline" style="font-family:'Oswald',sans-serif;font-size:20px;font-weight:600;color:var(--ink);">0,00 $</span>
+    </div>
   </div>
 
   <!-- ===================== STATUT / PIPELINE ===================== -->
@@ -250,7 +314,6 @@
     <div class="checklist">
       <div class="chk"><input type="checkbox" id="c-arrive"><label for="c-arrive">Arrivé</label></div>
       <div class="chk"><input type="checkbox" id="c-transfere"><label for="c-transfere">Transféré</label></div>
-      <div class="chk"><input type="checkbox" id="c-googleprep"><label for="c-googleprep">Google prep</label></div>
       <div class="chk"><input type="checkbox" id="c-googleachat"><label for="c-googleachat">Google achat</label></div>
       <div class="chk"><input type="checkbox" id="c-googleusa"><label for="c-googleusa">Google USA</label></div>
       <div class="chk"><input type="checkbox" id="c-financer"><label for="c-financer">Financer</label></div>
@@ -258,7 +321,6 @@
       <div class="chk"><input type="checkbox" id="c-attentereg"><label for="c-attentereg">En attente de REG</label></div>
       <div class="chk"><input type="checkbox" id="c-demandepaiement"><label for="c-demandepaiement">Demande de paiement</label></div>
       <div class="chk"><input type="checkbox" id="c-vehiculepaye"><label for="c-vehiculepaye">Véhicule payé</label></div>
-      <div class="chk"><input type="checkbox" id="c-enregistrement"><label for="c-enregistrement">Enregistrement</label></div>
     </div>
     <div class="grid grid-4" style="margin-top:14px;">
       <div class="field">
@@ -269,61 +331,42 @@
           <option value="non">Non</option>
         </select>
       </div>
-      <div class="field">
-        <label>Acheteur (interne)</label>
-        <select id="f-acheteur">
-          <option value="">Choisir...</option>
-          <option value="Marc-André">Marc-André</option>
-          <option value="Tristan">Tristan</option>
-          <option value="Fred">Fred</option>
-          <option value="Matjul">Matjul</option>
-        </select>
-      </div>
     </div>
   </div>
 
-  <!-- ===================== FRAIS ET AJUSTEMENTS ===================== -->
+  <!-- ===================== WHOLESALE / VENTE DETAIL / VENTE USA (SI APPLICABLE) ===================== -->
   <div class="section">
-    <div class="section-title">Frais et ajustements</div>
-    <div class="grid grid-4">
-      <div class="field"><label>Frais Encan ($)</label><input type="number" step="0.01" class="cout" id="f-fraisencan"></div>
-      <div class="field"><label>Frais autres ou crédit ($)</label><input type="number" step="0.01" class="cout" id="f-fraisautres"></div>
-      <div class="field"><label>Frais transport ($)</label><input type="number" step="0.01" class="cout" id="f-fraistransport"></div>
-      <div class="field">
-        <label>Carfax ($)</label>
-        <div style="display:flex;gap:6px;">
-          <input type="number" step="0.01" class="cout" id="f-carfax" style="flex:1;">
-          <a href="https://vhr.carfax.ca/fr/" target="_blank" id="carfax-btn" class="btn" style="padding:6px 10px;font-size:11px;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;">Carfax</a>
-        </div>
-      </div>
-    </div>
-    <div class="grid grid-4" style="margin-top:12px;">
-      <div class="field"><label>Mise en ligne — date</label><input type="date" id="f-miseligne"></div>
-      <div class="field"><label>Ajustement 1 — date</label><input type="date" id="f-adj1date"></div>
-      <div class="field"><label>Ajustement 2 — date</label><input type="date" id="f-adj2date"></div>
-      <div class="field"><label>Nom du transporteur</label><input type="text" id="f-transporteur"></div>
-    </div>
-    <div class="grid grid-4" style="margin-top:12px;">
-      <div class="field" id="pad-detail-field"><label>PAD Détail (499$)</label><input type="checkbox" id="c-pad499" style="width:20px;height:20px;accent-color:var(--ink);"></div>
-      <div class="field" id="pad-usa-field"><label>PAD USA (350$)</label><input type="checkbox" id="c-pad350" style="width:20px;height:20px;accent-color:var(--ink);"></div>
-      <div class="field" id="pad-echange-field"><label>PAD Échange (50$)</label><input type="checkbox" id="c-pad50" style="width:20px;height:20px;accent-color:var(--ink);"></div>
-      <div class="field" id="pad-canada-field"><label>PAD Canada (212$)</label><input type="checkbox" id="c-pad212" style="width:20px;height:20px;accent-color:var(--ink);"></div>
-    </div>
-    <div class="grid grid-4" style="margin-top:12px;align-items:end;" id="safety-row">
-      <div class="chk"><input type="checkbox" id="c-presafety"><label for="c-presafety">Pré-safety</label></div>
-      <div class="field"><label>Montant Pré-safety ($)</label><input type="number" step="0.01" class="cout" id="f-presafetymontant"></div>
-      <div class="chk"><input type="checkbox" id="c-safetycpo"><label for="c-safetycpo">Safety + CPO</label></div>
-    </div>
-  </div>
+    <div class="section-title" id="wholesale-section-title">Wholesale / Vente Detail / Vente USA (si applicable)</div>
 
-  <!-- ===================== WHOLESALE / EXPORT ===================== -->
-  <div class="section">
-    <div class="section-title">Wholesale et export (si applicable)</div>
     <div class="grid grid-3" id="wholesale-row">
       <div class="field"><label>Wholesale — Acheteur</label><input type="text" id="f-wsacheteur"></div>
       <div class="field"><label>Wholesale — Prix ($)</label><input type="number" step="0.01" class="cout-wholesale" id="f-wsprix"></div>
       <div class="field"><label>Wholesale — Date de livraison</label><input type="date" id="f-wsdate"></div>
     </div>
+    <div class="grid grid-4" id="pad-canada-row" style="margin-top:12px;">
+      <div class="field" id="pad-canada-field"><label>PAD Canada (212$)</label><input type="checkbox" id="c-pad212" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+    </div>
+
+    <div class="grid grid-4" id="detail-vente-row">
+      <div class="field"><label>Prix détail ($)</label><input type="number" step="0.01" id="f-prixdetail"></div>
+      <div class="field" id="pad-detail-field"><label>PAD Détail (499$)</label><input type="checkbox" id="c-pad499" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+      <div class="chk"><input type="checkbox" id="c-presafety"><label for="c-presafety">Pré-safety</label></div>
+      <div class="field"><label>Montant Pré-safety ($)</label><input type="number" step="0.01" class="cout" id="f-presafetymontant"></div>
+    </div>
+    <div class="grid grid-4" id="safety-row" style="margin-top:12px;">
+      <div class="chk"><input type="checkbox" id="c-safetycpo"><label for="c-safetycpo">Safety + CPO</label></div>
+    </div>
+
+    <div class="grid grid-4" id="pad-usa-row">
+      <div class="field" id="pad-usa-field"><label>PAD USA (350$)</label><input type="checkbox" id="c-pad350" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+    </div>
+
+    <div class="grid grid-4" style="margin-top:12px;">
+      <div class="field" id="pad-echange-field"><label>PAD Échange (50$)</label><input type="checkbox" id="c-pad50" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+      <div class="field"><label>Commission acheteur ($) — hors coûtant</label><input type="number" step="0.01" id="f-commissionacheteur"></div>
+      <div class="field"><label>Commission vendeur ($) — hors coûtant</label><input type="number" step="0.01" id="f-commissionvendeur"></div>
+    </div>
+
     <div class="subsection" id="export-subsection">
       <div class="subsection-title">Export</div>
       <div class="grid grid-4">
@@ -354,39 +397,6 @@
     </div>
   </div>
 
-  <!-- ===================== COÛTS ===================== -->
-  <div class="section">
-    <div class="section-title">Coûts</div>
-    <div class="grid grid-4">
-      <div class="field"><label>Prix Achat ($)</label><input type="number" step="0.01" class="cout" id="f-prixachat"></div>
-      <div class="field"><label>Coût estimé ($)</label><input type="number" step="0.01" class="cout" id="f-coutestime"></div>
-      <div class="field"><label>Accessoires ($)</label><input type="number" step="0.01" class="cout" id="f-accessoires"></div>
-      <div class="field"><label>Carrosserie ($)</label><input type="number" step="0.01" class="cout" id="f-carrosserie"></div>
-    </div>
-    <div class="grid grid-4" style="margin-top:12px;">
-      <div class="field"><label>Service ($)</label><input type="number" step="0.01" class="cout" id="f-service"></div>
-      <div class="field"><label>Lavage ($)</label><input type="number" step="0.01" class="cout" id="f-lavage"></div>
-      <div class="field"><label>Lavage livraison ($)</label><input type="number" step="0.01" class="cout" id="f-lavagelivraison"></div>
-      <div class="field"><label>Enregistrement ($)</label><input type="number" step="0.01" class="cout" id="f-enregistrementcout"></div>
-    </div>
-    <div class="grid grid-4" style="margin-top:12px;">
-      <div class="field"><label>Commission acheteur ($) — hors coûtant</label><input type="number" step="0.01" id="f-commissionacheteur"></div>
-      <div class="field"><label>Commission vendeur ($) — hors coûtant</label><input type="number" step="0.01" id="f-commissionvendeur"></div>
-      <div class="field"><label>Prix détail ($)</label><input type="number" step="0.01" id="f-prixdetail"></div>
-      <div class="field"><label>Prix Encan ($)</label><input type="number" step="0.01" id="f-prixencan"></div>
-    </div>
-    <div class="grid grid-3" style="margin-top:12px;">
-      <div class="field"><label>Ajustement 1 ($)</label><input type="number" step="0.01" class="cout" id="f-adj1montant"></div>
-      <div class="field"><label>Ajustement 2 ($)</label><input type="number" step="0.01" class="cout" id="f-adj2montant"></div>
-      <div class="field"><label>Autorisé par</label><input type="text" id="f-autorisepar"></div>
-    </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;align-items:baseline;gap:10px;">
-      <span style="font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;">Total cumulé des coûts</span>
-      <span id="s-coutant-inline" style="font-family:'Oswald',sans-serif;font-size:20px;font-weight:600;color:var(--ink);">0,00 $</span>
-    </div>
-  </div>
-
-  <!-- ===================== SOMMAIRE FINANCIER (calculé) ===================== -->
   <!-- ===================== LIVRAISON (à la fin) ===================== -->
   <div class="section">
     <div class="section-title">Livraison</div>
@@ -485,13 +495,24 @@ function toggleExportVisibility(){
   const padDetailVisible = (dest === 'DETAIL');
   const padCanadaVisible = (dest === 'CAN');
 
-  document.getElementById('pad-usa-field').style.display = padUsaVisible ? 'flex' : 'none';
-  document.getElementById('pad-detail-field').style.display = padDetailVisible ? 'flex' : 'none';
-  document.getElementById('pad-canada-field').style.display = padCanadaVisible ? 'flex' : 'none';
+  // Titre dynamique de la section
+  const titres = { CAN: 'Wholesale', DETAIL: 'Vente Detail', US: 'Vente USA' };
+  document.getElementById('wholesale-section-title').textContent = titres[dest] || 'Wholesale / Vente Detail / Vente USA (si applicable)';
+
+  document.getElementById('pad-usa-row').style.display = padUsaVisible ? 'grid' : 'none';
+  document.getElementById('detail-vente-row').style.display = padDetailVisible ? 'grid' : 'none';
+  document.getElementById('safety-row').style.display = padDetailVisible ? 'grid' : 'none';
+  document.getElementById('pad-canada-row').style.display = padCanadaVisible ? 'grid' : 'none';
   document.getElementById('pad-echange-field').style.display = 'flex'; // toujours visible (US, Detail, Canada)
 
   if(!padUsaVisible) document.getElementById('c-pad350').checked = false;
-  if(!padDetailVisible) document.getElementById('c-pad499').checked = false;
+  if(!padDetailVisible){
+    document.getElementById('c-pad499').checked = false;
+    document.getElementById('c-presafety').checked = false;
+    document.getElementById('c-safetycpo').checked = false;
+    document.getElementById('f-presafetymontant').value = '';
+    document.getElementById('f-prixdetail').value = '';
+  }
   if(!padCanadaVisible) document.getElementById('c-pad212').checked = false;
 
   // Wholesale : ne s'applique qu'à l'achat Canada
@@ -500,14 +521,6 @@ function toggleExportVisibility(){
     document.getElementById('f-wsacheteur').value = '';
     document.getElementById('f-wsprix').value = '';
     document.getElementById('f-wsdate').value = '';
-  }
-
-  // Pré-safety / Safety+CPO : ne s'applique qu'à Detail
-  document.getElementById('safety-row').style.display = (dest === 'DETAIL') ? 'flex' : 'none';
-  if(dest !== 'DETAIL'){
-    document.getElementById('c-presafety').checked = false;
-    document.getElementById('c-safetycpo').checked = false;
-    document.getElementById('f-presafetymontant').value = '';
   }
 
   recalcule();

@@ -94,6 +94,16 @@
   td{padding:7px 9px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:middle;}
   tr:last-child td{border-bottom:none;}
   .vin{font-family:'IBM Plex Mono',monospace;font-weight:500;letter-spacing:0.2px;}
+  .table-cell-field{
+    box-sizing:border-box;font-family:'IBM Plex Mono',monospace;font-size:12.5px;
+    padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);
+    height:30px;line-height:16px;
+  }
+  .table-cell-field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
+  select.table-cell-field{font-family:'Inter',sans-serif;cursor:pointer;}
+  .vin-cell-wrap{display:flex;align-items:center;gap:6px;}
+  .vin-cell-wrap .table-cell-field{flex:1;min-width:0;}
+  .vin-cell-wrap a{flex-shrink:0;display:flex;align-items:center;height:30px;}
 
   .stamp{
     display:inline-block;font-family:'Inter',sans-serif;font-size:10.5px;font-weight:600;
@@ -351,7 +361,7 @@
 
 <script>
 const URL_KEY = 'apps_script_url_can';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsyieX5-8O-z2Ta2ulDqpTXesRVRznoiAmzu0ESMKZ00bc_erD5IMlnqKijVkQYeQDng/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyKAsjhO4yYQemrgxYLXSl3kyRyIdtTWMwdHSnlCJ4EAIlAmVofqPvyU2QhwHXnr-iZZg/exec';
 const ACCOUNTING_CODE = 'COMPTA2026';
 const SHEET_SOURCE = 'CAN';
 let vehicules = [];
@@ -607,14 +617,16 @@ function render(){
     else if(docStatut === 'oui-mauvais'){ docCls='wrongname'; docLabel='Reçu · mauvais nom'; }
     else { docCls = enRetard ? 'late' : 'non'; docLabel = enRetard ? `Non reçu · ${joursDepuis(v.dateAjout)} j` : 'Non reçu'; }
     tr.innerHTML = `
-      <td><input type="text" class="stock-input" data-id="${v.id}" value="${v.stock || ''}" placeholder="—" style="width:70px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;"></td>
-      <td style="display:flex;align-items:center;gap:5px;">
-        <input type="text" class="vin-input" data-id="${v.id}" value="${v.vin}" style="width:150px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;color:${v.ficheStockRempli ? 'var(--stamp-teal)' : (v.ficheExiste ? 'var(--stamp-red)' : 'var(--ink)')};">
-        <a href="achat.html?vin=${encodeURIComponent(v.vin)}" target="_blank" title="${v.ficheExiste ? (v.ficheStockRempli ? 'Fiche achat complète (stock inscrit) - cliquer pour voir' : 'Fiche achat - stock non inscrit - cliquer pour voir') : 'Aucune fiche achat - cliquer pour en créer une'}" style="text-decoration:none;font-size:14px;">📄</a>
+      <td><input type="text" class="stock-input table-cell-field" data-id="${v.id}" value="${v.stock || ''}" placeholder="—" style="width:74px;"></td>
+      <td>
+        <div class="vin-cell-wrap">
+          <input type="text" class="vin-input table-cell-field" data-id="${v.id}" value="${v.vin}" style="width:150px;color:${v.ficheStockRempli ? 'var(--stamp-teal)' : (v.ficheExiste ? 'var(--stamp-red)' : 'var(--ink)')};">
+          <a href="achat.html?vin=${encodeURIComponent(v.vin)}" target="_blank" title="${v.ficheExiste ? (v.ficheStockRempli ? 'Fiche achat complète (stock inscrit) - cliquer pour voir' : 'Fiche achat - stock non inscrit - cliquer pour voir') : 'Aucune fiche achat - cliquer pour en créer une'}" style="text-decoration:none;font-size:14px;">📄</a>
+        </div>
       </td>
       <td>${v.modele}</td>
       <td>
-        <select class="compagnie-select" data-id="${v.id}" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
+        <select class="compagnie-select table-cell-field" data-id="${v.id}" style="width:80px;">
           <option value="" ${!v.compagnie ? 'selected' : ''}>—</option>
           <option value="HAWKS" ${v.compagnie==='HAWKS' ? 'selected' : ''}>HAWKS</option>
           <option value="STM" ${v.compagnie==='STM' ? 'selected' : ''}>STM</option>
@@ -624,7 +636,7 @@ function render(){
       <td><span class="stamp ${meta.cls}">${meta.label}</span>${enRetardAchat ? `<div style="font-size:11px;color:var(--stamp-amber);font-weight:500;margin-top:3px;">Acheté depuis ${joursDepuis(v.dateAjout)} j</div>` : ''}</td>
       <td>${v.rappel==='oui' ? `<span class="recall-badge oui" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="${v.rappelDetail||''} — cliquer pour revérifier">Rappel ouvert</span>` : v.rappel==='non' ? `<span class="recall-badge non" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="Cliquer pour revérifier">Aucun rappel</span>` : `<span class="recall-badge inconnu" data-action="recheck-recall" data-id="${v.id}" style="cursor:pointer;" title="Cliquer pour vérifier">Non vérifié</span>`}</td>
       <td><span class="doc-badge ${docCls}" data-action="toggle-doc" data-id="${v.id}" data-current="${docStatut}">${docLabel}</span></td>
-      <td><input type="number" step="0.01" class="cost-input" data-id="${v.id}" value="${v.cout || ''}" placeholder="—" style="width:90px;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:5px 6px;border:1px solid var(--line);"></td>
+      <td><input type="number" step="0.01" class="cost-input table-cell-field" data-id="${v.id}" value="${v.cout || ''}" placeholder="—" style="width:90px;"></td>
       <td class="date-cell">${fmtDate(v.maj)}</td>
       <td>
         <div class="row-actions">

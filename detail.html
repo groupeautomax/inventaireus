@@ -154,6 +154,7 @@
   .empty{padding:22px;text-align:center;color:var(--ink-soft);font-size:12.5px;}
   .synced{font-size:10.5px;color:var(--ink-soft);margin-top:6px;text-align:right;}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#F4F6F9;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
@@ -295,6 +296,7 @@
 
   <div class="toolbar">
     <input type="text" id="search" placeholder="Rechercher par VIN ou modèle...">
+    <button type="button" class="filter-btn" id="export-excel-btn" style="margin-left:auto;background:var(--accent);color:#fff;border-color:var(--accent);">📊 Exporter en Excel</button>
   </div>
 
   <div class="toolbar">
@@ -592,6 +594,7 @@ function render(){
   if(activeStatFilter === 'retard') list = list.filter(estEnRetard);
   else if(activeStatFilter === 'retardAchat') list = list.filter(estEnRetardAchat);
   const tbody = document.getElementById('table-body');
+  window._listeFiltreeActuelle = list;
   const emptyMsg = document.getElementById('empty-msg');
   tbody.innerHTML = '';
   if(list.length === 0){
@@ -662,6 +665,29 @@ function render(){
     tbody.appendChild(tr);
   });
 }
+
+document.getElementById('export-excel-btn').addEventListener('click', ()=>{
+  const list = window._listeFiltreeActuelle || [];
+  if(list.length === 0){ alert('Aucune ligne à exporter avec les filtres actuels.'); return; }
+  const rows = list.map(v => ({
+    'Stock #': v.stock || '',
+    'VIN': v.vin,
+    'Modèle': v.modele,
+    'Compagnie': v.compagnie || '',
+    'Origine': v.origine || '',
+    'Statut': statusMeta(v.statut).label,
+    'Rappel': v.rappel === 'oui' ? 'Rappel ouvert' : v.rappel === 'non' ? 'Aucun rappel' : 'Non vérifié',
+    'Registre reçu': v.enregistrement === 'oui-bon' ? 'Reçu · bon nom' : v.enregistrement === 'oui-mauvais' ? 'Reçu · mauvais nom' : 'Non reçu',
+    'Coût': v.cout ? Number(v.cout) : '',
+    'Dernière mise à jour': fmtDate(v.maj)
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:10},{wch:19},{wch:22},{wch:10},{wch:10},{wch:14},{wch:14},{wch:16},{wch:10},{wch:14}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Inventaire Detail');
+  const dateStr = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `inventaire-detail-${dateStr}.xlsx`);
+});
 
 document.getElementById('save-url-btn').addEventListener('click', async ()=>{
   const url = document.getElementById('script-url').value.trim();

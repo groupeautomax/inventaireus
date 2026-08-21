@@ -106,6 +106,9 @@
   .stamp.transit{color:var(--stamp-amber);border-color:#FDE3B3;background:var(--stamp-amber-bg);}
   .stamp.manheimpa{color:#0E7CA6;border-color:#BFE3F0;background:#EAF6FA;}
   .stamp.arrive{color:var(--stamp-teal);border-color:#B6EDD4;background:var(--stamp-teal-bg);}
+  .stamp.comptabilise{color:#5B21B6;border-color:#DDD6FE;background:#F3EEFF;}
+  tr.row-verrouille{background:#FAFAFA;opacity:0.75;pointer-events:none;}
+  tr.row-verrouille .deverrouiller-btn{pointer-events:auto;opacity:1;}
 
   .doc-badge{
     display:inline-block;font-family:'Inter',sans-serif;font-size:10.5px;font-weight:500;
@@ -294,6 +297,7 @@
         <option value="transit">Expédié</option>
         <option value="manheimpa">Manheim PA</option>
         <option value="arrive">Vendu</option>
+        <option value="comptabilise">Comptabilisé</option>
         <option value="tousavecvendu">Tous, incluant les vendus</option>
       </select>
     </div>
@@ -355,6 +359,7 @@
 <script>
 const URL_KEY = 'apps_script_url_us';
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsyieX5-8O-z2Ta2ulDqpTXesRVRznoiAmzu0ESMKZ00bc_erD5IMlnqKijVkQYeQDng/exec';
+const ACCOUNTING_CODE = 'COMPTA2026';
 const SHEET_SOURCE = 'US';
 let vehicules = [];
 let currentFilter = 'all';
@@ -428,7 +433,8 @@ function statusMeta(s){
   if(s==='stock') return {cls:'stock', label:'En stock', next:'transit', nextLabel:'Marquer expédié'};
   if(s==='transit') return {cls:'transit', label:'Expédié', next:'arrive', nextLabel:'Marquer vendu'};
   if(s==='manheimpa') return {cls:'manheimpa', label:'Manheim PA', next:null, nextLabel:null};
-  return {cls:'arrive', label:'Vendu É.-U.', next:null, nextLabel:null};
+  if(s==='comptabilise') return {cls:'comptabilise', label:'Comptabilisé', next:null, nextLabel:null};
+  return {cls:'arrive', label:'Vendu É.-U.', next:'comptabilise', nextLabel:'Marquer comptabilisé'};
 }
 
 function setSynced(msg){
@@ -562,7 +568,7 @@ function clickStat(type){
 function render(){
   computeStats();
   let list = vehicules.slice().sort((a,b)=> new Date(b.maj) - new Date(a.maj));
-  if(currentFilter === 'all') list = list.filter(v=>v.statut!=='arrive');
+  if(currentFilter === 'all') list = list.filter(v=>v.statut!=='arrive' && v.statut!=='comptabilise');
   else if(currentFilter !== 'tousavecvendu') list = list.filter(v=>v.statut===currentFilter);
   const filtreCompagnie = document.getElementById('filter-compagnie').value;
   if(filtreCompagnie) list = list.filter(v=>v.compagnie===filtreCompagnie);
@@ -602,6 +608,7 @@ function render(){
     const enRetardAchat = estEnRetardAchat(v);
     if(enRetard) tr.classList.add('row-late');
     else if(enRetardAchat) tr.classList.add('row-late-achat');
+    if(v.statut === 'comptabilise') tr.classList.add('row-verrouille');
     let docCls, docLabel;
     if(docStatut === 'oui-bon'){ docCls='oui'; docLabel='Reçu · bon nom'; }
     else if(docStatut === 'oui-mauvais'){ docCls='wrongname'; docLabel='Reçu · mauvais nom'; }
@@ -623,6 +630,7 @@ function render(){
       <td>
         <div class="row-actions">
           ${meta.next ? `<button class="action-btn" data-action="advance" data-id="${v.id}">${meta.nextLabel}</button>` : ''}
+          ${v.statut === 'comptabilise' ? `<button class="action-btn deverrouiller-btn" data-action="deverrouiller" data-id="${v.id}" style="border-color:#5B21B6;color:#5B21B6;">🔓 Déverrouiller (comptabilité)</button>` : ''}
           ${windowStickerHtml(v)}
           <a class="action-btn" href="https://vhr.carfax.ca/fr/" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;" title="Coller le VIN ${v.vin} sur Carfax">Carfax</a>
           ${manufacturerRecallHtml(v)}
@@ -988,6 +996,14 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
   } else if(action === 'recheck-recall'){
     el.textContent = '...';
     await recheckOneRecall(v);
+  } else if(action === 'deverrouiller'){
+    const code = prompt('Code comptabilité requis pour déverrouiller ce dossier (correction de chargeback) :');
+    if(code === null) return;
+    if(code !== ACCOUNTING_CODE){
+      alert('Code incorrect. Dossier toujours verrouillé.');
+      return;
+    }
+    await postToSheet({ action:'advance', id, newStatut: 'arrive' });
   }
 });
 

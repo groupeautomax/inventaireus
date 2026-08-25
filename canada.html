@@ -172,10 +172,10 @@
   var gate = document.getElementById('password-gate');
   function unlock(){
     gate.style.display = 'none';
-    try{ sessionStorage.setItem('pg_unlocked_v1', '1'); }catch(e){}
+    try{ localStorage.setItem('pg_unlocked_v1', '1'); }catch(e){}
   }
   try{
-    if(sessionStorage.getItem('pg_unlocked_v1') === '1'){ unlock(); }
+    if(localStorage.getItem('pg_unlocked_v1') === '1'){ unlock(); }
   }catch(e){}
   document.getElementById('pg-submit').addEventListener('click', check);
   document.getElementById('pg-input').addEventListener('keydown', function(e){ if(e.key === 'Enter') check(); });
@@ -199,6 +199,8 @@
     <a href="achat.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Fiche d'achat →</a>
     <span style="color:var(--line);margin:0 6px;">|</span>
     <a href="evaluation.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Évaluation de marché →</a>
+    <span style="color:var(--line);margin:0 6px;">|</span>
+    <a href="resultat.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Résultat →</a>
   </div>
 
   <div class="manifest-head">
@@ -363,7 +365,7 @@
 
 <script>
 const URL_KEY = 'apps_script_url_can';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyKAsjhO4yYQemrgxYLXSl3kyRyIdtTWMwdHSnlCJ4EAIlAmVofqPvyU2QhwHXnr-iZZg/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/a/macros/groupeautomax.com/s/AKfycbwf1y9YL_e7rcRn7Y4XQVTbpDKfdvix-ogEmytdOka7OmcDFfzAMixDFBYBxmlfahEaaA/exec';
 const ACCOUNTING_CODE = 'COMPTA2026';
 const SHEET_SOURCE = 'CAN';
 let vehicules = [];

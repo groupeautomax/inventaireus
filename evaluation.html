@@ -113,10 +113,10 @@
   var gate = document.getElementById('password-gate');
   function unlock(){
     gate.style.display = 'none';
-    try{ sessionStorage.setItem('pg_unlocked_v1', '1'); }catch(e){}
+    try{ localStorage.setItem('pg_unlocked_v1', '1'); }catch(e){}
   }
   try{
-    if(sessionStorage.getItem('pg_unlocked_v1') === '1'){ unlock(); }
+    if(localStorage.getItem('pg_unlocked_v1') === '1'){ unlock(); }
   }catch(e){}
   document.getElementById('pg-submit').addEventListener('click', check);
   document.getElementById('pg-input').addEventListener('keydown', function(e){ if(e.key === 'Enter') check(); });
@@ -138,6 +138,8 @@
     <a href="detail.html" style="font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Suivi Detail →</a>
     <span style="color:var(--line);margin:0 5px;">|</span>
     <a href="achat.html" style="font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Fiche d'achat →</a>
+    <span style="color:var(--line);margin:0 6px;">|</span>
+    <a href="resultat.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Résultat →</a>
   </div>
 
   <div class="manifest-head">
@@ -293,7 +295,7 @@ document.getElementById('e-km').addEventListener('input', recalcule);
 document.getElementById('e-taux-km').addEventListener('input', recalcule);
 
 // ================= Sauvegarde et chargement liés au VIN =================
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsyieX5-8O-z2Ta2ulDqpTXesRVRznoiAmzu0ESMKZ00bc_erD5IMlnqKijVkQYeQDng/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/a/macros/groupeautomax.com/s/AKfycbwf1y9YL_e7rcRn7Y4XQVTbpDKfdvix-ogEmytdOka7OmcDFfzAMixDFBYBxmlfahEaaA/exec';
 
 function collectEvalData(){
   return {

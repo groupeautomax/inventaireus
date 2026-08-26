@@ -165,7 +165,8 @@ async function chargerResultat(){
     }).join('');
     document.getElementById('maj-label').textContent = 'Dernière mise à jour : ' + new Date().toLocaleString('fr-CA');
   }catch(e){
-    container.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--stamp-red);padding:20px;">Échec du chargement. Vérifiez la connexion ou réessayez.</div>';
+    console.error('Erreur Résultat:', e);
+    container.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--stamp-red);padding:20px;">Échec du chargement : ' + (e && e.message ? e.message : String(e)) + '</div>';
   }
 }
 

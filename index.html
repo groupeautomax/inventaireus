@@ -614,7 +614,7 @@ function render(){
   });
   if(searchTerm){
     const t = searchTerm.toLowerCase();
-    list = list.filter(v=> v.vin.toLowerCase().includes(t) || v.modele.toLowerCase().includes(t));
+    list = list.filter(v=> v.vin.toLowerCase().includes(t) || v.modele.toLowerCase().includes(t) || (v.stock && v.stock.toLowerCase().includes(t)));
   }
   if(activeStatFilter === 'retard') list = list.filter(estEnRetard);
   else if(activeStatFilter === 'retardAchat') list = list.filter(estEnRetardAchat);

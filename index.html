@@ -534,6 +534,7 @@ function computeStats(){
   const stock = base.filter(v=>v.statut==='stock').length;
   const transit = base.filter(v=>v.statut==='transit').length;
   const arrive = base.filter(v=>v.statut==='arrive').length;
+  const comptabilise = base.filter(v=>v.statut==='comptabilise').length;
   const retard = base.filter(estEnRetard).length;
   const retardAchat = base.filter(estEnRetardAchat).length;
   const activeAttr = (type) => activeStatFilter === type ? 'active-stat' : '';
@@ -547,6 +548,9 @@ function computeStats(){
   `;
   document.getElementById('stats').innerHTML += `
     <div class="stat ${activeAttr('arrive')}" data-stat="arrive" style="grid-column:1/-1;cursor:pointer;"><div class="num">${arrive}</div><div class="lbl">Vendus<span class="filter-hint">Cliquer pour filtrer</span></div></div>
+  `;
+  document.getElementById('stats').innerHTML += `
+    <div class="stat ${activeAttr('comptabilise')}" data-stat="comptabilise" style="grid-column:1/-1;cursor:pointer;border-top:1px solid #DDD6FE;"><div class="num">${comptabilise}</div><div class="lbl">Comptabilisés<span class="filter-hint">Cliquer pour filtrer — voir la date dans la colonne MAJ</span></div></div>
   `;
   if(retard > 0){
     document.getElementById('stats').innerHTML += `
@@ -579,7 +583,7 @@ function resetDropdownFilters(){
 function clickStat(type){
   activeStatFilter = (activeStatFilter === type) ? null : type;
   resetDropdownFilters();
-  const statutMap = { achete:'achete', stock:'stock', transit:'transit', arrive:'arrive' };
+  const statutMap = { achete:'achete', stock:'stock', transit:'transit', arrive:'arrive', comptabilise:'comptabilise' };
   if(activeStatFilter && statutMap[activeStatFilter]){
     currentFilter = statutMap[activeStatFilter];
   } else if(activeStatFilter){

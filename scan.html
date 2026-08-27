@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Scan Auto">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0B0F14">
+<title>Scan VIN — Groupe Automax</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root{
+    --bg: #0B0F14;
+    --card: #161B22;
+    --card-2: #1C232C;
+    --line: #2A323D;
+    --ink: #F4F6F9;
+    --ink-soft: #8A94A3;
+    --accent: #2563EB;
+    --accent-bg: rgba(37,99,235,0.15);
+    --green: #10B981;
+    --green-bg: rgba(16,185,129,0.15);
+    --red: #EF4444;
+    --red-bg: rgba(239,68,68,0.15);
+    --amber: #F59E0B;
+    --amber-bg: rgba(245,158,11,0.15);
+    --purple: #8B5CF6;
+    --purple-bg: rgba(139,92,246,0.15);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overscroll-behavior:none;}
+  body{
+    margin:0;background:var(--bg);font-family:'Inter',sans-serif;color:var(--ink);
+    display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;
+    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
+  }
+
+  /* ---------- Password gate ---------- */
+  #password-gate{position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;align-items:center;justify-content:center;}
+  .pg-box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px 26px;max-width:320px;width:88%;text-align:center;}
+  .pg-title{font-weight:700;font-size:16px;margin-bottom:6px;}
+  .pg-sub{font-size:12.5px;color:var(--ink-soft);margin:0 0 18px;}
+  .pg-box input{width:100%;padding:12px 14px;border:1px solid var(--line);background:var(--card-2);color:var(--ink);border-radius:10px;font-size:16px;margin-bottom:12px;box-sizing:border-box;}
+  .pg-box button{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;}
+  .pg-error{color:var(--red);font-size:12px;margin-top:10px;display:none;}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
+    background:var(--bg);z-index:20;flex-shrink:0;
+  }
+  .topbar-title{font-weight:700;font-size:15px;letter-spacing:-0.2px;}
+  .topbar-sub{font-size:10.5px;color:var(--ink-soft);}
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:5px;}
+
+  /* ---------- Views ---------- */
+  .view{flex:1;display:none;overflow-y:auto;position:relative;-webkit-overflow-scrolling:touch;}
+  .view.active{display:flex;flex-direction:column;}
+
+  /* ---------- Scanner view ---------- */
+  #view-scan{padding:0;background:#000;position:relative;}
+  #camera-wrap{flex:1;position:relative;background:#000;overflow:hidden;}
+  #camera-video{width:100%;height:100%;object-fit:cover;}
+  .scan-frame-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+  .scan-frame{
+    width:82%;max-width:340px;aspect-ratio:16/7;position:relative;
+  }
+  .scan-corner{position:absolute;width:28px;height:28px;border-color:var(--green);}
+  .scan-corner.tl{top:0;left:0;border-top:4px solid;border-left:4px solid;border-radius:6px 0 0 0;}
+  .scan-corner.tr{top:0;right:0;border-top:4px solid;border-right:4px solid;border-radius:0 6px 0 0;}
+  .scan-corner.bl{bottom:0;left:0;border-bottom:4px solid;border-left:4px solid;border-radius:0 0 0 6px;}
+  .scan-corner.br{bottom:0;right:0;border-bottom:4px solid;border-right:4px solid;border-radius:0 0 6px 0;}
+  .scan-line{
+    position:absolute;left:4%;right:4%;height:2px;background:var(--green);
+    box-shadow:0 0 8px 2px var(--green);
+    animation:scanmove 1.8s ease-in-out infinite;
+  }
+  @keyframes scanmove{
+    0%{top:8%;} 50%{top:88%;} 100%{top:8%;}
+  }
+  .scan-hint{
+    position:absolute;bottom:130px;left:0;right:0;text-align:center;color:#fff;
+    font-size:13px;font-weight:500;text-shadow:0 1px 4px rgba(0,0,0,0.6);padding:0 20px;
+  }
+  .scan-toolbar{
+    position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;
+    padding:14px 14px;z-index:5;
+  }
+  .scan-icon-btn{
+    width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,0.45);border:none;
+    display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;cursor:pointer;
+  }
+  .torch-btn.on{background:var(--amber);}
+
+  .camera-error{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
+    color:var(--ink-soft);text-align:center;padding:30px;gap:12px;background:#000;
+  }
+  .camera-error.show{display:flex;}
+
+  /* ---------- Manual entry view ---------- */
+  #view-manual{padding:20px 18px 100px;}
+  .section-title{font-size:13px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 12px;}
+  .vin-input-box{
+    width:100%;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;
+    color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:18px;letter-spacing:1px;text-transform:uppercase;
+    margin-bottom:14px;
+  }
+  .primary-btn{
+    width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:15px;
+    font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;
+  }
+  .primary-btn:disabled{opacity:0.4;}
+  .secondary-btn{
+    width:100%;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:14px;
+    font-size:14px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;margin-top:10px;
+  }
+
+  /* ---------- History view ---------- */
+  #view-history{padding:16px 16px 100px;}
+  .hist-item{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:8px;
+    display:flex;justify-content:space-between;align-items:center;cursor:pointer;
+  }
+  .hist-vin{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;}
+  .hist-meta{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+  .hist-empty{text-align:center;color:var(--ink-soft);padding:60px 20px;font-size:13px;}
+
+  /* ---------- Bottom nav ---------- */
+  .bottomnav{
+    display:flex;background:var(--card);border-top:1px solid var(--line);flex-shrink:0;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .nav-btn{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0 8px;
+    background:none;border:none;color:var(--ink-soft);cursor:pointer;font-family:'Inter',sans-serif;
+  }
+  .nav-btn.active{color:var(--accent);}
+  .nav-icon{font-size:20px;}
+  .nav-label{font-size:10px;font-weight:600;}
+
+  /* ---------- Bottom sheet (résultat scan) ---------- */
+  #sheet-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:50;display:none;
+  }
+  #sheet-overlay.show{display:block;}
+  #sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--card);
+    border-radius:20px 20px 0 0;padding:10px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height:85vh;overflow-y:auto;transform:translateY(100%);transition:transform 0.25s ease-out;
+  }
+  #sheet.show{transform:translateY(0);}
+  .sheet-handle{width:38px;height:4px;background:var(--line);border-radius:3px;margin:4px auto 14px;}
+  .sheet-vin{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;letter-spacing:0.5px;}
+  .sheet-close{position:absolute;top:14px;right:16px;background:var(--card-2);border:none;color:var(--ink-soft);width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;}
+
+  .badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-top:8px;}
+  .badge.achete{background:var(--card-2);color:var(--ink-soft);}
+  .badge.transit{background:var(--amber-bg);color:var(--amber);}
+  .badge.stock{background:var(--accent-bg);color:var(--accent);}
+  .badge.arrive{background:var(--green-bg);color:var(--green);}
+  .badge.comptabilise{background:var(--purple-bg);color:var(--purple);}
+  .badge.introuvable{background:var(--red-bg);color:var(--red);}
+
+  .info-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .info-row:last-child{border-bottom:none;}
+  .info-label{color:var(--ink-soft);}
+  .info-value{font-weight:500;}
+
+  .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;}
+  .action-card{
+    background:var(--card-2);border:1px solid var(--line);border-radius:14px;padding:16px 10px;
+    display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;color:var(--ink);
+  }
+  .action-card .ic{font-size:22px;}
+  .action-card .lb{font-size:11.5px;font-weight:600;text-align:center;}
+  .action-card.full{grid-column:1/-1;flex-direction:row;justify-content:center;}
+
+  select.status-select{
+    width:100%;padding:13px;background:var(--card-2);border:1px solid var(--line);border-radius:10px;
+    color:var(--ink);font-size:14px;margin:10px 0;font-family:'Inter',sans-serif;
+  }
+
+  .field-row{margin-bottom:12px;}
+  .field-row label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px;font-weight:500;}
+  .field-row input, .field-row select{
+    width:100%;padding:12px;background:var(--card-2);border:1px solid var(--line);border-radius:10px;
+    color:var(--ink);font-size:14px;box-sizing:border-box;font-family:'Inter',sans-serif;
+  }
+  .company-toggle{display:flex;gap:8px;}
+  .company-toggle button{
+    flex:1;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--card-2);
+    color:var(--ink-soft);font-weight:600;font-size:13px;cursor:pointer;
+  }
+  .company-toggle button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+  .photo-thumb{aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--card-2);position:relative;}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover;}
+  .photo-thumb.uploading::after{
+    content:"";position:absolute;inset:0;background:rgba(0,0,0,0.5);
+    border:2px solid var(--accent);border-top-color:transparent;border-radius:10px;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .photo-add-btn{
+    aspect-ratio:1;border-radius:10px;border:2px dashed var(--line);background:none;
+    display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:26px;cursor:pointer;
+  }
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--card);border:1px solid var(--line);color:var(--ink);padding:12px 18px;border-radius:12px;
+    font-size:13px;font-weight:500;opacity:0;transition:all 0.25s;z-index:99998;display:flex;align-items:center;gap:8px;
+    max-width:85%;text-align:center;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #toast.err{border-color:var(--red);}
+  #toast.ok{border-color:var(--green);}
+</style>
+</head>
+<body>
+
+<div id="password-gate">
+  <div class="pg-box">
+    <div class="pg-title">🔒 Accès réservé</div>
+    <p class="pg-sub">Outil de scan — Groupe Automax</p>
+    <input type="password" id="pg-input" placeholder="Mot de passe">
+    <button id="pg-submit">Déverrouiller</button>
+    <div id="pg-error" class="pg-error">Mot de passe incorrect.</div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-title">Scan Inventaire</div>
+    <div class="topbar-sub"><span class="conn-dot"></span>Groupe Automax</div>
+  </div>
+</div>
+
+<!-- ===== VUE SCANNER ===== -->
+<div class="view active" id="view-scan">
+  <div id="camera-wrap">
+    <video id="camera-video" autoplay playsinline muted></video>
+    <div class="scan-toolbar">
+      <button class="scan-icon-btn torch-btn" id="torch-btn">🔦</button>
+      <div></div>
+    </div>
+    <div class="scan-frame-wrap">
+      <div class="scan-frame">
+        <div class="scan-corner tl"></div>
+        <div class="scan-corner tr"></div>
+        <div class="scan-corner bl"></div>
+        <div class="scan-corner br"></div>
+        <div class="scan-line"></div>
+      </div>
+    </div>
+    <div class="scan-hint">Visez le code-barres VIN (portière conducteur)</div>
+    <div class="camera-error" id="camera-error">
+      <div style="font-size:32px;">📷</div>
+      <div style="font-size:14px;font-weight:600;">Caméra non disponible</div>
+      <div style="font-size:12px;">Autorisez l'accès à la caméra dans les réglages Safari, ou utilisez la saisie manuelle.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VUE MANUELLE ===== -->
+<div class="view" id="view-manual">
+  <div class="section-title">Saisie manuelle</div>
+  <input type="text" class="vin-input-box" id="manual-vin-input" placeholder="Entrez le VIN..." maxlength="17" autocapitalize="characters" autocomplete="off" autocorrect="off">
+  <button class="primary-btn" id="manual-search-btn">🔍 Rechercher</button>
+  <div style="margin-top:24px;">
+    <div class="section-title">Astuce</div>
+    <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;">
+      Vous pouvez aussi taper seulement les 6 derniers chiffres si vous les connaissez déjà — la recherche exacte fonctionne mieux pour un nouveau véhicule.
+    </div>
+  </div>
+</div>
+
+<!-- ===== VUE HISTORIQUE ===== -->
+<div class="view" id="view-history">
+  <div class="section-title">Scans récents</div>
+  <div id="history-list"></div>
+</div>
+
+<!-- ===== NAV DU BAS ===== -->
+<div class="bottomnav">
+  <button class="nav-btn active" data-view="scan">
+    <span class="nav-icon">📷</span><span class="nav-label">Scanner</span>
+  </button>
+  <button class="nav-btn" data-view="manual">
+    <span class="nav-icon">⌨️</span><span class="nav-label">Manuel</span>
+  </button>
+  <button class="nav-btn" data-view="history">
+    <span class="nav-icon">🕐</span><span class="nav-label">Historique</span>
+  </button>
+</div>
+
+<!-- ===== FEUILLE RÉSULTAT ===== -->
+<div id="sheet-overlay"></div>
+<div id="sheet">
+  <button class="sheet-close" id="sheet-close-btn">✕</button>
+  <div class="sheet-handle"></div>
+  <div id="sheet-content"></div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
+<script>
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
+const PG_PASSWORD = 'STMHAWKS666';
+
+/* ---------- Password gate ---------- */
+(function(){
+  const gate = document.getElementById('password-gate');
+  function unlock(){
+    gate.style.display = 'none';
+    try{ localStorage.setItem('pg_unlocked_scan_v1', '1'); }catch(e){}
+    initApp();
+  }
+  try{
+    if(localStorage.getItem('pg_unlocked_scan_v1') === '1'){ unlock(); return; }
+  }catch(e){}
+  document.getElementById('pg-submit').addEventListener('click', check);
+  document.getElementById('pg-input').addEventListener('keydown', e => { if(e.key === 'Enter') check(); });
+  function check(){
+    const val = document.getElementById('pg-input').value;
+    if(val === PG_PASSWORD){ unlock(); }
+    else{ document.getElementById('pg-error').style.display = 'block'; }
+  }
+})();
+
+/* ---------- Toast ---------- */
+function toast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = type ? 'show ' + type : 'show';
+  setTimeout(() => { t.className = t.className.replace('show',''); }, 2200);
+}
+
+/* ---------- Navigation entre vues ---------- */
+function switchView(name){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-view') === name));
+  if(name === 'scan') startScanner(); else stopScanner();
+  if(name === 'history') renderHistory();
+}
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchView(btn.getAttribute('data-view')));
+});
+
+/* ---------- Historique (localStorage) ---------- */
+function getHistory(){
+  try{ return JSON.parse(localStorage.getItem('scan_history_v1') || '[]'); }catch(e){ return []; }
+}
+function addHistory(vin, modele, statut){
+  let h = getHistory();
+  h = h.filter(item => item.vin !== vin);
+  h.unshift({ vin, modele: modele || '', statut: statut || '', date: new Date().toISOString() });
+  h = h.slice(0, 40);
+  localStorage.setItem('scan_history_v1', JSON.stringify(h));
+}
+function renderHistory(){
+  const list = document.getElementById('history-list');
+  const h = getHistory();
+  if(h.length === 0){
+    list.innerHTML = '<div class="hist-empty">Aucun scan pour l\'instant.<br>Vos VIN scannés apparaîtront ici.</div>';
+    return;
+  }
+  list.innerHTML = h.map(item => {
+    const d = new Date(item.date);
+    const dateStr = d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-CA', {hour:'2-digit', minute:'2-digit'});
+    return `
+      <div class="hist-item" data-vin="${item.vin}">
+        <div>
+          <div class="hist-vin">${item.vin}</div>
+          <div class="hist-meta">${item.modele || 'Modèle inconnu'} · ${dateStr}</div>
+        </div>
+        <span style="color:var(--ink-soft);">›</span>
+      </div>
+    `;
+  }).join('');
+  list.querySelectorAll('.hist-item').forEach(el => {
+    el.addEventListener('click', () => lookupVin(el.getAttribute('data-vin')));
+  });
+}
+
+/* ---------- Scanner caméra (ZXing) ---------- */
+let codeReader = null;
+let scannerActive = false;
+let currentStream = null;
+let torchOn = false;
+
+async function startScanner(){
+  if(scannerActive) return;
+  scannerActive = true;
+  const video = document.getElementById('camera-video');
+  const errBox = document.getElementById('camera-error');
+  errBox.classList.remove('show');
+  try{
+    if(!codeReader){
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_93
+      ]);
+      codeReader = new ZXing.BrowserMultiFormatReader(hints);
+    }
+    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+    let deviceId = devices.length ? devices[devices.length - 1].deviceId : undefined;
+    const backCam = devices.find(d => /back|rear|environment/i.test(d.label));
+    if(backCam) deviceId = backCam.deviceId;
+
+    codeReader.decodeFromVideoDevice(deviceId, video, (result, err) => {
+      if(result && scannerActive){
+        const text = result.getText().trim().toUpperCase();
+        if(text.length >= 6){
+          scannerActive = false;
+          if(navigator.vibrate) navigator.vibrate(80);
+          lookupVin(text);
+        }
+      }
+    });
+    currentStream = video.srcObject;
+  }catch(e){
+    console.error('Erreur caméra:', e);
+    errBox.classList.add('show');
+    scannerActive = false;
+  }
+}
+function stopScanner(){
+  scannerActive = false;
+  if(codeReader){ try{ codeReader.reset(); }catch(e){} }
+}
+document.getElementById('torch-btn').addEventListener('click', async () => {
+  try{
+    const video = document.getElementById('camera-video');
+    const stream = video.srcObject;
+    if(!stream) return;
+    const track = stream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+    if(!capabilities.torch){ toast('Lampe non disponible sur cet appareil'); return; }
+    torchOn = !torchOn;
+    await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+    document.getElementById('torch-btn').classList.toggle('on', torchOn);
+  }catch(e){ toast('Impossible d\'activer la lampe'); }
+});
+
+/* ---------- Recherche manuelle ---------- */
+document.getElementById('manual-search-btn').addEventListener('click', () => {
+  const val = document.getElementById('manual-vin-input').value.trim().toUpperCase();
+  if(val.length < 4){ toast('Entrez au moins 4 caractères'); return; }
+  lookupVin(val);
+});
+document.getElementById('manual-vin-input').addEventListener('keydown', e => {
+  if(e.key === 'Enter') document.getElementById('manual-search-btn').click();
+});
+
+/* ---------- Lookup VIN via API ---------- */
+async function lookupVin(vin){
+  toast('Recherche en cours...');
+  try{
+    const resp = await fetch(DEFAULT_SCRIPT_URL + '?checkStatutVin=' + encodeURIComponent(vin));
+    const data = await resp.json();
+    if(data.statut){
+      addHistory(vin, data.modele, data.statut);
+      showSheetFound(vin, data);
+    }else{
+      addHistory(vin, '', '');
+      showSheetNotFound(vin);
+    }
+  }catch(e){
+    toast('Erreur réseau — réessayez', 'err');
+  }
+}
+
+/* ---------- Bottom sheet ---------- */
+const STATUTS = {
+  achete: 'Acheté', transit: 'Transit QC', stock: 'En stock',
+  arrive: 'Vendu É.-U. / Arrivé', manheimpa: 'Manheim PA', comptabilise: 'Comptabilisé'
+};
+function statutLabel(s){ return STATUTS[s] || s; }
+
+function openSheet(){
+  document.getElementById('sheet-overlay').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+}
+function closeSheet(){
+  document.getElementById('sheet-overlay').classList.remove('show');
+  document.getElementById('sheet').classList.remove('show');
+  scannerActive = document.getElementById('view-scan').classList.contains('active');
+  if(scannerActive) startScanner();
+}
+document.getElementById('sheet-close-btn').addEventListener('click', closeSheet);
+document.getElementById('sheet-overlay').addEventListener('click', closeSheet);
+
+function showSheetFound(vin, data){
+  const feuilleLabel = { US: 'É.-U.', CAN: 'Canada', DETAIL: 'Detail' }[data.feuille] || data.feuille;
+  document.getElementById('sheet-content').innerHTML = `
+    <div class="sheet-vin">${vin}</div>
+    <span class="badge ${data.statut}">${statutLabel(data.statut)}</span>
+    <div style="margin-top:16px;">
+      <div class="info-row"><span class="info-label">Modèle</span><span class="info-value">${data.modele || '—'}</span></div>
+      <div class="info-row"><span class="info-label">Compagnie</span><span class="info-value">${data.compagnie || '—'}</span></div>
+      <div class="info-row"><span class="info-label">Registre</span><span class="info-value">${feuilleLabel}</span></div>
+      <div class="info-row"><span class="info-label">Stock #</span><span class="info-value">${data.stock || '—'}</span></div>
+    </div>
+    <div class="action-grid">
+      <div class="action-card" id="act-statut"><span class="ic">🔄</span><span class="lb">Changer statut</span></div>
+      <div class="action-card" id="act-photo"><span class="ic">📸</span><span class="lb">Ajouter photos</span></div>
+      <div class="action-card" id="act-carfax"><span class="ic">📋</span><span class="lb">Carfax</span></div>
+      <div class="action-card" id="act-fiche"><span class="ic">📄</span><span class="lb">Fiche d'achat</span></div>
+    </div>
+    <div id="statut-panel" style="display:none;margin-top:16px;">
+      <select class="status-select" id="new-statut-select">
+        ${Object.keys(STATUTS).map(k => `<option value="${k}" ${k===data.statut?'selected':''}>${STATUTS[k]}</option>`).join('')}
+      </select>
+      <button class="primary-btn" id="confirm-statut-btn">Confirmer le changement</button>
+    </div>
+    <div id="photo-panel" style="display:none;margin-top:16px;">
+      <input type="file" id="photo-input" accept="image/*" capture="environment" multiple style="display:none;">
+      <div class="photo-grid" id="photo-grid">
+        <button class="photo-add-btn" id="photo-add-btn">+</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('act-statut').addEventListener('click', () => {
+    document.getElementById('statut-panel').style.display = 'block';
+    document.getElementById('photo-panel').style.display = 'none';
+  });
+  document.getElementById('act-photo').addEventListener('click', () => {
+    document.getElementById('photo-panel').style.display = 'block';
+    document.getElementById('statut-panel').style.display = 'none';
+    loadExistingPhotos(vin);
+  });
+  document.getElementById('act-carfax').addEventListener('click', () => {
+    window.open('https://vhr.carfax.ca/fr/', '_blank');
+  });
+  document.getElementById('act-fiche').addEventListener('click', () => {
+    window.open('achat.html?vin=' + encodeURIComponent(vin), '_blank');
+  });
+  document.getElementById('confirm-statut-btn').addEventListener('click', async () => {
+    const newStatut = document.getElementById('new-statut-select').value;
+    toast('Mise à jour...');
+    try{
+      const resp = await fetch(DEFAULT_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'setStatusByVin', vin: vin, newStatut: newStatut })
+      });
+      const r = await resp.json();
+      if(r.trouve){
+        toast('Statut mis à jour ✓', 'ok');
+        addHistory(vin, data.modele, newStatut);
+        closeSheet();
+      }else{
+        toast('Véhicule introuvable', 'err');
+      }
+    }catch(e){ toast('Erreur réseau', 'err'); }
+  });
+  document.getElementById('photo-add-btn').addEventListener('click', () => {
+    document.getElementById('photo-input').click();
+  });
+  document.getElementById('photo-input').addEventListener('change', e => handlePhotoUpload(e, vin));
+  openSheet();
+}
+
+function showSheetNotFound(vin){
+  document.getElementById('sheet-content').innerHTML = `
+    <div class="sheet-vin">${vin}</div>
+    <span class="badge introuvable">Introuvable dans l'inventaire</span>
+    <div style="margin-top:18px;">
+      <div class="section-title">Ajouter ce véhicule</div>
+      <div class="field-row">
+        <label>Modèle</label>
+        <input type="text" id="new-modele" placeholder="Ex. BMW X3 2024">
+      </div>
+      <div class="field-row">
+        <label>Compagnie</label>
+        <div class="company-toggle" id="new-compagnie-toggle">
+          <button type="button" data-val="STM" class="active">Ste-Marie</button>
+          <button type="button" data-val="HAWKS">Hawks</button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Registre</label>
+        <select id="new-registre">
+          <option value="US">É.-U.</option>
+          <option value="CAN">Canada</option>
+          <option value="DETAIL">Detail</option>
+        </select>
+      </div>
+      <button class="primary-btn" id="confirm-add-btn">➕ Ajouter au registre</button>
+    </div>
+  `;
+  let compagnieChoisie = 'STM';
+  document.querySelectorAll('#new-compagnie-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#new-compagnie-toggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      compagnieChoisie = btn.getAttribute('data-val');
+    });
+  });
+  document.getElementById('confirm-add-btn').addEventListener('click', async () => {
+    const modele = document.getElementById('new-modele').value.trim();
+    const registre = document.getElementById('new-registre').value;
+    toast('Ajout en cours...');
+    try{
+      const resp = await fetch(DEFAULT_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'addQuickByVin', vin: vin, modele: modele, compagnie: compagnieChoisie, sheetSource: registre })
+      });
+      const r = await resp.json();
+      if(r.doublon){
+        toast('Ce VIN existe déjà', 'err');
+      }else{
+        toast('Véhicule ajouté ✓', 'ok');
+        addHistory(vin, modele, 'achete');
+        closeSheet();
+      }
+    }catch(e){ toast('Erreur réseau', 'err'); }
+  });
+  openSheet();
+}
+
+/* ---------- Photos ---------- */
+async function loadExistingPhotos(vin){
+  try{
+    const resp = await fetch(DEFAULT_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'getPhotosByVin', vin: vin })
+    });
+    const r = await resp.json();
+    const grid = document.getElementById('photo-grid');
+    const addBtn = document.getElementById('photo-add-btn');
+    grid.querySelectorAll('.photo-thumb').forEach(el => el.remove());
+    (r.urls || []).forEach(url => {
+      const div = document.createElement('div');
+      div.className = 'photo-thumb';
+      div.innerHTML = `<img src="${url}" loading="lazy">`;
+      grid.insertBefore(div, addBtn);
+    });
+  }catch(e){}
+}
+function handlePhotoUpload(e, vin){
+  const files = Array.from(e.target.files || []);
+  const grid = document.getElementById('photo-grid');
+  const addBtn = document.getElementById('photo-add-btn');
+  files.forEach(file => {
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb uploading';
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      thumb.innerHTML = `<img src="${ev.target.result}">`;
+      const base64 = ev.target.result.split(',')[1];
+      try{
+        const resp = await fetch(DEFAULT_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'uploadPhoto', vin: vin, imageBase64: base64, mimeType: file.type })
+        });
+        const r = await resp.json();
+        thumb.classList.remove('uploading');
+        if(r.ok) toast('Photo ajoutée ✓', 'ok');
+        else toast('Échec de l\'envoi', 'err');
+      }catch(err){
+        thumb.classList.remove('uploading');
+        toast('Erreur réseau', 'err');
+      }
+    };
+    reader.readAsDataURL(file);
+    grid.insertBefore(thumb, addBtn);
+  });
+  e.target.value = '';
+}
+
+/* ---------- Init ---------- */
+function initApp(){
+  startScanner();
+}
+</script>
+</body>
+</html>

@@ -462,17 +462,18 @@ document.getElementById('manual-vin-input').addEventListener('keydown', e => {
 });
 
 /* ---------- Lookup VIN via API ---------- */
-async function lookupVin(vin){
+async function lookupVin(vinRecherche){
   toast('Recherche en cours...');
   try{
-    const resp = await fetch(DEFAULT_SCRIPT_URL + '?checkStatutVin=' + encodeURIComponent(vin));
+    const resp = await fetch(DEFAULT_SCRIPT_URL + '?checkStatutVin=' + encodeURIComponent(vinRecherche));
     const data = await resp.json();
     if(data.statut){
-      addHistory(vin, data.modele, data.statut);
-      showSheetFound(vin, data);
+      const vinComplet = data.vin || vinRecherche;
+      addHistory(vinComplet, data.modele, data.statut);
+      showSheetFound(vinComplet, data);
     }else{
-      addHistory(vin, '', '');
-      showSheetNotFound(vin);
+      addHistory(vinRecherche, '', '');
+      showSheetNotFound(vinRecherche);
     }
   }catch(e){
     toast('Erreur réseau — réessayez', 'err');

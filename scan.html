@@ -322,6 +322,13 @@
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
 const PG_PASSWORD = 'STMHAWKS666';
 
+/* ---------- Variables globales (déclarées tôt pour éviter les erreurs d'initialisation) ---------- */
+let codeReader = null;
+let scannerActive = false;
+let currentStream = null;
+let torchOn = false;
+let selectedPhotos = new Set();
+
 /* ---------- Password gate ---------- */
 (function(){
   const gate = document.getElementById('password-gate');
@@ -402,11 +409,6 @@ function renderHistory(){
 }
 
 /* ---------- Scanner caméra (ZXing) ---------- */
-let codeReader = null;
-let scannerActive = false;
-let currentStream = null;
-let torchOn = false;
-
 async function startScanner(){
   if(scannerActive) return;
   scannerActive = true;
@@ -643,8 +645,6 @@ function showSheetNotFound(vin){
 }
 
 /* ---------- Photos ---------- */
-let selectedPhotos = new Set();
-
 function updateSendBtn(){
   const btn = document.getElementById('send-email-btn');
   if(!btn) return;
@@ -730,8 +730,14 @@ function handlePhotoUpload(e, vin){
         });
         const r = await resp.json();
         thumb.classList.remove('uploading');
-        if(r.ok) toast('Photo ajoutée ✓', 'ok');
-        else toast('Échec de l\'envoi', 'err');
+        if(r.ok){
+          toast('Photo ajoutée ✓', 'ok');
+          // Rendre la photo sélectionnable en la remplaçant par une vraie vignette
+          const realThumb = makePhotoThumb(r.url);
+          thumb.replaceWith(realThumb);
+        }else{
+          toast('Échec de l\'envoi', 'err');
+        }
       }catch(err){
         thumb.classList.remove('uploading');
         toast('Erreur réseau', 'err');

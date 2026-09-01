@@ -277,13 +277,13 @@
     <div class="section-title">Coûts</div>
     <div class="grid grid-4">
       <div class="field"><label>Prix Achat ($)</label><input type="number" step="0.01" class="cout" id="f-prixachat"></div>
-      <div class="field"><label>Coût estimé ($)</label><input type="number" step="0.01" class="cout" id="f-coutestime"></div>
+      <div class="field"><label>Prix de détail ($)</label><input type="number" step="0.01" class="cout" id="f-coutestime"></div>
       <div class="field"><label>Accessoires ($)</label><input type="number" step="0.01" class="cout" id="f-accessoires"></div>
       <div class="field"><label>Carrosserie ($)</label><input type="number" step="0.01" class="cout" id="f-carrosserie"></div>
     </div>
     <div class="grid grid-4" style="margin-top:12px;">
-      <div class="field"><label>Service ($)</label><input type="number" step="0.01" class="cout" id="f-service"></div>
-      <div class="field"><label>Lavage ($)</label><input type="number" step="0.01" class="cout" id="f-lavage"></div>
+      <div class="field"><label>Service / Pré-safety ($)</label><input type="number" step="0.01" class="cout" id="f-service"></div>
+      <div class="field"><label>Pré-safety ($)</label><input type="number" step="0.01" class="cout" id="f-lavage"></div>
       <div class="field"><label>Lavage livraison ($)</label><input type="number" step="0.01" class="cout" id="f-lavagelivraison"></div>
       <div class="field"><label>Enregistrement ($)</label><input type="number" step="0.01" class="cout" id="f-enregistrementcout"></div>
     </div>
@@ -291,7 +291,6 @@
       <div class="field"><label>Prix Encan ($)</label><input type="number" step="0.01" id="f-prixencan"></div>
       <div class="field"><label>Ajustement 1 ($)</label><input type="number" step="0.01" class="cout" id="f-adj1montant"></div>
       <div class="field"><label>Ajustement 2 ($)</label><input type="number" step="0.01" class="cout" id="f-adj2montant"></div>
-      <div class="field"><label>Autorisé par</label><input type="text" id="f-autorisepar"></div>
     </div>
     <div class="subsection">
       <div class="subsection-title">Frais et ajustements</div>
@@ -348,7 +347,13 @@
 
   <!-- ===================== WHOLESALE / VENTE DETAIL / VENTE USA (SI APPLICABLE) ===================== -->
   <div class="section">
-    <div class="section-title" id="wholesale-section-title">Wholesale / Vente Detail / Vente USA (si applicable)</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:7px;">
+      <div class="section-title" id="wholesale-section-title" style="margin:0;">Wholesale / Vente Detail / Vente USA (si applicable)</div>
+      <div class="field" style="min-width:160px;">
+        <label>Autorisé par</label>
+        <input type="text" id="f-autorisepar">
+      </div>
+    </div>
 
     <div class="grid grid-3" id="wholesale-row">
       <div class="field"><label>Wholesale — Acheteur</label><input type="text" id="f-wsacheteur"></div>
@@ -357,6 +362,7 @@
     </div>
     <div class="grid grid-4" id="pad-canada-row" style="margin-top:12px;">
       <div class="field" id="pad-canada-field"><label>PAD Canada (212$)</label><input type="checkbox" id="c-pad212" style="width:20px;height:20px;accent-color:var(--ink);"></div>
+      <div class="field" id="pad-detail-canada-field"><label>PAD Détail (499$)</label><input type="checkbox" id="c-pad499-canada" style="width:20px;height:20px;accent-color:var(--ink);"></div>
     </div>
 
     <div class="grid grid-4" id="detail-vente-row">
@@ -447,7 +453,7 @@ function recalcule(){
   let coutant = 0;
   coutFields.forEach(id => coutant += parseNum(id));
   // ajouter les PAD cochés (montants fixes)
-  if(document.getElementById('c-pad499').checked) coutant += 499;
+  if(document.getElementById('c-pad499').checked || document.getElementById('c-pad499-canada').checked) coutant += 499;
   if(document.getElementById('c-pad350').checked) coutant += 350;
   if(document.getElementById('c-pad50').checked) coutant += 50;
   if(document.getElementById('c-pad212').checked) coutant += 212;
@@ -526,7 +532,10 @@ function toggleExportVisibility(){
     document.getElementById('f-presafetymontant').value = '';
     document.getElementById('f-prixdetail').value = '';
   }
-  if(!padCanadaVisible) document.getElementById('c-pad212').checked = false;
+  if(!padCanadaVisible){
+    document.getElementById('c-pad212').checked = false;
+    document.getElementById('c-pad499-canada').checked = false;
+  }
 
   // Wholesale : ne s'applique qu'à l'achat Canada
   document.getElementById('wholesale-row').style.display = (dest === 'CAN') ? 'grid' : 'none';

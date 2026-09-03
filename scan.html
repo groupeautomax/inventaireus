@@ -317,8 +317,21 @@
 
 <div id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 <script>
+let zxingLoadPromise = null;
+function loadZxing_(){
+  if(window.ZXing) return Promise.resolve();
+  if(zxingLoadPromise) return zxingLoadPromise;
+  zxingLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js';
+    s.onload = resolve;
+    s.onerror = () => { zxingLoadPromise = null; reject(new Error('Impossible de charger le scanner')); };
+    document.head.appendChild(s);
+  });
+  return zxingLoadPromise;
+}
+
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
 const PG_PASSWORD = 'STMHAWKS666';
 
@@ -416,6 +429,7 @@ async function startScanner(){
   const errBox = document.getElementById('camera-error');
   errBox.classList.remove('show');
   try{
+    await loadZxing_();
     if(!codeReader){
       const hints = new Map();
       hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [

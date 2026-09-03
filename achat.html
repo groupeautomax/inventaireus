@@ -277,7 +277,7 @@
     <div class="section-title">Coûts</div>
     <div class="grid grid-4">
       <div class="field"><label>Prix Achat ($)</label><input type="number" step="0.01" class="cout" id="f-prixachat"></div>
-      <div class="field"><label>Prix de détail ($)</label><input type="number" step="0.01" class="cout" id="f-coutestime"></div>
+      
       <div class="field"><label>Accessoires ($)</label><input type="number" step="0.01" class="cout" id="f-accessoires"></div>
       <div class="field"><label>Carrosserie ($)</label><input type="number" step="0.01" class="cout" id="f-carrosserie"></div>
     </div>
@@ -349,9 +349,15 @@
   <div class="section">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:7px;">
       <div class="section-title" id="wholesale-section-title" style="margin:0;">Wholesale / Vente Detail / Vente USA (si applicable)</div>
-      <div class="field" style="min-width:160px;">
-        <label>Autorisé par</label>
-        <input type="text" id="f-autorisepar">
+      <div style="display:flex;gap:12px;">
+        <div class="field" style="min-width:140px;">
+          <label>Prix de détail ($)</label>
+          <input type="number" step="0.01" id="f-coutestime">
+        </div>
+        <div class="field" style="min-width:160px;">
+          <label>Autorisé par</label>
+          <input type="text" id="f-autorisepar">
+        </div>
       </div>
     </div>
 
@@ -445,7 +451,7 @@ function fmt(n){
   return n.toLocaleString('fr-CA', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' $';
 }
 
-const coutFields = ['f-fraisencan','f-fraisautres','f-fraistransport','f-carfax','f-prixachat','f-coutestime',
+const coutFields = ['f-fraisencan','f-fraisautres','f-fraistransport','f-carfax','f-prixachat',
   'f-accessoires','f-carrosserie','f-service','f-lavage','f-lavagelivraison','f-enregistrementcout',
   'f-adj1montant','f-adj2montant','f-presafetymontant'];
 

@@ -666,22 +666,12 @@ async function ajouterInventaire(sheetCode, sheetLabel){
   const annee = document.getElementById('f-annee').value.trim();
   const modele = [marque, modeleVal, annee].filter(v=>v).join(' ') || '(modèle non précisé)';
 
-  // 1) Enregistrer d'abord la fiche complète (tous les champs), indexée par ce VIN
-  statutEl.textContent = 'Enregistrement de la fiche...';
-  try{
-    const data = collectFormData();
-    await fetch(DEFAULT_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'saveFiche', vin: vin, data: data })
-    });
-  }catch(e){
-    statutEl.textContent = 'Échec de l\'enregistrement de la fiche. Réessayez.';
-    return;
-  }
-
-  // 2) Ajouter (ou confirmer l'existence) du véhicule dans l'inventaire choisi
-  statutEl.textContent = `Fiche enregistrée — ajout à ${sheetLabel} en cours...`;
+  // 1) Ajouter (ou confirmer l'existence) du véhicule dans l'inventaire choisi —
+  //    ceci doit se faire AVANT la sauvegarde de la fiche, sinon la synchronisation
+  //    du Stock # et du Coûtant vers le registre échoue silencieusement (le véhicule
+  //    n'existe pas encore au moment où la fiche tente de le trouver).
+  let ajoutReussi = false;
+  statutEl.textContent = `Ajout à ${sheetLabel} en cours...`;
   try{
     const resp = await fetch(DEFAULT_SCRIPT_URL, {
       method: 'POST',
@@ -689,13 +679,30 @@ async function ajouterInventaire(sheetCode, sheetLabel){
       body: JSON.stringify({ action: 'add', sheet: sheetCode, vin: vin, modele: modele, compagnie: compagnie })
     });
     const result = await resp.json();
+    ajoutReussi = true;
     if(result.doublonIgnore){
-      statutEl.textContent = `✓ Fiche enregistrée. Ce VIN existe déjà dans ${sheetLabel} — non ajouté en double.`;
+      statutEl.textContent = `Ce VIN existe déjà dans ${sheetLabel} — non ajouté en double. Synchronisation de la fiche...`;
     } else {
-      statutEl.textContent = `✓ Fiche enregistrée et véhicule ajouté à ${sheetLabel} (statut « Acheté »).`;
+      statutEl.textContent = `Véhicule ajouté à ${sheetLabel} (statut « Acheté ») — enregistrement de la fiche...`;
     }
   }catch(e){
-    statutEl.textContent = `Fiche enregistrée, mais échec de l'ajout à ${sheetLabel}. Réessayez l'ajout.`;
+    statutEl.textContent = `Échec de l'ajout à ${sheetLabel}. Réessayez.`;
+    return;
+  }
+
+  // 2) Enregistrer la fiche complète — le véhicule existe maintenant dans le
+  //    registre, donc le Stock # et le Coûtant s'y synchronisent correctement.
+  try{
+    const data = collectFormData();
+    const resp = await fetch(DEFAULT_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'saveFiche', vin: vin, data: data })
+    });
+    await resp.json();
+    statutEl.textContent = `✓ Fiche enregistrée et véhicule ajouté à ${sheetLabel} — Stock # et Coûtant synchronisés.`;
+  }catch(e){
+    statutEl.textContent = `Véhicule ajouté à ${sheetLabel}, mais échec de l'enregistrement de la fiche. Cliquez « Enregistrer » pour réessayer.`;
   }
 }
 

@@ -156,6 +156,20 @@
 
   .empty{padding:22px;text-align:center;color:var(--ink-soft);font-size:12.5px;}
   .synced{font-size:10.5px;color:var(--ink-soft);margin-top:6px;text-align:right;}
+
+  details.collapse-box{background:var(--paper-card);border:1px solid var(--line);border-radius:10px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);}
+  details.collapse-box[open]{padding-bottom:2px;}
+  details.collapse-box summary{cursor:pointer;padding:10px 12px;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);list-style:none;display:flex;align-items:center;justify-content:space-between;}
+  details.collapse-box summary::-webkit-details-marker{display:none;}
+  details.collapse-box summary::after{content:'▸';font-size:12px;color:var(--ink-soft);transition:transform 0.15s;}
+  details.collapse-box[open] summary::after{transform:rotate(90deg);}
+  details.collapse-box summary:hover{color:var(--accent);}
+  details.collapse-box .collapse-body{padding:0 12px 12px;}
+
+  .nav-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;justify-content:flex-end;}
+  .nav-pill{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--ink);text-decoration:none;
+    background:var(--paper-card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;transition:all 0.12s;}
+  .nav-pill:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -204,19 +218,13 @@
 
 <div class="wrap">
 
-  <div style="text-align:right;margin-bottom:8px;">
-    <a href="index.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Voir le suivi É.-U. →</a>
-    <span style="color:var(--line);margin:0 6px;">|</span>
-    <a href="detail.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Voir le suivi Detail →</a>
-    <span style="color:var(--line);margin:0 6px;">|</span>
-    <a href="verification.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Vérification d'inventaire →</a>
-  <span style="color:var(--line);margin:0 6px;">|</span>
-    <a href="achat.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Fiche d'achat →</a>
-    <span style="color:var(--line);margin:0 6px;">|</span>
-    <a href="evaluation.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Évaluation de marché →</a>
-    <span style="color:var(--line);margin:0 6px;">|</span>
-    <a href="resultat.html" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;">Résultat →</a>
-  
+  <div class="nav-pills">
+    <a href="index.html" class="nav-pill">Voir le suivi É.-U. →</a>
+    <a href="detail.html" class="nav-pill">Voir le suivi Detail →</a>
+    <a href="verification.html" class="nav-pill">Vérification d'inventaire →</a>
+    <a href="achat.html" class="nav-pill">Fiche d'achat →</a>
+    <a href="evaluation.html" class="nav-pill">Évaluation de marché →</a>
+    <a href="resultat.html" class="nav-pill">Résultat →</a>
   </div>
 
   <div class="manifest-head">
@@ -239,8 +247,7 @@
     <button id="save-url-btn">Connecter le Sheet</button>
   </div>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
-    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Ajout en lot</div>
+  <details class="collapse-box"><summary>Ajout en lot</summary><div class="collapse-body">
     <textarea id="bulk-input" rows="4" placeholder="Un VIN par ligne — marque, modèle et année sont détectés automatiquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456&#10;&#10;(Vous pouvez aussi préciser vous-même : VIN, Modèle)"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;">
@@ -259,10 +266,9 @@
         <button id="bulk-add-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;">Ajouter tout le lot</button>
       </div>
     </div>
-  </div>
+  </div></details>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
-    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Registre / enregistrement reçu — mise à jour en lot</div>
+  <details class="collapse-box"><summary>Registre / enregistrement reçu — mise à jour en lot</summary><div class="collapse-body">
     <textarea id="doc-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;">
@@ -276,10 +282,9 @@
         <button id="doc-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;">Mettre à jour le lot</button>
       </div>
     </div>
-  </div>
+  </div></details>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
-    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Mise à jour de statut en lot</div>
+  <details class="collapse-box"><summary>Mise à jour de statut en lot</summary><div class="collapse-body">
     <textarea id="status-bulk-input" rows="4" placeholder="Un VIN par ligne — véhicules déjà présents dans le registre uniquement.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;">
@@ -294,10 +299,9 @@
         <button id="status-bulk-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;">Mettre à jour le lot</button>
       </div>
     </div>
-  </div>
+  </div></details>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
-    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Vérification d'inventaire</div>
+  <details class="collapse-box"><summary>Vérification d'inventaire</summary><div class="collapse-body">
     <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px;">Collez votre liste physique de VIN (un par ligne) pour la comparer au registre Google Sheet actuel.</p>
     <textarea id="verif-input" rows="5" placeholder="Un VIN par ligne — votre inventaire physique actuel.&#10;Ex.&#10;1FTFW1E5XNFA12345&#10;3GCPWCED5NG123456"
       style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px;border:1px solid var(--line);resize:vertical;"></textarea>
@@ -306,12 +310,11 @@
       <button id="verif-btn" style="font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;">Comparer</button>
     </div>
     <div id="verif-results" style="margin-top:14px;"></div>
-  </div>
+  </div></details>
 
-  <div style="background:var(--paper-card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,0.04);">
-    <div style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;">Vérification des rappels de sécurité</div>
+  <details class="collapse-box"><summary>Vérification des rappels de sécurité</summary><div class="collapse-body">
     <p style="font-size:12px;color:var(--ink-soft);margin:0;">Vérifié automatiquement (NHTSA) à l'ajout d'un véhicule — cliquez sur le badge « Rappel ouvert » / « Aucun rappel » / « Non vérifié » pour revérifier. Le bouton « Rappels constructeur » ouvre en plus la page officielle du fabricant pour une double-vérification manuelle avec le VIN.</p>
-  </div>
+  </div></details>
 
   <div class="toolbar">
     <input type="text" id="search" placeholder="Rechercher par VIN ou modèle...">
@@ -642,7 +645,7 @@ function render(){
           <a href="achat.html?vin=${encodeURIComponent(v.vin)}" target="_blank" title="${v.ficheExiste ? (v.ficheStockRempli ? 'Fiche achat complète (stock inscrit) - cliquer pour voir' : 'Fiche achat - stock non inscrit - cliquer pour voir') : 'Aucune fiche achat - cliquer pour en créer une'}" style="text-decoration:none;font-size:14px;">📄</a>
         </div>
         <div class="vin-icons-row" style="display:flex;gap:5px;margin-top:4px;">
-          <button class="action-btn icon-btn" data-action="view-photos" data-id="${v.id}" title="Photos">📷</button>
+          <button class="action-btn icon-btn" data-action="view-photos" data-id="${v.id}" title="${v.hasPhotos ? 'Photos disponibles' : 'Aucune photo'}" style="${v.hasPhotos ? 'border-color:var(--stamp-teal);color:var(--stamp-teal);' : 'border-color:var(--stamp-red);color:var(--stamp-red);'}">📷</button>
           ${windowStickerHtml(v)}
           <a class="action-btn icon-btn" href="https://vhr.carfax.ca/fr/" target="_blank" rel="noopener" style="text-decoration:none;" title="Carfax — coller le VIN ${v.vin}">🚗</a>
           ${manufacturerRecallHtml(v)}

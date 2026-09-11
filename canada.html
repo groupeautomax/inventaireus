@@ -51,13 +51,13 @@
   }
   .manifest-sub{font-size:12px;color:var(--ink-soft);margin:0;}
 
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-  .stat{background:var(--paper-card);border:1px solid var(--line);border-radius:8px;padding:9px 11px;}
-  .stat .num{font-size:19px;font-weight:600;color:var(--ink);}
-  .stat .lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-soft);margin-top:1px;}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .stat{background:var(--paper-card);border:1px solid var(--line);border-radius:7px;padding:6px 8px;}
+  .stat .num{font-size:15px;font-weight:600;color:var(--ink);line-height:1.15;}
+  .stat .lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:0.3px;color:var(--ink-soft);margin-top:1px;line-height:1.25;}
   .stat.alert .num{color:var(--stamp-red);}
   .stat[data-stat]{border-bottom:2px solid var(--accent-bg);}
-  .stat[data-stat] .filter-hint{display:block;font-size:9px;color:var(--accent);font-weight:600;margin-top:3px;}
+  .stat[data-stat] .filter-hint{display:block;font-size:7.5px;color:var(--accent);font-weight:600;margin-top:2px;}
   .stat:hover{border-color:var(--accent);box-shadow:0 2px 6px rgba(37,99,235,0.18);}
   .stat.active-stat{border-color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-bg);}
   .stat.active-stat .num{color:var(--accent);}
@@ -539,28 +539,21 @@ function computeStats(){
   const activeAttr = (type) => activeStatFilter === type ? 'active-stat' : '';
   const scopeLabel = compagnieFiltre ? `— compagnie : ${compagnieFiltre}` : '— toutes compagnies';
   document.getElementById('stats-scope-label').textContent = scopeLabel;
-  document.getElementById('stats').innerHTML = `
-    <div class="stat ${activeAttr('total')}" data-stat="total" style="cursor:pointer;"><div class="num">${total}</div><div class="lbl">Total véhicules<span class="filter-hint">Cliquer pour filtrer</span></div></div>
-    <div class="stat ${activeAttr('achete')}" data-stat="achete" style="cursor:pointer;"><div class="num">${achete}</div><div class="lbl">Achetés — pas encore en stock<span class="filter-hint">Cliquer pour filtrer</span></div></div>
-    <div class="stat alert ${activeAttr('stock')}" data-stat="stock" style="cursor:pointer;"><div class="num">${stock}</div><div class="lbl">En stock — pas encore parti<span class="filter-hint">Cliquer pour filtrer</span></div></div>
-    <div class="stat ${activeAttr('transit')}" data-stat="transit" style="cursor:pointer;"><div class="num">${transit}</div><div class="lbl">En transit<span class="filter-hint">Cliquer pour filtrer</span></div></div>
-  `;
-  document.getElementById('stats').innerHTML += `
-    <div class="stat ${activeAttr('arrive')}" data-stat="arrive" style="grid-column:1/-1;cursor:pointer;"><div class="num">${arrive}</div><div class="lbl">Vendus<span class="filter-hint">Cliquer pour filtrer</span></div></div>
-  `;
-  document.getElementById('stats').innerHTML += `
-    <div class="stat ${activeAttr('comptabilise')}" data-stat="comptabilise" style="grid-column:1/-1;cursor:pointer;border-top:1px solid #DDD6FE;"><div class="num">${comptabilise}</div><div class="lbl">Comptabilisés<span class="filter-hint">Cliquer pour filtrer — voir la date dans la colonne MAJ</span></div></div>
-  `;
-  if(retard > 0){
-    document.getElementById('stats').innerHTML += `
-      <div class="stat alert ${activeAttr('retard')}" data-stat="retard" style="grid-column:1/-1;border-top:1px solid var(--stamp-red-bg);cursor:pointer;"><div class="num">${retard}</div><div class="lbl">Registre non reçu depuis 10 jours ou plus<span class="filter-hint">Cliquer pour filtrer</span></div></div>
-    `;
-  }
-  if(retardAchat > 0){
-    document.getElementById('stats').innerHTML += `
-      <div class="stat alert ${activeAttr('retardAchat')}" data-stat="retardAchat" style="grid-column:1/-1;border-top:1px solid var(--stamp-amber-bg);cursor:pointer;"><div class="num">${retardAchat}</div><div class="lbl">Non reçu en stock depuis 7 jours ou plus après l'achat<span class="filter-hint">Cliquer pour filtrer</span></div></div>
-    `;
-  }
+  const cartes = [
+    { id:'total', label:'Total véhicules', val:total, alert:false },
+    { id:'achete', label:'Achetés — pas en stock', val:achete, alert:false },
+    { id:'stock', label:'En stock — pas parti', val:stock, alert:true },
+    { id:'transit', label:'En transit', val:transit, alert:false },
+    { id:'arrive', label:'Vendus', val:arrive, alert:false },
+    { id:'comptabilise', label:'Comptabilisés', val:comptabilise, alert:false },
+  ];
+  if(retard > 0) cartes.push({ id:'retard', label:'Registre non reçu 10j+', val:retard, alert:true });
+  if(retardAchat > 0) cartes.push({ id:'retardAchat', label:'Pas en stock 7j+ après achat', val:retardAchat, alert:true });
+  document.getElementById('stats').innerHTML = cartes.map(c => `
+    <div class="stat ${c.alert ? 'alert' : ''} ${activeAttr(c.id)}" data-stat="${c.id}" style="cursor:pointer;">
+      <div class="num">${c.val}</div><div class="lbl">${c.label}<span class="filter-hint">Filtrer</span></div>
+    </div>
+  `).join('');
   document.querySelectorAll('#stats [data-stat]').forEach(el=>{
     el.addEventListener('click', ()=> clickStat(el.dataset.stat));
   });

@@ -150,6 +150,9 @@
   }
   .action-btn:hover{border-color:var(--accent);color:var(--accent);}
   .action-btn.danger{color:var(--stamp-red);}
+  .icon-btn{width:28px;height:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+  .row-actions select.action-btn{height:28px;padding:0 4px;font-size:11px;}
+  .row-actions{align-items:center;gap:4px;}
 
   .empty{padding:22px;text-align:center;color:var(--ink-soft);font-size:12.5px;}
   .synced{font-size:10.5px;color:var(--ink-soft);margin-top:6px;text-align:right;}
@@ -426,12 +429,12 @@ function windowStickerHtml(v){
   const brand = (v.modele || '').trim().split(' ')[0].toUpperCase();
   const GM_BRANDS = ['CHEVROLET','GMC','BUICK','CADILLAC'];
   if(GM_BRANDS.includes(brand)){
-    return `<a class="action-btn" href="https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">Window Sticker</a>`;
+    return `<a class="action-btn icon-btn" href="https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;" title="Window Sticker">🪟</a>`;
   }
   if(brand === 'FORD'){
-    return `<a class="action-btn" href="https://www.windowsticker.ford.com/vin/${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">Window Sticker</a>`;
+    return `<a class="action-btn icon-btn" href="https://www.windowsticker.ford.com/vin/${v.vin}" target="_blank" rel="noopener" style="text-decoration:none;" title="Window Sticker">🪟</a>`;
   }
-  return `<span class="action-btn" style="opacity:0.5;cursor:not-allowed;" title="Lien Window Sticker non disponible pour cette marque">Window Sticker (n/d)</span>`;
+  return `<span class="action-btn icon-btn" style="opacity:0.4;cursor:not-allowed;" title="Window Sticker non disponible pour cette marque">🪟</span>`;
 }
 
 const MANUFACTURER_RECALL_URLS = {
@@ -457,9 +460,9 @@ function manufacturerRecallHtml(v){
   const brand = (v.modele || '').trim().split(' ')[0].toUpperCase();
   const url = MANUFACTURER_RECALL_URLS[brand];
   if(!url){
-    return `<span class="action-btn" style="opacity:0.5;cursor:not-allowed;" title="Page de rappels non répertoriée pour cette marque">Rappels constructeur (n/d)</span>`;
+    return `<span class="action-btn icon-btn" style="opacity:0.4;cursor:not-allowed;" title="Page de rappels non répertoriée pour cette marque">⚠️</span>`;
   }
-  return `<a class="action-btn" href="${url}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;" title="Collez le VIN ${v.vin} sur cette page pour vérifier les rappels">Rappels constructeur</a>`;
+  return `<a class="action-btn icon-btn" href="${url}" target="_blank" rel="noopener" style="text-decoration:none;" title="Rappels constructeur — collez le VIN ${v.vin} sur cette page">⚠️</a>`;
 }
 
 function statusMeta(s){
@@ -685,10 +688,9 @@ function render(){
       <td class="date-cell">${fmtDate(v.maj)}</td>
       <td>
         <div class="row-actions">
-          ${meta.next ? `<button class="action-btn" data-action="advance" data-id="${v.id}">${meta.nextLabel}</button>` : ''}
-          ${v.statut === 'comptabilise' ? `<button class="action-btn deverrouiller-btn" data-action="deverrouiller" data-id="${v.id}" style="border-color:#5B21B6;color:#5B21B6;">🔓 Déverrouiller (comptabilité)</button>` : ''}
-          <select class="action-btn statut-correction-select" data-id="${v.id}" style="cursor:pointer;" title="Corriger le statut directement">
-            <option value="">Corriger statut...</option>
+          <select class="action-btn statut-correction-select" data-id="${v.id}" style="cursor:pointer;width:38px;" title="Changer le statut">
+            <option value="" selected disabled>⋮</option>
+            ${meta.next ? `<option value="__advance__">→ ${meta.nextLabel}</option>` : ''}
             <option value="achete" ${v.statut==='achete'?'selected':''}>Acheté</option>
             <option value="transitqc" ${v.statut==='transitqc'?'selected':''}>Transit QC</option>
             <option value="stock" ${v.statut==='stock'?'selected':''}>En stock</option>
@@ -697,12 +699,13 @@ function render(){
             <option value="arrive" ${v.statut==='arrive'?'selected':''}>Vendu</option>
             <option value="comptabilise" ${v.statut==='comptabilise'?'selected':''}>Comptabilisé</option>
           </select>
-          <button class="action-btn" data-action="view-photos" data-id="${v.id}" title="Voir les photos de ce véhicule">📷 Photos</button>
+          ${v.statut === 'comptabilise' ? `<button class="action-btn icon-btn deverrouiller-btn" data-action="deverrouiller" data-id="${v.id}" style="border-color:#5B21B6;color:#5B21B6;" title="Déverrouiller (comptabilité)">🔓</button>` : ''}
+          <button class="action-btn icon-btn" data-action="view-photos" data-id="${v.id}" title="Photos">📷</button>
           ${windowStickerHtml(v)}
-          <a class="action-btn" href="https://vhr.carfax.ca/fr/" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;" title="Coller le VIN ${v.vin} sur Carfax">Carfax</a>
+          <a class="action-btn icon-btn" href="https://vhr.carfax.ca/fr/" target="_blank" rel="noopener" style="text-decoration:none;" title="Carfax — coller le VIN ${v.vin}">🚗</a>
           ${manufacturerRecallHtml(v)}
-          <select class="action-btn transfer-select" data-id="${v.id}" style="cursor:pointer;">
-            <option value="">Transférer vers...</option>
+          <select class="action-btn transfer-select" data-id="${v.id}" style="cursor:pointer;width:34px;" title="Transférer vers un autre registre">
+            <option value="">↗</option>
             <option value="CAN">Canada</option>
             <option value="DETAIL">Detail</option>
           </select>
@@ -1189,10 +1192,15 @@ document.getElementById('table-body').addEventListener('change', async (e)=>{
   }
   const statutCorrection = e.target.closest('.statut-correction-select');
   if(statutCorrection){
-    const newStatut = statutCorrection.value;
-    if(!newStatut) return;
+    let newStatut = statutCorrection.value;
+    if(!newStatut){ statutCorrection.value=''; return; }
     const id = statutCorrection.dataset.id;
     const v = vehicules.find(x=>x.id===id);
+    if(newStatut === '__advance__'){
+      const meta = statusMeta(v.statut);
+      if(meta.next){ await postToSheet({ action:'advance', id, newStatut: meta.next }); }
+      return;
+    }
     const confirme = confirm(`Corriger le statut de "${v ? v.vin : ''}" vers "${statutCorrection.options[statutCorrection.selectedIndex].text}" ?`);
     if(!confirme){ render(); return; }
     await postToSheet({ action:'setStatus', id, newStatut });

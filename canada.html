@@ -648,6 +648,12 @@ function render(){
           <input type="text" class="vin-input table-cell-field" data-id="${v.id}" value="${v.vin}" style="width:150px;color:${v.ficheStockRempli ? 'var(--stamp-teal)' : (v.ficheExiste ? 'var(--stamp-red)' : 'var(--ink)')};">
           <a href="achat.html?vin=${encodeURIComponent(v.vin)}" target="_blank" title="${v.ficheExiste ? (v.ficheStockRempli ? 'Fiche achat complète (stock inscrit) - cliquer pour voir' : 'Fiche achat - stock non inscrit - cliquer pour voir') : 'Aucune fiche achat - cliquer pour en créer une'}" style="text-decoration:none;font-size:14px;">📄</a>
         </div>
+        <div class="vin-icons-row" style="display:flex;gap:5px;margin-top:4px;">
+          <button class="action-btn icon-btn" data-action="view-photos" data-id="${v.id}" title="Photos">📷</button>
+          ${windowStickerHtml(v)}
+          <a class="action-btn icon-btn" href="https://vhr.carfax.ca/fr/" target="_blank" rel="noopener" style="text-decoration:none;" title="Carfax — coller le VIN ${v.vin}">🚗</a>
+          ${manufacturerRecallHtml(v)}
+        </div>
       </td>
       <td>${v.modele}</td>
       <td>
@@ -677,10 +683,6 @@ function render(){
             <option value="comptabilise" ${v.statut==='comptabilise'?'selected':''}>Comptabilisé</option>
           </select>
           ${v.statut === 'comptabilise' ? `<button class="action-btn icon-btn deverrouiller-btn" data-action="deverrouiller" data-id="${v.id}" style="border-color:#5B21B6;color:#5B21B6;" title="Déverrouiller (comptabilité)">🔓</button>` : ''}
-          <button class="action-btn icon-btn" data-action="view-photos" data-id="${v.id}" title="Photos">📷</button>
-          ${windowStickerHtml(v)}
-          <a class="action-btn icon-btn" href="https://vhr.carfax.ca/fr/" target="_blank" rel="noopener" style="text-decoration:none;" title="Carfax — coller le VIN ${v.vin}">🚗</a>
-          ${manufacturerRecallHtml(v)}
           <select class="action-btn transfer-select" data-id="${v.id}" style="cursor:pointer;width:34px;" title="Transférer vers un autre registre">
             <option value="">↗</option>
             <option value="">Transférer vers...</option>

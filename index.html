@@ -401,6 +401,7 @@
 const URL_KEY = 'apps_script_url_us';
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
 const ACCOUNTING_CODE = 'COMPTA2026';
+const SUPPRESSION_CODE = 'Suprime666';
 const SHEET_SOURCE = 'US';
 let vehicules = [];
 let currentFilter = 'all';
@@ -706,6 +707,7 @@ function render(){
             <option value="CAN">Canada</option>
             <option value="DETAIL">Detail</option>
           </select>
+          <button class="action-btn icon-btn" data-action="delete" data-id="${v.id}" style="border-color:var(--stamp-red);color:var(--stamp-red);" title="Supprimer définitivement">🗑️</button>
         </div>
       </td>
     `;
@@ -1075,7 +1077,16 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
     const meta = statusMeta(v.statut);
     if(meta.next){ await postToSheet({ action:'advance', id, newStatut: meta.next }); }
   } else if(action === 'delete'){
+    const code = prompt(`Mot de passe requis pour supprimer définitivement le véhicule ${v.vin} (Stock ${v.stock || '—'}) de la base de données :`);
+    if(code === null) return;
+    if(code !== SUPPRESSION_CODE){
+      alert('Mot de passe incorrect. Véhicule non supprimé.');
+      return;
+    }
+    const confirme = confirm(`Dernière confirmation : supprimer définitivement ${v.vin} ? Cette action est irréversible.`);
+    if(!confirme) return;
     await postToSheet({ action:'delete', id });
+    setSynced('Véhicule supprimé.');
   } else if(action === 'toggle-doc'){
     const cur = el.dataset.current;
     const cycle = { 'non':'oui-bon', 'oui-bon':'oui-mauvais', 'oui-mauvais':'non' };

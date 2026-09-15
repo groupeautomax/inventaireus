@@ -111,7 +111,7 @@
     @page{ size: letter; margin: 0.3in; }
     body{background:#fff;font-size:9px;}
     .wrap{max-width:100%;padding:0;}
-    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub, #taux-auto-btn, #btn-add-inventaire, #add-inventaire-statut, #carfax-btn, #verrouillage-banner{display:none;}
+    .toolbar-actions, #vin-lookup-section, #nav-links, .manifest-sub, #taux-auto-btn, #add-inventaire-statut, #carfax-btn, #verrouillage-banner{display:none;}
     .manifest-head{padding:6px 10px;margin-bottom:6px;border-width:1px;box-shadow:none;}
     .manifest-head img{height:26px;margin-bottom:4px;}
     .manifest-title{font-size:14px;margin:2px 0;}
@@ -216,7 +216,7 @@
   <!-- ===================== IDENTIFICATION ===================== -->
   <div class="section">
     <div class="section-title">Identification du véhicule</div>
-    <div class="grid grid-5">
+    <div class="grid grid-4">
       <div class="field"><label>Date</label><input type="date" id="f-date"></div>
       <div class="field"><label>Stock #</label><input type="text" id="f-stock"></div>
       <div class="field">
@@ -235,10 +235,6 @@
           <option value="US">É.-U.</option>
           <option value="CAN">Canada</option>
         </select>
-      </div>
-      <div class="field">
-        <label>&nbsp;</label>
-        <button type="button" class="btn primary" id="btn-add-inventaire" style="padding:6px 8px;">Ajouter au registre</button>
       </div>
     </div>
     <div id="add-inventaire-statut" style="font-size:12px;color:var(--ink-soft);margin-top:8px;"></div>
@@ -631,16 +627,76 @@ document.getElementById('taux-auto-btn').addEventListener('click', async ()=>{
   }
 });
 
-async function sauvegarderFicheSeule(){
+const LIBELLES_REGISTRE = { DETAIL: 'Detail', US: 'É.-U.', CAN: 'Canada' };
+
+// Le vehicule est-il deja dans un des trois registres ? Evite de le creer
+// une deuxieme fois.
+async function registreExistant(vin){
+  try{
+    const resp = await fetch(DEFAULT_SCRIPT_URL + '?checkStatutVin=' + encodeURIComponent(vin) + '&_=' + Date.now(), { cache: 'no-store' });
+    const r = await resp.json();
+    if(r && r.statut){
+      return { existe: true, feuille: r.feuille || r.source || '' };
+    }
+  }catch(e){ /* en cas d'echec reseau on ne cree rien : plus sur que de doubler */
+    return { existe: true, feuille: '', incertain: true };
+  }
+  return { existe: false, feuille: '' };
+}
+
+// Bouton unique : enregistre la fiche, et cree le vehicule dans le registre
+// seulement s'il n'y est pas encore. Aucun doublon possible.
+async function enregistrerFiche(){
   const statutEl = document.getElementById('add-inventaire-statut');
+  const bouton = document.getElementById('save-fiche-btn');
   const vin = document.getElementById('f-niv').value.trim();
+
   if(!vin){
     statutEl.textContent = 'Le NIV doit être rempli avant d\'enregistrer.';
     document.getElementById('f-niv').focus();
     return;
   }
-  statutEl.textContent = 'Enregistrement en cours...';
+
+  bouton.disabled = true;
+  const libelleBouton = bouton.textContent;
+  bouton.textContent = 'Enregistrement...';
+  statutEl.textContent = 'Vérification du registre...';
+
   try{
+    const etat = await registreExistant(vin);
+
+    if(etat.incertain){
+      statutEl.textContent = 'Impossible de vérifier le registre — la fiche est enregistrée, mais le véhicule n\'a pas été ajouté (pour éviter un doublon). Réessayez plus tard.';
+    } else if(!etat.existe){
+      // Pas encore dans un registre : on le cree une seule fois, dans la destination choisie.
+      const dest = document.getElementById('f-destination').value;
+      const compagnie = document.getElementById('f-compagnie').value;
+      if(!dest || !compagnie){
+        statutEl.textContent = 'Ce VIN n\'est dans aucun registre. Choisissez la compagnie et la destination inventaire pour qu\'il y soit ajouté, puis réenregistrez.';
+        bouton.disabled = false;
+        bouton.textContent = libelleBouton;
+        return;
+      }
+      const marque = document.getElementById('f-marque').value.trim();
+      const modeleVal = document.getElementById('f-modele').value.trim();
+      const annee = document.getElementById('f-annee').value.trim();
+      const modele = [marque, modeleVal, annee].filter(v=>v).join(' ') || '(modèle non précisé)';
+
+      statutEl.textContent = 'Ajout à ' + (LIBELLES_REGISTRE[dest] || dest) + '...';
+      const respAjout = await fetch(DEFAULT_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'add', sheet: dest, vin: vin, modele: modele, compagnie: compagnie })
+      });
+      await respAjout.json();
+      statutEl.textContent = 'Véhicule ajouté à ' + (LIBELLES_REGISTRE[dest] || dest) + ' — enregistrement de la fiche...';
+    } else {
+      const ou = etat.feuille ? ' (' + (LIBELLES_REGISTRE[etat.feuille] || etat.feuille) + ')' : '';
+      statutEl.textContent = 'Véhicule déjà au registre' + ou + ' — enregistrement de la fiche...';
+    }
+
+    // Enregistrement de la fiche : le backend synchronise le Stock # et le
+    // coutant vers la ligne du registre.
     const data = collectFormData();
     const resp = await fetch(DEFAULT_SCRIPT_URL, {
       method: 'POST',
@@ -648,71 +704,17 @@ async function sauvegarderFicheSeule(){
       body: JSON.stringify({ action: 'saveFiche', vin: vin, data: data })
     });
     const result = await resp.json();
-    statutEl.textContent = '✓ Fiche enregistrée (' + new Date(result.dateMaj).toLocaleString('fr-CA') + ') — le numéro de stock et le coûtant ont été synchronisés avec le registre s\'ils sont remplis.';
+    const quand = result && result.dateMaj ? new Date(result.dateMaj).toLocaleString('fr-CA') : new Date().toLocaleString('fr-CA');
+    statutEl.textContent = '\u2713 Fiche enregistrée (' + quand + ') — Stock # et coûtant synchronisés avec le registre.';
   }catch(e){
     statutEl.textContent = 'Échec de l\'enregistrement. Réessayez.';
-  }
-}
-document.getElementById('save-fiche-btn').addEventListener('click', sauvegarderFicheSeule);
-
-async function ajouterInventaire(sheetCode, sheetLabel){
-  const statutEl = document.getElementById('add-inventaire-statut');
-  const vin = document.getElementById('f-niv').value.trim();
-  const compagnie = document.getElementById('f-compagnie').value;
-  if(!vin){ statutEl.textContent = 'Le NIV doit être rempli.'; return; }
-  if(!compagnie){ statutEl.textContent = 'Choisissez une compagnie (HAWKS ou STM) avant d\'ajouter au registre.'; return; }
-  const marque = document.getElementById('f-marque').value.trim();
-  const modeleVal = document.getElementById('f-modele').value.trim();
-  const annee = document.getElementById('f-annee').value.trim();
-  const modele = [marque, modeleVal, annee].filter(v=>v).join(' ') || '(modèle non précisé)';
-
-  // 1) Ajouter (ou confirmer l'existence) du véhicule dans l'inventaire choisi —
-  //    ceci doit se faire AVANT la sauvegarde de la fiche, sinon la synchronisation
-  //    du Stock # et du Coûtant vers le registre échoue silencieusement (le véhicule
-  //    n'existe pas encore au moment où la fiche tente de le trouver).
-  let ajoutReussi = false;
-  statutEl.textContent = `Ajout à ${sheetLabel} en cours...`;
-  try{
-    const resp = await fetch(DEFAULT_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'add', sheet: sheetCode, vin: vin, modele: modele, compagnie: compagnie })
-    });
-    const result = await resp.json();
-    ajoutReussi = true;
-    if(result.doublonIgnore){
-      statutEl.textContent = `Ce VIN existe déjà dans ${sheetLabel} — non ajouté en double. Synchronisation de la fiche...`;
-    } else {
-      statutEl.textContent = `Véhicule ajouté à ${sheetLabel} (statut « Acheté ») — enregistrement de la fiche...`;
-    }
-  }catch(e){
-    statutEl.textContent = `Échec de l'ajout à ${sheetLabel}. Réessayez.`;
-    return;
-  }
-
-  // 2) Enregistrer la fiche complète — le véhicule existe maintenant dans le
-  //    registre, donc le Stock # et le Coûtant s'y synchronisent correctement.
-  try{
-    const data = collectFormData();
-    const resp = await fetch(DEFAULT_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'saveFiche', vin: vin, data: data })
-    });
-    await resp.json();
-    statutEl.textContent = `✓ Fiche enregistrée et véhicule ajouté à ${sheetLabel} — Stock # et Coûtant synchronisés.`;
-  }catch(e){
-    statutEl.textContent = `Véhicule ajouté à ${sheetLabel}, mais échec de l'enregistrement de la fiche. Cliquez « Enregistrer » pour réessayer.`;
+  }finally{
+    bouton.disabled = false;
+    bouton.textContent = libelleBouton;
   }
 }
 
-document.getElementById('btn-add-inventaire').addEventListener('click', ()=>{
-  const statutEl = document.getElementById('add-inventaire-statut');
-  const dest = document.getElementById('f-destination').value;
-  const labels = { DETAIL: 'Detail', US: 'É.-U.', CAN: 'Canada' };
-  if(!dest){ statutEl.textContent = 'Choisissez une destination (Detail, É.-U. ou Canada) dans l\'identification.'; return; }
-  ajouterInventaire(dest, labels[dest]);
-});
+document.getElementById('save-fiche-btn').addEventListener('click', enregistrerFiche);
 
 async function decodeVinAuto(vin){
   try{
@@ -771,7 +773,7 @@ function appliquerVerrouillage(verrouille){
     if(el.id === 'f-niv' || el.id === 'vin-lookup') return; // toujours modifiable pour changer de VIN
     el.disabled = verrouille;
   });
-  document.getElementById('btn-add-inventaire').disabled = verrouille;
+  document.getElementById('save-fiche-btn').disabled = verrouille;
   document.getElementById('save-eval-btn') && (document.getElementById('save-eval-btn').disabled = verrouille);
   banner.style.display = verrouille ? 'flex' : 'none';
 }

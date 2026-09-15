@@ -472,7 +472,7 @@ async function fetchFromSheet(){
   if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
   setSynced('Chargement depuis Google Sheet...');
   try{
-    const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE, { method: 'GET' });
+    const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE + '&_=' + Date.now(), { method: 'GET', cache: 'no-store' });
     const data = await resp.json();
     vehicules = data.vehicules || [];
     setSynced('Connecté à Google Sheet · synchronisé');
@@ -516,6 +516,30 @@ async function postToSheet(payload){
 async function loadData(){
   await loadScriptUrl();
   if(scriptUrl){ await fetchFromSheet(); } else { setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); render(); }
+  demarrerRafraichissementAuto();
+}
+
+// Rafraichissement automatique : la page ne chargeait les donnees qu'une seule
+// fois, donc un onglet laisse ouvert affichait un inventaire fige. On recharge
+// toutes les 60 s, et immediatement quand l'onglet redevient visible.
+let minuterieRafraichissement = null;
+let rafraichissementEnCours = false;
+
+async function rafraichirMaintenant(){
+  if(rafraichissementEnCours || !scriptUrl) return;
+  if(document.hidden) return;
+  rafraichissementEnCours = true;
+  try{ await fetchFromSheet(); }
+  finally{ rafraichissementEnCours = false; }
+}
+
+function demarrerRafraichissementAuto(){
+  if(minuterieRafraichissement) return;
+  minuterieRafraichissement = setInterval(rafraichirMaintenant, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden) rafraichirMaintenant();
+  });
+  window.addEventListener('focus', rafraichirMaintenant);
 }
 
 function joursDepuis(iso){
@@ -638,7 +662,15 @@ function render(){
     else if(docStatut === 'oui-mauvais'){ docCls='wrongname'; docLabel='Reçu · mauvais nom'; }
     else { docCls = enRetard ? 'late' : 'non'; docLabel = enRetard ? `Non reçu · ${joursDepuis(v.dateAjout)} j` : 'Non reçu'; }
     tr.innerHTML = `
-      <td><input type="text" class="stock-input table-cell-field" data-id="${v.id}" value="${v.stock || ''}" placeholder="—" style="width:74px;"></td>
+      <td>
+        <input type="text" class="stock-input table-cell-field" data-id="${v.id}" value="${v.stock || ''}" placeholder="—" style="width:74px;">
+        <select class="transfer-select table-cell-field" data-id="${v.id}" style="cursor:pointer;width:74px;margin-top:4px;font-size:11px;" title="Transférer ce véhicule vers un autre registre">
+          <option value="">↗ Transfert</option>
+          <option value="DETAIL">Detail</option>
+          <option value="US">É.-U.</option>
+          <option value="" disabled>Canada (ici)</option>
+        </select>
+      </td>
       <td>
         <div class="vin-cell-wrap">
           <input type="text" class="vin-input table-cell-field" data-id="${v.id}" value="${v.vin}" style="width:150px;color:${v.ficheStockRempli ? 'var(--stamp-teal)' : (v.ficheExiste ? 'var(--stamp-red)' : 'var(--ink)')};">
@@ -679,12 +711,6 @@ function render(){
             <option value="comptabilise" ${v.statut==='comptabilise'?'selected':''}>Comptabilisé</option>
           </select>
           ${v.statut === 'comptabilise' ? `<button class="action-btn icon-btn deverrouiller-btn" data-action="deverrouiller" data-id="${v.id}" style="border-color:#5B21B6;color:#5B21B6;" title="Déverrouiller (comptabilité)">🔓</button>` : ''}
-          <select class="action-btn transfer-select" data-id="${v.id}" style="cursor:pointer;width:34px;" title="Transférer vers un autre registre">
-            <option value="">↗</option>
-            <option value="">Transférer vers...</option>
-            <option value="US">É.-U.</option>
-            <option value="DETAIL">Detail</option>
-          </select>
           <button class="action-btn icon-btn" data-action="delete" data-id="${v.id}" style="border-color:var(--stamp-red);color:var(--stamp-red);" title="Supprimer définitivement">🗑️</button>
         </div>
       </td>

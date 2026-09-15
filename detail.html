@@ -659,7 +659,15 @@ function render(){
     else if(docStatut === 'oui-mauvais'){ docCls='wrongname'; docLabel='Reçu · mauvais nom'; }
     else { docCls = enRetard ? 'late' : 'non'; docLabel = enRetard ? `Non reçu · ${joursDepuis(v.dateAjout)} j` : 'Non reçu'; }
     tr.innerHTML = `
-      <td><input type="text" class="stock-input table-cell-field" data-id="${v.id}" value="${v.stock || ''}" placeholder="—" style="width:74px;"></td>
+      <td>
+        <input type="text" class="stock-input table-cell-field" data-id="${v.id}" value="${v.stock || ''}" placeholder="—" style="width:74px;">
+        <select class="transfer-select table-cell-field" data-id="${v.id}" style="cursor:pointer;width:74px;margin-top:4px;font-size:11px;" title="Transférer ce véhicule vers un autre registre">
+          <option value="">↗ Transfert</option>
+          <option value="" disabled>Detail (ici)</option>
+          <option value="US">É.-U.</option>
+          <option value="CAN">Canada</option>
+        </select>
+      </td>
       <td>
         <div class="vin-cell-wrap">
           <input type="text" class="vin-input table-cell-field" data-id="${v.id}" value="${v.vin}" style="width:150px;color:${v.ficheStockRempli ? 'var(--stamp-teal)' : (v.ficheExiste ? 'var(--stamp-red)' : 'var(--ink)')};">
@@ -700,12 +708,6 @@ function render(){
             <option value="comptabilise" ${v.statut==='comptabilise'?'selected':''}>Comptabilisé</option>
           </select>
           ${v.statut === 'comptabilise' ? `<button class="action-btn icon-btn deverrouiller-btn" data-action="deverrouiller" data-id="${v.id}" style="border-color:#5B21B6;color:#5B21B6;" title="Déverrouiller (comptabilité)">🔓</button>` : ''}
-          <select class="action-btn transfer-select" data-id="${v.id}" style="cursor:pointer;width:34px;" title="Transférer vers un autre registre">
-            <option value="">↗</option>
-            <option value="">Transférer vers...</option>
-            <option value="US">É.-U.</option>
-            <option value="CAN">Canada</option>
-          </select>
           <button class="action-btn icon-btn" data-action="delete" data-id="${v.id}" style="border-color:var(--stamp-red);color:var(--stamp-red);" title="Supprimer définitivement">🗑️</button>
         </div>
       </td>

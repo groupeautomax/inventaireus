@@ -215,22 +215,47 @@
 
   // Toute requete vers le backend porte le courriel de la personne connectee,
   // pour que le journal du Sheet sache qui a fait quoi.
+  //
+  // Apps Script renvoie par intermittence un 404 en HTML au lieu du JSON
+  // (la redirection /exec -> googleusercontent echoue parfois). On reessaie
+  // donc automatiquement les LECTURES. Jamais les ecritures : un POST rejoue
+  // pourrait dedoubler une donnee.
+  function estBackend(url){ return url.indexOf('script.google.com') !== -1; }
+
+  function lectureAvecReessai(entree, init, reste){
+    return _fetch(entree, init).then(function(r){
+      if(r.ok || reste <= 0) return r;
+      return new Promise(function(res){
+        setTimeout(function(){ res(lectureAvecReessai(entree, init, reste - 1)); }, 800 * (4 - reste));
+      });
+    }).catch(function(err){
+      if(reste <= 0) throw err;
+      return new Promise(function(res){
+        setTimeout(function(){ res(lectureAvecReessai(entree, init, reste - 1)); }, 800 * (4 - reste));
+      });
+    });
+  }
+
   window.fetch = function(entree, init){
+    var estEcriture = !!(init && init.method && init.method.toUpperCase() !== 'GET');
+    var url = '';
     try{
+      url = (typeof entree === 'string') ? entree : (entree && entree.url) || '';
       var mail = lire(CLE_MAIL);
-      var url = (typeof entree === 'string') ? entree : (entree && entree.url) || '';
-      if(mail && url.indexOf('script.google.com') !== -1){
-        if(init && init.method === 'POST' && typeof init.body === 'string'){
+      if(mail && estBackend(url)){
+        if(estEcriture && typeof init.body === 'string'){
           var corps = JSON.parse(init.body);
           if(corps && typeof corps === 'object' && !corps.utilisateur){
             corps.utilisateur = mail;
             init = Object.assign({}, init, { body: JSON.stringify(corps) });
           }
-        } else if(typeof entree === 'string' && url.indexOf('utilisateur=') === -1){
+        } else if(!estEcriture && typeof entree === 'string' && url.indexOf('utilisateur=') === -1){
           entree = url + (url.indexOf('?') === -1 ? '?' : '&') + 'utilisateur=' + encodeURIComponent(mail);
         }
       }
     }catch(e){ /* corps non-JSON : on envoie tel quel */ }
+
+    if(!estEcriture && estBackend(url)) return lectureAvecReessai(entree, init, 3);
     return _fetch(entree, init);
   };
 
@@ -252,6 +277,13 @@
   }
 
   function menu(){
+    // Ce script s'execute avant le corps de la page : sans cette attente, le
+    // menu atterrit dans <body> au lieu du conteneur .wrap et se retrouve
+    // desaligne par rapport au reste du contenu.
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', function(){ menu(); }, { once: true });
+      return;
+    }
     if(document.getElementById('menu-principal')) { majMenuAdmin(); return; }
 
     var style = document.createElement('style');
@@ -315,7 +347,7 @@
         if(p.role === 'admin') lien.style.display = '';
       })
       .catch(function(){
-        if(n < 3) setTimeout(function(){ majMenuAdmin(n + 1); }, 1200 * n);
+        if(n < 5) setTimeout(function(){ majMenuAdmin(n + 1); }, 1500 * n);
       });
   }
 

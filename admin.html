@@ -374,6 +374,13 @@
 </div>
 </div>
 
+<div id="chargement-admin" style="max-width:1000px;margin:0 auto;text-align:center;padding:60px 20px;">
+  <div style="width:26px;height:26px;margin:0 auto 14px;border:3px solid #E4E7EC;border-top-color:#2563EB;border-radius:50%;animation:tourne .8s linear infinite;"></div>
+  <div style="font-size:13px;font-weight:500;">Vérification de vos droits…</div>
+  <div style="font-size:12px;color:#6B7684;margin-top:4px;" id="chargement-detail">Le serveur Google met parfois une dizaine de secondes à répondre.</div>
+</div>
+<style>@keyframes tourne{to{transform:rotate(360deg);}}</style>
+
 <div id="refus">
   <div style="font-size:40px;">🔒</div>
   <h1 style="font-size:17px;font-weight:600;margin:10px 0 6px;">Menu réservé aux administrateurs</h1>
@@ -416,22 +423,44 @@ function message(id, txt, type){
 async function demarrer(){
   moi = moiCourriel();
   if(!moi){ return refuser("Aucun compte connecté sur cette page."); }
+
+  // Les deux appels partent en meme temps : Apps Script est lent a repondre,
+  // les enchainer doublait l'attente avant que quoi que ce soit s'affiche.
+  const pPerms = appelGET('permissions=1&utilisateur=' + encodeURIComponent(moi));
+  const pListe = appelGET('utilisateurs=1');
+  pListe.catch(function(){});   // l'erreur est traitee plus bas
+
   let perms;
   try{
-    const d = await appelGET('permissions=1&utilisateur=' + encodeURIComponent(moi));
+    const d = await pPerms;
     perms = d && d.permissions;
   }catch(e){
-    return refuser("Impossible de joindre le serveur pour vérifier vos droits.");
+    return refuser("Impossible de joindre le serveur pour vérifier vos droits. Réessayez dans un instant.");
   }
   if(!perms || !perms.courriel){ return refuser("Ce compte n'est pas reconnu par le registre."); }
   if(perms.role !== 'admin'){
     return refuser("Vous êtes connecté comme " + (ROLES[perms.role] || perms.role) + " (" + moi + "). Seul un administrateur peut ouvrir ce menu.");
   }
+
+  document.getElementById('chargement-detail').textContent = 'Chargement de la liste des utilisateurs…';
+  let erreurListe = false;
+  try{
+    const d = await pListe;
+    utilisateurs = (d.utilisateurs || []).filter(u => u && u.nom);
+  }catch(e){ erreurListe = true; }
+
+  document.getElementById('chargement-admin').style.display = 'none';
   document.getElementById('contenu').style.display = 'block';
-  await charger();
+  if(erreurListe){
+    message('t-msg', "Impossible de charger la liste des utilisateurs. Rechargez la page.", 'err');
+    return;
+  }
+  rendre();
+  message('t-msg', '', '');
 }
 
 function refuser(detail){
+  document.getElementById('chargement-admin').style.display = 'none';
   document.getElementById('contenu').style.display = 'none';
   document.getElementById('refus').style.display = 'block';
   document.getElementById('refus-detail').textContent = detail;
@@ -488,7 +517,10 @@ function rendre(){
         '<option value="oui"' + (u.actif === false ? '' : ' selected') + '>Actif</option>' +
         '<option value="non"' + (u.actif === false ? ' selected' : '') + '>Désactivé</option></select></td>' +
       '<td><input type="text" class="f-note" value="' + (u.note ? String(u.note).replace(/"/g,'&quot;') : '') + '" placeholder="—"></td>' +
-      '<td style="text-align:right;"><button class="btn f-save">Enregistrer</button></td>';
+      '<td style="text-align:right;white-space:nowrap;">' +
+        '<button class="btn f-save">Enregistrer</button>' +
+        (cestMoi ? '' : ' <button class="btn danger f-del" title="Supprimer la ligne du registre">\u2715</button>') +
+      '</td>';
 
     tr.querySelectorAll('select, input').forEach(el => {
       el.addEventListener('change', () => tr.classList.add('modifiee'));
@@ -519,6 +551,25 @@ function rendre(){
         bouton.textContent = 'Enregistrer';
       }
     });
+
+    var boutonDel = tr.querySelector('.f-del');
+    if(boutonDel){
+      boutonDel.addEventListener('click', async () => {
+        if(!confirm('Supprimer définitivement ' + u.nom + " du registre des utilisateurs ?\n\nPour seulement lui retirer l'accès en gardant son historique, mettez plutôt « Désactivé ».")) return;
+        boutonDel.disabled = true;
+        boutonDel.textContent = '...';
+        try{
+          const r = await appelPOST({ action:'supprimerUtilisateur', nom: u.nom });
+          if(!r || r.supprime !== true) throw new Error('non-supporte');
+          message('t-msg', '\u2713 ' + u.nom + ' supprimé.', 'ok');
+          await charger();
+        }catch(e){
+          message('t-msg', "La suppression n'est pas encore activée côté serveur (l'action « supprimerUtilisateur » n'existe pas dans le script Apps Script). Utilisez « Désactivé » en attendant.", 'err');
+          boutonDel.disabled = false;
+          boutonDel.textContent = '\u2715';
+        }
+      });
+    }
 
     corps.appendChild(tr);
   });

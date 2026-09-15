@@ -487,7 +487,7 @@ async function fetchFromSheet(){
   if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
   setSynced('Chargement depuis Google Sheet...');
   try{
-    const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE, { method: 'GET' });
+    const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE + '&_=' + Date.now(), { method: 'GET', cache: 'no-store' });
     const data = await resp.json();
     vehicules = data.vehicules || [];
     setSynced('Connecté à Google Sheet · synchronisé');
@@ -532,6 +532,30 @@ async function postToSheet(payload){
 async function loadData(){
   await loadScriptUrl();
   if(scriptUrl){ await fetchFromSheet(); } else { setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); render(); }
+  demarrerRafraichissementAuto();
+}
+
+// Rafraichissement automatique : la page ne chargeait les donnees qu'une seule
+// fois, donc un onglet laisse ouvert affichait un inventaire fige. On recharge
+// toutes les 60 s, et immediatement quand l'onglet redevient visible.
+let minuterieRafraichissement = null;
+let rafraichissementEnCours = false;
+
+async function rafraichirMaintenant(){
+  if(rafraichissementEnCours || !scriptUrl) return;
+  if(document.hidden) return;
+  rafraichissementEnCours = true;
+  try{ await fetchFromSheet(); }
+  finally{ rafraichissementEnCours = false; }
+}
+
+function demarrerRafraichissementAuto(){
+  if(minuterieRafraichissement) return;
+  minuterieRafraichissement = setInterval(rafraichirMaintenant, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden) rafraichirMaintenant();
+  });
+  window.addEventListener('focus', rafraichirMaintenant);
 }
 
 function joursDepuis(iso){

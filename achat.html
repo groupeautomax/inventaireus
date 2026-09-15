@@ -735,7 +735,7 @@ document.getElementById('charger-btn').addEventListener('click', async ()=>{
   if(!vin){ statutEl.textContent = 'Entrez un VIN d\'abord.'; return; }
   statutEl.textContent = 'Recherche en cours...';
   try{
-    const resp = await fetch(DEFAULT_SCRIPT_URL + '?ficheVin=' + encodeURIComponent(vin));
+    const resp = await fetch(DEFAULT_SCRIPT_URL + '?ficheVin=' + encodeURIComponent(vin) + '&_=' + Date.now(), { cache: 'no-store' });
     const data = await resp.json();
     if(data.trouve){
       populateFormData(data.donnees);
@@ -759,7 +759,7 @@ const ACCOUNTING_CODE = 'COMPTA2026';
 async function verifierVerrouillage(vin){
   if(vin.length < 6) return;
   try{
-    const resp = await fetch(DEFAULT_SCRIPT_URL + '?checkStatutVin=' + encodeURIComponent(vin));
+    const resp = await fetch(DEFAULT_SCRIPT_URL + '?checkStatutVin=' + encodeURIComponent(vin) + '&_=' + Date.now(), { cache: 'no-store' });
     const result = await resp.json();
     appliquerVerrouillage(result.statut === 'comptabilise');
   }catch(e){ /* silencieux */ }

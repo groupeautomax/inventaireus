@@ -491,7 +491,7 @@ document.getElementById('manual-vin-input').addEventListener('keydown', e => {
 async function lookupVin(vinRecherche){
   toast('Recherche en cours...');
   try{
-    const resp = await fetch(DEFAULT_SCRIPT_URL + '?checkStatutVin=' + encodeURIComponent(vinRecherche));
+    const resp = await fetch(DEFAULT_SCRIPT_URL + '?checkStatutVin=' + encodeURIComponent(vinRecherche) + '&_=' + Date.now(), { cache: 'no-store' });
     const data = await resp.json();
     if(data.statut){
       const vinComplet = data.vin || vinRecherche;

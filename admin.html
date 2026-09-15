@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administration — accès et utilisateurs</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+  :root{
+    --paper:#F4F6F9; --paper-card:#FFFFFF; --ink:#1E2A3A; --ink-soft:#6B7684;
+    --line:#E4E7EC; --accent:#2563EB; --accent-bg:#EFF6FF;
+    --stamp-red:#DC2626; --stamp-red-bg:#FEF2F2;
+    --stamp-amber:#D97706; --stamp-amber-bg:#FFFBEB;
+    --stamp-teal:#059669; --stamp-teal-bg:#ECFDF5;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);font-size:13px;}
+  .wrap{max-width:1000px;margin:0 auto;padding:16px 16px 60px;}
+  .nav-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .nav-pill{font-size:12px;text-decoration:none;color:var(--accent);background:var(--accent-bg);
+            border:1px solid #DBEAFE;border-radius:999px;padding:5px 12px;}
+  .head{background:var(--paper-card);border:1px solid var(--line);border-radius:10px;
+        box-shadow:0 1px 2px rgba(16,24,40,0.04);padding:14px 16px;margin-bottom:14px;}
+  .head::before{content:"ADMINISTRATION";display:block;font-size:10px;letter-spacing:1.5px;
+                color:var(--accent);font-weight:600;margin-bottom:2px;}
+  .head h1{font-weight:600;font-size:18px;letter-spacing:-0.2px;margin:2px 0 1px;}
+  .head p{font-size:12px;color:var(--ink-soft);margin:0;}
+  .card{background:var(--paper-card);border:1px solid var(--line);border-radius:10px;
+        box-shadow:0 1px 2px rgba(16,24,40,0.04);padding:14px 16px;margin-bottom:16px;}
+  .card h2{font-size:14px;font-weight:600;margin:0 0 3px;}
+  .card .sub{font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;font-weight:600;font-size:11px;letter-spacing:0.4px;text-transform:uppercase;
+     color:var(--ink-soft);border-bottom:1px solid var(--line);padding:8px 6px;}
+  td{border-bottom:1px solid var(--line);padding:7px 6px;vertical-align:middle;}
+  tr.modifiee td{background:var(--stamp-amber-bg);}
+  tr.moi td{background:var(--accent-bg);}
+  input[type=text],input[type=email],select{
+    font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);
+    border-radius:6px;background:#fff;color:var(--ink);width:100%;}
+  .mono{font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  .btn{font-family:'Inter',sans-serif;font-weight:500;font-size:12.5px;background:#fff;color:var(--ink);
+       border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn.danger{background:#fff;color:var(--stamp-red);border-color:#FBD5D5;}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .pill{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.3px;padding:2px 8px;
+        border-radius:999px;border:1px solid;}
+  .pill.admin{color:#6D28D9;border-color:#DDD6FE;background:#F5F3FF;}
+  .pill.gestionnaire{color:var(--stamp-teal);border-color:#A7F3D0;background:var(--stamp-teal-bg);}
+  .pill.utilisateur{color:var(--ink-soft);border-color:var(--line);background:var(--paper);}
+  .pill.inactif{color:var(--stamp-red);border-color:#FBD5D5;background:var(--stamp-red-bg);}
+  .grille-ajout{display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:10px;align-items:end;}
+  .champ label{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:3px;}
+  .msg{font-size:12px;margin-top:10px;min-height:16px;}
+  .msg.ok{color:var(--stamp-teal);}
+  .msg.err{color:var(--stamp-red);}
+  .avis{background:var(--stamp-amber-bg);border:1px solid #FDE68A;color:#92400E;border-radius:8px;
+        padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:16px;}
+  #refus{display:none;max-width:420px;margin:80px auto;text-align:center;}
+  @media(max-width:760px){ .grille-ajout{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#F4F6F9;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
+  <div style="background:#fff;border:1px solid #E4E7EC;border-radius:12px;box-shadow:0 4px 16px rgba(16,24,40,0.08);padding:28px 32px;max-width:340px;width:90%;text-align:center;">
+    <div style="font-family:'Inter',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:0.3px;color:#1E2A3A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
+    <p style="font-size:12.5px;color:#6B7684;margin:0 0 16px;">Identifiez-vous : votre courriel + le mot de passe de l’équipe</p>
+    <input type="email" id="pg-mail" autocomplete="username" style="width:100%;padding:9px 10px;border:1px solid #E4E7EC;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="prenom@groupeautomax.com">
+    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #E4E7EC;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
+    <button id="pg-submit" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
+    <div id="pg-error" style="color:#B3392F;font-size:12px;margin-top:10px;display:none;">Mot de passe incorrect.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var PG_PASSWORD = 'STMHAWKS666';
+  var CLE_MAIL = 'pg_utilisateur_v1';
+  var CLE_NOM  = 'pg_nom_v1';
+  var CLE_ROLE = 'pg_role_v1';
+  var URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
+  var gate = document.getElementById('password-gate');
+  var _fetch = window.fetch.bind(window);
+
+  function lire(cle){ try{ return localStorage.getItem(cle) || ''; }catch(e){ return ''; } }
+  function ecrire(cle, val){ try{ localStorage.setItem(cle, val); }catch(e){} }
+  function effacer(cle){ try{ localStorage.removeItem(cle); }catch(e){} }
+
+  window.utilisateurCourant = function(){ return lire(CLE_MAIL); };
+  window.roleCourant = function(){ return lire(CLE_ROLE); };
+
+  // Toute requete vers le backend porte le courriel de la personne connectee,
+  // pour que le journal du Sheet sache qui a fait quoi.
+  window.fetch = function(entree, init){
+    try{
+      var mail = lire(CLE_MAIL);
+      var url = (typeof entree === 'string') ? entree : (entree && entree.url) || '';
+      if(mail && url.indexOf('script.google.com') !== -1){
+        if(init && init.method === 'POST' && typeof init.body === 'string'){
+          var corps = JSON.parse(init.body);
+          if(corps && typeof corps === 'object' && !corps.utilisateur){
+            corps.utilisateur = mail;
+            init = Object.assign({}, init, { body: JSON.stringify(corps) });
+          }
+        } else if(typeof entree === 'string' && url.indexOf('utilisateur=') === -1){
+          entree = url + (url.indexOf('?') === -1 ? '?' : '&') + 'utilisateur=' + encodeURIComponent(mail);
+        }
+      }
+    }catch(e){ /* corps non-JSON : on envoie tel quel */ }
+    return _fetch(entree, init);
+  };
+
+  /* ---------- Menu principal, commun a toutes les pages ---------- */
+  var PAGES = [
+    { f:'index.html',        t:'Suivi É.-U.',   c:'#2563EB', bg:'#EFF6FF', bd:'#BFDBFE' },
+    { f:'canada.html',       t:'Canada',        c:'#DC2626', bg:'#FEF2F2', bd:'#FECACA' },
+    { f:'detail.html',       t:'Detail',        c:'#D97706', bg:'#FFFBEB', bd:'#FDE68A' },
+    { f:'scan.html',         t:'Scan',          c:'#0891B2', bg:'#ECFEFF', bd:'#A5F3FC' },
+    { f:'achat.html',        t:"Fiche d'achat", c:'#7C3AED', bg:'#F5F3FF', bd:'#DDD6FE' },
+    { f:'evaluation.html',   t:'Évaluation',    c:'#059669', bg:'#ECFDF5', bd:'#A7F3D0' },
+    { f:'verification.html', t:'Vérification',  c:'#475569', bg:'#F1F5F9', bd:'#CBD5E1' },
+    { f:'resultat.html',     t:'Résultat',      c:'#BE185D', bg:'#FDF2F8', bd:'#FBCFE8' },
+    { f:'admin.html',        t:'Admin',         c:'#111827', bg:'#F3F4F6', bd:'#D1D5DB', admin:true }
+  ];
+
+  function pageCourante(){
+    var p = location.pathname.split('/').pop();
+    return p ? p.toLowerCase() : 'index.html';
+  }
+
+  function menu(){
+    if(document.getElementById('menu-principal')) { majMenuAdmin(); return; }
+    if(pageCourante() === 'scan.html') return;   // le scanner a sa propre navigation
+
+    var style = document.createElement('style');
+    style.textContent =
+      '#menu-principal{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 14px;}' +
+      '#menu-principal a{font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:500;' +
+        'text-decoration:none;border-radius:999px;padding:6px 14px;border:1px solid;' +
+        'transition:transform .08s ease, box-shadow .12s ease;}' +
+      '#menu-principal a:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(16,24,40,.12);}' +
+      '#menu-principal a.actif{color:#fff !important;box-shadow:0 1px 3px rgba(16,24,40,.18);}' +
+      '@media print{#menu-principal{display:none !important;}}';
+    document.head.appendChild(style);
+
+    var nav = document.createElement('nav');
+    nav.id = 'menu-principal';
+    var courante = pageCourante();
+
+    PAGES.forEach(function(p){
+      var a = document.createElement('a');
+      a.href = p.f;
+      a.textContent = p.t;
+      a.setAttribute('data-page', p.f);
+      if(p.admin) a.style.display = 'none';
+      if(p.f === courante){
+        a.className = 'actif';
+        a.style.background = p.c;
+        a.style.borderColor = p.c;
+        a.style.color = '#fff';
+      } else {
+        a.style.background = p.bg;
+        a.style.borderColor = p.bd;
+        a.style.color = p.c;
+      }
+      nav.appendChild(a);
+    });
+
+    var hote = document.querySelector('.wrap') || document.body;
+    hote.insertBefore(nav, hote.firstChild);
+    majMenuAdmin();
+  }
+
+  // L'onglet Admin n'apparait que pour un compte administrateur.
+  function majMenuAdmin(){
+    var lien = document.querySelector('#menu-principal a[data-page="admin.html"]');
+    if(!lien) return;
+    if(lire(CLE_ROLE) === 'admin'){ lien.style.display = ''; return; }
+    lien.style.display = 'none';
+    if(lire(CLE_ROLE)) return;                       // role connu et pas admin
+    var mail = lire(CLE_MAIL);
+    if(!mail) return;
+    _fetch(URL_BACKEND + '?permissions=1&utilisateur=' + encodeURIComponent(mail) + '&_=' + Date.now(), { cache:'no-store' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var p = d && d.permissions;
+        if(p && p.role){ ecrire(CLE_ROLE, p.role); if(p.nom) ecrire(CLE_NOM, p.nom); }
+        if(p && p.role === 'admin') lien.style.display = '';
+      })
+      .catch(function(){});
+  }
+
+  function badge(){
+    if(document.getElementById('pg-badge')) return;
+    var mail = lire(CLE_MAIL);
+    if(!mail) return;
+    var style = document.createElement('style');
+    style.textContent = '@media print{#pg-badge{display:none !important;}}';
+    document.head.appendChild(style);
+    var d = document.createElement('div');
+    d.id = 'pg-badge';
+    d.style.cssText = 'position:fixed;top:8px;right:10px;z-index:9998;background:#fff;border:1px solid #E4E7EC;border-radius:999px;padding:5px 12px;font-family:Inter,system-ui,sans-serif;font-size:11.5px;color:#3A4250;box-shadow:0 1px 4px rgba(0,0,0,.10);display:flex;gap:9px;align-items:center;';
+    var s = document.createElement('span');
+    s.textContent = lire(CLE_NOM) || mail;
+    var a = document.createElement('a');
+    a.href = '#';
+    a.textContent = 'Changer';
+    a.style.cssText = 'color:#2563EB;text-decoration:none;font-weight:500;';
+    a.addEventListener('click', function(ev){
+      ev.preventDefault();
+      effacer('pg_unlocked_v1'); effacer('pg_unlocked_scan_v1');
+      effacer(CLE_MAIL); effacer(CLE_NOM); effacer(CLE_ROLE);
+      location.reload();
+    });
+    d.appendChild(s); d.appendChild(a);
+    document.body.appendChild(d);
+  }
+
+  function unlock(){
+    gate.style.display = 'none';
+    ecrire('pg_unlocked_v1', '1');
+    badge();
+    menu();
+  }
+
+  // Deja identifie ? On exige les deux : le deverrouillage ET le courriel.
+  if(lire('pg_unlocked_v1') === '1' && lire(CLE_MAIL)){ unlock(); return; }
+
+  var champMail = document.getElementById('pg-mail');
+  if(champMail && lire(CLE_MAIL)) champMail.value = lire(CLE_MAIL);
+
+  document.getElementById('pg-submit').addEventListener('click', check);
+  document.getElementById('pg-input').addEventListener('keydown', function(e){ if(e.key === 'Enter') check(); });
+  if(champMail) champMail.addEventListener('keydown', function(e){ if(e.key === 'Enter') document.getElementById('pg-input').focus(); });
+
+  function erreur(msg){
+    var e = document.getElementById('pg-error');
+    e.textContent = msg;
+    e.style.display = 'block';
+  }
+
+  function check(){
+    var mail = ((document.getElementById('pg-mail') || {}).value || '').trim().toLowerCase();
+    var val = document.getElementById('pg-input').value;
+    var btn = document.getElementById('pg-submit');
+
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)){ erreur('Entrez votre adresse courriel.'); return; }
+    if(val !== PG_PASSWORD){ erreur('Mot de passe incorrect.'); return; }
+
+    document.getElementById('pg-error').style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Vérification...';
+
+    _fetch(URL_BACKEND + '?permissions=1&utilisateur=' + encodeURIComponent(mail) + '&_=' + Date.now(), { cache: 'no-store' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var p = d && d.permissions;
+        if(!p || !p.courriel) throw new Error('inconnu');
+        if(p.role === 'inactif') throw new Error('inactif');
+        ecrire(CLE_MAIL, mail);
+        ecrire(CLE_NOM, p.nom || '');
+        ecrire(CLE_ROLE, p.role || '');
+        btn.disabled = false; btn.textContent = 'Déverrouiller';
+        unlock();
+      })
+      .catch(function(err){
+        btn.disabled = false; btn.textContent = 'Déverrouiller';
+        if(err && err.message === 'inconnu'){
+          erreur("Ce courriel n'est pas dans la liste des utilisateurs. Demandez à un administrateur de l'ajouter.");
+          return;
+        }
+        if(err && err.message === 'inactif'){
+          erreur('Ce compte est désactivé. Contactez un administrateur.');
+          return;
+        }
+        // Panne reseau : le mot de passe etait bon, on laisse entrer.
+        ecrire(CLE_MAIL, mail);
+        unlock();
+      });
+  }
+})();
+</script>
+
+<div class="wrap">
+<div id="contenu" style="display:none;">
+
+  <div class="head">
+    <h1>Accès et utilisateurs</h1>
+    <p>Réservé aux comptes administrateurs. Toute modification est immédiate pour le site et pour l'app ScanAutomax.</p>
+  </div>
+
+  <div class="avis">
+    <strong>Ce que ce menu contrôle.</strong> Le rôle décide de ce qu'une personne peut faire (voir les résultats, modifier les montants, supprimer). Le mot de passe du site, lui, reste commun à tout le monde — ce menu sert à savoir <em>qui</em> se connecte et à couper l'accès à quelqu'un qui part.
+  </div>
+
+  <div class="card">
+    <h2>Ajouter un utilisateur</h2>
+    <p class="sub">Le courriel doit être celui que la personne utilisera pour se connecter au site et dans l'app.</p>
+    <div class="grille-ajout">
+      <div class="champ"><label>Courriel</label><input type="email" id="a-mail" placeholder="prenom@groupeautomax.com"></div>
+      <div class="champ"><label>Rôle</label>
+        <select id="a-role">
+          <option value="utilisateur">Utilisateur</option>
+          <option value="gestionnaire">Gestionnaire</option>
+          <option value="admin">Administrateur</option>
+        </select>
+      </div>
+      <div class="champ"><label>Acheteur</label>
+        <select id="a-acheteur"><option value="non">Non</option><option value="oui">Oui</option></select>
+      </div>
+      <div class="champ"><label>Note (optionnel)</label><input type="text" id="a-note" placeholder="ex. Hawkesbury, service"></div>
+      <div class="champ"><button class="btn primary" id="a-btn">Ajouter</button></div>
+    </div>
+    <div class="msg" id="a-msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Utilisateurs <span id="compteur" style="font-weight:400;color:var(--ink-soft);"></span></h2>
+    <p class="sub">Modifiez un rôle ou un accès puis cliquez « Enregistrer » sur la ligne. Désactiver coupe l'accès sans effacer l'historique.</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:32%;">Courriel</th>
+          <th style="width:16%;">Rôle</th>
+          <th style="width:11%;">Acheteur</th>
+          <th style="width:11%;">Accès</th>
+          <th>Note</th>
+          <th style="width:110px;"></th>
+        </tr>
+      </thead>
+      <tbody id="corps"></tbody>
+    </table>
+    <div class="msg" id="t-msg"></div>
+  </div>
+
+</div>
+</div>
+
+<div id="refus">
+  <div style="font-size:40px;">🔒</div>
+  <h1 style="font-size:17px;font-weight:600;margin:10px 0 6px;">Menu réservé aux administrateurs</h1>
+  <p style="font-size:12.5px;color:#6B7684;margin:0 0 16px;" id="refus-detail"></p>
+  <a href="index.html" class="btn" style="text-decoration:none;">Retour au suivi</a>
+</div>
+
+<script>
+const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
+const ROLES = { admin:'Administrateur', gestionnaire:'Gestionnaire', utilisateur:'Utilisateur', inactif:'Désactivé' };
+
+let utilisateurs = [];
+let moi = '';
+
+function moiCourriel(){
+  return (window.utilisateurCourant ? window.utilisateurCourant() : '') || '';
+}
+
+async function appelGET(params){
+  const r = await fetch(URL_BACKEND + '?' + params + '&_=' + Date.now(), { cache:'no-store' });
+  return r.json();
+}
+
+async function appelPOST(corps){
+  const r = await fetch(URL_BACKEND, {
+    method:'POST',
+    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    body: JSON.stringify(corps)
+  });
+  return r.json();
+}
+
+function message(id, txt, type){
+  const el = document.getElementById(id);
+  el.textContent = txt;
+  el.className = 'msg' + (type ? ' ' + type : '');
+}
+
+// ---------- Controle d'acces ----------
+async function demarrer(){
+  moi = moiCourriel();
+  if(!moi){ return refuser("Aucun compte connecté sur cette page."); }
+  let perms;
+  try{
+    const d = await appelGET('permissions=1&utilisateur=' + encodeURIComponent(moi));
+    perms = d && d.permissions;
+  }catch(e){
+    return refuser("Impossible de joindre le serveur pour vérifier vos droits.");
+  }
+  if(!perms || !perms.courriel){ return refuser("Ce compte n'est pas reconnu par le registre."); }
+  if(perms.role !== 'admin'){
+    return refuser("Vous êtes connecté comme " + (ROLES[perms.role] || perms.role) + " (" + moi + "). Seul un administrateur peut ouvrir ce menu.");
+  }
+  document.getElementById('contenu').style.display = 'block';
+  await charger();
+}
+
+function refuser(detail){
+  document.getElementById('contenu').style.display = 'none';
+  document.getElementById('refus').style.display = 'block';
+  document.getElementById('refus-detail').textContent = detail;
+}
+
+// ---------- Liste ----------
+async function charger(){
+  message('t-msg', 'Chargement...', '');
+  try{
+    const d = await appelGET('utilisateurs=1');
+    utilisateurs = (d.utilisateurs || []).filter(u => u && u.nom);
+    rendre();
+    message('t-msg', '', '');
+  }catch(e){
+    message('t-msg', "Impossible de charger la liste des utilisateurs.", 'err');
+  }
+}
+
+function estCourriel(v){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v); }
+
+function rendre(){
+  const corps = document.getElementById('corps');
+  corps.innerHTML = '';
+  const tries = utilisateurs.slice().sort((a,b)=>{
+    const ordre = { admin:0, gestionnaire:1, utilisateur:2, inactif:3 };
+    const da = (a.actif === false ? 9 : (ordre[a.role] !== undefined ? ordre[a.role] : 4));
+    const db = (b.actif === false ? 9 : (ordre[b.role] !== undefined ? ordre[b.role] : 4));
+    if(da !== db) return da - db;
+    return String(a.nom).localeCompare(String(b.nom));
+  });
+
+  document.getElementById('compteur').textContent =
+    '— ' + tries.filter(u=>u.actif !== false).length + ' actifs sur ' + tries.length;
+
+  tries.forEach(u => {
+    const tr = document.createElement('tr');
+    const cestMoi = String(u.nom).toLowerCase() === moi.toLowerCase();
+    const malforme = !estCourriel(String(u.nom));
+    if(cestMoi) tr.className = 'moi';
+
+    const roleConnu = ROLES[u.role] ? u.role : 'utilisateur';
+    const options = ['utilisateur','gestionnaire','admin']
+      .map(r => '<option value="' + r + '"' + (r === roleConnu ? ' selected' : '') + '>' + ROLES[r] + '</option>')
+      .join('');
+
+    tr.innerHTML =
+      '<td><span class="mono">' + u.nom + '</span>' +
+        (cestMoi ? ' <span class="pill admin">vous</span>' : '') +
+        (malforme ? ' <span class="pill inactif">ligne invalide</span>' : '') + '</td>' +
+      '<td><select class="f-role"' + (cestMoi ? ' disabled title="Vous ne pouvez pas changer votre propre rôle."' : '') + '>' + options + '</select></td>' +
+      '<td><select class="f-acheteur"><option value="non"' + (u.acheteur ? '' : ' selected') + '>Non</option>' +
+        '<option value="oui"' + (u.acheteur ? ' selected' : '') + '>Oui</option></select></td>' +
+      '<td><select class="f-actif"' + (cestMoi ? ' disabled title="Vous ne pouvez pas couper votre propre accès."' : '') + '>' +
+        '<option value="oui"' + (u.actif === false ? '' : ' selected') + '>Actif</option>' +
+        '<option value="non"' + (u.actif === false ? ' selected' : '') + '>Désactivé</option></select></td>' +
+      '<td><input type="text" class="f-note" value="' + (u.note ? String(u.note).replace(/"/g,'&quot;') : '') + '" placeholder="—"></td>' +
+      '<td style="text-align:right;"><button class="btn f-save">Enregistrer</button></td>';
+
+    tr.querySelectorAll('select, input').forEach(el => {
+      el.addEventListener('change', () => tr.classList.add('modifiee'));
+      el.addEventListener('input', () => tr.classList.add('modifiee'));
+    });
+
+    tr.querySelector('.f-save').addEventListener('click', async () => {
+      const bouton = tr.querySelector('.f-save');
+      bouton.disabled = true;
+      bouton.textContent = '...';
+      const corpsMaj = {
+        action: 'majUtilisateur',
+        nom: u.nom,
+        role: tr.querySelector('.f-role').value,
+        actif: tr.querySelector('.f-actif').value === 'oui',
+        acheteur: tr.querySelector('.f-acheteur').value === 'oui',
+        note: tr.querySelector('.f-note').value.trim()
+      };
+      try{
+        const r = await appelPOST(corpsMaj);
+        if(!r || r.ok !== true) throw new Error('refus');
+        message('t-msg', '\u2713 ' + u.nom + ' mis à jour.', 'ok');
+        tr.classList.remove('modifiee');
+        await charger();
+      }catch(e){
+        message('t-msg', "Échec de la mise à jour de " + u.nom + ".", 'err');
+        bouton.disabled = false;
+        bouton.textContent = 'Enregistrer';
+      }
+    });
+
+    corps.appendChild(tr);
+  });
+}
+
+// ---------- Ajout ----------
+document.getElementById('a-btn').addEventListener('click', async () => {
+  const mail = document.getElementById('a-mail').value.trim().toLowerCase();
+  if(!estCourriel(mail)){ return message('a-msg', 'Entrez une adresse courriel valide.', 'err'); }
+  if(utilisateurs.some(u => String(u.nom).toLowerCase() === mail)){
+    return message('a-msg', 'Ce courriel est déjà dans la liste — modifiez-le dans le tableau ci-dessous.', 'err');
+  }
+  const bouton = document.getElementById('a-btn');
+  bouton.disabled = true;
+  bouton.textContent = 'Ajout...';
+  try{
+    const r = await appelPOST({
+      action: 'majUtilisateur',
+      nom: mail,
+      role: document.getElementById('a-role').value,
+      actif: true,
+      acheteur: document.getElementById('a-acheteur').value === 'oui',
+      note: document.getElementById('a-note').value.trim()
+    });
+    if(!r || r.ok !== true) throw new Error('refus');
+    message('a-msg', '\u2713 ' + mail + ' ajouté.', 'ok');
+    document.getElementById('a-mail').value = '';
+    document.getElementById('a-note').value = '';
+    await charger();
+  }catch(e){
+    message('a-msg', "Échec de l'ajout. Réessayez.", 'err');
+  }finally{
+    bouton.disabled = false;
+    bouton.textContent = 'Ajouter';
+  }
+});
+
+// Le gate deverrouille la page ; on attend qu'un courriel soit connu.
+(function attendre(){
+  if(moiCourriel()){ demarrer(); return; }
+  setTimeout(attendre, 300);
+})();
+</script>
+</body>
+</html>

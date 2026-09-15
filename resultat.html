@@ -403,7 +403,7 @@ async function chargerResultat(){
   document.getElementById('periodes-container').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--ink-soft);padding:20px;">Chargement...</div>';
   document.getElementById('details-container').innerHTML = '';
   try{
-    const resp = await fetch(DEFAULT_SCRIPT_URL + '?resultatRaw=1');
+    const resp = await fetch(DEFAULT_SCRIPT_URL + '?resultatRaw=1&_=' + Date.now(), { cache: 'no-store' });
     const data = await resp.json();
     allRows = (data.rows || []).map(r => Object.assign({}, r, { date: new Date(r.date) }));
     renderTout();

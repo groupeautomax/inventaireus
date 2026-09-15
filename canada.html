@@ -242,6 +242,13 @@
     <div class="stats" id="stats"></div>
   </div>
 
+  <div id="url-alerte" style="display:none;background:#FEF2F2;border:1px solid #FBD5D5;color:#991B1B;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:12.5px;line-height:1.5;">
+    <strong>Cette page n'utilise pas le serveur par défaut.</strong>
+    Une URL personnalisée a été enregistrée dans ce navigateur, donc les données affichées peuvent venir d'un ancien déploiement.
+    <div id="url-alerte-detail" style="font-family:'IBM Plex Mono',monospace;font-size:11px;word-break:break-all;margin:6px 0;"></div>
+    <button type="button" id="url-reset-btn" style="font-family:'Inter',sans-serif;font-size:12px;font-weight:500;background:#991B1B;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;">Revenir au serveur par défaut</button>
+  </div>
+
   <div class="add-form" id="config-form" style="grid-template-columns:1fr auto;">
     <input type="text" id="script-url" placeholder="Collez ici l'URL de votre déploiement Apps Script (se termine par /exec)">
     <button id="save-url-btn">Connecter le Sheet</button>
@@ -394,15 +401,34 @@ let searchTerm = '';
 let scriptUrl = '';
 
 async function loadScriptUrl(){
-  try{
-    const saved = localStorage.getItem(URL_KEY);
-    scriptUrl = saved || DEFAULT_SCRIPT_URL;
-    document.getElementById('script-url').value = scriptUrl;
-  }catch(e){
-    scriptUrl = DEFAULT_SCRIPT_URL;
-    document.getElementById('script-url').value = scriptUrl;
+  let saved = null;
+  try{ saved = localStorage.getItem(URL_KEY); }catch(e){ saved = null; }
+  scriptUrl = saved || DEFAULT_SCRIPT_URL;
+  document.getElementById('script-url').value = scriptUrl;
+  afficherAlerteUrl(saved);
+}
+
+// Une URL personnalisee gardee dans localStorage fait pointer la page vers un
+// ancien deploiement : les donnees semblent alors "manquantes" alors qu'elles
+// existent. On le rend visible au lieu de le laisser silencieux.
+function afficherAlerteUrl(saved){
+  const alerte = document.getElementById('url-alerte');
+  if(!alerte) return;
+  if(saved && saved !== DEFAULT_SCRIPT_URL){
+    document.getElementById('url-alerte-detail').textContent = saved;
+    alerte.style.display = 'block';
+  } else {
+    alerte.style.display = 'none';
   }
 }
+
+document.getElementById('url-reset-btn') && document.getElementById('url-reset-btn').addEventListener('click', async ()=>{
+  try{ localStorage.removeItem(URL_KEY); }catch(e){}
+  scriptUrl = DEFAULT_SCRIPT_URL;
+  document.getElementById('script-url').value = scriptUrl;
+  afficherAlerteUrl(null);
+  await fetchFromSheet();
+});
 
 async function saveScriptUrl(url){
   scriptUrl = url;
@@ -475,7 +501,8 @@ async function fetchFromSheet(){
     const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE + '&_=' + Date.now(), { method: 'GET', cache: 'no-store' });
     const data = await resp.json();
     vehicules = data.vehicules || [];
-    setSynced('Connecté à Google Sheet · synchronisé');
+    const heure = new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setSynced(vehicules.length + ' véhicule(s) reçus du serveur · dernière synchro ' + heure);
   }catch(e){
     setSynced('Impossible de joindre le Google Sheet. Vérifiez l\'URL et les permissions de partage.');
   }

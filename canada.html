@@ -236,15 +236,14 @@
 
   /* ---------- Menu principal, commun a toutes les pages ---------- */
   var PAGES = [
-    { f:'index.html',        t:'Suivi É.-U.',   c:'#2563EB', bg:'#EFF6FF', bd:'#BFDBFE' },
-    { f:'canada.html',       t:'Canada',        c:'#DC2626', bg:'#FEF2F2', bd:'#FECACA' },
-    { f:'detail.html',       t:'Detail',        c:'#D97706', bg:'#FFFBEB', bd:'#FDE68A' },
-    { f:'scan.html',         t:'Scan',          c:'#0891B2', bg:'#ECFEFF', bd:'#A5F3FC' },
-    { f:'achat.html',        t:"Fiche d'achat", c:'#7C3AED', bg:'#F5F3FF', bd:'#DDD6FE' },
-    { f:'evaluation.html',   t:'Évaluation',    c:'#059669', bg:'#ECFDF5', bd:'#A7F3D0' },
-    { f:'verification.html', t:'Vérification',  c:'#475569', bg:'#F1F5F9', bd:'#CBD5E1' },
-    { f:'resultat.html',     t:'Résultat',      c:'#BE185D', bg:'#FDF2F8', bd:'#FBCFE8' },
-    { f:'admin.html',        t:'Admin',         c:'#111827', bg:'#F3F4F6', bd:'#D1D5DB', admin:true }
+    { f:'index.html',        t:'Suivi É.-U.' },
+    { f:'canada.html',       t:'Canada' },
+    { f:'detail.html',       t:'Detail' },
+    { f:'achat.html',        t:"Fiche d'achat" },
+    { f:'evaluation.html',   t:'Évaluation' },
+    { f:'verification.html', t:'Vérification' },
+    { f:'resultat.html',     t:'Résultat' },
+    { f:'admin.html',        t:'Admin', admin:true }
   ];
 
   function pageCourante(){
@@ -254,16 +253,21 @@
 
   function menu(){
     if(document.getElementById('menu-principal')) { majMenuAdmin(); return; }
-    if(pageCourante() === 'scan.html') return;   // le scanner a sa propre navigation
 
     var style = document.createElement('style');
     style.textContent =
-      '#menu-principal{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 14px;}' +
-      '#menu-principal a{font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:500;' +
-        'text-decoration:none;border-radius:999px;padding:6px 14px;border:1px solid;' +
-        'transition:transform .08s ease, box-shadow .12s ease;}' +
-      '#menu-principal a:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(16,24,40,.12);}' +
-      '#menu-principal a.actif{color:#fff !important;box-shadow:0 1px 3px rgba(16,24,40,.18);}' +
+      '#menu-principal{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin:0 0 16px;' +
+        'padding:5px;background:#fff;border:1px solid #E4E7EC;border-radius:11px;' +
+        'box-shadow:0 1px 2px rgba(16,24,40,.05);}' +
+      '#menu-principal a{font-family:Inter,system-ui,sans-serif;font-size:12.5px;font-weight:500;' +
+        'color:#6B7684;text-decoration:none;padding:7px 14px;border-radius:7px;white-space:nowrap;' +
+        'transition:background .12s ease,color .12s ease;}' +
+      '#menu-principal a:hover{background:#F4F6F9;color:#1E2A3A;}' +
+      '#menu-principal a.actif{background:#2563EB;color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.35);}' +
+      '#menu-principal a.actif:hover{background:#1D4ED8;color:#fff;}' +
+      '#menu-principal .mp-espace{flex:1 1 auto;min-width:8px;}' +
+      '#menu-principal a.mp-admin{color:#1E2A3A;border:1px solid #E4E7EC;}' +
+      '#menu-principal a.mp-admin.actif{border-color:#2563EB;color:#fff;}' +
       '@media print{#menu-principal{display:none !important;}}';
     document.head.appendChild(style);
 
@@ -272,21 +276,17 @@
     var courante = pageCourante();
 
     PAGES.forEach(function(p){
+      if(p.admin){
+        var espace = document.createElement('span');
+        espace.className = 'mp-espace';
+        nav.appendChild(espace);
+      }
       var a = document.createElement('a');
       a.href = p.f;
       a.textContent = p.t;
       a.setAttribute('data-page', p.f);
-      if(p.admin) a.style.display = 'none';
-      if(p.f === courante){
-        a.className = 'actif';
-        a.style.background = p.c;
-        a.style.borderColor = p.c;
-        a.style.color = '#fff';
-      } else {
-        a.style.background = p.bg;
-        a.style.borderColor = p.bd;
-        a.style.color = p.c;
-      }
+      if(p.admin){ a.className = 'mp-admin'; a.style.display = 'none'; }
+      if(p.f === courante) a.className = (a.className ? a.className + ' ' : '') + 'actif';
       nav.appendChild(a);
     });
 
@@ -296,22 +296,27 @@
   }
 
   // L'onglet Admin n'apparait que pour un compte administrateur.
-  function majMenuAdmin(){
+  // Le backend renvoie parfois une erreur passagere : on reessaie.
+  function majMenuAdmin(essai){
     var lien = document.querySelector('#menu-principal a[data-page="admin.html"]');
     if(!lien) return;
     if(lire(CLE_ROLE) === 'admin'){ lien.style.display = ''; return; }
-    lien.style.display = 'none';
-    if(lire(CLE_ROLE)) return;                       // role connu et pas admin
+    if(lire(CLE_ROLE)) { lien.style.display = 'none'; return; }
     var mail = lire(CLE_MAIL);
     if(!mail) return;
-    _fetch(URL_BACKEND + '?permissions=1&utilisateur=' + encodeURIComponent(mail) + '&_=' + Date.now(), { cache:'no-store' })
+    var n = essai || 1;
+    _fetch(URL_BACKEND + '?permissions=1&utilisateur=' + encodeURIComponent(mail) + '&_=' + Date.now())
       .then(function(r){ return r.json(); })
       .then(function(d){
         var p = d && d.permissions;
-        if(p && p.role){ ecrire(CLE_ROLE, p.role); if(p.nom) ecrire(CLE_NOM, p.nom); }
-        if(p && p.role === 'admin') lien.style.display = '';
+        if(!p || !p.role) throw new Error('vide');
+        ecrire(CLE_ROLE, p.role);
+        if(p.nom) ecrire(CLE_NOM, p.nom);
+        if(p.role === 'admin') lien.style.display = '';
       })
-      .catch(function(){});
+      .catch(function(){
+        if(n < 3) setTimeout(function(){ majMenuAdmin(n + 1); }, 1200 * n);
+      });
   }
 
   function badge(){
@@ -375,7 +380,7 @@
     btn.disabled = true;
     btn.textContent = 'Vérification...';
 
-    _fetch(URL_BACKEND + '?permissions=1&utilisateur=' + encodeURIComponent(mail) + '&_=' + Date.now(), { cache: 'no-store' })
+    _fetch(URL_BACKEND + '?permissions=1&utilisateur=' + encodeURIComponent(mail) + '&_=' + Date.now())
       .then(function(r){ return r.json(); })
       .then(function(d){
         var p = d && d.permissions;
@@ -678,7 +683,7 @@ async function fetchFromSheet(){
   if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
   setSynced('Chargement depuis Google Sheet...');
   try{
-    const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE + '&_=' + Date.now(), { method: 'GET', cache: 'no-store' });
+    const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE + '&_=' + Date.now(), { method: 'GET' });
     const data = await resp.json();
     vehicules = data.vehicules || [];
     const heure = new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });

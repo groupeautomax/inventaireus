@@ -136,6 +136,19 @@
     .grid-2,.grid-3,.grid-4{grid-template-columns:1fr;}
     .summary{grid-template-columns:1fr;}
   }
+
+  /* Dossier comptabilisé : la fiche reste parfaitement lisible et copiable.
+     Sans ça, les champs grisés du navigateur rendaient la fiche illisible. */
+  .section input[readonly], .section textarea[readonly]{
+    color: var(--ink); -webkit-text-fill-color: var(--ink);
+    opacity: 1; background: #F7F8FA; cursor: text;
+  }
+  .section input:disabled, .section select:disabled, .section textarea:disabled{
+    color: var(--ink); -webkit-text-fill-color: var(--ink);
+    opacity: 1; background: #F7F8FA;
+  }
+  .section input[type=checkbox]:disabled{ opacity: .85; }
+  .fiche-lecture-seule .section select:disabled{ cursor: default; }
 </style>
 </head>
 <body>
@@ -406,8 +419,8 @@
 
   <div id="verrouillage-banner" style="display:none;background:#F3EEFF;border:1px solid #DDD6FE;border-radius:10px;padding:12px 16px;margin-bottom:10px;align-items:center;justify-content:space-between;gap:12px;">
     <div>
-      <div style="font-weight:600;color:#5B21B6;font-size:13px;">🔒 Ce dossier est comptabilisé — fiche verrouillée</div>
-      <div id="verrouillage-banner-note" style="font-size:12px;color:#6B7684;margin-top:2px;">Seule la comptabilité peut débloquer cette fiche pour une correction (chargeback).</div>
+      <div style="font-weight:600;color:#5B21B6;font-size:13px;">🔒 Dossier comptabilisé — fiche consultable, modification verrouillée</div>
+      <div id="verrouillage-banner-note" style="font-size:12px;color:#6B7684;margin-top:2px;">Vous pouvez lire, copier et imprimer la fiche. Le code comptabilité est requis pour la corriger (chargeback).</div>
     </div>
     <button type="button" class="btn" id="deverrouiller-fiche-btn" style="border-color:#5B21B6;color:#5B21B6;white-space:nowrap;">Déverrouiller (comptabilité)</button>
   </div>
@@ -865,6 +878,11 @@ async function enregistrerFiche(){
   const bouton = document.getElementById('save-fiche-btn');
   const vin = document.getElementById('f-niv').value.trim();
 
+  if(ficheVerrouillee){
+    statutEl.textContent = 'Dossier comptabilisé : cliquez « Déverrouiller (comptabilité) » en haut avant d\'enregistrer.';
+    return;
+  }
+
   if(!vin){
     statutEl.textContent = 'Le NIV doit être rempli avant d\'enregistrer.';
     document.getElementById('f-niv').focus();
@@ -981,12 +999,34 @@ async function verifierVerrouillage(vin){
   }catch(e){ /* silencieux */ }
 }
 
+let ficheVerrouillee = false;
+
+// Dossier comptabilisé : la fiche reste consultable, imprimable et copiable —
+// seule l'écriture est bloquée. Avant, tous les champs étaient « disabled »,
+// donc gris pâle et illisibles : on ne pouvait plus consulter un dossier fermé.
 function appliquerVerrouillage(verrouille){
+  ficheVerrouillee = !!verrouille;
   const banner = document.getElementById('verrouillage-banner');
+
   document.querySelectorAll('.section input, .section select, .section textarea').forEach(el => {
     if(el.id === 'f-niv' || el.id === 'vin-lookup') return; // toujours modifiable pour changer de VIN
-    el.disabled = verrouille;
+
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    const caseACocher = (type === 'checkbox' || type === 'radio');
+
+    if(el.tagName === 'SELECT' || caseACocher){
+      // readOnly n'existe pas pour ces contrôles : il faut les désactiver,
+      // mais le CSS ci-dessus garde leur valeur bien lisible.
+      el.disabled = verrouille;
+    } else {
+      // Texte, montants, dates : lecture seule — affichage normal, texte
+      // sélectionnable et copiable, aucune modification possible.
+      el.readOnly = verrouille;
+      el.disabled = false;
+    }
   });
+
+  document.body.classList.toggle('fiche-lecture-seule', ficheVerrouillee);
   document.getElementById('save-fiche-btn').disabled = verrouille;
   document.getElementById('save-eval-btn') && (document.getElementById('save-eval-btn').disabled = verrouille);
   banner.style.display = verrouille ? 'flex' : 'none';

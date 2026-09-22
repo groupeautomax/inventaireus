@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Groupe Automax</title>
+<style>
+  :root {
+    --vert: #008a44;
+    --texte: #16181c;
+    --doux: #6b7280;
+    --trait: #e6e8ec;
+    --fond: #f6f7f9;
+    --carte: #ffffff;
+    --rayon: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--fond);
+    color: var(--texte);
+    line-height: 1.45;
+  }
+  header {
+    background: var(--carte);
+    border-bottom: 1px solid var(--trait);
+    padding: 16px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 1100px; margin: 0 auto; }
+  .marque { font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+  .marque span { color: var(--vert); }
+  .pousse { margin-left: auto; }
+  .langues { display: flex; border: 1px solid var(--trait); border-radius: 999px; overflow: hidden; }
+  .langues button {
+    border: 0; background: transparent; padding: 6px 12px;
+    font: inherit; font-size: 13px; color: var(--doux); cursor: pointer;
+  }
+  .langues button[aria-pressed="true"] { background: var(--vert); color: #fff; font-weight: 600; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .chercher {
+    width: 100%; padding: 13px 15px; font: inherit; font-size: 16px;
+    border: 1px solid var(--trait); border-radius: var(--rayon);
+    background: var(--carte); margin-bottom: 16px;
+  }
+  .compte { color: var(--doux); font-size: 14px; margin: 0 2px 12px; }
+
+  .grille {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+  .vehicule {
+    background: var(--carte); border: 1px solid var(--trait);
+    border-radius: var(--rayon); overflow: hidden;
+    text-decoration: none; color: inherit; display: flex; flex-direction: column;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .vehicule:active { transform: scale(.99); }
+  @media (hover: hover) {
+    .vehicule:hover { box-shadow: 0 6px 18px rgba(0,0,0,.09); }
+  }
+  .photo { aspect-ratio: 4 / 3; background: #e9ebef; display: block; width: 100%; object-fit: cover; }
+  .sansphoto {
+    aspect-ratio: 4 / 3; background: #e9ebef; display: flex;
+    align-items: center; justify-content: center; color: var(--doux); font-size: 13px;
+  }
+  .corps { padding: 13px 14px 15px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .modele { font-size: 17px; font-weight: 650; line-height: 1.25; }
+  .vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--doux); }
+  .bas { display: flex; align-items: baseline; gap: 10px; margin-top: auto; padding-top: 6px; }
+  .prix { font-size: 18px; font-weight: 700; color: var(--vert); }
+  .surdemande { font-size: 14px; color: var(--doux); font-weight: 500; }
+  .jours { margin-left: auto; font-size: 13px; color: var(--doux); }
+
+  .message { text-align: center; padding: 56px 20px; color: var(--doux); }
+  .message strong { display: block; color: var(--texte); font-size: 17px; margin-bottom: 6px; }
+  footer { text-align: center; color: var(--doux); font-size: 13px; padding: 28px 16px 40px; }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --texte: #f2f3f5; --doux: #9aa1ab; --trait: #2a2d33;
+      --fond: #121316; --carte: #1b1d21;
+    }
+    .photo, .sansphoto { background: #24272c; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rangee">
+    <div class="marque">Groupe <span>Automax</span></div>
+    <div class="pousse langues">
+      <button type="button" data-langue="fr">FR</button>
+      <button type="button" data-langue="en">EN</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <input class="chercher" id="chercher" type="search" autocomplete="off">
+  <p class="compte" id="compte"></p>
+  <div class="grille" id="grille"></div>
+  <div class="message" id="message" hidden></div>
+</main>
+
+<footer id="pied"></footer>
+
+<script>
+/* ---------------------------------------------------------------------------
+   À REMPLIR : l'adresse du déploiement Apps Script, la même que dans l'app
+   (Config.swift, DEFAULT_SCRIPT_URL).
+   --------------------------------------------------------------------------- */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+
+/* --------------------------- Textes des deux langues ---------------------- */
+const T = {
+  fr: {
+    titre: "Véhicules disponibles",
+    chercher: "Rechercher un modèle ou un VIN",
+    compte: n => n + (n > 1 ? " véhicules disponibles" : " véhicule disponible"),
+    aucun: "Aucun véhicule disponible pour le moment.",
+    aucunFiltre: "Aucun véhicule ne correspond à votre recherche.",
+    revenez: "Revenez bientôt, l'inventaire change chaque semaine.",
+    chargement: "Chargement de l'inventaire…",
+    surDemande: "Prix sur demande",
+    jours: n => "en stock depuis " + n + " j",
+    pasDePhoto: "Photo à venir",
+    pied: "Groupe Automax — inventaire réservé à nos acheteurs.",
+    LIEN_INVALIDE: "Ce lien n'est plus valide. Demandez-en un nouveau à votre contact chez Groupe Automax.",
+    RESEAU: "Impossible de joindre l'inventaire. Vérifiez votre connexion et réessayez."
+  },
+  en: {
+    titre: "Available vehicles",
+    chercher: "Search by model or VIN",
+    compte: n => n + (n > 1 ? " vehicles available" : " vehicle available"),
+    aucun: "No vehicles available at the moment.",
+    aucunFiltre: "No vehicle matches your search.",
+    revenez: "Check back soon — inventory changes every week.",
+    chargement: "Loading inventory…",
+    surDemande: "Price on request",
+    jours: n => "in stock " + n + " days",
+    pasDePhoto: "Photo coming",
+    pied: "Groupe Automax — inventory reserved for our buyers.",
+    LIEN_INVALIDE: "This link is no longer valid. Please ask your Groupe Automax contact for a new one.",
+    RESEAU: "Could not reach the inventory. Check your connection and try again."
+  }
+};
+
+/* ------------------------------- Langue ---------------------------------- */
+function langueChoisie() {
+  try {
+    const gardee = localStorage.getItem("automaxLangue");
+    if (gardee === "fr" || gardee === "en") return gardee;
+  } catch (e) { /* navigation privée : on se rabat sur le navigateur */ }
+  return (navigator.language || "fr").toLowerCase().indexOf("en") === 0 ? "en" : "fr";
+}
+
+let langue = langueChoisie();
+let vehicules = [];
+
+function t() { return T[langue]; }
+
+function changerLangue(l) {
+  langue = l;
+  try { localStorage.setItem("automaxLangue", l); } catch (e) {}
+  document.documentElement.lang = l;
+  appliquerTextes();
+  dessiner();
+}
+
+function appliquerTextes() {
+  document.title = "Groupe Automax — " + t().titre;
+  document.getElementById("chercher").placeholder = t().chercher;
+  document.getElementById("pied").textContent = t().pied;
+  document.querySelectorAll(".langues button").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.langue === langue));
+  });
+}
+
+/* ------------------------------- Utilitaires ------------------------------ */
+
+/** Les photos vivent dans Google Drive : on demande la vignette, pas l'original. */
+function vignette(url, largeur) {
+  if (!url) return "";
+  let id = null;
+  const parId = url.match(/[?&]id=([^&]+)/);
+  const parChemin = url.match(/\/d\/([^/]+)/);
+  if (parId) id = parId[1];
+  else if (parChemin) id = parChemin[1];
+  if (!id) return url;
+  return "https://drive.google.com/thumbnail?id=" + id + "&sz=w" + largeur;
+}
+
+function echappe(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function cle() {
+  return new URLSearchParams(location.search).get("k") || "";
+}
+
+function afficherMessage(titre, detail) {
+  const m = document.getElementById("message");
+  m.innerHTML = "<strong>" + echappe(titre) + "</strong>" + echappe(detail || "");
+  m.hidden = false;
+  document.getElementById("grille").innerHTML = "";
+  document.getElementById("compte").textContent = "";
+}
+
+/* ------------------------------- Affichage -------------------------------- */
+
+function dessiner() {
+  const recherche = document.getElementById("chercher").value.trim().toUpperCase();
+  const liste = vehicules.filter(v => {
+    if (!recherche) return true;
+    return ((v.model || "") + " " + (v.vin || "")).toUpperCase().includes(recherche);
+  });
+
+  const grille = document.getElementById("grille");
+  const message = document.getElementById("message");
+
+  if (liste.length === 0) {
+    grille.innerHTML = "";
+    document.getElementById("compte").textContent = "";
+    message.hidden = false;
+    message.innerHTML = vehicules.length === 0
+      ? "<strong>" + echappe(t().aucun) + "</strong>" + echappe(t().revenez)
+      : "<strong>" + echappe(t().aucunFiltre) + "</strong>";
+    return;
+  }
+
+  message.hidden = true;
+  document.getElementById("compte").textContent = t().compte(liste.length);
+
+  grille.innerHTML = liste.map(v => {
+    const lien = "vehicle.html?k=" + encodeURIComponent(cle()) + "&vin=" + encodeURIComponent(v.vin);
+    const img = v.photo
+      ? '<img class="photo" loading="lazy" alt="" src="' + echappe(vignette(v.photo, 600)) + '">'
+      : '<div class="sansphoto">' + echappe(t().pasDePhoto) + "</div>";
+    const prix = v.price
+      ? '<span class="prix">' + echappe(v.price) + "</span>"
+      : '<span class="surdemande">' + echappe(t().surDemande) + "</span>";
+    const jours = v.days ? '<span class="jours">' + echappe(t().jours(v.days)) + "</span>" : "";
+    return '<a class="vehicule" href="' + lien + '">' + img +
+      '<div class="corps">' +
+        '<div class="modele">' + echappe(v.model || "—") + "</div>" +
+        '<div class="vin">' + echappe(v.vin) + "</div>" +
+        '<div class="bas">' + prix + jours + "</div>" +
+      "</div></a>";
+  }).join("");
+}
+
+/* ------------------------------- Chargement ------------------------------- */
+
+async function charger() {
+  if (!cle()) { afficherMessage(t().LIEN_INVALIDE, ""); return; }
+
+  afficherMessage(t().chargement, "");
+  try {
+    const r = await fetch(SCRIPT_URL + "?vitrine=1&k=" + encodeURIComponent(cle()));
+    const j = await r.json();
+    if (!j.ok) {
+      afficherMessage(t()[j.code] || t().RESEAU, "");
+      return;
+    }
+    vehicules = j.vehicles || [];
+    document.getElementById("message").hidden = true;
+    dessiner();
+  } catch (e) {
+    afficherMessage(t().RESEAU, "");
+  }
+}
+
+document.querySelectorAll(".langues button").forEach(b => {
+  b.addEventListener("click", () => changerLangue(b.dataset.langue));
+});
+document.getElementById("chercher").addEventListener("input", dessiner);
+
+appliquerTextes();
+charger();
+</script>
+</body>
+</html>

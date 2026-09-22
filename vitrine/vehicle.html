@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Groupe Automax</title>
+<style>
+  :root {
+    --vert: #008a44;
+    --texte: #16181c;
+    --doux: #6b7280;
+    --trait: #e6e8ec;
+    --fond: #f6f7f9;
+    --carte: #ffffff;
+    --rayon: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--fond); color: var(--texte); line-height: 1.45;
+  }
+  header {
+    background: var(--carte); border-bottom: 1px solid var(--trait);
+    padding: 14px 16px; position: sticky; top: 0; z-index: 10;
+  }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 900px; margin: 0 auto; }
+  .retour { text-decoration: none; color: var(--doux); font-size: 15px; }
+  .retour:hover { color: var(--texte); }
+  .pousse { margin-left: auto; }
+  .langues { display: flex; border: 1px solid var(--trait); border-radius: 999px; overflow: hidden; }
+  .langues button {
+    border: 0; background: transparent; padding: 6px 12px;
+    font: inherit; font-size: 13px; color: var(--doux); cursor: pointer;
+  }
+  .langues button[aria-pressed="true"] { background: var(--vert); color: #fff; font-weight: 600; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 16px; }
+  .bloc {
+    background: var(--carte); border: 1px solid var(--trait);
+    border-radius: var(--rayon); padding: 18px; margin-bottom: 14px;
+  }
+  .grande { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--rayon); background: #e9ebef; display: block; }
+  .bande { display: flex; gap: 8px; overflow-x: auto; padding: 10px 2px 2px; scrollbar-width: thin; }
+  .bande img {
+    width: 78px; height: 58px; object-fit: cover; border-radius: 8px;
+    border: 2px solid transparent; cursor: pointer; flex: 0 0 auto; background: #e9ebef;
+  }
+  .bande img[aria-current="true"] { border-color: var(--vert); }
+
+  h1 { font-size: 24px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.3px; }
+  .vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; color: var(--doux); }
+  .prix { font-size: 28px; font-weight: 700; color: var(--vert); margin: 14px 0 2px; }
+  .surdemande { font-size: 19px; font-weight: 600; color: var(--doux); margin: 14px 0 2px; }
+  .jours { font-size: 14px; color: var(--doux); }
+  .description { margin-top: 14px; white-space: pre-wrap; }
+  h2 { font-size: 17px; margin: 0 0 4px; }
+  .aide { color: var(--doux); font-size: 14px; margin: 0 0 16px; }
+
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  input, textarea {
+    width: 100%; padding: 12px 13px; font: inherit; font-size: 16px;
+    border: 1px solid var(--trait); border-radius: 10px;
+    background: var(--fond); color: var(--texte);
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  textarea { min-height: 84px; resize: vertical; }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .duo { grid-template-columns: 1fr; gap: 0; } }
+
+  button.envoyer {
+    width: 100%; margin-top: 18px; padding: 15px; font: inherit; font-size: 17px;
+    font-weight: 650; color: #fff; background: var(--vert);
+    border: 0; border-radius: 12px; cursor: pointer;
+  }
+  button.envoyer:disabled { opacity: .55; cursor: default; }
+
+  .alerte { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
+  .alerte.mauvais { background: #fdf0e8; color: #8a4b1d; }
+  .alerte.bon { background: #e7f5ed; color: #0a6136; }
+  .message { text-align: center; padding: 56px 20px; color: var(--doux); }
+  .message strong { display: block; color: var(--texte); font-size: 17px; margin-bottom: 6px; }
+  footer { text-align: center; color: var(--doux); font-size: 13px; padding: 28px 16px 40px; }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --texte: #f2f3f5; --doux: #9aa1ab; --trait: #2a2d33;
+      --fond: #121316; --carte: #1b1d21;
+    }
+    .grande, .bande img { background: #24272c; }
+    .alerte.mauvais { background: #3a2415; color: #f0b98b; }
+    .alerte.bon { background: #12331f; color: #8fd9b0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rangee">
+    <a class="retour" id="retour" href="#">&larr;</a>
+    <div class="pousse langues">
+      <button type="button" data-langue="fr">FR</button>
+      <button type="button" data-langue="en">EN</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="contenu" hidden>
+    <div class="bloc" id="blocPhotos" hidden>
+      <img class="grande" id="grande" alt="">
+      <div class="bande" id="bande"></div>
+    </div>
+
+    <div class="bloc">
+      <h1 id="modele"></h1>
+      <div class="vin" id="vin"></div>
+      <div id="zonePrix"></div>
+      <div class="jours" id="jours"></div>
+      <div class="description" id="description"></div>
+    </div>
+
+    <div class="bloc" id="blocOffre">
+      <h2 id="titreOffre"></h2>
+      <p class="aide" id="aideOffre"></p>
+      <form id="formulaire" novalidate>
+        <div class="duo">
+          <div><label for="nom"></label><input id="nom" name="nom" autocomplete="name" required></div>
+          <div><label for="entreprise"></label><input id="entreprise" name="entreprise" autocomplete="organization"></div>
+        </div>
+        <div class="duo">
+          <div><label for="courriel"></label><input id="courriel" name="courriel" type="email" autocomplete="email" inputmode="email" required></div>
+          <div><label for="telephone"></label><input id="telephone" name="telephone" type="tel" autocomplete="tel" inputmode="tel"></div>
+        </div>
+        <label for="prix"></label>
+        <input id="prix" name="prix" inputmode="decimal" required>
+        <label for="conditions"></label>
+        <textarea id="conditions" name="conditions"></textarea>
+        <button class="envoyer" id="envoyer" type="submit"></button>
+      </form>
+      <div class="alerte mauvais" id="erreur" hidden></div>
+    </div>
+  </div>
+
+  <div class="message" id="message"></div>
+</main>
+
+<footer id="pied"></footer>
+
+<script>
+/* ---------------------------------------------------------------------------
+   À REMPLIR : la même adresse que dans index.html et dans l'app.
+   --------------------------------------------------------------------------- */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+
+const T = {
+  fr: {
+    retour: "← Tous les véhicules",
+    chargement: "Chargement du véhicule…",
+    surDemande: "Prix sur demande",
+    jours: n => "En stock depuis " + n + " jours",
+    titreOffre: "Faire une offre",
+    aideOffre: "Laissez-nous votre prix et vos conditions. Nous vous répondons rapidement.",
+    nom: "Votre nom",
+    entreprise: "Entreprise",
+    courriel: "Courriel",
+    telephone: "Téléphone",
+    prix: "Votre offre",
+    conditions: "Conditions ou questions",
+    envoyer: "Envoyer mon offre",
+    envoi: "Envoi…",
+    merci: "Offre envoyée",
+    merciDetail: "Merci. Nous revenons vers vous rapidement.",
+    pied: "Groupe Automax — inventaire réservé à nos acheteurs.",
+    LIEN_INVALIDE: "Ce lien n'est plus valide. Demandez-en un nouveau à votre contact chez Groupe Automax.",
+    VEHICULE_RETIRE: "Ce véhicule n'est plus offert.",
+    VEHICULE_INTROUVABLE: "Ce véhicule est introuvable.",
+    NOM_REQUIS: "Veuillez entrer votre nom.",
+    COURRIEL_INVALIDE: "Veuillez entrer une adresse courriel valide.",
+    PRIX_REQUIS: "Veuillez entrer votre offre.",
+    VIN_REQUIS: "Véhicule manquant.",
+    DEJA_RECUE: "Votre offre a déjà été reçue.",
+    RESEAU: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
+  },
+  en: {
+    retour: "← All vehicles",
+    chargement: "Loading vehicle…",
+    surDemande: "Price on request",
+    jours: n => "In stock for " + n + " days",
+    titreOffre: "Make an offer",
+    aideOffre: "Send us your price and your terms. We get back to you quickly.",
+    nom: "Your name",
+    entreprise: "Company",
+    courriel: "Email",
+    telephone: "Phone",
+    prix: "Your offer",
+    conditions: "Terms or questions",
+    envoyer: "Send my offer",
+    envoi: "Sending…",
+    merci: "Offer sent",
+    merciDetail: "Thank you. We will get back to you shortly.",
+    pied: "Groupe Automax — inventory reserved for our buyers.",
+    LIEN_INVALIDE: "This link is no longer valid. Please ask your Groupe Automax contact for a new one.",
+    VEHICULE_RETIRE: "This vehicle is no longer offered.",
+    VEHICULE_INTROUVABLE: "This vehicle could not be found.",
+    NOM_REQUIS: "Please enter your name.",
+    COURRIEL_INVALIDE: "Please enter a valid email address.",
+    PRIX_REQUIS: "Please enter your offer.",
+    VIN_REQUIS: "Vehicle is missing.",
+    DEJA_RECUE: "Your offer was already received.",
+    RESEAU: "Could not reach the server. Check your connection and try again."
+  }
+};
+
+function langueChoisie() {
+  try {
+    const g = localStorage.getItem("automaxLangue");
+    if (g === "fr" || g === "en") return g;
+  } catch (e) {}
+  return (navigator.language || "fr").toLowerCase().indexOf("en") === 0 ? "en" : "fr";
+}
+
+let langue = langueChoisie();
+let vehicule = null;
+function t() { return T[langue]; }
+
+const params = new URLSearchParams(location.search);
+const cle = params.get("k") || "";
+const vin = params.get("vin") || "";
+
+function echappe(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function vignette(url, largeur) {
+  if (!url) return "";
+  let id = null;
+  const parId = url.match(/[?&]id=([^&]+)/);
+  const parChemin = url.match(/\/d\/([^/]+)/);
+  if (parId) id = parId[1];
+  else if (parChemin) id = parChemin[1];
+  if (!id) return url;
+  return "https://drive.google.com/thumbnail?id=" + id + "&sz=w" + largeur;
+}
+
+function afficherMessage(titre, detail) {
+  document.getElementById("contenu").hidden = true;
+  const m = document.getElementById("message");
+  m.innerHTML = "<strong>" + echappe(titre) + "</strong>" + echappe(detail || "");
+  m.hidden = false;
+}
+
+function appliquerTextes() {
+  document.documentElement.lang = langue;
+  document.getElementById("retour").textContent = t().retour;
+  document.getElementById("retour").href = "index.html?k=" + encodeURIComponent(cle);
+  document.getElementById("pied").textContent = t().pied;
+  document.getElementById("titreOffre").textContent = t().titreOffre;
+  document.getElementById("aideOffre").textContent = t().aideOffre;
+  document.querySelector('label[for="nom"]').textContent = t().nom;
+  document.querySelector('label[for="entreprise"]').textContent = t().entreprise;
+  document.querySelector('label[for="courriel"]').textContent = t().courriel;
+  document.querySelector('label[for="telephone"]').textContent = t().telephone;
+  document.querySelector('label[for="prix"]').textContent = t().prix;
+  document.querySelector('label[for="conditions"]').textContent = t().conditions;
+  document.getElementById("envoyer").textContent = t().envoyer;
+  document.querySelectorAll(".langues button").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.langue === langue));
+  });
+  if (vehicule) dessiner();
+}
+
+function dessiner() {
+  const v = vehicule;
+  document.title = "Groupe Automax — " + (v.model || v.vin);
+  document.getElementById("modele").textContent = v.model || "—";
+  document.getElementById("vin").textContent = v.vin;
+
+  document.getElementById("zonePrix").innerHTML = v.price
+    ? '<div class="prix">' + echappe(v.price) + "</div>"
+    : '<div class="surdemande">' + echappe(t().surDemande) + "</div>";
+
+  document.getElementById("jours").textContent = v.days ? t().jours(v.days) : "";
+  document.getElementById("description").textContent = v.description || "";
+
+  const photos = v.photos || [];
+  const bloc = document.getElementById("blocPhotos");
+  if (photos.length === 0) {
+    bloc.hidden = true;
+  } else {
+    bloc.hidden = false;
+    montrerPhoto(0);
+    document.getElementById("bande").innerHTML = photos.map((p, i) =>
+      '<img src="' + echappe(vignette(p, 200)) + '" alt="" data-i="' + i + '"' +
+      (i === 0 ? ' aria-current="true"' : "") + ">"
+    ).join("");
+    document.querySelectorAll(".bande img").forEach(img => {
+      img.addEventListener("click", () => montrerPhoto(Number(img.dataset.i)));
+    });
+  }
+}
+
+function montrerPhoto(i) {
+  const photos = vehicule.photos || [];
+  if (!photos[i]) return;
+  document.getElementById("grande").src = vignette(photos[i], 1200);
+  document.querySelectorAll(".bande img").forEach(img => {
+    img.setAttribute("aria-current", String(Number(img.dataset.i) === i));
+  });
+}
+
+async function charger() {
+  if (!cle || !vin) { afficherMessage(t().LIEN_INVALIDE, ""); return; }
+  afficherMessage(t().chargement, "");
+  try {
+    const r = await fetch(SCRIPT_URL + "?vitrineVin=" + encodeURIComponent(vin) +
+                          "&k=" + encodeURIComponent(cle));
+    const j = await r.json();
+    if (!j.ok) { afficherMessage(t()[j.code] || t().RESEAU, ""); return; }
+    vehicule = j.vehicle;
+    document.getElementById("message").hidden = true;
+    document.getElementById("contenu").hidden = false;
+    dessiner();
+  } catch (e) {
+    afficherMessage(t().RESEAU, "");
+  }
+}
+
+document.getElementById("formulaire").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const bouton = document.getElementById("envoyer");
+  const erreur = document.getElementById("erreur");
+  erreur.hidden = true;
+  bouton.disabled = true;
+  bouton.textContent = t().envoi;
+
+  const corps = {
+    action: "offre",
+    k: cle,
+    vin: vin,
+    name: document.getElementById("nom").value,
+    company: document.getElementById("entreprise").value,
+    email: document.getElementById("courriel").value,
+    phone: document.getElementById("telephone").value,
+    price: document.getElementById("prix").value,
+    conditions: document.getElementById("conditions").value
+  };
+
+  try {
+    /* text/plain volontairement : un Content-Type application/json déclenche
+       une requête préparatoire OPTIONS, à laquelle Apps Script ne répond pas.
+       Le script lit e.postData.contents, qui contient bien le JSON. */
+    const r = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(corps)
+    });
+    const j = await r.json();
+    if (j.ok) {
+      document.getElementById("blocOffre").innerHTML =
+        '<div class="alerte bon"><strong>' + echappe(t().merci) + "</strong><br>" +
+        echappe(t().merciDetail) + "</div>";
+      return;
+    }
+    erreur.textContent = t()[j.code] || t().RESEAU;
+    erreur.hidden = false;
+  } catch (e) {
+    erreur.textContent = t().RESEAU;
+    erreur.hidden = false;
+  }
+  bouton.disabled = false;
+  bouton.textContent = t().envoyer;
+});
+
+document.querySelectorAll(".langues button").forEach(b => {
+  b.addEventListener("click", () => {
+    langue = b.dataset.langue;
+    try { localStorage.setItem("automaxLangue", langue); } catch (e) {}
+    appliquerTextes();
+  });
+});
+
+appliquerTextes();
+charger();
+</script>
+</body>
+</html>

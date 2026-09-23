@@ -104,20 +104,10 @@
 </head>
 <body>
 
-<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#F4F6F9;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;">
-  <div style="background:#fff;border:1px solid #E4E7EC;border-radius:12px;box-shadow:0 4px 16px rgba(16,24,40,0.08);padding:28px 32px;max-width:340px;width:90%;text-align:center;">
-    <div style="font-family:'Inter',Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:0.3px;color:#1E2A3A;margin-bottom:6px;">ACCÈS PROTÉGÉ</div>
-    <p style="font-size:12.5px;color:#6B7684;margin:0 0 16px;">Identifiez-vous : votre courriel + le mot de passe de l’équipe</p>
-    <input type="email" id="pg-mail" autocomplete="username" style="width:100%;padding:9px 10px;border:1px solid #E4E7EC;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="prenom@groupeautomax.com">
-    <input type="password" id="pg-input" style="width:100%;padding:9px 10px;border:1px solid #E4E7EC;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;" placeholder="Mot de passe">
-    <button id="pg-submit" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;">Déverrouiller</button>
-    <div id="pg-error" style="color:#DC2626;font-size:12px;margin-top:10px;display:none;">Mot de passe incorrect.</div>
-  </div>
-</div>
-<!-- La porte etait ici, recopiee dans les neuf pages avec le mot de passe
-     de l equipe ecrit en clair. Elle est maintenant dans assets/auth.js :
-     connexion par courriel + code, un jeton par personne, aucun secret
-     dans le code. -->
+<div id="password-gate" style="position:fixed;inset:0;z-index:99999;background:#F4F6F9;display:flex;align-items:center;justify-content:center;font-family:'Inter',Arial,sans-serif;"><div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6B7684;">Chargement de la connexion…</div></div>
+<!-- La connexion vit dans assets/auth.js : courriel + code, un jeton
+     par personne. Le div #password-gate ci-dessus est le conteneur
+     qu auth.js remplit lui-meme : ne rien y remettre en dur. -->
 <script src="assets/auth.js"></script>
 
 <div class="wrap">

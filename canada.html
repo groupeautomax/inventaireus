@@ -252,251 +252,11 @@
     <div id="pg-error" style="color:#B3392F;font-size:12px;margin-top:10px;display:none;">Mot de passe incorrect.</div>
   </div>
 </div>
-<script>
-(function(){
-  var PG_PASSWORD = 'STMHAWKS666';
-  var CLE_MAIL = 'pg_utilisateur_v1';
-  var CLE_NOM  = 'pg_nom_v1';
-  var CLE_ROLE = 'pg_role_v1';
-  var URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
-  var gate = document.getElementById('password-gate');
-  var _fetch = window.fetch.bind(window);
-
-  function lire(cle){ try{ return localStorage.getItem(cle) || ''; }catch(e){ return ''; } }
-  function ecrire(cle, val){ try{ localStorage.setItem(cle, val); }catch(e){} }
-  function effacer(cle){ try{ localStorage.removeItem(cle); }catch(e){} }
-
-  window.utilisateurCourant = function(){ return lire(CLE_MAIL); };
-  window.roleCourant = function(){ return lire(CLE_ROLE); };
-
-  // Toute requete vers le backend porte le courriel de la personne connectee,
-  // pour que le journal du Sheet sache qui a fait quoi.
-  //
-  // Apps Script renvoie par intermittence un 404 en HTML au lieu du JSON
-  // (la redirection /exec -> googleusercontent echoue parfois). On reessaie
-  // donc automatiquement les LECTURES. Jamais les ecritures : un POST rejoue
-  // pourrait dedoubler une donnee.
-  function estBackend(url){ return url.indexOf('script.google.com') !== -1; }
-
-  function lectureAvecReessai(entree, init, reste){
-    return _fetch(entree, init).then(function(r){
-      if(r.ok || reste <= 0) return r;
-      return new Promise(function(res){
-        setTimeout(function(){ res(lectureAvecReessai(entree, init, reste - 1)); }, 800 * (4 - reste));
-      });
-    }).catch(function(err){
-      if(reste <= 0) throw err;
-      return new Promise(function(res){
-        setTimeout(function(){ res(lectureAvecReessai(entree, init, reste - 1)); }, 800 * (4 - reste));
-      });
-    });
-  }
-
-  window.fetch = function(entree, init){
-    var estEcriture = !!(init && init.method && init.method.toUpperCase() !== 'GET');
-    var url = '';
-    try{
-      url = (typeof entree === 'string') ? entree : (entree && entree.url) || '';
-      var mail = lire(CLE_MAIL);
-      if(mail && estBackend(url)){
-        if(estEcriture && typeof init.body === 'string'){
-          var corps = JSON.parse(init.body);
-          if(corps && typeof corps === 'object' && !corps.utilisateur){
-            corps.utilisateur = mail;
-            init = Object.assign({}, init, { body: JSON.stringify(corps) });
-          }
-        } else if(!estEcriture && typeof entree === 'string' && url.indexOf('utilisateur=') === -1){
-          entree = url + (url.indexOf('?') === -1 ? '?' : '&') + 'utilisateur=' + encodeURIComponent(mail);
-        }
-      }
-    }catch(e){ /* corps non-JSON : on envoie tel quel */ }
-
-    if(!estEcriture && estBackend(url)) return lectureAvecReessai(entree, init, 3);
-    return _fetch(entree, init);
-  };
-
-  /* ---------- Menu principal, commun a toutes les pages ---------- */
-  var PAGES = [
-    { f:'index.html',        t:'Suivi É.-U.' },
-    { f:'canada.html',       t:'Canada' },
-    { f:'detail.html',       t:'Detail' },
-    { f:'achat.html',        t:"Fiche d'achat" },
-    { f:'evaluation.html',   t:'Évaluation' },
-    { f:'verification.html', t:'Vérification' },
-    { f:'resultat.html',     t:'Résultat' },
-    { f:'admin.html',        t:'Admin', admin:true }
-  ];
-
-  function pageCourante(){
-    var p = location.pathname.split('/').pop();
-    return p ? p.toLowerCase() : 'index.html';
-  }
-
-  function menu(){
-    // Ce script s'execute avant le corps de la page : sans cette attente, le
-    // menu atterrit dans <body> au lieu du conteneur .wrap et se retrouve
-    // desaligne par rapport au reste du contenu.
-    if(document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', function(){ menu(); }, { once: true });
-      return;
-    }
-    if(document.getElementById('menu-principal')) { majMenuAdmin(); return; }
-
-    var style = document.createElement('style');
-    style.textContent =
-      '#menu-principal{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin:0 0 16px;' +
-        'padding:5px;background:#fff;border:1px solid #E4E7EC;border-radius:11px;' +
-        'box-shadow:0 1px 2px rgba(16,24,40,.05);}' +
-      '#menu-principal a{font-family:Inter,system-ui,sans-serif;font-size:12.5px;font-weight:500;' +
-        'color:#6B7684;text-decoration:none;padding:7px 14px;border-radius:7px;white-space:nowrap;' +
-        'transition:background .12s ease,color .12s ease;}' +
-      '#menu-principal a:hover{background:#F4F6F9;color:#1E2A3A;}' +
-      '#menu-principal a.actif{background:#2563EB;color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.35);}' +
-      '#menu-principal a.actif:hover{background:#1D4ED8;color:#fff;}' +
-      '#menu-principal .mp-espace{flex:1 1 auto;min-width:8px;}' +
-      '#menu-principal a.mp-admin{color:#1E2A3A;border:1px solid #E4E7EC;}' +
-      '#menu-principal a.mp-admin.actif{border-color:#2563EB;color:#fff;}' +
-      '@media print{#menu-principal{display:none !important;}}';
-    document.head.appendChild(style);
-
-    var nav = document.createElement('nav');
-    nav.id = 'menu-principal';
-    var courante = pageCourante();
-
-    PAGES.forEach(function(p){
-      if(p.admin){
-        var espace = document.createElement('span');
-        espace.className = 'mp-espace';
-        nav.appendChild(espace);
-      }
-      var a = document.createElement('a');
-      a.href = p.f;
-      a.textContent = p.t;
-      a.setAttribute('data-page', p.f);
-      if(p.admin){ a.className = 'mp-admin'; a.style.display = 'none'; }
-      if(p.f === courante) a.className = (a.className ? a.className + ' ' : '') + 'actif';
-      nav.appendChild(a);
-    });
-
-    var hote = document.querySelector('.wrap') || document.body;
-    hote.insertBefore(nav, hote.firstChild);
-    majMenuAdmin();
-  }
-
-  // L'onglet Admin n'apparait que pour un compte administrateur.
-  // Le backend renvoie parfois une erreur passagere : on reessaie.
-  function majMenuAdmin(essai){
-    var lien = document.querySelector('#menu-principal a[data-page="admin.html"]');
-    if(!lien) return;
-    if(lire(CLE_ROLE) === 'admin'){ lien.style.display = ''; return; }
-    if(lire(CLE_ROLE)) { lien.style.display = 'none'; return; }
-    var mail = lire(CLE_MAIL);
-    if(!mail) return;
-    var n = essai || 1;
-    _fetch(URL_BACKEND + '?permissions=1&utilisateur=' + encodeURIComponent(mail) + '&_=' + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        var p = d && d.permissions;
-        if(!p || !p.role) throw new Error('vide');
-        ecrire(CLE_ROLE, p.role);
-        if(p.nom) ecrire(CLE_NOM, p.nom);
-        if(p.role === 'admin') lien.style.display = '';
-      })
-      .catch(function(){
-        if(n < 5) setTimeout(function(){ majMenuAdmin(n + 1); }, 1500 * n);
-      });
-  }
-
-  function badge(){
-    if(document.getElementById('pg-badge')) return;
-    var mail = lire(CLE_MAIL);
-    if(!mail) return;
-    var style = document.createElement('style');
-    style.textContent = '@media print{#pg-badge{display:none !important;}}';
-    document.head.appendChild(style);
-    var d = document.createElement('div');
-    d.id = 'pg-badge';
-    d.style.cssText = 'position:fixed;top:8px;right:10px;z-index:9998;background:#fff;border:1px solid #E4E7EC;border-radius:999px;padding:5px 12px;font-family:Inter,system-ui,sans-serif;font-size:11.5px;color:#3A4250;box-shadow:0 1px 4px rgba(0,0,0,.10);display:flex;gap:9px;align-items:center;';
-    var s = document.createElement('span');
-    s.textContent = lire(CLE_NOM) || mail;
-    var a = document.createElement('a');
-    a.href = '#';
-    a.textContent = 'Changer';
-    a.style.cssText = 'color:#2563EB;text-decoration:none;font-weight:500;';
-    a.addEventListener('click', function(ev){
-      ev.preventDefault();
-      effacer('pg_unlocked_v1'); effacer('pg_unlocked_scan_v1');
-      effacer(CLE_MAIL); effacer(CLE_NOM); effacer(CLE_ROLE);
-      location.reload();
-    });
-    d.appendChild(s); d.appendChild(a);
-    document.body.appendChild(d);
-  }
-
-  function unlock(){
-    gate.style.display = 'none';
-    ecrire('pg_unlocked_v1', '1');
-    badge();
-    menu();
-  }
-
-  // Deja identifie ? On exige les deux : le deverrouillage ET le courriel.
-  if(lire('pg_unlocked_v1') === '1' && lire(CLE_MAIL)){ unlock(); return; }
-
-  var champMail = document.getElementById('pg-mail');
-  if(champMail && lire(CLE_MAIL)) champMail.value = lire(CLE_MAIL);
-
-  document.getElementById('pg-submit').addEventListener('click', check);
-  document.getElementById('pg-input').addEventListener('keydown', function(e){ if(e.key === 'Enter') check(); });
-  if(champMail) champMail.addEventListener('keydown', function(e){ if(e.key === 'Enter') document.getElementById('pg-input').focus(); });
-
-  function erreur(msg){
-    var e = document.getElementById('pg-error');
-    e.textContent = msg;
-    e.style.display = 'block';
-  }
-
-  function check(){
-    var mail = ((document.getElementById('pg-mail') || {}).value || '').trim().toLowerCase();
-    var val = document.getElementById('pg-input').value;
-    var btn = document.getElementById('pg-submit');
-
-    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)){ erreur('Entrez votre adresse courriel.'); return; }
-    if(val !== PG_PASSWORD){ erreur('Mot de passe incorrect.'); return; }
-
-    document.getElementById('pg-error').style.display = 'none';
-    btn.disabled = true;
-    btn.textContent = 'Vérification...';
-
-    _fetch(URL_BACKEND + '?permissions=1&utilisateur=' + encodeURIComponent(mail) + '&_=' + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        var p = d && d.permissions;
-        if(!p || !p.courriel) throw new Error('inconnu');
-        if(p.role === 'inactif') throw new Error('inactif');
-        ecrire(CLE_MAIL, mail);
-        ecrire(CLE_NOM, p.nom || '');
-        ecrire(CLE_ROLE, p.role || '');
-        btn.disabled = false; btn.textContent = 'Déverrouiller';
-        unlock();
-      })
-      .catch(function(err){
-        btn.disabled = false; btn.textContent = 'Déverrouiller';
-        if(err && err.message === 'inconnu'){
-          erreur("Ce courriel n'est pas dans la liste des utilisateurs. Demandez à un administrateur de l'ajouter.");
-          return;
-        }
-        if(err && err.message === 'inactif'){
-          erreur('Ce compte est désactivé. Contactez un administrateur.');
-          return;
-        }
-        // Panne reseau : le mot de passe etait bon, on laisse entrer.
-        ecrire(CLE_MAIL, mail);
-        unlock();
-      });
-  }
-})();
-</script>
+<!-- La porte etait ici, recopiee dans les neuf pages avec le mot de passe
+     de l equipe ecrit en clair. Elle est maintenant dans assets/auth.js :
+     connexion par courriel + code, un jeton par personne, aucun secret
+     dans le code. -->
+<script src="assets/auth.js"></script>
 
 <div class="wrap">
 
@@ -664,8 +424,6 @@
 <script>
 const URL_KEY = 'apps_script_url_can';
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
-const ACCOUNTING_CODE = 'COMPTA2026';
-const SUPPRESSION_CODE = 'Suprime666';
 const SHEET_SOURCE = 'CAN';
 let vehicules = [];
 let currentFilter = 'all';
@@ -1359,12 +1117,14 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
     const meta = statusMeta(v.statut);
     if(meta.next){ await postToSheet({ action:'advance', id, newStatut: meta.next }); }
   } else if(action === 'delete'){
-    const code = prompt(`Mot de passe requis pour supprimer définitivement le véhicule ${v.vin} (Stock ${v.stock || '—'}) de la base de données :`);
-    if(code === null) return;
-    if(code !== SUPPRESSION_CODE){
-      alert('Mot de passe incorrect. Véhicule non supprimé.');
-      return;
-    }
+    // Retaper le VIN protege mieux qu'un mot de passe que toute l'equipe
+      // connait : ca empeche la fausse manoeuvre, et le serveur verifie
+      // de son cote que le compte a le droit de supprimer.
+      const saisi = prompt(`Suppression définitive de ${v.vin} (Stock ${v.stock || '—'}).
+
+Retapez le VIN complet pour confirmer :`);
+      if(saisi === null) return;
+      if(String(saisi).trim().toUpperCase() !== String(v.vin).toUpperCase()){ alert('Le VIN ne correspond pas. Véhicule non supprimé.'); return; }
     const confirme = confirm(`Dernière confirmation : supprimer définitivement ${v.vin} ? Cette action est irréversible.`);
     if(!confirme) return;
     await postToSheet({ action:'delete', id });
@@ -1384,12 +1144,10 @@ document.getElementById('table-body').addEventListener('click', async (e)=>{
   } else if(action === 'view-photos'){
     ouvrirGaleriePhotos(v.vin, v.modele, v.stock);
   } else if(action === 'deverrouiller'){
-    const code = prompt('Code comptabilité requis pour déverrouiller ce dossier (correction de chargeback) :');
-    if(code === null) return;
-    if(code !== ACCOUNTING_CODE){
-      alert('Code incorrect. Dossier toujours verrouillé.');
-      return;
-    }
+    // Le code comptable etait ecrit en clair dans une page publique : il
+      // n'arretait personne. C'est le role du compte connecte qui decide,
+      // et le serveur le verifie de son cote.
+      if(!confirm('Déverrouiller ce dossier comptabilisé pour correction ?\n\nCette opération est inscrite au journal sous votre nom.')) return;
     await postToSheet({ action:'advance', id, newStatut: 'arrive' });
   }
 });

@@ -4,8 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Administration — accès et utilisateurs</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+<!-- Les polices etaient chargees par @import dans le CSS : le navigateur
+       doit alors telecharger la page, puis le CSS, puis decouvrir l import,
+       puis aller chercher la feuille des polices, puis les polices. En
+       <link> dans l entete, les deux dernieres etapes partent tout de suite. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+  <style>
   :root{
     --paper:#F4F6F9; --paper-card:#FFFFFF; --ink:#1E2A3A; --ink-soft:#6B7684;
     --line:#E4E7EC; --accent:#2563EB; --accent-bg:#EFF6FF;

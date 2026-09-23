@@ -3,8 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <title>Suivi d'inventaire — véhicules Canada</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+<!-- Les polices etaient chargees par @import dans le CSS : le navigateur
+       doit alors telecharger la page, puis le CSS, puis decouvrir l import,
+       puis aller chercher la feuille des polices, puis les polices. En
+       <link> dans l entete, les deux dernieres etapes partent tout de suite. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+  <style>
 
   :root{
     --paper: #F4F6F9;
@@ -69,7 +75,15 @@
     padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);
   }
   input:focus, select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg);}
-  #search{flex:1;min-width:160px;}
+  /* La recherche etait en flex:1 : elle mangeait toute la ligne. */
+  #search{flex:0 1 190px;min-width:140px;}
+  .barre-filtres{gap:8px;row-gap:8px;align-items:center;}
+  .barre-filtres select{width:150px;}
+  .barre-filtres #export-excel-btn{margin-left:auto;}
+  @media (max-width:760px){
+    .barre-filtres select, .barre-filtres #search{flex:1 1 140px;}
+    .barre-filtres #export-excel-btn{margin-left:0;flex:1 1 100%;}
+  }
   .filter-btn{
     font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;
     padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink-soft);cursor:pointer;
@@ -201,6 +215,9 @@
     .nav-pill{padding:8px 14px;font-size:13px;}
   }
 
+  /* Fermee, la barre n'a pas besoin de toute la largeur de la page :
+     c'est un bouton, pas une section. Ouverte, elle reprend sa place. */
+  details.groupe-lot:not([open]){max-width:260px;}
   .groupe-lot .collapse-box{border:none;box-shadow:none;background:transparent;margin-bottom:0;border-top:1px solid var(--line);border-radius:0;}
   .groupe-lot .collapse-body{padding-left:0;padding-right:0;}
   .groupe-lot > summary{color:var(--ink);}
@@ -581,24 +598,24 @@
     <p style="font-size:12px;color:var(--ink-soft);margin:0;">Vérifié automatiquement (NHTSA) à l'ajout d'un véhicule — cliquez sur le badge « Rappel ouvert » / « Aucun rappel » / « Non vérifié » pour revérifier. Le bouton « Rappels constructeur » ouvre en plus la page officielle du fabricant pour une double-vérification manuelle avec le VIN.</p>
   </div></details>
   </div></details>
-  <details class="collapse-box"><summary>Connexion au serveur</summary><div class="collapse-body">
-    <p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 8px;">L'adresse du deploiement Apps Script qui alimente cette page. A ne changer que si on vous le demande.</p>
-    <div class="add-form" id="config-form" style="grid-template-columns:1fr auto;margin-bottom:0;border:none;padding:0;background:transparent;">
-      <input type="text" id="script-url" placeholder="Adresse du deploiement Apps Script (se termine par /exec)">
-      <button id="save-url-btn">Connecter le Sheet</button>
-    </div>
-  </div></details>
-
-  <div class="toolbar">
-    <input type="text" id="search" placeholder="Rechercher par VIN ou modèle...">
-    <button type="button" class="filter-btn" id="export-excel-btn" style="margin-left:auto;background:var(--accent);color:#fff;border-color:var(--accent);">📊 Exporter en Excel</button>
+  <!-- L'adresse du deploiement n'a rien a faire dans une page de travail : la
+       changer par erreur fait pointer le navigateur vers un ancien serveur et
+       les donnees semblent disparaitre. Les deux champs restent dans la page
+       parce que le code les lit au demarrage, mais ils sont caches et le champ
+       est en lecture seule. Le changement se fait dans Admin. -->
+  <div id="config-form" hidden aria-hidden="true">
+    <input type="text" id="script-url" readonly>
+    <button id="save-url-btn" type="button" hidden></button>
   </div>
 
-  <div class="toolbar">
-    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
-      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par statut</label>
-      <select id="filter-statut" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
-        <option value="all">Tous (actifs — sans les vendus)</option>
+  <!-- Une seule rangee : recherche, filtres, export. Avant, la recherche
+       occupait toute une ligne pour elle seule, les filtres une autre, et
+       chaque menu portait un petit libelle au-dessus. Le nom du champ est
+       maintenant dans la premiere option du menu. -->
+  <div class="toolbar barre-filtres">
+    <input type="text" id="search" placeholder="Rechercher un VIN, un modele...">
+    <select id="filter-statut" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
+        <option value="all">Statut : actifs</option>
         <option value="achete">Acheté</option>
         <option value="transitqc">Transit QC</option>
         <option value="stock">En stock (pas parti)</option>
@@ -607,43 +624,30 @@
         <option value="comptabilise">Comptabilisé</option>
         <option value="tousavecvendu">Tous, incluant les vendus</option>
       </select>
-    </div>
-    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
-      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par compagnie</label>
-      <select id="filter-compagnie" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
-        <option value="">Toutes</option>
+    <select id="filter-compagnie" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
+        <option value="">Compagnie : toutes</option>
         <option value="HAWKS">HAWKS</option>
         <option value="STM">STM</option>
       </select>
-    </div>
-    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
-      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par origine</label>
-      <select id="filter-origine" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
-        <option value="">Toutes</option>
+    <select id="filter-origine" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
+        <option value="">Origine : toutes</option>
         <option value="Achat">Achat</option>
         <option value="Échange">Échange</option>
       </select>
-    </div>
-    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
-      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par registre</label>
-      <select id="filter-registre" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
-        <option value="">Tous</option>
+    <select id="filter-registre" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
+        <option value="">Registre : tous</option>
         <option value="oui-bon">Reçu · bon nom</option>
         <option value="oui-mauvais">Reçu · mauvais nom</option>
         <option value="non">Non reçu</option>
       </select>
-    </div>
-    <div class="col-select-row" style="display:flex;flex-direction:column;gap:3px;">
-      <label style="font-size:11px;color:var(--ink-soft);">Filtrer par rappel</label>
-      <select id="filter-rappel" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
-        <option value="">Tous</option>
+    <select id="filter-rappel" style="font-family:'Inter',sans-serif;font-size:12.5px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);">
+        <option value="">Rappel : tous</option>
         <option value="oui">Rappel ouvert</option>
         <option value="non">Aucun rappel</option>
         <option value="inconnu">Non vérifié</option>
       </select>
-    </div>
+    <button type="button" class="filter-btn" id="export-excel-btn" style="margin-left:auto;background:var(--accent);color:#fff;border-color:var(--accent);" title="Exporter la liste filtrée en Excel">📊 Exporter</button>
   </div>
-
   <div class="table-scroll">
   <table>
     <thead>
@@ -855,6 +859,7 @@ function computeStats(){
   const achete = base.filter(v=>v.statut==='achete').length;
   const stock = base.filter(v=>v.statut==='stock').length;
   const transit = base.filter(v=>v.statut==='transit').length;
+  const manheimpa = base.filter(v=>v.statut==='manheimpa').length;
   const arrive = base.filter(v=>v.statut==='arrive').length;
   const comptabilise = base.filter(v=>v.statut==='comptabilise').length;
   const retard = base.filter(estEnRetard).length;
@@ -867,6 +872,7 @@ function computeStats(){
     { id:'achete', label:'Achetés — pas en stock', val:achete, alert:false },
     { id:'stock', label:'En stock — pas parti', val:stock, alert:true },
     { id:'transit', label:'En transit', val:transit, alert:false },
+    { id:'manheimpa', label:'Manheim PA', val:manheimpa, alert:false },
     { id:'arrive', label:'Vendus', val:arrive, alert:false },
     { id:'comptabilise', label:'Comptabilisés', val:comptabilise, alert:false },
   ];
@@ -896,7 +902,7 @@ function resetDropdownFilters(){
 function clickStat(type){
   activeStatFilter = (activeStatFilter === type) ? null : type;
   resetDropdownFilters();
-  const statutMap = { achete:'achete', stock:'stock', transit:'transit', arrive:'arrive', comptabilise:'comptabilise' };
+  const statutMap = { achete:'achete', stock:'stock', transit:'transit', manheimpa:'manheimpa', arrive:'arrive', comptabilise:'comptabilise' };
   if(activeStatFilter && statutMap[activeStatFilter]){
     currentFilter = statutMap[activeStatFilter];
   } else if(activeStatFilter){

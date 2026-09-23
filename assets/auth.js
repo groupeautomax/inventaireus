@@ -39,6 +39,11 @@
 
   var _fetch = window.fetch.bind(window);
   var roleExige = (document.currentScript && document.currentScript.getAttribute('data-role')) || '';
+  // Certaines pages sont sur fond sombre : une carte blanche y jurerait.
+  var sombre = (document.currentScript && document.currentScript.getAttribute('data-theme') === 'sombre');
+  var C = sombre
+    ? { fond: '#161B22', bord: '#2A323D', texte: '#F4F6F9', doux: '#8A94A3', champ: '#1C232C' }
+    : { fond: '#fff',    bord: '#E4E7EC', texte: '#1E2A3A', doux: '#6B7684', champ: '#fff' };
 
   /* ------------------------------ Memoire ------------------------------ */
   function lire(c)   { try { return localStorage.getItem(c) || ''; } catch (e) { return ''; } }
@@ -123,9 +128,10 @@
   var courrielEnCours = '';
 
   function titrePage() {
-    // Chaque page avait son propre titre de porte : on le garde.
+    // Chaque page avait son propre titre de porte : on le garde. Les pages
+    // n'ont pas toutes la meme structure, d'ou les trois tentatives.
     if (!porte) return 'ACCÈS PROTÉGÉ';
-    var t = porte.querySelector('div > div > div');
+    var t = porte.querySelector('.pg-title') || porte.querySelector('div > div > div');
     return (t && t.textContent.trim()) || 'ACCÈS PROTÉGÉ';
   }
 
@@ -135,20 +141,20 @@
     if (!porte) return;
     var enCourriel = (etape === 'courriel');
     porte.innerHTML =
-      '<div style="background:#fff;border:1px solid #E4E7EC;border-radius:12px;box-shadow:0 4px 16px rgba(16,24,40,0.08);padding:28px 32px;max-width:360px;width:90%;text-align:center;">' +
-        '<div style="font-family:Inter,Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:0.3px;color:#1E2A3A;margin-bottom:6px;">' + TITRE + '</div>' +
-        '<p id="pg-sous" style="font-size:12.5px;color:#6B7684;margin:0 0 16px;line-height:1.5;">' +
+      '<div style="background:' + C.fond + ';border:1px solid ' + C.bord + ';border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,0.12);padding:28px 32px;max-width:360px;width:90%;text-align:center;">' +
+        '<div style="font-family:Inter,Arial,sans-serif;font-weight:600;font-size:15px;letter-spacing:0.3px;color:' + C.texte + ';margin-bottom:6px;">' + TITRE + '</div>' +
+        '<p id="pg-sous" style="font-size:12.5px;color:' + C.doux + ';margin:0 0 16px;line-height:1.5;">' +
           (enCourriel
             ? 'Entrez votre adresse courriel. Un code à six chiffres vous sera envoyé.'
             : 'Un code vient d\'être envoyé à<br><strong>' + courrielEnCours + '</strong>') +
         '</p>' +
         (enCourriel
-          ? '<input type="email" id="pg-mail" autocomplete="username" placeholder="prenom@groupeautomax.com" style="width:100%;padding:10px;border:1px solid #E4E7EC;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
-          : '<input type="text" id="pg-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" style="width:100%;padding:10px;border:1px solid #E4E7EC;border-radius:8px;font-size:22px;letter-spacing:6px;text-align:center;font-family:ui-monospace,monospace;margin-bottom:10px;box-sizing:border-box;">') +
+          ? '<input type="email" id="pg-mail" autocomplete="username" placeholder="prenom@groupeautomax.com" style="width:100%;padding:11px;border:1px solid ' + C.bord + ';background:' + C.champ + ';color:' + C.texte + ';border-radius:9px;font-size:16px;margin-bottom:10px;box-sizing:border-box;">'
+          : '<input type="text" id="pg-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" style="width:100%;padding:11px;border:1px solid ' + C.bord + ';background:' + C.champ + ';color:' + C.texte + ';border-radius:9px;font-size:22px;letter-spacing:6px;text-align:center;font-family:ui-monospace,monospace;margin-bottom:10px;box-sizing:border-box;">') +
         '<button id="pg-submit" style="width:100%;background:#2563EB;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:500;cursor:pointer;">' +
           (enCourriel ? 'Recevoir mon code' : 'Se connecter') + '</button>' +
         (enCourriel ? '' :
-          '<button id="pg-retour" style="width:100%;background:none;border:none;color:#6B7684;font-size:12px;margin-top:10px;cursor:pointer;text-decoration:underline;">Changer d\'adresse</button>') +
+          '<button id="pg-retour" style="width:100%;background:none;border:none;color:' + C.doux + ';font-size:12px;margin-top:10px;cursor:pointer;text-decoration:underline;">Changer d\'adresse</button>') +
         '<div id="pg-error" style="color:#B3392F;font-size:12px;margin-top:10px;' + (message ? '' : 'display:none;') + '">' + (message || '') + '</div>' +
       '</div>';
 
@@ -235,8 +241,13 @@
   function ouvrir() {
     if (porte) porte.style.display = 'none';
     ecrire('pg_unlocked_v1', '1');
+    ecrire('pg_unlocked_scan_v1', '1');
     badge();
     menu();
+    // Certaines pages ont besoin de demarrer quelque chose une fois la session
+    // ouverte — la camera de scan.html, par exemple. Elles ecoutent cet
+    // evenement plutot que d'etre appelees en dur depuis ici.
+    try { document.dispatchEvent(new CustomEvent('automax:connecte')); } catch (e) {}
   }
 
   /* ------------------ Menu principal, commun aux pages ----------------- */

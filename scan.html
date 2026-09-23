@@ -9,8 +9,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0B0F14">
 <title>Scan VIN — Groupe Automax</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+<!-- Les polices etaient chargees par @import dans le CSS : le navigateur
+       doit alors telecharger la page, puis le CSS, puis decouvrir l import,
+       puis aller chercher la feuille des polices, puis les polices. En
+       <link> dans l entete, les deux dernieres etapes partent tout de suite. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+  <style>
 
   :root{
     --bg: #0B0F14;

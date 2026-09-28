@@ -64,6 +64,20 @@
   .avis{background:var(--stamp-amber-bg);border:1px solid #FDE68A;color:#92400E;border-radius:8px;
         padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:16px;}
   #refus{display:none;max-width:420px;margin:80px auto;text-align:center;}
+  .table-wrap{overflow-x:auto;}
+  .pill.perso{color:#92400E;border-color:#FDE68A;background:var(--stamp-amber-bg);}
+  tr.droits-ligne td{background:#FAFBFC;padding:10px 12px 12px;}
+  .grille-droits{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;}
+  .droit{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;
+         padding:8px 10px;background:#fff;cursor:pointer;}
+  .droit.perso{border-color:#FDE68A;background:var(--stamp-amber-bg);}
+  .droit.bloque{opacity:.55;cursor:default;}
+  .droit input{margin-top:2px;flex:none;}
+  .droit .t{font-weight:500;font-size:12.5px;}
+  .droit .a{font-size:11px;color:var(--ink-soft);line-height:1.35;margin-top:1px;}
+  .droit .r{font-size:10.5px;color:#92400E;margin-top:3px;font-weight:500;}
+  .droits-pied{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
+               margin-top:10px;font-size:11.5px;color:var(--ink-soft);}
   @media(max-width:760px){ .grille-ajout{grid-template-columns:1fr;} }
 </style>
 </head>
@@ -84,7 +98,7 @@
   </div>
 
   <div class="avis">
-    <strong>Ce que ce menu contrôle.</strong> Le rôle décide de ce qu'une personne peut faire (voir les résultats, modifier les montants, supprimer). Chaque personne se connecte avec sa propre adresse courriel et un code reçu par courriel — il n'y a plus de mot de passe commun. Retirer quelqu'un ici lui coupe l'accès au site <em>et</em> à l'app.
+    <strong>Ce que ce menu contrôle.</strong> Le rôle donne les droits de départ (voir les résultats, modifier les montants, supprimer…). Le bouton <strong>Droits</strong> de chaque ligne permet ensuite d'en accorder ou d'en retirer à une personne précise : deux gestionnaires peuvent ainsi avoir des droits différents. Chaque personne se connecte avec sa propre adresse courriel et un code reçu par courriel — il n'y a plus de mot de passe commun. Retirer quelqu'un ici lui coupe l'accès au site <em>et</em> à l'app.
   </div>
 
   <div class="card">
@@ -110,20 +124,23 @@
 
   <div class="card">
     <h2>Utilisateurs <span id="compteur" style="font-weight:400;color:var(--ink-soft);"></span></h2>
-    <p class="sub">Modifiez un rôle ou un accès puis cliquez « Enregistrer » sur la ligne. Désactiver coupe l'accès sans effacer l'historique.</p>
+    <p class="sub">Modifiez un rôle, un accès ou des droits puis cliquez « Enregistrer » sur la ligne. Désactiver coupe l'accès sans effacer l'historique.</p>
+    <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th style="width:32%;">Courriel</th>
-          <th style="width:16%;">Rôle</th>
-          <th style="width:11%;">Acheteur</th>
-          <th style="width:11%;">Accès</th>
+          <th style="width:27%;">Courriel</th>
+          <th style="width:14%;">Rôle</th>
+          <th style="width:9%;">Acheteur</th>
+          <th style="width:10%;">Accès</th>
           <th>Note</th>
+          <th style="width:118px;">Droits</th>
           <th style="width:110px;"></th>
         </tr>
       </thead>
       <tbody id="corps"></tbody>
     </table>
+    </div>
     <div class="msg" id="t-msg"></div>
   </div>
 
@@ -150,6 +167,14 @@ const ROLES = { admin:'Administrateur', gestionnaire:'Gestionnaire', utilisateur
 
 let utilisateurs = [];
 let moi = '';
+// Liste des droits et droits de chaque role, fournis par le serveur.
+// Absent tant que le script Apps Script n'est pas redeploye : le bouton
+// « Droits » ne s'affiche alors pas, et le reste du menu marche comme avant.
+let reference = null;
+
+function lireReference(d){
+  reference = (d && d.droits && Array.isArray(d.droits.liste) && d.droits.defauts) ? d.droits : null;
+}
 
 function moiCourriel(){
   return (window.utilisateurCourant ? window.utilisateurCourant() : '') || '';
@@ -194,8 +219,12 @@ async function demarrer(){
     return refuser("Impossible de joindre le serveur pour vérifier vos droits. Réessayez dans un instant.");
   }
   if(!perms || !perms.courriel){ return refuser("Ce compte n'est pas reconnu par le registre."); }
-  if(perms.role !== 'admin'){
-    return refuser("Vous êtes connecté comme " + (ROLES[perms.role] || perms.role) + " (" + moi + "). Seul un administrateur peut ouvrir ce menu.");
+  // C'est le droit « gererUtilisateurs » qui ouvre ce menu, comme cote
+  // serveur. Il vient du role, ou d'un droit accorde a la personne.
+  const peutGerer = perms.gererUtilisateurs === true ||
+    (perms.gererUtilisateurs === undefined && perms.role === 'admin');
+  if(!peutGerer){
+    return refuser("Vous êtes connecté comme " + (ROLES[perms.role] || perms.role) + " (" + moi + "). Ce menu demande le droit « Gérer les utilisateurs ».");
   }
 
   document.getElementById('chargement-detail').textContent = 'Chargement de la liste des utilisateurs…';
@@ -203,6 +232,7 @@ async function demarrer(){
   try{
     const d = await pListe;
     utilisateurs = (d.utilisateurs || []).filter(u => u && u.nom);
+    lireReference(d);
   }catch(e){ erreurListe = true; }
 
   document.getElementById('chargement-admin').style.display = 'none';
@@ -228,6 +258,7 @@ async function charger(){
   try{
     const d = await appelGET('utilisateurs=1');
     utilisateurs = (d.utilisateurs || []).filter(u => u && u.nom);
+    lireReference(d);
     rendre();
     message('t-msg', '', '');
   }catch(e){
@@ -273,6 +304,9 @@ function rendre(){
         '<option value="oui"' + (u.actif === false ? '' : ' selected') + '>Actif</option>' +
         '<option value="non"' + (u.actif === false ? ' selected' : '') + '>Désactivé</option></select></td>' +
       '<td><input type="text" class="f-note" value="' + (u.note ? String(u.note).replace(/"/g,'&quot;') : '') + '" placeholder="—"></td>' +
+      '<td style="white-space:nowrap;">' +
+        (reference ? '<button class="btn f-droits" type="button">Droits \u25BE</button> <span class="f-compte"></span>' : '<span style="color:var(--ink-soft);">—</span>') +
+      '</td>' +
       '<td style="text-align:right;white-space:nowrap;">' +
         '<button class="btn f-save">Enregistrer</button>' +
         (cestMoi ? '' : ' <button class="btn danger f-del" title="Supprimer la ligne du registre">\u2715</button>') +
@@ -282,6 +316,86 @@ function rendre(){
       el.addEventListener('change', () => tr.classList.add('modifiee'));
       el.addEventListener('input', () => tr.classList.add('modifiee'));
     });
+
+    // ---------- Droits propres a la personne ----------
+    // On ne garde que les ecarts par rapport au role : si le role change,
+    // les cases non touchees suivent le nouveau role.
+    const etat = { role: roleConnu, ecarts: Object.assign({}, u.droits || {}) };
+    const ligneDroits = document.createElement('tr');
+    ligneDroits.className = 'droits-ligne';
+    ligneDroits.style.display = 'none';
+
+    function defautDe(cle){ return !!((reference.defauts[etat.role] || {})[cle]); }
+    function effectif(cle){
+      return Object.prototype.hasOwnProperty.call(etat.ecarts, cle) ? etat.ecarts[cle] === true : defautDe(cle);
+    }
+    function nettoyerEcarts(){
+      Object.keys(etat.ecarts).forEach(k => { if(etat.ecarts[k] === defautDe(k)) delete etat.ecarts[k]; });
+    }
+    function majCompte(){
+      const el = tr.querySelector('.f-compte');
+      if(!el) return;
+      const n = Object.keys(etat.ecarts).length;
+      el.innerHTML = n ? '<span class="pill perso" title="Droits différents du rôle">' + n + ' perso</span>' : '';
+    }
+    function dessinerDroits(){
+      const desactive = tr.querySelector('.f-actif').value === 'non';
+      const grille = reference.liste.map(d => {
+        const coche = effectif(d.cle);
+        const perso = Object.prototype.hasOwnProperty.call(etat.ecarts, d.cle);
+        const bloque = desactive || (cestMoi && d.cle === 'gererUtilisateurs');
+        return '<label class="droit' + (perso ? ' perso' : '') + (bloque ? ' bloque' : '') + '">' +
+          '<input type="checkbox" data-cle="' + d.cle + '"' + (coche ? ' checked' : '') + (bloque ? ' disabled' : '') + '>' +
+          '<span><div class="t">' + d.libelle + '</div>' +
+          '<div class="a">' + (d.aide || '') + '</div>' +
+          (perso ? '<div class="r">Rôle : ' + (defautDe(d.cle) ? 'oui' : 'non') + ' — modifié pour cette personne</div>' : '') +
+          (cestMoi && d.cle === 'gererUtilisateurs' ? '<div class="a">Vous ne pouvez pas vous retirer ce droit.</div>' : '') +
+          '</span></label>';
+      }).join('');
+      ligneDroits.innerHTML =
+        '<td colspan="7">' +
+          (desactive ? '<div class="avis" style="margin-bottom:10px;">Compte désactivé : aucun droit ne s\'applique tant qu\'il n\'est pas réactivé.</div>' : '') +
+          '<div class="grille-droits">' + grille + '</div>' +
+          '<div class="droits-pied"><span>Rôle <strong>' + ROLES[etat.role] + '</strong>. Les cases en jaune diffèrent du rôle. N\'oubliez pas « Enregistrer ».</span>' +
+          '<button class="btn f-reset" type="button"' + (Object.keys(etat.ecarts).length ? '' : ' disabled') + '>Revenir aux droits du rôle</button></div>' +
+        '</td>';
+      ligneDroits.querySelectorAll('input[type=checkbox]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const cle = cb.dataset.cle;
+          if(cb.checked === defautDe(cle)) delete etat.ecarts[cle];
+          else etat.ecarts[cle] = cb.checked;
+          tr.classList.add('modifiee');
+          dessinerDroits();
+          majCompte();
+        });
+      });
+      const reset = ligneDroits.querySelector('.f-reset');
+      if(reset) reset.addEventListener('click', () => {
+        etat.ecarts = {};
+        tr.classList.add('modifiee');
+        dessinerDroits();
+        majCompte();
+      });
+    }
+
+    if(reference){
+      majCompte();
+      tr.querySelector('.f-droits').addEventListener('click', () => {
+        const ouvrir = ligneDroits.style.display === 'none';
+        if(ouvrir) dessinerDroits();
+        ligneDroits.style.display = ouvrir ? '' : 'none';
+        tr.querySelector('.f-droits').textContent = ouvrir ? 'Droits \u25B4' : 'Droits \u25BE';
+      });
+      tr.querySelector('.f-role').addEventListener('change', () => {
+        etat.role = tr.querySelector('.f-role').value;
+        nettoyerEcarts();
+        majCompte();
+        if(ligneDroits.style.display !== 'none') dessinerDroits();
+      });
+      tr.querySelector('.f-actif').addEventListener('change', () => {
+        if(ligneDroits.style.display !== 'none') dessinerDroits();
+      });
+    }
 
     tr.querySelector('.f-save').addEventListener('click', async () => {
       const bouton = tr.querySelector('.f-save');
@@ -295,14 +409,15 @@ function rendre(){
         acheteur: tr.querySelector('.f-acheteur').value === 'oui',
         note: tr.querySelector('.f-note').value.trim()
       };
+      if(reference) corpsMaj.droits = etat.ecarts;
       try{
         const r = await appelPOST(corpsMaj);
-        if(!r || r.ok !== true) throw new Error('refus');
+        if(!r || r.ok !== true) throw new Error((r && r.erreur) || 'refus');
         message('t-msg', '\u2713 ' + u.nom + ' mis à jour.', 'ok');
         tr.classList.remove('modifiee');
         await charger();
       }catch(e){
-        message('t-msg', "Échec de la mise à jour de " + u.nom + ".", 'err');
+        message('t-msg', "Échec de la mise à jour de " + u.nom + (e && e.message && e.message !== 'refus' ? ' : ' + e.message : '.'), 'err');
         bouton.disabled = false;
         bouton.textContent = 'Enregistrer';
       }
@@ -328,6 +443,7 @@ function rendre(){
     }
 
     corps.appendChild(tr);
+    if(reference) corps.appendChild(ligneDroits);
   });
 }
 

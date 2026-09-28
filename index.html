@@ -545,16 +545,28 @@ function setSynced(msg){
   document.getElementById('synced-msg').textContent = msg;
 }
 
+// Ecritures en cours : pendant ce temps, le rafraichissement automatique
+// attend. Sans ca, une lecture partie juste avant l'ecriture ramenait
+// l'ancienne liste par-dessus la nouvelle (le vehicule semblait « revenir »).
+let ecrituresEnCours = 0;
+let generationEcriture = 0;
+
 async function fetchFromSheet(){
   if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
-  setSynced('Chargement depuis Google Sheet...');
+  const generation = generationEcriture;
+  if(!ecrituresEnCours) setSynced('Chargement depuis Google Sheet...');
   try{
     const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE + '&_=' + Date.now(), { method: 'GET' });
     const data = await resp.json();
-    vehicules = data.vehicules || [];
+    // Une ecriture est partie pendant cette lecture : ces donnees sont
+    // anterieures a l'ecriture, on ne les affiche pas.
+    if(generation !== generationEcriture) return;
+    if(!Array.isArray(data.vehicules)) throw new Error('reponse sans liste');
+    vehicules = data.vehicules;
     const heure = new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setSynced(vehicules.length + ' véhicule(s) reçus du serveur · dernière synchro ' + heure);
   }catch(e){
+    if(generation !== generationEcriture) return;
     setSynced('Impossible de joindre le Google Sheet. Vérifiez l\'URL et les permissions de partage.');
   }
   populateFilterDropdowns();
@@ -566,27 +578,83 @@ function populateFilterDropdowns(){
   // plus besoin de les reconstruire dynamiquement à partir des données.
 }
 
-async function postToSheet(payload){
-  if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
-  payload.sheet = SHEET_SOURCE;
-  setSynced('Enregistrement dans Google Sheet...');
+// Envoie une ecriture. Renvoie { data } si le serveur a repondu en JSON,
+// { illisible:true, statut } sinon (404 HTML de Google, reseau coupe...).
+async function envoyerEcriture_(payload){
   try{
     const resp = await fetch(scriptUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
-    const data = await resp.json();
-    vehicules = data.vehicules || [];
-    if(data.doublonsIgnores && data.doublonsIgnores.length > 0){
-      setSynced(`Enregistré · ${data.doublonsIgnores.length} VIN déjà existant(s) ignoré(s) : ${data.doublonsIgnores.join(', ')}`);
-    } else if(data.doublonIgnore){
-      setSynced(`VIN déjà existant, non ajouté : ${data.doublonIgnore}`);
-    } else {
-      setSynced('Connecté à Google Sheet · synchronisé');
-    }
+    const texte = await resp.text();
+    try{ return { data: JSON.parse(texte) }; }
+    catch(e){ return { illisible: true, statut: resp.status }; }
   }catch(e){
-    setSynced('Échec de l\'enregistrement dans Google Sheet. Réessayez.');
+    return { illisible: true, statut: 0 };
+  }
+}
+
+// Relit le registre de cette page (avec les reprises d'auth.js).
+// Renvoie la liste, ou null si Google ne repond pas.
+async function lireRegistre_(){
+  try{
+    const resp = await fetch(scriptUrl + '?sheet=' + SHEET_SOURCE + '&_=' + Date.now(), { method: 'GET' });
+    const data = await resp.json();
+    return Array.isArray(data.vehicules) ? data.vehicules : null;
+  }catch(e){ return null; }
+}
+
+async function postToSheet(payload){
+  if(!scriptUrl){ setSynced('Aucun Sheet connecté — collez votre URL ci-dessus.'); return; }
+  payload.sheet = SHEET_SOURCE;
+  setSynced('Enregistrement dans Google Sheet...');
+  ecrituresEnCours++;
+  generationEcriture++;
+  try{
+    const r = await envoyerEcriture_(payload);
+
+    if(r.data){
+      const data = r.data;
+      if(data.refuse || data.ok === false){
+        // Refus du serveur : on le dit, et on garde la liste affichee.
+        const motif = data.erreur || data.message || (data.code ? 'action refusée (' + data.code + ')' : 'action refusée');
+        setSynced('Non enregistré — ' + motif);
+        if(data.code !== 'jeton') alert('Le serveur a refusé l\'opération :\n\n' + motif);
+      } else {
+        if(Array.isArray(data.vehicules)) vehicules = data.vehicules;
+        else { const liste = await lireRegistre_(); if(liste) vehicules = liste; }
+        if(data.doublonsIgnores && data.doublonsIgnores.length > 0){
+          setSynced(`Enregistré · ${data.doublonsIgnores.length} VIN déjà existant(s) ignoré(s) : ${data.doublonsIgnores.join(', ')}`);
+        } else if(data.doublonIgnore){
+          setSynced(`VIN déjà existant, non ajouté : ${data.doublonIgnore}`);
+        } else {
+          setSynced('Connecté à Google Sheet · synchronisé');
+        }
+      }
+    } else {
+      // Google a mal repondu. Le script a souvent fait le travail quand meme
+      // (404 « Impossible d'ouvrir le fichier » apres une execution terminee).
+      // On relit le registre pour montrer l'etat reel plutot que de deviner.
+      setSynced('Réponse de Google illisible — vérification dans le registre...');
+      const liste = await lireRegistre_();
+      if(liste){
+        vehicules = liste;
+        if(payload.action === 'transfer' || payload.action === 'delete'){
+          const transfert = payload.action === 'transfer';
+          const parti = !liste.some(v => String(v.id) === String(payload.id));
+          setSynced(parti
+            ? (transfert ? 'Transfert confirmé' : 'Suppression confirmée') + ' — vérifié dans le registre.'
+            : (transfert ? 'Transfert non effectué' : 'Suppression non effectuée') + ' : Google n\'a pas répondu. Réessayez.');
+        } else {
+          setSynced('Google a mal répondu (HTTP ' + r.statut + '). Liste rechargée : vérifiez que votre modification y apparaît.');
+        }
+      } else {
+        setSynced('Google ne répond pas pour le moment (HTTP ' + r.statut + '). Rechargez la page dans une minute pour voir si la modification est passée.');
+      }
+    }
+  } finally {
+    ecrituresEnCours--;
   }
   populateFilterDropdowns();
   render();
@@ -607,6 +675,12 @@ let rafraichissementEnCours = false;
 async function rafraichirMaintenant(){
   if(rafraichissementEnCours || !scriptUrl) return;
   if(document.hidden) return;
+  // Une ecriture est en cours : sa reponse va redessiner la liste.
+  if(ecrituresEnCours > 0) return;
+  // Quelqu'un tape dans le tableau (no de stock, cout...) : redessiner
+  // maintenant effacerait sa saisie. On attend le prochain tour.
+  const actif = document.activeElement;
+  if(actif && actif.closest && actif.closest('#table-body') && /^(INPUT|SELECT|TEXTAREA)$/.test(actif.tagName)) return;
   rafraichissementEnCours = true;
   try{ await fetchFromSheet(); }
   finally{ rafraichissementEnCours = false; }

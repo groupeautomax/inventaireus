@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Évaluation de véhicule — Groupe Automax</title>
+<style>
+  :root {
+    --vert: #008a44;
+    --vert-fonce: #006e36;
+    --texte: #16181c;
+    --doux: #6b7280;
+    --trait: #e6e8ec;
+    --fond: #f6f7f9;
+    --carte: #ffffff;
+    --rouge: #b42318;
+    --rouge-fond: #fdf0ee;
+    --ambre: #8a4b1d;
+    --ambre-fond: #fdf4e8;
+    --rayon: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--fond); color: var(--texte); line-height: 1.45;
+  }
+  header {
+    background: var(--carte); border-bottom: 1px solid var(--trait);
+    padding: 12px 16px; position: sticky; top: 0; z-index: 10;
+  }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 640px; margin: 0 auto; }
+  .logo { height: 26px; display: block; }
+  .logo-texte { font-weight: 700; font-size: 17px; color: var(--vert); }
+  .pousse { margin-left: auto; }
+  .langues { display: flex; border: 1px solid var(--trait); border-radius: 999px; overflow: hidden; }
+  .langues button {
+    border: 0; background: transparent; padding: 6px 12px;
+    font: inherit; font-size: 13px; color: var(--doux); cursor: pointer;
+  }
+  .langues button[aria-pressed="true"] { background: var(--vert); color: #fff; font-weight: 600; }
+
+  main { max-width: 640px; margin: 0 auto; padding: 16px 16px 48px; }
+  .bloc {
+    background: var(--carte); border: 1px solid var(--trait);
+    border-radius: var(--rayon); padding: 18px; margin-bottom: 14px;
+  }
+  h1 { font-size: 24px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.3px; }
+  h2 { font-size: 17px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+  .numero {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 50%; background: var(--vert); color: #fff;
+    font-size: 14px; font-weight: 700; flex: 0 0 auto;
+  }
+  .aide { color: var(--doux); font-size: 14px; margin: 0 0 14px; }
+  .intro { color: var(--doux); font-size: 15px; margin: 0; }
+
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  input, textarea {
+    width: 100%; padding: 12px 13px; font: inherit; font-size: 16px;
+    border: 1px solid var(--trait); border-radius: 10px;
+    background: var(--fond); color: var(--texte);
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  input.vin {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 17px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  textarea { min-height: 72px; resize: vertical; }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 460px) { .duo { grid-template-columns: 1fr; gap: 0; } }
+
+  button.scanner {
+    width: 100%; padding: 13px 14px; font: inherit; font-size: 16px; font-weight: 600;
+    color: var(--vert); background: #e8f5ee; border: 1px solid #bfe3cf; border-radius: 10px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px;
+  }
+  button.scanner svg { width: 22px; height: 22px; flex: 0 0 auto; }
+  .ou { display: flex; align-items: center; gap: 10px; color: var(--doux); font-size: 13px; margin: 12px 0 0; }
+  .ou::before, .ou::after { content: ""; flex: 1; height: 1px; background: var(--trait); }
+  .etat-vin { font-size: 14px; margin: 6px 0 0; min-height: 20px; color: var(--doux); }
+  .etat-vin.bon { color: var(--vert); font-weight: 600; }
+  .etat-vin.mauvais { color: var(--ambre); }
+
+  .grille-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .photo {
+    position: relative; border: 2px dashed #cfd4dc; border-radius: 12px; overflow: hidden;
+    background: var(--fond); aspect-ratio: 4 / 3; cursor: pointer; display: block;
+  }
+  .photo input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .photo .vide {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 10px;
+  }
+  .photo .vide svg { width: 56px; height: 40px; color: #98a2b3; }
+  .photo.pleine .vide svg { color: var(--vert); }
+  .photo .vide .nom { font-size: 14px; font-weight: 600; }
+  .photo .vide .conseil { font-size: 12px; color: var(--doux); }
+  .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo.pleine { border-style: solid; border-color: var(--vert); }
+  .photo.erreur { border-style: solid; border-color: var(--rouge); }
+  .photo .etiquette {
+    position: absolute; left: 8px; bottom: 8px; padding: 4px 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; background: rgba(255,255,255,.92); color: var(--texte);
+    display: flex; align-items: center; gap: 5px; max-width: calc(100% - 16px);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .photo .etiquette .point { width: 8px; height: 8px; border-radius: 50%; background: #98a2b3; flex: 0 0 auto; }
+  .photo.envoi .etiquette .point { background: #f2b53b; animation: pulse 1s infinite; }
+  .photo.pleine .etiquette .point { background: var(--vert); }
+  .photo.erreur .etiquette .point { background: var(--rouge); }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .compteur { font-size: 14px; color: var(--doux); margin: 10px 0 0; }
+
+  button.envoyer {
+    width: 100%; margin-top: 6px; padding: 16px; font: inherit; font-size: 17px;
+    font-weight: 650; color: #fff; background: var(--vert);
+    border: 0; border-radius: 12px; cursor: pointer;
+  }
+  button.envoyer:disabled { opacity: .55; cursor: default; }
+  .legal { font-size: 12px; color: var(--doux); margin: 12px 0 0; text-align: center; }
+
+  .alerte { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
+  .alerte.mauvais { background: var(--rouge-fond); color: var(--rouge); }
+  .alerte.attention { background: var(--ambre-fond); color: var(--ambre); }
+  .cache { display: none !important; }
+
+  .final { text-align: center; padding: 34px 18px; }
+  .final .coche {
+    width: 64px; height: 64px; border-radius: 50%; background: #e8f5ee; color: var(--vert);
+    display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px;
+  }
+  .final .coche svg { width: 34px; height: 34px; }
+  .final p { color: var(--doux); font-size: 16px; }
+
+  /* Lecteur de code-barres plein écran */
+  #lecteur {
+    position: fixed; inset: 0; background: #000; z-index: 50; display: none; flex-direction: column;
+  }
+  #lecteur.ouvert { display: flex; }
+  #lecteur video { flex: 1 1 auto; width: 100%; height: 100%; object-fit: cover; }
+  #lecteur .cadre {
+    position: absolute; left: 6%; right: 6%; top: 40%; height: 18%;
+    border: 3px solid rgba(255,255,255,.9); border-radius: 12px;
+    box-shadow: 0 0 0 2000px rgba(0,0,0,.45);
+  }
+  #lecteur .haut {
+    position: absolute; top: 0; left: 0; right: 0; padding: 14px 16px;
+    padding-top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; color: #fff;
+  }
+  #lecteur .haut button {
+    margin-left: auto; font: inherit; font-size: 16px; font-weight: 600; color: #fff;
+    background: rgba(255,255,255,.18); border: 0; border-radius: 999px; padding: 9px 16px; cursor: pointer;
+  }
+  #lecteur .bas {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 20px;
+    padding-bottom: max(18px, env(safe-area-inset-bottom)); color: #fff; text-align: center;
+    font-size: 15px; background: linear-gradient(transparent, rgba(0,0,0,.6));
+  }
+  #lecteur .bas .grand { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+
+  .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rangee">
+    <img class="logo" src="../assets/logo.png" alt="Groupe Automax"
+         onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo-texte',textContent:'Groupe Automax'}))">
+    <div class="pousse langues" role="group" aria-label="Langue / Language">
+      <button type="button" data-langue="fr" aria-pressed="true">FR</button>
+      <button type="button" data-langue="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="chargement" class="chargement" data-t="chargement">Chargement…</div>
+
+  <div id="invalide" class="bloc cache">
+    <h1 data-t="invalideTitre">Lien invalide</h1>
+    <p class="intro" data-t="invalideTexte">Ce lien n'est plus valide. Demandez-en un nouveau à votre conseiller.</p>
+  </div>
+
+  <div id="dejaRecu" class="bloc final cache">
+    <div class="coche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+    <h1 data-t="dejaTitre">Demande déjà reçue</h1>
+    <p data-t="dejaTexte">Nous avons déjà reçu votre évaluation. Votre conseiller vous contactera sous peu.</p>
+  </div>
+
+  <div id="merci" class="bloc final cache">
+    <div class="coche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+    <h1 id="merciTitre">Merci!</h1>
+    <p id="merciTexte"></p>
+  </div>
+
+  <form id="formulaire" class="cache" novalidate>
+    <div class="bloc">
+      <h1 data-t="titre">Évaluation de votre véhicule</h1>
+      <p class="intro" id="intro"></p>
+    </div>
+
+    <div class="bloc">
+      <h2><span class="numero">1</span><span data-t="etape1">Votre véhicule</span></h2>
+      <p class="aide" data-t="aide1">Le NIV (17 caractères) se trouve sur l'étiquette de la portière du conducteur ou au bas du pare-brise, côté conducteur.</p>
+
+      <button type="button" class="scanner" id="btnScanner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M14 8v8M17 8v8"/></svg>
+        <span data-t="scanner">Scanner le code-barres du NIV</span>
+      </button>
+      <p class="ou" data-t="ou">ou tapez-le</p>
+      <label for="vin" data-t="labelVin">NIV / VIN (17 caractères)</label>
+      <input id="vin" class="vin" type="text" inputmode="latin" autocomplete="off" autocapitalize="characters"
+             spellcheck="false" maxlength="17" placeholder="1G1ZD5ST8JF123456">
+      <p class="etat-vin" id="etatVin"></p>
+
+      <label for="km" data-t="labelKm">Kilométrage</label>
+      <input id="km" type="text" inputmode="numeric" autocomplete="off" placeholder="85 000">
+    </div>
+
+    <div class="bloc">
+      <h2><span class="numero">2</span><span data-t="etape2">Cinq photos</span></h2>
+      <p class="aide" data-t="aide2">Touchez chaque case pour prendre la photo. Placez-vous à environ 3 mètres du véhicule pour qu'il soit entier dans le cadre.</p>
+      <div class="grille-photos" id="photos"></div>
+      <p class="compteur" id="compteur"></p>
+    </div>
+
+    <div class="bloc">
+      <h2><span class="numero">3</span><span data-t="etape3">Vos coordonnées</span></h2>
+      <p class="aide" data-t="aide3">Pour que votre conseiller puisse vous rappeler avec une offre.</p>
+      <div class="duo">
+        <div>
+          <label for="nom" data-t="labelNom">Nom complet</label>
+          <input id="nom" type="text" autocomplete="name" placeholder="Jean Tremblay">
+        </div>
+        <div>
+          <label for="tel" data-t="labelTel">Cellulaire</label>
+          <input id="tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="514 555-1234">
+        </div>
+      </div>
+      <label for="courriel" data-t="labelCourriel">Courriel (facultatif)</label>
+      <input id="courriel" type="email" inputmode="email" autocomplete="email" placeholder="jean@exemple.com">
+      <label for="notes" data-t="labelNotes">Commentaires (facultatif)</label>
+      <textarea id="notes" data-t-placeholder="notesPlaceholder" placeholder="Pneus d'hiver inclus, petite égratignure au pare-chocs…"></textarea>
+    </div>
+
+    <div id="alerte" class="alerte mauvais cache" role="alert"></div>
+
+    <button type="submit" class="envoyer" id="btnEnvoyer" data-t="envoyer">Envoyer ma demande</button>
+    <p class="legal" data-t="legal">Vos renseignements servent uniquement à évaluer votre véhicule et à vous transmettre une offre.</p>
+  </form>
+</main>
+
+<div id="lecteur" aria-modal="true" role="dialog">
+  <video id="video" playsinline muted autoplay></video>
+  <div class="cadre"></div>
+  <div class="haut">
+    <button type="button" id="btnFermerLecteur" data-t="fermer">Fermer</button>
+  </div>
+  <div class="bas">
+    <div class="grand" data-t="lecteurTitre">Visez le code-barres du NIV</div>
+    <div id="lecteurEtat" data-t="lecteurAide">Étiquette de la portière conducteur ou bas du pare-brise</div>
+  </div>
+</div>
+
+<!-- Lecteur de codes-barres ZXing (jsDelivr, repli sur unpkg). Sans lui, la
+     page reste utilisable : le client tape le NIV à la main. -->
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js" defer
+        onerror="var s=document.createElement('script');s.src='https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js';document.head.appendChild(s)"></script>
+<script>
+"use strict";
+
+/* ------------------------------ Réglages ------------------------------- */
+
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+
+/* Les cinq photos, dans l'ordre demandé. L'id doit correspondre à LEAD_ANGLES
+   dans Lead.gs. */
+const ANGLES = [
+  { id: "dash",    icone: "dash" },
+  { id: "avant",   icone: "avant" },
+  { id: "arriere", icone: "arriere" },
+  { id: "gauche",  icone: "gauche" },
+  { id: "droite",  icone: "droite" }
+];
+
+const T = {
+  fr: {
+    chargement: "Chargement…",
+    invalideTitre: "Lien invalide",
+    invalideTexte: "Ce lien n'est plus valide. Demandez-en un nouveau à votre conseiller.",
+    dejaTitre: "Demande déjà reçue",
+    dejaTexte: "Nous avons déjà reçu votre évaluation. Votre conseiller vous contactera sous peu.",
+    titre: "Évaluation de votre véhicule",
+    intro: (c, v) => (v ? v + " de " : "") + c + " vous invite à décrire votre véhicule. Trois étapes, environ deux minutes.",
+    etape1: "Votre véhicule",
+    aide1: "Le NIV (17 caractères) se trouve sur l'étiquette de la portière du conducteur ou au bas du pare-brise, côté conducteur.",
+    labelVin: "NIV / VIN (17 caractères)",
+    scanner: "Scanner le code-barres du NIV",
+    ou: "ou tapez-le",
+    vinCompte: n => n + " / 17 caractères",
+    vinDoute: "Ce NIV semble incorrect — vérifiez chaque caractère (pas de I, O ni Q).",
+    vinRecherche: "Vérification du véhicule…",
+    vinInconnu: "NIV valide.",
+    labelKm: "Kilométrage",
+    etape2: "Cinq photos",
+    aide2: "Touchez chaque case pour prendre la photo. Placez-vous à environ 3 mètres du véhicule pour qu'il soit entier dans le cadre.",
+    angles: { dash: "Tableau de bord", avant: "Avant", arriere: "Arrière", gauche: "Côté conducteur", droite: "Côté passager" },
+    conseils: { dash: "Moteur en marche, odomètre lisible", avant: "Véhicule entier, de face", arriere: "Véhicule entier, de dos", gauche: "De profil, entier", droite: "De profil, entier" },
+    etatEnvoi: "Envoi…", etatOk: "Reçue", etatErreur: "Réessayer", etatVide: "Touchez pour photographier",
+    compteur: (n) => n + " / 5 photos reçues",
+    etape3: "Vos coordonnées",
+    aide3: "Pour que votre conseiller puisse vous rappeler avec une offre.",
+    labelNom: "Nom complet",
+    labelTel: "Cellulaire",
+    labelCourriel: "Courriel (facultatif)",
+    labelNotes: "Commentaires (facultatif)",
+    notesPlaceholder: "Pneus d'hiver inclus, petite égratignure au pare-chocs…",
+    envoyer: "Envoyer ma demande",
+    envoiEnCours: "Envoi en cours…",
+    legal: "Vos renseignements servent uniquement à évaluer votre véhicule et à vous transmettre une offre.",
+    fermer: "Fermer",
+    lecteurTitre: "Visez le code-barres du NIV",
+    lecteurAide: "Étiquette de la portière conducteur ou bas du pare-brise",
+    lecteurCamera: "Caméra inaccessible. Tapez le NIV à la main.",
+    lecteurTrouve: "NIV trouvé!",
+    merciTitre: p => "Merci" + (p ? " " + p : "") + "!",
+    merciTexte: (c, v) => "Votre demande a été transmise à " + c + ". " + (v ? v + " vous" : "On vous") + " contactera sous peu avec une offre.",
+    erreurs: {
+      VIN_INVALIDE: "Le NIV doit avoir 17 caractères (sans I, O ni Q).",
+      KM_INVALIDE: "Indiquez le kilométrage.",
+      NOM_REQUIS: "Indiquez votre nom.",
+      TEL_INVALIDE: "Indiquez un numéro de cellulaire à 10 chiffres.",
+      PHOTOS_MANQUANTES: "Il manque des photos. Les cinq sont nécessaires.",
+      LIEN_INVALIDE: "Ce lien n'est plus valide.",
+      DEJA_RECU: "Cette demande a déjà été reçue.",
+      OCCUPE: "Le serveur est occupé, réessayez dans quelques secondes.",
+      PHOTO: "Une photo n'a pas pu être envoyée. Vérifiez votre connexion et touchez-la pour réessayer.",
+      RESEAU: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
+    }
+  },
+  en: {
+    chargement: "Loading…",
+    invalideTitre: "Invalid link",
+    invalideTexte: "This link is no longer valid. Ask your advisor for a new one.",
+    dejaTitre: "Request already received",
+    dejaTexte: "We already have your appraisal request. Your advisor will be in touch shortly.",
+    titre: "Your vehicle appraisal",
+    intro: (c, v) => (v ? v + " from " : "") + c + " would like to know about your vehicle. Three steps, about two minutes.",
+    etape1: "Your vehicle",
+    aide1: "The VIN (17 characters) is on the driver's door label or at the bottom of the windshield, driver's side.",
+    labelVin: "VIN (17 characters)",
+    scanner: "Scan the VIN barcode",
+    ou: "or type it",
+    vinCompte: n => n + " / 17 characters",
+    vinDoute: "This VIN looks wrong — check each character (no I, O or Q).",
+    vinRecherche: "Looking up the vehicle…",
+    vinInconnu: "Valid VIN.",
+    labelKm: "Mileage (km)",
+    etape2: "Five photos",
+    aide2: "Tap each box to take the photo. Stand about 3 metres away so the whole vehicle fits in the frame.",
+    angles: { dash: "Dashboard", avant: "Front", arriere: "Rear", gauche: "Driver side", droite: "Passenger side" },
+    conseils: { dash: "Engine on, odometer readable", avant: "Whole vehicle, head-on", arriere: "Whole vehicle, from behind", gauche: "Full side view", droite: "Full side view" },
+    etatEnvoi: "Uploading…", etatOk: "Received", etatErreur: "Retry", etatVide: "Tap to take photo",
+    compteur: (n) => n + " / 5 photos received",
+    etape3: "Your contact details",
+    aide3: "So your advisor can call you back with an offer.",
+    labelNom: "Full name",
+    labelTel: "Mobile phone",
+    labelCourriel: "Email (optional)",
+    labelNotes: "Comments (optional)",
+    notesPlaceholder: "Winter tires included, small scratch on the bumper…",
+    envoyer: "Send my request",
+    envoiEnCours: "Sending…",
+    legal: "Your information is used only to appraise your vehicle and send you an offer.",
+    fermer: "Close",
+    lecteurTitre: "Aim at the VIN barcode",
+    lecteurAide: "Driver's door label or bottom of the windshield",
+    lecteurCamera: "Camera unavailable. Type the VIN instead.",
+    lecteurTrouve: "VIN found!",
+    merciTitre: p => "Thank you" + (p ? " " + p : "") + "!",
+    merciTexte: (c, v) => "Your request was sent to " + c + ". " + (v ? v + " will" : "We will") + " contact you shortly with an offer.",
+    erreurs: {
+      VIN_INVALIDE: "The VIN must have 17 characters (no I, O or Q).",
+      KM_INVALIDE: "Please enter the mileage.",
+      NOM_REQUIS: "Please enter your name.",
+      TEL_INVALIDE: "Please enter a 10-digit mobile number.",
+      PHOTOS_MANQUANTES: "Some photos are missing. All five are required.",
+      LIEN_INVALIDE: "This link is no longer valid.",
+      DEJA_RECU: "This request was already received.",
+      OCCUPE: "The server is busy, please try again in a few seconds.",
+      PHOTO: "A photo could not be uploaded. Check your connection and tap it to retry.",
+      RESEAU: "Could not reach the server. Check your connection and try again."
+    }
+  }
+};
+
+/* ------------------------------- État ---------------------------------- */
+
+const $ = (id) => document.getElementById(id);
+const token = new URLSearchParams(location.search).get("t") || "";
+let langue = "fr";
+let lien = null;                        // réponse de ?evalLien=
+const photos = {};                      // angle -> { etat: 'vide'|'envoi'|'ok'|'erreur', url, dataUrl, base64, mime }
+ANGLES.forEach(a => { photos[a.id] = { etat: "vide" }; });
+let vinDecode = { vin: "", annee: "", marque: "", modele: "" };
+
+/* ------------------------------ Langue --------------------------------- */
+
+function detecterLangue() {
+  try {
+    const g = localStorage.getItem("automaxLangue");
+    if (g === "fr" || g === "en") return g;
+  } catch (e) {}
+  return (navigator.language || "fr").toLowerCase().startsWith("en") ? "en" : "fr";
+}
+
+function appliquerLangue(l) {
+  langue = l;
+  document.documentElement.lang = l;
+  try { localStorage.setItem("automaxLangue", l); } catch (e) {}
+  document.querySelectorAll(".langues button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.langue === l)));
+  const t = T[l];
+  document.querySelectorAll("[data-t]").forEach(el => {
+    const v = t[el.dataset.t];
+    if (typeof v === "string") el.textContent = v;
+  });
+  document.querySelectorAll("[data-t-placeholder]").forEach(el => {
+    const v = t[el.dataset.tPlaceholder];
+    if (typeof v === "string") el.placeholder = v;
+  });
+  if (lien) $("intro").textContent = t.intro(lien.concession, lien.vendeur);
+  dessinerPhotos();
+  majEtatVin();
+}
+
+document.querySelectorAll(".langues button").forEach(b => b.addEventListener("click", () => appliquerLangue(b.dataset.langue)));
+
+/* ------------------------------ Réseau --------------------------------- */
+
+async function lireLien() {
+  const r = await fetch(SCRIPT_URL + "?evalLien=" + encodeURIComponent(token) + "&_=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+/* text/plain volontairement : un Content-Type application/json déclenche une
+   requête préparatoire OPTIONS à laquelle Apps Script ne répond pas. */
+async function poster(corps) {
+  const r = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(corps)
+  });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+/* ------------------------------- VIN ----------------------------------- */
+
+const VIN_VALEURS = { A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,J:1,K:2,L:3,M:4,N:5,P:7,R:9,S:2,T:3,U:4,V:5,W:6,X:7,Y:8,Z:9,
+                      0:0,1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9 };
+const VIN_POIDS = [8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2];
+
+/* Lettres interdites remplacées par le chiffre qui leur ressemble : un
+   scanner ou un client qui tape confond facilement O et 0, I et 1. */
+function corrigerVin(s) {
+  return String(s || "").toUpperCase().replace(/I/g, "1").replace(/[OQ]/g, "0").replace(/[^A-Z0-9]/g, "");
+}
+
+function chiffreControleValide(vin) {
+  if (vin.length !== 17) return false;
+  let somme = 0;
+  for (let i = 0; i < 17; i++) {
+    const v = VIN_VALEURS[vin[i]];
+    if (v === undefined) return false;
+    somme += v * VIN_POIDS[i];
+  }
+  const reste = somme % 11;
+  return vin[8] === (reste === 10 ? "X" : String(reste));
+}
+
+/* Un VIN scanné arrive parfois avec un préfixe (« I » sur certaines
+   étiquettes) ou noyé dans une chaîne plus longue : on cherche la fenêtre de
+   17 caractères dont le chiffre de contrôle tombe juste. */
+function extraireVin(brut) {
+  const c = corrigerVin(brut);
+  if (c.length === 17) return c;
+  if (c.length < 17) return "";
+  for (let i = 0; i + 17 <= c.length; i++) {
+    const fen = c.substring(i, i + 17);
+    if (chiffreControleValide(fen)) return fen;
+  }
+  return c.length === 18 && c[0] === "1" ? c.substring(1) : c.substring(0, 17);
+}
+
+let minuterieDecode = null;
+function majEtatVin() {
+  const t = T[langue];
+  const el = $("etatVin");
+  const vin = corrigerVin($("vin").value);
+  if (vin !== $("vin").value) $("vin").value = vin;
+  el.className = "etat-vin";
+  if (vin.length < 17) {
+    el.textContent = vin.length ? t.vinCompte(vin.length) : "";
+    vinDecode = { vin: "", annee: "", marque: "", modele: "" };
+    return;
+  }
+  if (!chiffreControleValide(vin)) {
+    el.className = "etat-vin mauvais";
+    el.textContent = t.vinDoute;
+  } else {
+    el.className = "etat-vin bon";
+    el.textContent = t.vinInconnu;
+  }
+  if (vinDecode.vin === vin && vinDecode.marque) {
+    el.className = "etat-vin bon";
+    el.textContent = [vinDecode.annee, vinDecode.marque, vinDecode.modele].filter(Boolean).join(" ");
+    return;
+  }
+  clearTimeout(minuterieDecode);
+  minuterieDecode = setTimeout(() => decoderVin(vin), 350);
+}
+
+async function decoderVin(vin) {
+  const t = T[langue];
+  const el = $("etatVin");
+  try {
+    if (chiffreControleValide(vin)) el.textContent = t.vinRecherche;
+    const r = await fetch("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/" + encodeURIComponent(vin) + "?format=json");
+    const j = await r.json();
+    const x = (j.Results && j.Results[0]) || {};
+    if ($("vin").value !== vin) return;      // le client a continué de taper
+    let marque = String(x.Make || "").trim();
+    if (marque) marque = marque[0] + marque.slice(1).toLowerCase();
+    vinDecode = { vin, annee: String(x.ModelYear || "").trim(), marque, modele: String(x.Model || "").trim() };
+    if (vinDecode.marque) {
+      el.className = "etat-vin bon";
+      el.textContent = [vinDecode.annee, vinDecode.marque, vinDecode.modele].filter(Boolean).join(" ");
+    } else if (chiffreControleValide(vin)) {
+      el.textContent = t.vinInconnu;
+    }
+  } catch (e) {
+    if (chiffreControleValide(vin)) { el.className = "etat-vin bon"; el.textContent = t.vinInconnu; }
+  }
+}
+
+$("vin").addEventListener("input", () => { majEtatVin(); sauvegarderBrouillon(); });
+
+/* ---------------------------- Lecteur caméra --------------------------- */
+
+let lecteur = null;
+let fluxActif = false;
+
+async function ouvrirLecteur() {
+  const t = T[langue];
+  $("lecteur").classList.add("ouvert");
+  $("lecteurEtat").textContent = t.lecteurAide;
+  if (!window.ZXing || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    $("lecteurEtat").textContent = t.lecteurCamera;
+    return;
+  }
+  try {
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.PDF_417
+    ]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    lecteur = new ZXing.BrowserMultiFormatReader(hints, 250);
+    fluxActif = true;
+    await lecteur.decodeFromConstraints(
+      { audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+      $("video"),
+      (resultat, erreur) => {
+        if (!fluxActif || !resultat) return;
+        const vin = extraireVin(resultat.getText());
+        if (vin.length !== 17) return;
+        // Un code non valide reste affiché comme lu : le client peut corriger.
+        $("vin").value = vin;
+        majEtatVin();
+        sauvegarderBrouillon();
+        $("lecteurEtat").textContent = t.lecteurTrouve + " " + vin;
+        try { navigator.vibrate && navigator.vibrate(80); } catch (e) {}
+        setTimeout(fermerLecteur, 500);
+      }
+    );
+  } catch (e) {
+    $("lecteurEtat").textContent = t.lecteurCamera;
+  }
+}
+
+function fermerLecteur() {
+  fluxActif = false;
+  try { lecteur && lecteur.reset(); } catch (e) {}
+  lecteur = null;
+  $("lecteur").classList.remove("ouvert");
+}
+
+$("btnScanner").addEventListener("click", ouvrirLecteur);
+$("btnFermerLecteur").addEventListener("click", fermerLecteur);
+
+/* ------------------------------- Photos -------------------------------- */
+
+const ICONES = {
+  dash: '<svg viewBox="0 0 56 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 34a20 20 0 1 1 40 0"/><path d="M28 34 38 18"/><circle cx="28" cy="34" r="3"/><path d="M14 30h3M39 30h3M20 20l2 2M36 20l-2 2M28 14v3"/></svg>',
+  avant: '<svg viewBox="0 0 56 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 30v4h6v-4M40 30v4h6v-4"/><path d="M8 30V22l5-11a3 3 0 0 1 3-2h24a3 3 0 0 1 3 2l5 11v8Z"/><path d="M13 22h30"/><circle cx="16" cy="26" r="2"/><circle cx="40" cy="26" r="2"/><path d="M22 28h12"/></svg>',
+  arriere: '<svg viewBox="0 0 56 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 30v4h6v-4M40 30v4h6v-4"/><path d="M8 30V21l5-10a3 3 0 0 1 3-2h24a3 3 0 0 1 3 2l5 10v9Z"/><path d="M14 21h28"/><path d="M11 26h6M39 26h6"/><path d="M24 28h8"/></svg>',
+  gauche: '<svg viewBox="0 0 56 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 28v-6l6-2 8-8h16l10 8h6a3 3 0 0 1 3 3v5H4Z"/><circle cx="15" cy="30" r="4"/><circle cx="42" cy="30" r="4"/><path d="M12 20h11l-1-6"/><path d="M26 20h8l-6-6"/></svg>',
+  droite: '<svg viewBox="0 0 56 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M52 28v-6l-6-2-8-8H22l-10 8H6a3 3 0 0 0-3 3v5h49Z"/><circle cx="41" cy="30" r="4"/><circle cx="14" cy="30" r="4"/><path d="M44 20H33l1-6"/><path d="M30 20h-8l6-6"/></svg>'
+};
+
+function dessinerPhotos() {
+  const t = T[langue];
+  const grille = $("photos");
+  grille.innerHTML = "";
+  let recues = 0;
+  ANGLES.forEach(a => {
+    const p = photos[a.id];
+    if (p.etat === "ok") recues++;
+    const boite = document.createElement("label");
+    boite.className = "photo " + ({ ok: "pleine", envoi: "envoi", erreur: "erreur" }[p.etat] || "");
+    boite.dataset.angle = a.id;
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.addEventListener("change", () => input.files && input.files[0] && photoChoisie(a.id, input.files[0]));
+    boite.appendChild(input);
+
+    if (p.dataUrl) {
+      const img = document.createElement("img");
+      img.src = p.dataUrl;
+      img.alt = t.angles[a.id];
+      boite.appendChild(img);
+      const etiquette = document.createElement("div");
+      etiquette.className = "etiquette";
+      const etat = { envoi: t.etatEnvoi, ok: t.etatOk, erreur: t.etatErreur }[p.etat] || "";
+      etiquette.innerHTML = '<span class="point"></span>' + t.angles[a.id] + (etat ? " · " + etat : "");
+      boite.appendChild(etiquette);
+    } else {
+      // Case vide, ou photo déjà reçue lors d'une visite précédente (page
+      // rechargée : pas d'aperçu local, mais elle est sur le serveur).
+      const vide = document.createElement("div");
+      vide.className = "vide";
+      const sous = p.etat === "ok" ? t.etatOk + " ✓" : p.etat === "erreur" ? t.etatErreur : t.conseils[a.id];
+      vide.innerHTML = ICONES[a.icone] + '<div class="nom">' + t.angles[a.id] + '</div><div class="conseil">' + sous + '</div>';
+      boite.appendChild(vide);
+    }
+
+    grille.appendChild(boite);
+  });
+  $("compteur").textContent = t.compteur(recues);
+}
+
+/* Réduit la photo avant l'envoi : un cellulaire produit 3 à 6 Mo par photo,
+   1600 px de côté en JPEG suffisent largement pour une évaluation. */
+async function compresser(fichier) {
+  const url = URL.createObjectURL(fichier);
+  try {
+    const img = new Image();
+    img.src = url;
+    if (img.decode) { try { await img.decode(); } catch (e) { await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; }); } }
+    else await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; });
+    const max = 1600;
+    let w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) throw new Error("image vide");
+    const ratio = Math.min(1, max / Math.max(w, h));
+    w = Math.round(w * ratio); h = Math.round(h * ratio);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    return { dataUrl, base64: dataUrl.substring(dataUrl.indexOf(",") + 1), mime: "image/jpeg" };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function photoChoisie(angle, fichier) {
+  const p = photos[angle];
+  try {
+    const c = await compresser(fichier);
+    p.dataUrl = c.dataUrl; p.base64 = c.base64; p.mime = c.mime;
+  } catch (e) {
+    p.etat = "erreur";
+    dessinerPhotos();
+    return;
+  }
+  await envoyerPhoto(angle);
+}
+
+async function envoyerPhoto(angle) {
+  const p = photos[angle];
+  if (!p.base64) return false;
+  p.etat = "envoi";
+  dessinerPhotos();
+  try {
+    const r = await poster({ action: "evalPhoto", t: token, angle, imageBase64: p.base64, mimeType: p.mime });
+    if (r && r.ok) {
+      p.etat = "ok"; p.url = r.url;
+      dessinerPhotos();
+      return true;
+    }
+    if (r && (r.code === "DEJA_RECU" || r.code === "LIEN_INVALIDE")) { afficherErreur(r.code); }
+  } catch (e) { /* réseau */ }
+  p.etat = "erreur";
+  dessinerPhotos();
+  return false;
+}
+
+/* ----------------------------- Brouillon ------------------------------- */
+
+function cleBrouillon() { return "automaxEval_" + token; }
+
+function sauvegarderBrouillon() {
+  try {
+    localStorage.setItem(cleBrouillon(), JSON.stringify({
+      vin: $("vin").value, km: $("km").value, nom: $("nom").value,
+      tel: $("tel").value, courriel: $("courriel").value, notes: $("notes").value
+    }));
+  } catch (e) {}
+}
+
+function restaurerBrouillon() {
+  try {
+    const b = JSON.parse(localStorage.getItem(cleBrouillon()) || "null");
+    if (!b) return;
+    ["vin", "km", "nom", "tel", "courriel", "notes"].forEach(k => { if (b[k] && !$(k).value) $(k).value = b[k]; });
+  } catch (e) {}
+}
+
+["km", "nom", "tel", "courriel", "notes"].forEach(k => $(k).addEventListener("input", sauvegarderBrouillon));
+
+$("km").addEventListener("blur", () => {
+  const d = $("km").value.replace(/\D/g, "");
+  if (d) $("km").value = Number(d).toLocaleString(langue === "fr" ? "fr-CA" : "en-CA");
+  sauvegarderBrouillon();
+});
+
+/* ------------------------------- Envoi --------------------------------- */
+
+function afficherErreur(code, texte) {
+  const t = T[langue];
+  const el = $("alerte");
+  el.textContent = texte || t.erreurs[code] || t.erreurs.RESEAU;
+  el.classList.remove("cache");
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function cacherErreur() { $("alerte").classList.add("cache"); }
+
+$("formulaire").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  cacherErreur();
+  const t = T[langue];
+
+  const vin = corrigerVin($("vin").value);
+  if (vin.length !== 17) { afficherErreur("VIN_INVALIDE"); $("vin").focus(); return; }
+  const km = $("km").value.replace(/\D/g, "");
+  if (!km || Number(km) <= 0) { afficherErreur("KM_INVALIDE"); $("km").focus(); return; }
+  const nom = $("nom").value.trim();
+  if (nom.length < 2) { afficherErreur("NOM_REQUIS"); $("nom").focus(); return; }
+  let tel = $("tel").value.replace(/\D/g, "");
+  if (tel.length === 11 && tel[0] === "1") tel = tel.substring(1);
+  if (tel.length !== 10) { afficherErreur("TEL_INVALIDE"); $("tel").focus(); return; }
+
+  const bouton = $("btnEnvoyer");
+  bouton.disabled = true;
+  bouton.textContent = t.envoiEnCours;
+
+  try {
+    // Les photos qui n'ont pas encore atteint le serveur repartent d'abord.
+    for (const a of ANGLES) {
+      const p = photos[a.id];
+      if (p.etat !== "ok" && p.base64) await envoyerPhoto(a.id);
+    }
+    const manquantes = ANGLES.filter(a => photos[a.id].etat !== "ok");
+    if (manquantes.length) {
+      afficherErreur(manquantes.some(a => photos[a.id].etat === "erreur") ? "PHOTO" : "PHOTOS_MANQUANTES");
+      $("photos").scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    const urls = {};
+    ANGLES.forEach(a => { if (photos[a.id].url) urls[a.id] = photos[a.id].url; });
+
+    // Année / marque / modèle : si le décodage n'a pas encore répondu (le
+    // client a envoyé très vite), on lui laisse trois secondes, pas plus. Le
+    // serveur décode lui-même si ça manque.
+    if (vinDecode.vin !== vin) {
+      clearTimeout(minuterieDecode);
+      await Promise.race([decoderVin(vin), new Promise(ok => setTimeout(ok, 3000))]);
+    }
+
+    const r = await poster({
+      action: "evalSoumettre", t: token,
+      vin, km, nom, tel,
+      courriel: $("courriel").value.trim(),
+      notes: $("notes").value.trim(),
+      annee: vinDecode.vin === vin ? vinDecode.annee : "",
+      marque: vinDecode.vin === vin ? vinDecode.marque : "",
+      modele: vinDecode.vin === vin ? vinDecode.modele : "",
+      photos: urls
+    });
+
+    if (r && r.ok) {
+      try { localStorage.removeItem(cleBrouillon()); } catch (e) {}
+      $("formulaire").classList.add("cache");
+      $("merciTitre").textContent = t.merciTitre(nom.split(/\s+/)[0]);
+      $("merciTexte").textContent = t.merciTexte(lien.concession, lien.vendeur);
+      $("merci").classList.remove("cache");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (r && r.code === "DEJA_RECU") {
+      $("formulaire").classList.add("cache");
+      $("dejaRecu").classList.remove("cache");
+      return;
+    }
+    afficherErreur((r && r.code) || "RESEAU");
+  } catch (e) {
+    afficherErreur("RESEAU");
+  } finally {
+    bouton.disabled = false;
+    bouton.textContent = t.envoyer;
+  }
+});
+
+/* ----------------------------- Démarrage ------------------------------- */
+
+async function demarrer() {
+  appliquerLangue(detecterLangue());
+  if (!token) {
+    $("chargement").classList.add("cache");
+    $("invalide").classList.remove("cache");
+    return;
+  }
+  try {
+    lien = await lireLien();
+  } catch (e) {
+    $("chargement").textContent = T[langue].erreurs.RESEAU;
+    return;
+  }
+  $("chargement").classList.add("cache");
+  if (!lien || !lien.ok) { $("invalide").classList.remove("cache"); return; }
+  if (lien.statut === "recu") { $("dejaRecu").classList.remove("cache"); return; }
+
+  // Photos déjà reçues lors d'une visite précédente.
+  if (lien.photos) ANGLES.forEach(a => { if (lien.photos[a.id]) photos[a.id].etat = "ok"; });
+
+  $("intro").textContent = T[langue].intro(lien.concession, lien.vendeur);
+  if (lien.clientNom) $("nom").value = lien.clientNom;
+  if (lien.clientTel) $("tel").value = lien.clientTel;
+  restaurerBrouillon();
+  majEtatVin();
+  dessinerPhotos();
+  $("formulaire").classList.remove("cache");
+}
+
+demarrer();
+</script>
+</body>
+</html>

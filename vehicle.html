@@ -48,6 +48,9 @@
     border: 2px solid transparent; cursor: pointer; flex: 0 0 auto; background: #e9ebef;
   }
   .bande img[aria-current="true"] { border-color: var(--vert); }
+  .video-cadre { position: relative; aspect-ratio: 16 / 9; border-radius: var(--rayon); overflow: hidden; background: #000; }
+  .video-cadre iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video-lien { display: inline-block; margin-top: 10px; font-size: 14px; color: var(--vert); font-weight: 600; text-decoration: none; }
 
   h1 { font-size: 24px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.3px; }
   .vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; color: var(--doux); }
@@ -113,6 +116,12 @@
       <div class="bande" id="bande"></div>
     </div>
 
+    <div class="bloc" id="blocVideo" hidden>
+      <h2 id="titreVideo"></h2>
+      <div class="video-cadre" id="videoCadre"></div>
+      <a class="video-lien" id="videoLien" href="#" target="_blank" rel="noopener"></a>
+    </div>
+
     <div class="bloc">
       <h1 id="modele"></h1>
       <div class="vin" id="vin"></div>
@@ -160,6 +169,8 @@ const T = {
     chargement: "Chargement du véhicule…",
     surDemande: "Prix sur demande",
     jours: n => "En stock depuis " + n + " jours",
+    video: "Vidéo du véhicule",
+    videoOuvrir: "Ouvrir la vidéo dans un nouvel onglet",
     titreOffre: "Faire une offre",
     aideOffre: "Laissez-nous votre prix et vos conditions. Nous vous répondons rapidement.",
     nom: "Votre nom",
@@ -188,6 +199,8 @@ const T = {
     chargement: "Loading vehicle…",
     surDemande: "Price on request",
     jours: n => "In stock for " + n + " days",
+    video: "Vehicle video",
+    videoOuvrir: "Open the video in a new tab",
     titreOffre: "Make an offer",
     aideOffre: "Send us your price and your terms. We get back to you quickly.",
     nom: "Your name",
@@ -233,6 +246,11 @@ function echappe(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[c]));
+}
+
+function idDrive(url) {
+  const m = String(url || "").match(/\/d\/([^/?]+)/) || String(url || "").match(/[?&]id=([^&]+)/);
+  return m ? m[1] : "";
 }
 
 function vignette(url, largeur) {
@@ -285,6 +303,21 @@ function dessiner() {
 
   document.getElementById("jours").textContent = v.days ? t().jours(v.days) : "";
   document.getElementById("description").textContent = v.description || "";
+
+  // Vidéo (facultative) : hébergée sur Drive, lue dans son lecteur intégré.
+  const blocVideo = document.getElementById("blocVideo");
+  const idVideo = idDrive(v.video || "");
+  if (idVideo) {
+    blocVideo.hidden = false;
+    document.getElementById("titreVideo").textContent = t().video;
+    document.getElementById("videoCadre").innerHTML =
+      '<iframe src="https://drive.google.com/file/d/' + echappe(idVideo) + '/preview" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe>';
+    const lien = document.getElementById("videoLien");
+    lien.href = "https://drive.google.com/file/d/" + idVideo + "/view";
+    lien.textContent = t().videoOuvrir;
+  } else {
+    blocVideo.hidden = true;
+  }
 
   const photos = v.photos || [];
   const bloc = document.getElementById("blocPhotos");

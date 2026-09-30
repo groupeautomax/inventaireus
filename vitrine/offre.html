@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Groupe Automax — Votre offre</title>
+<style>
+  :root {
+    --vert: #008a44;
+    --texte: #16181c;
+    --doux: #6b7280;
+    --trait: #e6e8ec;
+    --fond: #f6f7f9;
+    --carte: #ffffff;
+    --rayon: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--fond); color: var(--texte); line-height: 1.45;
+  }
+  header {
+    background: var(--carte); border-bottom: 1px solid var(--trait);
+    padding: 14px 16px; position: sticky; top: 0; z-index: 10;
+  }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 760px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; }
+  .pousse { margin-left: auto; }
+  .langues { display: flex; border: 1px solid var(--trait); border-radius: 999px; overflow: hidden; }
+  .langues button {
+    border: 0; background: transparent; padding: 6px 12px;
+    font: inherit; font-size: 13px; color: var(--doux); cursor: pointer;
+  }
+  .langues button[aria-pressed="true"] { background: var(--vert); color: #fff; font-weight: 600; }
+
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .bloc {
+    background: var(--carte); border: 1px solid var(--trait);
+    border-radius: var(--rayon); padding: 18px; margin-bottom: 14px;
+  }
+  .vehicule { display: flex; gap: 14px; align-items: center; }
+  .vehicule img { width: 112px; height: 84px; object-fit: cover; border-radius: 10px; background: #e9ebef; flex: 0 0 auto; }
+  h1 { font-size: 21px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.3px; }
+  h2 { font-size: 17px; margin: 0 0 4px; }
+  .vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; color: var(--doux); }
+  .aide { color: var(--doux); font-size: 14px; margin: 0 0 14px; }
+  .etat { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+          padding: 4px 10px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-bottom: 10px; }
+  .etat.attente { background: #fff4d6; color: #8a5a00; }
+  .etat.action { background: #e7f5ed; color: #0a6136; }
+  .etat.ferme { background: #fdecec; color: #8a1d1d; }
+  .montant { font-size: 30px; font-weight: 700; color: var(--vert); margin: 4px 0 2px; letter-spacing: -0.5px; }
+  .sous { color: var(--doux); font-size: 14px; }
+
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  input, textarea, select {
+    width: 100%; padding: 12px 13px; font: inherit; font-size: 16px;
+    border: 1px solid var(--trait); border-radius: 10px;
+    background: var(--fond); color: var(--texte);
+  }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  textarea { min-height: 72px; resize: vertical; }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .trio { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .duo, .trio { grid-template-columns: 1fr; gap: 0; } }
+
+  .boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.principal, button.secondaire, button.discret {
+    padding: 14px 18px; font: inherit; font-size: 16px; font-weight: 650;
+    border-radius: 12px; cursor: pointer; border: 0;
+  }
+  button.principal { background: var(--vert); color: #fff; flex: 1 1 auto; }
+  button.secondaire { background: var(--fond); color: var(--texte); border: 1px solid var(--trait); flex: 1 1 auto; }
+  button.discret { background: transparent; color: var(--doux); text-decoration: underline; font-weight: 500; padding: 10px 6px; }
+  button:disabled { opacity: .55; cursor: default; }
+  .replis { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--trait); }
+
+  table.taxes { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 15px; }
+  table.taxes td { padding: 8px 4px; border-bottom: 1px solid var(--trait); }
+  table.taxes td.m { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.taxes tr.total td { font-weight: 700; font-size: 17px; border-bottom: 0; border-top: 2px solid var(--texte); }
+  .note { font-size: 13px; color: var(--doux); margin-top: 8px; }
+
+  .conditions { max-height: 220px; overflow: auto; border: 1px solid var(--trait); border-radius: 10px;
+                padding: 12px 14px 12px 30px; background: var(--fond); font-size: 14px; margin: 0; }
+  .conditions li { margin-bottom: 8px; }
+  .case { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 15px; }
+  .case input { width: 22px; height: 22px; margin: 2px 0 0; flex: 0 0 auto; }
+  .signature { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 22px; }
+
+  .historique { list-style: none; margin: 0; padding: 0; }
+  .historique li { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--trait); font-size: 14px; }
+  .historique li:last-child { border-bottom: 0; }
+  .historique .quand { color: var(--doux); white-space: nowrap; flex: 0 0 100%; font-size: 13px; }
+  .historique .m { margin-left: auto; font-weight: 600; white-space: nowrap; }
+  @media (min-width: 521px) { .historique .quand { flex: 0 0 150px; font-size: 14px; } }
+
+  .alerte { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
+  .alerte.mauvais { background: #fdf0e8; color: #8a4b1d; }
+  .alerte.bon { background: #e7f5ed; color: #0a6136; }
+  .message { text-align: center; padding: 56px 20px; color: var(--doux); }
+  .message strong { display: block; color: var(--texte); font-size: 17px; margin-bottom: 6px; }
+  footer { text-align: center; color: var(--doux); font-size: 13px; padding: 28px 16px 40px; }
+
+  @media (prefers-color-scheme: dark) {
+    :root { --texte: #f2f3f5; --doux: #9aa1ab; --trait: #2a2d33; --fond: #121316; --carte: #1b1d21; }
+    .vehicule img { background: #24272c; }
+    .etat { background: #24272c; }
+    .etat.attente { background: #3a2f10; color: #f3cf7a; }
+    .etat.action { background: #12331f; color: #8fd9b0; }
+    .etat.ferme { background: #3a1515; color: #f0a0a0; }
+    .alerte.mauvais { background: #3a2415; color: #f0b98b; }
+    .alerte.bon { background: #12331f; color: #8fd9b0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rangee">
+    <span class="marque">Groupe Automax</span>
+    <div class="pousse langues">
+      <button type="button" data-langue="fr">FR</button>
+      <button type="button" data-langue="en">EN</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="contenu" hidden>
+    <div class="bloc">
+      <div class="vehicule">
+        <img id="photo" alt="" hidden>
+        <div>
+          <h1 id="modele"></h1>
+          <div class="vin" id="vin"></div>
+          <div class="sous" id="vendeur"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bloc" id="blocEtat"></div>
+
+    <div class="bloc" id="blocHistorique" hidden>
+      <h2 id="titreHistorique"></h2>
+      <ul class="historique" id="historique"></ul>
+    </div>
+  </div>
+
+  <div class="message" id="message"></div>
+</main>
+
+<footer id="pied"></footer>
+
+<script>
+/* ---------------------------------------------------------------------------
+   La même adresse que dans vehicle.html et dans l'app.
+   --------------------------------------------------------------------------- */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+
+const PROVINCES = [
+  ["QC", "Québec", "Quebec"], ["ON", "Ontario", "Ontario"], ["NB", "Nouveau-Brunswick", "New Brunswick"],
+  ["NS", "Nouvelle-Écosse", "Nova Scotia"], ["PE", "Île-du-Prince-Édouard", "Prince Edward Island"],
+  ["NL", "Terre-Neuve-et-Labrador", "Newfoundland and Labrador"], ["MB", "Manitoba", "Manitoba"],
+  ["SK", "Saskatchewan", "Saskatchewan"], ["AB", "Alberta", "Alberta"], ["BC", "Colombie-Britannique", "British Columbia"],
+  ["YT", "Yukon", "Yukon"], ["NT", "Territoires du Nord-Ouest", "Northwest Territories"], ["NU", "Nunavut", "Nunavut"]
+];
+const HORS_CANADA = [["US", "États-Unis", "United States"], ["XX", "Autre pays", "Other country"]];
+
+const CLAUSES = {
+  fr: [
+    "Vente « tel quel » : le véhicule est vendu dans son état actuel, tel qu'inspecté ou tel que décrit (photos, vidéo, description et déclarations de l'annonce). L'acheteur reconnaît avoir eu l'occasion de l'inspecter ou de le faire inspecter.",
+    "Le vendeur demeure propriétaire du véhicule jusqu'à réception du paiement complet. L'acheteur n'en prend possession qu'une fois la réception des fonds confirmée par le vendeur.",
+    "Le paiement est dû par virement bancaire ou transfert électronique dans les 2 jours ouvrables suivant le contrat. À défaut de paiement dans ce délai, ou en cas de paiement renversé, le vendeur peut annuler la vente, revendre le véhicule et le reprendre sans avis, sans préjudice de tout autre recours.",
+    "Les risques de perte ou de dommage passent à l'acheteur dès la livraison ou la prise en charge du véhicule, selon la première éventualité. Le transport organisé par l'acheteur est à ses frais et à ses risques.",
+    "Les taxes sont calculées selon le lieu de livraison déclaré par l'acheteur. L'acheteur atteste l'exactitude de cette déclaration et de ses numéros d'inscription, et demeure responsable de toute taxe, droit ou frais réclamé à la suite d'une déclaration inexacte ou d'une exportation.",
+    "Le kilométrage est fourni par le vendeur au meilleur de sa connaissance. Tout dommage ou historique connu est déclaré à l'annonce.",
+    "Le contrat est régi par les lois de la province du vendeur. L'acceptation électronique a la même valeur qu'une signature manuscrite."
+  ],
+  en: [
+    "Sale \"as is\": the vehicle is sold in its current condition, as inspected or as described (photos, video, description and disclosures on the listing). The buyer acknowledges having had the opportunity to inspect it or to have it inspected.",
+    "Title and ownership remain with the seller until payment is received in full. The buyer takes possession only once the seller confirms receipt of the funds.",
+    "Payment is due by wire transfer or electronic funds transfer within 2 business days of the contract. If payment is not received within that period, or is reversed, the seller may cancel the sale, resell the vehicle and repossess it without notice, without prejudice to any other remedy.",
+    "Risk of loss or damage passes to the buyer upon delivery or pickup of the vehicle, whichever comes first. Transport arranged by the buyer is at the buyer's expense and risk.",
+    "Taxes are calculated according to the delivery location declared by the buyer. The buyer certifies the accuracy of this declaration and of its registration numbers, and remains liable for any tax, duty or fee assessed as a result of an inaccurate declaration or of an export.",
+    "The odometer reading is provided by the seller to the best of its knowledge. Any known damage or history is disclosed on the listing.",
+    "The contract is governed by the laws of the seller's province. Electronic acceptance has the same effect as a handwritten signature."
+  ]
+};
+
+const T = {
+  fr: {
+    chargement: "Chargement de votre offre…",
+    titreHistorique: "Historique",
+    pied: "Groupe Automax — offre réservée à nos acheteurs.",
+    vendeurChez: v => "Vendu par " + v,
+    etat: { nouvelle: "En attente du vendeur", contre: "Contre-offre reçue", acceptee: "Prix convenu — à finaliser",
+            contrat: "Contrat signé", refusee: "Offre fermée", annulee: "Transaction annulée" },
+    votreOffre: "Votre offre",
+    attenteDetail: "Le vendeur étudie votre offre. Vous recevrez sa réponse par courriel; cette page se met à jour aussi.",
+    modifier: "Modifier mon offre",
+    retirer: "Retirer mon offre",
+    contreTitre: "Le vendeur propose",
+    contreDetail: o => "Votre dernière offre était de " + o + ". Acceptez la contre-offre, proposez un autre montant ou refusez.",
+    accepter: c => "Accepter " + c,
+    autreOffre: "Faire une autre offre",
+    refuser: "Refuser",
+    nouveauMontant: "Votre nouveau montant",
+    messageVendeur: "Message au vendeur (facultatif)",
+    envoyerOffre: "Envoyer cette offre",
+    annulerSaisie: "Annuler",
+    prixConvenu: "Prix convenu",
+    finaliserAide: "Pour conclure la vente, inscrivez les coordonnées légales de votre entreprise et le lieu de livraison, vérifiez le total avec les taxes, puis signez électroniquement. Le contrat de vente vous sera envoyé par courriel en PDF.",
+    acheteurTitre: "Acheteur",
+    nomLegal: "Nom légal de l'entreprise",
+    signataire: "Nom du signataire",
+    adresse: "Adresse",
+    ville: "Ville",
+    province: "Province / État",
+    codePostal: "Code postal",
+    pays: "Pays",
+    noConcessionnaire: "No de concessionnaire (facultatif)",
+    tps: "No TPS/TVH (facultatif)",
+    tvq: "No TVQ (facultatif)",
+    telephone: "Téléphone",
+    courriel: "Courriel (le contrat y sera envoyé)",
+    livraisonTitre: "Livraison et taxes",
+    livraison: "Lieu de livraison du véhicule",
+    livraisonAide: "Les taxes dépendent de la province de livraison. Elles s'appliquent sur le prix convenu.",
+    prixVente: "Prix de vente",
+    sousTotal: "Sous-total",
+    frais: "Frais",
+    taxesFrais: "Taxes sur les frais",
+    total: "Total à payer",
+    conditionsTitre: "Conditions de vente",
+    accepteConditions: "J'ai lu les conditions et j'accepte d'acheter ce véhicule au total indiqué.",
+    signatureTitre: "Signature électronique",
+    signatureAide: "Tapez votre nom complet : il tient lieu de signature, avec la date, l'heure et votre courriel.",
+    signature: "Votre nom complet",
+    signer: "Signer et conclure la vente",
+    signatureEnCours: "Génération du contrat…",
+    contratTitre: n => "Contrat " + n,
+    contratDetail: (c, d) => "Signé le " + d + ". Le contrat de vente (PDF) a été envoyé à " + c + ", avec les modalités de paiement. Le véhicule est libéré dès réception du paiement complet.",
+    fermeeDetail: "Cette négociation est terminée. Merci de votre intérêt — d'autres véhicules vous attendent dans l'inventaire.",
+    annuleeDetail: "Le vendeur a annulé cette transaction. Contactez-le pour toute question.",
+    envoi: "Envoi…",
+    types: { offre: "Offre de l'acheteur", contre: "Contre-offre du vendeur", acceptee: "Prix accepté", refusee: "Offre refusée",
+             annulee: "Transaction annulée", signature: "Signature électronique", contrat: "Contrat généré" },
+    LIEN_INVALIDE: "Ce lien n'est plus valide. Vérifiez le courriel reçu ou contactez votre représentant chez Groupe Automax.",
+    FERMEE: "Cette négociation est fermée.",
+    PAS_DE_CONTRE: "Il n'y a pas de contre-offre à accepter.",
+    MONTANT_INVALIDE: "Indiquez un montant.",
+    NOM_REQUIS: "Le nom légal de l'entreprise est requis.",
+    ADRESSE_REQUISE: "L'adresse et la ville sont requises.",
+    COURRIEL_INVALIDE: "Veuillez entrer une adresse courriel valide.",
+    LIVRAISON_REQUISE: "Choisissez le lieu de livraison.",
+    SIGNATURE_REQUISE: "Tapez votre nom complet et cochez la case d'acceptation.",
+    PAS_ACCEPTEE: "Cette offre n'est pas encore acceptée.",
+    OCCUPE: "Le serveur est occupé, réessayez dans un instant.",
+    ERREUR: "Une erreur est survenue. Réessayez ou contactez le vendeur.",
+    RESEAU: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
+  },
+  en: {
+    chargement: "Loading your offer…",
+    titreHistorique: "History",
+    pied: "Groupe Automax — offer reserved for our buyers.",
+    vendeurChez: v => "Sold by " + v,
+    etat: { nouvelle: "Waiting for the seller", contre: "Counter-offer received", acceptee: "Price agreed — to finalize",
+            contrat: "Contract signed", refusee: "Offer closed", annulee: "Transaction cancelled" },
+    votreOffre: "Your offer",
+    attenteDetail: "The seller is reviewing your offer. You will get the answer by email; this page updates too.",
+    modifier: "Change my offer",
+    retirer: "Withdraw my offer",
+    contreTitre: "The seller proposes",
+    contreDetail: o => "Your last offer was " + o + ". Accept the counter-offer, propose another amount or decline.",
+    accepter: c => "Accept " + c,
+    autreOffre: "Make another offer",
+    refuser: "Decline",
+    nouveauMontant: "Your new amount",
+    messageVendeur: "Message to the seller (optional)",
+    envoyerOffre: "Send this offer",
+    annulerSaisie: "Cancel",
+    prixConvenu: "Agreed price",
+    finaliserAide: "To close the sale, enter your dealership's legal details and the delivery location, check the total with taxes, then sign electronically. The bill of sale will be emailed to you as a PDF.",
+    acheteurTitre: "Buyer",
+    nomLegal: "Company legal name",
+    signataire: "Signatory name",
+    adresse: "Address",
+    ville: "City",
+    province: "Province / State",
+    codePostal: "Postal / ZIP code",
+    pays: "Country",
+    noConcessionnaire: "Dealer number (optional)",
+    tps: "GST/HST number (optional)",
+    tvq: "QST number (optional)",
+    telephone: "Phone",
+    courriel: "Email (the contract is sent there)",
+    livraisonTitre: "Delivery and taxes",
+    livraison: "Vehicle delivery location",
+    livraisonAide: "Taxes depend on the delivery province. They apply to the agreed price.",
+    prixVente: "Purchase price",
+    sousTotal: "Subtotal",
+    frais: "Fees",
+    taxesFrais: "Taxes on fees",
+    total: "Total due",
+    conditionsTitre: "Terms of sale",
+    accepteConditions: "I have read the terms and agree to buy this vehicle for the total shown.",
+    signatureTitre: "Electronic signature",
+    signatureAide: "Type your full name: it serves as your signature, together with the date, time and your email.",
+    signature: "Your full name",
+    signer: "Sign and close the sale",
+    signatureEnCours: "Generating the contract…",
+    contratTitre: n => "Contract " + n,
+    contratDetail: (c, d) => "Signed on " + d + ". The bill of sale (PDF) was sent to " + c + ", with payment instructions. The vehicle is released once payment is received in full.",
+    fermeeDetail: "This negotiation is over. Thank you for your interest — other vehicles are waiting in the inventory.",
+    annuleeDetail: "The seller cancelled this transaction. Contact them with any question.",
+    envoi: "Sending…",
+    types: { offre: "Buyer's offer", contre: "Seller's counter-offer", acceptee: "Price accepted", refusee: "Offer declined",
+             annulee: "Transaction cancelled", signature: "Electronic signature", contrat: "Contract generated" },
+    LIEN_INVALIDE: "This link is no longer valid. Check the email you received or contact your Groupe Automax representative.",
+    FERMEE: "This negotiation is closed.",
+    PAS_DE_CONTRE: "There is no counter-offer to accept.",
+    MONTANT_INVALIDE: "Enter an amount.",
+    NOM_REQUIS: "The company legal name is required.",
+    ADRESSE_REQUISE: "Address and city are required.",
+    COURRIEL_INVALIDE: "Please enter a valid email address.",
+    LIVRAISON_REQUISE: "Choose the delivery location.",
+    SIGNATURE_REQUISE: "Type your full name and tick the acceptance box.",
+    PAS_ACCEPTEE: "This offer is not accepted yet.",
+    OCCUPE: "The server is busy, try again in a moment.",
+    ERREUR: "Something went wrong. Try again or contact the seller.",
+    RESEAU: "Could not reach the server. Check your connection and try again."
+  }
+};
+
+function langueChoisie() {
+  try {
+    const g = localStorage.getItem("automaxLangue");
+    if (g === "fr" || g === "en") return g;
+  } catch (e) {}
+  return (navigator.language || "fr").toLowerCase().indexOf("en") === 0 ? "en" : "fr";
+}
+
+let langue = langueChoisie();
+let offre = null;
+let saisieContre = false;     // le formulaire « autre offre » est déplié
+const brouillon = {};         // ce que l'acheteur a tapé, conservé au changement de langue
+function t() { return T[langue]; }
+
+const params = new URLSearchParams(location.search);
+const idOffre = params.get("o") || "";
+
+function echappe(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function argent(n) {
+  n = Math.round((Number(n) || 0) * 100) / 100;
+  const neg = n < 0; n = Math.abs(n);
+  const entier = Math.floor(n), cents = Math.round((n - entier) * 100);
+  const c = (cents < 10 ? "0" : "") + cents;
+  if (langue === "en") return (neg ? "-" : "") + "$" + String(entier).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + c;
+  return (neg ? "-" : "") + String(entier).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + c + " $";
+}
+
+function pourcent(taux) {
+  const p = String(Math.round(taux * 100000) / 1000);
+  return langue === "en" ? p + "%" : p.replace(".", ",") + " %";
+}
+
+function dateLisible(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(langue === "en" ? "en-CA" : "fr-CA", { year: "numeric", month: "long", day: "numeric" })
+    + " " + d.toLocaleTimeString(langue === "en" ? "en-CA" : "fr-CA", { hour: "2-digit", minute: "2-digit" });
+}
+
+function vignette(url, largeur) {
+  if (!url) return "";
+  const m = url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^/?]+)/);
+  return m ? "https://drive.google.com/thumbnail?id=" + m[1] + "&sz=w" + largeur : url;
+}
+
+function nomRegion(code) {
+  const tous = PROVINCES.concat(HORS_CANADA);
+  for (const r of tous) if (r[0] === code) return langue === "en" ? r[2] : r[1];
+  return code;
+}
+
+function afficherMessage(titre, detail) {
+  document.getElementById("contenu").hidden = true;
+  const m = document.getElementById("message");
+  m.innerHTML = "<strong>" + echappe(titre) + "</strong>" + echappe(detail || "");
+  m.hidden = false;
+}
+
+/* ------------------------------ TAXES (aperçu) ------------------------- */
+
+function calculer(prix, code) {
+  const regle = (offre.taxes || {})[code] || (offre.taxes || {}).QC || { lignes: [], nom: code };
+  prix = Math.round(prix * 100) / 100;
+  const arr = x => Math.round(x * 100) / 100;
+  const taxesPrix = (regle.lignes || []).map(l => ({ code: l.code, taux: l.taux, montant: arr(prix * l.taux) }));
+  const sousTotal = arr(prix + taxesPrix.reduce((s, l) => s + l.montant, 0));
+  const frais = (offre.frais || []).filter(f => f.montant);
+  const baseTaxable = frais.filter(f => f.taxable).reduce((s, f) => s + Number(f.montant), 0);
+  const taxesFrais = (regle.lignes || []).map(l => ({ code: l.code, taux: l.taux, montant: arr(baseTaxable * l.taux) })).filter(l => l.montant);
+  const totalFrais = arr(frais.reduce((s, f) => s + Number(f.montant), 0) + taxesFrais.reduce((s, l) => s + l.montant, 0));
+  return { prix, taxesPrix, sousTotal, frais, taxesFrais, totalFrais, total: arr(sousTotal + totalFrais), note: regle.note || "", nom: regle.nom || code };
+}
+
+function codeTaxe(code) {
+  if (langue !== "en") return code;
+  return { TPS: "GST", TVQ: "QST", TVH: "HST" }[code] || code;
+}
+
+function tableauTaxes(prix, code) {
+  const c = calculer(prix, code);
+  let h = '<table class="taxes">';
+  h += "<tr><td>" + echappe(t().prixVente) + '</td><td class="m">' + echappe(argent(c.prix)) + "</td></tr>";
+  if (c.taxesPrix.length === 0) h += "<tr><td>" + echappe(langue === "en" ? "Taxes" : "Taxes") + '</td><td class="m">' + echappe(argent(0)) + "</td></tr>";
+  c.taxesPrix.forEach(x => {
+    h += "<tr><td>" + echappe(codeTaxe(x.code) + " " + pourcent(x.taux)) + '</td><td class="m">' + echappe(argent(x.montant)) + "</td></tr>";
+  });
+  if (c.frais.length) {
+    h += "<tr><td><b>" + echappe(t().sousTotal) + '</b></td><td class="m"><b>' + echappe(argent(c.sousTotal)) + "</b></td></tr>";
+    c.frais.forEach(f => { h += "<tr><td>" + echappe(f.libelle) + '</td><td class="m">' + echappe(argent(f.montant)) + "</td></tr>"; });
+    c.taxesFrais.forEach(x => { h += "<tr><td>" + echappe(t().taxesFrais + " — " + codeTaxe(x.code) + " " + pourcent(x.taux)) + '</td><td class="m">' + echappe(argent(x.montant)) + "</td></tr>"; });
+  }
+  h += '<tr class="total"><td>' + echappe(t().total) + '</td><td class="m">' + echappe(argent(c.total)) + "</td></tr></table>";
+  if (c.note) h += '<div class="note">' + echappe(c.note) + "</div>";
+  return h;
+}
+
+/* ------------------------------- DESSIN --------------------------------- */
+
+function appliquerTextes() {
+  document.documentElement.lang = langue;
+  document.title = "Groupe Automax — " + (langue === "en" ? "Your offer" : "Votre offre");
+  document.getElementById("pied").textContent = t().pied;
+  document.getElementById("titreHistorique").textContent = t().titreHistorique;
+  document.querySelectorAll(".langues button").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.langue === langue));
+  });
+  if (offre) dessiner();
+}
+
+function memoriserSaisie() {
+  document.querySelectorAll("#blocEtat input, #blocEtat select, #blocEtat textarea").forEach(el => {
+    if (!el.id) return;
+    brouillon[el.id] = el.type === "checkbox" ? el.checked : el.value;
+  });
+}
+
+function valeur(id, defaut) {
+  return (id in brouillon) ? brouillon[id] : (defaut == null ? "" : defaut);
+}
+
+function dessiner() {
+  const o = offre;
+  const v = o.vehicule || {};
+  document.getElementById("modele").textContent = v.modele || v.vin || "—";
+  document.getElementById("vin").textContent = v.vin || "";
+  document.getElementById("vendeur").textContent = o.vendeur && o.vendeur.nom ? t().vendeurChez(o.vendeur.nom) : "";
+  const photo = document.getElementById("photo");
+  if (v.photo) { photo.src = vignette(v.photo, 400); photo.hidden = false; } else { photo.hidden = true; }
+
+  const bloc = document.getElementById("blocEtat");
+  const classe = { nouvelle: "attente", contre: "action", acceptee: "action", contrat: "action", refusee: "ferme", annulee: "ferme" }[o.statut] || "";
+  let h = '<span class="etat ' + classe + '">' + echappe(t().etat[o.statut] || o.statut) + "</span>";
+
+  if (o.statut === "nouvelle") {
+    h += '<div class="sous">' + echappe(t().votreOffre) + '</div><div class="montant">' + echappe(argent(o.prixOffert)) + "</div>";
+    h += '<p class="aide">' + echappe(t().attenteDetail) + "</p>";
+    h += saisieContre ? formulaireContre() :
+      '<div class="boutons"><button type="button" class="secondaire" id="btnAutre">' + echappe(t().modifier) + "</button>" +
+      '<button type="button" class="discret" id="btnRefuser">' + echappe(t().retirer) + "</button></div>";
+  } else if (o.statut === "contre") {
+    h += '<div class="sous">' + echappe(t().contreTitre) + '</div><div class="montant">' + echappe(argent(o.contre)) + "</div>";
+    h += '<p class="aide">' + echappe(t().contreDetail(argent(o.prixOffert))) + "</p>";
+    h += saisieContre ? formulaireContre() :
+      '<div class="boutons"><button type="button" class="principal" id="btnAccepter">' + echappe(t().accepter(argent(o.contre))) + "</button>" +
+      '<button type="button" class="secondaire" id="btnAutre">' + echappe(t().autreOffre) + "</button>" +
+      '<button type="button" class="discret" id="btnRefuser">' + echappe(t().refuser) + "</button></div>";
+  } else if (o.statut === "acceptee") {
+    h += '<div class="sous">' + echappe(t().prixConvenu) + '</div><div class="montant">' + echappe(argent(o.prixFinal)) + "</div>";
+    h += '<p class="aide">' + echappe(t().finaliserAide) + "</p>";
+    h += formulaireFinalisation();
+  } else if (o.statut === "contrat") {
+    h += "<h2>" + echappe(t().contratTitre(o.noContrat || "")) + "</h2>";
+    h += '<div class="montant">' + echappe(argent(o.prixFinal)) + '</div><div class="sous">' + echappe(langue === "en" ? "Agreed price, before taxes" : "Prix convenu, avant taxes") + "</div>";
+    h += '<p class="aide" style="margin-top:12px">' + echappe(t().contratDetail((o.acheteur && o.acheteur.courriel) || o.courriel, dateLisible(o.contratLe))) + "</p>";
+    if (o.livraison) h += tableauTaxes(o.prixFinal, o.livraison);
+  } else if (o.statut === "annulee") {
+    h += '<p class="aide">' + echappe(t().annuleeDetail) + "</p>";
+  } else {
+    h += '<p class="aide">' + echappe(t().fermeeDetail) + "</p>";
+  }
+  h += '<div class="alerte mauvais" id="erreur" hidden></div>';
+  bloc.innerHTML = h;
+  brancher();
+
+  const hist = (o.historique || []).slice().reverse();
+  const blocH = document.getElementById("blocHistorique");
+  if (hist.length) {
+    blocH.hidden = false;
+    document.getElementById("historique").innerHTML = hist.map(e =>
+      '<li><span class="quand">' + echappe(dateLisible(e.quand)) + "</span><span>" + echappe(t().types[e.type] || e.type) + "</span>" +
+      (e.montant ? '<span class="m">' + echappe(argent(e.montant)) + "</span>" : "") + "</li>"
+    ).join("");
+  } else {
+    blocH.hidden = true;
+  }
+}
+
+function formulaireContre() {
+  return '<div class="replis">' +
+    '<label for="montant">' + echappe(t().nouveauMontant) + '</label><input id="montant" inputmode="decimal" value="' + echappe(valeur("montant")) + '">' +
+    '<label for="messageContre">' + echappe(t().messageVendeur) + '</label><textarea id="messageContre">' + echappe(valeur("messageContre")) + "</textarea>" +
+    '<div class="boutons"><button type="button" class="principal" id="btnEnvoyerContre">' + echappe(t().envoyerOffre) + "</button>" +
+    '<button type="button" class="secondaire" id="btnAnnulerContre">' + echappe(t().annulerSaisie) + "</button></div></div>";
+}
+
+function optionsRegion(choisi, avecHorsCanada) {
+  const liste = avecHorsCanada ? PROVINCES.concat(HORS_CANADA) : PROVINCES;
+  return liste.map(r => '<option value="' + r[0] + '"' + (r[0] === choisi ? " selected" : "") + ">" + echappe(langue === "en" ? r[2] : r[1]) + "</option>").join("");
+}
+
+function formulaireFinalisation() {
+  const o = offre;
+  const a = o.acheteur || {};
+  const champ = (id, libelle, defaut, attrs) =>
+    '<label for="' + id + '">' + echappe(libelle) + '</label><input id="' + id + '" value="' + echappe(valeur(id, defaut)) + '" ' + (attrs || "") + ">";
+  const pays = valeur("pays", a.pays === "États-Unis" || a.pays === "United States" ? "US" : "CA");
+  const provinceDefaut = valeur("province", a.province || "QC");
+  const livraisonDefaut = valeur("livraison", o.livraison || (pays === "CA" ? provinceDefaut : "US"));
+  let h = '<form id="formFinal" novalidate>';
+  h += "<h2>" + echappe(t().acheteurTitre) + "</h2>";
+  h += '<div class="duo"><div>' + champ("nomLegal", t().nomLegal, a.nomLegal || o.entreprise || o.nom, 'autocomplete="organization" required') + "</div>";
+  h += "<div>" + champ("signataire", t().signataire, a.signataire || o.nom, 'autocomplete="name"') + "</div></div>";
+  h += champ("adresse", t().adresse, a.adresse, 'autocomplete="street-address" required');
+  h += '<div class="trio"><div>' + champ("ville", t().ville, a.ville, 'autocomplete="address-level2" required') + "</div>";
+  h += '<div><label for="province">' + echappe(t().province) + "</label>";
+  if (pays === "CA") {
+    h += '<select id="province">' + optionsRegion(provinceDefaut, false) + "</select>";
+  } else {
+    h += '<input id="province" value="' + echappe(valeur("province", a.province)) + '" autocomplete="address-level1">';
+  }
+  h += "</div><div>" + champ("codePostal", t().codePostal, a.codePostal, 'autocomplete="postal-code"') + "</div></div>";
+  h += '<label for="pays">' + echappe(t().pays) + '</label><select id="pays">' +
+    '<option value="CA"' + (pays === "CA" ? " selected" : "") + ">Canada</option>" +
+    '<option value="US"' + (pays === "US" ? " selected" : "") + ">" + echappe(nomRegion("US")) + "</option>" +
+    '<option value="XX"' + (pays === "XX" ? " selected" : "") + ">" + echappe(nomRegion("XX")) + "</option></select>";
+  h += '<div class="duo"><div>' + champ("noConcessionnaire", t().noConcessionnaire, a.noConcessionnaire) + "</div>";
+  h += "<div>" + champ("tps", t().tps, a.tps) + "</div></div>";
+  h += '<div class="duo"><div>' + champ("tvq", t().tvq, a.tvq) + "</div>";
+  h += "<div>" + champ("telephone", t().telephone, a.telephone || o.telephone, 'type="tel" autocomplete="tel" inputmode="tel"') + "</div></div>";
+  h += champ("courriel", t().courriel, a.courriel || o.courriel, 'type="email" autocomplete="email" inputmode="email" required');
+
+  h += '<h2 style="margin-top:22px">' + echappe(t().livraisonTitre) + "</h2>";
+  h += '<p class="aide">' + echappe(t().livraisonAide) + "</p>";
+  h += '<label for="livraison">' + echappe(t().livraison) + '</label><select id="livraison">' + optionsRegion(livraisonDefaut, true) + "</select>";
+  h += '<div id="apercuTaxes">' + tableauTaxes(o.prixFinal, livraisonDefaut) + "</div>";
+
+  h += '<h2 style="margin-top:22px">' + echappe(t().conditionsTitre) + "</h2>";
+  h += '<ol class="conditions">' + CLAUSES[langue].map(c => "<li>" + echappe(c) + "</li>").join("") + "</ol>";
+  h += '<label class="case"><input type="checkbox" id="accepte"' + (valeur("accepte", false) ? " checked" : "") + "><span>" + echappe(t().accepteConditions) + "</span></label>";
+
+  h += '<h2 style="margin-top:22px">' + echappe(t().signatureTitre) + "</h2>";
+  h += '<p class="aide">' + echappe(t().signatureAide) + "</p>";
+  h += '<label for="signature">' + echappe(t().signature) + '</label><input id="signature" class="signature" value="' + echappe(valeur("signature")) + '" autocomplete="off">';
+  h += '<div class="boutons"><button type="submit" class="principal" id="btnSigner">' + echappe(t().signer) + "</button></div>";
+  h += "</form>";
+  return h;
+}
+
+/* ------------------------------- ACTIONS -------------------------------- */
+
+function brancher() {
+  const on = (id, ev, f) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, f); };
+  on("btnAutre", "click", () => { saisieContre = true; dessiner(); document.getElementById("montant").focus(); });
+  on("btnAnnulerContre", "click", () => { saisieContre = false; dessiner(); });
+  on("btnEnvoyerContre", "click", () => repondre("contre"));
+  on("btnAccepter", "click", () => repondre("accepter"));
+  on("btnRefuser", "click", () => {
+    if (confirm(langue === "en" ? "Withdraw from this negotiation?" : "Vous retirer de cette négociation ?")) repondre("refuser");
+  });
+  on("livraison", "change", () => {
+    memoriserSaisie();
+    document.getElementById("apercuTaxes").innerHTML = tableauTaxes(offre.prixFinal, document.getElementById("livraison").value);
+  });
+  on("pays", "change", () => {
+    memoriserSaisie();
+    const pays = document.getElementById("pays").value;
+    if (pays !== "CA") { brouillon.province = ""; brouillon.livraison = pays; }
+    else { brouillon.province = "QC"; brouillon.livraison = "QC"; }
+    dessiner();
+  });
+  on("province", "change", () => {
+    memoriserSaisie();
+    if (document.getElementById("pays").value === "CA") {
+      brouillon.livraison = document.getElementById("province").value;
+      dessiner();
+    }
+  });
+  on("formFinal", "submit", ev => { ev.preventDefault(); finaliser(); });
+}
+
+function erreur(code) {
+  const el = document.getElementById("erreur");
+  if (!el) return;
+  el.textContent = t()[code] || t().ERREUR;
+  el.hidden = false;
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+async function poster(corps) {
+  /* text/plain volontairement : un Content-Type application/json déclenche
+     une requête préparatoire OPTIONS, à laquelle Apps Script ne répond pas. */
+  const r = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(corps)
+  });
+  return r.json();
+}
+
+function geler(etat) {
+  document.querySelectorAll("#blocEtat button").forEach(b => { b.disabled = etat; });
+}
+
+async function repondre(reponse) {
+  memoriserSaisie();
+  const corps = { action: "offreRepondre", o: idOffre, reponse: reponse, langue: langue };
+  if (reponse === "contre") {
+    corps.montant = valeur("montant");
+    corps.message = valeur("messageContre");
+    if (!String(corps.montant).replace(/[^0-9]/g, "")) { erreur("MONTANT_INVALIDE"); return; }
+  }
+  geler(true);
+  try {
+    const j = await poster(corps);
+    if (!j.ok) { geler(false); erreur(j.code || "ERREUR"); if (j.statut) await charger(); return; }
+    saisieContre = false;
+    delete brouillon.montant; delete brouillon.messageContre;
+    await charger();
+  } catch (e) {
+    geler(false);
+    erreur("RESEAU");
+  }
+}
+
+async function finaliser() {
+  memoriserSaisie();
+  const acheteur = {
+    nomLegal: valeur("nomLegal"), signataire: valeur("signataire"), adresse: valeur("adresse"), ville: valeur("ville"),
+    province: valeur("province"), codePostal: valeur("codePostal"),
+    pays: { CA: "Canada", US: langue === "en" ? "United States" : "États-Unis" }[valeur("pays", "CA")] || valeur("pays"),
+    noConcessionnaire: valeur("noConcessionnaire"), tps: valeur("tps"), tvq: valeur("tvq"),
+    telephone: valeur("telephone"), courriel: valeur("courriel")
+  };
+  if (!acheteur.nomLegal || acheteur.nomLegal.length < 2) { erreur("NOM_REQUIS"); return; }
+  if (!acheteur.adresse || !acheteur.ville) { erreur("ADRESSE_REQUISE"); return; }
+  if (acheteur.courriel.indexOf("@") < 0) { erreur("COURRIEL_INVALIDE"); return; }
+  if (!valeur("livraison")) { erreur("LIVRAISON_REQUISE"); return; }
+  if (!valeur("accepte", false) || String(valeur("signature")).trim().length < 3) { erreur("SIGNATURE_REQUISE"); return; }
+
+  const bouton = document.getElementById("btnSigner");
+  bouton.disabled = true;
+  bouton.textContent = t().signatureEnCours;
+  try {
+    const j = await poster({
+      action: "offreFinaliser", o: idOffre, acheteur: acheteur, livraison: valeur("livraison"),
+      langue: langue, signature: String(valeur("signature")).trim(), accepte: true,
+      agent: navigator.userAgent
+    });
+    if (!j.ok) {
+      bouton.disabled = false; bouton.textContent = t().signer;
+      erreur(j.code || "ERREUR");
+      if (j.statut && j.statut !== "acceptee") await charger();
+      return;
+    }
+    await charger();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) {
+    bouton.disabled = false; bouton.textContent = t().signer;
+    erreur("RESEAU");
+  }
+}
+
+async function charger() {
+  if (!idOffre) { afficherMessage(t().LIEN_INVALIDE, ""); return; }
+  if (!offre) afficherMessage(t().chargement, "");
+  try {
+    const r = await fetch(SCRIPT_URL + "?offreLien=" + encodeURIComponent(idOffre) + "&_=" + Date.now());
+    const j = await r.json();
+    if (!j.ok) { afficherMessage(t()[j.code] || t().RESEAU, ""); return; }
+    offre = j;
+    let choisie = null;
+    try { choisie = localStorage.getItem("automaxLangue"); } catch (e) {}
+    if (!choisie && (j.langue === "fr" || j.langue === "en")) langue = j.langue;
+    document.getElementById("message").hidden = true;
+    document.getElementById("contenu").hidden = false;
+    appliquerTextes();
+  } catch (e) {
+    if (!offre) afficherMessage(t().RESEAU, "");
+  }
+}
+
+document.querySelectorAll(".langues button").forEach(b => {
+  b.addEventListener("click", () => {
+    memoriserSaisie();
+    langue = b.dataset.langue;
+    try { localStorage.setItem("automaxLangue", langue); } catch (e) {}
+    appliquerTextes();
+  });
+});
+
+appliquerTextes();
+charger();
+</script>
+</body>
+</html>

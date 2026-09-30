@@ -222,22 +222,22 @@
     </div>
 
     <div class="bloc">
-      <h2><span class="numero">2</span><span data-t="etape2">Cinq photos</span></h2>
-      <p class="aide" data-t="aide2">Touchez chaque case pour prendre la photo. Placez-vous à environ 3 mètres du véhicule pour qu'il soit entier dans le cadre.</p>
+      <h2><span class="numero">2</span><span data-t="etape2">Photos (facultatives)</span></h2>
+      <p class="aide" data-t="aide2">Cinq photos nous aident à évaluer juste, mais vous pouvez en prendre moins. Touchez une case pour photographier; placez-vous à environ 3 mètres du véhicule.</p>
       <div class="grille-photos" id="photos"></div>
       <p class="compteur" id="compteur"></p>
     </div>
 
     <div class="bloc">
       <h2><span class="numero">3</span><span data-t="etape3">Vos coordonnées</span></h2>
-      <p class="aide" data-t="aide3">Pour que votre conseiller puisse vous rappeler avec une offre.</p>
+      <p class="aide" data-t="aide3">Votre nom suffit; le cellulaire ou le courriel permet à votre conseiller de vous rappeler avec une offre.</p>
       <div class="duo">
         <div>
           <label for="nom" data-t="labelNom">Nom complet</label>
           <input id="nom" type="text" autocomplete="name" placeholder="Jean Tremblay">
         </div>
         <div>
-          <label for="tel" data-t="labelTel">Cellulaire</label>
+          <label for="tel" data-t="labelTel">Cellulaire (facultatif)</label>
           <input id="tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="514 555-1234">
         </div>
       </div>
@@ -306,16 +306,16 @@ const T = {
     vinRecherche: "Vérification du véhicule…",
     vinInconnu: "NIV valide.",
     labelKm: "Kilométrage",
-    etape2: "Cinq photos",
-    aide2: "Touchez chaque case pour prendre la photo. Placez-vous à environ 3 mètres du véhicule pour qu'il soit entier dans le cadre.",
+    etape2: "Photos (facultatives)",
+    aide2: "Cinq photos nous aident à évaluer juste, mais vous pouvez en prendre moins. Touchez une case pour photographier; placez-vous à environ 3 mètres du véhicule.",
     angles: { dash: "Tableau de bord", avant: "Avant", arriere: "Arrière", gauche: "Côté conducteur", droite: "Côté passager" },
     conseils: { dash: "Moteur en marche, odomètre lisible", avant: "Véhicule entier, de face", arriere: "Véhicule entier, de dos", gauche: "De profil, entier", droite: "De profil, entier" },
     etatEnvoi: "Envoi…", etatOk: "Reçue", etatErreur: "Réessayer", etatVide: "Touchez pour photographier",
-    compteur: (n) => n + " / 5 photos reçues",
+    compteur: (n) => n + " / 5 photo" + (n > 1 ? "s" : "") + " reçue" + (n > 1 ? "s" : ""),
     etape3: "Vos coordonnées",
-    aide3: "Pour que votre conseiller puisse vous rappeler avec une offre.",
+    aide3: "Votre nom suffit; le cellulaire ou le courriel permet à votre conseiller de vous rappeler avec une offre.",
     labelNom: "Nom complet",
-    labelTel: "Cellulaire",
+    labelTel: "Cellulaire (facultatif)",
     labelCourriel: "Courriel (facultatif)",
     labelNotes: "Commentaires (facultatif)",
     notesPlaceholder: "Pneus d'hiver inclus, petite égratignure au pare-chocs…",
@@ -333,8 +333,8 @@ const T = {
       VIN_INVALIDE: "Le NIV doit avoir 17 caractères (sans I, O ni Q).",
       KM_INVALIDE: "Indiquez le kilométrage.",
       NOM_REQUIS: "Indiquez votre nom.",
-      TEL_INVALIDE: "Indiquez un numéro de cellulaire à 10 chiffres.",
-      PHOTOS_MANQUANTES: "Il manque des photos. Les cinq sont nécessaires.",
+      TEL_INVALIDE: "Le cellulaire doit avoir 10 chiffres (ou laissez-le vide).",
+      PHOTOS_MANQUANTES: "Il manque des photos.",
       LIEN_INVALIDE: "Ce lien n'est plus valide.",
       DEJA_RECU: "Cette demande a déjà été reçue.",
       OCCUPE: "Le serveur est occupé, réessayez dans quelques secondes.",
@@ -360,16 +360,16 @@ const T = {
     vinRecherche: "Looking up the vehicle…",
     vinInconnu: "Valid VIN.",
     labelKm: "Mileage (km)",
-    etape2: "Five photos",
-    aide2: "Tap each box to take the photo. Stand about 3 metres away so the whole vehicle fits in the frame.",
+    etape2: "Photos (optional)",
+    aide2: "Five photos help us appraise accurately, but you can take fewer. Tap a box to take a photo; stand about 3 metres from the vehicle.",
     angles: { dash: "Dashboard", avant: "Front", arriere: "Rear", gauche: "Driver side", droite: "Passenger side" },
     conseils: { dash: "Engine on, odometer readable", avant: "Whole vehicle, head-on", arriere: "Whole vehicle, from behind", gauche: "Full side view", droite: "Full side view" },
     etatEnvoi: "Uploading…", etatOk: "Received", etatErreur: "Retry", etatVide: "Tap to take photo",
-    compteur: (n) => n + " / 5 photos received",
+    compteur: (n) => n + " / 5 photo" + (n > 1 ? "s" : "") + " received",
     etape3: "Your contact details",
-    aide3: "So your advisor can call you back with an offer.",
+    aide3: "Your name is enough; a mobile number or email lets your advisor call you back with an offer.",
     labelNom: "Full name",
-    labelTel: "Mobile phone",
+    labelTel: "Mobile phone (optional)",
     labelCourriel: "Email (optional)",
     labelNotes: "Comments (optional)",
     notesPlaceholder: "Winter tires included, small scratch on the bumper…",
@@ -387,8 +387,8 @@ const T = {
       VIN_INVALIDE: "The VIN must have 17 characters (no I, O or Q).",
       KM_INVALIDE: "Please enter the mileage.",
       NOM_REQUIS: "Please enter your name.",
-      TEL_INVALIDE: "Please enter a 10-digit mobile number.",
-      PHOTOS_MANQUANTES: "Some photos are missing. All five are required.",
+      TEL_INVALIDE: "The mobile number must have 10 digits (or leave it blank).",
+      PHOTOS_MANQUANTES: "Some photos are missing.",
       LIEN_INVALIDE: "This link is no longer valid.",
       DEJA_RECU: "This request was already received.",
       OCCUPE: "The server is busy, please try again in a few seconds.",
@@ -764,9 +764,10 @@ $("formulaire").addEventListener("submit", async (ev) => {
   if (!km || Number(km) <= 0) { afficherErreur("KM_INVALIDE"); $("km").focus(); return; }
   const nom = $("nom").value.trim();
   if (nom.length < 2) { afficherErreur("NOM_REQUIS"); $("nom").focus(); return; }
+  // Cellulaire facultatif : vide, on laisse passer ; rempli, on veut 10 chiffres.
   let tel = $("tel").value.replace(/\D/g, "");
   if (tel.length === 11 && tel[0] === "1") tel = tel.substring(1);
-  if (tel.length !== 10) { afficherErreur("TEL_INVALIDE"); $("tel").focus(); return; }
+  if (tel.length !== 0 && tel.length !== 10) { afficherErreur("TEL_INVALIDE"); $("tel").focus(); return; }
 
   const bouton = $("btnEnvoyer");
   bouton.disabled = true;
@@ -778,9 +779,10 @@ $("formulaire").addEventListener("submit", async (ev) => {
       const p = photos[a.id];
       if (p.etat !== "ok" && p.base64) await envoyerPhoto(a.id);
     }
-    const manquantes = ANGLES.filter(a => photos[a.id].etat !== "ok");
-    if (manquantes.length) {
-      afficherErreur(manquantes.some(a => photos[a.id].etat === "erreur") ? "PHOTO" : "PHOTOS_MANQUANTES");
+    // Les photos sont facultatives. On ne retient la demande que si une photo
+    // que le client a bel et bien prise n'a pas pu atteindre le serveur.
+    if (ANGLES.some(a => photos[a.id].etat === "erreur")) {
+      afficherErreur("PHOTO");
       $("photos").scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }

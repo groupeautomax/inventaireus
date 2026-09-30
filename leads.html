@@ -79,6 +79,9 @@
   .photo{display:block;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);text-decoration:none;color:var(--ink);}
   .photo img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#E9EBEF;}
   .photo .l{font-size:11px;padding:5px 7px;color:var(--ink-soft);}
+  .video-cadre{position:relative;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000;margin-top:10px;}
+  .video-cadre iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+  .video-lien{display:inline-block;margin-top:6px;font-size:12px;color:var(--accent);text-decoration:none;font-weight:500;}
   .fiche-pied{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
   .offre{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:#FAFBFC;}
   .offre h3{font-size:12.5px;font-weight:600;margin:0 0 2px;}
@@ -192,6 +195,10 @@
       <div>
         <div class="photos" id="fi-photos"></div>
         <div class="vide" id="fi-sansphoto" style="display:none;padding:14px 0;">Aucune photo reçue.</div>
+        <div id="fi-video" style="display:none;">
+          <div class="video-cadre" id="fi-video-cadre"></div>
+          <a class="video-lien" id="fi-video-lien" href="#" target="_blank" rel="noopener">Ouvrir la vidéo dans Drive</a>
+        </div>
       </div>
     </div>
   </div>
@@ -352,7 +359,7 @@ function dessinerListe(){
       '<td class="nw">' + h(telAffiche(l)) + '</td>' +
       '<td>' + h(l.concessionNom || l.concession) + '</td>' +
       '<td><span class="vendeur">' + h(l.vendeur || l.creePar) + '</span></td>' +
-      '<td>' + h(vehicule(l)) + '</td>' +
+      '<td>' + h(vehicule(l)) + (l.video ? ' <span class="pill crm-ok" title="Vidéo reçue">▶</span>' : '') + '</td>' +
       '<td class="mono">' + h(l.vin) + '</td>' +
       '<td class="nw">' + h(recu ? kmLisible(l.km) : '') + '</td>' +
       '<td><span class="pill ' + (recu ? 'recu' : 'envoye') + '">' + (recu ? 'Reçu' : 'En attente') + '</span></td>' +
@@ -399,6 +406,16 @@ function ouvrirFiche(l){
       '<img src="' + h(vignette(p.url)) + '" alt="' + h(p.libelle) + '" loading="lazy">' +
       '<div class="l">' + h(p.libelle) + '</div></a>').join('');
   $('fi-sansphoto').style.display = photos.length ? 'none' : 'block';
+
+  // Vidéo facultative du client, lue dans le lecteur intégré de Drive.
+  const idVideo = idDrive(l.video || '');
+  $('fi-video').style.display = idVideo ? 'block' : 'none';
+  if(idVideo){
+    $('fi-video-cadre').innerHTML = '<iframe src="https://drive.google.com/file/d/' + h(idVideo) + '/preview" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe>';
+    $('fi-video-lien').href = 'https://drive.google.com/file/d/' + idVideo + '/view';
+  } else {
+    $('fi-video-cadre').innerHTML = '';
+  }
 
   // Bloc « Répondre avec une offre » : seulement quand la demande est reçue.
   const bo = $('fi-offre');

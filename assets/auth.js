@@ -260,6 +260,7 @@
     { f: 'evaluation.html',   t: 'Évaluation' },
     { f: 'verification.html', t: 'Vérification' },
     { f: 'resultat.html',     t: 'Résultat' },
+    { f: 'leads.html',        t: 'Leads' },
     { f: 'admin.html',        t: 'Admin', admin: true }
   ];
 

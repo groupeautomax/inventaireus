@@ -78,6 +78,14 @@
     cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px;
   }
   button.scanner svg { width: 22px; height: 22px; flex: 0 0 auto; }
+  label.scanner {
+    width: 100%; padding: 11px 14px; font: inherit; font-size: 15px; font-weight: 600; margin-top: 8px;
+    color: var(--vert); background: #fff; border: 1px solid #bfe3cf; border-radius: 10px; position: relative;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px;
+  }
+  label.scanner svg { width: 20px; height: 20px; flex: 0 0 auto; }
+  label.scanner input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  label.scanner.occupe { opacity: .6; pointer-events: none; }
   .ou { display: flex; align-items: center; gap: 10px; color: var(--doux); font-size: 13px; margin: 12px 0 0; }
   .ou::before, .ou::after { content: ""; flex: 1; height: 1px; background: var(--trait); }
   .etat-vin { font-size: 14px; margin: 6px 0 0; min-height: 20px; color: var(--doux); }
@@ -113,6 +121,25 @@
   .photo.erreur .etiquette .point { background: var(--rouge); }
   @keyframes pulse { 50% { opacity: .3; } }
   .compteur { font-size: 14px; color: var(--doux); margin: 10px 0 0; }
+
+  .video {
+    position: relative; margin-top: 12px; border: 2px dashed #cfd4dc; border-radius: 12px;
+    background: var(--fond); padding: 14px 14px 14px 64px; min-height: 70px; cursor: pointer; display: block;
+  }
+  .video input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .video svg { position: absolute; left: 16px; top: 50%; width: 34px; height: 34px; margin-top: -17px; color: #98a2b3; }
+  .video .nom { font-size: 14px; font-weight: 600; }
+  .video .conseil { font-size: 12px; color: var(--doux); margin-top: 2px; }
+  .video.pleine { border-style: solid; border-color: var(--vert); }
+  .video.pleine svg { color: var(--vert); }
+  .video.envoi { border-style: solid; border-color: #f2b53b; }
+  .video.erreur { border-style: solid; border-color: var(--rouge); }
+  .video .barre { height: 6px; border-radius: 3px; background: #e6e8ec; margin-top: 8px; overflow: hidden; }
+  .video .barre span { display: block; height: 100%; width: 0; background: var(--vert); transition: width .3s; }
+  .video .retirer {
+    position: absolute; right: 10px; top: 10px; z-index: 2; font: inherit; font-size: 12px; font-weight: 600;
+    color: var(--doux); background: #fff; border: 1px solid var(--trait); border-radius: 999px; padding: 4px 10px; cursor: pointer;
+  }
 
   button.envoyer {
     width: 100%; margin-top: 6px; padding: 16px; font: inherit; font-size: 17px;
@@ -211,6 +238,12 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M14 8v8M17 8v8"/></svg>
         <span data-t="scanner">Scanner le code-barres du NIV</span>
       </button>
+      <label class="scanner secondaire" id="btnPhotoCode">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>
+        <span data-t="photoCode">Photographier le code-barres</span>
+        <input type="file" accept="image/*" capture="environment" id="fichierCode">
+      </label>
+      <p class="etat-vin" id="etatCode"></p>
       <p class="ou" data-t="ou">ou tapez-le</p>
       <label for="vin" data-t="labelVin">NIV / VIN (17 caractères)</label>
       <input id="vin" class="vin" type="text" inputmode="latin" autocomplete="off" autocapitalize="characters"
@@ -222,10 +255,11 @@
     </div>
 
     <div class="bloc">
-      <h2><span class="numero">2</span><span data-t="etape2">Photos (facultatives)</span></h2>
+      <h2><span class="numero">2</span><span data-t="etape2">Photos et vidéo (facultatives)</span></h2>
       <p class="aide" data-t="aide2">Cinq photos nous aident à évaluer juste, mais vous pouvez en prendre moins. Touchez une case pour photographier; placez-vous à environ 3 mètres du véhicule.</p>
       <div class="grille-photos" id="photos"></div>
       <p class="compteur" id="compteur"></p>
+      <label class="video" id="tuileVideo"></label>
     </div>
 
     <div class="bloc">
@@ -300,14 +334,26 @@ const T = {
     aide1: "Le NIV (17 caractères) se trouve sur l'étiquette de la portière du conducteur ou au bas du pare-brise, côté conducteur.",
     labelVin: "NIV / VIN (17 caractères)",
     scanner: "Scanner le code-barres du NIV",
+    photoCode: "Photographier le code-barres",
+    codeLecture: "Lecture du code-barres…",
+    codeIntrouvable: "Code-barres non lu. Rapprochez-vous, évitez les reflets, ou tapez le NIV.",
     ou: "ou tapez-le",
     vinCompte: n => n + " / 17 caractères",
     vinDoute: "Ce NIV semble incorrect — vérifiez chaque caractère (pas de I, O ni Q).",
     vinRecherche: "Vérification du véhicule…",
     vinInconnu: "NIV valide.",
     labelKm: "Kilométrage",
-    etape2: "Photos (facultatives)",
+    etape2: "Photos et vidéo (facultatives)",
     aide2: "Cinq photos nous aident à évaluer juste, mais vous pouvez en prendre moins. Touchez une case pour photographier; placez-vous à environ 3 mètres du véhicule.",
+    videoNom: "Ajouter une courte vidéo",
+    videoConseil: "Facultatif — un tour du véhicule, 30 secondes suffisent",
+    videoEnvoi: p => "Envoi de la vidéo… " + p + " %",
+    videoOk: "Vidéo reçue ✓",
+    videoOkConseil: "Touchez pour la remplacer",
+    videoErreur: "La vidéo n'a pas pu être envoyée",
+    videoErreurConseil: "Touchez pour réessayer, ou retirez-la",
+    videoTropGrosse: "Vidéo trop lourde (300 Mo max) : filmez plus court.",
+    retirer: "Retirer",
     angles: { dash: "Tableau de bord", avant: "Avant", arriere: "Arrière", gauche: "Côté conducteur", droite: "Côté passager" },
     conseils: { dash: "Moteur en marche, odomètre lisible", avant: "Véhicule entier, de face", arriere: "Véhicule entier, de dos", gauche: "De profil, entier", droite: "De profil, entier" },
     etatEnvoi: "Envoi…", etatOk: "Reçue", etatErreur: "Réessayer", etatVide: "Touchez pour photographier",
@@ -325,7 +371,7 @@ const T = {
     fermer: "Fermer",
     lecteurTitre: "Visez le code-barres du NIV",
     lecteurAide: "Étiquette de la portière conducteur ou bas du pare-brise",
-    lecteurCamera: "Caméra inaccessible. Tapez le NIV à la main.",
+    lecteurCamera: "Caméra inaccessible ici. Fermez et utilisez « Photographier le code-barres », ou tapez le NIV.",
     lecteurTrouve: "NIV trouvé!",
     merciTitre: p => "Merci" + (p ? " " + p : "") + "!",
     merciTexte: (c, v) => "Votre demande a été transmise à " + c + ". " + (v ? v + " vous" : "On vous") + " contactera sous peu avec une offre.",
@@ -339,6 +385,8 @@ const T = {
       DEJA_RECU: "Cette demande a déjà été reçue.",
       OCCUPE: "Le serveur est occupé, réessayez dans quelques secondes.",
       PHOTO: "Une photo n'a pas pu être envoyée. Vérifiez votre connexion et touchez-la pour réessayer.",
+      VIDEO_EN_COURS: "La vidéo est encore en cours d'envoi. Patientez un instant.",
+      VIDEO: "La vidéo n'a pas pu être envoyée. Réessayez, ou retirez-la pour envoyer la demande sans vidéo.",
       RESEAU: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
     }
   },
@@ -354,14 +402,26 @@ const T = {
     aide1: "The VIN (17 characters) is on the driver's door label or at the bottom of the windshield, driver's side.",
     labelVin: "VIN (17 characters)",
     scanner: "Scan the VIN barcode",
+    photoCode: "Take a photo of the barcode",
+    codeLecture: "Reading the barcode…",
+    codeIntrouvable: "Barcode not read. Get closer, avoid glare, or type the VIN.",
     ou: "or type it",
     vinCompte: n => n + " / 17 characters",
     vinDoute: "This VIN looks wrong — check each character (no I, O or Q).",
     vinRecherche: "Looking up the vehicle…",
     vinInconnu: "Valid VIN.",
     labelKm: "Mileage (km)",
-    etape2: "Photos (optional)",
+    etape2: "Photos and video (optional)",
     aide2: "Five photos help us appraise accurately, but you can take fewer. Tap a box to take a photo; stand about 3 metres from the vehicle.",
+    videoNom: "Add a short video",
+    videoConseil: "Optional — a walk around the vehicle, 30 seconds is plenty",
+    videoEnvoi: p => "Uploading video… " + p + "%",
+    videoOk: "Video received ✓",
+    videoOkConseil: "Tap to replace it",
+    videoErreur: "The video could not be uploaded",
+    videoErreurConseil: "Tap to retry, or remove it",
+    videoTropGrosse: "Video too large (300 MB max): record a shorter one.",
+    retirer: "Remove",
     angles: { dash: "Dashboard", avant: "Front", arriere: "Rear", gauche: "Driver side", droite: "Passenger side" },
     conseils: { dash: "Engine on, odometer readable", avant: "Whole vehicle, head-on", arriere: "Whole vehicle, from behind", gauche: "Full side view", droite: "Full side view" },
     etatEnvoi: "Uploading…", etatOk: "Received", etatErreur: "Retry", etatVide: "Tap to take photo",
@@ -379,7 +439,7 @@ const T = {
     fermer: "Close",
     lecteurTitre: "Aim at the VIN barcode",
     lecteurAide: "Driver's door label or bottom of the windshield",
-    lecteurCamera: "Camera unavailable. Type the VIN instead.",
+    lecteurCamera: "Camera unavailable here. Close and use “Take a photo of the barcode”, or type the VIN.",
     lecteurTrouve: "VIN found!",
     merciTitre: p => "Thank you" + (p ? " " + p : "") + "!",
     merciTexte: (c, v) => "Your request was sent to " + c + ". " + (v ? v + " will" : "We will") + " contact you shortly with an offer.",
@@ -393,6 +453,8 @@ const T = {
       DEJA_RECU: "This request was already received.",
       OCCUPE: "The server is busy, please try again in a few seconds.",
       PHOTO: "A photo could not be uploaded. Check your connection and tap it to retry.",
+      VIDEO_EN_COURS: "The video is still uploading. Please wait a moment.",
+      VIDEO: "The video could not be uploaded. Try again, or remove it to send the request without a video.",
       RESEAU: "Could not reach the server. Check your connection and try again."
     }
   }
@@ -406,6 +468,7 @@ let langue = "fr";
 let lien = null;                        // réponse de ?evalLien=
 const photos = {};                      // angle -> { etat: 'vide'|'envoi'|'ok'|'erreur', url, dataUrl, base64, mime }
 ANGLES.forEach(a => { photos[a.id] = { etat: "vide" }; });
+const videoEtat = { etat: "vide", progres: 0, url: "", fichier: null };   // 'vide'|'envoi'|'ok'|'erreur'
 let vinDecode = { vin: "", annee: "", marque: "", modele: "" };
 
 /* ------------------------------ Langue --------------------------------- */
@@ -434,6 +497,7 @@ function appliquerLangue(l) {
   });
   if (lien) $("intro").textContent = t.intro(lien.concession, lien.vendeur);
   dessinerPhotos();
+  dessinerVideo();
   majEtatVin();
 }
 
@@ -552,56 +616,227 @@ $("vin").addEventListener("input", () => { majEtatVin(); sauvegarderBrouillon();
 
 /* ---------------------------- Lecteur caméra --------------------------- */
 
-let lecteur = null;
+/* Deux moteurs, du plus fiable au moins fiable :
+   1. BarcodeDetector, intégré au navigateur (Chrome/Android, et Safari
+      récent) : rapide et précis sur les longs codes 39 des étiquettes de NIV.
+   2. ZXing en JavaScript, partout ailleurs. Il lit le code 39 mais demande un
+      code bien horizontal, net et proche.
+   Et quand la caméra n'est pas accessible (lien ouvert dans l'app d'une
+   messagerie, par exemple), « Photographier le code-barres » ouvre l'appareil
+   photo natif et on décode la photo, en pleine résolution. */
+
+const FORMATS_NATIFS = ["code_39", "code_128", "qr_code", "data_matrix", "pdf417"];
+let lecteur = null;          // instance ZXing
 let fluxActif = false;
+let fluxCamera = null;       // MediaStream quand on gère nous-mêmes la caméra (détecteur natif)
+let minuterieNatif = null;
+
+async function detecteurNatif() {
+  if (!("BarcodeDetector" in window)) return null;
+  try {
+    const formats = await BarcodeDetector.getSupportedFormats();
+    const utiles = FORMATS_NATIFS.filter(f => formats.includes(f));
+    if (!utiles.includes("code_39")) return null;
+    return new BarcodeDetector({ formats: utiles });
+  } catch (e) { return null; }
+}
+
+function hintsZXing() {
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_128,
+    ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.PDF_417
+  ]);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  return hints;
+}
+
+function vinTrouve(texte, depuisLecteur) {
+  const vin = extraireVin(texte);
+  if (vin.length !== 17) return false;
+  // Un code non valide reste affiché comme lu : le client peut corriger.
+  $("vin").value = vin;
+  majEtatVin();
+  sauvegarderBrouillon();
+  try { navigator.vibrate && navigator.vibrate(80); } catch (e) {}
+  if (depuisLecteur) {
+    $("lecteurEtat").textContent = T[langue].lecteurTrouve + " " + vin;
+    setTimeout(fermerLecteur, 500);
+  }
+  return true;
+}
 
 async function ouvrirLecteur() {
   const t = T[langue];
   $("lecteur").classList.add("ouvert");
   $("lecteurEtat").textContent = t.lecteurAide;
-  if (!window.ZXing || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     $("lecteurEtat").textContent = t.lecteurCamera;
     return;
   }
+  const natif = await detecteurNatif();
+  if (!natif && !window.ZXing) { $("lecteurEtat").textContent = t.lecteurCamera; return; }
+
+  fluxActif = true;
+  const video = $("video");
   try {
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.PDF_417
-    ]);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    lecteur = new ZXing.BrowserMultiFormatReader(hints, 250);
-    fluxActif = true;
-    await lecteur.decodeFromConstraints(
-      { audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
-      $("video"),
-      (resultat, erreur) => {
-        if (!fluxActif || !resultat) return;
-        const vin = extraireVin(resultat.getText());
-        if (vin.length !== 17) return;
-        // Un code non valide reste affiché comme lu : le client peut corriger.
-        $("vin").value = vin;
-        majEtatVin();
-        sauvegarderBrouillon();
-        $("lecteurEtat").textContent = t.lecteurTrouve + " " + vin;
-        try { navigator.vibrate && navigator.vibrate(80); } catch (e) {}
-        setTimeout(fermerLecteur, 500);
-      }
-    );
+    fluxCamera = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
   } catch (e) {
+    fluxActif = false;
     $("lecteurEtat").textContent = t.lecteurCamera;
+    return;
   }
+  video.srcObject = fluxCamera;
+  await video.play().catch(() => {});
+
+  // On ne décode que la bande du cadre affiché (plus rapide, et le code-barres
+  // la remplit), en alternant pleine résolution et moitié : les longs codes 39
+  // se lisent mieux quand les barres font quelques pixels, pas un seul.
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  let tour = 0;
+  const boucle = async () => {
+    if (!fluxActif) return;
+    try {
+      if (video.readyState >= 2 && video.videoWidth) {
+        const zone = zoneCadre(video);
+        const facteur = (tour++ % 2 === 0) ? 1 : 0.5;
+        canvas.width = Math.max(1, Math.round(zone.w * facteur));
+        canvas.height = Math.max(1, Math.round(zone.h * facteur));
+        ctx.drawImage(video, zone.x, zone.y, zone.w, zone.h, 0, 0, canvas.width, canvas.height);
+        let texte = "";
+        if (natif) {
+          const codes = await natif.detect(canvas);
+          for (const c of codes) { if (extraireVin(c.rawValue).length === 17) { texte = c.rawValue; break; } }
+        } else {
+          try { texte = decoderCanvasZXing(canvas); } catch (e) { texte = ""; }
+        }
+        if (texte && vinTrouve(texte, true)) return;
+      }
+    } catch (e) { /* image pas prête */ }
+    minuterieNatif = setTimeout(boucle, natif ? 120 : 60);
+  };
+  boucle();
+}
+
+/* Rectangle du cadre (viewport, 6 % / 40 % / 88 % / 18 %) ramené dans les
+   pixels de la vidéo, qui est affichée en object-fit: cover. Une marge en
+   hauteur pardonne un code un peu au-dessus ou en dessous du cadre. */
+function zoneCadre(video) {
+  const W = window.innerWidth, H = window.innerHeight;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const echelle = Math.max(W / vw, H / vh);
+  const ox = (W - vw * echelle) / 2, oy = (H - vh * echelle) / 2;
+  const x = (0.06 * W - ox) / echelle, y = (0.34 * H - oy) / echelle;
+  const w = (0.88 * W) / echelle, h = (0.30 * H) / echelle;
+  const X = Math.max(0, Math.round(x)), Y = Math.max(0, Math.round(y));
+  return { x: X, y: Y, w: Math.max(1, Math.min(vw - X, Math.round(w))), h: Math.max(1, Math.min(vh - Y, Math.round(h))) };
+}
+
+function arreterCamera() {
+  clearTimeout(minuterieNatif);
+  if (fluxCamera) { try { fluxCamera.getTracks().forEach(p => p.stop()); } catch (e) {} }
+  fluxCamera = null;
+  try { $("video").srcObject = null; } catch (e) {}
 }
 
 function fermerLecteur() {
   fluxActif = false;
   try { lecteur && lecteur.reset(); } catch (e) {}
   lecteur = null;
+  arreterCamera();
   $("lecteur").classList.remove("ouvert");
 }
 
 $("btnScanner").addEventListener("click", ouvrirLecteur);
 $("btnFermerLecteur").addEventListener("click", fermerLecteur);
+
+/* ---- Lecture d'une photo du code-barres ---- */
+
+function chargerImage(fichier) {
+  return new Promise((ok, ko) => {
+    const url = URL.createObjectURL(fichier);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); ok(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); ko(new Error("image")); };
+    img.src = url;
+  });
+}
+
+/* Dessine l'image à une largeur donnée, éventuellement tournée d'un quart de
+   tour : un long code 39 se lit mieux à une résolution moyenne, et il arrive
+   que la photo soit prise à la verticale. */
+function canvasDepuis(img, largeur, tourne) {
+  const ratio = Math.min(1, largeur / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * ratio), h = Math.round(img.naturalHeight * ratio);
+  const c = document.createElement("canvas");
+  c.width = tourne ? h : w; c.height = tourne ? w : h;
+  const ctx = c.getContext("2d");
+  if (tourne) { ctx.translate(c.width, 0); ctx.rotate(Math.PI / 2); }
+  ctx.drawImage(img, 0, 0, w, h);
+  return c;
+}
+
+/* ZXing 0.21 n'a pas de decodeFromCanvas : on passe par la source de
+   luminance et le binariseur directement. Lève NotFoundException si rien. */
+function decoderCanvasZXing(canvas) {
+  const lecteur = new ZXing.MultiFormatReader();
+  lecteur.setHints(hintsZXing());
+  const image = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(canvas)));
+  const r = lecteur.decode(image);
+  return r ? r.getText() : "";
+}
+
+async function decoderPhotoCode(fichier) {
+  const img = await chargerImage(fichier);
+  const natif = await detecteurNatif();
+  const tailles = [2400, 1600, 1200, 800];
+  for (const tourne of [false, true]) {
+    for (const largeur of tailles) {
+      const c = canvasDepuis(img, largeur, tourne);
+      if (natif) {
+        try {
+          const codes = await natif.detect(c);
+          for (const x of codes) { if (extraireVin(x.rawValue).length === 17) return x.rawValue; }
+        } catch (e) {}
+      }
+      if (window.ZXing) {
+        try {
+          const r = decoderCanvasZXing(c);
+          if (r && extraireVin(r).length === 17) return r;
+        } catch (e) { /* NotFoundException : on essaie la taille suivante */ }
+      }
+    }
+  }
+  return "";
+}
+
+$("fichierCode").addEventListener("change", async () => {
+  const input = $("fichierCode");
+  const fichier = input.files && input.files[0];
+  if (!fichier) return;
+  const t = T[langue];
+  const etat = $("etatCode");
+  $("btnPhotoCode").classList.add("occupe");
+  etat.className = "etat-vin"; etat.textContent = t.codeLecture;
+  try {
+    const texte = await decoderPhotoCode(fichier);
+    if (texte && vinTrouve(texte, false)) {
+      etat.className = "etat-vin bon"; etat.textContent = t.lecteurTrouve + " " + extraireVin(texte);
+      $("vin").scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      etat.className = "etat-vin mauvais"; etat.textContent = t.codeIntrouvable;
+    }
+  } catch (e) {
+    etat.className = "etat-vin mauvais"; etat.textContent = t.codeIntrouvable;
+  } finally {
+    $("btnPhotoCode").classList.remove("occupe");
+    input.value = "";
+  }
+});
 
 /* ------------------------------- Photos -------------------------------- */
 
@@ -712,6 +947,96 @@ async function envoyerPhoto(angle) {
   return false;
 }
 
+/* -------------------------------- Vidéo -------------------------------- */
+
+/* Une vidéo de téléphone pèse trop pour un seul envoi : on la découpe en
+   morceaux de 4 Mio (multiple de 256 Kio, exigé par Drive) envoyés l'un après
+   l'autre. Le serveur ne garde le lien qu'une fois le dernier morceau reçu. */
+const VIDEO_MORCEAU = 4 * 1024 * 1024;
+const VIDEO_MAX = 300 * 1024 * 1024;
+const ICONE_VIDEO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>';
+
+function dessinerVideo() {
+  const t = T[langue];
+  const boite = $("tuileVideo");
+  boite.className = "video " + ({ ok: "pleine", envoi: "envoi", erreur: "erreur" }[videoEtat.etat] || "");
+  let nom, conseil;
+  if (videoEtat.etat === "envoi") { nom = t.videoEnvoi(Math.round(videoEtat.progres * 100)); conseil = ""; }
+  else if (videoEtat.etat === "ok") { nom = t.videoOk; conseil = t.videoOkConseil; }
+  else if (videoEtat.etat === "erreur") { nom = t.videoErreur; conseil = t.videoErreurConseil; }
+  else { nom = t.videoNom; conseil = t.videoConseil; }
+  boite.innerHTML = ICONE_VIDEO + '<div class="nom"></div><div class="conseil"></div>'
+    + (videoEtat.etat === "envoi" ? '<div class="barre"><span style="width:' + Math.round(videoEtat.progres * 100) + '%"></span></div>' : "");
+  boite.querySelector(".nom").textContent = nom;
+  boite.querySelector(".conseil").textContent = conseil;
+
+  if (videoEtat.etat !== "envoi") {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "video/*";
+    input.setAttribute("capture", "environment");
+    input.addEventListener("change", () => input.files && input.files[0] && videoChoisie(input.files[0]));
+    boite.appendChild(input);
+  }
+  if (videoEtat.etat === "erreur") {
+    const r = document.createElement("button");
+    r.type = "button"; r.className = "retirer"; r.textContent = t.retirer;
+    r.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); videoEtat.etat = "vide"; videoEtat.fichier = null; videoEtat.progres = 0; dessinerVideo(); });
+    boite.appendChild(r);
+  }
+}
+
+function lireBase64(tranche) {
+  return new Promise((ok, ko) => {
+    const lecteur = new FileReader();
+    lecteur.onload = () => { const s = String(lecteur.result || ""); ok(s.substring(s.indexOf(",") + 1)); };
+    lecteur.onerror = () => ko(lecteur.error);
+    lecteur.readAsDataURL(tranche);
+  });
+}
+
+async function videoChoisie(fichier) {
+  if (fichier.size > VIDEO_MAX) { afficherErreur("VIDEO", T[langue].videoTropGrosse); return; }
+  videoEtat.fichier = fichier;
+  await envoyerVideo();
+}
+
+async function envoyerVideo() {
+  const fichier = videoEtat.fichier;
+  if (!fichier) return false;
+  videoEtat.etat = "envoi"; videoEtat.progres = 0; videoEtat.url = "";
+  dessinerVideo();
+  const total = Math.max(1, Math.ceil(fichier.size / VIDEO_MORCEAU));
+  const mime = fichier.type || "video/mp4";
+  let reprises = 0;
+  for (let i = 0; i < total; i++) {
+    const debut = i * VIDEO_MORCEAU;
+    const tranche = fichier.slice(debut, Math.min(debut + VIDEO_MORCEAU, fichier.size));
+    let r = null;
+    try {
+      const b64 = await lireBase64(tranche);
+      for (let essai = 0; essai < 3 && !(r && r.ok); essai++) {
+        try {
+          r = await poster({ action: "evalVideo", t: token, index: i, total, debut, taille: fichier.size, mimeType: mime, chunkBase64: b64 });
+        } catch (e) { r = null; }
+        if (r && !r.ok && r.code !== "DRIVE_ERREUR") break;   // erreur franche : inutile d'insister
+      }
+    } catch (e) { r = null; }
+    if (r && !r.ok && r.code === "SESSION_PERDUE" && reprises < 1) { reprises++; i = -1; continue; }
+    if (!r || !r.ok) {
+      if (r && (r.code === "DEJA_RECU" || r.code === "LIEN_INVALIDE")) afficherErreur(r.code);
+      videoEtat.etat = "erreur";
+      dessinerVideo();
+      return false;
+    }
+    videoEtat.progres = (i + 1) / total;
+    if (r.termine) { videoEtat.etat = "ok"; videoEtat.url = r.url; }
+    dessinerVideo();
+  }
+  if (videoEtat.etat !== "ok") { videoEtat.etat = "erreur"; dessinerVideo(); return false; }
+  return true;
+}
+
 /* ----------------------------- Brouillon ------------------------------- */
 
 function cleBrouillon() { return "automaxEval_" + token; }
@@ -786,6 +1111,14 @@ $("formulaire").addEventListener("submit", async (ev) => {
       $("photos").scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    // Même règle pour la vidéo : facultative, mais si le client en a choisi
+    // une, on ne part pas sans elle (il peut la retirer).
+    if (videoEtat.etat === "envoi") { afficherErreur("VIDEO_EN_COURS"); return; }
+    if (videoEtat.etat === "erreur") {
+      afficherErreur("VIDEO");
+      $("tuileVideo").scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
 
     const urls = {};
     ANGLES.forEach(a => { if (photos[a.id].url) urls[a.id] = photos[a.id].url; });
@@ -851,8 +1184,9 @@ async function demarrer() {
   if (!lien || !lien.ok) { $("invalide").classList.remove("cache"); return; }
   if (lien.statut === "recu") { $("dejaRecu").classList.remove("cache"); return; }
 
-  // Photos déjà reçues lors d'une visite précédente.
+  // Photos (et vidéo) déjà reçues lors d'une visite précédente.
   if (lien.photos) ANGLES.forEach(a => { if (lien.photos[a.id]) photos[a.id].etat = "ok"; });
+  if (lien.video) videoEtat.etat = "ok";
 
   $("intro").textContent = T[langue].intro(lien.concession, lien.vendeur);
   if (lien.clientNom) $("nom").value = lien.clientNom;
@@ -860,6 +1194,7 @@ async function demarrer() {
   restaurerBrouillon();
   majEtatVin();
   dessinerPhotos();
+  dessinerVideo();
   $("formulaire").classList.remove("cache");
 }
 

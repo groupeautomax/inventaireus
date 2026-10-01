@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>Groupe Automax — Votre offre</title>
+<title>Votre offre</title>
 <style>
   :root {
     --vert: #008a44;
@@ -176,7 +176,7 @@
 
 <header>
   <div class="rangee">
-    <span class="marque">Groupe Automax</span>
+    <span class="marque" id="marque"></span>
     <div class="pousse langues">
       <button type="button" data-langue="fr">FR</button>
       <button type="button" data-langue="en">EN</button>
@@ -276,7 +276,7 @@ const T = {
       surveillancePression: "Surveillance de pression des pneus", controleStabilite: "Contrôle de stabilité", antipatinage: "Antipatinage", abs: "Freins ABS",
       coussinsRideaux: "Coussins gonflables rideaux", pharesDEL: "Phares à DEL", turbo: "Moteur turbo", vitresAntiPincement: "Vitres anti-pincement"
     },
-    pied: "Groupe Automax — offre réservée à nos acheteurs.",
+    pied: n => (n || "Offre") + " — offre réservée à nos acheteurs.",
     vendeurChez: v => "Vendu par " + v,
     etat: { nouvelle: "En attente du vendeur", contre: "Contre-offre reçue", acceptee: "Prix convenu — à finaliser",
             contrat: "Contrat signé", refusee: "Offre fermée", annulee: "Transaction annulée" },
@@ -330,7 +330,7 @@ const T = {
     envoi: "Envoi…",
     types: { offre: "Offre de l'acheteur", contre: "Contre-offre du vendeur", acceptee: "Prix accepté", refusee: "Offre refusée",
              annulee: "Transaction annulée", signature: "Signature électronique", contrat: "Contrat généré" },
-    LIEN_INVALIDE: "Ce lien n'est plus valide. Vérifiez le courriel reçu ou contactez votre représentant chez Groupe Automax.",
+    LIEN_INVALIDE: "Ce lien n'est plus valide. Vérifiez le courriel reçu ou contactez votre représentant.",
     FERMEE: "Cette négociation est fermée.",
     PAS_DE_CONTRE: "Il n'y a pas de contre-offre à accepter.",
     MONTANT_INVALIDE: "Indiquez un montant.",
@@ -370,7 +370,7 @@ const T = {
       surveillancePression: "Tire pressure monitoring", controleStabilite: "Stability control", antipatinage: "Traction control", abs: "ABS brakes",
       coussinsRideaux: "Curtain airbags", pharesDEL: "LED headlights", turbo: "Turbocharged engine", vitresAntiPincement: "Anti-pinch windows"
     },
-    pied: "Groupe Automax — offer reserved for our buyers.",
+    pied: n => (n || "Offer") + " — offer reserved for our buyers.",
     vendeurChez: v => "Sold by " + v,
     etat: { nouvelle: "Waiting for the seller", contre: "Counter-offer received", acceptee: "Price agreed — to finalize",
             contrat: "Contract signed", refusee: "Offer closed", annulee: "Transaction cancelled" },
@@ -424,7 +424,7 @@ const T = {
     envoi: "Sending…",
     types: { offre: "Buyer's offer", contre: "Seller's counter-offer", acceptee: "Price accepted", refusee: "Offer declined",
              annulee: "Transaction cancelled", signature: "Electronic signature", contrat: "Contract generated" },
-    LIEN_INVALIDE: "This link is no longer valid. Check the email you received or contact your Groupe Automax representative.",
+    LIEN_INVALIDE: "This link is no longer valid. Check the email you received or contact your representative.",
     FERMEE: "This negotiation is closed.",
     PAS_DE_CONTRE: "There is no counter-offer to accept.",
     MONTANT_INVALIDE: "Enter an amount.",
@@ -636,8 +636,12 @@ function tableauTaxes(prix, code) {
 
 function appliquerTextes() {
   document.documentElement.lang = langue;
-  document.title = "Groupe Automax — " + (langue === "en" ? "Your offer" : "Votre offre");
-  document.getElementById("pied").textContent = t().pied;
+  // La page est au nom de la concession qui vend (règle du 1er oct.).
+  const vend = offre ? ((offre.vehicule && offre.vehicule.vendeur) || offre.vendeur || {}) : {};
+  const nomVendeur = vend.nom || "";
+  document.title = (nomVendeur ? nomVendeur + " — " : "") + (langue === "en" ? "Your offer" : "Votre offre");
+  document.getElementById("marque").textContent = nomVendeur;
+  document.getElementById("pied").textContent = t().pied(nomVendeur);
   document.getElementById("titreHistorique").textContent = t().titreHistorique;
   document.querySelectorAll(".langues button").forEach(b => {
     b.setAttribute("aria-pressed", String(b.dataset.langue === langue));

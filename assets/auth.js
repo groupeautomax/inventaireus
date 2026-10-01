@@ -252,8 +252,12 @@
 
   /* ------------------ Menu principal, commun aux pages ----------------- */
 
+  // Depuis octobre 2026, index.html est la nouvelle interface (une seule
+  // page) ; l'ancien registre É.-U. vit dans ancien/. Les autres anciennes
+  // pages restent accessibles le temps de la transition.
   var PAGES = [
-    { f: 'index.html',        t: 'Suivi É.-U.' },
+    { f: 'index.html',        t: '← Nouvelle interface', nouvelle: true },
+    { f: 'ancien/index.html', t: 'Suivi É.-U.' },
     { f: 'canada.html',       t: 'Canada' },
     { f: 'detail.html',       t: 'Detail' },
     { f: 'achat.html',        t: "Fiche d'achat" },
@@ -268,6 +272,8 @@
     var p = location.pathname.split('/').pop();
     return p ? p.toLowerCase() : 'index.html';
   }
+  // Les pages du dossier ancien/ pointent vers la racine avec ../
+  var BASE = /\/ancien\//.test(location.pathname) ? '../' : '';
 
   function menu() {
     if (document.readyState === 'loading') {
@@ -290,6 +296,8 @@
       '#menu-principal .mp-espace{flex:1 1 auto;min-width:8px;}' +
       '#menu-principal a.mp-admin{color:#1E2A3A;border:1px solid #E4E7EC;}' +
       '#menu-principal a.mp-admin.actif{border-color:#2563EB;color:#fff;}' +
+      '#menu-principal a.mp-nouvelle{color:#008840;font-weight:600;border:1px solid #B6E0C6;background:#E6F4EC;}' +
+      '#menu-principal a.mp-nouvelle:hover{background:#d3ecdc;color:#006B33;}' +
       '@media print{#menu-principal{display:none !important;}}';
     document.head.appendChild(style);
 
@@ -304,11 +312,12 @@
         nav.appendChild(espace);
       }
       var a = document.createElement('a');
-      a.href = p.f;
+      a.href = BASE + p.f;
       a.textContent = p.t;
       a.setAttribute('data-page', p.f);
       if (p.admin) { a.className = 'mp-admin'; a.style.display = 'none'; }
-      if (p.f === courante) a.className = (a.className ? a.className + ' ' : '') + 'actif';
+      if (p.nouvelle) a.className = 'mp-nouvelle';
+      if (!p.nouvelle && p.f.split('/').pop() === courante && (p.f.indexOf('ancien/') === 0) === (BASE === '../')) a.className = (a.className ? a.className + ' ' : '') + 'actif';
       nav.appendChild(a);
     });
 

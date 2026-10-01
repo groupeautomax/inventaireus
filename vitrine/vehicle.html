@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>Groupe Automax</title>
+<title>Véhicule à vendre</title>
 <style>
   :root {
     --vert: #008a44;
@@ -283,7 +283,7 @@ const T = {
     merci: "Offre envoyée",
     merciDetail: "Merci. Nous revenons vers vous rapidement par courriel.",
     merciSuivre: "Suivre mon offre",
-    pied: "Groupe Automax — inventaire réservé à nos acheteurs.",
+    pied: n => (n || "Inventaire") + " — véhicule réservé à nos acheteurs.",
     codes: {
       vus: "VUS", camionnette: "Camionnette", berline: "Berline", hayon: "Hayon", coupe: "Coupé", cabriolet: "Cabriolet",
       fourgonnette: "Fourgonnette", familiale: "Familiale", fourgon: "Fourgon",
@@ -300,7 +300,7 @@ const T = {
       coussinsRideaux: "Coussins gonflables rideaux", pharesDEL: "Phares à DEL", turbo: "Moteur turbo", vitresAntiPincement: "Vitres anti-pincement"
     },
     vitesses: n => n + " rapports",
-    LIEN_INVALIDE: "Ce lien n'est plus valide. Demandez-en un nouveau à votre contact chez Groupe Automax.",
+    LIEN_INVALIDE: "Ce lien n'est plus valide. Demandez-en un nouveau à votre représentant.",
     VEHICULE_RETIRE: "Ce véhicule n'est plus offert.",
     VEHICULE_INTROUVABLE: "Ce véhicule est introuvable.",
     NOM_REQUIS: "Veuillez entrer votre nom.",
@@ -347,7 +347,7 @@ const T = {
     merci: "Offer sent",
     merciDetail: "Thank you. We will get back to you shortly by email.",
     merciSuivre: "Track my offer",
-    pied: "Groupe Automax — inventory reserved for our buyers.",
+    pied: n => (n || "Inventory") + " — vehicle reserved for our buyers.",
     codes: {
       vus: "SUV", camionnette: "Pickup", berline: "Sedan", hayon: "Hatchback", coupe: "Coupe", cabriolet: "Convertible",
       fourgonnette: "Minivan", familiale: "Wagon", fourgon: "Van",
@@ -364,7 +364,7 @@ const T = {
       coussinsRideaux: "Curtain airbags", pharesDEL: "LED headlights", turbo: "Turbocharged engine", vitresAntiPincement: "Anti-pinch windows"
     },
     vitesses: n => n + "-speed",
-    LIEN_INVALIDE: "This link is no longer valid. Please ask your Groupe Automax contact for a new one.",
+    LIEN_INVALIDE: "This link is no longer valid. Please ask your representative for a new one.",
     VEHICULE_RETIRE: "This vehicle is no longer offered.",
     VEHICULE_INTROUVABLE: "This vehicle could not be found.",
     NOM_REQUIS: "Please enter your name.",
@@ -436,7 +436,7 @@ function appliquerTextes() {
   document.documentElement.lang = langue;
   document.getElementById("retour").textContent = t().retour;
   document.getElementById("retour").href = "index.html?k=" + encodeURIComponent(cle);
-  document.getElementById("pied").textContent = t().pied;
+  document.getElementById("pied").textContent = t().pied(vehicule && vehicule.vendeur ? vehicule.vendeur.nom : "");
   document.getElementById("titreOffre").textContent = t().titreOffre;
   document.getElementById("aideOffre").textContent = t().aideOffre;
   document.querySelector('label[for="nom"]').textContent = t().nom;
@@ -466,7 +466,10 @@ function dessiner() {
   const v = vehicule;
   const photos = v.photos || [];
   const ti = titres(v);
-  document.title = "Groupe Automax — " + ti.haut + (ti.bas ? " " + ti.bas : "");
+  // La page est au nom de la concession qui vend (règle du 1er oct.).
+  const nomVendeur = (v.vendeur && v.vendeur.nom) || "";
+  document.title = (nomVendeur ? nomVendeur + " — " : "") + ti.haut + (ti.bas ? " " + ti.bas : "");
+  document.getElementById("pied").textContent = t().pied(nomVendeur);
 
   // En-tête photo
   const hero = document.getElementById("hero");

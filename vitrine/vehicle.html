@@ -106,6 +106,16 @@
   .details .ligne { font-size: 14px; }
   @media (max-width: 520px) { .details { grid-template-columns: 1fr; } }
 
+  /* ---- Window sticker (étiquette du fabricant) ---- */
+  .bouton-pdf {
+    display: flex; align-items: center; gap: 12px; padding: 13px 14px; margin-top: 10px;
+    border: 1px solid var(--trait); border-radius: 12px; background: var(--fond);
+    color: var(--texte); text-decoration: none; font-weight: 600; font-size: 15px;
+  }
+  .bouton-pdf:hover { border-color: var(--vert); }
+  .bouton-pdf svg { width: 26px; height: 26px; flex: 0 0 auto; color: #c62828; }
+  .bouton-pdf .fleche { margin-left: auto; color: var(--doux); font-weight: 400; }
+  .apercu iframe { width: 100%; height: 440px; border: 0; border-radius: 12px; background: #e9ebef; }
   .video-cadre { position: relative; aspect-ratio: 16 / 9; border-radius: var(--rayon); overflow: hidden; background: #000; }
   .video-cadre iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   .video-lien { display: inline-block; margin-top: 10px; font-size: 14px; color: var(--vert); font-weight: 600; text-decoration: none; }
@@ -166,6 +176,14 @@
     </div>
 
     <div class="bloc serre" id="blocCles"></div>
+
+    <div class="bloc" id="blocSticker" hidden>
+      <h2 id="titreSticker"></h2>
+      <p class="aide" id="aideSticker" style="margin-bottom:0"></p>
+      <div class="apercu" id="stickerApercu"></div>
+      <a class="bouton-pdf" id="stickerLien" href="#" target="_blank" rel="noopener"></a>
+      <p class="note" id="noteSticker"></p>
+    </div>
 
     <div class="bloc" id="blocOptions" hidden>
       <h2 id="titreOptions"></h2>
@@ -241,6 +259,10 @@ const T = {
     options: "Options et équipements de série",
     details: "Détails du véhicule",
     noteDetails: "Fiche technique décodée à partir du NIV (NHTSA). Les équipements listés sont ceux de série pour cette version, à confirmer à l'inspection.",
+    sticker: "Window sticker",
+    aideSticker: "L'étiquette d'origine du fabricant : équipement de série, options installées à l'usine, prix de détail suggéré et cotes de consommation.",
+    ouvrirSticker: "Ouvrir le window sticker (PDF)",
+    sourceSticker: n => n === "Concessionnaire" ? "Document fourni par le vendeur." : "Document officiel publié par " + n + " pour ce NIV.",
     annee: "Année", marque: "Marque", modele: "Modèle", version: "Version", vin: "NIV",
     portes: "Portes", places: "Places", carrosserie: "Carrosserie", couleurExt: "Couleur extérieure",
     transmission: "Transmission", moteur: "Moteur", motricite: "Motricité", carburant: "Carburant",
@@ -301,6 +323,10 @@ const T = {
     options: "Standard options and equipment",
     details: "Vehicle details",
     noteDetails: "Specifications decoded from the VIN (NHTSA). Equipment listed is standard for this trim; confirm on inspection.",
+    sticker: "Window sticker",
+    aideSticker: "The manufacturer's original label: standard equipment, factory-installed options, MSRP and fuel economy ratings.",
+    ouvrirSticker: "Open the window sticker (PDF)",
+    sourceSticker: n => n === "Concessionnaire" ? "Document provided by the seller." : "Official document published by " + n + " for this VIN.",
     annee: "Year", marque: "Make", modele: "Model", version: "Trim", vin: "VIN",
     portes: "Doors", places: "Passengers", carrosserie: "Body type", couleurExt: "Exterior colour",
     transmission: "Transmission", moteur: "Engine", motricite: "Drivetrain", carburant: "Fuel type",
@@ -506,6 +532,27 @@ function dessiner() {
     '<div class="ligne"><span class="k">' + echappe(x[0]) + '</span><span class="v">' + echappe(x[1]) + "</span></div>"
   ).join("");
   document.getElementById("noteDetails").textContent = (v.details || options.length) ? t().noteDetails : "";
+
+  // Window sticker : lien officiel (GM, Ford, Stellantis) vérifié côté script,
+  // ou PDF déposé par le vendeur sur Drive (aperçu intégré).
+  const st = v.sticker && v.sticker.url ? v.sticker : null;
+  const blocSticker = document.getElementById("blocSticker");
+  if (st) {
+    blocSticker.hidden = false;
+    document.getElementById("titreSticker").textContent = t().sticker;
+    document.getElementById("aideSticker").textContent = t().aideSticker;
+    const idSticker = st.source === "drive" ? idDrive(st.url) : "";
+    document.getElementById("stickerApercu").innerHTML = idSticker
+      ? '<iframe src="https://drive.google.com/file/d/' + echappe(idSticker) + '/preview" loading="lazy" title="Window sticker"></iframe>'
+      : "";
+    const lien = document.getElementById("stickerLien");
+    lien.href = idSticker ? "https://drive.google.com/file/d/" + idSticker + "/view" : st.url;
+    lien.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 15h8M8 18h5"/></svg>' +
+      "<span>" + echappe(t().ouvrirSticker) + '</span><span class="fleche">&rarr;</span>';
+    document.getElementById("noteSticker").textContent = t().sourceSticker(st.nom || "");
+  } else {
+    blocSticker.hidden = true;
+  }
 
   // Vidéo (facultative) : hébergée sur Drive, lue dans son lecteur intégré.
   const blocVideo = document.getElementById("blocVideo");

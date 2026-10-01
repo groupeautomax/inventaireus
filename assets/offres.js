@@ -43,7 +43,12 @@
   /* ------------------------------ Partagé ------------------------------ */
   function vignetteVin(vin, aPhotos, texteRepli) {
     var el = h('div.vignette', { text: texteRepli || '—' });
-    if (aPhotos !== false && AMX.photosDe) AMX.photosDe(vin).then(function (p) { if (p && p.length) { AMX.vider(el).appendChild(h('img', { src: AMX.vignetteDrive(p[0].url, 200), alt: '', loading: 'lazy' })); } });
+    if (aPhotos !== false && AMX.photosDe) AMX.photosDe(vin).then(function (p) {
+      if (!(p && p.length)) return;
+      var img = h('img', { src: AMX.vignetteDrive(p[0].url, 200), alt: '', loading: 'lazy' });
+      img.addEventListener('error', function () { AMX.vider(el).appendChild(document.createTextNode(texteRepli || '—')); });
+      AMX.vider(el).appendChild(img);
+    });
     return el;
   }
   function vehiculeDe(vin) { return AMX.inventaire.parVin(vin) || {}; }

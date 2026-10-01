@@ -351,7 +351,7 @@
       } }));
     });
     var retard = base.filter(enRetardRegistre).length, retardAchat = base.filter(enRetardAchat).length;
-    if (retard) this.elKpis.appendChild(kpi(retard, 'Sans registre 10 j+', { classe: 'alerte', sous: 'immatriculation non reçue', actif: f.alerte === 'retard', onclick: function () { f.alerte = f.alerte === 'retard' ? '' : 'retard'; self.rendre(); } }));
+    if (retard) this.elKpis.appendChild(kpi(retard, 'Registre 10 j+', { classe: 'alerte', sous: 'non reçu', actif: f.alerte === 'retard', onclick: function () { f.alerte = f.alerte === 'retard' ? '' : 'retard'; self.rendre(); } }));
     if (retardAchat) this.elKpis.appendChild(kpi(retardAchat, 'Achat 7 j+', { classe: 'attention', sous: 'pas encore en stock', actif: f.alerte === 'retardAchat', onclick: function () { f.alerte = f.alerte === 'retardAchat' ? '' : 'retardAchat'; self.rendre(); } }));
     void tousActifs;
   };
@@ -399,7 +399,13 @@
           if (!en.isIntersecting) return;
           self.observateur.unobserve(en.target);
           var vin = en.target.dataset.vin;
-          photosDe(vin).then(function (p) { if (p && p.length) { var img = h('img', { src: AMX.vignetteDrive(p[0].url, 200), alt: '', loading: 'lazy' }); AMX.vider(en.target).appendChild(img); } });
+          photosDe(vin).then(function (p) {
+            if (!(p && p.length)) return;
+            var repli = en.target.innerHTML;
+            var img = h('img', { src: AMX.vignetteDrive(p[0].url, 200), alt: '', loading: 'lazy' });
+            img.addEventListener('error', function () { en.target.innerHTML = repli; });   // miniature Drive indisponible : on garde les initiales
+            AMX.vider(en.target).appendChild(img);
+          });
         });
       }, { rootMargin: '200px' });
       this.elListe.querySelectorAll('.vignette[data-vin]').forEach(function (el) { self.observateur.observe(el); });

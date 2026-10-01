@@ -501,7 +501,7 @@
     ]);
     usager.addEventListener('click', function (e) { if (e.target.closest('.menu')) return; usager.classList.toggle('ouvert'); });
     document.addEventListener('click', function (e) { if (!usager.contains(e.target)) usager.classList.remove('ouvert'); });
-    barre.appendChild(h('a.marque', { href: '#/' }, [h('span.anneau'), h('span.mot', [h('small', 'Groupe'), 'AUTO', h('b', 'MAX')])]));
+    barre.appendChild(h('a.marque', { href: '#/', title: 'Groupe Automax' }, [h('img', { src: 'assets/logo.png', alt: 'Groupe Automax' })]));
     barre.appendChild(nav);
     barre.appendChild(h('div.espace'));
     barre.appendChild(rech);

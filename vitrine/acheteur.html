@@ -310,4 +310,26 @@ async function charger() {
     vendeurNom = (j.vendeur && j.vendeur.nom) || "";
     let choisie = null;
     try { choisie = localStorage.getItem("automaxLangue"); } catch (e) {}
-    if (!choisie && (j.langue === "fr" || j.langue === "en")) langu
+    if (!choisie && (j.langue === "fr" || j.langue === "en")) langue = j.langue;
+    document.getElementById("message").hidden = true;
+    document.getElementById("contenu").hidden = false;
+    appliquerTextes();
+  } catch (e) {
+    afficherMessage(t().RESEAU, "");
+  }
+}
+
+document.querySelectorAll(".langues button").forEach(b => {
+  b.addEventListener("click", () => {
+    memoriserSaisie();
+    langue = b.dataset.langue;
+    try { localStorage.setItem("automaxLangue", langue); } catch (e) {}
+    appliquerTextes();
+  });
+});
+
+appliquerTextes();
+charger();
+</script>
+</body>
+</html>

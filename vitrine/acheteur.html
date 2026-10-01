@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Inscription acheteur</title>
+<style>
+  :root {
+    --vert: #008a44;
+    --texte: #16181c;
+    --doux: #6b7280;
+    --trait: #e6e8ec;
+    --fond: #f6f7f9;
+    --carte: #ffffff;
+    --rayon: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--fond); color: var(--texte); line-height: 1.45;
+  }
+  header {
+    background: var(--carte); border-bottom: 1px solid var(--trait);
+    padding: 14px 16px; position: sticky; top: 0; z-index: 10;
+  }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 760px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; }
+  .pousse { margin-left: auto; }
+  .langues { display: flex; border: 1px solid var(--trait); border-radius: 999px; overflow: hidden; }
+  .langues button {
+    border: 0; background: transparent; padding: 6px 12px;
+    font: inherit; font-size: 13px; color: var(--doux); cursor: pointer;
+  }
+  .langues button[aria-pressed="true"] { background: var(--vert); color: #fff; font-weight: 600; }
+
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .bloc {
+    background: var(--carte); border: 1px solid var(--trait);
+    border-radius: var(--rayon); padding: 18px; margin-bottom: 14px;
+  }
+  h1 { font-size: 21px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.3px; }
+  h2 { font-size: 17px; margin: 18px 0 4px; }
+  .aide { color: var(--doux); font-size: 14px; margin: 0 0 12px; }
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  input, select {
+    width: 100%; padding: 12px 13px; font: inherit; font-size: 16px;
+    border: 1px solid var(--trait); border-radius: 10px;
+    background: var(--fond); color: var(--texte);
+  }
+  input:focus, select:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .trio { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .duo, .trio { grid-template-columns: 1fr; gap: 0; } }
+  .boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  button.principal {
+    padding: 14px 18px; font: inherit; font-size: 16px; font-weight: 650;
+    border-radius: 12px; cursor: pointer; border: 0; background: var(--vert); color: #fff; flex: 1 1 auto;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  .alerte { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
+  .alerte.mauvais { background: #fdf0e8; color: #8a4b1d; }
+  .alerte.bon { background: #e7f5ed; color: #0a6136; }
+  .message { text-align: center; padding: 56px 20px; color: var(--doux); }
+  .message strong { display: block; color: var(--texte); font-size: 17px; margin-bottom: 6px; }
+  .recap { display: grid; grid-template-columns: 1fr 2fr; gap: 6px 14px; font-size: 14px; margin-top: 12px; }
+  .recap .k { color: var(--doux); }
+  footer { text-align: center; color: var(--doux); font-size: 13px; padding: 28px 16px 40px; }
+
+  @media (prefers-color-scheme: dark) {
+    :root { --texte: #f2f3f5; --doux: #9aa1ab; --trait: #2a2d33; --fond: #121316; --carte: #1b1d21; }
+    .alerte.mauvais { background: #3a2415; color: #f0b98b; }
+    .alerte.bon { background: #12331f; color: #8fd9b0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rangee">
+    <span class="marque" id="marque"></span>
+    <div class="pousse langues">
+      <button type="button" data-langue="fr">FR</button>
+      <button type="button" data-langue="en">EN</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="contenu" hidden>
+    <div class="bloc" id="blocForm"></div>
+  </div>
+  <div class="message" id="message"></div>
+</main>
+
+<footer id="pied"></footer>
+
+<script>
+/* ---------------------------------------------------------------------------
+   Inscription d'un concessionnaire acheteur (Acheteurs.gs). Lien reçu par
+   courriel : acheteur.html?i=<id>&j=<jeton>. Même adresse que les autres pages.
+   --------------------------------------------------------------------------- */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+
+const PROVINCES = [
+  ["QC", "Québec", "Quebec"], ["ON", "Ontario", "Ontario"], ["NB", "Nouveau-Brunswick", "New Brunswick"],
+  ["NS", "Nouvelle-Écosse", "Nova Scotia"], ["PE", "Île-du-Prince-Édouard", "Prince Edward Island"],
+  ["NL", "Terre-Neuve-et-Labrador", "Newfoundland and Labrador"], ["MB", "Manitoba", "Manitoba"],
+  ["SK", "Saskatchewan", "Saskatchewan"], ["AB", "Alberta", "Alberta"], ["BC", "Colombie-Britannique", "British Columbia"],
+  ["YT", "Yukon", "Yukon"], ["NT", "Territoires du Nord-Ouest", "Northwest Territories"], ["NU", "Nunavut", "Nunavut"]
+];
+
+const T = {
+  fr: {
+    titre: "Inscrire ma concession",
+    intro: n => "Vos coordonnées servent à pré-remplir vos offres et vos contrats de vente avec " + (n || "nous") + ". Deux minutes, une seule fois.",
+    entreprise: "Entreprise", nomLegal: "Nom légal de l'entreprise", nomCommercial: "Nom commercial (si différent)",
+    contact: "Personne-ressource", signataire: "Nom du signataire", telephone: "Téléphone", courriel: "Courriel",
+    adresseTitre: "Adresse d'affaires", adresse: "Adresse", ville: "Ville", province: "Province", etat: "État / région", codePostal: "Code postal", pays: "Pays",
+    canada: "Canada", usa: "États-Unis", autre: "Autre",
+    numerosTitre: "Numéros", noConcessionnaire: "No de concessionnaire (permis)", tps: "No TPS/TVH", tvq: "No TVQ (Québec)",
+    langueTitre: "Langue des communications", envoyer: "Enregistrer ma concession", envoiEnCours: "Enregistrement…",
+    merciTitre: "Votre concession est inscrite",
+    merci: n => "Merci ! Vos offres et contrats de vente avec " + (n || "nous") + " seront pré-remplis avec ces coordonnées. Un courriel de confirmation vient de partir. Pour modifier quelque chose, rouvrez simplement ce lien.",
+    dejaInscrit: "Fiche déjà remplie : vous pouvez la corriger ci-dessous.",
+    chargement: "Un instant…",
+    LIEN_INVALIDE: "Ce lien n'est plus valide. Demandez une nouvelle invitation à votre représentant.",
+    RESEAU: "Impossible de joindre le serveur. Vérifiez la connexion, puis réessayez.",
+    ERREUR: "Une erreur est survenue. Réessayez dans un instant.",
+    NOM_REQUIS: "Indiquez le nom légal de l'entreprise.",
+    ADRESSE_REQUISE: "Indiquez l'adresse et la ville.",
+    TELEPHONE_REQUIS: "Indiquez un numéro de téléphone.",
+    SIGNATAIRE_REQUIS: "Indiquez le nom de la personne-ressource.",
+    COURRIEL_INVALIDE: "Le courriel est invalide.",
+    COURRIEL_PRIS: "Ce courriel est déjà associé à une autre fiche. Écrivez-nous pour la fusionner.",
+    pied: n => (n || "Inscription") + " — réservé à nos acheteurs."
+  },
+  en: {
+    titre: "Register my dealership",
+    intro: n => "Your details pre-fill your offers and bills of sale with " + (n || "us") + ". Two minutes, once.",
+    entreprise: "Company", nomLegal: "Legal company name", nomCommercial: "Trade name (if different)",
+    contact: "Contact person", signataire: "Signatory name", telephone: "Phone", courriel: "Email",
+    adresseTitre: "Business address", adresse: "Address", ville: "City", province: "Province", etat: "State / region", codePostal: "Postal code", pays: "Country",
+    canada: "Canada", usa: "United States", autre: "Other",
+    numerosTitre: "Numbers", noConcessionnaire: "Dealer number (licence)", tps: "GST/HST no.", tvq: "QST no. (Quebec)",
+    langueTitre: "Language for communications", envoyer: "Save my dealership", envoiEnCours: "Saving…",
+    merciTitre: "Your dealership is registered",
+    merci: n => "Thank you! Your offers and bills of sale with " + (n || "us") + " will be pre-filled with these details. A confirmation email is on its way. To change anything, simply reopen this link.",
+    dejaInscrit: "Already filled in: you can correct it below.",
+    chargement: "One moment…",
+    LIEN_INVALIDE: "This link is no longer valid. Ask your representative for a new invitation.",
+    RESEAU: "Could not reach the server. Check your connection and try again.",
+    ERREUR: "Something went wrong. Please try again shortly.",
+    NOM_REQUIS: "Enter the legal company name.",
+    ADRESSE_REQUISE: "Enter the address and city.",
+    TELEPHONE_REQUIS: "Enter a phone number.",
+    SIGNATAIRE_REQUIS: "Enter the contact person's name.",
+    COURRIEL_INVALIDE: "The email address is invalid.",
+    COURRIEL_PRIS: "This email already belongs to another record. Write to us to merge them.",
+    pied: n => (n || "Registration") + " — reserved for our buyers."
+  }
+};
+
+function langueChoisie() {
+  try { const g = localStorage.getItem("automaxLangue"); if (g === "fr" || g === "en") return g; } catch (e) {}
+  return (navigator.language || "fr").toLowerCase().indexOf("en") === 0 ? "en" : "fr";
+}
+let langue = langueChoisie();
+let fiche = null;
+let vendeurNom = "";
+let termine = false;
+const brouillon = {};
+function t() { return T[langue]; }
+
+const params = new URLSearchParams(location.search);
+const idFiche = params.get("i") || "";
+const jeton = params.get("j") || "";
+
+function echappe(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function valeur(id, defaut) {
+  const el = document.getElementById(id);
+  if (el) return el.type === "checkbox" ? el.checked : el.value;
+  return (id in brouillon) ? brouillon[id] : (defaut == null ? "" : defaut);
+}
+function memoriserSaisie() {
+  document.querySelectorAll("#blocForm input, #blocForm select").forEach(el => { brouillon[el.id] = el.value; });
+}
+function afficherMessage(texte, titre) {
+  const el = document.getElementById("message");
+  el.innerHTML = (titre ? "<strong>" + echappe(titre) + "</strong>" : "") + echappe(texte);
+  el.hidden = false;
+  document.getElementById("contenu").hidden = true;
+}
+function erreur(code) {
+  const el = document.getElementById("erreur");
+  if (!el) return;
+  el.textContent = t()[code] || t().ERREUR;
+  el.hidden = false;
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function appliquerTextes() {
+  document.documentElement.lang = langue;
+  document.querySelectorAll(".langues button").forEach(b => b.setAttribute("aria-pressed", b.dataset.langue === langue ? "true" : "false"));
+  document.title = (vendeurNom ? vendeurNom + " — " : "") + t().titre;
+  document.getElementById("marque").textContent = vendeurNom;
+  document.getElementById("pied").textContent = t().pied(vendeurNom);
+  if (fiche) dessiner();
+}
+
+function champ(id, libelle, defaut, attrs) {
+  return '<label for="' + id + '">' + echappe(libelle) + '</label><input id="' + id + '" value="' + echappe(valeur(id, defaut)) + '" ' + (attrs || "") + ">";
+}
+
+function dessiner() {
+  const a = fiche;
+  const bloc = document.getElementById("blocForm");
+  if (termine) {
+    bloc.innerHTML = "<h1>" + echappe(t().merciTitre) + "</h1><p class=\"aide\">" + echappe(t().merci(vendeurNom)) + "</p>" +
+      '<div class="recap">' +
+      '<span class="k">' + echappe(t().nomLegal) + "</span><span>" + echappe(a.nomLegal) + "</span>" +
+      '<span class="k">' + echappe(t().signataire) + "</span><span>" + echappe(a.signataire) + "</span>" +
+      '<span class="k">' + echappe(t().adresse) + "</span><span>" + echappe([a.adresse, a.ville, a.province, a.codePostal].filter(Boolean).join(", ")) + "</span>" +
+      '<span class="k">' + echappe(t().noConcessionnaire) + "</span><span>" + echappe(a.noConcessionnaire || "—") + "</span>" +
+      "</div>";
+    return;
+  }
+  const pays = valeur("pays", a.pays === "États-Unis" || a.pays === "United States" ? "US" : (a.pays && a.pays !== "Canada" ? "XX" : "CA"));
+  let h = "<h1>" + echappe(t().titre) + "</h1><p class=\"aide\">" + echappe(t().intro(vendeurNom)) + "</p>";
+  if (a.statut === "inscrit") h += '<div class="alerte bon" style="margin:0 0 6px">' + echappe(t().dejaInscrit) + "</div>";
+  h += '<form id="form" novalidate>';
+  h += "<h2>" + echappe(t().entreprise) + "</h2>";
+  h += '<div class="duo"><div>' + champ("nomLegal", t().nomLegal, a.nomLegal, 'autocomplete="organization" required') + "</div>";
+  h += "<div>" + champ("nomCommercial", t().nomCommercial, a.nomCommercial) + "</div></div>";
+  h += "<h2>" + echappe(t().contact) + "</h2>";
+  h += '<div class="duo"><div>' + champ("signataire", t().signataire, a.signataire, 'autocomplete="name" required') + "</div>";
+  h += "<div>" + champ("telephone", t().telephone, a.telephone, 'type="tel" autocomplete="tel" inputmode="tel" required') + "</div></div>";
+  h += champ("courriel", t().courriel, a.courriel, 'type="email" autocomplete="email" inputmode="email" required');
+  h += "<h2>" + echappe(t().adresseTitre) + "</h2>";
+  h += champ("adresse", t().adresse, a.adresse, 'autocomplete="street-address" required');
+  h += '<div class="trio"><div>' + champ("ville", t().ville, a.ville, 'autocomplete="address-level2" required') + "</div>";
+  h += '<div><label for="province">' + echappe(pays === "CA" ? t().province : t().etat) + "</label>";
+  if (pays === "CA") {
+    const choisi = valeur("province", a.province || "QC");
+    h += '<select id="province">' + PROVINCES.map(p => '<option value="' + p[0] + '"' + (p[0] === choisi ? " selected" : "") + ">" + echappe(langue === "en" ? p[2] : p[1]) + "</option>").join("") + "</select>";
+  } else {
+    h += '<input id="province" value="' + echappe(valeur("province", a.province)) + '" autocomplete="address-level1">';
+  }
+  h += "</div><div>" + champ("codePostal", t().codePostal, a.codePostal, 'autocomplete="postal-code"') + "</div></div>";
+  h += '<label for="pays">' + echappe(t().pays) + '</label><select id="pays">' +
+    '<option value="CA"' + (pays === "CA" ? " selected" : "") + ">" + echappe(t().canada) + "</option>" +
+    '<option value="US"' + (pays === "US" ? " selected" : "") + ">" + echappe(t().usa) + "</option>" +
+    '<option value="XX"' + (pays === "XX" ? " selected" : "") + ">" + echappe(t().autre) + "</option></select>";
+  h += "<h2>" + echappe(t().numerosTitre) + "</h2>";
+  h += champ("noConcessionnaire", t().noConcessionnaire, a.noConcessionnaire);
+  h += '<div class="duo"><div>' + champ("tps", t().tps, a.tps) + "</div><div>" + champ("tvq", t().tvq, a.tvq) + "</div></div>";
+  h += "<h2>" + echappe(t().langueTitre) + "</h2>";
+  const lg = valeur("langueCom", a.langue || langue);
+  h += '<select id="langueCom"><option value="fr"' + (lg === "fr" ? " selected" : "") + '>Français</option><option value="en"' + (lg === "en" ? " selected" : "") + ">English</option></select>";
+  h += '<div class="boutons"><button type="submit" class="principal" id="btnEnvoyer">' + echappe(t().envoyer) + "</button></div>";
+  h += '<div class="alerte mauvais" id="erreur" hidden></div>';
+  h += "</form>";
+  bloc.innerHTML = h;
+  document.getElementById("form").addEventListener("submit", ev => { ev.preventDefault(); envoyer(); });
+  document.getElementById("pays").addEventListener("change", () => { memoriserSaisie(); if (valeur("pays") !== "CA") brouillon.province = ""; else brouillon.province = "QC"; dessiner(); });
+}
+
+async function envoyer() {
+  memoriserSaisie();
+  const paysCode = valeur("pays", "CA");
+  const acheteur = {
+    nomLegal: valeur("nomLegal").trim(), nomCommercial: valeur("nomCommercial").trim(), signataire: valeur("signataire").trim(),
+    telephone: valeur("telephone").trim(), courriel: valeur("courriel").trim(),
+    adresse: valeur("adresse").trim(), ville: valeur("ville").trim(), province: valeur("province").trim(), codePostal: valeur("codePostal").trim(),
+    pays: { CA: "Canada", US: langue === "en" ? "United States" : "États-Unis" }[paysCode] || (langue === "en" ? "Other" : "Autre"),
+    noConcessionnaire: valeur("noConcessionnaire").trim(), tps: valeur("tps").trim(), tvq: valeur("tvq").trim(), langue: valeur("langueCom", langue)
+  };
+  if (acheteur.nomLegal.length < 2) { erreur("NOM_REQUIS"); return; }
+  if (!acheteur.signataire) { erreur("SIGNATAIRE_REQUIS"); return; }
+  if (!acheteur.telephone) { erreur("TELEPHONE_REQUIS"); return; }
+  if (acheteur.courriel.indexOf("@") < 1) { erreur("COURRIEL_INVALIDE"); return; }
+  if (!acheteur.adresse || !acheteur.ville) { erreur("ADRESSE_REQUISE"); return; }
+  const bouton = document.getElementById("btnEnvoyer");
+  bouton.disabled = true; bouton.textContent = t().envoiEnCours;
+  try {
+    const r = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "acheteurExterneInscrire", i: idFiche, j: jeton, langue: acheteur.langue, acheteur: acheteur }) });
+    const j = await r.json();
+    if (!j.ok) { bouton.disabled = false; bouton.textContent = t().envoyer; erreur(j.code || "ERREUR"); return; }
+    fiche = j.acheteur || Object.assign({}, fiche, acheteur, { statut: "inscrit" });
+    termine = true;
+    dessiner();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) {
+    bouton.disabled = false; bouton.textContent = t().envoyer; erreur("RESEAU");
+  }
+}
+
+async function charger() {
+  if (!idFiche || !jeton) { afficherMessage(t().LIEN_INVALIDE, ""); return; }
+  afficherMessage(t().chargement, "");
+  try {
+    const r = await fetch(SCRIPT_URL + "?ficheAcheteur=" + encodeURIComponent(idFiche) + "&j=" + encodeURIComponent(jeton) + "&_=" + Date.now());
+    const j = await r.json();
+    if (!j.ok) { afficherMessage(t()[j.code] || t().RESEAU, ""); return; }
+    fiche = j.acheteur || {};
+    vendeurNom = (j.vendeur && j.vendeur.nom) || "";
+    let choisie = null;
+    try { choisie = localStorage.getItem("automaxLangue"); } catch (e) {}
+    if (!choisie && (j.langue === "fr" || j.langue === "en")) langu

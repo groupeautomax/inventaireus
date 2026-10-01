@@ -202,6 +202,12 @@
 
     <div class="bloc" id="blocEtat"></div>
 
+    <div class="bloc" id="blocTransport" hidden>
+      <h2 id="titreTransport"></h2>
+      <p class="aide" id="aideTransport"></p>
+      <a class="bouton-pdf" id="lienTransport" href="#" target="_blank" rel="noopener"></a>
+    </div>
+
     <div class="bloc" id="blocHistorique" hidden>
       <h2 id="titreHistorique"></h2>
       <ul class="historique" id="historique"></ul>
@@ -294,6 +300,9 @@ const T = {
     envoyerOffre: "Envoyer cette offre",
     annulerSaisie: "Annuler",
     prixConvenu: "Prix convenu",
+    transportTitre: "Besoin de faire livrer le véhicule ?",
+    transportAide: "Central Fleet, notre transporteur, vous répond dans l'heure : le départ, l'arrivée et le véhicule sont déjà remplis.",
+    transportBouton: "Organiser le transport (Central Fleet)",
     finaliserAide: "Pour conclure la vente, inscrivez les coordonnées légales de votre entreprise et le lieu de livraison, vérifiez le total avec les taxes, puis signez électroniquement. Le contrat de vente vous sera envoyé par courriel en PDF.",
     acheteurTitre: "Acheteur",
     nomLegal: "Nom légal de l'entreprise",
@@ -388,6 +397,9 @@ const T = {
     envoyerOffre: "Send this offer",
     annulerSaisie: "Cancel",
     prixConvenu: "Agreed price",
+    transportTitre: "Need the vehicle delivered?",
+    transportAide: "Central Fleet, our carrier, quotes within the hour: pickup, delivery and vehicle are already filled in.",
+    transportBouton: "Arrange transport (Central Fleet)",
     finaliserAide: "To close the sale, enter your dealership's legal details and the delivery location, check the total with taxes, then sign electronically. The bill of sale will be emailed to you as a PDF.",
     acheteurTitre: "Buyer",
     nomLegal: "Company legal name",
@@ -699,6 +711,20 @@ function dessiner() {
   h += '<div class="alerte mauvais" id="erreur" hidden></div>';
   bloc.innerHTML = h;
   brancher();
+
+  // Transport (1er oct.) : dès que le prix est convenu, un bouton vers Central
+  // Fleet, lien pré-rempli par le serveur (départ, arrivée, véhicule).
+  const blocT = document.getElementById("blocTransport");
+  if (o.transport && (o.statut === "acceptee" || o.statut === "contrat")) {
+    blocT.hidden = false;
+    document.getElementById("titreTransport").textContent = t().transportTitre;
+    document.getElementById("aideTransport").textContent = t().transportAide;
+    const lien = document.getElementById("lienTransport");
+    lien.href = o.transport;
+    lien.textContent = t().transportBouton;
+  } else {
+    blocT.hidden = true;
+  }
 
   const hist = (o.historique || []).slice().reverse();
   const blocH = document.getElementById("blocHistorique");

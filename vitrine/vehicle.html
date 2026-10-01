@@ -182,7 +182,8 @@ const T = {
     envoyer: "Envoyer mon offre",
     envoi: "Envoi…",
     merci: "Offre envoyée",
-    merciDetail: "Merci. Nous revenons vers vous rapidement.",
+    merciDetail: "Merci. Nous revenons vers vous rapidement par courriel.",
+    merciSuivre: "Suivre mon offre",
     pied: "Groupe Automax — inventaire réservé à nos acheteurs.",
     LIEN_INVALIDE: "Ce lien n'est plus valide. Demandez-en un nouveau à votre contact chez Groupe Automax.",
     VEHICULE_RETIRE: "Ce véhicule n'est plus offert.",
@@ -212,7 +213,8 @@ const T = {
     envoyer: "Send my offer",
     envoi: "Sending…",
     merci: "Offer sent",
-    merciDetail: "Thank you. We will get back to you shortly.",
+    merciDetail: "Thank you. We will get back to you shortly by email.",
+    merciSuivre: "Track my offer",
     pied: "Groupe Automax — inventory reserved for our buyers.",
     LIEN_INVALIDE: "This link is no longer valid. Please ask your Groupe Automax contact for a new one.",
     VEHICULE_RETIRE: "This vehicle is no longer offered.",
@@ -379,7 +381,8 @@ document.getElementById("formulaire").addEventListener("submit", async ev => {
     email: document.getElementById("courriel").value,
     phone: document.getElementById("telephone").value,
     price: document.getElementById("prix").value,
-    conditions: document.getElementById("conditions").value
+    conditions: document.getElementById("conditions").value,
+    langue: langue
   };
 
   try {
@@ -393,9 +396,14 @@ document.getElementById("formulaire").addEventListener("submit", async ev => {
     });
     const j = await r.json();
     if (j.ok) {
+      // Depuis les contrats, l'offre a un identifiant : le lien de suivi
+      // permet à l'acheteur de répondre à une contre-offre et de signer.
+      const suivi = j.id
+        ? '<br><a href="offre.html?o=' + encodeURIComponent(j.id) + '" style="color:inherit;font-weight:600">' + echappe(t().merciSuivre) + "</a>"
+        : "";
       document.getElementById("blocOffre").innerHTML =
         '<div class="alerte bon"><strong>' + echappe(t().merci) + "</strong><br>" +
-        echappe(t().merciDetail) + "</div>";
+        echappe(t().merciDetail) + suivi + "</div>";
       return;
     }
     erreur.textContent = t()[j.code] || t().RESEAU;

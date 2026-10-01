@@ -80,6 +80,14 @@
   .bande img[aria-current="true"] { border-color: var(--vert); }
   .options { display: flex; flex-wrap: wrap; gap: 8px; }
   .options span { font-size: 14px; padding: 7px 12px; border-radius: 999px; background: var(--fond); border: 1px solid var(--trait); }
+  .bouton-pdf {
+    display: flex; align-items: center; gap: 12px; padding: 13px 14px; margin-top: 12px;
+    border: 1px solid var(--trait); border-radius: 12px; background: var(--fond);
+    color: var(--texte); text-decoration: none; font-weight: 600; font-size: 15px;
+  }
+  .bouton-pdf:hover { border-color: var(--vert); }
+  .bouton-pdf svg { width: 26px; height: 26px; flex: 0 0 auto; color: #c62828; }
+  .bouton-pdf .fleche { margin-left: auto; color: var(--doux); font-weight: 400; }
   .details { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
   .ligne { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--trait); font-size: 14px; }
   .ligne:last-child { border-bottom: 0; }
@@ -186,6 +194,7 @@
     <div class="bloc" id="blocFiche" hidden>
       <details class="repli">
         <summary id="titreFiche"></summary>
+        <a class="bouton-pdf" id="stickerLien" href="#" target="_blank" rel="noopener" hidden></a>
         <div class="options" id="options" style="margin-top:12px"></div>
         <div class="details" id="details" style="margin-top:10px"></div>
       </details>
@@ -245,6 +254,7 @@ const T = {
     chargement: "Chargement de votre offre…",
     titreHistorique: "Historique",
     fiche: "Fiche technique et options",
+    ouvrirSticker: "Ouvrir le window sticker (PDF)",
     kmInconnu: "Kilométrage tel qu'indiqué au véhicule",
     sansPhoto: "Photos à venir",
     vitesses: n => n + " rapports",
@@ -338,6 +348,7 @@ const T = {
     chargement: "Loading your offer…",
     titreHistorique: "History",
     fiche: "Specifications and options",
+    ouvrirSticker: "Open the window sticker (PDF)",
     kmInconnu: "Mileage as shown on the vehicle",
     sansPhoto: "Photos coming soon",
     vitesses: n => n + "-speed",
@@ -552,8 +563,17 @@ function dessinerVehicule(v, vendeur) {
     [t().carrosserie, code(d.carrosserie)], [t().couleurExt, v.couleur], [t().transmission, code(d.transmission)],
     [t().moteur, d.moteur], [t().motricite, code(d.motricite)], [t().carburant, code(d.carburant)]
   ].filter(x => x[1]);
+  const st = v.sticker && v.sticker.url ? v.sticker : null;
+  const lienSticker = document.getElementById("stickerLien");
+  lienSticker.hidden = !st;
+  if (st) {
+    const m = st.source === "drive" ? (st.url.match(/[?&]id=([^&]+)/) || st.url.match(/\/d\/([^/?]+)/)) : null;
+    lienSticker.href = m ? "https://drive.google.com/file/d/" + m[1] + "/view" : st.url;
+    lienSticker.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 15h8M8 18h5"/></svg>' +
+      "<span>" + echappe(t().ouvrirSticker) + '</span><span class="fleche">&rarr;</span>';
+  }
   const blocFiche = document.getElementById("blocFiche");
-  blocFiche.hidden = !(options.length || lignes.length > 2);
+  blocFiche.hidden = !(st || options.length || lignes.length > 2);
   document.getElementById("titreFiche").textContent = t().fiche;
   document.getElementById("options").innerHTML = options.map(o => "<span>" + echappe(code(o)) + "</span>").join("");
   document.getElementById("details").innerHTML = lignes.map(x =>
@@ -807,6 +827,7 @@ function geler(etat) {
 
 async function repondre(reponse) {
   memoriserSaisie();
+  cacherErreur();
   const corps = { action: "offreRepondre", o: idOffre, reponse: reponse, langue: langue };
   if (reponse === "contre") {
     corps.montant = valeur("montant");
@@ -826,8 +847,14 @@ async function repondre(reponse) {
   }
 }
 
+function cacherErreur() {
+  const el = document.getElementById("erreur");
+  if (el) el.hidden = true;
+}
+
 async function finaliser() {
   memoriserSaisie();
+  cacherErreur();
   const acheteur = {
     nomLegal: valeur("nomLegal"), signataire: valeur("signataire"), adresse: valeur("adresse"), ville: valeur("ville"),
     province: valeur("province"), codePostal: valeur("codePostal"),

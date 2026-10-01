@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Répondre à l'offre</title>
+<style>
+  :root {
+    --vert: #008a44;
+    --texte: #16181c;
+    --doux: #6b7280;
+    --trait: #e6e8ec;
+    --fond: #f6f7f9;
+    --carte: #ffffff;
+    --rayon: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--fond); color: var(--texte); line-height: 1.45;
+  }
+  header {
+    background: var(--carte); border-bottom: 1px solid var(--trait);
+    padding: 14px 16px; position: sticky; top: 0; z-index: 10;
+  }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 760px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; }
+  .pousse { margin-left: auto; color: var(--doux); font-size: 13px; }
+
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .bloc {
+    background: var(--carte); border: 1px solid var(--trait);
+    border-radius: var(--rayon); padding: 18px; margin-bottom: 14px;
+  }
+  .vehicule { display: flex; gap: 14px; align-items: center; }
+  .vehicule img { width: 112px; height: 84px; object-fit: cover; border-radius: 10px; background: #e9ebef; flex: 0 0 auto; }
+  .vehicule .sansPhoto { width: 112px; height: 84px; border-radius: 10px; background: linear-gradient(135deg, #1f2328, #008a44); flex: 0 0 auto; }
+  h1 { font-size: 20px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.3px; }
+  h2 { font-size: 17px; margin: 0 0 8px; }
+  .vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--doux); }
+  .sous { color: var(--doux); font-size: 14px; }
+  .aide { color: var(--doux); font-size: 14px; margin: 0 0 12px; }
+  .etat { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+          padding: 4px 10px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-bottom: 10px; }
+  .etat.attente { background: #fff4d6; color: #8a5a00; }
+  .etat.action { background: #e7f5ed; color: #0a6136; }
+  .etat.ferme { background: #fdecec; color: #8a1d1d; }
+  .montant { font-size: 30px; font-weight: 700; color: var(--vert); margin: 4px 0 2px; letter-spacing: -0.5px; }
+  .ligne { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--trait); font-size: 14px; }
+  .ligne:last-child { border-bottom: 0; }
+  .ligne .k { color: var(--doux); }
+  .ligne .v { font-weight: 600; text-align: right; word-break: break-word; }
+  .ligne .v a { color: inherit; }
+  .citation { border-left: 3px solid var(--trait); padding: 4px 12px; margin: 10px 0 0; color: var(--texte); font-size: 15px; white-space: pre-wrap; }
+
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  input, textarea {
+    width: 100%; padding: 12px 13px; font: inherit; font-size: 16px;
+    border: 1px solid var(--trait); border-radius: 10px;
+    background: var(--fond); color: var(--texte);
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  textarea { min-height: 72px; resize: vertical; }
+
+  .boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.principal, button.secondaire, button.discret, button.danger {
+    padding: 14px 18px; font: inherit; font-size: 16px; font-weight: 650;
+    border-radius: 12px; cursor: pointer; border: 0;
+  }
+  button.principal { background: var(--vert); color: #fff; flex: 1 1 auto; }
+  button.secondaire { background: var(--fond); color: var(--texte); border: 1px solid var(--trait); flex: 1 1 auto; }
+  button.danger { background: #fdecec; color: #8a1d1d; flex: 1 1 auto; }
+  button.discret { background: transparent; color: var(--doux); text-decoration: underline; font-weight: 500; padding: 10px 6px; }
+  button:disabled { opacity: .55; cursor: default; }
+  .replis { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--trait); }
+
+  .historique { list-style: none; margin: 0; padding: 0; }
+  .historique li { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--trait); font-size: 14px; }
+  .historique li:last-child { border-bottom: 0; }
+  .historique .quand { color: var(--doux); white-space: nowrap; flex: 0 0 100%; font-size: 13px; }
+  .historique .m { margin-left: auto; font-weight: 600; white-space: nowrap; }
+  .historique .n { flex: 0 0 100%; color: var(--doux); font-size: 13px; }
+  @media (min-width: 521px) { .historique .quand { flex: 0 0 150px; font-size: 14px; } }
+
+  .alerte { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
+  .alerte.mauvais { background: #fdf0e8; color: #8a4b1d; }
+  .alerte.bon { background: #e7f5ed; color: #0a6136; }
+  .message { text-align: center; padding: 56px 20px; color: var(--doux); }
+  .message strong { display: block; color: var(--texte); font-size: 17px; margin-bottom: 6px; }
+  footer { text-align: center; color: var(--doux); font-size: 13px; padding: 28px 16px 40px; }
+
+  @media (prefers-color-scheme: dark) {
+    :root { --texte: #f2f3f5; --doux: #9aa1ab; --trait: #2a2d33; --fond: #121316; --carte: #1b1d21; }
+    .vehicule img { background: #24272c; }
+    .etat { background: #24272c; }
+    .etat.attente { background: #3a2f10; color: #f3cf7a; }
+    .etat.action { background: #12331f; color: #8fd9b0; }
+    .etat.ferme { background: #3a1515; color: #f0a0a0; }
+    button.danger { background: #3a1515; color: #f0a0a0; }
+    .alerte.mauvais { background: #3a2415; color: #f0b98b; }
+    .alerte.bon { background: #12331f; color: #8fd9b0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rangee">
+    <span class="marque" id="marque"></span>
+    <span class="pousse">Réponse à une offre</span>
+  </div>
+</header>
+
+<main>
+  <div id="contenu" hidden>
+    <div class="bloc">
+      <div class="vehicule">
+        <div id="photo"></div>
+        <div>
+          <h1 id="titre"></h1>
+          <div class="vin" id="vin"></div>
+          <div class="sous" id="reperes"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bloc">
+      <h2>Acheteur</h2>
+      <div id="acheteur"></div>
+    </div>
+
+    <div class="bloc" id="blocEtat"></div>
+
+    <div class="bloc">
+      <label for="qui">Votre nom (apparaît dans l'historique et dans l'app)</label>
+      <input id="qui" type="text" autocomplete="name" placeholder="Ex. : Sophie">
+    </div>
+
+    <div class="bloc" id="blocHistorique" hidden>
+      <h2>Historique</h2>
+      <ul class="historique" id="historique"></ul>
+    </div>
+  </div>
+
+  <div class="message" id="message"></div>
+</main>
+
+<footer id="pied"></footer>
+
+<script>
+/* ---------------------------------------------------------------------------
+   Page de l'équipe, ouverte depuis les boutons du courriel « Offre reçue » /
+   « Nouvelle offre ». Le jeton `e` (signé côté serveur) vaut connexion : les
+   gestes passent par la même fonction que dans l'app (CONTRAT_action).
+   Même adresse que dans offre.html, vehicle.html et l'app.
+   --------------------------------------------------------------------------- */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+
+const T = {
+  chargement: "Un instant…",
+  LIEN_INVALIDE: "Ce lien n'est plus valide. Ouvrez l'offre dans l'app, section « Offre inventaire direct ».",
+  RESEAU: "Impossible de joindre le serveur. Vérifiez la connexion, puis réessayez.",
+  ERREUR: "Une erreur est survenue. Réessayez, ou répondez depuis l'app.",
+  OFFRE_INTROUVABLE: "Offre introuvable : elle a peut-être été supprimée de la feuille.",
+  PAS_EN_ATTENTE: "Cette offre n'est plus en attente : rafraîchissez la page.",
+  DEJA_CONTRAT: "Le contrat est déjà généré pour cette offre.",
+  MONTANT_INVALIDE: "Indiquez un montant.",
+  PRIX_INVALIDE: "Le prix offert est illisible : répondez par une contre-offre.",
+  ACTION_INCONNUE: "Action inconnue.",
+  pied: n => (n || "Offres") + " — page réservée à l'équipe."
+};
+
+let offre = null;
+let gesteOuvert = "";         // "" | "accepter" | "contre" | "refuser"
+let occupe = false;
+let confirmation = "";        // message vert après un geste
+let avertissement = "";       // message orange : geste fait, mais courriel non parti
+
+const params = new URLSearchParams(location.search);
+const idOffre = params.get("o") || "";
+const jeton = params.get("e") || "";
+const gesteDemande = (params.get("a") || "").toLowerCase();
+
+function echappe(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function argent(n) {
+  n = Math.round((Number(n) || 0) * 100) / 100;
+  const entier = Math.floor(n), cents = Math.round((n - entier) * 100);
+  return String(entier).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + (cents < 10 ? "0" : "") + cents + " $";
+}
+
+function dateLisible(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleString("fr-CA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function nomMemorise() {
+  try { return localStorage.getItem("automaxEquipeNom") || ""; } catch (e) { return ""; }
+}
+function memoriserNom(n) {
+  try { localStorage.setItem("automaxEquipeNom", n); } catch (e) {}
+}
+
+function afficherMessage(texte, titre) {
+  const el = document.getElementById("message");
+  el.innerHTML = (titre ? "<strong>" + echappe(titre) + "</strong>" : "") + echappe(texte);
+  el.hidden = false;
+  document.getElementById("contenu").hidden = true;
+}
+
+function montrerErreur(code) {
+  const el = document.getElementById("erreur");
+  if (!el) return;
+  el.textContent = T[code] || T.ERREUR;
+  el.hidden = false;
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function ligne(k, v, html) {
+  if (!v) return "";
+  return '<div class="ligne"><span class="k">' + echappe(k) + '</span><span class="v">' + (html || echappe(v)) + "</span></div>";
+}
+
+function dessiner() {
+  const o = offre, v = o.vehicule || {};
+  const nomVendeur = (o.vendeur && o.vendeur.nom) || "";
+  document.title = (nomVendeur ? nomVendeur + " — " : "") + "Répondre à l'offre";
+  document.getElementById("marque").textContent = nomVendeur;
+  document.getElementById("pied").textContent = T.pied(nomVendeur);
+
+  const titre = [v.annee, v.marque, v.modele].filter(Boolean).join(" ") || v.model || o.vin || "";
+  document.getElementById("titre").textContent = titre;
+  document.getElementById("vin").textContent = v.vin || "";
+  const reperes = [];
+  if (o.stock) reperes.push("Stock " + o.stock);
+  if (v.km || o.km) reperes.push(String(o.km || v.km).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " km");
+  if (v.couleur) reperes.push(v.couleur);
+  document.getElementById("reperes").textContent = reperes.join(" · ");
+  const photo = document.getElementById("photo");
+  photo.innerHTML = v.photo ? '<img src="' + echappe(v.photo) + '" alt="">' : '<div class="sansPhoto"></div>';
+
+  // L'acheteur : ses coordonnées sont des contacts, pas des adresses web.
+  document.getElementById("acheteur").innerHTML =
+    ligne("Nom", o.nom) +
+    ligne("Entreprise", o.entreprise) +
+    ligne("Courriel", o.courriel, '<a href="mailto:' + echappe(o.courriel) + '">' + echappe(o.courriel) + "</a>") +
+    ligne("Téléphone", o.telephone, '<a href="tel:' + echappe(String(o.telephone).replace(/[^\d+]/g, "")) + '">' + echappe(o.telephone) + "</a>") +
+    ligne("Langue", o.langue === "en" ? "Anglais" : "Français");
+
+  const qui = document.getElementById("qui");
+  if (!qui.value) qui.value = nomMemorise();
+
+  dessinerEtat();
+  dessinerHistorique();
+}
+
+function dessinerEtat() {
+  const o = offre;
+  const bloc = document.getElementById("blocEtat");
+  let h = "";
+  const peutAgir = !occupe;
+
+  if (confirmation) h += '<div class="alerte bon" style="margin:0 0 14px">' + echappe(confirmation) + "</div>";
+  if (avertissement) h += '<div class="alerte mauvais" style="margin:0 0 14px">' + echappe(avertissement) + "</div>";
+
+  if (o.statut === "nouvelle") {
+    h += '<span class="etat action">Offre de l\'acheteur — à vous de répondre</span>';
+    h += '<div class="sous">Offre de l\'acheteur</div><div class="montant">' + echappe(argent(o.prixOffert)) + "</div>";
+    if (o.conditions) h += '<div class="citation">' + echappe(o.conditions) + "</div>";
+    if (gesteOuvert === "contre") {
+      h += '<div class="replis"><h2>Contre-offre</h2>' +
+        '<label for="montant">Votre prix (avant taxes)</label><input id="montant" type="text" inputmode="decimal" placeholder="Ex. : 53 500">' +
+        '<label for="messageContre">Message à l\'acheteur (facultatif)</label><textarea id="messageContre" placeholder="Ex. : Prix plancher, véhicule inspecté."></textarea>' +
+        '<div class="boutons"><button type="button" class="principal" id="btnEnvoyerContre">Envoyer la contre-offre</button>' +
+        '<button type="button" class="discret" id="btnFermer">Annuler</button></div></div>';
+    } else if (gesteOuvert === "refuser") {
+      h += '<div class="replis"><h2>Refuser l\'offre</h2><p class="aide">L\'acheteur reçoit un courriel de refus.</p>' +
+        '<label for="messageRefus">Message à l\'acheteur (facultatif)</label><textarea id="messageRefus"></textarea>' +
+        '<div class="boutons"><button type="button" class="danger" id="btnEnvoyerRefus">Confirmer le refus</button>' +
+        '<button type="button" class="discret" id="btnFermer">Annuler</button></div></div>';
+    } else if (gesteOuvert === "accepter") {
+      h += '<div class="replis"><h2>Accepter ' + echappe(argent(o.prixOffert)) + "</h2>" +
+        '<p class="aide">L\'acheteur reçoit aussitôt le lien pour inscrire ses coordonnées, choisir la livraison et signer le contrat.</p>' +
+        '<div class="boutons"><button type="button" class="principal" id="btnEnvoyerAccept">Confirmer l\'acceptation</button>' +
+        '<button type="button" class="discret" id="btnFermer">Annuler</button></div></div>';
+    } else {
+      h += '<div class="boutons">' +
+        '<button type="button" class="principal" id="btnAccepter">Accepter ' + echappe(argent(o.prixOffert)) + "</button>" +
+        '<button type="button" class="secondaire" id="btnContre">Contre-offre</button>' +
+        '<button type="button" class="secondaire" id="btnRefuser">Refuser</button></div>';
+    }
+  } else if (o.statut === "contre") {
+    h += '<span class="etat attente">Contre-offre envoyée — en attente de l\'acheteur</span>';
+    h += '<div class="sous">Votre contre-offre' + (o.contrePar ? " (" + echappe(o.contrePar) + ")" : "") + '</div><div class="montant">' + echappe(argent(o.contre)) + "</div>";
+    h += '<p class="aide">L\'acheteur avait offert ' + echappe(argent(o.prixOffert)) + ". Il peut accepter, refaire une offre ou refuser depuis son courriel.</p>";
+    if (gesteOuvert === "contre") {
+      h += '<div class="replis"><h2>Modifier la contre-offre</h2>' +
+        '<label for="montant">Nouveau prix (avant taxes)</label><input id="montant" type="text" inputmode="decimal">' +
+        '<label for="messageContre">Message à l\'acheteur (facultatif)</label><textarea id="messageContre"></textarea>' +
+        '<div class="boutons"><button type="button" class="principal" id="btnEnvoyerContre">Envoyer</button>' +
+        '<button type="button" class="discret" id="btnFermer">Annuler</button></div></div>';
+    } else if (gesteOuvert === "refuser") {
+      h += '<div class="replis"><h2>Mettre fin à la négociation</h2>' +
+        '<label for="messageRefus">Message à l\'acheteur (facultatif)</label><textarea id="messageRefus"></textarea>' +
+        '<div class="boutons"><button type="button" class="danger" id="btnEnvoyerRefus">Confirmer le refus</button>' +
+        '<button type="button" class="discret" id="btnFermer">Annuler</button></div></div>';
+    } else {
+      h += '<div class="boutons"><button type="button" class="secondaire" id="btnContre">Modifier la contre-offre</button>' +
+        '<button type="button" class="secondaire" id="btnRenvoyer">Renvoyer le courriel à l\'acheteur</button>' +
+        '<button type="button" class="secondaire" id="btnRefuser">Refuser</button></div>';
+    }
+  } else if (o.statut === "acceptee") {
+    h += '<span class="etat attente">Prix convenu — l\'acheteur finalise</span>';
+    h += '<div class="sous">Prix convenu, avant taxes</div><div class="montant">' + echappe(argent(o.prixFinal)) + "</div>";
+    h += '<p class="aide">L\'acheteur doit inscrire ses coordonnées, le lieu de livraison et signer depuis son courriel. Le contrat vous arrivera par courriel dès qu\'il aura signé.</p>';
+    h += '<div class="boutons"><button type="button" class="secondaire" id="btnRenvoyer">Renvoyer le courriel à l\'acheteur</button></div>';
+  } else if (o.statut === "contrat") {
+    h += '<span class="etat action">Contrat signé</span>';
+    h += '<div class="sous">Contrat ' + echappe(o.noContrat) + (o.contratLe ? " — " + echappe(dateLisible(o.contratLe)) : "") + '</div><div class="montant">' + echappe(argent(o.prixFinal)) + "</div>";
+    h += '<p class="aide">Les deux copies sont dans Drive › Contrats et vous ont été envoyées par courriel.</p>';
+  } else if (o.statut === "refusee") {
+    h += '<span class="etat ferme">Offre refusée</span><p class="aide">La négociation est terminée.</p>';
+  } else if (o.statut === "annulee") {
+    h += '<span class="etat ferme">Offre annulée</span><p class="aide">La négociation est terminée.</p>';
+  } else {
+    h += '<span class="etat">' + echappe(o.statut) + "</span>";
+  }
+  h += '<div class="alerte mauvais" id="erreur" hidden></div>';
+  bloc.innerHTML = h;
+
+  const sur = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
+  sur("btnAccepter", () => ouvrir("accepter"));
+  sur("btnContre", () => ouvrir("contre"));
+  sur("btnRefuser", () => ouvrir("refuser"));
+  sur("btnFermer", () => ouvrir(""));
+  sur("btnEnvoyerAccept", () => agir("accepter", {}));
+  sur("btnEnvoyerContre", () => agir("contre", { montant: val("montant"), message: val("messageContre") }));
+  sur("btnEnvoyerRefus", () => agir("refuser", { message: val("messageRefus") }));
+  sur("btnRenvoyer", () => agir("lien", {}));
+  if (!peutAgir) geler(true);
+  if (gesteOuvert === "contre") { const m = document.getElementById("montant"); if (m) m.focus(); }
+}
+
+function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ""; }
+
+function ouvrir(geste) {
+  gesteOuvert = geste;
+  confirmation = ""; avertissement = "";
+  dessinerEtat();
+}
+
+function geler(etat) {
+  document.querySelectorAll("#blocEtat button").forEach(b => { b.disabled = etat; });
+}
+
+function dessinerHistorique() {
+  const h = offre.historique || [];
+  const bloc = document.getElementById("blocHistorique");
+  if (!h.length) { bloc.hidden = true; return; }
+  const libelles = {
+    offre: "Offre de l'acheteur", contre: "Contre-offre du vendeur", acceptee: "Acceptée",
+    refusee: "Refusée", annulee: "Annulée", contrat: "Contrat signé", courrielEchec: "Courriel à l'acheteur non parti"
+  };
+  document.getElementById("historique").innerHTML = h.slice().reverse().map(e => {
+    let lib = libelles[e.type] || e.type;
+    if (e.type === "acceptee") lib += e.par === "acheteur" ? " par l'acheteur" : " par le vendeur";
+    if (e.type === "refusee") lib += e.par === "acheteur" ? " — l'acheteur se retire" : " par le vendeur";
+    const qui = e.par !== "acheteur" && e.qui ? " (" + echappe(e.qui) + ")" : "";
+    return '<li><span class="quand">' + echappe(dateLisible(e.quand)) + "</span><span>" + echappe(lib) + qui + "</span>" +
+      (e.montant ? '<span class="m">' + echappe(argent(e.montant)) + "</span>" : "") +
+      (e.note ? '<span class="n">' + echappe(e.note) + "</span>" : "") + "</li>";
+  }).join("");
+  bloc.hidden = false;
+}
+
+async function poster(corps) {
+  /* text/plain volontairement : un Content-Type application/json déclenche
+     une requête préparatoire OPTIONS, à laquelle Apps Script ne répond pas. */
+  const r = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(corps)
+  });
+  return r.json();
+}
+
+async function agir(reponse, extra) {
+  if (occupe) return;
+  const qui = val("qui");
+  if (qui) memoriserNom(qui);
+  if (reponse === "contre" && !(extra.montant || "").replace(/\D/g, "")) { montrerErreur("MONTANT_INVALIDE"); return; }
+  occupe = true; geler(true);
+  try {
+    const j = await poster(Object.assign({ action: "offreRepondre", o: idOffre, equipe: jeton, reponse: reponse, qui: qui }, extra));
+    occupe = false;
+    if (!j.ok) { geler(false); montrerErreur(j.code || (j.refuse ? "LIEN_INVALIDE" : "ERREUR")); return; }
+    gesteOuvert = "";
+    const parti = j.courrielEnvoye !== false;
+    confirmation = reponse === "accepter" ? (parti ? "Offre acceptée : l'acheteur a reçu le lien pour finaliser et signer." : "Offre acceptée.")
+      : reponse === "contre" ? (parti ? "Contre-offre envoyée à l'acheteur par courriel." : "Contre-offre enregistrée.")
+      : reponse === "refuser" ? (parti ? "Refus envoyé à l'acheteur." : "Refus enregistré.")
+      : (j.envoye ? "Courriel renvoyé à l'acheteur." : (j.courrielErreur ? "" : "Rien à renvoyer pour l'instant."));
+    avertissement = parti ? "" : "Le courriel à l'acheteur n'est pas parti" + (j.courrielErreur ? " : " + j.courrielErreur : ".") + " Vous pouvez le joindre directement avec les coordonnées ci-dessus.";
+    await charger();
+  } catch (e) {
+    occupe = false; geler(false); montrerErreur("RESEAU");
+  }
+}
+
+async function charger() {
+  if (!idOffre || !jeton) { afficherMessage(T.LIEN_INVALIDE, ""); return; }
+  if (!offre) afficherMessage(T.chargement, "");
+  try {
+    const r = await fetch(SCRIPT_URL + "?offreLien=" + encodeURIComponent(idOffre) + "&equipe=" + encodeURIComponent(jeton) + "&_=" + Date.now());
+    const j = await r.json();
+    if (!j.ok) { afficherMessage(T[j.code] || T.RESEAU, ""); return; }
+    if (!j.equipe) { afficherMessage(T.LIEN_INVALIDE, ""); return; }
+    offre = j;
+    document.getElementById("message").hidden = true;
+    document.getElementById("contenu").hidden = false;
+    dessiner();
+  } catch (e) {
+    if (!offre) afficherMessage(T.RESEAU, "");
+  }
+}
+
+// Le bouton du courriel pré-ouvre le geste ; rien ne part sans un clic ici.
+if (gesteDemande === "accepter" || gesteDemande === "contre" || gesteDemande === "refuser") gesteOuvert = gesteDemande;
+charger();
+</script>
+</body>
+</html>

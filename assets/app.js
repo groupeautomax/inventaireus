@@ -486,15 +486,12 @@
       ]);
       nav.appendChild(a);
     });
-    var rech = h('div.recherche-globale', [h('span', { html: ICONES.recherche }), h('input', { type: 'search', id: 'recherche-globale', placeholder: 'VIN, # stock ou modèle — partout', autocomplete: 'off' }), h('kbd', '/')]);
+    var rech = h('div.recherche-globale', [h('span', { html: ICONES.recherche }), h('input', { type: 'search', id: 'recherche-globale', placeholder: 'VIN, # stock, modèle — ou un NIV avec rapport CARFAX', autocomplete: 'off' }), h('kbd', '/')]);
     var usager = h('div.usager', { tabindex: '0' }, [
       h('div.avatar', { text: AMX.initiales(AMX.session.nom || AMX.session.courriel) }),
       h('div', [h('div.nom', { text: AMX.session.nom || AMX.session.courriel }), h('div.role', { text: AMX.session.role || '' })]),
       h('div.menu', [
         h('div.info', [h('div', { text: AMX.session.nom || '' }), h('div', { text: AMX.session.courriel })]),
-        h('div.sep'),
-        h('a', { href: 'scan.html', text: 'Scanner (téléphone)' }),
-        h('a', { href: 'ancien/index.html', text: 'Ancienne interface' }),
         h('div.sep'),
         h('button', { type: 'button', text: 'Déconnexion', onclick: function () { AMX.deconnecter(''); } })
       ])
@@ -694,13 +691,26 @@
       var q = input.value.trim().toUpperCase();
       fermer();
       if (q.length < 2) return;
-      AMX.inventaire.tout().then(function (tout) {
+      Promise.all([AMX.inventaire.tout(), AMX.carfax.charger().catch(function () { return {}; })]).then(function (res2) {
+        var tout = res2[0], carfax = res2[1] || {};
         var res = tout.filter(function (v) {
           return String(v.vin).toUpperCase().indexOf(q) >= 0 || String(v.stock || '').toUpperCase().indexOf(q) >= 0 || String(v.modele || '').toUpperCase().indexOf(q) >= 0;
         }).slice(0, 12);
+        // Rapports CARFAX de véhicules qui ne sont pas (ou plus) à l'inventaire : par NIV (demande de Maxime, 2 oct.).
+        var dansInventaire = {}; tout.forEach(function (v) { dansInventaire[String(v.vin || '').toUpperCase()] = true; });
+        var horsInv = q.length >= 4 ? Object.keys(carfax).filter(function (vin) { return !dansInventaire[vin] && vin.indexOf(q) >= 0; }).slice(0, 8) : [];
         if (input.value.trim().toUpperCase() !== q) return;
         boite = h('div.carte', { style: { position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 50, maxHeight: '420px', overflow: 'auto', color: 'var(--encre)' } });
-        if (!res.length) boite.appendChild(h('div', { style: { padding: '12px 14px', color: 'var(--encre-3)' }, text: 'Aucun véhicule pour « ' + q + ' »' }));
+        if (!res.length && !horsInv.length) boite.appendChild(h('div', { style: { padding: '12px 14px', color: 'var(--encre-3)' }, text: 'Aucun véhicule ni rapport CARFAX pour « ' + q + ' »' }));
+        horsInv.forEach(function (vin) {
+          var row = h('a.recherche-carfax', { href: carfax[vin], target: '_blank', rel: 'noopener', style: { display: 'flex', gap: '10px', alignItems: 'center', padding: '9px 12px', borderBottom: '1px solid var(--ligne)', textDecoration: 'none', color: 'inherit' } }, [
+            h('div', { style: { flex: 1, minWidth: 0 } }, [h('div', { style: { fontWeight: 600 }, text: 'Rapport CARFAX' }), h('div.mono.petit.doux', { text: vin })]),
+            h('span.puce', { text: 'Hors inventaire' }),
+            h('span.badge.gris', { text: 'Ouvrir le rapport' })
+          ]);
+          row.addEventListener('click', function () { fermer(); input.value = ''; });
+          boite.appendChild(row);
+        });
         res.forEach(function (v) {
           var s = AMX.statut(v.statut, v._feuille);
           var row = h('a', { href: AMX.lien('inventaire', v._feuille.toLowerCase(), { vin: v.vin }), style: { display: 'flex', gap: '10px', alignItems: 'center', padding: '9px 12px', borderBottom: '1px solid var(--ligne)', textDecoration: 'none', color: 'inherit' } }, [

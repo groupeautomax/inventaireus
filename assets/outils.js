@@ -412,7 +412,7 @@
   var SITE_CARFAX = 'https://dealer.carfax.ca/MyReports';
   // Le signet : lit chaque ligne de « Mes RHV » (VIN + lien vhr.carfax.ca +
   // no de rapport + date) et revient ici avec la liste dans l'adresse.
-  var CODE_SIGNET = "javascript:(function () { var MAXP = 12, o = [], pages = 0, vus = {}; function lire() { var n = 0; [].slice.call(document.querySelectorAll('tr')).forEach(function (r) { var a = [].slice.call(r.querySelectorAll('a')).filter(function (x) { return /vhr\\.carfax\\.ca\\/(?:main)?\\?id=/.test(x.href); })[0]; if (!a) return; var c = r.querySelector('td'); var v = c ? (c.textContent.trim().toUpperCase().match(/^[A-HJ-NPR-Z0-9]{17}/) || [])[0] : ''; if (!v || vus[v]) return; var x = r.textContent; var num = (x.match(/v[\u00e9e]hicule\\s*(\\d{6,10})/i) || x.match(/Report\\s*(\\d{6,10})/i) || [])[1] || ''; var d = (x.match(/\\d{2}\\/\\d{2}\\/\\d{4}/) || [])[0] || ''; vus[v] = 1; o.push({ vin: v, lien: a.href, rapport: num, date: d }); n++; }); pages++; return n; } function premierTd() { var c = document.querySelector('table tbody tr td'); return c ? c.textContent : ''; } function suivant() { return [].slice.call(document.querySelectorAll('a.paginate_button')).filter(function (a) { return /^(Suivant|Next)$/i.test(a.textContent.trim()) && !a.classList.contains('disabled'); })[0]; } var b = document.createElement('div'); b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#008840;color:#fff;font:600 14px/1.4 -apple-system,Segoe UI,Arial,sans-serif;padding:10px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)'; document.body.appendChild(b); function dire(t) { b.textContent = 'Automax \u2190 CARFAX \u2014 ' + t; } function fin() { if (!o.length) { b.remove(); alert('Aucun rapport trouv\u00e9 ici. Ouvrez Mes rapports > Mes RHV dans votre compte CARFAX, puis cliquez de nouveau.'); return; } dire(o.length + ' rapports lus, retour au site\u2026'); location.href = " + JSON.stringify(AMX.SITE) + " + '#/outils/carfax?import=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(o))))); } function etape() { lire(); dire('page ' + pages + ' lue, ' + o.length + ' rapports\u2026'); var s = suivant(); if (!s || pages >= MAXP) { fin(); return; } var avant = premierTd(), essais = 0; s.click(); (function attendre() { essais++; if (premierTd() !== avant) { setTimeout(etape, 250); } else if (essais > 75) { fin(); } else { setTimeout(attendre, 200); } })(); } if (!document.querySelector('a[href*=\"vhr.carfax.ca/?id=\"]')) { fin(); return; } etape(); })();";
+  var CODE_SIGNET = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-carfax.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
 
   function ImportCarfax(ctx) {
     var self = this;
@@ -440,13 +440,13 @@
   ImportCarfax.prototype.construire = function () {
     var self = this;
     var signet = h('a.btn.primaire', { href: CODE_SIGNET, text: 'Automax ← CARFAX', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
-    signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis votre compte CARFAX.', 'attention', 7000); });
+    signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis votre compte CARFAX (Mes rapports › Mes RHV).', 'attention', 7000); });
     this.zoneColle = h('textarea.saisie', { rows: '6', placeholder: 'Ou collez ici des liens de rapports (un par ligne, avec le VIN devant si possible) :\n1FT8W2BT7NEC52018  https://vhr.carfax.ca/?id=…' });
     var btnColle = h('button.btn', { text: 'Lire ce qui est collé', onclick: function () { self.lireCollage(); } });
     this.elListe = h('div');
     this.elResume = h('div.doux.petit', { style: { marginTop: '8px' } });
     this.el.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Import des rapports CARFAX'), h('p', 'Récupère en un clic les liens publics des rapports que vous avez déjà commandés dans votre compte CARFAX Canada, et les attache aux véhicules. Le lien apparaît ensuite dans la fiche du véhicule et sur la page de l\'acheteur.')]),
+      h('div', [h('h1', 'Import des rapports CARFAX'), h('p', 'Récupère en un clic les liens publics des rapports que vous avez déjà commandés dans votre compte CARFAX Canada, et les attache aux véhicules — à l\'inventaire ou non. Le lien apparaît dans la fiche du véhicule, sur la page de l\'acheteur, et la recherche du site (en haut) retrouve le rapport d\'un véhicule parti par son NIV.')]),
       h('div.actions', [h('a.btn', { href: SITE_CARFAX, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir mon compte CARFAX</span>' })])
     ]));
     this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [
@@ -455,7 +455,7 @@
         h('div.grille.c3', [
           h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', { style: { margin: '0 0 10px', color: 'var(--encre-2)' } }, 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
           h('div', [h('div.section-titre', '2. Dans CARFAX'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Ouvrez Mes rapports › Mes RHV dans votre compte (une concession à la fois : « Changez d\'emplacement » pour les autres).')]),
-          h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Il parcourt lui-même les pages (les 300 rapports les plus récents) et vous ramène ici avec la liste. Vérifiez, puis « Enregistrer ».')])
+          h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Il parcourt lui-même les pages et enregistre au fur et à mesure (une petite fenêtre du site s\'ouvre à côté : laissez-la). Interrompu ? Recliquez-le : il reprend à la page où il était. Rien à faire ici ensuite.')])
         ])
       ])
     ]));

@@ -97,6 +97,17 @@
       '.admin-page .admin-parametres .ligne-cle .champ { flex: 1 1 260px; }',
       '.admin-page .admin-parametres .etat-cle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }',
       '.admin-page .admin-parametres ol { margin: 0; padding-left: 18px; font-size: 12px; color: var(--encre-3); line-height: 1.6; }',
+      '.admin-page .admin-parametres .jauge-appels { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: end; padding: 10px 12px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--fond); }',
+      '.admin-page .admin-parametres .jauge-appels .titre { font-size: 12px; color: var(--encre-3); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }',
+      '.admin-page .admin-parametres .jauge-appels .valeur { font-size: 20px; font-weight: 700; color: var(--encre); font-variant-numeric: tabular-nums; }',
+      '.admin-page .admin-parametres .jauge-appels .valeur small { font-size: 12.5px; font-weight: 500; color: var(--encre-3); margin-left: 4px; }',
+      '.admin-page .admin-parametres .jauge-appels .reste { font-size: 12.5px; color: var(--encre-3); text-align: right; white-space: nowrap; }',
+      '.admin-page .admin-parametres .jauge-appels .reste b { color: var(--encre); font-variant-numeric: tabular-nums; }',
+      '.admin-page .admin-parametres .jauge-appels .jauge-barre { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: var(--ligne); overflow: hidden; }',
+      '.admin-page .admin-parametres .jauge-appels .jauge-barre i { display: block; height: 100%; border-radius: 99px; background: var(--vert); transition: width .4s ease; }',
+      '.admin-page .admin-parametres .jauge-appels.ambre .jauge-barre i { background: var(--ambre); }',
+      '.admin-page .admin-parametres .jauge-appels.rouge .jauge-barre i { background: var(--rouge); }',
+      '.admin-page .admin-parametres .jauge-appels .detail { grid-column: 1 / -1; font-size: 12px; color: var(--encre-3); display: flex; gap: 12px; flex-wrap: wrap; }',
       // Avatar (liste et panneau), coloré comme le badge de rôle.
       '.admin-avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; letter-spacing: .02em; }',
       '.admin-avatar.grand { width: 42px; height: 42px; font-size: 14px; }',
@@ -209,7 +220,7 @@
 
   /* ------------------------------ Données ------------------------------ */
   /* ------------------- Paramètres serveur (clé MarketCheck) ------------------
-     Routes : GET ?parametres=1 → { ok, parametres: { MARKETCHECK_KEY: { present, fin } } }
+     Routes : GET ?parametres=1 → { ok, parametres: { MARKETCHECK_KEY: { present, fin } }, appels: { mois, n, ok, quota, dernier } }
               POST { action: 'reglerParametre', cle: 'MARKETCHECK_KEY', valeur } → { ok, present, fin }
      La clé est gardée dans les propriétés du script ; le serveur n'en renvoie
      jamais que les 4 derniers caractères. Tant que le script n'est pas
@@ -222,10 +233,12 @@
     this.btnCle = h('button.btn.primaire#adm-cle-enregistrer', { type: 'button', html: I.ok + '<span>Enregistrer la clé</span>', onclick: function () { self.enregistrerCle(); } });
     this.btnCleRetirer = h('button.btn.danger.petit#adm-cle-retirer', { type: 'button', text: 'Retirer la clé', onclick: function () { self.retirerCle(); } });
     var voir = h('button.btn.petit.fantome', { type: 'button', text: 'Afficher', onclick: function () { var p = self.elCle.type === 'password'; self.elCle.type = p ? 'text' : 'password'; voir.textContent = p ? 'Masquer' : 'Afficher'; } });
+    this.elJauge = h('div.jauge-appels#adm-appels', { style: { display: 'none' } });
     var corps = [
       h('p.doux.petit', { style: { margin: 0 }, text: 'L\'analyse de marché de la fiche d\'évaluation (Outils › Évaluation marché) interroge MarketCheck : annonces actives et ventes récentes au Canada et aux États-Unis. La clé est gardée sur le serveur, jamais renvoyée au navigateur ni enregistrée dans l\'app.' }),
       h('div.ligne-cle', [h('div.champ', [h('label', { 'for': 'adm-cle-marketcheck', text: 'Clé API MarketCheck' }), this.elCle]), voir, this.btnCle, this.btnCleRetirer]),
       h('div', [h('span.etiquette', { text: 'État : ' }), this.elEtatCle]),
+      this.elJauge,
       h('details', [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Obtenir ou renouveler une clé (plan gratuit : 500 appels par mois)' }), h('ol', [
         h('li', 'Créez un compte sur marketcheck.com (connexion Google avec le courriel du travail), plan Free.'),
         h('li', 'Dans le tableau de bord, créez une application (« ScanAutomax ») : la clé API s\'affiche.'),
@@ -247,12 +260,34 @@
       this.btnCleRetirer.classList.add('cache');
     }
   };
+  /* Compteur d'appels du mois (plan gratuit : 500). Vert sous 60 %, ambre
+     sous 85 %, rouge au-delà. Chaque analyse non mise en cache = 2 appels. */
+  VueAdmin.prototype.rendreAppels = function (a) {
+    var el = this.elJauge;
+    AMX.vider(el);
+    if (!a || typeof a.n !== 'number') { el.style.display = 'none'; return; }
+    el.style.display = '';
+    var quota = a.quota || 500, n = a.n || 0, pct = Math.min(100, Math.round(n / quota * 100)), reste = Math.max(0, quota - n);
+    el.classList.remove('ambre', 'rouge');
+    if (pct >= 85) el.classList.add('rouge'); else if (pct >= 60) el.classList.add('ambre');
+    var mois = 'ce mois-ci', mm = /^(\d{4})-(\d{2})$/.exec(a.mois || '');
+    if (mm) mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'][parseInt(mm[2], 10) - 1] + ' ' + mm[1];
+    el.appendChild(h('div', [h('div.titre', { text: 'Appels MarketCheck — ' + mois }), h('div.valeur', { html: AMX.fmtNombre(n) + '<small>/ ' + AMX.fmtNombre(quota) + ' (' + pct + ' %)</small>' })]));
+    el.appendChild(h('div.reste', { html: reste ? 'Il reste <b>' + AMX.fmtNombre(reste) + '</b> appels, soit environ <b>' + Math.floor(reste / 2) + '</b> analyses' : '<b>Quota épuisé</b> — les analyses reprendront le 1er du mois prochain' }));
+    el.appendChild(h('div.jauge-barre', [h('i', { style: { width: pct + '%' } })]));
+    var det = [];
+    if (a.ok !== undefined && a.n) det.push(h('span', { text: (a.n - a.ok) ? (a.n - a.ok) + ' appel(s) en erreur' : 'Aucune erreur' }));
+    if (a.dernier) det.push(h('span', { text: 'Dernier appel : ' + AMX.fmtDate(a.dernier) }));
+    det.push(h('span', { text: 'Compteur maison — les analyses mises en cache (6 h) ne comptent pas.' }));
+    el.appendChild(h('div.detail', det));
+  };
   VueAdmin.prototype.chargerParametres = function () {
     var self = this;
     return AMX.get({ parametres: 1 }).then(function (d) {
       if (self.detruit) return;
       if (!d || d.refuse || !d.ok || !d.parametres) { self.rendreEtatCle(null); return; }
       self.rendreEtatCle(d.parametres.MARKETCHECK_KEY || { present: false });
+      self.rendreAppels(d.appels || null);
     }).catch(function () { if (!self.detruit) self.rendreEtatCle(null); });
   };
   VueAdmin.prototype.enregistrerCle = function () {

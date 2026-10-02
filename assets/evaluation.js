@@ -328,9 +328,13 @@
     this.elAnnee = cAnnee.input; this.elKm = cKm.input; this.elTaux = cTaux.input;
     this.elContexte = h('div.eval-contexte.cache');
     this.elLiens = h('div.eval-liens');
+    // Historique Torque du NIV (archive des évaluations importées de Torque) : rempli par AMX.torqueHistorique.
+    this.elTorque = h('div.eval-sous-vehicule#eval-torque');
+    this.torqueVin = '';
     var vehicule = h('div.carte#sec-vehicule', [h('div.carte-corps', [
       h('div.grille.eval-grille-vehicule', [cNiv.el, cAnnee.el, cMarque.el, cModele.el, cVersion.el, cKm.el, cConcession, cTaux.el]),
-      h('div.eval-sous-vehicule', [this.elContexte, this.elLiens])
+      h('div.eval-sous-vehicule', [this.elContexte, this.elLiens]),
+      this.elTorque
     ])]);
 
     // --- Prix : achat + frais = payé ; payé + recon + marge = détail -------
@@ -508,6 +512,9 @@
     this.elLiens.appendChild(this.elRappels);
     this.rendreRappels();
     this.elLiens.appendChild(h('span.sep', { text: vinOk ? 'NIV ' + vin : 'Entrez un NIV complet pour les liens par véhicule' }));
+    // Historique Torque : une requête par NIV, seulement quand il change.
+    if (vinOk && this.torqueVin !== vin && typeof AMX.torqueHistorique === 'function') { this.torqueVin = vin; AMX.torqueHistorique(vin, this.elTorque); }
+    else if (!vinOk && this.torqueVin) { this.torqueVin = ''; AMX.vider(this.elTorque); }
   };
 
   /* ------------------------- Rappels de sécurité (NHTSA) -----------------

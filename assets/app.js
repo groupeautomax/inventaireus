@@ -572,11 +572,13 @@
     VOLKSWAGEN: 'vw.com', VW: 'vw.com', AUDI: 'audiusa.com', BMW: 'bmwusa.com', MINI: 'miniusa.com', 'MERCEDES-BENZ': 'mbusa.com', MERCEDES: 'mbusa.com',
     PORSCHE: 'porsche.com', TESLA: 'tesla.com', VOLVO: 'volvocars.com', 'LAND': 'landroverusa.com', 'LAND ROVER': 'landroverusa.com', JAGUAR: 'jaguarusa.com',
     MITSUBISHI: 'mitsubishicars.com', RIVIAN: 'rivian.com', POLESTAR: 'polestar.com', 'ALFA': 'alfaromeousa.com', 'ALFA ROMEO': 'alfaromeousa.com', FIAT: 'fiatusa.com',
-    MASERATI: 'maserati.com', LUCID: 'lucidmotors.com'
+    MASERATI: 'maserati.com', LUCID: 'lucidmotors.com', 'RANGE': 'landroverusa.com', 'RANGE ROVER': 'landroverusa.com',
+    SATURN: 'gm.com', PONTIAC: 'gm.com', SMART: 'mbusa.com', SCION: 'toyota.com', SUZUKI: 'globalsuzuki.com', ISUZU: 'isuzu.com', HUMMER: 'gmc.com'
   };
+  // Seules les marques connues ont une icône : pour un mot inattendu
+  // (« (modèle », « RANGE »…), deviner un domaine afficherait n'importe quoi.
   AMX.domaineMarque = function (marque) {
-    var m = String(marque || '').trim().toUpperCase();
-    return DOMAINES_MARQUES[m] || (m ? m.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com' : '');
+    return DOMAINES_MARQUES[String(marque || '').trim().toUpperCase()] || '';
   };
   // Logos officiels déposés dans le dépôt (assets/marques/…), par marque en
   // majuscules. Vide = on prend l'icône du site du constructeur. On ne tente
@@ -586,12 +588,13 @@
     var m = String(marque || '').trim().toUpperCase();
     var abrege = m.slice(0, 3) || '—';
     var el = h('span.logo-marque' + (cls ? '.' + cls : ''), { title: m || 'Marque inconnue' });
-    if (!m) { el.textContent = abrege; el.classList.add('texte'); return el; }
-    var favicon = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(AMX.domaineMarque(m)) + '&sz=64';
+    var domaine = AMX.domaineMarque(m);
     var local = AMX.LOGOS_LOCAUX[m] || '';
+    if (!m || (!domaine && !local)) { el.textContent = abrege; el.classList.add('texte'); return el; }
+    var favicon = domaine ? 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(domaine) + '&sz=64' : '';
     var img = h('img', { alt: m, loading: 'lazy', decoding: 'async', src: local || favicon });
     img.addEventListener('error', function () {
-      if (local && img.src.indexOf(local) >= 0) { img.src = favicon; return; }
+      if (local && favicon && img.src.indexOf(local) >= 0) { img.src = favicon; return; }
       AMX.vider(el); el.textContent = abrege; el.classList.add('texte');
     });
     el.appendChild(img);

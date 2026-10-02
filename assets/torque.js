@@ -247,6 +247,7 @@
   /* -------------------------------- Rendu ------------------------------- */
   ArchiveTorque.prototype.rendre = function () {
     var self = this;
+    this.limite = 300;
     AMX.vider(this.elCartes); AMX.vider(this.elSegment); AMX.vider(this.elVide);
     this.rendreImport();
     if (this.refus) { this.elEtat.textContent = this.refus; this.elVide.appendChild(h('div.vide', [h('div', { html: I.cadenas }), h('h3', 'Accès non autorisé'), h('div', { text: this.refus })])); this.elTable.textContent = ''; return; }
@@ -311,7 +312,9 @@
       return th;
     }))]);
     var tbody = h('tbody');
-    lignes.forEach(function (r) {
+    // Des milliers de lignes possibles : on dessine par tranches de 300, le reste à la demande.
+    var LIMITE = this.limite || 300, visibles = lignes.slice(0, LIMITE);
+    visibles.forEach(function (r) {
       var s = statut(r.statut);
       var tr = h('tr.cliquable' + (r.archivee ? '.archivee' : ''), { tabindex: '0' }, [
         h('td.photo', r.photo ? [h('img', { src: r.photo, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' })] : [h('div.sans', { text: 'sans photo' })]),
@@ -332,6 +335,13 @@
       tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') ouvrir(); });
       tbody.appendChild(tr);
     });
+    if (lignes.length > visibles.length) {
+      tbody.appendChild(h('tr', [h('td', { colspan: String(COLONNES.length), style: { textAlign: 'center', padding: '12px' } }, [
+        h('span.doux', { text: visibles.length + ' lignes affichées sur ' + lignes.length + ' — ' }),
+        h('button.btn.petit', { type: 'button', text: 'Afficher 300 de plus', onclick: function () { self.limite = LIMITE + 300; self.rendreTable(); } }),
+        h('span.doux', ' ou affinez la recherche.')
+      ])]));
+    }
     var ag = agreger(lignes);
     var tfoot = h('tfoot', [h('tr', [
       h('td', { colspan: '7', text: 'Total — ' + ag.n + ' évaluation' + (ag.n > 1 ? 's' : '') + ' · ' + ag.nRepris + ' reprise' + (ag.nRepris > 1 ? 's' : '') + ' · ' + ag.nPerdu + ' perdue' + (ag.nPerdu > 1 ? 's' : '') }),

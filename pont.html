@@ -5,13 +5,18 @@
 <title>Pont Automax</title>
 <meta name="robots" content="noindex">
 </head>
-<body>
+<body style="font: 14px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 18px 20px; background: #F4F6F8; color: #1F2933;">
+<div style="font-weight: 700; font-size: 15px; margin-bottom: 6px;">Pont Automax</div>
+<div id="etat" style="color: #52606D;">Laissez cette petite fenêtre ouverte pendant l'export : elle transmet les lots au serveur avec votre session du site. Elle se ferme toute seule à la fin.</div>
+<div id="lots" style="margin-top: 10px; font-size: 13px; color: #0F7B4F; font-weight: 600;"></div>
 <script>
 /* Pont entre un signet qui tourne sur un autre site (Torque, eBlock…) et notre
-   serveur. Chargé dans un iframe caché par le signet, il reçoit des lots par
-   postMessage et les envoie au script Apps Script avec la session du site
-   (jeton de connexion de cet utilisateur, lu ici, dans l'origine du site —
-   jamais transmis à la page appelante). Origines acceptées : liste ci-dessous. */
+   serveur. Ouvert par le signet dans une petite fenêtre (window.open — pas un
+   iframe : Chrome cloisonne le stockage des iframes tiers et la session du
+   site n'y serait pas), il reçoit des lots par postMessage et les envoie au
+   script Apps Script avec la session du site (jeton de connexion de cet
+   utilisateur, lu ici, dans l'origine du site — jamais transmis à la page
+   appelante). Origines acceptées : liste ci-dessous. */
 (function () {
   var URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
   var ORIGINES = ['https://dealer.torquemanagement.ca', 'https://app.eblock.com', 'https://dealer.carfax.ca'];
@@ -19,6 +24,9 @@
   function lire(c) { try { return localStorage.getItem(c) || ''; } catch (e) { return ''; } }
   var jeton = lire('pg_jeton_v1'), courriel = lire('pg_utilisateur_v1');
   var parent = window.parent !== window ? window.parent : (window.opener || null);
+  var nLots = 0;
+  function dire(id, t) { var e = document.getElementById(id); if (e) e.textContent = t; }
+  if (!jeton || !courriel) dire('etat', 'Vous n\'êtes pas connecté au site d\'inventaire dans ce navigateur : ouvrez groupeautomax.github.io/inventaireus dans un onglet, connectez-vous, puis recliquez le signet.');
 
   function repondre(origine, msg) { try { (window.parent !== window ? window.parent : window.opener).postMessage(msg, origine); } catch (e) {} }
 
@@ -35,7 +43,7 @@
       essais++;
       fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corps) })
         .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-        .then(function (t) { var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); } if (d && d.reessayer && essais < 3) { setTimeout(envoyer, 1500 * essais); return; } repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: d }); })
+        .then(function (t) { var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); } if (d && d.reessayer && essais < 3) { setTimeout(envoyer, 1500 * essais); return; } nLots++; dire('lots', nLots + ' lot' + (nLots > 1 ? 's' : '') + ' transmis au serveur' + (d && d.ok === false ? ' (dernier refusé : ' + (d.erreur || '') + ')' : '')); repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: d }); })
         .catch(function (err) { if (essais < 3) { setTimeout(envoyer, 1500 * essais); return; } repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: { ok: false, erreur: String(err && err.message || err) } }); });
     })();
   });

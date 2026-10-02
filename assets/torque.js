@@ -124,9 +124,15 @@
     this.elStatut.addEventListener('change', function () { self.statut = self.elStatut.value; self.rendreTable(); });
     var caseArch = h('input', { type: 'checkbox' });
     caseArch.addEventListener('change', function () { self.archivees = caseArch.checked; self.rendreTable(); });
+    // Un même véhicule évalué plusieurs fois (client revenu, deux conseillers…) : une seule
+    // ligne par NIV, la plus récente, avec le compte ; l'historique reste dans la fiche.
+    this.parVehicule = AMX.memo.lire('torque_par_vehicule', true);
+    var caseVeh = h('input', { type: 'checkbox', checked: this.parVehicule ? true : undefined });
+    caseVeh.addEventListener('change', function () { self.parVehicule = caseVeh.checked; AMX.memo.ecrire('torque_par_vehicule', caseVeh.checked); self.rendreTable(); });
     this.elCompte = h('span.compte.doux');
     var barre = h('div.carte', [h('div.carte-corps', [h('div.torque-outils', [
       h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elSegment, this.elStatut,
+      h('label.case', { title: 'Un véhicule évalué plusieurs fois n\'apparaît qu\'une fois (dernière évaluation) ; les autres sont dans sa fiche' }, [caseVeh, h('span', 'Une ligne par véhicule')]),
       h('label.case', { title: 'Les évaluations supprimées dans Torque sont conservées ici, masquées par défaut' }, [caseArch, h('span', 'Inclure les archivées')]), this.elCompte
     ])])]);
     this.elTable = h('div.torque-table');
@@ -226,12 +232,22 @@
   };
   ArchiveTorque.prototype.filtrees = function () {
     var self = this, q = this.recherche.trim().toUpperCase(), qTel = q.replace(/\D/g, '');
-    return this.base().filter(function (r) {
+    var lignes = this.base().filter(function (r) {
       if (self.concession && r.concession !== self.concession) return false;
       if (!q) return true;
       if (qTel.length >= 4 && String(r.telephone || '').replace(/\D/g, '').indexOf(qTel) >= 0) return true;
       return [r.vin, r.marque, r.modele, r.serie, r.annee, r.client, r.conseiller, r.statutLibelle, r.couleur].join(' ').toUpperCase().indexOf(q) >= 0;
     });
+    if (!this.parVehicule) return lignes;
+    // Une ligne par NIV : la plus récente (creeLe), avec le nombre d'évaluations du véhicule.
+    var parVin = {}, sans = [];
+    lignes.slice().sort(function (a, b) { return String(b.creeLe).localeCompare(String(a.creeLe)); }).forEach(function (r) {
+      var vin = String(r.vin || '').toUpperCase();
+      if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { sans.push(r); return; }
+      if (!parVin[vin]) { parVin[vin] = Object.assign({}, r, { nEvaluations: 1, autres: [] }); }
+      else { parVin[vin].nEvaluations++; parVin[vin].autres.push(r); }
+    });
+    return Object.keys(parVin).map(function (v) { return parVin[v]; }).concat(sans);
   };
   function agreger(lignes) {
     var n = lignes.length, nRepris = 0, interne = 0, nInterne = 0, vente = 0, nVente = 0, nPerdu = 0;
@@ -318,7 +334,7 @@
       var s = statut(r.statut);
       var tr = h('tr.cliquable' + (r.archivee ? '.archivee' : ''), { tabindex: '0' }, [
         h('td.photo', r.photo ? [h('img', { src: r.photo, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' })] : [h('div.sans', { text: 'sans photo' })]),
-        h('td.num', [h('div', { text: r.creeLe ? AMX.fmtDate(r.creeLe) : '—' }), r.archivee ? h('div.mini', 'archivée') : null]),
+        h('td.num', [h('div', { text: r.creeLe ? AMX.fmtDate(r.creeLe) : '—' }), r.archivee ? h('div.mini', 'archivée') : null, r.nEvaluations > 1 ? h('div.mini', { text: r.nEvaluations + ' évaluations', title: 'Ce véhicule a été évalué ' + r.nEvaluations + ' fois dans Torque — les autres sont dans la fiche' }) : null]),
         h('td.vehicule', [AMX.logoMarque(r.marque, 'petit'), h('div', [h('div.nom', { text: vehiculeTexte(r) }), h('div.mini', { text: [r.serie, r.style].filter(Boolean).join(' · ') }), h('div.vin', { text: r.vin || '' })])]),
         h('td.num', { text: fmtKm(r.km) }),
         h('td', [h('span.badge.sans-point.' + (COULEUR_CONCESSION[r.concession] || 'gris'), { text: nomCourt(r.concession) })]),
@@ -427,6 +443,14 @@
 
     droite.appendChild(h('h4', 'Client'));
     droite.appendChild(dl([['Nom', r.client], ['Téléphone', r.telephone ? h('a', { href: 'tel:' + String(r.telephone).replace(/\D/g, ''), text: telephone(r.telephone) }) : ''], ['Courriel', cl.courriel ? h('a', { href: 'mailto:' + cl.courriel, text: cl.courriel }) : ''], ['Origine', r.origine], ['Type', r.typeClient], ['Cherche', r.cherche], ['Transaction', r.transaction]]));
+    var autres = (this.liste || []).filter(function (x) { return x.id !== r.id && x.vin && String(x.vin).toUpperCase() === String(r.vin || '').toUpperCase(); }).sort(function (a, b) { return String(b.creeLe).localeCompare(String(a.creeLe)); });
+    if (autres.length) {
+      var self = this;
+      droite.appendChild(h('h4', 'Autres évaluations de ce véhicule (' + autres.length + ')'));
+      droite.appendChild(h('div', autres.map(function (x) { var sx = statut(x.statut); return h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', fontSize: '12.5px', marginBottom: '4px' } }, [
+        h('a', { href: '#', text: AMX.fmtDate(x.creeLe), onclick: function (ev) { ev.preventDefault(); document.querySelector('.modale .fermer') && document.querySelector('.modale .fermer').click(); self.ouvrir(x.id); } }),
+        h('span', { text: (x.client || '—') + (x.conseiller ? ' · ' + x.conseiller : '') }), h('span', { text: 'interne ' + fmt(nombre(x.valeurInterne)) + ' · vente ' + fmt(nombre(x.prixVente)) }), h('span.badge.sans-point.' + sx.couleur, { text: sx.libelle })]); })));
+    }
     droite.appendChild(h('h4', 'Équipe'));
     droite.appendChild(dl([['Conseiller', r.conseiller], ['Directeur', r.directeur], ['Concession', AMX.CONCESSIONS[r.concession] || r.concession]]));
     var notes = Array.isArray(f.notes) ? f.notes : [];

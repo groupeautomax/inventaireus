@@ -558,6 +558,39 @@
     nomFeuille: function (f) { return { US: 'É.-U.', CAN: 'Canada', DETAIL: 'Detail' }[f] || f; }
   };
 
+  /* ------------------------------ CARFAX --------------------------------- */
+  // Liens publics des rapports CARFAX Canada (vhr.carfax.ca/?id=…), par VIN,
+  // tirés du compte concessionnaire. Cache partagé par les sections.
+  var carfaxCache = null, carfaxPromesse = null;
+  AMX.carfax = {
+    valide: function (lien) { var l = String(lien || '').trim(); return /^https:\/\/vhr\.carfax\.ca\/\?id=[^\s&]+/i.test(l) ? l : ''; },
+    charger: function (force) {
+      if (!force && carfaxCache) return Promise.resolve(carfaxCache);
+      if (carfaxPromesse) return carfaxPromesse;
+      carfaxPromesse = AMX.get({ carfaxLiens: 1 }).then(function (d) {
+        carfaxCache = (d && d.liens) || {}; carfaxPromesse = null;
+        document.dispatchEvent(new CustomEvent('amx:carfax'));
+        return carfaxCache;
+      }, function (e) { carfaxPromesse = null; if (!carfaxCache) carfaxCache = {}; throw e; });
+      return carfaxPromesse;
+    },
+    lien: function (vin) { return (carfaxCache && carfaxCache[String(vin || '').toUpperCase()]) || ''; },
+    enCache: function () { return carfaxCache; },
+    // Enregistre un ou plusieurs liens : [{vin, lien}] ; lien vide = effacer.
+    enregistrer: function (liens) {
+      return AMX.post({ action: 'carfaxLiens', liens: liens }).then(function (d) {
+        AMX.verifier(d, 'Enregistrement impossible');
+        carfaxCache = carfaxCache || {};
+        (d.enregistres || []).forEach(function (vin) {
+          var l = liens.filter(function (x) { return String(x.vin).toUpperCase() === vin; })[0];
+          if (l && l.lien) carfaxCache[vin] = String(l.lien).trim(); else delete carfaxCache[vin];
+        });
+        document.dispatchEvent(new CustomEvent('amx:carfax'));
+        return d;
+      });
+    }
+  };
+
   /* ------------------------ Référentiels partagés ----------------------- */
   AMX.STATUTS = {
     achete:       { libelle: 'Acheté',       couleur: 'gris',     ordre: 1 },

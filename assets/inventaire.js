@@ -133,6 +133,9 @@
 
     this.construire();
     this.charger();
+    AMX.carfax.charger().then(function () { self.rendre(); }).catch(function () {});
+    this.surCarfax = function () { self.rendre(); };
+    document.addEventListener('amx:carfax', this.surCarfax);
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
     this.surVisible = function () { if (!document.hidden) self.rafraichir(); };
     document.addEventListener('visibilitychange', this.surVisible);
@@ -146,6 +149,7 @@
   Registre.prototype.demonter = function () {
     clearInterval(this.minuterie);
     document.removeEventListener('visibilitychange', this.surVisible);
+    document.removeEventListener('amx:carfax', this.surCarfax);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
   };
@@ -424,6 +428,7 @@
       v.rappel === 'oui' ? h('span.puce.alerte', { text: 'Rappel', title: v.rappelDetail || 'Rappel ouvert' }) : (v.rappel === 'non' ? null : h('span.puce', { text: 'Rappel ?', title: 'Rappel non vérifié' })),
       h('span.puce' + (reg === 'oui-bon' ? '.ok' : (reg === 'oui-mauvais' ? '.attention' : (retard ? '.alerte' : ''))), { text: reg === 'non' ? (retard ? 'Registre · ' + jours + ' j' : 'Registre à recevoir') : regInfo.libelle }),
       v.ficheExiste ? h('span.puce' + (v.ficheStockRempli ? '.ok' : '.attention'), { text: v.ficheStockRempli ? 'Fiche ✓' : 'Fiche sans stock' }) : null,
+      AMX.carfax.lien(v.vin) ? h('span.puce.info', { text: 'CARFAX', title: 'Rapport CARFAX disponible' }) : null,
       cfg.importateur && v.importateur ? h('span.puce', { text: v.importateur }) : null
     ];
     var el = h(cls, { dataset: { id: v.id } }, [
@@ -551,12 +556,36 @@
       zonePhotos.appendChild(grille);
     });
 
+    // Rapport CARFAX : le lien public du compte concessionnaire, par VIN.
+    var lienCfx = AMX.carfax.lien(v.vin);
+    var champCfx = h('input.saisie', { type: 'url', placeholder: 'Coller le lien du rapport (vhr.carfax.ca/?id=…)', value: lienCfx });
+    var sauverCfx = function (val) {
+      var l = val.trim();
+      if (l && !AMX.carfax.valide(l)) { AMX.toast('Ce n\'est pas un lien de rapport CARFAX Canada (attendu : vhr.carfax.ca/?id=…).', 'erreur'); champCfx.focus(); return; }
+      champCfx.disabled = true;
+      AMX.carfax.enregistrer([{ vin: v.vin, lien: l }]).then(function () { AMX.toast(l ? 'Rapport CARFAX enregistré' : 'Lien CARFAX retiré', 'ok'); self.rendrePanneau(); }).catch(function (e) { champCfx.disabled = false; AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+    };
+    champCfx.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sauverCfx(champCfx.value); } });
+    champCfx.addEventListener('paste', function () { setTimeout(function () { if (AMX.carfax.valide(champCfx.value)) sauverCfx(champCfx.value); }, 30); });
+    var blocCarfax = h('div.bloc', [h('h3', ['Rapport CARFAX', lienCfx ? h('span.puce.ok', { text: 'disponible' }) : h('a.btn.petit', { href: AMX.lien('outils', 'carfax'), text: 'Importer depuis mon compte' })]),
+      lienCfx ? h('div.actions-ligne', [
+        h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Voir le rapport</span>' }),
+        h('button.btn', { html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(lienCfx, 'Lien du rapport copié'); } }),
+        h('button.btn.fantome', { text: 'Remplacer', onclick: function () { blocCarfax.querySelector('.cfx-saisie').classList.remove('cache'); champCfx.focus(); champCfx.select(); } }),
+        h('button.btn.fantome', { text: 'Retirer', onclick: function () { AMX.confirmer('Retirer le lien CARFAX', 'Le bouton « Rapport CARFAX » disparaîtra de la page de l\'acheteur pour ce véhicule.').then(function (ok) { if (ok) sauverCfx(''); }); } })
+      ]) : null,
+      h('div.cfx-saisie' + (lienCfx ? '.cache' : ''), { style: { marginTop: lienCfx ? '10px' : '0' } }, [
+        h('div.champ', [h('label', 'Lien du rapport'), h('div', { style: { display: 'flex', gap: '6px' } }, [champCfx, h('button.btn.petit', { text: 'Enregistrer', onclick: function () { sauverCfx(champCfx.value); } })]),
+          h('div.aide', 'Dans votre compte CARFAX (Mes rapports › Mes RHV), ouvrez le rapport et copiez l\'adresse de la page. Le lien s\'affiche ensuite sur la page publique du véhicule.')])
+      ])
+    ]);
+
     // Liens
     var sticker = stickerUrl(v);
     var blocLiens = h('div.bloc', [h('h3', 'Liens'), h('div.actions-ligne', [
       h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }),
       sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null,
-      h('a.btn', { href: 'https://vhr.carfax.ca/fr/', target: '_blank', rel: 'noopener', title: 'Collez le VIN sur Carfax', html: I.externe + '<span>Carfax</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le sur Carfax'); } }),
+      lienCfx ? null : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié)', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
       AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null
     ])]);
 
@@ -586,7 +615,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, blocRegistre, blocInfos, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocStatut, blocRegistre, blocInfos, blocRappel, blocPhotos, blocCarfax, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

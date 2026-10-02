@@ -167,7 +167,8 @@
     titre: 'Outils', icone: 'outils', ordre: 40,
     onglets: [
       { id: 'evaluation', titre: 'Évaluation marché' },
-      { id: 'verification', titre: 'Vérification Excel' }
+      { id: 'verification', titre: 'Vérification Excel' },
+      { id: 'carfax', titre: 'Import CARFAX' }
     ],
     monter: function (conteneur, ctx) { return new Outils(conteneur, ctx); }
   });
@@ -182,9 +183,9 @@
     this.naviguer(ctx || {});
   }
   Outils.prototype.naviguer = function (ctx) {
-    var id = (ctx && ctx.onglet === 'verification') ? 'verification' : 'evaluation';
+    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax')) ? ctx.onglet : 'evaluation';
     if (!this.vues[id]) {
-      this.vues[id] = id === 'verification' ? new Verification(ctx) : new Evaluation(ctx);
+      this.vues[id] = id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : new Evaluation(ctx));
       this.conteneur.appendChild(this.vues[id].el);
     } else if (this.vues[id].naviguer) {
       this.vues[id].naviguer(ctx);
@@ -741,5 +742,136 @@
       });
       tbody.appendChild(tr);
     });
+  };
+
+  /* =====================================================================
+     Onglet « Import CARFAX » — les liens publics des rapports du compte
+     concessionnaire (dealer.carfax.ca › Mes rapports › Mes RHV), par VIN.
+     Trois chemins : le signet (un clic sur la page Mes RHV), le collage de
+     la page, ou l'arrivée par #/outils/carfax?import=<base64 JSON>.
+     ===================================================================== */
+  var SITE_CARFAX = 'https://dealer.carfax.ca/MyReports';
+  // Le signet : lit chaque ligne de « Mes RHV » (VIN + lien vhr.carfax.ca +
+  // no de rapport + date) et revient ici avec la liste dans l'adresse.
+  var CODE_SIGNET = "javascript:(function(){var o=[],t=[].slice.call(document.querySelectorAll('tr'));t.forEach(function(r){var a=[].slice.call(r.querySelectorAll('a')).filter(function(x){return/vhr\\.carfax\\.ca\\/\\?id=/.test(x.href)})[0];if(!a)return;var c=r.querySelector('td');var v=c?(c.textContent.trim().toUpperCase().match(/^[A-HJ-NPR-Z0-9]{17}/)||[])[0]:'';if(!v)return;var x=r.textContent;var n=(x.match(/v[ée]hicule\\s*(\\d{6,10})/i)||x.match(/Report\\s*(\\d{6,10})/i)||[])[1]||'';var d=(x.match(/\\d{2}\\/\\d{2}\\/\\d{4}/)||[])[0]||'';if(!o.some(function(y){return y.vin===v}))o.push({vin:v,lien:a.href,rapport:n,date:d})});if(!o.length){alert('Aucun rapport trouv\\u00e9 ici. Ouvrez Mes rapports > Mes RHV dans votre compte CARFAX, puis cliquez de nouveau.');return}location.href='" + AMX.SITE + "#/outils/carfax?import='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(o)))))})();";
+
+  function ImportCarfax(ctx) {
+    var self = this;
+    this.liens = [];
+    this.el = h('div.page.etroite');
+    this.construire();
+    this.naviguer(ctx || {});
+    AMX.inventaire.tout().catch(function () { return []; }).then(function () { self.rendreListe(); });
+    AMX.carfax.charger().then(function () { self.rendreListe(); }).catch(function () {});
+  }
+  ImportCarfax.prototype.demonter = function () {};
+  ImportCarfax.prototype.naviguer = function (ctx) {
+    var brut = ctx && ctx.params && ctx.params['import'];
+    if (!brut) return;
+    try {
+      var json = decodeURIComponent(escape(atob(brut)));
+      var liste = JSON.parse(json);
+      if (Array.isArray(liste)) { this.recevoir(liste, 'signet'); }
+    } catch (e) { AMX.toast('Liste reçue illisible : recommencez depuis le signet.', 'erreur'); }
+    // On nettoie l'adresse : la liste est en mémoire, inutile de la rejouer.
+    history.replaceState(null, '', AMX.lien('outils', 'carfax'));
+  };
+  ImportCarfax.prototype.construire = function () {
+    var self = this;
+    var signet = h('a.btn.primaire', { href: CODE_SIGNET, text: 'Automax ← CARFAX', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
+    signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis votre compte CARFAX.', 'attention', 7000); });
+    this.zoneColle = h('textarea.saisie', { rows: '6', placeholder: 'Ou collez ici des liens de rapports (un par ligne, avec le VIN devant si possible) :\n1FT8W2BT7NEC52018  https://vhr.carfax.ca/?id=…' });
+    var btnColle = h('button.btn', { text: 'Lire ce qui est collé', onclick: function () { self.lireCollage(); } });
+    this.elListe = h('div');
+    this.elResume = h('div.doux.petit', { style: { marginTop: '8px' } });
+    this.el.appendChild(h('div.entete-page', [
+      h('div', [h('h1', 'Import des rapports CARFAX'), h('p', 'Récupère en un clic les liens publics des rapports que vous avez déjà commandés dans votre compte CARFAX Canada, et les attache aux véhicules. Le lien apparaît ensuite dans la fiche du véhicule et sur la page de l\'acheteur.')]),
+      h('div.actions', [h('a.btn', { href: SITE_CARFAX, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir mon compte CARFAX</span>' })])
+    ]));
+    this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [
+      h('div.carte-entete', [h('h2', 'En un clic : le signet « Automax ← CARFAX »')]),
+      h('div.carte-corps', [
+        h('div.grille.c3', [
+          h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', { style: { margin: '0 0 10px', color: 'var(--encre-2)' } }, 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
+          h('div', [h('div.section-titre', '2. Dans CARFAX'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Ouvrez Mes rapports › Mes RHV dans votre compte (une concession à la fois : « Changez d\'emplacement » pour les autres).')]),
+          h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Vous revenez ici avec la liste des rapports de la page. Vérifiez, puis « Enregistrer ».')])
+        ])
+      ])
+    ]));
+    this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [
+      h('div.carte-entete', [h('h2', 'Ou coller des liens')]),
+      h('div.carte-corps', [this.zoneColle, h('div', { style: { marginTop: '10px' } }, [btnColle])])
+    ]));
+    this.elCarte = h('div.carte', [h('div.carte-entete', [h('h2', 'Rapports trouvés'), h('div.actions-ligne', [h('button.btn.primaire#cfx-enregistrer', { text: 'Enregistrer', disabled: true, onclick: function () { self.enregistrer(); } })])]), h('div.carte-corps', [this.elListe, this.elResume])]);
+    this.el.appendChild(this.elCarte);
+  };
+  ImportCarfax.prototype.lireCollage = function () {
+    var lignes = String(this.zoneColle.value || '').split(/\r?\n/);
+    var liste = [];
+    lignes.forEach(function (l) {
+      var lien = (l.match(/https:\/\/vhr\.carfax\.ca\/\?id=[^\s"'<>]+/i) || [])[0];
+      if (!lien) return;
+      var vin = (l.toUpperCase().match(/\b[A-HJ-NPR-Z0-9]{17}\b/) || [])[0] || '';
+      liste.push({ vin: vin, lien: lien });
+    });
+    if (!liste.length) { AMX.toast('Aucun lien vhr.carfax.ca trouvé dans le texte collé.', 'attention'); return; }
+    this.recevoir(liste, 'collage');
+  };
+  ImportCarfax.prototype.recevoir = function (liste, source) {
+    var self = this;
+    this.liens = liste.map(function (x) { return { vin: String(x.vin || '').toUpperCase(), lien: String(x.lien || '').trim(), rapport: String(x.rapport || ''), date: String(x.date || ''), source: source }; })
+      .filter(function (x) { return AMX.carfax.valide(x.lien); });
+    AMX.toast(this.liens.length + ' rapport' + (this.liens.length > 1 ? 's' : '') + ' reçu' + (this.liens.length > 1 ? 's' : '') + ' de CARFAX', 'ok');
+    this.rendreListe();
+    if (this.elCarte.scrollIntoView) this.elCarte.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  ImportCarfax.prototype.rendreListe = function () {
+    var self = this;
+    AMX.vider(this.elListe);
+    var btn = this.el.querySelector('#cfx-enregistrer');
+    if (!this.liens.length) {
+      this.elListe.appendChild(h('div.vide', [h('div', { html: I.lien }), h('h3', 'Aucun rapport en attente'), h('div', 'Cliquez le signet depuis votre compte CARFAX, ou collez des liens ci-dessus.')]));
+      this.elResume.textContent = '';
+      if (btn) btn.disabled = true;
+      return;
+    }
+    var table = h('table.tableau'), corps = h('tbody');
+    table.appendChild(h('thead', [h('tr', [h('th', 'VIN'), h('th', 'Véhicule à l\'inventaire'), h('th', 'Rapport'), h('th', 'État')])]));
+    var nouveaux = 0, memes = 0, remplaces = 0, sansVin = 0, horsInv = 0;
+    this.liens.forEach(function (x, i) {
+      var v = x.vin ? AMX.inventaire.parVin(x.vin) : null;
+      var actuel = x.vin ? AMX.carfax.lien(x.vin) : '';
+      var etat, cls;
+      if (!x.vin) { etat = 'VIN manquant — à compléter'; cls = 'attention'; sansVin++; }
+      else if (actuel === x.lien) { etat = 'Déjà enregistré'; cls = ''; memes++; }
+      else if (actuel) { etat = 'Remplacera le lien actuel'; cls = 'info'; remplaces++; }
+      else { etat = 'Nouveau'; cls = 'ok'; nouveaux++; }
+      if (x.vin && !v) horsInv++;
+      var champVin = h('input.saisie.mono', { value: x.vin, placeholder: 'VIN', style: { width: '190px', height: '30px' }, oninput: function (e) { x.vin = e.target.value.trim().toUpperCase(); } });
+      champVin.addEventListener('change', function () { self.rendreListe(); });
+      corps.appendChild(h('tr', [
+        h('td', [x.vin ? h('span.mono', { text: x.vin }) : champVin]),
+        h('td', v ? [h('div', { text: v.modele || '' }), h('div.mini', { text: AMX.inventaire.nomFeuille(v._feuille) + (v.stock ? ' · ' + v.stock : '') })] : [h('span.mini', { text: x.vin ? 'Pas à l\'inventaire (lien gardé quand même)' : '' })]),
+        h('td', [h('a', { href: x.lien, target: '_blank', rel: 'noopener', text: x.rapport ? 'No ' + x.rapport : 'Ouvrir' }), x.date ? h('div.mini', { text: x.date }) : null]),
+        h('td', [h('span.puce' + (cls ? '.' + cls : ''), { text: etat })])
+      ]));
+    });
+    table.appendChild(corps);
+    this.elListe.appendChild(table);
+    this.elResume.textContent = nouveaux + ' nouveau' + (nouveaux > 1 ? 'x' : '') + ' · ' + remplaces + ' à remplacer · ' + memes + ' déjà en place' + (sansVin ? ' · ' + sansVin + ' sans VIN (ignoré' + (sansVin > 1 ? 's' : '') + ')' : '') + (horsInv ? ' · ' + horsInv + ' hors inventaire' : '');
+    if (btn) { btn.disabled = !(nouveaux + remplaces); btn.textContent = 'Enregistrer ' + (nouveaux + remplaces) + ' lien' + (nouveaux + remplaces > 1 ? 's' : ''); }
+  };
+  ImportCarfax.prototype.enregistrer = function () {
+    var self = this;
+    var aEnvoyer = this.liens.filter(function (x) { return x.vin && /^[A-HJ-NPR-Z0-9]{11,17}$/.test(x.vin) && AMX.carfax.lien(x.vin) !== x.lien; })
+      .map(function (x) { return { vin: x.vin, lien: x.lien, rapport: x.rapport, date: x.date }; });
+    if (!aEnvoyer.length) return;
+    var btn = this.el.querySelector('#cfx-enregistrer'); btn.classList.add('occupe');
+    AMX.carfax.enregistrer(aEnvoyer).then(function (d) {
+      var n = (d.enregistres || []).length;
+      AMX.toast(n + ' lien' + (n > 1 ? 's' : '') + ' CARFAX enregistré' + (n > 1 ? 's' : '') + ((d.refuses || []).length ? ' · ' + d.refuses.length + ' refusé(s)' : ''), 'ok', 6000);
+      self.liens = self.liens.filter(function (x) { return (d.enregistres || []).indexOf(x.vin) < 0; });
+      self.rendreListe();
+    }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }).finally(function () { btn.classList.remove('occupe'); });
   };
 })();

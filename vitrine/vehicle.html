@@ -185,6 +185,12 @@
       <p class="note" id="noteSticker"></p>
     </div>
 
+    <div class="bloc" id="blocCarfax" hidden>
+      <h2 id="titreCarfax"></h2>
+      <p class="aide" id="aideCarfax" style="margin-bottom:0"></p>
+      <a class="bouton-pdf" id="carfaxLien" href="#" target="_blank" rel="noopener"></a>
+    </div>
+
     <div class="bloc" id="blocOptions" hidden>
       <h2 id="titreOptions"></h2>
       <div class="options" id="options"></div>
@@ -262,6 +268,9 @@ const T = {
     sticker: "Window sticker",
     aideSticker: "L'étiquette d'origine du fabricant : équipement de série, options installées à l'usine, prix de détail suggéré et cotes de consommation.",
     ouvrirSticker: "Ouvrir le window sticker (PDF)",
+    carfax: "Rapport d'historique CARFAX",
+    aideCarfax: "Le rapport CARFAX Canada du véhicule, fourni par le vendeur : accidents déclarés, immatriculations, entretiens, droits de rétention.",
+    ouvrirCarfax: "Voir le rapport CARFAX",
     sourceSticker: n => n === "Concessionnaire" ? "Document fourni par le vendeur." : "Document officiel publié par " + n + " pour ce NIV.",
     annee: "Année", marque: "Marque", modele: "Modèle", version: "Version", vin: "NIV",
     portes: "Portes", places: "Places", carrosserie: "Carrosserie", couleurExt: "Couleur extérieure",
@@ -326,6 +335,9 @@ const T = {
     sticker: "Window sticker",
     aideSticker: "The manufacturer's original label: standard equipment, factory-installed options, MSRP and fuel economy ratings.",
     ouvrirSticker: "Open the window sticker (PDF)",
+    carfax: "CARFAX vehicle history report",
+    aideCarfax: "The vehicle's CARFAX Canada report, provided by the seller: reported accidents, registrations, service records, liens.",
+    ouvrirCarfax: "View the CARFAX report",
     sourceSticker: n => n === "Concessionnaire" ? "Document provided by the seller." : "Official document published by " + n + " for this VIN.",
     annee: "Year", marque: "Make", modele: "Model", version: "Trim", vin: "VIN",
     portes: "Doors", places: "Passengers", carrosserie: "Body type", couleurExt: "Exterior colour",
@@ -555,6 +567,21 @@ function dessiner() {
     document.getElementById("noteSticker").textContent = t().sourceSticker(st.nom || "");
   } else {
     blocSticker.hidden = true;
+  }
+
+  // Rapport CARFAX (2 oct.) : lien public du compte concessionnaire, déjà
+  // validé côté script (vhr.carfax.ca seulement).
+  const blocCarfax = document.getElementById("blocCarfax");
+  if (v.carfax && /^https:\/\/vhr\.carfax\.ca\//i.test(v.carfax)) {
+    blocCarfax.hidden = false;
+    document.getElementById("titreCarfax").textContent = t().carfax;
+    document.getElementById("aideCarfax").textContent = t().aideCarfax;
+    const lc = document.getElementById("carfaxLien");
+    lc.href = v.carfax;
+    lc.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:#1d4ed8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l4-5 3 3 5-7"/></svg>' +
+      "<span>" + echappe(t().ouvrirCarfax) + '</span><span class="fleche">&rarr;</span>';
+  } else {
+    blocCarfax.hidden = true;
   }
 
   // Vidéo (facultative) : hébergée sur Drive, lue dans son lecteur intégré.

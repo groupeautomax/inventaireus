@@ -428,7 +428,8 @@
       v.rappel === 'oui' ? h('span.puce.alerte', { text: 'Rappel', title: v.rappelDetail || 'Rappel ouvert' }) : (v.rappel === 'non' ? null : h('span.puce', { text: 'Rappel ?', title: 'Rappel non vérifié' })),
       h('span.puce' + (reg === 'oui-bon' ? '.ok' : (reg === 'oui-mauvais' ? '.attention' : (retard ? '.alerte' : ''))), { text: reg === 'non' ? (retard ? 'Registre · ' + jours + ' j' : 'Registre à recevoir') : regInfo.libelle }),
       v.ficheExiste ? h('span.puce' + (v.ficheStockRempli ? '.ok' : '.attention'), { text: v.ficheStockRempli ? 'Fiche ✓' : 'Fiche sans stock' }) : null,
-      AMX.carfax.lien(v.vin) ? h('span.puce.info', { text: 'CARFAX', title: 'Rapport CARFAX disponible' }) : null,
+      // Un clic sur la puce ouvre le rapport directement (comme sur eBlock), sans ouvrir la fiche.
+      AMX.carfax.lien(v.vin) ? h('a.puce.info.lien-puce', { href: AMX.carfax.lien(v.vin), target: '_blank', rel: 'noopener', text: 'CARFAX', title: 'Voir le rapport CARFAX', onclick: function (e) { e.stopPropagation(); } }) : null,
       cfg.importateur && v.importateur ? h('span.puce', { text: v.importateur }) : null
     ];
     var el = h(cls, { dataset: { id: v.id } }, [

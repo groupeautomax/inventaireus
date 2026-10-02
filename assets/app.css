@@ -179,6 +179,8 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .puce.alerte { background: var(--rouge-bg); color: var(--rouge); }
 .puce.attention { background: var(--ambre-bg); color: var(--ambre); }
 .puce.ok { background: var(--vert-clair); color: var(--vert); }
+a.lien-puce { text-decoration: none; cursor: pointer; }
+a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 .puce.info { background: var(--bleu-bg); color: var(--bleu); }
 .pastille { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
 

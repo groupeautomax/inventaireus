@@ -726,7 +726,7 @@
       var q = a.appels.quota || 500, pctQ = Math.round(a.appels.n / q * 100);
       pied.push(h('span.puce' + (pctQ >= 85 ? '.alerte' : (pctQ >= 60 ? '.attention' : '')) + '#eval-appels', { text: 'Appels MarketCheck ce mois : ' + AMX.fmtNombre(a.appels.n) + ' / ' + AMX.fmtNombre(q), title: 'Compteur du plan gratuit — détails dans Admin › Données de marché' }));
     }
-    if (this.derniereSauvegarde) pied.push(h('span.puce', { text: 'Dernière évaluation enregistrée : standard ' + fmt(this.derniereSauvegarde.standard) + ' (' + AMX.fmtDateCourte(this.derniereSauvegarde.genereLe) + ')' }));
+    if (this.derniereSauvegarde) pied.push(h('span.puce', { text: 'Dernière analyse conservée : standard ' + fmt(this.derniereSauvegarde.standard) + ' (' + AMX.fmtDateCourte(this.derniereSauvegarde.genereLe) + ')' }));
     this.elMarche.appendChild(h('div.eval-pied', pied));
   };
 

@@ -405,9 +405,9 @@
           var vin = en.target.dataset.vin;
           photosDe(vin).then(function (p) {
             if (!(p && p.length)) return;
-            var repli = en.target.innerHTML;
+            var repli = Array.prototype.slice.call(en.target.childNodes);
             var img = h('img', { src: AMX.vignetteDrive(p[0].url, 200), alt: '', loading: 'lazy' });
-            img.addEventListener('error', function () { en.target.innerHTML = repli; });   // miniature Drive indisponible : on garde les initiales
+            img.addEventListener('error', function () { AMX.vider(en.target); repli.forEach(function (n) { en.target.appendChild(n); }); });   // miniature Drive indisponible : on garde le logo
             AMX.vider(en.target).appendChild(img);
           });
         });
@@ -423,7 +423,9 @@
     var retard = enRetardRegistre(v), retardA = enRetardAchat(v);
     var jours = AMX.joursDepuis(v.dateAjout);
     var cls = 'div.ligne' + (retard ? '.retard' : (retardA ? '.retard-achat' : '')) + (v.statut === 'comptabilise' ? '.verrouille' : '') + (this.selection && String(v.vin).toUpperCase() === String(this.selection).toUpperCase() ? '.actif' : '');
-    var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [h('span', { text: marque(v).slice(0, 3) || '—' }), h('span.cam', { html: I.photo })]) : h('div.vignette', { text: marque(v).slice(0, 3) || '—', title: 'Aucune photo' });
+    // Sans photo : le logo du constructeur (voir AMX.logoMarque) ; avec photos,
+    // le logo tient lieu de repli jusqu'à ce que la miniature charge.
+    var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })]) : h('div.vignette', { title: 'Aucune photo' }, [AMX.logoMarque(marque(v))]);
     var indicateurs = [
       v.rappel === 'oui' ? h('span.puce.alerte', { text: 'Rappel', title: v.rappelDetail || 'Rappel ouvert' }) : (v.rappel === 'non' ? null : h('span.puce', { text: 'Rappel ?', title: 'Rappel non vérifié' })),
       h('span.puce' + (reg === 'oui-bon' ? '.ok' : (reg === 'oui-mauvais' ? '.attention' : (retard ? '.alerte' : ''))), { text: reg === 'non' ? (retard ? 'Registre · ' + jours + ' j' : 'Registre à recevoir') : regInfo.libelle }),

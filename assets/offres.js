@@ -41,18 +41,19 @@
   Offres.prototype.demonter = function () { if (this.sous && this.sous.demonter) this.sous.demonter(); };
 
   /* ------------------------------ Partagé ------------------------------ */
-  function vignetteVin(vin, aPhotos, texteRepli) {
-    var el = h('div.vignette', { text: texteRepli || '—' });
+  function vignetteVin(vin, aPhotos, marqueVehicule) {
+    // Logo du constructeur en attendant (ou à défaut de) la photo.
+    var el = h('div.vignette', [AMX.logoMarque(marqueVehicule)]);
     if (aPhotos !== false && AMX.photosDe) AMX.photosDe(vin).then(function (p) {
       if (!(p && p.length)) return;
       var img = h('img', { src: AMX.vignetteDrive(p[0].url, 200), alt: '', loading: 'lazy' });
-      img.addEventListener('error', function () { AMX.vider(el).appendChild(document.createTextNode(texteRepli || '—')); });
+      img.addEventListener('error', function () { AMX.vider(el).appendChild(AMX.logoMarque(marqueVehicule)); });
       AMX.vider(el).appendChild(img);
     });
     return el;
   }
   function vehiculeDe(vin) { return AMX.inventaire.parVin(vin) || {}; }
-  function marque(modele) { return String(modele || '').trim().split(' ')[0].toUpperCase().slice(0, 3); }
+  function marque(modele) { return String(modele || '').trim().split(' ')[0].toUpperCase(); }
   function lienPublic(cle, vin) { return AMX.SITE + 'vitrine/vehicle.html?k=' + encodeURIComponent(cle) + '&vin=' + encodeURIComponent(vin); }
   function nomConcession(id) { return AMX.CONCESSIONS[String(id || '').toLowerCase()] || id || '—'; }
   function compagnieVersConcession(c) { return { STM: 'stemarie', HAWKS: 'hawkesbury' }[String(c || '').toUpperCase()] || ''; }

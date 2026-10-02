@@ -558,6 +558,46 @@
     nomFeuille: function (f) { return { US: 'É.-U.', CAN: 'Canada', DETAIL: 'Detail' }[f] || f; }
   };
 
+  /* -------------------------- Logos des marques --------------------------- */
+  // Dans la liste, la vignette d'un véhicule sans photo montre le logo du
+  // constructeur plutôt que « HYU ». Ordre d'essai : un fichier déposé dans
+  // assets/marques/<marque>.png (logo officiel du fabricant, à fournir), puis
+  // l'icône du site du constructeur (service d'icônes de Google), puis les
+  // trois premières lettres si rien ne charge.
+  var DOMAINES_MARQUES = {
+    CHEVROLET: 'chevrolet.com', GMC: 'gmc.com', BUICK: 'buick.com', CADILLAC: 'cadillac.com',
+    FORD: 'ford.com', LINCOLN: 'lincoln.com', RAM: 'ramtrucks.com', JEEP: 'jeep.com', DODGE: 'dodge.com', CHRYSLER: 'chrysler.com',
+    HYUNDAI: 'hyundaiusa.com', KIA: 'kia.com', GENESIS: 'genesis.com', TOYOTA: 'toyota.com', LEXUS: 'lexus.com',
+    HONDA: 'honda.com', ACURA: 'acura.com', NISSAN: 'nissanusa.com', INFINITI: 'infinitiusa.com', MAZDA: 'mazdausa.com', SUBARU: 'subaru.com',
+    VOLKSWAGEN: 'vw.com', VW: 'vw.com', AUDI: 'audiusa.com', BMW: 'bmwusa.com', MINI: 'miniusa.com', 'MERCEDES-BENZ': 'mbusa.com', MERCEDES: 'mbusa.com',
+    PORSCHE: 'porsche.com', TESLA: 'tesla.com', VOLVO: 'volvocars.com', 'LAND': 'landroverusa.com', 'LAND ROVER': 'landroverusa.com', JAGUAR: 'jaguarusa.com',
+    MITSUBISHI: 'mitsubishicars.com', RIVIAN: 'rivian.com', POLESTAR: 'polestar.com', 'ALFA': 'alfaromeousa.com', 'ALFA ROMEO': 'alfaromeousa.com', FIAT: 'fiatusa.com',
+    MASERATI: 'maserati.com', LUCID: 'lucidmotors.com'
+  };
+  AMX.domaineMarque = function (marque) {
+    var m = String(marque || '').trim().toUpperCase();
+    return DOMAINES_MARQUES[m] || (m ? m.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com' : '');
+  };
+  // Logos officiels déposés dans le dépôt (assets/marques/…), par marque en
+  // majuscules. Vide = on prend l'icône du site du constructeur. On ne tente
+  // pas le fichier à l'aveugle : chaque essai manqué ferait un 404 par ligne.
+  AMX.LOGOS_LOCAUX = {};
+  AMX.logoMarque = function (marque, cls) {
+    var m = String(marque || '').trim().toUpperCase();
+    var abrege = m.slice(0, 3) || '—';
+    var el = h('span.logo-marque' + (cls ? '.' + cls : ''), { title: m || 'Marque inconnue' });
+    if (!m) { el.textContent = abrege; el.classList.add('texte'); return el; }
+    var favicon = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(AMX.domaineMarque(m)) + '&sz=64';
+    var local = AMX.LOGOS_LOCAUX[m] || '';
+    var img = h('img', { alt: m, loading: 'lazy', decoding: 'async', src: local || favicon });
+    img.addEventListener('error', function () {
+      if (local && img.src.indexOf(local) >= 0) { img.src = favicon; return; }
+      AMX.vider(el); el.textContent = abrege; el.classList.add('texte');
+    });
+    el.appendChild(img);
+    return el;
+  };
+
   /* ------------------------------ CARFAX --------------------------------- */
   // Liens publics des rapports CARFAX Canada (vhr.carfax.ca/?id=…), par VIN,
   // tirés du compte concessionnaire. Cache partagé par les sections.

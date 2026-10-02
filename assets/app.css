@@ -354,6 +354,9 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 .ligne .vignette img { width: 100%; height: 100%; object-fit: cover; }
 .ligne .vignette > span { display: flex; }
 .ligne .vignette svg { width: 22px; height: 22px; }
+.vignette .logo-marque, .ligne .vignette > span.logo-marque { display: grid; place-items: center; width: 100%; height: 100%; background: #fff; color: var(--encre-4); font-weight: 700; font-size: 12px; letter-spacing: .04em; }
+.vignette .logo-marque img, .ligne .vignette .logo-marque img { width: 30px; height: 30px; object-fit: contain; display: block; }
+.vignette .logo-marque.texte { background: var(--gris-bg); }
 .ligne .vignette .cam { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-radius: 4px; background: var(--vert); color: #fff; display: grid; place-items: center; }
 .ligne .vignette .cam svg { width: 11px; height: 11px; }
 .ligne .titre { font-weight: 600; font-size: 13.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -547,6 +547,27 @@
     var rapUrl = RAPPELS_FABRICANT[marque(v)];
     if (rapUrl) blocRappel.appendChild(h('div', { style: { marginTop: '8px' } }, [h('a.btn.petit', { href: rapUrl, target: '_blank', rel: 'noopener', html: I.externe + '<span>Page des rappels ' + esc(marque(v)) + '</span>' })]));
 
+    // Rapport d'état eBlock (fiche d'achat) : lien de partage et dommages
+    // répertoriés, en rouge. Chargé à part, seulement si une fiche existe, et
+    // montré seulement s'il y a quelque chose.
+    var blocEblock = null;
+    if (v.ficheExiste && AMX.ficheDe) {
+      blocEblock = h('div.bloc.cache', [h('h3', ['Rapport d\'état eBlock'])]);
+      AMX.ficheDe(v.vin).then(function (f) {
+        if (!f || !blocEblock.isConnected) return;
+        var lien = AMX.eblockValide(f['f-eblock']), dommages = AMX.listeDommages(f['f-dommages']);
+        if (!lien && !dommages.length) return;
+        blocEblock.classList.remove('cache');
+        if (dommages.length) {
+          blocEblock.appendChild(h('div', [
+            h('span.badge.rouge', { text: dommages.length + ' dommage' + (dommages.length > 1 ? 's' : '') + ' répertorié' + (dommages.length > 1 ? 's' : '') }),
+            h('ul.dommages-liste', dommages.map(function (d) { return h('li', { text: d }); }))
+          ]));
+        }
+        if (lien) blocEblock.appendChild(h('div', { style: { marginTop: '8px' } }, [h('a.btn.petit', { href: lien, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir sur eBlock</span>' })]));
+      }).catch(function () {});
+    }
+
     // Photos
     var blocPhotos = h('div.bloc', [h('h3', ['Photos', h('a.btn.petit', { href: 'scan.html', target: '_blank', rel: 'noopener', html: I.photo + '<span>Ajouter (scan)</span>' })])]);
     var zonePhotos = h('div.chargement', [h('span.spin'), 'Chargement des photos…']);
@@ -618,7 +639,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, blocRegistre, blocInfos, blocRappel, blocPhotos, blocCarfax, blocLiens, blocGestion
+      blocStatut, blocRegistre, blocInfos, blocRappel, blocEblock, blocPhotos, blocCarfax, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

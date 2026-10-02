@@ -558,6 +558,31 @@
     nomFeuille: function (f) { return { US: 'É.-U.', CAN: 'Canada', DETAIL: 'Detail' }[f] || f; }
   };
 
+  /* ------------------------- Fiche d'achat (lecture) ---------------------- */
+  // Les autres sections (panneau d'inventaire) lisent la fiche d'achat d'un
+  // véhicule pour en montrer le rapport d'état eBlock et les dommages
+  // répertoriés. Petit cache en mémoire ; la section Fiche d'achat l'invalide
+  // quand elle enregistre.
+  var fichesCache = {};
+  AMX.ficheDe = function (vin, force) {
+    var k = String(vin || '').toUpperCase();
+    if (!k) return Promise.resolve(null);
+    if (!force && fichesCache[k]) return fichesCache[k];
+    fichesCache[k] = AMX.get('ficheVin=' + encodeURIComponent(k)).then(function (d) {
+      return (d && d.trouve) ? (d.donnees || {}) : null;
+    }).catch(function (e) { delete fichesCache[k]; throw e; });
+    return fichesCache[k];
+  };
+  AMX.ficheOublier = function (vin) { delete fichesCache[String(vin || '').toUpperCase()]; };
+  // Lien de partage d'un véhicule acheté sur eBlock (rapport d'état, photos).
+  AMX.eblockValide = function (lien) { var l = String(lien || '').trim(); return /^https:\/\/(graph|app)\.eblock\.com\/\S+/i.test(l) ? l : ''; };
+  // « Hood, Tires / Rims » ou une ligne par dommage → liste propre sans doublon.
+  AMX.listeDommages = function (texte) {
+    var vus = {}, out = [];
+    String(texte || '').split(/\r?\n|;|,(?!\s*\d)/).forEach(function (s) { s = s.trim(); if (s && !vus[s.toLowerCase()]) { vus[s.toLowerCase()] = 1; out.push(s); } });
+    return out;
+  };
+
   /* -------------------------- Logos des marques --------------------------- */
   // Dans la liste, la vignette d'un véhicule sans photo montre le logo du
   // constructeur plutôt que « HYU ». Ordre d'essai : un fichier déposé dans

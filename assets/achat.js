@@ -48,6 +48,14 @@
     s.textContent = [
       '.achat-page .carte, .achat-page .resume-sombre, .achat-page .achat-verrou { margin-bottom: 14px; }',
       '.achat-page .achat-pile { display: flex; flex-direction: column; gap: 12px; }',
+      '.achat-page textarea.achat-dommages { color: var(--rouge); font-weight: 600; border-color: var(--rouge-bg); background: var(--rouge-bg); }',
+      '.achat-page textarea.achat-dommages::placeholder { color: var(--encre-4); font-weight: 400; }',
+      '.achat-page .achat-dommages-liste { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }',
+      '.achat-page .achat-dommages-liste:empty { display: none; }',
+      '.achat-page .achat-dommages-liste li { background: var(--rouge-bg); color: var(--rouge); border: 1px solid var(--rouge-bord); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }',
+      '.achat-page .achat-dommages-liste li.achat-dommages-titre { background: var(--rouge); color: #fff; border-color: var(--rouge); }',
+      '.achat-page a.btn.desactive { opacity: .45; pointer-events: none; }',
+      '.achat-page .carte-entete-ligne { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; width: 100%; }',
       '.achat-page .achat-lookup { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }',
       '.achat-page .achat-lookup .champ { flex: 1 1 240px; }',
       '.achat-page .achat-lookup .btn { height: 34px; }',
@@ -111,6 +119,11 @@
     document.head.appendChild(s);
   }
 
+  // Signet « Automax ← eBlock » (source : mock/signet-eblock.src.js, embarqué
+  // par mock/signet-build.py) : depuis la page d'un véhicule sur eBlock, lit le
+  // NIV et les dommages du rapport d'état et ouvre la fiche pré-remplie.
+  var CODE_SIGNET_EBLOCK = "javascript:(function () { function texte(e) { return (e && (e.innerText || e.textContent) || '').trim(); } function vin() { var libs = [].slice.call(document.querySelectorAll('*')).filter(function (e) { return e.children.length === 0 && /^(VIN|NIV)$/i.test(texte(e)); }); for (var k = 0; k < libs.length; k++) { var s = libs[k].nextElementSibling; if (s && /^[A-HJ-NPR-Z0-9]{17}$/.test(texte(s).toUpperCase())) return texte(s).toUpperCase(); var p = libs[k].parentElement; for (var i = 0; i < 3 && p; i++, p = p.parentElement) { var m = (p.innerText || '').match(/\\b[A-HJ-NPR-Z0-9]{17}\\b/); if (m) return m[0]; } } var tous = (document.body.innerText || '').match(/\\b[A-HJ-NPR-Z0-9]{17}\\b/g) || []; return tous.length ? tous[0] : ''; } function panneau() { var h3 = [].slice.call(document.querySelectorAll('h3')).filter(function (e) { return /^(Damage Photos|Photos? des dommages)$/i.test(texte(e)); })[0]; if (!h3) return null; var c = h3; for (var i = 0; i < 8 && c.parentElement; i++) { c = c.parentElement; if (c.querySelectorAll('img').length >= 1) break; } return c; } function dommages() { var c = panneau(); if (!c) return null; var comptes = {}, ordre = []; (c.innerText || '').split('\\n').forEach(function (s) { s = s.trim(); if (!s || /^(Damage Photos|Photos? des dommages)$/i.test(s)) return; if (!comptes[s]) { comptes[s] = 0; ordre.push(s); } comptes[s]++; }); return ordre.map(function (s) { return comptes[s] > 1 ? s + ' \u00d7' + comptes[s] : s; }); } function partir(v, d) { var q = '#/achat?vin=' + encodeURIComponent(v) + '&dommages=' + encodeURIComponent((d || []).join('\\n')) + '&source=eblock'; location.href = " + JSON.stringify(AMX.SITE) + " + q; } var v = vin(); if (!v) { alert('Aucun NIV trouv\u00e9 sur cette page. Ouvrez la page du v\u00e9hicule sur eBlock, puis cliquez de nouveau.'); return; } var d = dommages(); if (d) { partir(v, d); return; } var b = [].slice.call(document.querySelectorAll('button')).filter(function (x) { return /Damage Photos|dommages/i.test(texte(x)); })[0]; if (!b) { partir(v, []); return; } b.click(); var essais = 0; (function attendre() { essais++; var dd = dommages(); if (dd && dd.length) { partir(v, dd); return; } if (essais > 40) { partir(v, []); return; } setTimeout(attendre, 200); })(); })();";
+
   /* --------------------------- Constructeurs ---------------------------- */
   // Un champ `.champ` : label + input. opts = { type, step, placeholder, mono, readonly, inputmode, apres (bouton à droite) }
   function champ(id, libelle, opts) {
@@ -162,6 +175,7 @@
     this.construire();
     this.recalculer();
     this.basculerExport();
+    this.rendreEblock();
 
     this.surInventaire = function () { self.rendreContexte(); };
     document.addEventListener('amx:inventaire', this.surInventaire);
@@ -170,9 +184,18 @@
     };
     window.addEventListener('beforeprint', this.surImpression);
 
-    var vin = (ctx && ctx.params && ctx.params.vin) ? String(ctx.params.vin).trim() : '';
+    this.prerempli = null;
+    var vin = this.lireParams(ctx);
     if (vin) { this.elLookup.value = vin; this.charger(vin); }
   }
+
+  // Paramètres de l'adresse : vin, et ce que le signet eBlock apporte
+  // (dommages, eblock) — gardé pour après le chargement de la fiche.
+  Fiche.prototype.lireParams = function (ctx) {
+    var p = (ctx && ctx.params) || {};
+    if (p.dommages || p.eblock) this.prerempli = { dommages: String(p.dommages || ''), eblock: String(p.eblock || '') };
+    return p.vin ? String(p.vin).trim() : '';
+  };
 
   Fiche.prototype.demonter = function () {
     document.removeEventListener('amx:inventaire', this.surInventaire);
@@ -182,8 +205,9 @@
 
   // Même section, params modifiés (#/achat?vin=…) : on charge le nouveau NIV.
   Fiche.prototype.naviguer = function (ctx) {
-    var vin = (ctx && ctx.params && ctx.params.vin) ? String(ctx.params.vin).trim() : '';
+    var vin = this.lireParams(ctx);
     if (vin && vin !== this.vinCharge) { this.elLookup.value = vin; this.charger(vin); }
+    else if (this.prerempli && vin && vin === this.vinCourant) this.appliquerPrerempli();
   };
 
   Fiche.prototype.etat = function (texte) { this.elEtat.textContent = texte; };
@@ -252,6 +276,22 @@
         champ('f-villeprovenance', 'Ville de provenance'),
         selection('f-acheteur', 'Acheteur (interne)', ACHETEURS.map(function (a) { return [a, a]; }))
       ])
+    ]);
+
+    // Provenance eBlock : le lien de partage du véhicule (toujours valable
+    // pour l'équipe connectée à eBlock) et les dommages que son rapport d'état
+    // répertorie, en rouge comme sur eBlock.
+    this.btnEblock = h('a.btn.noprint#eblock-btn', { href: '#', target: '_blank', rel: 'noopener', title: 'Ouvrir le véhicule sur eBlock', html: I.externe + '<span>Ouvrir</span>' });
+    this.elDommagesListe = h('ul.achat-dommages-liste');
+    var signetEblock = h('a.btn.petit.noprint', { href: CODE_SIGNET_EBLOCK, text: 'Automax ← eBlock', title: 'Glissez ce bouton dans votre barre de favoris, puis cliquez-le depuis la page du véhicule sur eBlock : le NIV et les dommages arrivent ici tout seuls.', draggable: 'true' });
+    signetEblock.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis la page du véhicule sur eBlock.', 'attention', 7000); });
+    var provenance = carte(h('div.carte-entete-ligne', [h('h2', { html: 'Rapport d\'état eBlock <span class="doux petit" style="font-weight:400">— lien de partage et dommages répertoriés</span>' }), signetEblock]), [
+      h('div.grille.c2', [
+        champ('f-eblock', 'Lien eBlock (graph.eblock.com/share/…)', { placeholder: 'Collez le lien « Partager » du véhicule', apres: this.btnEblock }),
+        h('div.champ', [h('label', { 'for': 'f-dommages', text: 'Dommages répertoriés — un par ligne' }),
+          h('textarea#f-dommages.achat-dommages', { rows: '4', placeholder: 'Hood\nFront Bumper\nTires / Rims…' })])
+      ]),
+      this.elDommagesListe
     ]);
 
     // Coûts (inclut Frais et ajustements)
@@ -324,14 +364,14 @@
       h('div.grille.c4', [date('f-appele', 'Appelé — date'), champ('f-livraisona', 'Livraison à'), date('f-datearrivee', 'Date d\'arrivée'), date('f-demandepaiementdate', 'Demande de paiement — date')])
     ]);
 
-    this.elFiche = h('div.achat-fiche', [identification, couts, statut, vente, livraison]);
+    this.elFiche = h('div.achat-fiche', [identification, provenance, couts, statut, vente, livraison]);
     var note = h('p.doux.petit.noprint.achat-note', 'Le coûtant total additionne tous les champs de coûts et les PAD cochés. Le prix de vente retenu dépend de la destination : prix de vente estimé (É.-U.), wholesale (Canada) ou prix détail (Detail).');
 
     this.elPage = h('div.page.etroite.achat-page', [entete, lookup, this.elVerrou, resume, this.elFiche, note]);
     this.conteneur.appendChild(this.elPage);
 
     // Liaisons : tout changement recalcule ; la destination bascule les blocs.
-    this.elFiche.addEventListener('input', function () { self.recalculer(); });
+    this.elFiche.addEventListener('input', function (e) { self.recalculer(); if (e.target && (e.target.id === 'f-eblock' || e.target.id === 'f-dommages')) self.rendreEblock(); });
     this.elFiche.addEventListener('change', function (e) {
       if (e.target && e.target.id === 'f-destination') self.basculerExport(); else self.recalculer();
     });
@@ -427,6 +467,22 @@
     });
     this.recalculer();
     this.basculerExport();
+    this.rendreEblock();
+  };
+
+  // Bouton « Ouvrir » actif seulement avec un lien eBlock valide ; la liste
+  // rouge des dommages se met à jour à la frappe (et s'imprime).
+  Fiche.prototype.rendreEblock = function () {
+    var lien = AMX.eblockValide(el('f-eblock') ? el('f-eblock').value : '');
+    this.btnEblock.href = lien || '#';
+    this.btnEblock.classList.toggle('desactive', !lien);
+    this.btnEblock.setAttribute('aria-disabled', lien ? 'false' : 'true');
+    var dommages = AMX.listeDommages(el('f-dommages') ? el('f-dommages').value : '');
+    AMX.vider(this.elDommagesListe);
+    if (dommages.length) {
+      this.elDommagesListe.appendChild(h('li.achat-dommages-titre', { text: dommages.length + ' dommage' + (dommages.length > 1 ? 's' : '') + ' répertorié' + (dommages.length > 1 ? 's' : '') + ' sur eBlock' }));
+      dommages.forEach(function (d) { this.elDommagesListe.appendChild(h('li', { text: d })); }, this);
+    }
   };
 
   Fiche.prototype.viderFormulaire = function () {
@@ -434,9 +490,23 @@
       var type = (e.getAttribute('type') || '').toLowerCase();
       if (type === 'checkbox' || type === 'radio') e.checked = false; else e.value = '';
     });
+    this.rendreEblock();
   };
 
   /* ---------------------------- Chargement ----------------------------- */
+  // Valeurs reçues par l'adresse (signet eBlock) : posées une fois la fiche
+  // chargée, sans écraser ce qui est déjà rempli.
+  Fiche.prototype.appliquerPrerempli = function () {
+    var p = this.prerempli; if (!p) return;
+    this.prerempli = null;
+    var n = 0;
+    if (p.dommages && el('f-dommages') && !el('f-dommages').value.trim()) { el('f-dommages').value = p.dommages; n++; }
+    if (p.eblock && el('f-eblock') && !el('f-eblock').value.trim() && AMX.eblockValide(p.eblock)) { el('f-eblock').value = p.eblock; n++; }
+    this.rendreEblock();
+    if (n) AMX.toast('Rapport d\'état eBlock reçu : ' + (p.dommages ? AMX.listeDommages(p.dommages).length + ' dommage(s) répertorié(s)' : 'lien') + '. Collez le lien « Partager » d\'eBlock, puis enregistrez.', 'ok', 8000);
+    if (el('f-eblock') && !el('f-eblock').value.trim()) el('f-eblock').focus();
+  };
+
   Fiche.prototype.chargerDepuisChamp = function () {
     var vin = this.elLookup.value.trim();
     if (!vin) { AMX.toast('Entrez un NIV d\'abord.', 'attention'); this.elLookup.focus(); return; }
@@ -470,6 +540,7 @@
       val('f-niv', vin);
       self.vinCourant = vin; self.contexte = null; self.contexteVerifie = false; self.decode = null;
       self.rendreContexte();
+      self.appliquerPrerempli();
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];
       if (vin.length >= 11) taches.push(self.decoderVin(vin));
@@ -646,6 +717,7 @@
       });
     }).then(function () {
       var data = self.collecter();
+      AMX.ficheOublier(vin);
       return AMX.post({ action: 'saveFiche', vin: vin, data: data }).then(function (d) {
         AMX.verifier(d, 'Enregistrement refusé par le serveur');
         var quand = AMX.fmtDate(d.dateMaj || new Date().toISOString(), true);

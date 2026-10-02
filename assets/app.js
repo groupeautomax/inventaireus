@@ -631,7 +631,7 @@
   // tirés du compte concessionnaire. Cache partagé par les sections.
   var carfaxCache = null, carfaxPromesse = null;
   AMX.carfax = {
-    valide: function (lien) { var l = String(lien || '').trim(); return /^https:\/\/vhr\.carfax\.ca\/\?id=[^\s&]+/i.test(l) ? l : ''; },
+    valide: function (lien) { var l = String(lien || '').trim(); return /^https:\/\/vhr\.carfax\.ca\/(?:main)?\?id=[^\s&]+/i.test(l) ? l : ''; },
     charger: function (force) {
       if (!force && carfaxCache) return Promise.resolve(carfaxCache);
       if (carfaxPromesse) return carfaxPromesse;

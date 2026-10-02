@@ -122,7 +122,7 @@
   // Signet « Automax ← eBlock » (source : mock/signet-eblock.src.js, embarqué
   // par mock/signet-build.py) : depuis la page d'un véhicule sur eBlock, lit le
   // NIV et les dommages du rapport d'état et ouvre la fiche pré-remplie.
-  var CODE_SIGNET_EBLOCK = "javascript:(function () { function texte(e) { return (e && (e.innerText || e.textContent) || '').trim(); } function vin() { var libs = [].slice.call(document.querySelectorAll('*')).filter(function (e) { return e.children.length === 0 && /^(VIN|NIV)$/i.test(texte(e)); }); for (var k = 0; k < libs.length; k++) { var s = libs[k].nextElementSibling; if (s && /^[A-HJ-NPR-Z0-9]{17}$/.test(texte(s).toUpperCase())) return texte(s).toUpperCase(); var p = libs[k].parentElement; for (var i = 0; i < 3 && p; i++, p = p.parentElement) { var m = (p.innerText || '').match(/\\b[A-HJ-NPR-Z0-9]{17}\\b/); if (m) return m[0]; } } var tous = (document.body.innerText || '').match(/\\b[A-HJ-NPR-Z0-9]{17}\\b/g) || []; return tous.length ? tous[0] : ''; } function panneau() { var h3 = [].slice.call(document.querySelectorAll('h3')).filter(function (e) { return /^(Damage Photos|Photos? des dommages)$/i.test(texte(e)); })[0]; if (!h3) return null; var c = h3; for (var i = 0; i < 8 && c.parentElement; i++) { c = c.parentElement; if (c.querySelectorAll('img').length >= 1) break; } return c; } function dommages() { var c = panneau(); if (!c) return null; var comptes = {}, ordre = []; (c.innerText || '').split('\\n').forEach(function (s) { s = s.trim(); if (!s || /^(Damage Photos|Photos? des dommages)$/i.test(s)) return; if (!comptes[s]) { comptes[s] = 0; ordre.push(s); } comptes[s]++; }); return ordre.map(function (s) { return comptes[s] > 1 ? s + ' \u00d7' + comptes[s] : s; }); } function partir(v, d) { var q = '#/achat?vin=' + encodeURIComponent(v) + '&dommages=' + encodeURIComponent((d || []).join('\\n')) + '&source=eblock'; location.href = " + JSON.stringify(AMX.SITE) + " + q; } var v = vin(); if (!v) { alert('Aucun NIV trouv\u00e9 sur cette page. Ouvrez la page du v\u00e9hicule sur eBlock, puis cliquez de nouveau.'); return; } var d = dommages(); if (d) { partir(v, d); return; } var b = [].slice.call(document.querySelectorAll('button')).filter(function (x) { return /Damage Photos|dommages/i.test(texte(x)); })[0]; if (!b) { partir(v, []); return; } b.click(); var essais = 0; (function attendre() { essais++; var dd = dommages(); if (dd && dd.length) { partir(v, dd); return; } if (essais > 40) { partir(v, []); return; } setTimeout(attendre, 200); })(); })();";
+  var CODE_SIGNET_EBLOCK = "javascript:(function () { function texte(e) { return (e && (e.innerText || e.textContent) || '').trim(); } function itemReact() { var depart = [].slice.call(document.querySelectorAll('button[data-testid=\"carfax-ca-button\"], h3, h2, h1, button')).slice(0, 80); for (var d = 0; d < depart.length; d++) { var el = depart[d]; var cle = Object.keys(el).filter(function (k) { return k.indexOf('__reactFiber') === 0; })[0]; var f = cle ? el[cle] : null; for (var i = 0; i < 40 && f; i++, f = f.return) { var p = f.memoizedProps; if (!p || typeof p !== 'object') continue; var it = (p.auctionItem && p.auctionItem.inventoryItem) || (p.auctionItemDetails && p.auctionItemDetails.inventoryItem) || p.inventoryItemDetails || p.inventoryItem; if (it && typeof it === 'object' && typeof it.vin === 'string' && it.vin.length === 17) return it; } } return null; } function compter(liste) { var comptes = {}, ordre = []; (liste || []).forEach(function (s) { s = String(s || '').trim(); if (!s) return; if (!comptes[s]) { comptes[s] = 0; ordre.push(s); } comptes[s]++; }); return ordre.map(function (s) { return comptes[s] > 1 ? s + ' \u00d7' + comptes[s] : s; }); } function depuisReact(it) { var cr = it.conditionReport || {}; var carfax = (cr.carfaxCanadaReportStatus === 'VALID' || !cr.carfaxCanadaReportStatus) && /^https:\\/\\/vhr\\.carfax\\.ca\\//.test(cr.carfaxCanadaReportUrl || '') ? cr.carfaxCanadaReportUrl : ''; var km = String((it.mileage && it.mileage.formattedAmount) || it.mileage || '').replace(/[^0-9]/g, ''); return { vin: it.vin.toUpperCase(), dommages: compter((it.damagePhotos || []).map(function (x) { return x && x.location; })), carfax: carfax, marque: it.make || '', modele: [it.model, it.trim].filter(Boolean).join(' '), annee: it.year ? String(it.year) : '', couleur: it.exteriorColor || '', km: km }; } function vinDom() { var libs = [].slice.call(document.querySelectorAll('*')).filter(function (e) { return e.children.length === 0 && /^(VIN|NIV)$/i.test(texte(e)); }); for (var k = 0; k < libs.length; k++) { var s = libs[k].nextElementSibling; if (s && /^[A-HJ-NPR-Z0-9]{17}$/.test(texte(s).toUpperCase())) return texte(s).toUpperCase(); var p = libs[k].parentElement; for (var i = 0; i < 3 && p; i++, p = p.parentElement) { var m = (p.innerText || '').match(/\\b[A-HJ-NPR-Z0-9]{17}\\b/); if (m) return m[0]; } } var tous = (document.body.innerText || '').match(/\\b[A-HJ-NPR-Z0-9]{17}\\b/g) || []; return tous.length ? tous[0] : ''; } function panneau() { var h3 = [].slice.call(document.querySelectorAll('h3')).filter(function (e) { return /^(Damage Photos|Photos? des dommages)$/i.test(texte(e)); })[0]; if (!h3) return null; var c = h3; for (var i = 0; i < 8 && c.parentElement; i++) { c = c.parentElement; if (c.querySelectorAll('img').length >= 1) break; } return c; } function dommagesDom() { var c = panneau(); if (!c) return null; return compter((c.innerText || '').split('\\n').filter(function (s) { return s.trim() && !/^(Damage Photos|Photos? des dommages)$/i.test(s.trim()); })); } function partir(o) { var q = '#/achat?vin=' + encodeURIComponent(o.vin) + '&source=eblock'; ['dommages', 'carfax', 'marque', 'modele', 'annee', 'couleur', 'km'].forEach(function (k) { var v = Array.isArray(o[k]) ? o[k].join('\\n') : (o[k] || ''); if (v) q += '&' + k + '=' + encodeURIComponent(v); }); location.href = " + JSON.stringify(AMX.SITE) + " + q; } var it = itemReact(); if (it) { partir(depuisReact(it)); return; } var v = vinDom(); if (!v) { alert('Aucun NIV trouv\u00e9 sur cette page. Ouvrez la page du v\u00e9hicule sur eBlock, puis cliquez de nouveau.'); return; } var d = dommagesDom(); if (d) { partir({ vin: v, dommages: d }); return; } var b = [].slice.call(document.querySelectorAll('button')).filter(function (x) { return /Damage Photos|dommages/i.test(texte(x)); })[0]; if (!b) { partir({ vin: v }); return; } b.click(); var essais = 0; (function attendre() { essais++; var dd = dommagesDom(); if (dd && dd.length) { partir({ vin: v, dommages: dd }); return; } if (essais > 40) { partir({ vin: v }); return; } setTimeout(attendre, 200); })(); })();";
 
   /* --------------------------- Constructeurs ---------------------------- */
   // Un champ `.champ` : label + input. opts = { type, step, placeholder, mono, readonly, inputmode, apres (bouton à droite) }
@@ -179,6 +179,8 @@
 
     this.surInventaire = function () { self.rendreContexte(); };
     document.addEventListener('amx:inventaire', this.surInventaire);
+    document.addEventListener('amx:carfax', this.surInventaire);
+    if (AMX.carfax) AMX.carfax.charger().catch(function () {});
     this.surImpression = function () {
       self.elDateImpression.textContent = 'Groupe Automax · fiche imprimée le ' + AMX.fmtDate(new Date().toISOString(), true) + (self.vinCourant ? ' · NIV ' + self.vinCourant : '');
     };
@@ -193,12 +195,17 @@
   // (dommages, eblock) — gardé pour après le chargement de la fiche.
   Fiche.prototype.lireParams = function (ctx) {
     var p = (ctx && ctx.params) || {};
-    if (p.dommages || p.eblock) this.prerempli = { dommages: String(p.dommages || ''), eblock: String(p.eblock || '') };
+    var cles = ['dommages', 'eblock', 'carfax', 'marque', 'modele', 'annee', 'couleur', 'km'];
+    if (cles.some(function (k) { return p[k]; })) {
+      var pre = {}; cles.forEach(function (k) { pre[k] = String(p[k] || ''); });
+      this.prerempli = pre;
+    }
     return p.vin ? String(p.vin).trim() : '';
   };
 
   Fiche.prototype.demonter = function () {
     document.removeEventListener('amx:inventaire', this.surInventaire);
+    document.removeEventListener('amx:carfax', this.surInventaire);
     window.removeEventListener('beforeprint', this.surImpression);
     this.generation++;
   };
@@ -497,13 +504,28 @@
   // Valeurs reçues par l'adresse (signet eBlock) : posées une fois la fiche
   // chargée, sans écraser ce qui est déjà rempli.
   Fiche.prototype.appliquerPrerempli = function () {
+    var self = this;
     var p = this.prerempli; if (!p) return;
     this.prerempli = null;
-    var n = 0;
-    if (p.dommages && el('f-dommages') && !el('f-dommages').value.trim()) { el('f-dommages').value = p.dommages; n++; }
-    if (p.eblock && el('f-eblock') && !el('f-eblock').value.trim() && AMX.eblockValide(p.eblock)) { el('f-eblock').value = p.eblock; n++; }
+    var n = 0, morceaux = [];
+    function poser(id, valeur) { var e = el(id); if (valeur && e && !String(e.value || '').trim()) { e.value = valeur; n++; return true; } return false; }
+    if (poser('f-dommages', p.dommages)) morceaux.push(AMX.listeDommages(p.dommages).length + ' dommage(s) répertorié(s)');
+    if (p.eblock && AMX.eblockValide(p.eblock)) poser('f-eblock', p.eblock);
+    poser('f-marque', p.marque); poser('f-modele', p.modele); poser('f-annee', p.annee); poser('f-couleur', p.couleur); poser('f-km', p.km);
     this.rendreEblock();
-    if (n) AMX.toast('Rapport d\'état eBlock reçu : ' + (p.dommages ? AMX.listeDommages(p.dommages).length + ' dommage(s) répertorié(s)' : 'lien') + '. Collez le lien « Partager » d\'eBlock, puis enregistrez.', 'ok', 8000);
+    this.recalculer();
+    // Le lien CARFAX qu'eBlock fournit (rapport public) s'attache au véhicule
+    // tout de suite, comme s'il venait de l'import CARFAX.
+    var carfax = AMX.carfax ? AMX.carfax.valide(p.carfax) : '';
+    var vin = this.vinCourant || (el('f-niv') ? el('f-niv').value.trim().toUpperCase() : '');
+    if (carfax && /^[A-HJ-NPR-Z0-9]{11,17}$/.test(vin)) {
+      if (AMX.carfax.lien(vin) === carfax) morceaux.push('rapport CARFAX déjà en place');
+      else AMX.carfax.enregistrer([{ vin: vin, lien: carfax }]).then(function () {
+        AMX.toast('Rapport CARFAX d\'eBlock attaché au véhicule.', 'ok', 5000);
+        self.rendreContexte();
+      }).catch(function (e) { AMX.toast('Lien CARFAX non enregistré — ' + AMX.erreurTexte(e), 'erreur'); });
+    }
+    if (n) AMX.toast('Reçu d\'eBlock : ' + (morceaux.length ? morceaux.join(', ') + (n > morceaux.length ? ' et ' + (n - morceaux.length) + ' champ(s) rempli(s)' : '') : n + ' champ(s) rempli(s)') + '. Collez le lien « Partager » d\'eBlock, puis enregistrez.', 'ok', 8000);
     if (el('f-eblock') && !el('f-eblock').value.trim()) el('f-eblock').focus();
   };
 
@@ -617,6 +639,12 @@
       morceaux.push(h('span.puce.attention', { text: 'Absent des registres' }));
       morceaux.push(h('span.doux.petit', { text: 'Il sera ajouté à la destination choisie lors de l\'enregistrement.' }));
     }
+    // Rapport CARFAX attaché au véhicule : puce + le bouton « Carfax » des coûts
+    // ouvre ce rapport plutôt que la page d'accueil de CARFAX.
+    var lienCfx = AMX.carfax ? AMX.carfax.lien(vin) : '';
+    var btnCfx = el('carfax-btn');
+    if (btnCfx) { btnCfx.href = lienCfx || 'https://vhr.carfax.ca/fr/'; btnCfx.title = lienCfx ? 'Ouvrir le rapport CARFAX de ce véhicule' : 'Ouvrir Carfax'; }
+    if (lienCfx) morceaux.push(h('a.puce.info.lien-puce', { href: lienCfx, target: '_blank', rel: 'noopener', text: 'CARFAX', title: 'Voir le rapport CARFAX' }));
     if (!morceaux.length) { this.elContexte.classList.add('cache'); return; }
     this.elContexte.classList.remove('cache');
     this.elContexte.appendChild(h('span.mono.doux', { text: vin }));

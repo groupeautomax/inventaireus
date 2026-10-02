@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Pont Automax</title>
+<meta name="robots" content="noindex">
+</head>
+<body>
+<script>
+/* Pont entre un signet qui tourne sur un autre site (Torque, eBlock…) et notre
+   serveur. Chargé dans un iframe caché par le signet, il reçoit des lots par
+   postMessage et les envoie au script Apps Script avec la session du site
+   (jeton de connexion de cet utilisateur, lu ici, dans l'origine du site —
+   jamais transmis à la page appelante). Origines acceptées : liste ci-dessous. */
+(function () {
+  var URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
+  var ORIGINES = ['https://dealer.torquemanagement.ca', 'https://app.eblock.com', 'https://dealer.carfax.ca'];
+  var ACTIONS = ['torqueImporter', 'torquePhotosLancer'];
+  function lire(c) { try { return localStorage.getItem(c) || ''; } catch (e) { return ''; } }
+  var jeton = lire('pg_jeton_v1'), courriel = lire('pg_utilisateur_v1');
+  var parent = window.parent !== window ? window.parent : (window.opener || null);
+
+  function repondre(origine, msg) { try { (window.parent !== window ? window.parent : window.opener).postMessage(msg, origine); } catch (e) {} }
+
+  window.addEventListener('message', function (ev) {
+    if (ORIGINES.indexOf(ev.origin) < 0) return;
+    var m = ev.data || {};
+    if (m.type === 'amx:ping') { repondre(ev.origin, { type: 'amx:pret', connecte: !!(jeton && courriel), courriel: courriel }); return; }
+    if (m.type !== 'amx:lot' || !m.corps || ACTIONS.indexOf(m.corps.action) < 0) return;
+    if (!jeton || !courriel) { repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: { ok: false, erreur: 'Connectez-vous au site d\'inventaire (groupeautomax.github.io) dans un autre onglet, puis recommencez.' } }); return; }
+    var corps = {}; for (var k in m.corps) corps[k] = m.corps[k];
+    corps.jeton = jeton; corps.utilisateur = courriel;
+    var essais = 0;
+    (function envoyer() {
+      essais++;
+      fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corps) })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function (t) { var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); } if (d && d.reessayer && essais < 3) { setTimeout(envoyer, 1500 * essais); return; } repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: d }); })
+        .catch(function (err) { if (essais < 3) { setTimeout(envoyer, 1500 * essais); return; } repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: { ok: false, erreur: String(err && err.message || err) } }); });
+    })();
+  });
+  if (parent) { ORIGINES.forEach(function (o) { repondre(o, { type: 'amx:pret', connecte: !!(jeton && courriel), courriel: courriel }); }); }
+})();
+</script>
+</body>
+</html>

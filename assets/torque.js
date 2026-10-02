@@ -23,7 +23,7 @@
 
   var STATUTS_TORQUE = {
     Completed: ['Complété / Relance', 'vert'], Pending: ['En attente', 'ambre'], Incomplete: ['Fiche incomplète', 'gris'], Lost: ['Perdu', 'rouge'],
-    TradedIn: ['Repris', 'bleu'], TradeIn: ['Repris', 'bleu'], TradedInWholesale: ['Repris wholesale', 'violet'], TradeInWholesale: ['Repris wholesale', 'violet'], Wholesale: ['Wholesale', 'violet']
+    TradedIn: ['Repris', 'bleu'], TradeIn: ['Repris', 'bleu'], Bought: ['Repris', 'bleu'], TradedInWholesale: ['Repris wholesale', 'violet'], TradeInWholesale: ['Repris wholesale', 'violet'], BoughtWholesale: ['Repris wholesale', 'violet'], Wholesale: ['Wholesale', 'violet']
   };
   var COULEUR_CONCESSION = { stemarie: 'vert', hawkesbury: 'bleu', vwbrossard: 'violet', bmwsherbrooke: 'sombre', hyundailongueuil: 'ambre' };
   var PERIODES = [['tout', 'Tout'], ['j30', '30 jours'], ['trimestre', 'Trimestre'], ['annee', 'Année'], ['an1', '12 mois']];
@@ -236,7 +236,7 @@
   function agreger(lignes) {
     var n = lignes.length, nRepris = 0, interne = 0, nInterne = 0, vente = 0, nVente = 0, nPerdu = 0;
     lignes.forEach(function (r) {
-      if (/^Trade/.test(r.statut || '')) nRepris++;
+      if (/^(Trade|Bought)/.test(r.statut || '')) nRepris++;
       if (r.statut === 'Lost') nPerdu++;
       var vi = nombre(r.valeurInterne), pv = nombre(r.prixVente);
       if (vi) { interne += vi; nInterne++; } if (pv) { vente += pv; nVente++; }

@@ -134,6 +134,12 @@
       '.eval-cibles-titre { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; margin-bottom: 6px; }',
       '.eval-cibles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }',
       '.eval-valeurs { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--ligne); }',
+      '.eval-rappels .puce { cursor: pointer; border: none; font: inherit; font-size: 11px; font-weight: 600; }',
+      '.eval-liste-rappels { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow: auto; }',
+      '.eval-rappel { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; font-size: 12.5px; line-height: 1.45; }',
+      '.eval-rappel .entete { display: flex; gap: 10px; align-items: center; margin-bottom: 2px; }',
+      '.eval-rappel .composant { font-weight: 600; margin-bottom: 4px; }',
+      '.eval-rappel p { margin: 4px 0 0; }',
       '.eval-valeurs-entete { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }',
       '.eval-valeurs-entete h3 { margin: 0; font-size: 13px; }',
       '.eval-valeurs-grille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }',
@@ -255,6 +261,8 @@
     this.sauvegarde = null;                   // { statut: 'auto'|'enregistree', dateMaj, enregistreLe, enregistrePar }
     this.valeurs = null;                      // réponse VinAudit (detail / gros / echange) pour le NIV courant
     this.valeursEnCours = false;
+    this.rappels = null;                      // rappels NHTSA pour année / marque / modèle (gratuit, chargé après le décodage)
+    this.rappelsCle = '';
     this.minuterieAuto = null;
     this.filtres = { memeVersion: false, kmProche: false, tri: 'prix' };
     this.derniereSauvegarde = null;           // bloc `marche` d'une évaluation rechargée
@@ -357,7 +365,7 @@
     });
     this.elNiv.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.elNiv.blur(); } });
     this.elNiv.addEventListener('input', function () { self.rendreLiens(); });
-    [this.elMarque, this.elModele, this.elAnnee].forEach(function (el) { el.addEventListener('input', AMX.debounce(function () { self.rendreSommaire(); }, 200)); });
+    [this.elMarque, this.elModele, this.elAnnee].forEach(function (el) { el.addEventListener('input', AMX.debounce(function () { self.rendreSommaire(); self.chargerRappels(); }, 600)); });
     this.elKm.addEventListener('input', function () { self.rendreMarche(); });
     this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
@@ -496,7 +504,56 @@
     this.elLiens.appendChild(h('a.btn.petit' + (carfax ? '' : ''), { href: carfax || URL_CARFAX_COMPTE, target: '_blank', rel: 'noopener', title: carfax ? 'Rapport CARFAX partagé de ce véhicule' : 'Mon compte CARFAX (aucun rapport partagé pour ce NIV)', html: I.externe + '<span>' + (carfax ? 'Rapport CARFAX' : 'CARFAX (compte)') + '</span>' }));
     this.elLiens.appendChild(h('a.btn.petit' + (vinOk ? '' : '.desactive'), { href: vinOk ? lienMarketGuide(vin) : '#', target: '_blank', rel: 'noopener', title: 'Valeurs d\'encan eBlock (vendus 90 jours) pour ce NIV', html: I.externe + '<span>eBlock Market Guide</span>' }));
     this.elLiens.appendChild(h('a.btn.petit', { href: URL_TORQUE, target: '_blank', rel: 'noopener', title: 'Évaluations Torque (Hawkesbury)', html: I.externe + '<span>Torque</span>' }));
+    this.elRappels = h('span.eval-rappels#eval-rappels');
+    this.elLiens.appendChild(this.elRappels);
+    this.rendreRappels();
     this.elLiens.appendChild(h('span.sep', { text: vinOk ? 'NIV ' + vin : 'Entrez un NIV complet pour les liens par véhicule' }));
+  };
+
+  /* ------------------------- Rappels de sécurité (NHTSA) -----------------
+     Gratuit et sans quota, par année / marque / modèle (pas par NIV) : chargé
+     dès que le véhicule est connu, en cache 6 h côté serveur. Transport Canada
+     n'a plus d'API : lien vers leur recherche. */
+  Evaluation.prototype.chargerRappels = function () {
+    var self = this, annee = this.elAnnee.value.trim(), marque = this.elMarque.value.trim(), modele = this.elModele.value.trim();
+    if (!annee || !marque || !modele) { this.rappels = null; this.rappelsCle = ''; this.rendreRappels(); return Promise.resolve(); }
+    var cle = [annee, marque, modele].join('|').toLowerCase();
+    if (cle === this.rappelsCle && this.rappels) { this.rendreRappels(); return Promise.resolve(); }
+    this.rappelsCle = cle; this.rappels = { chargement: true }; this.rendreRappels();
+    return AMX.get({ rappelsNhtsa: 1, annee: annee, marque: marque, modele: modele }).then(function (d) {
+      if (self.rappelsCle !== cle) return;
+      self.rappels = (d && d.ok) ? d : { ok: false, erreur: (d && (d.erreur || d.message)) || 'indisponible' };
+      self.rendreRappels();
+    }).catch(function (e) { if (self.rappelsCle !== cle) return; self.rappels = { ok: false, erreur: AMX.erreurTexte(e) }; self.rendreRappels(); });
+  };
+  Evaluation.prototype.rendreRappels = function () {
+    var self = this, el = this.elRappels; if (!el) return;
+    AMX.vider(el);
+    var r = this.rappels;
+    if (!r) return;
+    if (r.chargement) { el.appendChild(h('span.puce', { text: 'Rappels…' })); return; }
+    if (!r.ok) { el.appendChild(h('span.puce', { title: r.erreur || '', text: 'Rappels : indisponibles' })); return; }
+    var n = r.n || 0;
+    var puce = h('button.puce.eval-puce-rappels' + (n ? '.attention' : '.ok'), { type: 'button', title: 'Rappels de sécurité NHTSA pour ' + [r.annee, r.marque, r.modele].join(' ') + ' (par modèle, pas par NIV)', text: n ? n + ' rappel' + (n > 1 ? 's' : '') + ' NHTSA' : 'Aucun rappel NHTSA', onclick: function () { self.ouvrirRappels(); } });
+    el.appendChild(puce);
+  };
+  Evaluation.prototype.ouvrirRappels = function () {
+    var r = this.rappels; if (!r || !r.ok) return;
+    var liste = h('div.eval-liste-rappels', (r.rappels || []).map(function (x) {
+      return h('div.eval-rappel', [
+        h('div.entete', [h('span.mono', { text: x.campagne || '—' }), h('span.doux', { text: x.date ? AMX.fmtDate(x.date) : '' }), x.parcStop || x.nePasConduire ? h('span.puce.alerte', { text: x.parcStop ? 'Ne pas conduire' : 'Stationner dehors' }) : null]),
+        h('div.composant', { text: x.composant || '' }),
+        x.resume ? h('p', { text: x.resume }) : null,
+        x.consequence ? h('p.doux', { text: 'Risque : ' + x.consequence }) : null,
+        x.remede ? h('p.doux', { text: 'Correctif : ' + x.remede }) : null
+      ]);
+    }));
+    var corps = h('div', [
+      h('p.doux.petit', { style: { margin: '0 0 10px' }, text: 'Source : NHTSA (États-Unis), par année, marque et modèle — un rappel listé ne vise pas forcément ce NIV : vérifiez auprès du concessionnaire de la marque ou avec le NIV sur nhtsa.gov/recalls. ' + (r.recuLe ? 'Reçu ' + AMX.fmtDate(r.recuLe, true) + '.' : '') }),
+      (r.rappels || []).length ? liste : h('p', { text: 'Aucun rappel recensé par la NHTSA pour ce modèle et cette année.' }),
+      h('p.doux.petit', { style: { margin: '10px 0 0' } }, ['Côté canadien : ', h('a', { href: r.lienTc || 'https://wwwapps.tc.gc.ca/Saf-Sec-Sur/7/VRDB-BDRV/search-recherche/menu.aspx?lang=fra', target: '_blank', rel: 'noopener', text: 'base de données des rappels de Transport Canada' }), '.'])
+    ]);
+    AMX.modale({ titre: 'Rappels de sécurité — ' + [r.annee, r.marque, r.modele].join(' '), corps: corps, large: true });
   };
 
   /* ------------------------- Analyse de marché -------------------------- */
@@ -816,6 +873,7 @@
     this.comparablesCharges = Array.isArray(data.comparables) ? data.comparables.filter(function (c) { return c && (c.prix || c.source); }) : [];
     this.derniereSauvegarde = (data.marche && typeof data.marche === 'object') ? data.marche : null;
     if (this.derniereSauvegarde && !this.derniereSauvegarde.valeurs && data.valeurs) this.derniereSauvegarde.valeurs = data.valeurs;
+    this.chargerRappels();
     this.valeurs = null; this.valeursEnCours = false; this.rendreValeurs();
     if (this.derniereSauvegarde && this.derniereSauvegarde.portee) { var pv = this.derniereSauvegarde.pays === 'us' ? 'us' : 'ca'; this.portee[pv] = porteeValide(this.derniereSauvegarde.portee, this.portee[pv]); if (this.derniereSauvegarde.etat && ETATS[pv][this.derniereSauvegarde.etat]) this.etats[pv] = this.derniereSauvegarde.etat; }
     // Statut posé par le serveur (Api.gs) : « auto » ou « enregistree » ; les anciennes fiches sans statut ont été enregistrées à la main.
@@ -844,6 +902,7 @@
     this.sauvegarde = null; clearTimeout(this.minuterieAuto);
     this.rendreSauvegarde();
     this.valeurs = null; this.valeursEnCours = false; this.rendreValeurs();
+    this.rappels = null; this.rappelsCle = ''; this.rendreRappels();
     this.analyses = { ca: null, us: null };
     this.enCours = { ca: false, us: false };
     this.genAnalyse.ca++; this.genAnalyse.us++;
@@ -938,6 +997,7 @@
       if (repris.length) { self.ficheSource = repris.join(', '); self.recalculerDetail('achat'); }
       else if (!self.elPrix.value.trim()) self.recalculerDetail('couts');
       self.rendreSommaire();
+      self.chargerRappels();
       if (!r && !self.parametresPrets()) AMX.toast('Décodage indisponible pour ce NIV — remplissez marque, modèle et année à la main.', 'attention');
       else if (r) self.etat('Véhicule décodé : ' + [self.elAnnee.value, self.elMarque.value, self.elModele.value, self.elVersion.value].filter(Boolean).join(' ') + (f['f-km'] ? ' · ' + AMX.fmtNombre(parseInt(self.elKm.value, 10)) + ' km (fiche d\'achat)' : '') + '.');
       self.oublierAnalyses();

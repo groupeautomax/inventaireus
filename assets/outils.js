@@ -848,7 +848,7 @@
     if (!this.liens.length) {
       this.elListe.appendChild(h('div.vide', [h('div', { html: I.lien }), h('h3', 'Aucun rapport en attente'), h('div', 'Cliquez le signet depuis votre compte CARFAX, ou collez des liens ci-dessus.')]));
       this.elResume.textContent = '';
-      if (btn) btn.disabled = true;
+      if (btn) { btn.disabled = true; btn.textContent = 'Enregistrer'; }
       return;
     }
     var table = h('table.tableau'), corps = h('tbody');

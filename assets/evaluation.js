@@ -22,21 +22,15 @@
      - Rang = position du prix visé parmi les annonces (1 = le moins cher).
    La table des comparables insère la ligne « Votre véhicule » à son rang.
 
-   Les comparables saisis à la main (ancienne fiche) restent disponibles plus
-   bas et peuvent être remplis d'un clic à partir des annonces retenues ; les
-   évaluations déjà enregistrées se rechargent telles quelles.
+   Les comparables tapés à la main de l'ancienne fiche n'existent plus à
+   l'écran (retirés le 2 oct. à la demande de Maxime) ; ceux des évaluations
+   déjà enregistrées sont conservés tels quels dans la sauvegarde.
    ========================================================================= */
 (function () {
   'use strict';
   var h = AMX.h, I = AMX.icones;
 
   var URL_NHTSA = 'https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/';
-  var SITES = [
-    { nom: 'Kijiji Autos', url: 'https://www.kijijiautos.ca/' },
-    { nom: 'AutoHebdo', url: 'https://www.autohebdo.net/' },
-    { nom: 'CarGurus', url: 'https://www.cargurus.ca/' },
-    { nom: 'Clutch', url: 'https://www.clutch.ca/' }
-  ];
   var URL_TORQUE = 'https://dealer.torquemanagement.ca/vehicle-management/evaluations/list';
   var URL_CARFAX_COMPTE = 'https://dealer.carfax.ca/';
   var TOLERANCE_KM = 30000;
@@ -89,6 +83,19 @@
       '.eval-page .carte-entete .titre p { margin: 2px 0 0; font-size: 12px; color: var(--encre-3); }',
       '.eval-page .carte-entete .droite { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
       '.eval-pile { display: flex; flex-direction: column; gap: 12px; }',
+      '#eval-detail-resume:not(:empty) { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ligne); }',
+      '.eval-detail-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px; margin-bottom: 10px; }',
+      '.eval-detail-ligne .l { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; }',
+      '.eval-detail-ligne .v { font-size: 18px; font-weight: 700; }',
+      '.eval-cibles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }',
+      '.eval-cible { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }',
+      '.eval-cible .l { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; }',
+      '.eval-cible .v { font-size: 18px; font-weight: 700; }',
+      '.eval-cible .s { font-size: 11.5px; color: var(--encre-3); }',
+      '.eval-cible .s.pos { color: var(--vert); } .eval-cible .s.neg { color: var(--rouge); }',
+      '.eval-cible .btn { align-self: flex-start; margin-top: 4px; }',
+      '.eval-cible.agressif { box-shadow: inset 4px 0 0 var(--rouge); } .eval-cible.standard { box-shadow: inset 4px 0 0 var(--vert); background: var(--vert-clair); } .eval-cible.conservateur { box-shadow: inset 4px 0 0 var(--bleu); }',
+      '@media (max-width: 900px) { .eval-cibles { grid-template-columns: 1fr; } }',
       '.eval-note { margin: 0; font-size: 11.5px; color: var(--encre-3); line-height: 1.5; }',
       '.eval-contexte { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ligne); font-size: 12.5px; color: var(--encre-2); }',
       '.eval-contexte .modele { font-weight: 600; color: var(--encre); }',
@@ -125,15 +132,10 @@
       '.eval-pied { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: 11.5px; color: var(--encre-3); }',
       '.eval-attente { padding: 26px 16px; text-align: center; color: var(--encre-3); font-size: 13px; border: 1px dashed var(--ligne-forte); border-radius: var(--rayon-s); }',
       '.eval-attente .btn { margin-top: 10px; }',
-      '.eval-sites { display: flex; gap: 6px; flex-wrap: wrap; }',
-      '.eval-comparables { overflow-x: auto; }',
-      '.eval-comparables .tableau { min-width: 460px; }',
-      '.eval-comparables td { padding: 6px 8px; }',
-      '.eval-comparables td input.saisie { height: 30px; }',
-      '.eval-comparables .col-prix, .eval-comparables .col-km { width: 140px; }',
-      '.eval-comparables .col-x { width: 44px; }',
-      '.eval-page .resume-sombre.eval-ajuste { box-shadow: inset 4px 0 0 var(--vert-vif); }',
-      '.eval-page .resume-sombre .v.indice { font-size: 12.5px; font-weight: 500; opacity: .75; margin-top: 6px; }',
+      '.registre-page .kpis { margin-bottom: 14px; }',
+      '.registre-table .tableau { min-width: 1100px; }',
+      '.registre-table td.num, .registre-table td.mono, .registre-table td:first-child { white-space: nowrap; }',
+      '.registre-table th.registre-triable { cursor: pointer; user-select: none; } .registre-table th.registre-triable.actif { color: var(--vert); }',
       '@media (max-width: 900px) {',
       '  .eval-prix, .eval-stats { grid-template-columns: 1fr; }',
       '  .eval-page .grille.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }',
@@ -150,16 +152,16 @@
     this.vinCourant = '';
     this.vinCharge = '';
     this.generation = 0;
-    this.compteur = 0;
+    this.comparablesCharges = [];           // comparables manuels d'une ancienne évaluation, renvoyés tels quels
     this.pays = AMX.memo.lire('eval_pays', 'ca') === 'us' ? 'us' : 'ca';
     this.analyses = { ca: null, us: null };   // réponses du serveur par pays
     this.enCours = { ca: false, us: false };
     this.genAnalyse = { ca: 0, us: 0 };       // une analyse plus récente (ou un autre NIV) rend la réponse caduque
+    this.portee = { ca: AMX.memo.lire('eval_portee_ca', 'local') === 'national' ? 'national' : 'local', us: AMX.memo.lire('eval_portee_us', 'national') === 'local' ? 'local' : 'national' };
     this.filtres = { memeVersion: false, kmProche: false, tri: 'prix' };
     this.derniereSauvegarde = null;           // bloc `marche` d'une évaluation rechargée
 
     this.construire();
-    this.recalculer();
     this.rendreMarche();
 
     this.surInventaire = function () { self.rendreContexte(); };
@@ -205,8 +207,13 @@
     var cVersion = champ('e-version', 'Version (trim)', { placeholder: 'LT, SLE, Limited…' });
     var cAnnee = champ('e-annee', 'Année', { type: 'number', inputmode: 'numeric' });
     var cKm = champ('e-km', 'Kilométrage du véhicule', { type: 'number', inputmode: 'numeric' });
-    var cPrix = champ('e-prix', 'Votre prix de vente visé ($)', { type: 'number', inputmode: 'numeric', placeholder: 'Pour le rang et le marché %' });
     var cTaux = champ('e-taux-km', 'Taux d\'ajustement ($/km)', { type: 'number', step: '0.01', value: '0.10' });
+    // Prix de détail (comme Torque) : payé + reconditionnement + marge → détail.
+    var cPaye = champ('e-prix-paye', 'Prix payé ($)', { type: 'number', inputmode: 'numeric', placeholder: 'Achat + frais (fiche d\'achat)' });
+    var cRecon = champ('e-recon', 'Reconditionnement ($)', { type: 'number', inputmode: 'numeric', placeholder: 'Carrosserie, mécanique, esthétique' });
+    var cMarge = champ('e-marge', 'Marge visée ($)', { type: 'number', inputmode: 'numeric', value: AMX.memo.lire('eval_marge', '2000') });
+    var cPrix = champ('e-prix', 'Prix de détail ($)', { type: 'number', inputmode: 'numeric', placeholder: 'Calculé : payé + recon + marge' });
+    this.elPaye = cPaye.input; this.elRecon = cRecon.input; this.elMarge = cMarge.input;
     this.elConcession = h('select#e-concession', Object.keys(AMX.CONCESSIONS).map(function (k) {
       return h('option', { value: k, selected: k === 'stemarie' ? true : undefined, text: AMX.CONCESSIONS[k] });
     }));
@@ -218,11 +225,17 @@
     var vehicule = carte('Véhicule à évaluer', [
       h('div.eval-pile', [
         h('div.grille.c4', [cNiv.el, cMarque.el, cModele.el, cVersion.el]),
-        h('div.grille.c4', [cAnnee.el, cKm.el, cPrix.el, cConcession])
+        h('div.grille.c4', [cAnnee.el, cKm.el, cConcession, cTaux.el])
       ]),
       this.elContexte,
       this.elLiens
     ]);
+    this.elDetailResume = h('div#eval-detail-resume');
+    var detail = carte(
+      h('div.titre', [h('h2', 'Prix de détail'), h('p', 'Prix payé + reconditionnement + marge visée = prix de détail, situé ensuite sur le marché. Modifier le prix de détail recalcule la marge.')]),
+      [h('div.grille.c4', [cPaye.el, cRecon.el, cMarge.el, cPrix.el]), this.elDetailResume]
+    );
+    [this.elPaye, this.elRecon, this.elMarge].forEach(function (el) { el.addEventListener('input', function () { self.recalculerDetail(el === self.elMarge ? 'marge' : 'couts'); }); });
     this.elNiv.addEventListener('blur', function () {
       var vin = self.elNiv.value.trim();
       if (vin.length < 11) return;
@@ -230,63 +243,84 @@
     });
     this.elNiv.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.elNiv.blur(); } });
     this.elNiv.addEventListener('input', function () { self.rendreLiens(); });
-    [this.elKm, this.elPrix].forEach(function (el) { el.addEventListener('input', function () { self.recalculer(); self.rendreMarche(); }); });
+    this.elKm.addEventListener('input', function () { self.rendreMarche(); });
+    this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
-    this.elConcession.addEventListener('change', function () { self.oublierAnalyses(); });
+    this.elConcession.addEventListener('change', function () { AMX.memo.ecrire('eval_concession', self.elConcession.value); self.oublierAnalyses(); });
+    if (AMX.CONCESSIONS[AMX.memo.lire('eval_concession', '')]) this.elConcession.value = AMX.memo.lire('eval_concession', '');
 
     // --- Analyse de marché ----------------------------------------------
     this.btnCa = h('button', { type: 'button', text: 'Canada', onclick: function () { self.choisirPays('ca'); } });
     this.btnUs = h('button', { type: 'button', text: 'États-Unis', onclick: function () { self.choisirPays('us'); } });
     this.elSegment = h('div.segment#eval-pays', [this.btnCa, this.btnUs]);
     this.btnRafraichir = h('button.btn.petit', { type: 'button', title: 'Relancer la recherche', html: I.rafraichir + '<span>Relancer</span>', onclick: function () { self.analyser(self.pays, true); } });
+    this.elPortee = h('select.saisie#eval-portee', { 'aria-label': 'Portée géographique', style: { height: '28px', width: 'auto' } }, [
+      h('option', { value: 'local', text: 'Autour de la concession (160 km)' }),
+      h('option', { value: 'national', text: 'Tout le pays' })
+    ]);
+    this.elPortee.addEventListener('change', function () {
+      self.portee[self.pays] = self.elPortee.value === 'national' ? 'national' : 'local';
+      AMX.memo.ecrire('eval_portee_' + self.pays, self.portee[self.pays]);
+      self.analyses[self.pays] = null; self.genAnalyse[self.pays]++; self.enCours[self.pays] = false;
+      if (self.parametresPrets()) self.analyser(self.pays, false); else self.rendreMarche();
+    });
     this.elMarche = h('div#eval-marche');
     var marche = carte(
       h('div.titre', [h('h2', 'Analyse de marché'), h('p', 'Annonces actives de concessionnaires et ventes déduites des 90 derniers jours (MarketCheck).')]),
       [this.elMarche],
-      h('div.droite', [this.elSegment, this.btnRafraichir])
+      h('div.droite', [this.elSegment, this.elPortee, this.btnRafraichir])
     );
     this.majSegment();
 
-    // --- Comparables saisis à la main (ancienne fiche) -------------------
-    var cTauxBloc = h('div.grille.c4', [cTaux.el]);
-    this.elTaux.addEventListener('input', function () { self.recalculer(); self.rendreMarche(); });
-    this.elLignes = h('tbody#comp-rows');
-    this.btnImporter = h('button.btn.petit#importer-comp-btn', { type: 'button', html: I.telecharger + '<span>Reprendre les annonces retenues</span>', onclick: function () { self.importerComparables(); } });
-    var comparables = carte(
-      h('div.titre', [h('h2', 'Comparables saisis à la main'), h('p', 'Facultatif : vos propres trouvailles (Kijiji, AutoHebdo…) ou les annonces retenues ci-dessus, ramenées au kilométrage du véhicule.')]),
-      [
-        cTauxBloc,
-        h('div.eval-sites', { style: { margin: '12px 0' } }, SITES.map(function (s) { return h('a.btn.petit', { href: s.url, target: '_blank', rel: 'noopener', html: I.externe + '<span>' + AMX.esc(s.nom) + '</span>' }); })),
-        h('div.eval-comparables', [
-          h('table.tableau', [
-            h('thead', [h('tr', [h('th', 'Source'), h('th.col-prix', 'Prix ($)'), h('th.col-km', 'KM'), h('th.col-x', '')])]),
-            this.elLignes
-          ])
-        ])
-      ],
-      h('div.droite', [this.btnImporter, h('button.btn.petit#add-comp-btn', { type: 'button', html: I.plus + '<span>Ajouter</span>', onclick: function () { self.ajouterLigne(); self.elLignes.lastChild.querySelector('input').focus(); } })])
-    );
-    this.ajouterLigne(); this.ajouterLigne(); this.ajouterLigne();
+    this.elTaux.addEventListener('input', function () { self.rendreMarche(); });
 
-    this.S = {
-      count: h('div.v.num#s-count', '0'), avg: h('div.v.num#s-avg', '—'), median: h('div.v.num#s-median', '—'), range: h('div.v.num#s-range', '—'),
-      avgAdj: h('div.v.num#s-avg-adj', '—'), medianAdj: h('div.v.num#s-median-adj', '—'), rangeAdj: h('div.v.num#s-range-adj', '—')
-    };
-    var brut = h('div.resume-sombre', [
-      h('div', [h('div.l', 'Comparables saisis'), this.S.count]),
-      h('div', [h('div.l', 'Moyenne brute'), this.S.avg]),
-      h('div', [h('div.l', 'Médiane brute'), this.S.median]),
-      h('div', [h('div.l', 'Fourchette brute'), this.S.range])
-    ]);
-    var ajuste = h('div.resume-sombre.eval-ajuste', [
-      h('div', [h('div.l', 'Moyenne ajustée au KM'), this.S.avgAdj]),
-      h('div', [h('div.l', 'Médiane ajustée au KM'), this.S.medianAdj]),
-      h('div', [h('div.l', 'Fourchette ajustée'), this.S.rangeAdj])
-    ]);
-    this.elResumesManuels = h('div#eval-resumes-manuels.cache', [brut, h('div', { style: { height: '10px' } }), ajuste]);
-
-    this.el = h('div.page.eval-page', [entete, vehicule, marche, comparables, this.elResumesManuels]);
+    this.el = h('div.page.eval-page', [entete, vehicule, detail, marche]);
     this.rendreLiens();
+  };
+
+  /* --------------------------- Prix de détail ---------------------------- */
+  // source : 'couts' (payé ou recon changé), 'marge', 'prix' (détail tapé à la main).
+  Evaluation.prototype.recalculerDetail = function (source) {
+    var paye = nombre(this.elPaye.value), recon = nombre(this.elRecon.value) || 0, marge = nombre(this.elMarge.value), prix = nombre(this.elPrix.value);
+    if (source === 'prix') {
+      if (paye !== null && prix !== null) { this.elMarge.value = String(Math.round(prix - paye - recon)); }
+    } else if (paye !== null && marge !== null) {
+      this.elPrix.value = String(Math.round(paye + recon + marge));
+    }
+    if (source === 'marge' && marge !== null) AMX.memo.ecrire('eval_marge', String(marge));
+    this.rendreMarche();
+  };
+
+  Evaluation.prototype.rendrePrixDetail = function () {
+    var self = this;
+    AMX.vider(this.elDetailResume);
+    var paye = nombre(this.elPaye.value), recon = nombre(this.elRecon.value) || 0, marge = nombre(this.elMarge.value), prix = nombre(this.elPrix.value);
+    var a = this.analyses[this.pays], c = (a && a.ok) ? this.calculs(a) : null;
+    var blocs = [];
+    if (prix !== null) {
+      var pos = c ? c.marchePct : null;
+      blocs.push(h('div.eval-detail-ligne', [
+        h('span.l', { text: 'Prix de détail' }), h('span.v.num', { text: fmt(prix) }),
+        paye !== null ? h('span.doux', { text: '= ' + fmt(paye) + ' payé + ' + fmt(recon) + ' recon + ' + fmt(marge === null ? prix - paye - recon : marge) + ' marge' }) : null,
+        c ? h('span.puce' + (pos === null ? '' : (pos <= 0.97 ? '.ok' : (pos <= 1.03 ? '.attention' : '.alerte'))), { text: 'marché ' + pct(pos) + (c.rang ? ' · rang ' + c.rang + '/' + c.rangSur : '') }) : h('span.doux', { text: 'Lancez l\'analyse pour situer ce prix.' })
+      ]));
+    }
+    if (c && c.standard) {
+      var cible = function (nom, v, cls) {
+        var maxAchat = (v !== null && marge !== null) ? v - recon - marge : null;
+        var margeSi = (v !== null && paye !== null) ? v - paye - recon : null;
+        return h('div.eval-cible.' + cls, [
+          h('div.l', { text: nom }), h('div.v.num', { text: fmt(v) }),
+          h('div.s', { text: maxAchat !== null ? 'Payer au plus ' + fmt(maxAchat) + ' pour garder ' + fmt(marge) + ' de marge' : 'Entrez une marge pour le prix d\'achat maximal' }),
+          margeSi !== null ? h('div.s.' + (margeSi >= (marge || 0) ? 'pos' : 'neg'), { text: 'Au prix payé actuel : marge ' + fmt(margeSi) }) : null,
+          h('button.btn.petit', { type: 'button', text: 'Prendre ce prix', onclick: function () { self.elPrix.value = String(Math.round(v)); self.recalculerDetail('prix'); } })
+        ]);
+      };
+      blocs.push(h('div.eval-cibles', [cible('Prix agressif', c.agressif, 'agressif'), cible('Prix standard', c.standard, 'standard'), cible('Prix conservateur', c.conservateur, 'conservateur')]));
+    } else if (prix === null && paye === null) {
+      blocs.push(h('p.eval-note', { text: 'Le prix payé et le reconditionnement se remplissent depuis la fiche d\'achat quand elle existe ; sinon tapez-les. La marge visée est mémorisée d\'une évaluation à l\'autre.' }));
+    }
+    blocs.forEach(function (b) { self.elDetailResume.appendChild(b); });
   };
 
   /* ----------------------------- Liens ---------------------------------- */
@@ -305,6 +339,7 @@
   Evaluation.prototype.majSegment = function () {
     this.btnCa.classList.toggle('actif', this.pays === 'ca');
     this.btnUs.classList.toggle('actif', this.pays === 'us');
+    if (this.elPortee) this.elPortee.value = this.portee[this.pays];
   };
   Evaluation.prototype.choisirPays = function (pays) {
     this.pays = pays === 'us' ? 'us' : 'ca';
@@ -318,7 +353,7 @@
   };
   Evaluation.prototype.parametres = function (pays) {
     var vin = this.elNiv.value.trim().toUpperCase();
-    var p = { marche: 1, pays: pays, annee: this.elAnnee.value.trim(), marque: this.elMarque.value.trim(), modele: this.elModele.value.trim(), version: this.elVersion.value.trim(), km: this.elKm.value.trim(), concession: this.elConcession.value };
+    var p = { marche: 1, pays: pays, portee: this.portee[pays], annee: this.elAnnee.value.trim(), marque: this.elMarque.value.trim(), modele: this.elModele.value.trim(), version: this.elVersion.value.trim(), km: this.elKm.value.trim(), concession: this.elConcession.value };
     if (/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) p.vin = vin;
     return p;
   };
@@ -326,7 +361,13 @@
     var self = this;
     pays = pays === 'us' ? 'us' : 'ca';
     if (!this.parametresPrets()) {
-      if (manuel) { AMX.toast('Il faut l\'année, la marque et le modèle — décodez le NIV ou remplissez-les.', 'attention'); (nombre(this.elAnnee.value) ? this.elMarque : this.elAnnee).focus(); }
+      var vinSaisi = this.elNiv.value.trim().toUpperCase();
+      if (/^[A-HJ-NPR-Z0-9]{11,17}$/.test(vinSaisi)) {
+        // Un NIV mais pas encore de modèle : on décode d'abord, puis on analyse.
+        this.vinCourant = vinSaisi;
+        return this.decoder(vinSaisi).then(function () { if (self.parametresPrets()) return self.analyser(pays, manuel); if (manuel) AMX.toast('Le décodeur ne connaît pas ce NIV — remplissez marque, modèle et année.', 'attention'); });
+      }
+      if (manuel) { AMX.toast('Entrez un NIV (ou l\'année, la marque et le modèle).', 'attention'); this.elNiv.focus(); }
       return Promise.resolve();
     }
     var g = ++this.genAnalyse[pays];
@@ -401,6 +442,7 @@
     var self = this;
     var pays = this.pays, a = this.analyses[pays];
     AMX.vider(this.elMarche);
+    this.rendrePrixDetail();
 
     if (this.enCours[pays]) {
       this.elMarche.appendChild(h('div.chargement', [h('span', { html: I.rafraichir }), 'Recherche des annonces ' + (pays === 'us' ? 'américaines' : 'canadiennes') + ' et des ventes récentes…']));
@@ -409,7 +451,7 @@
     if (!a) {
       var prets = this.parametresPrets();
       var attente = h('div.eval-attente', [
-        h('div', { text: prets ? 'Prêt à analyser ' + [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ') + ' sur le marché ' + (pays === 'us' ? 'américain' : 'canadien') + '.' : 'Décodez le NIV (ou entrez l\'année, la marque et le modèle), puis lancez l\'analyse.' }),
+        h('div', { text: prets ? 'Prêt à analyser ' + [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ') + ' sur le marché ' + (pays === 'us' ? 'américain' : 'canadien') + (self.portee[pays] === 'national' ? ' (tout le pays)' : ' (autour de la concession)') + '.' : 'Décodez le NIV (ou entrez l\'année, la marque et le modèle), puis lancez l\'analyse.' }),
         prets ? h('button.btn.primaire', { type: 'button', html: I.recherche + '<span>Analyser le marché ' + (pays === 'us' ? 'américain' : 'canadien') + '</span>', onclick: function () { self.analyser(pays, true); } }) : null
       ]);
       this.elMarche.appendChild(attente);
@@ -443,31 +485,10 @@
       h('div', [h('div.l', 'Prix moyen vendu'), h('div.v.num', { text: fmt(ven.prix && ven.prix.moyenne) })])
     ]));
 
-    // Trois prix
-    function blocPrix(cls, titre, valeur, sous) { return h('div.bloc.' + cls, [h('div.l', { text: titre }), h('div.v.num', { text: fmt(valeur) }), h('div.s', { text: sous })]); }
-    var ecart = function (v) { return (c.standard && v) ? ((v / c.standard - 1) * 100).toFixed(1).replace('.0', '').replace('.', ',') + ' %' : '—'; };
-    this.elMarche.appendChild(h('div.eval-prix', [
-      blocPrix('agressif', 'Prix agressif', c.agressif, c.agressif ? ecart(c.agressif) + ' vs standard · vente rapide' : 'Pas assez d\'annonces'),
-      blocPrix('standard', 'Prix standard', c.standard, c.base || '—'),
-      blocPrix('conservateur', 'Prix conservateur', c.conservateur, c.conservateur ? '+' + ecart(c.conservateur) + ' vs standard · marge maximale' : '—')
-    ]));
-
-    // Position du prix visé
-    if (c.prixVise) {
-      var pos = c.marchePct;
-      this.elMarche.appendChild(h('div.alerte-bloc.' + (pos === null ? 'attention' : (pos <= 0.97 ? 'ok' : (pos <= 1.03 ? 'attention' : 'erreur'))), { style: { marginBottom: '12px' } }, [
-        h('span', { html: I.info }),
-        h('div', [
-          h('strong', { text: 'Votre prix ' + fmt(c.prixVise) + ' : ' }),
-          h('span', { text: 'marché ' + pct(pos) + (c.rang ? ' · rang ' + c.rang + ' sur ' + c.rangSur : '') + (pos !== null ? (pos < 1 ? ' — sous le prix moyen actif' : (pos > 1 ? ' — au-dessus du prix moyen actif' : ' — au prix moyen actif')) : '') })
-        ])
-      ]));
-    }
-
     // Deux cartes de statistiques
     function mini(l, v, m) { return h('div', [h('div.l', { text: l }), h('div.v', { text: v }), m ? h('div.m', { text: m }) : null]); }
     var statAct = h('div.eval-stat', [
-      h('h3', [h('span.n', { text: String(act.n || 0) }), 'véhicules similaires sur le marché', h('span.mini.doux', { text: ' · rayon ' + (a.rayonKm || '—') + ' km autour de ' + (a.lieu || '—') })]),
+      h('h3', [h('span.n', { text: String(act.n || 0) }), 'véhicules similaires sur le marché', h('span.mini.doux', { text: a.portee === 'national' ? ' · ' + (a.lieu || 'tout le pays') + ((act.annonces || []).length < (act.n || 0) ? ' — les ' + (act.annonces || []).length + ' annonces les plus récentes sont listées' : '') : ' · rayon ' + (a.rayonKm || '—') + ' km autour de ' + (a.lieu || '—') })]),
       h('div.grille-mini', [
         mini('KM moyen', fmtKm(act.km && act.km.moyenne), act.km ? fmtKm(act.km.min) + ' – ' + fmtKm(act.km.max) : ''),
         mini('Prix moyen', fmt(act.prix && act.prix.moyenne), act.prix ? fmt(act.prix.min) + ' – ' + fmt(act.prix.max) : ''),
@@ -543,7 +564,7 @@
       h('tbody', lignes.length ? lignes : [h('tr', [h('td', { colspan: 11, text: 'Aucune annonce ne correspond aux filtres.' })])])
     ])]));
 
-    var pied = [h('span', { text: 'Source : MarketCheck · ' + (pays === 'us' ? 'États-Unis' : 'Canada') + ', prix en ' + devise }), h('span', { text: 'Reçu ' + AMX.fmtDate(a.genereLe || new Date().toISOString(), true) })];
+    var pied = [h('span', { text: 'Source : MarketCheck · ' + (a.lieu || (pays === 'us' ? 'États-Unis' : 'Canada')) + ', prix en ' + devise }), h('span', { text: 'Reçu ' + AMX.fmtDate(a.genereLe || new Date().toISOString(), true) })];
     (a.avertissements || []).forEach(function (t) { pied.push(h('span.puce.attention', { text: t })); });
     if (this.derniereSauvegarde) pied.push(h('span.puce', { text: 'Dernière évaluation enregistrée : standard ' + fmt(this.derniereSauvegarde.standard) + ' (' + AMX.fmtDateCourte(this.derniereSauvegarde.genereLe) + ')' }));
     this.elMarche.appendChild(h('div.eval-pied', pied));
@@ -560,66 +581,13 @@
     ]);
   };
 
-  // Copie les annonces retenues dans les comparables manuels (remplace les lignes vides).
-  Evaluation.prototype.importerComparables = function () {
-    var self = this, a = this.analyses[this.pays];
-    var liste = a && a.ok ? this.annoncesRetenues(a) : [];
-    if (!liste.length) { AMX.toast('Aucune annonce retenue à reprendre — lancez d\'abord l\'analyse.', 'attention'); return; }
-    this.lignes().forEach(function (tr) { if (!tr.querySelector('.comp-prix').value && !tr.querySelector('.comp-source').value) tr.remove(); });
-    liste.slice(0, 25).forEach(function (x) { self.ajouterLigne([x.concession, x.ville].filter(Boolean).join(' · ') || 'MarketCheck', x.prix, x.km); });
-    this.recalculer();
-    AMX.toast(Math.min(liste.length, 25) + ' annonce(s) reprise(s) dans les comparables.', 'ok');
-    this.elResumesManuels.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  /* --------------------------- Comparables manuels ---------------------- */
-  Evaluation.prototype.ajouterLigne = function (source, prix, km) {
-    var self = this;
-    this.compteur++;
-    var tr = h('tr#comp-' + this.compteur, [
-      h('td', [h('input.saisie.comp-source', { type: 'text', placeholder: 'Source (ex. Kijiji Autos)', value: source === undefined || source === null ? '' : String(source), autocomplete: 'off' })]),
-      h('td.col-prix', [h('input.saisie.mono.comp-prix', { type: 'number', inputmode: 'decimal', placeholder: 'Prix $', value: prix === undefined || prix === null ? '' : String(prix) })]),
-      h('td.col-km', [h('input.saisie.comp-km', { type: 'number', inputmode: 'numeric', placeholder: 'KM', value: km === undefined || km === null ? '' : String(km) })]),
-      h('td.col-x', [h('button.btn.icone.petit.fantome.comp-remove', { type: 'button', title: 'Retirer', 'aria-label': 'Retirer ce comparable', html: I.corbeille, onclick: function () { tr.remove(); self.recalculer(); } })])
-    ]);
-    tr.querySelectorAll('input').forEach(function (inp) { inp.addEventListener('input', function () { self.recalculer(); }); });
-    this.elLignes.appendChild(tr);
-    return tr;
-  };
-  Evaluation.prototype.lignes = function () { return Array.prototype.slice.call(this.elLignes.querySelectorAll('tr')); };
-
-  Evaluation.prototype.recalculer = function () {
-    var S = this.S;
-    var comps = this.lignes().map(function (tr) {
-      return { prix: parseFloat(tr.querySelector('.comp-prix').value), km: parseFloat(tr.querySelector('.comp-km').value) };
-    }).filter(function (c) { return !isNaN(c.prix) && c.prix > 0; });
-    var prix = comps.map(function (c) { return c.prix; }).sort(asc);
-    S.count.textContent = String(prix.length);
-    S.avgAdj.classList.remove('indice');
-    this.elResumesManuels.classList.toggle('cache', !prix.length);
-    if (!prix.length) { ['avg', 'median', 'range', 'avgAdj', 'medianAdj', 'rangeAdj'].forEach(function (k) { S[k].textContent = '—'; }); return; }
-    S.avg.textContent = fmt(moyenne(prix));
-    S.median.textContent = fmt(mediane(prix));
-    S.range.textContent = fmt(prix[0]) + ' – ' + fmt(prix[prix.length - 1]);
-    var kmVehicule = parseFloat(this.elKm.value), tauxKm = parseFloat(this.elTaux.value) || 0;
-    if (!isNaN(kmVehicule)) {
-      var ajustes = comps.map(function (c) { return isNaN(c.km) ? c.prix : c.prix - (kmVehicule - c.km) * tauxKm; }).sort(asc);
-      S.avgAdj.textContent = fmt(moyenne(ajustes));
-      S.medianAdj.textContent = fmt(mediane(ajustes));
-      S.rangeAdj.textContent = fmt(ajustes[0]) + ' – ' + fmt(ajustes[ajustes.length - 1]);
-    } else {
-      S.avgAdj.textContent = 'Entrez le KM du véhicule'; S.avgAdj.classList.add('indice');
-      S.medianAdj.textContent = '—'; S.rangeAdj.textContent = '—';
-    }
-  };
-
   /* ------------------------------ Données ------------------------------- */
   Evaluation.prototype.collecter = function () {
     var a = this.analyses[this.pays], marche = null;
     if (a && a.ok) {
       var c = this.calculs(a);
       marche = {
-        pays: this.pays, devise: a.devise, lieu: a.lieu, rayonKm: a.rayonKm, genereLe: a.genereLe || new Date().toISOString(),
+        pays: this.pays, portee: a.portee || this.portee[this.pays], devise: a.devise, lieu: a.lieu, rayonKm: a.rayonKm, genereLe: a.genereLe || new Date().toISOString(),
         agressif: c.agressif, standard: c.standard, conservateur: c.conservateur, marchePct: c.marchePct, rang: c.rang || null, rangSur: c.rangSur || null,
         actifs: a.actifs ? { n: a.actifs.n, prixMoy: a.actifs.prix && a.actifs.prix.moyenne, prixMed: a.actifs.prix && a.actifs.prix.mediane, kmMoy: a.actifs.km && a.actifs.km.moyenne, joursMoy: a.actifs.jours && a.actifs.jours.moyenne } : null,
         vendus: a.vendus ? { n90: a.vendus.n90, parMois: a.vendus.parMois, prixMoy: a.vendus.prix && a.vendus.prix.moyenne, kmMoy: a.vendus.km && a.vendus.km.moyenne } : null,
@@ -628,8 +596,8 @@
     } else if (this.derniereSauvegarde) marche = this.derniereSauvegarde;
     return {
       marque: this.elMarque.value, modele: this.elModele.value, annee: this.elAnnee.value, version: this.elVersion.value,
-      km: this.elKm.value, tauxKm: this.elTaux.value, prixVente: this.elPrix.value, concession: this.elConcession.value,
-      comparables: this.lignes().map(function (tr) { return { source: tr.querySelector('.comp-source').value, prix: tr.querySelector('.comp-prix').value, km: tr.querySelector('.comp-km').value }; }),
+      km: this.elKm.value, tauxKm: this.elTaux.value, prixVente: this.elPrix.value, prixPaye: this.elPaye.value, recon: this.elRecon.value, marge: this.elMarge.value, concession: this.elConcession.value,
+      comparables: this.comparablesCharges || [],
       marche: marche
     };
   };
@@ -644,17 +612,16 @@
     if (data.km) this.elKm.value = data.km;
     if (data.tauxKm) this.elTaux.value = data.tauxKm;
     if (data.prixVente) this.elPrix.value = data.prixVente;
+    if (data.prixPaye) this.elPaye.value = data.prixPaye;
+    if (data.recon !== undefined && data.recon !== '') this.elRecon.value = data.recon;
+    if (data.marge !== undefined && data.marge !== '') this.elMarge.value = data.marge;
     if (data.concession && AMX.CONCESSIONS[data.concession]) this.elConcession.value = data.concession;
-    if (data.comparables && data.comparables.length) {
-      AMX.vider(this.elLignes);
-      data.comparables.forEach(function (c) { self.ajouterLigne(c && c.source, c && c.prix, c && c.km); });
-    }
+    this.comparablesCharges = Array.isArray(data.comparables) ? data.comparables.filter(function (c) { return c && (c.prix || c.source); }) : [];
     this.derniereSauvegarde = (data.marche && typeof data.marche === 'object') ? data.marche : null;
     if (this.derniereSauvegarde && this.derniereSauvegarde.pays) { this.pays = this.derniereSauvegarde.pays === 'us' ? 'us' : 'ca'; this.majSegment(); }
     this.analyses = { ca: null, us: null };
     this.enCours = { ca: false, us: false };
     this.genAnalyse.ca++; this.genAnalyse.us++;
-    this.recalculer();
     this.rendreMarche();
   };
 
@@ -667,13 +634,12 @@
 
   Evaluation.prototype.reinitialiser = function () {
     var self = this;
-    ['elMarque', 'elModele', 'elAnnee', 'elVersion', 'elKm', 'elPrix'].forEach(function (k) { self[k].value = ''; });
-    AMX.vider(this.elLignes); this.ajouterLigne(); this.ajouterLigne(); this.ajouterLigne();
+    ['elMarque', 'elModele', 'elAnnee', 'elVersion', 'elKm', 'elPrix', 'elPaye', 'elRecon'].forEach(function (k) { self[k].value = ''; });
+    this.comparablesCharges = [];
     this.derniereSauvegarde = null;
     this.analyses = { ca: null, us: null };
     this.enCours = { ca: false, us: false };
     this.genAnalyse.ca++; this.genAnalyse.us++;
-    this.recalculer();
     this.rendreMarche();
   };
 
@@ -695,7 +661,7 @@
       if (d && d.trouve) {
         self.remplir(d.donnees || {});
         self.etat('Évaluation existante chargée — NIV ' + vin + (d.dateMaj ? ', mise à jour le ' + AMX.fmtDate(d.dateMaj, true) : '') + '. Relancez l\'analyse pour des chiffres du jour.');
-        if (!self.parametresPrets()) self.decoder(vin);
+        if (!self.parametresPrets() || !self.elVersion.value.trim()) self.decoder(vin).then(function () { if (gen === self.generation && self.parametresPrets() && !d.donnees.marche) self.analyser(self.pays, false); });
       } else {
         self.etat('Aucune évaluation pour ce NIV — décodage du véhicule…');
         self.decoder(vin).then(function () { if (gen === self.generation && self.parametresPrets()) { self.etat('Véhicule décodé. Lancez l\'analyse de marché.'); self.analyser(self.pays, false); } });
@@ -713,10 +679,8 @@
   Evaluation.prototype.preremplirDepuisInventaire = function () {
     var v = this.vinCourant ? AMX.inventaire.parVin(this.vinCourant) : null;
     if (!v) return;
-    if (!this.elConcession.value || this.elConcession.value === 'stemarie') {
-      if (v.compagnie === 'HAWKS') this.elConcession.value = 'hawkesbury';
-    }
-    if (!this.elKm.value && v.km) this.elKm.value = String(v.km).replace(/[^0-9]/g, '');
+    if (v.compagnie === 'HAWKS') this.elConcession.value = 'hawkesbury';
+    else if (v.compagnie === 'STM' && (this.elConcession.value === 'hawkesbury' || !this.elConcession.value)) this.elConcession.value = 'stemarie';
   };
 
   Evaluation.prototype.decoderDepuisChamp = function () {
@@ -727,18 +691,45 @@
     this.decoder(vin);
   };
 
+  // Décodage : le décodeur du serveur d'abord (Decodeur.gs — année, marque,
+  // modèle, version, feuille Decodage), NHTSA depuis le navigateur en repli ;
+  // en parallèle, la fiche d'achat fournit le kilométrage (et le reste si le
+  // décodeur ne répond pas). Renvoie une promesse tenue quand tout est posé.
   Evaluation.prototype.decoder = function (vin) {
     var self = this, btn = this.btnDecoder;
+    vin = String(vin || '').trim().toUpperCase();
     btn.classList.add('occupe');
-    return decoderVin(vin).then(function (r) {
+    this.etat('Décodage du véhicule…');
+    var serveur = AMX.get({ decoder: vin }).then(function (d) {
+      if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, source: 'serveur' };
+      return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; });
+    }).catch(function () { return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; }); });
+    var fiche = AMX.ficheDe(vin).catch(function () { return null; });
+    return Promise.all([serveur, fiche]).then(function (res) {
       if (self.vinCourant !== vin) return;
-      if (!r) { AMX.toast('Décodage NHTSA indisponible — remplissez marque, modèle et année à la main.', 'attention'); return; }
-      if (r.make) self.elMarque.value = r.make;
-      if (r.model) self.elModele.value = r.model;
-      if (r.year) self.elAnnee.value = r.year;
-      if (r.trim && !self.elVersion.value.trim()) self.elVersion.value = r.trim;
+      var r = res[0], f = res[1] || {};
+      if (r) {
+        if (r.make) self.elMarque.value = r.make;
+        if (r.model) self.elModele.value = r.model;
+        if (r.year) self.elAnnee.value = r.year;
+        if (r.trim) self.elVersion.value = r.trim;
+      }
+      // La fiche d'achat complète ce qui manque (et donne le km).
+      if (!self.elMarque.value.trim() && f['f-marque']) self.elMarque.value = f['f-marque'];
+      if (!self.elModele.value.trim() && f['f-modele']) self.elModele.value = f['f-modele'];
+      if (!self.elAnnee.value.trim() && f['f-annee']) self.elAnnee.value = String(f['f-annee']).replace(/[^0-9]/g, '');
+      if (!self.elKm.value.trim() && f['f-km']) self.elKm.value = String(f['f-km']).replace(/[^0-9]/g, '');
+      // Coûts de la fiche : acquisition (achat + frais) → prix payé ; remise en état → reconditionnement.
+      var somme = function (cles) { var t = 0, vu = false; cles.forEach(function (k) { var n = nombre(f[k]); if (n !== null) { t += n; vu = true; } }); return vu ? Math.round(t) : null; };
+      var acquisition = somme(['f-prixachat', 'f-fraisencan', 'f-fraisautres', 'f-fraistransport', 'f-carfax']);
+      var remise = somme(['f-accessoires', 'f-carrosserie', 'f-service', 'f-lavage', 'f-lavagelivraison', 'f-enregistrementcout', 'f-adj1montant', 'f-adj2montant', 'f-presafetymontant']);
+      if (!self.elPaye.value.trim() && acquisition) self.elPaye.value = String(acquisition);
+      if (!self.elRecon.value.trim() && remise) self.elRecon.value = String(remise);
+      if (!self.elPrix.value.trim()) self.recalculerDetail('couts');
+      if (!r && !self.parametresPrets()) AMX.toast('Décodage indisponible pour ce NIV — remplissez marque, modèle et année à la main.', 'attention');
+      else if (r) self.etat('Véhicule décodé : ' + [self.elAnnee.value, self.elMarque.value, self.elModele.value, self.elVersion.value].filter(Boolean).join(' ') + (f['f-km'] ? ' · ' + AMX.fmtNombre(parseInt(self.elKm.value, 10)) + ' km (fiche d\'achat)' : '') + '.');
       self.oublierAnalyses();
-    }).then(function () { btn.classList.remove('occupe'); });
+    }).then(function () { btn.classList.remove('occupe'); }, function () { btn.classList.remove('occupe'); });
   };
 
   Evaluation.prototype.rendreContexte = function () {
@@ -784,6 +775,177 @@
     }).then(function () { btn.classList.remove('occupe'); });
   };
 
+
+  /* =====================================================================
+     Registre des évaluations (Outils › Registre d'évaluations)
+     GET ?evaluations=1[&concession=] → { ok, evaluations: [...], parConcession, total }
+     Une ligne par véhicule évalué ; filtre par concession (toutes les
+     concessions du groupe, y compris celles qu'on ajoute), recherche, tri,
+     export Excel ; cliquer une ligne ouvre l'évaluation.
+     ===================================================================== */
+  function Registre(ctx) {
+    var self = this;
+    injecterCss();
+    this.liste = null; this.parConcession = {}; this.erreur = ''; this.refus = '';
+    this.generation = 0;
+    this.concession = AMX.memo.lire('registre_eval_concession', '');
+    if (this.concession && !AMX.CONCESSIONS[this.concession]) this.concession = '';
+    this.recherche = '';
+    this.tri = { cle: 'dateMaj', desc: true };
+    this.construire();
+    this.charger(false);
+  }
+  Registre.prototype.demonter = function () { this.generation++; };
+  Registre.prototype.naviguer = function () {};
+
+  var COL_REGISTRE = [
+    { cle: 'dateMaj', libelle: 'Date', valeur: function (r) { return r.dateMaj || ''; } },
+    { cle: 'vehicule', libelle: 'Véhicule', valeur: function (r) { return [r.annee, r.marque, r.modele, r.version].filter(Boolean).join(' '); } },
+    { cle: 'vin', libelle: 'NIV' },
+    { cle: 'concession', libelle: 'Concession', valeur: function (r) { return AMX.CONCESSIONS[r.concession] || r.concession || ''; } },
+    { cle: 'km', libelle: 'KM', num: true, valeur: function (r) { return nombre(r.km); } },
+    { cle: 'prixPaye', libelle: 'Payé', num: true, valeur: function (r) { return nombre(r.prixPaye); } },
+    { cle: 'recon', libelle: 'Recon', num: true, valeur: function (r) { return nombre(r.recon); } },
+    { cle: 'marge', libelle: 'Marge', num: true, valeur: function (r) { return nombre(r.marge); } },
+    { cle: 'prixVente', libelle: 'Détail', num: true, valeur: function (r) { return nombre(r.prixVente); } },
+    { cle: 'standard', libelle: 'Marché (standard)', num: true, valeur: function (r) { return r.standard; } },
+    { cle: 'marchePct', libelle: 'Marché %', num: true, valeur: function (r) { return r.marchePct; } },
+    { cle: 'par', libelle: 'Par', valeur: function (r) { return (r.par || '').split('@')[0]; } }
+  ];
+
+  Registre.prototype.construire = function () {
+    var self = this;
+    this.elEtat = h('p', { text: 'Chargement du registre…' });
+    this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
+    this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
+    this.btnNouvelle = h('a.btn.primaire', { href: AMX.lien('outils', 'evaluation', {}), html: I.plus + '<span>Nouvelle évaluation</span>' });
+    var entete = h('div.entete-page', [
+      h('div', { style: { minWidth: 0 } }, [h('h1', 'Registre des évaluations'), this.elEtat]),
+      h('div.actions', [this.btnRafraichir, this.btnExport, this.btnNouvelle])
+    ]);
+    this.elKpis = h('div.kpis#registre-kpis');
+    this.elRecherche = h('input.saisie#registre-recherche', { type: 'search', placeholder: 'NIV, modèle, acheteur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreTable(); }, 120) });
+    this.elTable = h('div.eval-table.registre-table');
+    var carteListe = h('div.carte', [
+      h('div.carte-entete', [h('h2#registre-titre', 'Évaluations'), h('div.droite', [h('div.recherche', { style: { minWidth: '240px' } }, [this.elRecherche])])]),
+      h('div.carte-corps', [this.elTable])
+    ]);
+    this.el = h('div.page.eval-page.registre-page', [entete, this.elKpis, carteListe]);
+  };
+
+  Registre.prototype.charger = function (manuel) {
+    var self = this, gen = ++this.generation;
+    if (manuel) this.btnRafraichir.classList.add('occupe');
+    return AMX.get({ evaluations: 1 }).then(function (d) {
+      if (gen !== self.generation) return;
+      self.btnRafraichir.classList.remove('occupe');
+      if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.rendre(); return; }
+      if (!d || !d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
+      self.liste = d.evaluations || []; self.parConcession = d.parConcession || {}; self.erreur = ''; self.refus = '';
+      self.rendre();
+      if (manuel) AMX.toast('Registre mis à jour — ' + self.liste.length + ' évaluation' + (self.liste.length > 1 ? 's' : ''), 'ok');
+    }).catch(function (e) {
+      if (gen !== self.generation) return;
+      self.btnRafraichir.classList.remove('occupe');
+      self.erreur = AMX.erreurTexte(e); self.rendre();
+      AMX.toast('Impossible de charger le registre — ' + self.erreur, 'erreur');
+    });
+  };
+
+  Registre.prototype.filtrees = function () {
+    var self = this, q = this.recherche.trim().toUpperCase();
+    return (this.liste || []).filter(function (r) {
+      if (self.concession && r.concession !== self.concession) return false;
+      if (!q) return true;
+      return [r.vin, r.marque, r.modele, r.version, r.annee, r.par, AMX.CONCESSIONS[r.concession]].join(' ').toUpperCase().indexOf(q) >= 0;
+    });
+  };
+
+  Registre.prototype.rendre = function () {
+    var self = this;
+    AMX.vider(this.elKpis);
+    if (this.refus) { this.elEtat.textContent = this.refus; this.elTable.textContent = ''; return; }
+    if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement du registre…'; return; }
+    var total = this.liste.length;
+    this.elEtat.textContent = total + ' évaluation' + (total > 1 ? 's' : '') + ' enregistrée' + (total > 1 ? 's' : '') + ' — une par véhicule, toutes concessions.';
+    // KPI : toutes + une par concession (celles sans évaluation aussi, pour voir les nouvelles)
+    var tuile = function (cle, libelle, n) {
+      var actif = self.concession === cle;
+      var k = h('button.kpi' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.concession = cle; AMX.memo.ecrire('registre_eval_concession', cle); self.rendre(); } }, [
+        h('div.valeur.num', { text: String(n) }), h('div.libelle', { text: libelle }), h('div.sous', { text: n ? 'évaluation' + (n > 1 ? 's' : '') : 'aucune encore' })
+      ]);
+      return k;
+    };
+    this.elKpis.appendChild(tuile('', 'Toutes', total));
+    Object.keys(AMX.CONCESSIONS).forEach(function (c) { self.elKpis.appendChild(tuile(c, AMX.CONCESSIONS[c].replace(' Automobiles Ltée', '').replace(' Chevrolet Buick Cadillac', ' Chevrolet'), self.parConcession[c] || 0)); });
+    var sansConc = this.parConcession['(aucune)'] || 0;
+    if (sansConc) this.elKpis.appendChild(h('div.kpi.neutre', [h('div.valeur.num', { text: String(sansConc) }), h('div.libelle', 'Sans concession'), h('div.sous', 'anciennes évaluations')]));
+    this.rendreTable();
+  };
+
+  Registre.prototype.rendreTable = function () {
+    var self = this;
+    AMX.vider(this.elTable);
+    var lignes = this.filtrees();
+    var titre = document.getElementById('registre-titre');
+    if (titre) titre.textContent = (this.concession ? AMX.CONCESSIONS[this.concession] : 'Toutes les concessions') + ' — ' + lignes.length + ' évaluation' + (lignes.length > 1 ? 's' : '');
+    if (!lignes.length) { this.elTable.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune évaluation'), h('div', { text: this.recherche ? 'Rien ne correspond à la recherche.' : 'Aucune évaluation enregistrée pour cette concession — ouvrez « Évaluation marché », décodez un NIV et enregistrez.' })])); return; }
+    var c = COL_REGISTRE.filter(function (x) { return x.cle === self.tri.cle; })[0] || COL_REGISTRE[0];
+    var val = c.valeur || function (r) { return r[c.cle]; };
+    lignes = lignes.slice().sort(function (a, b) {
+      var va = val(a), vb = val(b), r;
+      if (typeof va === 'number' || typeof vb === 'number') { va = (typeof va === 'number' && !isNaN(va)) ? va : -Infinity; vb = (typeof vb === 'number' && !isNaN(vb)) ? vb : -Infinity; r = va === vb ? 0 : (va < vb ? -1 : 1); }
+      else r = String(va || '').localeCompare(String(vb || ''), 'fr', { numeric: true, sensitivity: 'base' });
+      return self.tri.desc ? -r : r;
+    });
+    var thead = h('thead', [h('tr', COL_REGISTRE.map(function (col) {
+      var actif = self.tri.cle === col.cle;
+      var th = h('th' + (col.num ? '.num' : '') + '.registre-triable' + (actif ? '.actif' : ''), { 'aria-sort': actif ? (self.tri.desc ? 'descending' : 'ascending') : 'none', title: 'Trier par ' + col.libelle.toLowerCase() }, [col.libelle, actif ? h('span', { text: self.tri.desc ? ' ▼' : ' ▲', style: { fontSize: '9px' } }) : null]);
+      th.addEventListener('click', function () { if (self.tri.cle === col.cle) self.tri.desc = !self.tri.desc; else { self.tri.cle = col.cle; self.tri.desc = !!col.num || col.cle === 'dateMaj'; } self.rendreTable(); });
+      return th;
+    }))]);
+    var tbody = h('tbody');
+    lignes.forEach(function (r) {
+      var m = r.marchePct;
+      var tr = h('tr.cliquable', { tabindex: '0' }, [
+        h('td.num', { text: r.dateMaj ? AMX.fmtDate(r.dateMaj) : '—' }),
+        h('td', [h('div', { text: [r.annee, r.marque, r.modele].filter(Boolean).join(' ') || '—' }), r.version ? h('div.mini', { text: r.version }) : null]),
+        h('td.mono', { text: r.vin }),
+        h('td', { text: AMX.CONCESSIONS[r.concession] || (r.concession || '—') }),
+        h('td.num', { text: nombre(r.km) !== null ? fmtKm(nombre(r.km)) : '—' }),
+        h('td.num', { text: fmt(nombre(r.prixPaye)) }),
+        h('td.num', { text: fmt(nombre(r.recon)) }),
+        h('td.num' + (nombre(r.marge) !== null ? (nombre(r.marge) >= 0 ? '.inf' : '.sup') : ''), { text: fmt(nombre(r.marge)) }),
+        h('td.num', { text: fmt(nombre(r.prixVente)) }),
+        h('td.num', { text: fmt(r.standard), title: r.analyseLe ? 'Analyse du ' + AMX.fmtDate(r.analyseLe, true) + (r.pays === 'us' ? ' (États-Unis)' : ' (Canada)') : 'Pas d\'analyse de marché enregistrée' }),
+        h('td.num' + (m ? (m > 1.03 ? '.sup' : (m < 0.97 ? '.inf' : '')) : ''), { text: pct(m) + (r.rang ? ' · ' + r.rang + '/' + r.rangSur : '') }),
+        h('td', { text: (r.par || '').split('@')[0] || '—', title: r.par || '' })
+      ]);
+      var ouvrir = function () { AMX.aller('outils', 'evaluation', { vin: r.vin }); };
+      tr.addEventListener('click', ouvrir);
+      tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') ouvrir(); });
+      tbody.appendChild(tr);
+    });
+    this.elTable.appendChild(h('table.tableau#registre-table', [thead, tbody]));
+  };
+
+  Registre.prototype.exporter = function () {
+    var lignes = this.filtrees();
+    if (!lignes.length) { AMX.toast('Aucune évaluation à exporter.', 'attention'); return; }
+    if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
+    var rows = lignes.map(function (r) {
+      return { 'Date': r.dateMaj ? AMX.fmtDate(r.dateMaj) : '', 'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Version': r.version, 'Concession': AMX.CONCESSIONS[r.concession] || r.concession,
+        'KM': nombre(r.km), 'Prix payé': nombre(r.prixPaye), 'Reconditionnement': nombre(r.recon), 'Marge': nombre(r.marge), 'Prix de détail': nombre(r.prixVente),
+        'Marché agressif': r.agressif, 'Marché standard': r.standard, 'Marché conservateur': r.conservateur, 'Marché %': r.marchePct !== null && r.marchePct !== undefined ? Math.round(r.marchePct * 1000) / 10 : '', 'Rang': r.rang ? r.rang + '/' + r.rangSur : '', 'Pays': r.pays, 'Analyse le': r.analyseLe ? AMX.fmtDate(r.analyseLe, true) : '', 'Par': r.par };
+    });
+    var ws = XLSX.utils.json_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Évaluations');
+    XLSX.writeFile(wb, 'evaluations-' + (this.concession || 'toutes') + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    AMX.toast('Export Excel — ' + lignes.length + ' ligne' + (lignes.length > 1 ? 's' : ''), 'ok');
+  };
+
   AMX.vues = AMX.vues || {};
   AMX.vues.Evaluation = Evaluation;
+  AMX.vues.RegistreEvaluations = Registre;
 })();

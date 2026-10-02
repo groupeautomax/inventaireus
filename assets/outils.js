@@ -4,6 +4,8 @@
    Évaluation marché — vue `AMX.vues.Evaluation` (assets/evaluation.js) :
    analyse de marché MarketCheck, prix agressif / standard / conservateur,
    comparables. Route : #/outils/evaluation?vin=… préremplit et charge.
+   Registre d'évaluations — `AMX.vues.RegistreEvaluations` (même fichier) :
+   toutes les évaluations enregistrées, par concession.
 
    Vérification Excel — aucun serveur : on lit des fichiers Excel (SheetJS,
    `XLSX` chargé par index.html en defer) et on compare les listes de NIV de
@@ -105,6 +107,7 @@
     titre: 'Outils', icone: 'outils', ordre: 40,
     onglets: [
       { id: 'evaluation', titre: 'Évaluation marché' },
+      { id: 'evaluations', titre: 'Registre d\'évaluations' },
       { id: 'verification', titre: 'Vérification Excel' },
       { id: 'carfax', titre: 'Import CARFAX' }
     ],
@@ -121,9 +124,9 @@
     this.naviguer(ctx || {});
   }
   Outils.prototype.naviguer = function (ctx) {
-    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax')) ? ctx.onglet : 'evaluation';
+    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax' || ctx.onglet === 'evaluations')) ? ctx.onglet : 'evaluation';
     if (!this.vues[id]) {
-      this.vues[id] = id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : new AMX.vues.Evaluation(ctx));
+      this.vues[id] = id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : new AMX.vues.Evaluation(ctx)));
       this.conteneur.appendChild(this.vues[id].el);
     } else if (this.vues[id].naviguer) {
       this.vues[id].naviguer(ctx);

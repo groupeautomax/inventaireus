@@ -91,6 +91,12 @@
       '.admin-page .admin-outils .compte { color: var(--encre-3); font-size: 12.5px; white-space: nowrap; margin-left: auto; }',
       '.admin-page .admin-outils .compte b { color: var(--encre); }',
       '.admin-page .admin-note { margin: 12px 2px 0; line-height: 1.5; }',
+      '.admin-page .admin-parametres { margin-top: 18px; }',
+      '.admin-page .admin-parametres .carte-corps { display: flex; flex-direction: column; gap: 10px; }',
+      '.admin-page .admin-parametres .ligne-cle { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }',
+      '.admin-page .admin-parametres .ligne-cle .champ { flex: 1 1 260px; }',
+      '.admin-page .admin-parametres .etat-cle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }',
+      '.admin-page .admin-parametres ol { margin: 0; padding-left: 18px; font-size: 12px; color: var(--encre-3); line-height: 1.6; }',
       // Avatar (liste et panneau), coloré comme le badge de rôle.
       '.admin-avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; letter-spacing: .02em; }',
       '.admin-avatar.grand { width: 42px; height: 42px; font-size: 14px; }',
@@ -193,7 +199,8 @@
     this.elVide = h('div');
     this.elNote = h('p.doux.petit.admin-note', 'Le rôle donne les droits de départ ; les droits personnalisés permettent d\'en accorder ou d\'en retirer à une personne précise. Chaque personne se connecte avec son propre courriel et un code reçu par courriel. Désactiver un compte coupe l\'accès au site et à l\'app ScanAutomax sans effacer l\'historique ; toute modification est immédiate.');
     this.elPanneau = h('aside.panneau', { style: { display: 'none' } });
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote]), this.elPanneau]);
+    this.elParametres = this.construireParametres();
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -201,10 +208,82 @@
   };
 
   /* ------------------------------ Données ------------------------------ */
+  /* ------------------- Paramètres serveur (clé MarketCheck) ------------------
+     Routes : GET ?parametres=1 → { ok, parametres: { MARKETCHECK_KEY: { present, fin } } }
+              POST { action: 'reglerParametre', cle: 'MARKETCHECK_KEY', valeur } → { ok, present, fin }
+     La clé est gardée dans les propriétés du script ; le serveur n'en renvoie
+     jamais que les 4 derniers caractères. Tant que le script n'est pas
+     redéployé, la route manque : la carte le dit sans bloquer le reste. */
+  VueAdmin.prototype.construireParametres = function () {
+    var self = this;
+    this.elEtatCle = h('span.etat-cle', [h('span.badge.gris.sans-point', { text: 'Vérification…' })]);
+    this.elCle = h('input#adm-cle-marketcheck', { type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: 'Collez la clé API MarketCheck ici' });
+    this.elCle.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.enregistrerCle(); } });
+    this.btnCle = h('button.btn.primaire#adm-cle-enregistrer', { type: 'button', html: I.ok + '<span>Enregistrer la clé</span>', onclick: function () { self.enregistrerCle(); } });
+    this.btnCleRetirer = h('button.btn.danger.petit#adm-cle-retirer', { type: 'button', text: 'Retirer la clé', onclick: function () { self.retirerCle(); } });
+    var voir = h('button.btn.petit.fantome', { type: 'button', text: 'Afficher', onclick: function () { var p = self.elCle.type === 'password'; self.elCle.type = p ? 'text' : 'password'; voir.textContent = p ? 'Masquer' : 'Afficher'; } });
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'L\'analyse de marché de la fiche d\'évaluation (Outils › Évaluation marché) interroge MarketCheck : annonces actives et ventes récentes au Canada et aux États-Unis. La clé est gardée sur le serveur, jamais renvoyée au navigateur ni enregistrée dans l\'app.' }),
+      h('div.ligne-cle', [h('div.champ', [h('label', { 'for': 'adm-cle-marketcheck', text: 'Clé API MarketCheck' }), this.elCle]), voir, this.btnCle, this.btnCleRetirer]),
+      h('div', [h('span.etiquette', { text: 'État : ' }), this.elEtatCle]),
+      h('details', [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Obtenir ou renouveler une clé (plan gratuit : 500 appels par mois)' }), h('ol', [
+        h('li', 'Créez un compte sur marketcheck.com (connexion Google avec le courriel du travail), plan Free.'),
+        h('li', 'Dans le tableau de bord, créez une application (« ScanAutomax ») : la clé API s\'affiche.'),
+        h('li', 'Collez-la ci-dessus et enregistrez. Pour la remplacer, collez la nouvelle : l\'ancienne est écrasée. Chaque analyse fait 2 appels (annonces + ventes), mis en cache 6 heures.')
+      ])])
+    ];
+    return h('div.carte.admin-parametres', [h('div.carte-entete', [h('h2', 'Données de marché (MarketCheck)')]), h('div.carte-corps', corps)]);
+  };
+  VueAdmin.prototype.rendreEtatCle = function (p) {
+    AMX.vider(this.elEtatCle);
+    if (p === null) { this.elEtatCle.appendChild(h('span.badge.ambre.sans-point', { text: 'Route absente — redéployez le script (Marche.gs)' })); this.btnCle.disabled = true; return; }
+    this.btnCle.disabled = false;
+    if (p && p.present) {
+      this.elEtatCle.appendChild(h('span.badge.vert', { text: 'Clé en place' }));
+      this.elEtatCle.appendChild(h('span.mono.doux', { text: '…' + (p.fin || '') }));
+      this.btnCleRetirer.classList.remove('cache');
+    } else {
+      this.elEtatCle.appendChild(h('span.badge.rouge', { text: 'Aucune clé — l\'analyse de marché est inactive' }));
+      this.btnCleRetirer.classList.add('cache');
+    }
+  };
+  VueAdmin.prototype.chargerParametres = function () {
+    var self = this;
+    return AMX.get({ parametres: 1 }).then(function (d) {
+      if (self.detruit) return;
+      if (!d || d.refuse || !d.ok || !d.parametres) { self.rendreEtatCle(null); return; }
+      self.rendreEtatCle(d.parametres.MARKETCHECK_KEY || { present: false });
+    }).catch(function () { if (!self.detruit) self.rendreEtatCle(null); });
+  };
+  VueAdmin.prototype.enregistrerCle = function () {
+    var self = this, valeur = this.elCle.value.trim();
+    if (valeur.length < 8) { AMX.toast('Collez la clé API complète avant d\'enregistrer.', 'attention'); this.elCle.focus(); return; }
+    this.btnCle.classList.add('occupe');
+    AMX.post({ action: 'reglerParametre', cle: 'MARKETCHECK_KEY', valeur: valeur }).then(function (d) {
+      AMX.verifier(d, 'Le serveur a refusé la clé');
+      self.elCle.value = '';
+      self.rendreEtatCle({ present: !!d.present, fin: d.fin });
+      AMX.toast('Clé MarketCheck enregistrée sur le serveur.', 'ok');
+    }).catch(function (e) { AMX.toast('Clé non enregistrée — ' + AMX.erreurTexte(e), 'erreur'); })
+      .then(function () { self.btnCle.classList.remove('occupe'); });
+  };
+  VueAdmin.prototype.retirerCle = function () {
+    var self = this;
+    AMX.confirmer('Retirer la clé MarketCheck ?', 'L\'analyse de marché cessera de fonctionner jusqu\'à ce qu\'une clé soit collée de nouveau.', { danger: true, ok: 'Retirer' }).then(function (oui) {
+      if (!oui) return;
+      return AMX.post({ action: 'reglerParametre', cle: 'MARKETCHECK_KEY', valeur: '' }).then(function (d) {
+        AMX.verifier(d, 'Le serveur a refusé');
+        self.rendreEtatCle({ present: false });
+        AMX.toast('Clé retirée.', 'ok');
+      });
+    }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
+  };
+
   VueAdmin.prototype.charger = function (manuel) {
     var self = this, gen = ++this.generation;
     this.enChargement = true;
     if (manuel) this.btnRafraichir.classList.add('occupe');
+    this.chargerParametres();
     return AMX.get('utilisateurs=1').then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;

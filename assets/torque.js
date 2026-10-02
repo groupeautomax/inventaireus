@@ -47,6 +47,8 @@
     return -Infinity;
   }
   function vehiculeTexte(r) { return [r.annee, r.marque, r.modele].filter(Boolean).join(' ') || '—'; }
+  // Torque livre parfois la couleur comme toute la famille de teintes (« Rouge / 32V-RED / … ») : un seul nom.
+  function couleurCourte(t) { t = String(t || ''); return t.indexOf(' / ') > 0 ? t.split(' / ')[0].trim() : t.trim(); }
   function telephone(t) { var c = String(t || '').replace(/\D/g, ''); return c.length === 10 ? c.slice(0, 3) + ' ' + c.slice(3, 6) + '-' + c.slice(6) : (t || ''); }
 
   function injecterCss() {
@@ -236,7 +238,7 @@
       if (self.concession && r.concession !== self.concession) return false;
       if (!q) return true;
       if (qTel.length >= 4 && String(r.telephone || '').replace(/\D/g, '').indexOf(qTel) >= 0) return true;
-      return [r.vin, r.marque, r.modele, r.serie, r.annee, r.client, r.conseiller, r.statutLibelle, r.couleur].join(' ').toUpperCase().indexOf(q) >= 0;
+      return [r.vin, r.marque, r.modele, r.serie, r.annee, r.client, r.conseiller, r.statutLibelle, couleurCourte(r.couleur)].join(' ').toUpperCase().indexOf(q) >= 0;
     });
     if (!this.parVehicule) return lignes;
     // Une ligne par NIV : la plus récente (creeLe), avec le nombre d'évaluations du véhicule.
@@ -412,7 +414,7 @@
     gauche.appendChild(dl([
       ['NIV', h('span.mono', { text: r.vin || '' })], ['Véhicule', [r.annee, r.marque, r.modele, r.serie].filter(Boolean).join(' ')], ['Style', r.style], ['Version', v.version],
       ['Moteur', r.moteur || v.moteur], ['Transmission', libelleTransmission(r.transmission)], ['Motricité', libelleMotricite(r.motricite)], ['Carburant', libelleCarburant(r.carburant)],
-      ['Odomètre', fmtKm(r.km)], ['Clés', r.cles], ['Couleur', r.couleur], ['Intérieur', r.couleurInterieure]
+      ['Odomètre', fmtKm(r.km)], ['Clés', r.cles], ['Couleur', couleurCourte(r.couleur)], ['Intérieur', couleurCourte(r.couleurInterieure)]
     ]));
 
     gauche.appendChild(h('h4', 'État'));
@@ -473,7 +475,7 @@
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
     var rows = lignes.map(function (r) {
       return { 'Date': r.creeLe ? AMX.fmtDate(r.creeLe) : '', 'Modifiée': r.modifieLe ? AMX.fmtDate(r.modifieLe) : '', 'Concession': AMX.CONCESSIONS[r.concession] || r.concession, 'Statut': statut(r.statut).libelle, 'Archivée': r.archivee ? 'oui' : '',
-        'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Série': r.serie, 'Style': r.style, 'Moteur': r.moteur, 'Transmission': libelleTransmission(r.transmission), 'Motricité': libelleMotricite(r.motricite), 'Carburant': libelleCarburant(r.carburant), 'Couleur': r.couleur, 'Km': nombre(r.km), 'Clés': r.cles,
+        'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Série': r.serie, 'Style': r.style, 'Moteur': r.moteur, 'Transmission': libelleTransmission(r.transmission), 'Motricité': libelleMotricite(r.motricite), 'Carburant': libelleCarburant(r.carburant), 'Couleur': couleurCourte(r.couleur), 'Km': nombre(r.km), 'Clés': r.cles,
         'Client': r.client, 'Téléphone': telephone(r.telephone), 'Origine': r.origine, 'Type de client': r.typeClient, 'Cherche': r.cherche, 'Transaction': r.transaction, 'Conseiller': r.conseiller, 'Directeur': r.directeur,
         'Valeur client': nombre(r.valeurClient), 'Valeur interne': nombre(r.valeurInterne), 'Profit': nombre(r.profit), 'Reconditionnement': nombre(r.recon), 'Prix de vente': nombre(r.prixVente), 'Note prix': r.notePrix,
         'État général': libelleGeneral(r.etatGeneral), 'Pneus été': r.pneusEte, 'Pneus hiver': r.pneusHiver, 'Pare-brise': r.pareBrise, 'Carrosserie': r.carrosserie, 'Accidenté': r.accidente, 'Voyants': r.voyants, 'Solde de prêt': r.soldePret, 'Photos': nombre(r.nPhotos) || 0, 'Id Torque': r.id };

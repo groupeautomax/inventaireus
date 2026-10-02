@@ -89,6 +89,9 @@
       '.eval-sauvegarde .puce.gris { background: var(--gris-bg); color: var(--encre-2); }',
       '.eval-page .btn.ok { border-color: var(--vert); color: var(--vert); background: var(--vert-clair); }',
       '.registre-table tr.registre-auto td:first-child { box-shadow: inset 3px 0 0 var(--ligne-forte); }',
+      '.registre-alerte { margin-bottom: 12px; }',
+      '.registre-alerte .liste-derives { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; }',
+      '.registre-table .registre-veille .mini { font-size: 10.5px; color: var(--encre-4); }',
       '.registre-table tr.registre-auto .registre-date, .registre-table tr.registre-auto .registre-vin { color: var(--encre-3); }',
       '.registre-table tr.registre-enregistree td:first-child { box-shadow: inset 3px 0 0 var(--vert); }',
       '.registre-table .badge.gris { background: var(--gris-bg); color: var(--encre-2); }',
@@ -130,6 +133,23 @@
       '.eval-detail-ligne .v { font-size: 18px; font-weight: 700; }',
       '.eval-cibles-titre { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; margin-bottom: 6px; }',
       '.eval-cibles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }',
+      '.eval-valeurs { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--ligne); }',
+      '.eval-valeurs-entete { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }',
+      '.eval-valeurs-entete h3 { margin: 0; font-size: 13px; }',
+      '.eval-valeurs-grille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }',
+      '.eval-valeurs-grille.ancien { opacity: .75; }',
+      '.eval-valeur { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 8px 10px; background: var(--fond); display: flex; flex-direction: column; gap: 2px; }',
+      '.eval-valeur .l { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); font-weight: 600; }',
+      '.eval-valeur .v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }',
+      '.eval-valeur .m { font-size: 11px; color: var(--encre-3); }',
+      '.eval-valeur .ecart { font-size: 11.5px; font-weight: 600; color: var(--encre-2); } .eval-valeur .ecart.sup { color: var(--rouge); } .eval-valeur .ecart.inf { color: var(--vert); }',
+      '.eval-valeur.vide .v { color: var(--encre-4); }',
+      '.chargement.mini { font-size: 12px; padding: 6px 0; }',
+      // Feuille d'offre (modale) et page imprimée
+      '.offre-formulaire { display: flex; flex-direction: column; gap: 10px; min-width: 320px; }',
+      '.offre-formulaire .grille { display: grid; grid-template-columns: 1fr auto; gap: 10px; }',
+      '.offre-impression { display: none; }',
+      '@media print { body.impression-offre > *:not(#offre-impression) { display: none !important; } body.impression-offre { background: #fff; } body.impression-offre #offre-impression { display: block; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: #111; padding: 28px 36px; max-width: 760px; margin: 0 auto; font-size: 13px; line-height: 1.45; } .offre-entete { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 16px; } .offre-concession { font-size: 17px; font-weight: 700; } .offre-titre { text-align: right; } .offre-titre h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: .02em; } .offre-impression .doux { color: #555; font-size: 12px; } .offre-client { margin: 0 0 12px; } .offre-client .l, .offre-montant .l, .offre-notes .l, .offre-conditions .l { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #555; font-weight: 700; display: block; margin-bottom: 2px; } .offre-client .l { display: inline; margin-right: 8px; } .offre-vehicule { width: 100%; border-collapse: collapse; margin-bottom: 16px; } .offre-vehicule th { text-align: left; width: 140px; padding: 6px 8px; background: #f3f4f6; border: 1px solid #ddd; font-size: 12px; } .offre-vehicule td { padding: 6px 8px; border: 1px solid #ddd; } .offre-vehicule .mono { font-family: Menlo, Consolas, monospace; } .offre-montant { border: 2px solid #111; border-radius: 8px; padding: 12px 16px; margin: 0 0 14px; } .offre-montant .v { font-size: 30px; font-weight: 800; } .offre-montant .m { font-size: 11.5px; color: #555; } .offre-marche { font-size: 12px; color: #444; margin: 0 0 12px; } .offre-notes { margin-bottom: 12px; white-space: pre-wrap; } .offre-conditions ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; } .offre-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 44px; } .offre-signatures .trait { border-bottom: 1px solid #111; height: 34px; margin-bottom: 4px; } .offre-pied { margin-top: 30px; font-size: 10.5px; color: #777; text-align: center; } }',
       '.eval-cible { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }',
       '.eval-cible .l { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; }',
       '.eval-cible .v { font-size: 17px; font-weight: 700; }',
@@ -182,7 +202,7 @@
       '.registre-outils .recherche { flex: 1 1 240px; position: relative; display: flex; align-items: center; } .registre-outils .recherche > span { position: absolute; left: 10px; width: 14px; height: 14px; color: var(--encre-4); display: flex; } .registre-outils .recherche > span svg { width: 14px; height: 14px; } .registre-outils .recherche input { padding-left: 30px; height: 32px; width: 100%; }',
       '.registre-outils .compte { margin-left: auto; font-size: 12px; }',
       '.registre-corps { padding: 0 !important; }',
-      '.registre-table .tableau { min-width: 1160px; border: none; border-radius: 0; box-shadow: none; }',
+      '.registre-table .tableau { min-width: 1240px; border: none; border-radius: 0; box-shadow: none; }',
       '.registre-table td { padding: 8px 10px; }',
       '.registre-table td.num, .registre-table td.mono, .registre-table .registre-date { white-space: nowrap; }',
       '.registre-table .registre-date .mini { font-size: 11px; color: var(--encre-4); }',
@@ -233,6 +253,8 @@
     this.portee = { ca: porteeValide(AMX.memo.lire('eval_portee_ca', 'local'), 'local'), us: porteeValide(AMX.memo.lire('eval_portee_us', 'national'), 'national') };
     this.etats = { ca: ETATS.ca[AMX.memo.lire('eval_etat_ca', 'QC')] ? AMX.memo.lire('eval_etat_ca', 'QC') : 'QC', us: ETATS.us[AMX.memo.lire('eval_etat_us', 'PA')] ? AMX.memo.lire('eval_etat_us', 'PA') : 'PA' };
     this.sauvegarde = null;                   // { statut: 'auto'|'enregistree', dateMaj, enregistreLe, enregistrePar }
+    this.valeurs = null;                      // réponse VinAudit (detail / gros / echange) pour le NIV courant
+    this.valeursEnCours = false;
     this.minuterieAuto = null;
     this.filtres = { memeVersion: false, kmProche: false, tri: 'prix' };
     this.derniereSauvegarde = null;           // bloc `marche` d'une évaluation rechargée
@@ -271,10 +293,11 @@
     this.btnDecoder = h('button.btn#decode-btn', { type: 'button', html: I.scan + '<span>Décoder le VIN</span>', onclick: function () { self.decoderDepuisChamp(); } });
     this.btnAnalyser = h('button.btn.primaire#analyser-btn', { type: 'button', html: I.recherche + '<span>Analyser le marché</span>', onclick: function () { self.analyser(self.pays, true); } });
     this.btnEnregistrer = h('button.btn#save-eval-btn', { type: 'button', html: I.ok + '<span>Enregistrer l\'évaluation</span>', onclick: function () { self.enregistrer(); } });
+    this.btnOffre = h('button.btn#offre-btn', { type: 'button', title: 'Feuille d\'offre d\'achat à imprimer ou enregistrer en PDF', html: I.telecharger + '<span>Feuille d\'offre</span>', onclick: function () { self.feuilleOffre(); } });
     this.elSauvegarde = h('div.eval-sauvegarde#eval-sauvegarde');
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Évaluation de marché'), this.elEtat, this.elSauvegarde]),
-      h('div.actions', [this.btnDecoder, this.btnAnalyser, this.btnEnregistrer])
+      h('div.actions', [this.btnDecoder, this.btnAnalyser, this.btnOffre, this.btnEnregistrer])
     ]);
     this.rendreSauvegarde();
 
@@ -313,6 +336,7 @@
     cPaye.el.classList.add('eval-champ-calcule'); cPrix.el.classList.add('eval-champ-calcule', 'eval-champ-detail');
     this.elDetailResume = h('div#eval-detail-resume');
     this.elCibles = h('div#eval-cibles');
+    this.elValeurs = h('div.eval-valeurs#eval-valeurs');
     var detail = h('div.carte#sec-prix', [h('div.carte-corps', [h('div.eval-prix-grille', [
       h('div.eval-prix-calc', [
         h('div.eval-formule', [cAchat.el, h('span.op', '+'), cFrais.el, h('span.op', '='), cPaye.el]),
@@ -320,7 +344,8 @@
         this.elDetailResume
       ]),
       this.elCibles
-    ])])]);
+    ]), this.elValeurs])]);
+    this.rendreValeurs();
     [this.elAchat, this.elFrais].forEach(function (el) { el.addEventListener('input', function () { self.recalculerDetail('achat'); }); });
     this.elPaye.addEventListener('input', function () { self.recalculerDetail('paye'); });
     this.elRecon.addEventListener('input', function () { self.recalculerDetail('couts'); });
@@ -493,9 +518,11 @@
     if (this.parametresPrets()) this.analyser(this.pays, false); else this.rendreMarche();
   };
   Evaluation.prototype.choisirPays = function (pays) {
+    var avant = this.pays;
     this.pays = pays === 'us' ? 'us' : 'ca';
     AMX.memo.ecrire('eval_pays', this.pays);
     this.majSegment();
+    if (avant !== this.pays && this.valeurs) { this.valeurs = null; this.rendreValeurs(); }
     if (!this.analyses[this.pays] && !this.enCours[this.pays] && this.parametresPrets()) this.analyser(this.pays, false);
     else this.rendreMarche();
   };
@@ -754,11 +781,18 @@
         filtres: Object.assign({}, this.filtres)
       };
     } else if (this.derniereSauvegarde) marche = this.derniereSauvegarde;
+    var valeurs = null, v = this.valeurs;
+    if (v && v.ok) {
+      var res = function (b) { return b ? { moyenne: b.moyenne, bas: b.bas, haut: b.haut, n: b.n, certitude: b.certitude } : null; };
+      valeurs = { source: 'VinAudit', pays: v.pays, devise: v.devise, km: v.km, vehicule: v.vehicule || '', genereLe: v.genereLe, detail: res(v.detail), gros: res(v.gros), echange: res(v.echange) };
+    } else if (this.derniereSauvegarde && this.derniereSauvegarde.valeurs) valeurs = this.derniereSauvegarde.valeurs;
+    if (marche && valeurs) marche.valeurs = valeurs;
     return {
       marque: this.elMarque.value, modele: this.elModele.value, annee: this.elAnnee.value, version: this.elVersion.value,
       km: this.elKm.value, tauxKm: this.elTaux.value, prixVente: this.elPrix.value, prixAchat: this.elAchat.value, frais: this.elFrais.value, prixPaye: this.elPaye.value, recon: this.elRecon.value, marge: this.elMarge.value, concession: this.elConcession.value,
       comparables: this.comparablesCharges || [],
-      marche: marche
+      marche: marche,
+      valeurs: valeurs
     };
   };
 
@@ -781,6 +815,8 @@
     if (data.concession && AMX.CONCESSIONS[data.concession]) this.elConcession.value = data.concession;
     this.comparablesCharges = Array.isArray(data.comparables) ? data.comparables.filter(function (c) { return c && (c.prix || c.source); }) : [];
     this.derniereSauvegarde = (data.marche && typeof data.marche === 'object') ? data.marche : null;
+    if (this.derniereSauvegarde && !this.derniereSauvegarde.valeurs && data.valeurs) this.derniereSauvegarde.valeurs = data.valeurs;
+    this.valeurs = null; this.valeursEnCours = false; this.rendreValeurs();
     if (this.derniereSauvegarde && this.derniereSauvegarde.portee) { var pv = this.derniereSauvegarde.pays === 'us' ? 'us' : 'ca'; this.portee[pv] = porteeValide(this.derniereSauvegarde.portee, this.portee[pv]); if (this.derniereSauvegarde.etat && ETATS[pv][this.derniereSauvegarde.etat]) this.etats[pv] = this.derniereSauvegarde.etat; }
     // Statut posé par le serveur (Api.gs) : « auto » ou « enregistree » ; les anciennes fiches sans statut ont été enregistrées à la main.
     this.sauvegarde = { statut: data._statut === 'auto' ? 'auto' : 'enregistree', dateMaj: data._le || '', enregistreLe: data._enregistreLe || (data._statut === 'auto' ? '' : (data._le || '')), enregistrePar: data._enregistrePar || (data._statut === 'auto' ? '' : (data._par || '')) };
@@ -807,6 +843,7 @@
     this.derniereSauvegarde = null;
     this.sauvegarde = null; clearTimeout(this.minuterieAuto);
     this.rendreSauvegarde();
+    this.valeurs = null; this.valeursEnCours = false; this.rendreValeurs();
     this.analyses = { ca: null, us: null };
     this.enCours = { ca: false, us: false };
     this.genAnalyse.ca++; this.genAnalyse.us++;
@@ -922,6 +959,158 @@
     if (v._feuille) this.elContexte.appendChild(h('a.petit', { href: AMX.lien('inventaire', String(v._feuille).toLowerCase(), { vin: vin }), text: 'Voir dans l\'inventaire' }));
   };
 
+  /* ------------------------ Valeurs de guide (VinAudit) ------------------
+     Détail / gros / échange façon livre, Canada ou États-Unis, ajustées au km.
+     3 requêtes facturées par demande : jamais lancées d'office — bouton
+     explicite, mise en cache 6 h côté serveur, résumé gardé dans l'évaluation. */
+  Evaluation.prototype.rendreValeurs = function () {
+    var self = this, el = this.elValeurs; if (!el) return;
+    AMX.vider(el);
+    var v = this.valeurs, pays = this.pays;
+    var entete = h('div.eval-valeurs-entete', [
+      h('div', [h('h3', 'Valeurs de guide'), h('span.mini.doux', { text: 'VinAudit · détail / gros / échange, ' + (pays === 'us' ? 'États-Unis' : 'Canada') + ', ajustées au kilométrage' })]),
+      h('button.btn.petit#valeurs-btn' + (this.valeursEnCours ? '.occupe' : ''), { type: 'button', disabled: this.valeursEnCours ? true : undefined, html: I.recherche + '<span>' + (v && v.ok ? 'Actualiser' : 'Obtenir les valeurs') + '</span>', title: '3 requêtes VinAudit (détail, gros, échange)', onclick: function () { self.chargerValeurs(true); } })
+    ]);
+    el.appendChild(entete);
+    if (this.valeursEnCours) { el.appendChild(h('div.chargement.mini', [h('span', { html: I.rafraichir }), 'Demande des valeurs…'])); return; }
+    if (!v) {
+      var sv = this.derniereSauvegarde && this.derniereSauvegarde.valeurs;
+      if (sv && sv.detail) { el.appendChild(this.tuilesValeurs(sv, true)); }
+      else el.appendChild(h('p.eval-note', { text: 'Cliquez « Obtenir les valeurs » pour les valeurs détail, gros et échange du guide (3 requêtes VinAudit). Elles complètent l\'analyse des annonces ci-contre.' }));
+      return;
+    }
+    if (!v.ok) {
+      el.appendChild(h('div.alerte-bloc.' + (v.sansCle ? 'attention' : 'erreur'), [h('span', { html: I.alerte }), h('div', [
+        h('div', { text: v.sansCle ? 'La clé VinAudit n\'est pas en place sur le serveur.' : 'Valeurs indisponibles : ' + (v.erreur || 'erreur inconnue') }),
+        v.sansCle ? h('div.mini', { style: { marginTop: '4px' } }, AMX.estAdmin() ? [h('a', { href: AMX.lien('admin', '', {}), text: 'Coller la clé dans Admin › Données de marché' })] : 'Demandez à un administrateur de la coller dans Admin › Données de marché.') : null
+      ])]));
+      return;
+    }
+    el.appendChild(this.tuilesValeurs(v, false));
+  };
+  Evaluation.prototype.tuilesValeurs = function (v, ancien) {
+    var prixVise = nombre(this.elPrix.value), paye = nombre(this.elPaye.value);
+    var tuile = function (cle, libelle, repere, aide) {
+      var b = v[cle]; if (!b) return h('div.eval-valeur.vide', [h('div.l', { text: libelle }), h('div.v', '—')]);
+      var ecart = (repere !== null && b.moyenne) ? Math.round((repere - b.moyenne) / b.moyenne * 100) : null;
+      return h('div.eval-valeur', [
+        h('div.l', { text: libelle }),
+        h('div.v.num', { text: fmt(b.moyenne) }),
+        h('div.m', { text: (b.bas && b.haut ? fmt(b.bas) + ' – ' + fmt(b.haut) : '') + (b.n ? ' · ' + AMX.fmtNombre(b.n) + ' annonces' : '') + (b.certitude ? ' · fiabilité ' + Math.round(b.certitude) + ' %' : '') }),
+        ecart !== null ? h('div.ecart' + (ecart > 3 ? '.sup' : (ecart < -3 ? '.inf' : '')), { text: aide + ' ' + (ecart >= 0 ? '+' : '') + ecart + ' %' }) : null
+      ]);
+    };
+    var pied = [h('span', { text: 'Source : VinAudit · ' + (v.vehicule || '') + (v.km ? ' · ' + fmtKm(v.km) : '') + ' · prix en ' + (v.devise || 'CAD') })];
+    if (v.genereLe) pied.push(h('span', { text: (ancien ? 'Valeurs conservées le ' : 'Reçu ') + AMX.fmtDate(v.genereLe, true) }));
+    if (v.detail && v.detail.ajustementKm) pied.push(h('span', { text: 'Ajustement km : ' + (v.detail.ajustementKm > 0 ? '+' : '') + fmt(v.detail.ajustementKm) }));
+    if (v.appels && typeof v.appels.n === 'number' && AMX.estAdmin()) pied.push(h('span.puce' + (v.appels.n / (v.appels.quota || 100) >= 0.85 ? '.alerte' : ''), { text: 'Requêtes VinAudit ce mois : ' + v.appels.n + ' / ' + (v.appels.quota || 100) }));
+    (v.erreurs || []).forEach(function (t) { pied.push(h('span.puce.attention', { text: t })); });
+    return h('div', [
+      h('div.eval-valeurs-grille' + (ancien ? '.ancien' : ''), [
+        tuile('detail', 'Détail (guide)', prixVise, 'votre détail'),
+        tuile('gros', 'Gros (wholesale)', paye, 'votre payé'),
+        tuile('echange', 'Échange (trade-in)', paye, 'votre payé')
+      ]),
+      h('div.eval-pied', pied)
+    ]);
+  };
+  Evaluation.prototype.chargerValeurs = function (manuel) {
+    var self = this;
+    if (!this.parametresPrets() && !this.vinPourSauvegarde()) { if (manuel) AMX.toast('Décodez le NIV (ou entrez année, marque et modèle) d\'abord.', 'attention'); return Promise.resolve(); }
+    var p = { valeurs: 1, pays: this.pays, annee: this.elAnnee.value.trim(), marque: this.elMarque.value.trim(), modele: this.elModele.value.trim(), version: this.elVersion.value.trim(), km: this.elKm.value.trim() };
+    var vin = this.vinPourSauvegarde(); if (vin) p.vin = vin;
+    var gen = this.generation;
+    this.valeursEnCours = true; this.rendreValeurs();
+    return AMX.get(p).then(function (d) {
+      if (gen !== self.generation) return;
+      self.valeursEnCours = false;
+      self.valeurs = (d && d.refuse) ? { ok: false, erreur: d.erreur || 'Accès refusé' } : (d || { ok: false, erreur: 'Réponse vide' });
+      self.rendreValeurs();
+      if (self.valeurs.ok) self.planifierAuto();
+    }).catch(function (e) {
+      if (gen !== self.generation) return;
+      self.valeursEnCours = false;
+      self.valeurs = { ok: false, erreur: AMX.erreurTexte(e) };
+      self.rendreValeurs();
+    });
+  };
+
+  /* ---------------------------- Feuille d'offre ---------------------------
+     Page imprimable (Enregistrer en PDF du navigateur) : la concession, le
+     véhicule, l'offre d'achat / valeur d'échange, la validité, les conditions
+     et les signatures. L'en-tête vient de ?concessionInfo= (Contrat.gs) ; sans
+     la route, le nom de la concession suffit. */
+  Evaluation.prototype.feuilleOffre = function () {
+    var self = this;
+    var veh = [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ');
+    if (!veh) { AMX.toast('Décodez d\'abord le véhicule (année, marque, modèle).', 'attention'); return; }
+    var montantDefaut = nombre(this.elAchat.value) || nombre(this.elPaye.value) || '';
+    var cMontant = h('input.saisie#offre-montant', { type: 'number', inputmode: 'numeric', value: montantDefaut !== '' ? String(Math.round(montantDefaut)) : '', placeholder: 'Montant offert' });
+    var cValidite = h('input.saisie#offre-validite', { type: 'number', inputmode: 'numeric', value: String(AMX.memo.lire('offre_validite', '7')), min: '1', max: '60', style: { width: '80px' } });
+    var cClient = h('input.saisie#offre-client', { type: 'text', placeholder: 'Nom du client (facultatif)', autocomplete: 'off' });
+    var cNotes = h('textarea.saisie#offre-notes', { rows: '3', placeholder: 'Conditions particulières, équipement, remarques (facultatif)' });
+    var corps = h('div.offre-formulaire', [
+      h('p.doux.petit', { text: veh + (this.vinCourant ? ' · ' + this.vinCourant : '') + (this.elKm.value ? ' · ' + fmtKm(nombre(this.elKm.value)) : '') }),
+      h('div.grille', [
+        h('div.champ', [h('label', { 'for': 'offre-montant', text: 'Offre d\'achat / valeur d\'échange ($)' }), cMontant]),
+        h('div.champ', [h('label', { 'for': 'offre-validite', text: 'Valide (jours)' }), cValidite])
+      ]),
+      h('div.champ', [h('label', { 'for': 'offre-client', text: 'Client' }), cClient]),
+      h('div.champ', [h('label', { 'for': 'offre-notes', text: 'Notes' }), cNotes])
+    ]);
+    AMX.confirmer('Feuille d\'offre — ' + veh, corps, { ok: 'Imprimer / PDF' }).then(function (oui) {
+      if (!oui) return;
+      var montant = nombre(cMontant.value);
+      if (!montant) { AMX.toast('Entrez le montant offert.', 'attention'); return; }
+      AMX.memo.ecrire('offre_validite', String(parseInt(cValidite.value, 10) || 7));
+      var cle = self.elConcession.value;
+      AMX.get({ concessionInfo: cle }).catch(function () { return null; }).then(function (info) {
+        self.imprimerOffre({ montant: montant, validite: parseInt(cValidite.value, 10) || 7, client: cClient.value.trim(), notes: cNotes.value.trim(), concession: (info && info.ok) ? info : { nom: AMX.CONCESSIONS[cle] || cle } });
+      });
+    }).catch(function () {});
+  };
+  Evaluation.prototype.imprimerOffre = function (o) {
+    var c = o.concession || {}, veh = [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ');
+    var km = nombre(this.elKm.value), a = this.analyses[this.pays], calc = (a && a.ok) ? this.calculs(a) : null;
+    var auj = new Date(), fin = new Date(auj.getTime() + o.validite * 86400000);
+    var ancienne = document.getElementById('offre-impression'); if (ancienne) ancienne.remove();
+    var adresse = [c.adressePhys || c.adresse, [c.villePhys || c.ville, c.province].filter(Boolean).join(', '), c.codePostalPhys || c.codePostal].filter(Boolean).join(' · ');
+    var page = h('div#offre-impression.offre-impression', [
+      h('div.offre-entete', [
+        h('div', [h('div.offre-concession', { text: c.nomOfficiel || c.nom || AMX.CONCESSIONS[this.elConcession.value] || '' }), adresse ? h('div.doux', { text: adresse }) : null, h('div.doux', { text: [c.telephone, c.courriel].filter(Boolean).join(' · ') }), c.noConcessionnaire ? h('div.doux', { text: (c.province === 'ON' ? 'Permis de commerçant (OMVIC) ' : 'Permis de commerçant (SAAQ) ') + c.noConcessionnaire }) : null]),
+        h('div.offre-titre', [h('h1', 'Offre d\'achat'), h('div.doux', { text: 'Émise le ' + AMX.fmtDate(auj.toISOString()) + ' · valide jusqu\'au ' + AMX.fmtDate(fin.toISOString()) + ' (' + o.validite + ' jours)' })])
+      ]),
+      o.client ? h('div.offre-client', [h('span.l', 'Client'), h('span', { text: o.client })]) : null,
+      h('table.offre-vehicule', [h('tbody', [
+        h('tr', [h('th', 'Véhicule'), h('td', { text: veh })]),
+        h('tr', [h('th', 'NIV'), h('td.mono', { text: this.vinCourant || this.elNiv.value.trim().toUpperCase() || '—' })]),
+        h('tr', [h('th', 'Kilométrage'), h('td', { text: km !== null ? fmtKm(km) : '—' })]),
+        h('tr', [h('th', 'Concession'), h('td', { text: c.nomOfficiel || c.nom || AMX.CONCESSIONS[this.elConcession.value] || '' })])
+      ])]),
+      h('div.offre-montant', [h('div.l', 'Offre d\'achat / valeur d\'échange'), h('div.v', { text: fmt(o.montant) }), h('div.m', 'Taxes en sus s\'il y a lieu. Montant payable à la livraison du véhicule et des documents.')]),
+      calc && calc.standard ? h('p.offre-marche', { text: 'Repère de marché (' + (a.lieu || '') + ', ' + AMX.fmtDate(a.genereLe || auj.toISOString()) + ') : prix de détail standard ' + fmt(calc.standard) + ' sur ' + ((a.actifs && a.actifs.n) || 0) + ' annonces actives comparables.' }) : null,
+      o.notes ? h('div.offre-notes', [h('div.l', 'Notes'), h('div', { text: o.notes })]) : null,
+      h('div.offre-conditions', [h('div.l', 'Conditions'), h('ul', [
+        h('li', 'Offre conditionnelle à l\'inspection mécanique et esthétique du véhicule et à la conformité de l\'odomètre.'),
+        h('li', 'Conditionnelle à la vérification de l\'historique (CARFAX) et à l\'absence de lien, de dette ou de saisie sur le véhicule.'),
+        h('li', 'Le véhicule doit être livré avec ses clés, son certificat d\'immatriculation et, s\'il y a lieu, la quittance du créancier.'),
+        h('li', 'Offre valide ' + o.validite + ' jours à compter de son émission ; l\'état du véhicule doit être le même qu\'au moment de l\'évaluation.')
+      ])]),
+      h('div.offre-signatures', [
+        h('div', [h('div.trait'), h('div.doux', { text: 'Évaluateur — ' + (AMX.session.nom || AMX.session.courriel || '') })]),
+        h('div', [h('div.trait'), h('div.doux', 'Client — date')])
+      ]),
+      h('div.offre-pied', { text: 'Document généré par ScanAutomax · ' + AMX.fmtDate(auj.toISOString(), true) })
+    ]);
+    document.body.appendChild(page);
+    document.body.classList.add('impression-offre');
+    var nettoyer = function () { document.body.classList.remove('impression-offre'); window.removeEventListener('afterprint', nettoyer); setTimeout(function () { if (page.parentNode) page.remove(); }, 500); };
+    window.addEventListener('afterprint', nettoyer);
+    setTimeout(function () { window.print(); }, 60);
+    // Sans événement afterprint (certains navigateurs), on nettoie après coup.
+    setTimeout(function () { if (document.body.classList.contains('impression-offre')) nettoyer(); }, 60000);
+  };
+
   /* --------------------------- Enregistrement --------------------------- */
   // Sauvegarde automatique : après chaque analyse, et 1,5 s après une
   // modification des prix ou du véhicule, dès qu'il y a un NIV complet. Le
@@ -1032,6 +1221,7 @@
     { cle: 'prixVente', libelle: 'Prix de détail', num: true, valeur: function (r) { return nombre(r.prixVente); } },
     { cle: 'standard', libelle: 'Marché std', num: true, valeur: function (r) { return r.standard; } },
     { cle: 'marchePct', libelle: 'Marché %', num: true, valeur: function (r) { return r.marchePct; } },
+    { cle: 'veille', libelle: 'Veille', num: true, valeur: function (r) { return r.veille && typeof r.veille.marchePct === 'number' ? r.veille.marchePct : null; } },
     { cle: 'statut', libelle: 'Statut', valeur: function (r) { return r.statut === 'auto' ? 'auto' : 'enregistree'; } },
     { cle: 'par', libelle: 'Évaluateur', valeur: function (r) { return (r.par || '').split('@')[0]; } }
   ];
@@ -1067,6 +1257,7 @@
       h('div.actions', [this.btnRafraichir, this.btnExport, this.btnNouvelle])
     ]);
     this.elCartes = h('div.registre-cartes#registre-kpis');
+    this.elVeille = h('div#registre-veille');
     this.elRecherche = h('input.saisie#registre-recherche', { type: 'search', placeholder: 'NIV, modèle, version, acheteur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Période' });
     this.elSegmentStatut = h('div.segment#registre-statut', { role: 'group', 'aria-label': 'Statut' });
@@ -1078,7 +1269,7 @@
     ])])]);
     this.elTable = h('div.eval-table.registre-table');
     this.elVide = h('div');
-    this.el = h('div.page.eval-page.registre-page', [entete, this.elCartes, barre, this.elVide, h('div.carte', [h('div.carte-corps.registre-corps', [this.elTable])])]);
+    this.el = h('div.page.eval-page.registre-page', [entete, this.elVeille, this.elCartes, barre, this.elVide, h('div.carte', [h('div.carte-corps.registre-corps', [this.elTable])])]);
   };
 
   Registre.prototype.charger = function (manuel) {
@@ -1133,6 +1324,7 @@
     if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement du registre…'; return; }
     var total = this.liste.length;
     var nEnr = this.liste.filter(function (r) { return r.statut !== 'auto'; }).length, nAuto = total - nEnr;
+    this.rendreVeille();
     this.elEtat.textContent = total + ' évaluation' + (total > 1 ? 's' : '') + ' — ' + nEnr + ' enregistrée' + (nEnr > 1 ? 's' : '') + ' (vert) et ' + nAuto + ' analyse' + (nAuto > 1 ? 's' : '') + ' conservée' + (nAuto > 1 ? 's' : '') + ' automatiquement (gris), une par véhicule, par évaluateur et par concession. Cliquez une concession pour filtrer, une ligne pour ouvrir.';
     // Période
     PERIODES_REGISTRE.forEach(function (p) {
@@ -1167,6 +1359,22 @@
     // Une carte par concession, toujours les cinq ; une évaluation sans concession (anciennes fiches) compte pour Ste-Marie.
     Object.keys(AMX.CONCESSIONS).forEach(function (c) { self.elCartes.appendChild(carte(c, nomCourt(c), base.filter(function (r) { return concessionDe(r) === c; }))); });
     this.rendreTable();
+  };
+
+  // Bandeau « prix hors marché » : les véhicules dont la veille hebdomadaire
+  // (Marche.gs, MARCHE_veille) a trouvé un prix de détail > 105 % de la moyenne active.
+  Registre.prototype.rendreVeille = function () {
+    var self = this, el = this.elVeille; AMX.vider(el);
+    var derives = (this.liste || []).filter(function (r) { return r.veille && r.veille.derive; }).sort(function (a, b) { return (b.veille.marchePct || 0) - (a.veille.marchePct || 0); });
+    var suivis = (this.liste || []).filter(function (r) { return r.veille; }).length;
+    if (!suivis) return;
+    if (!derives.length) { el.appendChild(h('div.alerte-bloc.ok.registre-alerte', [h('span', { html: I.ok }), h('div', { text: 'Veille des prix : ' + suivis + ' véhicule(s) suivi(s), tous dans le marché.' })])); return; }
+    el.appendChild(h('div.alerte-bloc.attention.registre-alerte#registre-derives', [h('span', { html: I.alerte }), h('div', [
+      h('div', { text: derives.length + ' véhicule(s) affiché(s) au-dessus du marché (veille hebdomadaire) :' }),
+      h('div.mini.liste-derives', derives.slice(0, 6).map(function (r) {
+        return h('a', { href: AMX.lien('outils', 'evaluation', { vin: r.vin }), text: [r.annee, r.marque, r.modele].filter(Boolean).join(' ') + ' · ' + fmt(nombre(r.prixVente)) + ' vs ' + fmt(r.veille.moyenneActive) + ' (+' + Math.round((r.veille.marchePct - 1) * 100) + ' %)' });
+      }).concat(derives.length > 6 ? [h('span.doux', { text: '… et ' + (derives.length - 6) + ' autre(s)' })] : []))
+    ])]));
   };
 
   Registre.prototype.rendreTable = function () {
@@ -1204,6 +1412,7 @@
         h('td.num.registre-detail', { text: fmt(nombre(r.prixVente)) }),
         h('td.num', { text: fmt(r.standard), title: r.analyseLe ? 'Analyse du ' + AMX.fmtDate(r.analyseLe, true) + (r.pays === 'us' ? ' (États-Unis)' : ' (Canada)') : 'Pas d\'analyse de marché enregistrée' }),
         h('td.num', m ? [h('span.puce' + (m > 1.03 ? '.alerte' : (m < 0.97 ? '.ok' : '.attention')), { text: pct(m) }), r.rang ? h('div.mini', { text: 'rang ' + r.rang + '/' + r.rangSur }) : null] : '—'),
+        h('td.num.registre-veille', r.veille && typeof r.veille.marchePct === 'number' ? [h('span.puce' + (r.veille.derive ? '.alerte' : (r.veille.marchePct < 0.97 ? '.ok' : '')), { text: (r.veille.marchePct >= 1 ? '+' : '') + Math.round((r.veille.marchePct - 1) * 100) + ' %', title: 'Détail ' + fmt(nombre(r.prixVente)) + ' vs moyenne active ' + fmt(r.veille.moyenneActive) + ' (' + r.veille.nActifs + ' annonces, ' + (r.veille.lieu || '') + ')' }), h('div.mini', { text: AMX.fmtDateCourte(r.veille.le) })] : [h('span.doux', '—')]),
         h('td.registre-statut', [h('span.badge.sans-point.' + (auto ? 'gris' : 'vert'), { text: auto ? 'Auto' : 'Enregistrée', title: auto ? 'Analyse conservée automatiquement — ouvrez-la et cliquez « Enregistrer » pour la confirmer' : 'Enregistrée' + (r.enregistreLe ? ' le ' + AMX.fmtDate(r.enregistreLe, true) : '') + (r.enregistrePar ? ' par ' + r.enregistrePar.split('@')[0] : '') })]),
         h('td', r.par ? [h('span.registre-par', { title: r.par }, [h('span.avatar', { text: AMX.initiales(r.par.split('@')[0].replace(/[._-]/g, ' ')) }), h('span', { text: r.par.split('@')[0] })])] : '—')
       ]);
@@ -1216,7 +1425,7 @@
     var tfoot = h('tfoot', [h('tr', [
       h('td', { colspan: '4', text: 'Total — ' + ag.n + ' évaluation' + (ag.n > 1 ? 's' : '') }),
       h('td.num', { text: fmt(ag.paye) }), h('td.num', ''), h('td.num.' + (ag.marge >= 0 ? 'inf' : 'sup'), [h('div', { text: fmt(ag.marge) }), ag.margeMoy !== null ? h('div.mini', { style: { fontWeight: 400 }, text: 'moy. ' + fmt(ag.margeMoy) }) : null]),
-      h('td.num', { text: fmt(ag.detail) }), h('td.num', ''), h('td.num', { text: ag.pctMoy !== null ? 'moy. ' + pct(ag.pctMoy) : '' }), h('td', { text: ag.nEnr + ' enr. · ' + ag.nAuto + ' auto' }), h('td', '')
+      h('td.num', { text: fmt(ag.detail) }), h('td.num', ''), h('td.num', { text: ag.pctMoy !== null ? 'moy. ' + pct(ag.pctMoy) : '' }), h('td.num', ''), h('td', { text: ag.nEnr + ' enr. · ' + ag.nAuto + ' auto' }), h('td', '')
     ])]);
     this.elTable.appendChild(h('table.tableau#registre-table', [thead, tbody, tfoot]));
   };
@@ -1228,7 +1437,7 @@
     var rows = lignes.map(function (r) {
       return { 'Date': r.dateMaj ? AMX.fmtDate(r.dateMaj) : '', 'Statut': r.statut === 'auto' ? 'Analyse automatique' : 'Enregistrée', 'Enregistrée le': r.enregistreLe ? AMX.fmtDate(r.enregistreLe, true) : '', 'Enregistrée par': r.enregistrePar || '', 'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Version': r.version, 'Concession': AMX.CONCESSIONS[concessionDe(r)],
         'KM': nombre(r.km), 'Prix payé': nombre(r.prixPaye), 'Reconditionnement': nombre(r.recon), 'Marge': nombre(r.marge), 'Prix de détail': nombre(r.prixVente),
-        'Marché agressif': r.agressif, 'Marché standard': r.standard, 'Marché conservateur': r.conservateur, 'Marché %': r.marchePct !== null && r.marchePct !== undefined ? Math.round(r.marchePct * 1000) / 10 : '', 'Rang': r.rang ? r.rang + '/' + r.rangSur : '', 'Pays': r.pays, 'État / province': r.etat || '', 'Analyse le': r.analyseLe ? AMX.fmtDate(r.analyseLe, true) : '', 'Par': r.par };
+        'Marché agressif': r.agressif, 'Marché standard': r.standard, 'Marché conservateur': r.conservateur, 'Marché %': r.marchePct !== null && r.marchePct !== undefined ? Math.round(r.marchePct * 1000) / 10 : '', 'Rang': r.rang ? r.rang + '/' + r.rangSur : '', 'Pays': r.pays, 'État / province': r.etat || '', 'Veille %': r.veille && typeof r.veille.marchePct === 'number' ? Math.round((r.veille.marchePct - 1) * 1000) / 10 : '', 'Veille le': r.veille && r.veille.le ? AMX.fmtDate(r.veille.le) : '', 'Analyse le': r.analyseLe ? AMX.fmtDate(r.analyseLe, true) : '', 'Par': r.par };
     });
     var ws = XLSX.utils.json_to_sheet(rows);
     var wb = XLSX.utils.book_new();

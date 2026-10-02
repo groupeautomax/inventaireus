@@ -97,6 +97,12 @@
       '.admin-page .admin-parametres .ligne-cle .champ { flex: 1 1 260px; }',
       '.admin-page .admin-parametres .etat-cle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }',
       '.admin-page .admin-parametres ol { margin: 0; padding-left: 18px; font-size: 12px; color: var(--encre-3); line-height: 1.6; }',
+      '.admin-page .admin-parametres .bloc-cle { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--ligne); }',
+      '.admin-page .admin-parametres .bloc-cle h3 { margin: 0; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 700; }',
+      '.admin-page .admin-parametres .veille-etat { display: flex; flex-direction: column; gap: 6px; }',
+      '.admin-page .admin-parametres .veille-etat .veille-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }',
+      '.admin-page .admin-parametres .veille-etat ul.derives { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.7; }',
+      '.admin-page .admin-parametres .veille-etat ul.derives .puce { margin-left: 6px; }',
       '.admin-page .admin-parametres .jauge-appels { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: end; padding: 10px 12px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--fond); }',
       '.admin-page .admin-parametres .jauge-appels .titre { font-size: 12px; color: var(--encre-3); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }',
       '.admin-page .admin-parametres .jauge-appels .valeur { font-size: 20px; font-weight: 700; color: var(--encre); font-variant-numeric: tabular-nums; }',
@@ -219,51 +225,79 @@
   };
 
   /* ------------------------------ Données ------------------------------ */
-  /* ------------------- Paramètres serveur (clé MarketCheck) ------------------
-     Routes : GET ?parametres=1 → { ok, parametres: { MARKETCHECK_KEY: { present, fin } }, appels: { mois, n, ok, quota, dernier } }
-              POST { action: 'reglerParametre', cle: 'MARKETCHECK_KEY', valeur } → { ok, present, fin }
-     La clé est gardée dans les propriétés du script ; le serveur n'en renvoie
-     jamais que les 4 derniers caractères. Tant que le script n'est pas
+  /* ------------------- Paramètres serveur (clés API, veille) ------------------
+     Routes : GET ?parametres=1 → { ok, parametres: { MARKETCHECK_KEY: { present, fin }, VINAUDIT_KEY: { present, fin },
+                                    VINAUDIT_QUOTA: { valeur }, VEILLE_MAX: { valeur } },
+                                    appels: { mois, n, ok, quota, dernier }, appelsVinaudit: { … }, veille: { derniere, n, candidats, derives[], declencheur, max, seuil } }
+              POST { action: 'reglerParametre', cle, valeur } → { ok, present, fin }
+              POST { action: 'veilleInstaller' | 'veilleLancer' } → état de la veille
+     Les clés sont gardées dans les propriétés du script ; le serveur n'en
+     renvoie jamais que les 4 derniers caractères. Tant que le script n'est pas
      redéployé, la route manque : la carte le dit sans bloquer le reste. */
+  var CLES_API = [
+    { param: 'MARKETCHECK_KEY', id: 'adm-cle-marketcheck', nom: 'MarketCheck', libelle: 'Clé API MarketCheck', place: 'Collez la clé API MarketCheck ici', absente: 'Aucune clé — l\'analyse de marché est inactive', retrait: 'L\'analyse de marché cessera de fonctionner jusqu\'à ce qu\'une clé soit collée de nouveau.',
+      aide: ['Créez un compte sur marketcheck.com (connexion Google avec le courriel du travail), plan Free.', 'Dans le tableau de bord, créez une application (« ScanAutomax ») : la clé API s\'affiche.', 'Collez-la ci-dessus et enregistrez. Chaque analyse fait 2 appels (annonces + ventes), mis en cache 6 heures. Plan gratuit : 500 appels par mois.'] },
+    { param: 'VINAUDIT_KEY', id: 'adm-cle-vinaudit', nom: 'VinAudit', libelle: 'Clé API VinAudit (valeurs de guide)', place: 'Collez la clé API VinAudit ici', absente: 'Aucune clé — les valeurs de guide (détail / gros / échange) sont inactives', retrait: 'Les valeurs de guide cesseront de fonctionner jusqu\'à ce qu\'une clé soit collée de nouveau.',
+      aide: ['Créez un compte sur data.vinaudit.com/signup : l\'essai gratuit donne 100 requêtes, sans carte.', 'La clé API est dans le tableau de bord (API Keys). Collez-la ci-dessus et enregistrez.', 'Chaque demande de valeurs fait 3 requêtes (détail, gros, échange), mises en cache 6 heures ; après l\'essai : 100 $ US par mois + 0,10 $ par requête. Ajustez le quota ci-dessous après l\'abonnement.'] }
+  ];
   VueAdmin.prototype.construireParametres = function () {
     var self = this;
-    this.elEtatCle = h('span.etat-cle', [h('span.badge.gris.sans-point', { text: 'Vérification…' })]);
-    this.elCle = h('input#adm-cle-marketcheck', { type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: 'Collez la clé API MarketCheck ici' });
-    this.elCle.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.enregistrerCle(); } });
-    this.btnCle = h('button.btn.primaire#adm-cle-enregistrer', { type: 'button', html: I.ok + '<span>Enregistrer la clé</span>', onclick: function () { self.enregistrerCle(); } });
-    this.btnCleRetirer = h('button.btn.danger.petit#adm-cle-retirer', { type: 'button', text: 'Retirer la clé', onclick: function () { self.retirerCle(); } });
-    var voir = h('button.btn.petit.fantome', { type: 'button', text: 'Afficher', onclick: function () { var p = self.elCle.type === 'password'; self.elCle.type = p ? 'text' : 'password'; voir.textContent = p ? 'Masquer' : 'Afficher'; } });
-    this.elJauge = h('div.jauge-appels#adm-appels', { style: { display: 'none' } });
+    this.cles = {};
     var corps = [
-      h('p.doux.petit', { style: { margin: 0 }, text: 'L\'analyse de marché de la fiche d\'évaluation (Outils › Évaluation marché) interroge MarketCheck : annonces actives et ventes récentes au Canada et aux États-Unis. La clé est gardée sur le serveur, jamais renvoyée au navigateur ni enregistrée dans l\'app.' }),
-      h('div.ligne-cle', [h('div.champ', [h('label', { 'for': 'adm-cle-marketcheck', text: 'Clé API MarketCheck' }), this.elCle]), voir, this.btnCle, this.btnCleRetirer]),
-      h('div', [h('span.etiquette', { text: 'État : ' }), this.elEtatCle]),
-      this.elJauge,
-      h('details', [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Obtenir ou renouveler une clé (plan gratuit : 500 appels par mois)' }), h('ol', [
-        h('li', 'Créez un compte sur marketcheck.com (connexion Google avec le courriel du travail), plan Free.'),
-        h('li', 'Dans le tableau de bord, créez une application (« ScanAutomax ») : la clé API s\'affiche.'),
-        h('li', 'Collez-la ci-dessus et enregistrez. Pour la remplacer, collez la nouvelle : l\'ancienne est écrasée. Chaque analyse fait 2 appels (annonces + ventes), mis en cache 6 heures.')
-      ])])
+      h('p.doux.petit', { style: { margin: 0 }, text: 'La fiche d\'évaluation (Outils › Évaluation marché) interroge MarketCheck pour les annonces actives et les ventes récentes (Canada, États-Unis, par État), et VinAudit pour les valeurs de guide détail / gros / échange. Les clés sont gardées sur le serveur, jamais renvoyées au navigateur ni enregistrées dans l\'app.' })
     ];
-    return h('div.carte.admin-parametres', [h('div.carte-entete', [h('h2', 'Données de marché (MarketCheck)')]), h('div.carte-corps', corps)]);
+    CLES_API.forEach(function (c) {
+      var o = { def: c };
+      o.etat = h('span.etat-cle', [h('span.badge.gris.sans-point', { text: 'Vérification…' })]);
+      o.input = h('input#' + c.id, { type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: c.place });
+      o.input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.enregistrerCle(c.param); } });
+      o.btn = h('button.btn.primaire#' + c.id + '-enregistrer', { type: 'button', html: I.ok + '<span>Enregistrer la clé</span>', onclick: function () { self.enregistrerCle(c.param); } });
+      o.btnRetirer = h('button.btn.danger.petit#' + c.id + '-retirer', { type: 'button', text: 'Retirer la clé', onclick: function () { self.retirerCle(c.param); } });
+      var voir = h('button.btn.petit.fantome', { type: 'button', text: 'Afficher', onclick: function () { var p = o.input.type === 'password'; o.input.type = p ? 'text' : 'password'; voir.textContent = p ? 'Masquer' : 'Afficher'; } });
+      o.jauge = h('div.jauge-appels#' + c.id + '-appels', { style: { display: 'none' } });
+      self.cles[c.param] = o;
+      corps.push(h('div.bloc-cle', [
+        h('h3.doux.petit', { text: c.nom }),
+        h('div.ligne-cle', [h('div.champ', [h('label', { 'for': c.id, text: c.libelle }), o.input]), voir, o.btn, o.btnRetirer]),
+        h('div', [h('span.etiquette', { text: 'État : ' }), o.etat]),
+        o.jauge,
+        h('details', [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Obtenir ou renouveler la clé ' + c.nom }), h('ol', c.aide.map(function (t) { return h('li', t); }))])
+      ]));
+    });
+    // Quota VinAudit (essai : 100) et veille hebdomadaire
+    this.elQuotaVa = h('input.saisie#adm-vinaudit-quota', { type: 'number', min: '1', step: '1', style: { width: '110px' } });
+    this.elVeilleMax = h('input.saisie#adm-veille-max', { type: 'number', min: '0', step: '1', style: { width: '90px' } });
+    this.btnQuota = h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function () { self.enregistrerNombre('VINAUDIT_QUOTA', self.elQuotaVa.value, 'Quota VinAudit enregistré.'); } });
+    this.btnVeilleMax = h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function () { self.enregistrerNombre('VEILLE_MAX', self.elVeilleMax.value, 'Nombre de véhicules par semaine enregistré.'); } });
+    this.btnVeilleInstaller = h('button.btn.petit#adm-veille-installer', { type: 'button', html: I.ok + '<span>Activer la veille hebdomadaire</span>', onclick: function () { self.veilleCommande('veilleInstaller'); } });
+    this.btnVeilleLancer = h('button.btn.petit#adm-veille-lancer', { type: 'button', html: I.rafraichir + '<span>Lancer maintenant</span>', onclick: function () { self.veilleCommande('veilleLancer'); } });
+    this.elVeilleEtat = h('div.veille-etat#adm-veille-etat');
+    corps.push(h('div.bloc-cle', [
+      h('h3.doux.petit', 'Quota et veille'),
+      h('div.ligne-cle', [h('div.champ', [h('label', { 'for': 'adm-vinaudit-quota', text: 'Quota VinAudit par mois (100 = essai gratuit)' }), this.elQuotaVa]), this.btnQuota]),
+      h('div.ligne-cle', [h('div.champ', [h('label', { 'for': 'adm-veille-max', text: 'Veille « prix hors marché » : véhicules réanalysés par semaine (≈ 2 appels MarketCheck chacun ; 0 = désactivée)' }), this.elVeilleMax]), this.btnVeilleMax, this.btnVeilleInstaller, this.btnVeilleLancer]),
+      this.elVeilleEtat
+    ]));
+    return h('div.carte.admin-parametres', [h('div.carte-entete', [h('h2', 'Données de marché (MarketCheck, VinAudit)')]), h('div.carte-corps', corps)]);
   };
-  VueAdmin.prototype.rendreEtatCle = function (p) {
-    AMX.vider(this.elEtatCle);
-    if (p === null) { this.elEtatCle.appendChild(h('span.badge.ambre.sans-point', { text: 'Route absente — redéployez le script (Marche.gs)' })); this.btnCle.disabled = true; return; }
-    this.btnCle.disabled = false;
+  VueAdmin.prototype.rendreEtatCle = function (param, p) {
+    var o = this.cles[param]; if (!o) return;
+    AMX.vider(o.etat);
+    if (p === null) { o.etat.appendChild(h('span.badge.ambre.sans-point', { text: 'Route absente — redéployez le script (Marche.gs)' })); o.btn.disabled = true; return; }
+    o.btn.disabled = false;
     if (p && p.present) {
-      this.elEtatCle.appendChild(h('span.badge.vert', { text: 'Clé en place' }));
-      this.elEtatCle.appendChild(h('span.mono.doux', { text: '…' + (p.fin || '') }));
-      this.btnCleRetirer.classList.remove('cache');
+      o.etat.appendChild(h('span.badge.vert', { text: 'Clé en place' }));
+      o.etat.appendChild(h('span.mono.doux', { text: '…' + (p.fin || '') }));
+      o.btnRetirer.classList.remove('cache');
     } else {
-      this.elEtatCle.appendChild(h('span.badge.rouge', { text: 'Aucune clé — l\'analyse de marché est inactive' }));
-      this.btnCleRetirer.classList.add('cache');
+      o.etat.appendChild(h('span.badge.rouge', { text: o.def.absente }));
+      o.btnRetirer.classList.add('cache');
     }
   };
-  /* Compteur d'appels du mois (plan gratuit : 500). Vert sous 60 %, ambre
-     sous 85 %, rouge au-delà. Chaque analyse non mise en cache = 2 appels. */
-  VueAdmin.prototype.rendreAppels = function (a) {
-    var el = this.elJauge;
+  /* Compteur d'appels du mois. Vert sous 60 %, ambre sous 85 %, rouge au-delà. */
+  VueAdmin.prototype.rendreAppels = function (param, a, parAnalyse, libelle) {
+    var o = this.cles[param]; if (!o) return;
+    var el = o.jauge;
     AMX.vider(el);
     if (!a || typeof a.n !== 'number') { el.style.display = 'none'; return; }
     el.style.display = '';
@@ -272,46 +306,91 @@
     if (pct >= 85) el.classList.add('rouge'); else if (pct >= 60) el.classList.add('ambre');
     var mois = 'ce mois-ci', mm = /^(\d{4})-(\d{2})$/.exec(a.mois || '');
     if (mm) mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'][parseInt(mm[2], 10) - 1] + ' ' + mm[1];
-    el.appendChild(h('div', [h('div.titre', { text: 'Appels MarketCheck — ' + mois }), h('div.valeur', { html: AMX.fmtNombre(n) + '<small>/ ' + AMX.fmtNombre(quota) + ' (' + pct + ' %)</small>' })]));
-    el.appendChild(h('div.reste', { html: reste ? 'Il reste <b>' + AMX.fmtNombre(reste) + '</b> appels, soit environ <b>' + Math.floor(reste / 2) + '</b> analyses' : '<b>Quota épuisé</b> — les analyses reprendront le 1er du mois prochain' }));
+    el.appendChild(h('div', [h('div.titre', { text: 'Appels ' + o.def.nom + ' — ' + mois }), h('div.valeur', { html: AMX.fmtNombre(n) + '<small>/ ' + AMX.fmtNombre(quota) + ' (' + pct + ' %)</small>' })]));
+    el.appendChild(h('div.reste', { html: reste ? 'Il reste <b>' + AMX.fmtNombre(reste) + '</b> appels, soit environ <b>' + Math.floor(reste / parAnalyse) + '</b> ' + libelle : '<b>Quota épuisé</b> — reprise le 1er du mois prochain' }));
     el.appendChild(h('div.jauge-barre', [h('i', { style: { width: pct + '%' } })]));
     var det = [];
     if (a.ok !== undefined && a.n) det.push(h('span', { text: (a.n - a.ok) ? (a.n - a.ok) + ' appel(s) en erreur' : 'Aucune erreur' }));
     if (a.dernier) det.push(h('span', { text: 'Dernier appel : ' + AMX.fmtDate(a.dernier) }));
-    det.push(h('span', { text: 'Compteur maison — les analyses mises en cache (6 h) ne comptent pas.' }));
+    det.push(h('span', { text: 'Compteur maison — les demandes mises en cache (6 h) ne comptent pas.' }));
     el.appendChild(h('div.detail', det));
+  };
+  VueAdmin.prototype.rendreVeille = function (v) {
+    var el = this.elVeilleEtat; AMX.vider(el);
+    if (!v) { el.appendChild(h('span.doux.petit', { text: 'Veille : état inconnu (route absente).' })); return; }
+    var puces = [];
+    puces.push(h('span.badge.sans-point.' + (v.declencheur ? 'vert' : 'ambre'), { text: v.declencheur ? 'Veille active — chaque lundi matin' : 'Veille non activée' }));
+    if (v.derniere) puces.push(h('span.doux.petit', { text: 'Dernier passage : ' + AMX.fmtDate(v.derniere, true) + ' — ' + (v.n || 0) + ' véhicule(s) réanalysé(s) sur ' + (v.candidats || 0) + ' en stock avec un prix de détail.' }));
+    else puces.push(h('span.doux.petit', { text: 'Aucun passage pour l\'instant.' }));
+    el.appendChild(h('div.veille-ligne', puces));
+    var d = v.derives || [];
+    if (d.length) {
+      el.appendChild(h('div.doux.petit', { text: d.length + ' véhicule(s) affiché(s) au-dessus du marché (> ' + Math.round(((v.seuil || 1.05) - 1) * 100) + ' % du prix moyen actif) :' }));
+      el.appendChild(h('ul.derives', d.slice(0, 12).map(function (x) {
+        return h('li', [h('a', { href: AMX.lien('outils', 'evaluation', { vin: x.vin }), text: x.vehicule || x.vin }), h('span.doux', { text: ' · ' + (AMX.CONCESSIONS[x.concession] ? AMX.CONCESSIONS[x.concession].replace(' Automobiles Ltée', '').replace(' Chevrolet Buick Cadillac', '') : x.concession) + ' · détail ' + AMX.fmtArgent(x.prixVente) + ' vs moyenne ' + AMX.fmtArgent(x.moyenneActive) + ' (' + x.nActifs + ' annonces)' }), h('span.puce.alerte', { text: '+' + Math.round((x.marchePct - 1) * 100) + ' %' })]);
+      })));
+    } else if (v.derniere) el.appendChild(h('div.doux.petit', { text: 'Aucune dérive : tous les prix de détail suivis sont dans le marché.' }));
   };
   VueAdmin.prototype.chargerParametres = function () {
     var self = this;
     return AMX.get({ parametres: 1 }).then(function (d) {
       if (self.detruit) return;
-      if (!d || d.refuse || !d.ok || !d.parametres) { self.rendreEtatCle(null); return; }
-      self.rendreEtatCle(d.parametres.MARKETCHECK_KEY || { present: false });
-      self.rendreAppels(d.appels || null);
-    }).catch(function () { if (!self.detruit) self.rendreEtatCle(null); });
+      if (!d || d.refuse || !d.ok || !d.parametres) { CLES_API.forEach(function (c) { self.rendreEtatCle(c.param, null); }); self.rendreVeille(null); return; }
+      self.rendreEtatCle('MARKETCHECK_KEY', d.parametres.MARKETCHECK_KEY || { present: false });
+      self.rendreEtatCle('VINAUDIT_KEY', d.parametres.VINAUDIT_KEY || { present: false });
+      self.rendreAppels('MARKETCHECK_KEY', d.appels || null, 2, 'analyses');
+      self.rendreAppels('VINAUDIT_KEY', d.appelsVinaudit || null, 3, 'demandes de valeurs');
+      if (d.parametres.VINAUDIT_QUOTA && d.parametres.VINAUDIT_QUOTA.valeur) self.elQuotaVa.value = d.parametres.VINAUDIT_QUOTA.valeur;
+      if (d.parametres.VEILLE_MAX && d.parametres.VEILLE_MAX.valeur !== undefined) self.elVeilleMax.value = d.parametres.VEILLE_MAX.valeur;
+      self.rendreVeille(d.veille || null);
+    }).catch(function () { if (!self.detruit) { CLES_API.forEach(function (c) { self.rendreEtatCle(c.param, null); }); self.rendreVeille(null); } });
   };
-  VueAdmin.prototype.enregistrerCle = function () {
-    var self = this, valeur = this.elCle.value.trim();
-    if (valeur.length < 8) { AMX.toast('Collez la clé API complète avant d\'enregistrer.', 'attention'); this.elCle.focus(); return; }
-    this.btnCle.classList.add('occupe');
-    AMX.post({ action: 'reglerParametre', cle: 'MARKETCHECK_KEY', valeur: valeur }).then(function (d) {
+  VueAdmin.prototype.enregistrerCle = function (param) {
+    var self = this, o = this.cles[param], valeur = o.input.value.trim();
+    if (valeur.length < 8) { AMX.toast('Collez la clé API complète avant d\'enregistrer.', 'attention'); o.input.focus(); return; }
+    o.btn.classList.add('occupe');
+    AMX.post({ action: 'reglerParametre', cle: param, valeur: valeur }).then(function (d) {
       AMX.verifier(d, 'Le serveur a refusé la clé');
-      self.elCle.value = '';
-      self.rendreEtatCle({ present: !!d.present, fin: d.fin });
-      AMX.toast('Clé MarketCheck enregistrée sur le serveur.', 'ok');
+      o.input.value = '';
+      self.rendreEtatCle(param, { present: !!d.present, fin: d.fin });
+      AMX.toast('Clé ' + o.def.nom + ' enregistrée sur le serveur.', 'ok');
     }).catch(function (e) { AMX.toast('Clé non enregistrée — ' + AMX.erreurTexte(e), 'erreur'); })
-      .then(function () { self.btnCle.classList.remove('occupe'); });
+      .then(function () { o.btn.classList.remove('occupe'); });
   };
-  VueAdmin.prototype.retirerCle = function () {
-    var self = this;
-    AMX.confirmer('Retirer la clé MarketCheck ?', 'L\'analyse de marché cessera de fonctionner jusqu\'à ce qu\'une clé soit collée de nouveau.', { danger: true, ok: 'Retirer' }).then(function (oui) {
+  VueAdmin.prototype.retirerCle = function (param) {
+    var self = this, o = this.cles[param];
+    AMX.confirmer('Retirer la clé ' + o.def.nom + ' ?', o.def.retrait, { danger: true, ok: 'Retirer' }).then(function (oui) {
       if (!oui) return;
-      return AMX.post({ action: 'reglerParametre', cle: 'MARKETCHECK_KEY', valeur: '' }).then(function (d) {
+      return AMX.post({ action: 'reglerParametre', cle: param, valeur: '' }).then(function (d) {
         AMX.verifier(d, 'Le serveur a refusé');
-        self.rendreEtatCle({ present: false });
+        self.rendreEtatCle(param, { present: false });
         AMX.toast('Clé retirée.', 'ok');
       });
     }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
+  };
+  VueAdmin.prototype.enregistrerNombre = function (param, valeur, message) {
+    var self = this; valeur = String(valeur || '').trim();
+    if (valeur && !/^\d{1,6}$/.test(valeur)) { AMX.toast('Entrez un nombre entier.', 'attention'); return; }
+    AMX.post({ action: 'reglerParametre', cle: param, valeur: valeur }).then(function (d) {
+      AMX.verifier(d, 'Le serveur a refusé');
+      AMX.toast(message, 'ok');
+      self.chargerParametres();
+    }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
+  };
+  VueAdmin.prototype.veilleCommande = function (action) {
+    var self = this, btn = action === 'veilleInstaller' ? this.btnVeilleInstaller : this.btnVeilleLancer;
+    var suite = function () {
+      btn.classList.add('occupe');
+      return AMX.post({ action: action }).then(function (d) {
+        AMX.verifier(d, 'Le serveur a refusé');
+        self.rendreVeille(d);
+        AMX.toast(action === 'veilleInstaller' ? 'Veille hebdomadaire activée (chaque lundi matin).' : 'Veille exécutée : ' + (d.n || 0) + ' véhicule(s) réanalysé(s), ' + ((d.derives || []).length) + ' dérive(s).', 'ok');
+        self.chargerParametres();
+      }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); }).then(function () { btn.classList.remove('occupe'); });
+    };
+    if (action === 'veilleLancer') {
+      AMX.confirmer('Lancer la veille maintenant ?', 'Jusqu\'à ' + (this.elVeilleMax.value || 10) + ' véhicules en stock seront réanalysés (≈ 2 appels MarketCheck chacun). Cela prend quelques dizaines de secondes.', { ok: 'Lancer' }).then(function (oui) { if (oui) return suite(); });
+    } else suite();
   };
 
   VueAdmin.prototype.charger = function (manuel) {

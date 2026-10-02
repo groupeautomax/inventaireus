@@ -31,7 +31,7 @@
 
   // Signet « Automax ← Torque » (source : mock/signet-torque.src.js, embarqué
   // par mock/signet-build.py). Ne jamais éditer la constante à la main.
-  var CODE_SIGNET_TORQUE = "javascript:(function () { if (window.__amxTorque) { alert('Un export Torque est d\u00e9j\u00e0 en cours dans cette page.'); return; } var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-torque.js?t=' + Date.now(); s.onerror = function () { alert('Impossible de charger le signet depuis le site d\\'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.'); }; document.body.appendChild(s); })();";
+  var CODE_SIGNET_TORQUE = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-torque.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
 
   function fmt(n) { return (n === null || n === undefined || n === '' || isNaN(n)) ? '—' : AMX.fmtArgent(n, 0); }
   function nombre(v) { if (v === null || v === undefined || v === '') return null; var n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n; }

@@ -188,7 +188,7 @@
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock, BT', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendre(); }, 120) })]);
     var seg = h('div.segment.bloc');
-    [['', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })).forEach(function (c) {
+    [['', 'Toutes']].concat(Object.keys(AMX.compagniesPour('service')).map(function (c) { return [c, c]; })).forEach(function (c) {
       seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } }));
     });
     this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
@@ -223,7 +223,7 @@
     var self = this, gen = this.generation, etat = document.getElementById('svc-etat');
     var enCache = AMX.service.enCache();
     if (enCache) { this.suivis = enCache; this.rendre(); }
-    else { this.elListe.innerHTML = ''; for (var i = 0; i < 5; i++) this.elListe.appendChild(h('div.squelette', { style: { height: '66px', marginBottom: '6px' } })); }
+    else { this.elListe.innerHTML = ''; this.elListe.appendChild(AMX.chargeur('Suivi service')); }
     return AMX.service.charger(force).then(function (d) {
       if (gen !== self.generation) return;
       self.suivis = d.suivis || [];
@@ -323,9 +323,9 @@
     var auDetail = f.compagnie ? ((resume.parCompagnie || {})[f.compagnie] || {}).auDetail : resume.auDetail;
     if (auDetail === undefined || auDetail === null) auDetail = tous.filter(function (s) { return s.statut !== 'refuse' && s.dansRegistre !== false; }).length;
     var parStatut = resume.registreParStatut || {};
-    var sousDetail = f.compagnie ? 'registre Detail · ' + AMX.COMPAGNIES[f.compagnie] : (parStatut.achete || parStatut.stock ? (parStatut.achete || 0) + ' acheté' + ((parStatut.achete || 0) > 1 ? 's' : '') + ' · ' + (parStatut.stock || 0) + ' en stock' : 'registre Detail');
+    var sousDetail = f.compagnie ? 'registre Detail · ' + AMX.COMPAGNIES_TOUTES[f.compagnie] : (parStatut.achete || parStatut.stock ? (parStatut.achete || 0) + ' acheté' + ((parStatut.achete || 0) > 1 ? 's' : '') + ' · ' + (parStatut.stock || 0) + ' en stock' : 'registre Detail');
     this.elKpis.appendChild(kpi(auDetail, 'Au détail', { classe: 'neutre', sous: sousDetail, onclick: function () { AMX.aller('inventaire', 'detail'); } }));
-    this.elKpis.appendChild(kpi(enCours.length, 'En reconditionnement', { sous: f.compagnie ? AMX.COMPAGNIES[f.compagnie] : 'Toutes compagnies', actif: this.onglet === 'encours' && !f.retard, onclick: function () { f.retard = false; f.etapes = null; AMX.aller('service', 'encours'); } }));
+    this.elKpis.appendChild(kpi(enCours.length, 'En reconditionnement', { sous: f.compagnie ? AMX.COMPAGNIES_TOUTES[f.compagnie] : 'Toutes compagnies', actif: this.onglet === 'encours' && !f.retard, onclick: function () { f.retard = false; f.etapes = null; AMX.aller('service', 'encours'); } }));
     this.elKpis.appendChild(kpi(aAutoriser, 'Direction', { classe: aAutoriser ? 'attention' : '', sous: 'à vérifier / autoriser', actif: this.onglet === 'autoriser', onclick: function () { AMX.aller('service', 'autoriser'); } }));
     this.elKpis.appendChild(kpi(enRetard, 'En retard', { classe: enRetard ? 'alerte' : '', sous: 'cible ' + cibles.total + ' j', actif: f.retard, onclick: function () { f.retard = !f.retard; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.rendre(); } }));
     this.elKpis.appendChild(kpi(moy === null ? '—' : moy + ' j', 'Moyenne → ligne', { classe: 'neutre', sous: prets.length ? 'sur ' + prets.length + ' prêt' + (prets.length > 1 ? 's' : '') + ' (30 j)' : 'aucun prêt (30 j)' }));
@@ -341,7 +341,7 @@
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     var puces = [];
     if (f.retard) puces.push(['En retard', function () { f.retard = false; }]);
-    if (f.compagnie) puces.push([AMX.COMPAGNIES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
+    if (f.compagnie) puces.push([AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
     if (f.etapes) puces.push([f.etapes.length + ' étape(s)', function () { f.etapes = null; }]);
     if (f.recherche) puces.push(['« ' + f.recherche + ' »', function () { f.recherche = ''; }]);
     puces.forEach(function (p) { var b = h('button.puce.info', { type: 'button', title: 'Retirer ce filtre', html: esc(p[0]) + ' ✕' }); b.addEventListener('click', function () { p[1](); self.construireRail(); self.rendre(); }); self.elOutils.appendChild(b); });
@@ -585,7 +585,7 @@
     var blocVehicule = h('div.bloc', [h('h3', 'Véhicule'),
       h('dl.kv.serre', [
         h('dt', '# stock'), h('dd', { text: s.stock || '—' }),
-        h('dt', 'Compagnie'), h('dd', { text: (AMX.COMPAGNIES[s.compagnie] || s.compagnie || '—') }),
+        h('dt', 'Compagnie'), h('dd', { text: (AMX.COMPAGNIES_TOUTES[s.compagnie] || s.compagnie || '—') }),
         h('dt', 'Registre'), h('dd', [s.dansRegistre ? AMX.badgeStatut(s.statutVehicule, 'DETAIL') : h('span.puce.attention', { text: 'absent du registre Detail' })]),
         h('dt', 'Acheté le'), h('dd', { text: s.dateAjout ? AMX.fmtDate(s.dateAjout) + ' (' + AMX.joursDepuis(s.dateAjout) + ' j)' : '—' }),
         h('dt', 'Arrivée'), h('dd', { text: s.arrivee ? AMX.fmtDate(s.arrivee) : '—' }),

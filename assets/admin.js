@@ -8,11 +8,14 @@
      GET  ?utilisateurs=1  → { ok, utilisateurs: [{ nom (= courriel), nomComplet, role, actif,
                               acheteur, note, concession, nomConcession, modifiable, droits: { cle: bool } }],
                               droits: { liste: [{ cle, libelle, aide }], defauts: { role: { cle: bool } } },
-                              moi: { courriel, role, concession, gererAdmins, concessions, noms } }
+                              moi: { courriel, role, concession, gererAdmins, concessions, noms,
+                                     toutes, domaines, domaineNoms, accorderAcces } }
           (6 oct. : la liste ne contient que les comptes que je peux voir — ma
           concession, ou toutes pour le groupe ; `modifiable: false` = admin ou
-          propriétaire, que seul le propriétaire peut toucher)
-     POST { action: 'majUtilisateur', nom, role, actif, acheteur, note, concession, nomComplet, droits? } → { ok }
+          propriétaire, que seul le propriétaire peut toucher ; `acces` =
+          accès supplémentaires { concessions: [codes], domaines: { d: '*' | [codes] } }
+          que seul un compte du groupe (`accorderAcces`) peut changer)
+     POST { action: 'majUtilisateur', nom, role, actif, acheteur, note, concession, nomComplet, droits?, acces? } → { ok }
           (sert à la création ET à la mise à jour ; `droits` ne contient que
           les écarts par rapport aux droits du rôle)
      POST { action: 'supprimerUtilisateur', nom } → { supprime }
@@ -46,6 +49,46 @@
   }
   // Un compte verrouillé pour moi : le serveur le dit (`modifiable: false`) — admin ou propriétaire quand je ne suis pas propriétaire.
   function verrouille(u) { return u.modifiable === false; }
+
+  // Accès supplémentaires (6 oct., soir) : un compte limité à sa concession peut
+  // voir d'autres concessions — en entier (`concessions`) ou pour un domaine
+  // seulement (`domaines`, '*' = toutes les concessions ou une liste de codes).
+  // Ex. Maxime Fabian : HAWKS + { domaines: { evaluations: '*' } }.
+  var DOMAINES = ['inventaire', 'evaluations', 'resultats', 'service'];
+  var DOMAINE_NOMS = { inventaire: 'Inventaire', evaluations: 'Évaluations', resultats: 'Résultats', service: 'Service' };
+  var DOMAINE_AIDE = { inventaire: 'registres, fiches, photos, journal, offres', evaluations: 'registre des évaluations et archive Torque', resultats: 'résultats et temps par étape', service: 'suivi service' };
+  function accesNorm(a) {
+    var out = { concessions: [], domaines: {} };
+    if (!a || typeof a !== 'object') return out;
+    (a.concessions || []).forEach(function (c) { c = String(c || '').toUpperCase(); if (c && c !== TOUTES && out.concessions.indexOf(c) < 0) out.concessions.push(c); });
+    DOMAINES.forEach(function (d) {
+      var v = a.domaines && a.domaines[d];
+      if (v === TOUTES || v === true) out.domaines[d] = TOUTES;
+      else if (Array.isArray(v) && v.length) out.domaines[d] = v.map(function (x) { return String(x || '').toUpperCase(); }).filter(function (x) { return x && x !== TOUTES; });
+      if (Array.isArray(out.domaines[d]) && !out.domaines[d].length) delete out.domaines[d];
+    });
+    return out;
+  }
+  function accesVide(a) { var n = accesNorm(a); return !n.concessions.length && !Object.keys(n.domaines).length; }
+  function accesCle(a) { var n = accesNorm(a); return JSON.stringify([n.concessions.slice().sort(), DOMAINES.map(function (d) { var v = n.domaines[d]; return v === TOUTES ? '*' : (v || []).slice().sort().join('+'); })]); }
+  // Avant l'envoi : une concession vue en entier n'a pas à être répétée par domaine, ni la concession du compte.
+  function accesNettoyer(a, concession) {
+    var n = accesNorm(a);
+    n.concessions = n.concessions.filter(function (c) { return c !== concession; });
+    DOMAINES.forEach(function (d) {
+      var v = n.domaines[d]; if (!v || v === TOUTES) return;
+      v = v.filter(function (c) { return c !== concession && n.concessions.indexOf(c) < 0; });
+      if (v.length) n.domaines[d] = v; else delete n.domaines[d];
+    });
+    return n;
+  }
+  // Résumé lisible : « BMW, VW en entier · Évaluations : toutes · Service : STM ».
+  function accesTexte(a, moiInfo) {
+    var n = accesNorm(a), parts = [];
+    if (n.concessions.length) parts.push(n.concessions.map(function (c) { return nomConcession(c, moiInfo); }).join(', ') + ' en entier');
+    DOMAINES.forEach(function (d) { var v = n.domaines[d]; if (!v) return; parts.push(DOMAINE_NOMS[d] + ' : ' + (v === TOUTES ? 'toutes les concessions' : v.map(function (c) { return nomConcession(c, moiInfo); }).join(', '))); });
+    return parts.join(' · ');
+  }
 
   /* ------------------------------ Helpers ------------------------------ */
   function estCourriel(v) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v || '').trim()); }
@@ -149,6 +192,17 @@
       '.admin-droit.bloque { opacity: .55; }',
       '.admin-droit.bloque .case { cursor: default; }',
       '.admin-pied { margin: 10px 0 0; font-size: 11.5px; color: var(--encre-3); line-height: 1.45; }',
+      // Grille des accès supplémentaires : une ligne par concession, une case par domaine.
+      '.admin-acces { width: 100%; border-collapse: collapse; font-size: 12.5px; }',
+      '.admin-acces th, .admin-acces td { padding: 5px 2px; border-bottom: 1px solid var(--ligne); text-align: center; }',
+      '.admin-acces th { font-weight: 600; color: var(--encre-3); font-size: 11px; line-height: 1.2; vertical-align: bottom; }',
+      '.admin-acces td:first-child { font-size: 12px; line-height: 1.25; }',
+      '.admin-acces th:first-child, .admin-acces td:first-child { text-align: left; white-space: normal; }',
+      '.admin-acces tr.toutes td { background: var(--carte-2); font-weight: 600; }',
+      '.admin-acces input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(--bleu); cursor: pointer; }',
+      '.admin-acces input[type=checkbox]:disabled { cursor: default; opacity: .45; }',
+      '.admin-acces .implicite { color: var(--encre-4); font-size: 11px; }',
+      '.admin-acces-enveloppe { overflow-x: auto; margin-top: 4px; }',
       // Modale d'ajout.
       '.admin-form { display: flex; flex-direction: column; gap: 12px; }',
       '.admin-form .intro { margin: 0; color: var(--encre-3); line-height: 1.5; }',
@@ -339,7 +393,7 @@
     var cle = nomCle(u.nom);
     if (!this.brouillons[cle]) {
       this.brouillons[cle] = { role: roleConnu(u), actif: estActif(u), acheteur: !!u.acheteur, note: String(u.note || ''), ecarts: ecartsDe(u, this.reference),
-        concession: String(u.concession || ''), nomComplet: String(u.nomComplet || '') };
+        concession: String(u.concession || ''), nomComplet: String(u.nomComplet || ''), acces: accesNorm(u.acces) };
     }
     return this.brouillons[cle];
   };
@@ -348,7 +402,8 @@
     if (!b) return false;
     return b.role !== roleConnu(u) || b.actif !== estActif(u) || b.acheteur !== !!u.acheteur ||
       b.note.trim() !== String(u.note || '').trim() || !memesEcarts(b.ecarts, ecartsDe(u, this.reference)) ||
-      b.concession !== String(u.concession || '') || b.nomComplet.trim() !== String(u.nomComplet || '').trim();
+      b.concession !== String(u.concession || '') || b.nomComplet.trim() !== String(u.nomComplet || '').trim() ||
+      accesCle(b.acces) !== accesCle(u.acces);
   };
 
   VueAdmin.prototype.passeFiltres = function (u) {
@@ -431,7 +486,7 @@
     this.lignes = {};
     this.elCompte.textContent = '';
     if (!this.utilisateurs) {
-      this.elListe.appendChild(h('div.chargement', [h('span.spin'), 'Chargement des comptes…']));
+      this.elListe.appendChild(AMX.chargeur('Comptes et accès'));
       return;
     }
     var liste = this.filtrees(), total = this.utilisateurs.length;
@@ -462,6 +517,7 @@
       badgeRole(role, actif, u.role),
       groupe ? h('span.puce' + (u.concession === TOUTES ? '.info' : (u.concession ? '' : '.alerte')), { text: u.concession === TOUTES ? 'Groupe' : nomConcession(u.concession, this.moiInfo) }) : null,
       verrouille(u) ? h('span.puce', { title: 'Seul le propriétaire peut modifier ou retirer un administrateur.', text: 'Géré par le propriétaire' }) : null,
+      (u.concession !== TOUTES && !accesVide(u.acces)) ? h('span.puce.info', { title: accesTexte(u.acces, this.moiInfo), text: 'Accès +' }) : null,
       u.acheteur ? h('span.puce', { text: 'Acheteur' }) : null,
       ecarts.length ? h('span.puce.attention', { title: pluriel(ecarts.length, 'droit') + ' différent' + (ecarts.length > 1 ? 's' : '') + ' du rôle : ' + ecarts.join(', '), text: 'Droits personnalisés' }) : null,
       moi ? h('span.puce.info', { text: 'Vous' }) : null,
@@ -592,14 +648,71 @@
       ]);
     }
 
+    // Accès supplémentaires : d'autres concessions, en entier ou par domaine (compte limité à une concession seulement).
+    var blocAcces = this.rendreAcces(u, b, { verrou: verrou, moi: moi, rafraichir: rafraichir });
+
     // Actions
     var btnEnregistrer = h('button.btn.primaire', { type: 'button', disabled: verrou, html: I.ok + '<span>Enregistrer</span>', onclick: function () { self.enregistrer(u, btnEnregistrer); } });
     this.pBtnAnnuler = h('button.btn', { type: 'button', text: 'Annuler', title: 'Abandonner les modifications non enregistrées', onclick: function () { delete self.brouillons[cle]; rafraichir(); } });
     var btnSupprimer = (moi || verrou) ? null : h('button.btn.danger', { type: 'button', html: I.corbeille + '<span>Supprimer</span>', onclick: function () { self.supprimer(u, btnSupprimer); } });
     var blocActions = h('div.bloc', [h('div.actions-ligne', [btnEnregistrer, this.pBtnAnnuler, btnSupprimer])]);
 
-    this.elPanneau.appendChild(h('div.carte', [entete, blocCompte, blocDroits, blocActions]));
+    this.elPanneau.appendChild(h('div.carte', [entete, blocCompte, blocDroits, blocAcces, blocActions]));
     this.rendreSous(u);
+  };
+
+  // Grille des accès supplémentaires : une ligne « Toutes les concessions » puis une
+  // ligne par autre concession ; colonnes « En entier » + un domaine par colonne.
+  // Seul un compte du groupe (moi.accorderAcces) peut cocher ; un admin de concession
+  // voit le résumé de ce qui a été accordé.
+  VueAdmin.prototype.rendreAcces = function (u, b, o) {
+    var moiInfo = this.moiInfo, self = this;
+    var peut = !!(moiInfo && (moiInfo.accorderAcces || !moiInfo.concession || moiInfo.concession === TOUTES));
+    if (!b.concession || b.concession === TOUTES) return null;   // le groupe voit tout : rien à accorder
+    var codes = ((moiInfo && moiInfo.toutes) || Object.keys(AMX.COMPAGNIES_TOUTES)).filter(function (c) { return c !== b.concession; });
+    var domaines = (moiInfo && moiInfo.domaines) || DOMAINES;
+    var noms = (moiInfo && moiInfo.domaineNoms) || {};
+    var a = b.acces, bloque = o.verrou || !peut || !b.actif;
+    var entier = function (c) { return a.concessions.indexOf(c) >= 0; };
+    var domaineTout = function (d) { return a.domaines[d] === TOUTES; };
+    var domaineA = function (d, c) { return domaineTout(d) || (Array.isArray(a.domaines[d]) && a.domaines[d].indexOf(c) >= 0); };
+    var majDomaine = function (d, c, oui) {
+      var l = Array.isArray(a.domaines[d]) ? a.domaines[d].slice() : [];
+      if (oui) { if (l.indexOf(c) < 0) l.push(c); } else l = l.filter(function (x) { return x !== c; });
+      if (l.length) a.domaines[d] = l; else delete a.domaines[d];
+    };
+    var caseA = function (coche, desactive, implicite, onchange) {
+      if (implicite) return h('span.implicite', { title: 'Compris dans un accès plus large', text: '✓' });
+      return h('input', { type: 'checkbox', checked: coche, disabled: desactive, onchange: function (e) { onchange(e.target.checked); o.rafraichir(); } });
+    };
+    var lignes = [];
+    // Toutes les concessions
+    lignes.push(h('tr.toutes', [h('td', 'Toutes'),
+      h('td', [caseA(codes.every(entier), bloque, false, function (oui) { a.concessions = oui ? codes.slice() : []; })])
+    ].concat(domaines.map(function (d) {
+      return h('td', [caseA(domaineTout(d), bloque, codes.every(entier), function (oui) { if (oui) a.domaines[d] = TOUTES; else delete a.domaines[d]; })]);
+    }))));
+    codes.forEach(function (c) {
+      lignes.push(h('tr', [h('td', { text: AMX.COMPAGNIES_TOUTES[c] || nomConcession(c, moiInfo), title: nomConcession(c, moiInfo) }),
+        h('td', [caseA(entier(c), bloque, false, function (oui) { if (oui) { if (a.concessions.indexOf(c) < 0) a.concessions.push(c); } else a.concessions = a.concessions.filter(function (x) { return x !== c; }); })])
+      ].concat(domaines.map(function (d) {
+        return h('td', [caseA(domaineA(d, c), bloque, entier(c) || domaineTout(d), function (oui) { majDomaine(d, c, oui); })]);
+      }))));
+    });
+    var table = h('table.admin-acces', [
+      h('thead', [h('tr', [h('th', ''), h('th', { text: 'En entier', title: 'Tout voir de cette concession, comme un membre de son équipe' })].concat(domaines.map(function (d) { return h('th', { text: DOMAINE_NOMS[d] || d, title: noms[d] || DOMAINE_AIDE[d] || '' }); })))]),
+      h('tbody', lignes)
+    ]);
+    var resume = accesTexte(a, moiInfo);
+    var btnRien = h('button.btn.petit', { type: 'button', text: 'Retirer tous les accès', disabled: bloque || accesVide(a), onclick: function () { b.acces = accesNorm(null); o.rafraichir(); } });
+    return h('div.bloc', [
+      h('h3', ['Accès supplémentaires', peut ? btnRien : null]),
+      h('p.admin-pied', { style: { margin: '0 0 8px' }, text: 'Ce compte est limité à ' + nomConcession(b.concession, moiInfo) + '. Cochez d\'autres concessions, en entier ou pour un seul domaine (ex. toutes les évaluations du groupe).' }),
+      !peut ? h('div.alerte-bloc.info.admin-avis', [h('span', { html: I.info }), h('div', 'Les accès supplémentaires sont accordés par le propriétaire ou le groupe' + (resume ? ' — accordés : ' + resume + '.' : '. Aucun pour ce compte.'))]) : null,
+      !b.actif && peut ? h('div.alerte-bloc.attention.admin-avis', [h('span', { html: I.alerte }), h('div', 'Compte désactivé : les accès ne s\'appliquent pas tant qu\'il n\'est pas réactivé.')]) : null,
+      h('div.admin-acces-enveloppe', [table]),
+      h('p.admin-pied', { text: resume ? 'Accordés : ' + resume + '.' : 'Aucun accès supplémentaire : ce compte ne voit que ' + nomConcession(b.concession, moiInfo) + '.' })
+    ]);
   };
 
   // Sous-titre du panneau (badge, « Vous », « Non enregistrée ») et état du bouton Annuler.
@@ -611,6 +724,7 @@
     el.appendChild(h('span.puce' + (b.concession === TOUTES ? '.info' : ''), { text: b.concession === TOUTES ? 'Groupe' : nomConcession(b.concession, this.moiInfo) }));
     if (memeCourriel(u.nom, this.moi)) el.appendChild(h('span.puce.info', { text: 'Vous' }));
     if (b.acheteur) el.appendChild(h('span.puce', { text: 'Acheteur' }));
+    if (b.concession !== TOUTES && !accesVide(b.acces)) el.appendChild(h('span.puce.info', { title: accesTexte(b.acces, this.moiInfo), text: 'Accès +' }));
     if (modifie) el.appendChild(h('span.puce.attention', { text: 'Non enregistrée' }));
     if (this.pBtnAnnuler) this.pBtnAnnuler.disabled = !modifie;
   };
@@ -620,6 +734,8 @@
     var self = this, cle = nomCle(u.nom), b = this.brouillonDe(u);
     var corps = { action: 'majUtilisateur', nom: u.nom, role: b.role, actif: b.actif, acheteur: b.acheteur, note: b.note.trim(), concession: b.concession, nomComplet: b.nomComplet.trim() };
     if (this.reference) corps.droits = copier(b.ecarts);
+    var moiInfo = this.moiInfo, accorde = !!(moiInfo && (moiInfo.accorderAcces || !moiInfo.concession || moiInfo.concession === TOUTES));
+    if (accorde) corps.acces = (b.concession && b.concession !== TOUTES) ? accesNettoyer(b.acces, b.concession) : { concessions: [], domaines: {} };
     btn.classList.add('occupe');
     return AMX.post(corps).then(function (r) {
       AMX.verifier(r, 'Mise à jour refusée par le serveur');
@@ -627,6 +743,7 @@
       AMX.toast(u.nom + ' mis à jour', 'ok');
       // Reflet immédiat, puis rechargement de la liste pour rester fidèle au serveur.
       u.role = b.role; u.actif = b.actif; u.acheteur = b.acheteur; u.note = corps.note; u.concession = b.concession; u.nomComplet = corps.nomComplet;
+      if (corps.acces) u.acces = corps.acces;
       if (self.reference) u.droits = copier(b.ecarts);
       delete self.brouillons[cle];
       self.rendre();

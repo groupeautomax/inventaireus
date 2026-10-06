@@ -69,6 +69,35 @@
   };
   AMX.vider = function (el) { while (el && el.firstChild) el.removeChild(el.firstChild); return el; };
 
+  // Chargement « Groupe Automax » (Maxime, 6 oct. : « quand une page load, indique
+  // quelque chose de le fun qui tourne »). Un anneau vert qui tourne, une petite
+  // auto qui roule, la marque, et une phrase qui change toutes les deux secondes.
+  // AMX.chargeur('Inventaire Detail') → élément à poser à la place des squelettes ;
+  // il arrête son horloge tout seul quand on le retire de la page.
+  var CHARGEUR_PHRASES = ['On réchauffe le moteur…', 'On fait le tour du lot…', 'On compte les clés…', 'On vérifie les NIV…',
+    'On remplit le réservoir…', 'On ajuste les miroirs…', 'On gonfle les pneus…', 'On lave les vitres…', 'On sort les véhicules…'];
+  var chargeurIndex = Math.floor(Math.random() * CHARGEUR_PHRASES.length);
+  AMX.chargeur = function (libelle, opts) {
+    opts = opts || {};
+    var auto = '<svg viewBox="0 0 64 34" aria-hidden="true"><path d="M7 23 L11 15 Q14 9 21 9 L37 9 Q45 9 51 15 L57 17 Q61 18 61 22 L61 25 L7 25 Z" fill="currentColor"/>' +
+      '<path d="M22 11 L36 11 Q42 11 46 15 L24 15 Z" fill="#fff" opacity=".9"/><path d="M13 16 L20 16 L20 12 Q15 12 13 16 Z" fill="#fff" opacity=".9"/>' +
+      '<circle cx="19" cy="26" r="4.5" fill="#fff"/><circle cx="19" cy="26" r="2.2" fill="currentColor"/><circle cx="48" cy="26" r="4.5" fill="#fff"/><circle cx="48" cy="26" r="2.2" fill="currentColor"/></svg>';
+    var phrase = h('div.amx-chargeur-phrase', { text: CHARGEUR_PHRASES[chargeurIndex % CHARGEUR_PHRASES.length] });
+    var el = h('div.amx-chargeur' + (opts.compact ? '.compact' : ''), { role: 'status', 'aria-live': 'polite' }, [
+      h('div.amx-chargeur-roue', [h('div.amx-chargeur-anneau'), h('div.amx-chargeur-auto', { html: auto }), h('div.amx-chargeur-route')]),
+      h('div.amx-chargeur-marque', [h('span', 'Groupe'), h('b', 'Automax')]),
+      libelle ? h('div.amx-chargeur-libelle', { text: libelle }) : null,
+      phrase
+    ]);
+    var horloge = setInterval(function () {
+      if (!el.isConnected) { clearInterval(horloge); return; }
+      chargeurIndex = (chargeurIndex + 1) % CHARGEUR_PHRASES.length;
+      phrase.classList.remove('monte'); void phrase.offsetWidth;   // relance l'animation
+      phrase.textContent = CHARGEUR_PHRASES[chargeurIndex]; phrase.classList.add('monte');
+    }, 2000);
+    return el;
+  };
+
   var ICONES = AMX.icones = {
     inventaire: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l1.5-5A2 2 0 0 1 6.4 4.5h11.2a2 2 0 0 1 1.9 1.5L21 11"/><rect x="3" y="11" width="18" height="7" rx="1.5"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></svg>',
     offres: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 13.5l-7 7-10-10V3.5h7l10 10z"/><circle cx="8" cy="8" r="1.5"/></svg>',
@@ -709,7 +738,8 @@
   };
   AMX.badgeStatut = function (id, feuille) { var s = AMX.statut(id, feuille); return h('span.badge.' + s.couleur, { text: s.libelle }); };
   // Les cinq concessions du groupe (6 oct.) : STM, HAWKS, BMW, VW, HYUNDAI.
-  AMX.COMPAGNIES_TOUTES = { STM: 'Ste-Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil' };
+  // Maxime (6 oct.) : « Ste Marie Automobiles Ltée » s'écrit comme ça partout.
+  AMX.COMPAGNIES_TOUTES = { STM: 'Ste Marie Automobiles Ltée', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil' };
   // Compagnie du registre → clé de concession (contrats, évaluation, offres).
   AMX.COMPAGNIE_CONCESSION = { STM: 'stemarie', HAWKS: 'hawkesbury', BMW: 'bmwsherbrooke', VW: 'vwbrossard', HYUNDAI: 'hyundailongueuil' };
   AMX.CONCESSIONS_TOUTES = {
@@ -723,13 +753,28 @@
   AMX.COMPAGNIES = Object.assign({}, AMX.COMPAGNIES_TOUTES);
   AMX.CONCESSIONS = Object.assign({}, AMX.CONCESSIONS_TOUTES);
   AMX.appliquerPortee = function () {
-    var p = AMX.session.perms, codes = Object.keys(AMX.COMPAGNIES_TOUTES);
-    if (p && p.concessions && p.concessions.length && !p.toutes) codes = p.concessions.filter(function (c) { return AMX.COMPAGNIES_TOUTES[c]; });
-    AMX.COMPAGNIES = {}; AMX.CONCESSIONS = {};
-    codes.forEach(function (c) { AMX.COMPAGNIES[c] = AMX.COMPAGNIES_TOUTES[c]; var k = AMX.COMPAGNIE_CONCESSION[c]; if (k) AMX.CONCESSIONS[k] = AMX.CONCESSIONS_TOUTES[k]; });
+    // Listes du domaine « inventaire » (sa concession, ses accès entiers, ses accès inventaire) ;
+    // les autres domaines passent par AMX.compagniesPour / AMX.concessionsPour ci-dessous.
+    AMX.COMPAGNIES = AMX.compagniesPour('inventaire'); AMX.CONCESSIONS = AMX.concessionsPour('inventaire');
   };
   AMX.estGroupe = function () { var p = AMX.session.perms; return !p || p.toutes !== false; };
   AMX.maConcession = function () { var p = AMX.session.perms; return (p && !p.toutes && p.concession) ? p.concession : ''; };
+  // Accès supplémentaires (6 oct., soir) : perms.portees = { inventaire | evaluations | resultats | service : '*' | [codes] }.
+  // Un compte limité à sa concession peut voir d'autres concessions en entier, ou un
+  // seul domaine (ex. Maxime Fabian : toutes les évaluations du groupe). Les pages qui
+  // ont leur domaine lisent ces listes au lieu de AMX.COMPAGNIES / AMX.CONCESSIONS.
+  AMX.DOMAINES = ['inventaire', 'evaluations', 'resultats', 'service'];
+  AMX.codesPour = function (domaine) {
+    var p = AMX.session.perms, tous = Object.keys(AMX.COMPAGNIES_TOUTES);
+    if (!p || p.toutes !== false) return tous;
+    var v = p.portees && p.portees[domaine];
+    if (v === '*') return tous;
+    var codes = (v && v.length) ? v : (p.concessions && p.concessions.length ? p.concessions : (p.concession ? [p.concession] : tous));
+    return codes.filter(function (c) { return AMX.COMPAGNIES_TOUTES[c]; });
+  };
+  AMX.compagniesPour = function (domaine) { var o = {}; AMX.codesPour(domaine).forEach(function (c) { o[c] = AMX.COMPAGNIES_TOUTES[c]; }); return o; };
+  AMX.concessionsPour = function (domaine) { var o = {}; AMX.codesPour(domaine).forEach(function (c) { var k = AMX.COMPAGNIE_CONCESSION[c]; if (k) o[k] = AMX.CONCESSIONS_TOUTES[k]; }); return o; };
+  AMX.estGroupePour = function (domaine) { return AMX.codesPour(domaine).length === Object.keys(AMX.COMPAGNIES_TOUTES).length; };
   AMX.optionsCompagnies = function (vide) { var l = vide ? [h('option', { value: '', text: vide })] : []; Object.keys(AMX.COMPAGNIES).forEach(function (c) { l.push(h('option', { value: c, text: c })); }); return l; };
   AMX.STATUTS_OFFRE = {
     nouvelle: { libelle: 'À traiter', couleur: 'ambre' }, contre: { libelle: 'Contre-offre', couleur: 'violet' },

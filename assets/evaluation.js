@@ -320,8 +320,9 @@
     var cVersion = champ('e-version', 'Version', { placeholder: 'LT, SLE, Limited…' });
     var cKm = champ('e-km', 'Kilométrage', { type: 'number', inputmode: 'numeric' });
     var cTaux = champ('e-taux-km', 'Ajustement $/km', { type: 'number', step: '0.01', value: '0.10' });
-    this.elConcession = h('select#e-concession', Object.keys(AMX.CONCESSIONS).map(function (k) {
-      return h('option', { value: k, selected: k === 'stemarie' ? true : undefined, text: AMX.CONCESSIONS[k] });
+    var concessionsEval = AMX.concessionsPour('evaluations');   // portée du domaine « évaluations » (accès supplémentaires compris)
+    this.elConcession = h('select#e-concession', Object.keys(concessionsEval).map(function (k) {
+      return h('option', { value: k, selected: k === 'stemarie' ? true : undefined, text: concessionsEval[k] });
     }));
     var cConcession = h('div.champ', [h('label', { 'for': 'e-concession', text: 'Concession (marché local)' }), this.elConcession]);
     this.elNiv = cNiv.input; this.elMarque = cMarque.input; this.elModele = cModele.input; this.elVersion = cVersion.input;
@@ -374,7 +375,7 @@
     this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
     this.elConcession.addEventListener('change', function () { AMX.memo.ecrire('eval_concession', self.elConcession.value); self.oublierAnalyses(); });
-    if (AMX.CONCESSIONS[AMX.memo.lire('eval_concession', '')]) this.elConcession.value = AMX.memo.lire('eval_concession', '');
+    if (concessionsEval[AMX.memo.lire('eval_concession', '')]) this.elConcession.value = AMX.memo.lire('eval_concession', '');
     // Toute modification des prix ou du véhicule est conservée d'office (1,5 s après la dernière frappe).
     [this.elAchat, this.elFrais, this.elPaye, this.elRecon, this.elMarge, this.elPrix, this.elKm, this.elTaux, this.elVersion, this.elMarque, this.elModele, this.elAnnee].forEach(function (el) { el.addEventListener('input', function () { self.planifierAuto(); }); });
     this.elConcession.addEventListener('change', function () { self.planifierAuto(); });
@@ -796,7 +797,7 @@
     var ligneMoi = function (rang) {
       return h('tr.eval-moi', [
         h('td.num', { text: rang ? String(rang) : '' }),
-        h('td', [h('div', { text: 'Votre véhicule' }), h('div.mini', { text: AMX.CONCESSIONS[self.elConcession.value] || '' })]),
+        h('td', [h('div', { text: 'Votre véhicule' }), h('div.mini', { text: AMX.CONCESSIONS_TOUTES[self.elConcession.value] || '' })]),
         h('td', { text: self.elVersion.value.trim() || '—' }),
         h('td.num', { text: self.elAnnee.value || '—' }),
         h('td.num', { text: kmV !== null ? fmtKm(kmV) : '—' }),
@@ -895,7 +896,7 @@
     if (!this.elAchat.value && data.prixPaye) this.elAchat.value = data.prixPaye;
     if (data.recon !== undefined && data.recon !== '') this.elRecon.value = data.recon;
     if (data.marge !== undefined && data.marge !== '') this.elMarge.value = data.marge;
-    if (data.concession && AMX.CONCESSIONS[data.concession]) this.elConcession.value = data.concession;
+    if (data.concession && AMX.concessionsPour('evaluations')[data.concession]) this.elConcession.value = data.concession;
     this.comparablesCharges = Array.isArray(data.comparables) ? data.comparables.filter(function (c) { return c && (c.prix || c.source); }) : [];
     this.derniereSauvegarde = (data.marche && typeof data.marche === 'object') ? data.marche : null;
     if (this.derniereSauvegarde && !this.derniereSauvegarde.valeurs && data.valeurs) this.derniereSauvegarde.valeurs = data.valeurs;
@@ -1152,7 +1153,7 @@
       AMX.memo.ecrire('offre_validite', String(parseInt(cValidite.value, 10) || 7));
       var cle = self.elConcession.value;
       AMX.get({ concessionInfo: cle }).catch(function () { return null; }).then(function (info) {
-        self.imprimerOffre({ montant: montant, validite: parseInt(cValidite.value, 10) || 7, client: cClient.value.trim(), notes: cNotes.value.trim(), concession: (info && info.ok) ? info : { nom: AMX.CONCESSIONS[cle] || cle } });
+        self.imprimerOffre({ montant: montant, validite: parseInt(cValidite.value, 10) || 7, client: cClient.value.trim(), notes: cNotes.value.trim(), concession: (info && info.ok) ? info : { nom: AMX.CONCESSIONS_TOUTES[cle] || cle } });
       });
     }).catch(function () {});
   };
@@ -1164,7 +1165,7 @@
     var adresse = [c.adressePhys || c.adresse, [c.villePhys || c.ville, c.province].filter(Boolean).join(', '), c.codePostalPhys || c.codePostal].filter(Boolean).join(' · ');
     var page = h('div#offre-impression.offre-impression', [
       h('div.offre-entete', [
-        h('div', [h('div.offre-concession', { text: c.nomOfficiel || c.nom || AMX.CONCESSIONS[this.elConcession.value] || '' }), adresse ? h('div.doux', { text: adresse }) : null, h('div.doux', { text: [c.telephone, c.courriel].filter(Boolean).join(' · ') }), c.noConcessionnaire ? h('div.doux', { text: (c.province === 'ON' ? 'Permis de commerçant (OMVIC) ' : 'Permis de commerçant (SAAQ) ') + c.noConcessionnaire }) : null]),
+        h('div', [h('div.offre-concession', { text: c.nomOfficiel || c.nom || AMX.CONCESSIONS_TOUTES[this.elConcession.value] || '' }), adresse ? h('div.doux', { text: adresse }) : null, h('div.doux', { text: [c.telephone, c.courriel].filter(Boolean).join(' · ') }), c.noConcessionnaire ? h('div.doux', { text: (c.province === 'ON' ? 'Permis de commerçant (OMVIC) ' : 'Permis de commerçant (SAAQ) ') + c.noConcessionnaire }) : null]),
         h('div.offre-titre', [h('h1', 'Offre d\'achat'), h('div.doux', { text: 'Émise le ' + AMX.fmtDate(auj.toISOString()) + ' · valide jusqu\'au ' + AMX.fmtDate(fin.toISOString()) + ' (' + o.validite + ' jours)' })])
       ]),
       o.client ? h('div.offre-client', [h('span.l', 'Client'), h('span', { text: o.client })]) : null,
@@ -1172,7 +1173,7 @@
         h('tr', [h('th', 'Véhicule'), h('td', { text: veh })]),
         h('tr', [h('th', 'NIV'), h('td.mono', { text: this.vinCourant || this.elNiv.value.trim().toUpperCase() || '—' })]),
         h('tr', [h('th', 'Kilométrage'), h('td', { text: km !== null ? fmtKm(km) : '—' })]),
-        h('tr', [h('th', 'Concession'), h('td', { text: c.nomOfficiel || c.nom || AMX.CONCESSIONS[this.elConcession.value] || '' })])
+        h('tr', [h('th', 'Concession'), h('td', { text: c.nomOfficiel || c.nom || AMX.CONCESSIONS_TOUTES[this.elConcession.value] || '' })])
       ])]),
       h('div.offre-montant', [h('div.l', 'Offre d\'achat / valeur d\'échange'), h('div.v', { text: fmt(o.montant) }), h('div.m', 'Taxes en sus s\'il y a lieu. Montant payable à la livraison du véhicule et des documents.')]),
       calc && calc.standard ? h('p.offre-marche', { text: 'Repère de marché (' + (a.lieu || '') + ', ' + AMX.fmtDate(a.genereLe || auj.toISOString()) + ') : prix de détail standard ' + fmt(calc.standard) + ' sur ' + ((a.actifs && a.actifs.n) || 0) + ' annonces actives comparables.' }) : null,
@@ -1286,7 +1287,7 @@
     this.liste = null; this.parConcession = {}; this.erreur = ''; this.refus = '';
     this.generation = 0;
     this.concession = AMX.memo.lire('registre_eval_concession', '');
-    if (this.concession && !AMX.CONCESSIONS[this.concession]) this.concession = '';
+    if (this.concession && !AMX.concessionsPour('evaluations')[this.concession]) this.concession = '';
     this.recherche = '';
     this.statut = AMX.memo.lire('registre_eval_statut', 'tous');
     if (!STATUTS_REGISTRE.some(function (x) { return x[0] === self.statut; })) this.statut = 'tous';
@@ -1301,7 +1302,7 @@
     { cle: 'dateMaj', libelle: 'Date', valeur: function (r) { return r.dateMaj || ''; } },
     { cle: 'vehicule', libelle: 'Véhicule', valeur: function (r) { return [r.annee, r.marque, r.modele, r.version].filter(Boolean).join(' '); } },
     { cle: 'vin', libelle: 'NIV' },
-    { cle: 'concession', libelle: 'Concession', valeur: function (r) { return AMX.CONCESSIONS[r.concession] || r.concession || ''; } },
+    { cle: 'concession', libelle: 'Concession', valeur: function (r) { return AMX.CONCESSIONS_TOUTES[r.concession] || r.concession || ''; } },
     { cle: 'prixPaye', libelle: 'Payé', num: true, valeur: function (r) { return nombre(r.prixPaye); } },
     { cle: 'recon', libelle: 'Recon', num: true, valeur: function (r) { return nombre(r.recon); } },
     { cle: 'marge', libelle: 'Marge', num: true, valeur: function (r) { return nombre(r.marge); } },
@@ -1322,7 +1323,7 @@
     if (cle === 'annee') return new Date(y, 0, 1).getTime();
     return -Infinity;
   }
-  function nomCourt(cle) { return (AMX.CONCESSIONS[cle] || cle || '').replace(' Automobiles Ltée', '').replace(' Chevrolet Buick Cadillac', '').replace(/^Hawkesbury Chevrolet$/, 'Hawkesbury'); }
+  function nomCourt(cle) { return (AMX.CONCESSIONS_TOUTES[cle] || cle || '').replace(' Chevrolet Buick Cadillac', '').replace(/^Hawkesbury Chevrolet$/, 'Hawkesbury'); }   // « Ste Marie Automobiles Ltée » reste entier (Maxime, 6 oct.)
   var COULEUR_CONCESSION = { stemarie: 'vert', hawkesbury: 'bleu', vwbrossard: 'violet', bmwsherbrooke: 'sombre', hyundailongueuil: 'ambre' };
   function depuis(iso) {
     var t = new Date(iso).getTime(); if (isNaN(t)) return '';
@@ -1394,10 +1395,10 @@
     return this.base().filter(function (r) {
       if (self.concession && concessionDe(r) !== self.concession) return false;
       if (!q) return true;
-      return [r.vin, r.marque, r.modele, r.version, r.annee, r.par, AMX.CONCESSIONS[concessionDe(r)]].join(' ').toUpperCase().indexOf(q) >= 0;
+      return [r.vin, r.marque, r.modele, r.version, r.annee, r.par, AMX.CONCESSIONS_TOUTES[concessionDe(r)]].join(' ').toUpperCase().indexOf(q) >= 0;
     });
   };
-  function concessionDe(r) { return (r.concession && AMX.CONCESSIONS[r.concession]) ? r.concession : 'stemarie'; }
+  function concessionDe(r) { return (r.concession && AMX.CONCESSIONS_TOUTES[r.concession]) ? r.concession : 'stemarie'; }
   function agregerRegistre(lignes) {
     var n = lignes.length, paye = 0, detail = 0, marge = 0, nMarge = 0, pct = 0, nPct = 0, nEnr = 0;
     lignes.forEach(function (r) { var p = nombre(r.prixPaye), d = nombre(r.prixVente), m = nombre(r.marge); if (p !== null) paye += p; if (d !== null) detail += d; if (m !== null) { marge += m; nMarge++; } if (r.marchePct) { pct += r.marchePct; nPct++; } if (r.statut !== 'auto') nEnr++; });
@@ -1408,7 +1409,7 @@
     var self = this;
     AMX.vider(this.elCartes); AMX.vider(this.elSegment); AMX.vider(this.elVide);
     if (this.refus) { this.elEtat.textContent = this.refus; this.elVide.appendChild(h('div.vide', [h('div', { html: I.cadenas }), h('h3', 'Accès non autorisé'), h('div', { text: this.refus })])); this.elTable.textContent = ''; return; }
-    if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement du registre…'; return; }
+    if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement du registre…'; if (!this.erreur) this.elVide.appendChild(AMX.chargeur('Registre des évaluations')); return; }
     var total = this.liste.length;
     var nEnr = this.liste.filter(function (r) { return r.statut !== 'auto'; }).length, nAuto = total - nEnr;
     this.rendreVeille();
@@ -1444,7 +1445,7 @@
     };
     this.elCartes.appendChild(carte('', 'Toutes les concessions', base));
     // Une carte par concession, toujours les cinq ; une évaluation sans concession (anciennes fiches) compte pour Ste-Marie.
-    Object.keys(AMX.CONCESSIONS).forEach(function (c) { self.elCartes.appendChild(carte(c, nomCourt(c), base.filter(function (r) { return concessionDe(r) === c; }))); });
+    Object.keys(AMX.concessionsPour('evaluations')).forEach(function (c) { self.elCartes.appendChild(carte(c, nomCourt(c), base.filter(function (r) { return concessionDe(r) === c; }))); });
     this.rendreTable();
   };
 
@@ -1522,7 +1523,7 @@
     if (!lignes.length) { AMX.toast('Aucune évaluation à exporter.', 'attention'); return; }
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
     var rows = lignes.map(function (r) {
-      return { 'Date': r.dateMaj ? AMX.fmtDate(r.dateMaj) : '', 'Statut': r.statut === 'auto' ? 'Analyse automatique' : 'Enregistrée', 'Enregistrée le': r.enregistreLe ? AMX.fmtDate(r.enregistreLe, true) : '', 'Enregistrée par': r.enregistrePar || '', 'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Version': r.version, 'Concession': AMX.CONCESSIONS[concessionDe(r)],
+      return { 'Date': r.dateMaj ? AMX.fmtDate(r.dateMaj) : '', 'Statut': r.statut === 'auto' ? 'Analyse automatique' : 'Enregistrée', 'Enregistrée le': r.enregistreLe ? AMX.fmtDate(r.enregistreLe, true) : '', 'Enregistrée par': r.enregistrePar || '', 'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Version': r.version, 'Concession': AMX.CONCESSIONS_TOUTES[concessionDe(r)],
         'KM': nombre(r.km), 'Prix payé': nombre(r.prixPaye), 'Reconditionnement': nombre(r.recon), 'Marge': nombre(r.marge), 'Prix de détail': nombre(r.prixVente),
         'Marché agressif': r.agressif, 'Marché standard': r.standard, 'Marché conservateur': r.conservateur, 'Marché %': r.marchePct !== null && r.marchePct !== undefined ? Math.round(r.marchePct * 1000) / 10 : '', 'Rang': r.rang ? r.rang + '/' + r.rangSur : '', 'Pays': r.pays, 'État / province': r.etat || '', 'Veille %': r.veille && typeof r.veille.marchePct === 'number' ? Math.round((r.veille.marchePct - 1) * 1000) / 10 : '', 'Veille le': r.veille && r.veille.le ? AMX.fmtDate(r.veille.le) : '', 'Analyse le': r.analyseLe ? AMX.fmtDate(r.analyseLe, true) : '', 'Par': r.par };
     });

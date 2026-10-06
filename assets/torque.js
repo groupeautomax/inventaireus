@@ -37,7 +37,7 @@
   function nombre(v) { if (v === null || v === undefined || v === '') return null; var n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n; }
   function fmtKm(n) { n = nombre(n); return n === null ? '—' : AMX.fmtNombre(Math.round(n)) + ' km'; }
   function statut(code) { var s = STATUTS_TORQUE[code]; return s ? { libelle: s[0], couleur: s[1] } : { libelle: code || '—', couleur: 'gris' }; }
-  function nomCourt(cle) { return (AMX.CONCESSIONS[cle] || cle || '').replace(' Automobiles Ltée', '').replace(' Chevrolet Buick Cadillac', ''); }
+  function nomCourt(cle) { return (AMX.CONCESSIONS_TOUTES[cle] || cle || '').replace(' Chevrolet Buick Cadillac', ''); }   // « Ste Marie Automobiles Ltée » reste entier
   function debutPeriode(cle) {
     var now = new Date(), y = now.getFullYear(), m = now.getMonth();
     if (cle === 'j30') { var d = new Date(now); d.setDate(d.getDate() - 30); return d.getTime(); }
@@ -155,7 +155,7 @@
         h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)' } }, 'Le signet lit toutes les évaluations de la concession affichée dans Torque (actives et archivées : véhicule, client, conseiller, valeurs, prix de vente, profit, reconditionnement, statut, état, pneus, pare-brise, carrosserie, notes, options, photos) et les analyses de marché, puis les envoie ici. Il utilise la session Torque déjà ouverte dans votre navigateur, comme Torque lui-même ; il ne modifie rien dans Torque. Une concession à la fois ; recliquer le signet met à jour ce qui a changé.'),
         h('div.torque-etapes', [
           h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
-          h('div', [h('div.section-titre', '2. Dans Torque'), h('p', 'Connectez-vous sur dealer.torquemanagement.ca et choisissez la concession en haut à gauche (BMW Sherbrooke, Hawkesbury, Hyundai Longueuil, Ste-Marie, VW Brossard). Gardez cet onglet du site ouvert et connecté.')]),
+          h('div', [h('div.section-titre', '2. Dans Torque'), h('p', 'Connectez-vous sur dealer.torquemanagement.ca et choisissez la concession en haut à gauche (BMW Sherbrooke, Hawkesbury, Hyundai Longueuil, Ste Marie Automobiles Ltée, VW Brossard). Gardez cet onglet du site ouvert et connecté.')]),
           h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', 'Une bande verte suit la progression en bas de la page Torque. À la fin, changez de concession et recliquez. Revenez ici : « Rafraîchir ».')])
         ]),
         this.elImportEtat,
@@ -269,7 +269,7 @@
     AMX.vider(this.elCartes); AMX.vider(this.elSegment); AMX.vider(this.elVide);
     this.rendreImport();
     if (this.refus) { this.elEtat.textContent = this.refus; this.elVide.appendChild(h('div.vide', [h('div', { html: I.cadenas }), h('h3', 'Accès non autorisé'), h('div', { text: this.refus })])); this.elTable.textContent = ''; return; }
-    if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement de l\'archive…'; return; }
+    if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement de l\'archive…'; if (!this.erreur) this.elVide.appendChild(AMX.chargeur('Archive Torque')); return; }
     var total = this.liste.length, nArch = this.liste.filter(function (r) { return r.archivee; }).length;
     this.elEtat.textContent = total ? (total + ' évaluation' + (total > 1 ? 's' : '') + ' importée' + (total > 1 ? 's' : '') + ' de Torque' + (nArch ? ' (dont ' + nArch + ' archivée' + (nArch > 1 ? 's' : '') + ')' : '') + ' — véhicule, client, conseiller, valeurs, état, photos. Cliquez une concession pour filtrer, une ligne pour tout voir.') : 'Rien d\'importé encore : ouvrez « Importer depuis Torque » ci-dessous.';
     PERIODES.forEach(function (p) {
@@ -454,7 +454,7 @@
         h('span', { text: (x.client || '—') + (x.conseiller ? ' · ' + x.conseiller : '') }), h('span', { text: 'interne ' + fmt(nombre(x.valeurInterne)) + ' · vente ' + fmt(nombre(x.prixVente)) }), h('span.badge.sans-point.' + sx.couleur, { text: sx.libelle })]); })));
     }
     droite.appendChild(h('h4', 'Équipe'));
-    droite.appendChild(dl([['Conseiller', r.conseiller], ['Directeur', r.directeur], ['Concession', AMX.CONCESSIONS[r.concession] || r.concession]]));
+    droite.appendChild(dl([['Conseiller', r.conseiller], ['Directeur', r.directeur], ['Concession', AMX.CONCESSIONS_TOUTES[r.concession] || r.concession]]));
     var notes = Array.isArray(f.notes) ? f.notes : [];
     droite.appendChild(h('h4', 'Notes' + (notes.length ? ' (' + notes.length + ')' : '')));
     if (notes.length) droite.appendChild(h('div.torque-notes', { text: notes.map(function (n) { return (n.le ? AMX.fmtDateCourte(n.le) + ' ' : '') + (n.par ? n.par + ' : ' : '') + n.texte; }).join('\n') }));
@@ -474,7 +474,7 @@
     if (!lignes.length) { AMX.toast('Aucune évaluation à exporter.', 'attention'); return; }
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
     var rows = lignes.map(function (r) {
-      return { 'Date': r.creeLe ? AMX.fmtDate(r.creeLe) : '', 'Modifiée': r.modifieLe ? AMX.fmtDate(r.modifieLe) : '', 'Concession': AMX.CONCESSIONS[r.concession] || r.concession, 'Statut': statut(r.statut).libelle, 'Archivée': r.archivee ? 'oui' : '',
+      return { 'Date': r.creeLe ? AMX.fmtDate(r.creeLe) : '', 'Modifiée': r.modifieLe ? AMX.fmtDate(r.modifieLe) : '', 'Concession': AMX.CONCESSIONS_TOUTES[r.concession] || r.concession, 'Statut': statut(r.statut).libelle, 'Archivée': r.archivee ? 'oui' : '',
         'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Série': r.serie, 'Style': r.style, 'Moteur': r.moteur, 'Transmission': libelleTransmission(r.transmission), 'Motricité': libelleMotricite(r.motricite), 'Carburant': libelleCarburant(r.carburant), 'Couleur': couleurCourte(r.couleur), 'Km': nombre(r.km), 'Clés': r.cles,
         'Client': r.client, 'Téléphone': telephone(r.telephone), 'Origine': r.origine, 'Type de client': r.typeClient, 'Cherche': r.cherche, 'Transaction': r.transaction, 'Conseiller': r.conseiller, 'Directeur': r.directeur,
         'Valeur client': nombre(r.valeurClient), 'Valeur interne': nombre(r.valeurInterne), 'Profit': nombre(r.profit), 'Reconditionnement': nombre(r.recon), 'Prix de vente': nombre(r.prixVente), 'Note prix': r.notePrix,

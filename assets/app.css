@@ -394,6 +394,24 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 .squelette { background: linear-gradient(90deg, var(--gris-bg) 25%, #F6F8FA 37%, var(--gris-bg) 63%); background-size: 400% 100%; animation: brille 1.2s infinite; border-radius: 8px; }
 @keyframes brille { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 .chargement { display: flex; align-items: center; gap: 8px; color: var(--encre-3); font-size: 12.5px; padding: 12px 0; }
+/* Chargement « Groupe Automax » (AMX.chargeur) */
+.amx-chargeur { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 40px 16px 44px; color: var(--encre-3); text-align: center; animation: fondu .3s ease; grid-column: 1 / -1; }
+.amx-chargeur.compact { padding: 18px 12px 20px; }
+.amx-chargeur-roue { position: relative; width: 92px; height: 92px; margin-bottom: 8px; }
+.amx-chargeur-anneau { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--vert) 0 28%, var(--vert-vif) 28% 36%, transparent 36% 100%); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px)); mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px)); animation: tourne 1.1s linear infinite; }
+.amx-chargeur-roue::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 6px solid var(--vert-clair); }
+.amx-chargeur-auto { position: absolute; left: 50%; top: 50%; width: 46px; height: 24px; margin: -15px 0 0 -23px; color: var(--noir-2); animation: roule .7s ease-in-out infinite alternate; }
+.amx-chargeur-auto svg { width: 100%; height: 100%; display: block; }
+.amx-chargeur-route { position: absolute; left: 24px; right: 24px; top: 62px; height: 2px; background: repeating-linear-gradient(90deg, var(--ligne-forte) 0 6px, transparent 6px 12px); background-size: 12px 2px; animation: defile .5s linear infinite; }
+.amx-chargeur-marque { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--encre-2); display: inline-flex; gap: 7px; align-items: baseline; }
+.amx-chargeur-marque b { color: var(--vert); font-weight: 800; background: linear-gradient(90deg, var(--vert) 0 40%, var(--vert-vif) 50%, var(--vert) 60% 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: reflet 2.2s linear infinite; }
+.amx-chargeur-libelle { font-size: 12.5px; color: var(--encre-3); margin-top: 2px; }
+.amx-chargeur-phrase { font-size: 12px; color: var(--encre-4); min-height: 16px; }
+.amx-chargeur-phrase.monte { animation: monte .35s ease; }
+@keyframes roule { from { transform: translateY(0) rotate(-1deg); } to { transform: translateY(-2px) rotate(1deg); } }
+@keyframes defile { from { background-position: 0 0; } to { background-position: -12px 0; } }
+@keyframes reflet { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .amx-chargeur-anneau, .amx-chargeur-auto, .amx-chargeur-route, .amx-chargeur-marque b { animation: none; } }
 .spin { width: 14px; height: 14px; border: 2px solid var(--ligne-forte); border-top-color: var(--vert); border-radius: 50%; animation: tourne .8s linear infinite; display: inline-block; }
 @keyframes tourne { to { transform: rotate(360deg); } }
 .alerte-bloc { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--rayon-s); font-size: 12.5px; border: 1px solid; }
@@ -480,6 +498,7 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
   .panneau .fermer-panneau { display: inline-flex; }
 }
 .panneau .fermer-panneau { display: none; }
+.panneau:empty { display: none; }   /* pas encore rendu (page en chargement) : rien à montrer, surtout pas le volet fixe des petits écrans */
 @media (max-width: 860px) {
   :root { --barre-h: 54px; }
   .barre { padding: 0 10px; gap: 6px; }

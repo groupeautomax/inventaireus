@@ -110,7 +110,7 @@
   Recues.prototype.charger = function (force) {
     var self = this;
     var etat = document.getElementById('off-etat');
-    if (!cache.offres) { AMX.vider(this.elListe); for (var i = 0; i < 4; i++) this.elListe.appendChild(h('div.squelette', { style: { height: '70px', marginBottom: '6px' } })); }
+    if (!cache.offres) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur('Offres reçues')); }
     return Promise.all([AMX.post({ action: 'offresRecues' }), AMX.inventaire.tout().catch(function () { return []; })]).then(function (r) {
       var d = AMX.verifier(r[0], 'Impossible de lire les offres');
       cache.offres = d.offres || [];
@@ -310,7 +310,7 @@
   };
   EnVente.prototype.charger = function (force) {
     var self = this, etat = document.getElementById('vente-etat');
-    if (!cache.vente) { AMX.vider(this.elListe); for (var i = 0; i < 4; i++) this.elListe.appendChild(h('div.squelette', { style: { height: '70px', marginBottom: '6px' } })); }
+    if (!cache.vente) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur('Véhicules en vente')); }
     return Promise.all([AMX.post({ action: 'vitrineListe' }), AMX.inventaire.tout().catch(function () { return []; })]).then(function (r) {
       var d = AMX.verifier(r[0], 'Impossible de lire la vitrine');
       cache.vente = d.vehicules || []; cache.cle = d.cle || cache.cle;
@@ -464,7 +464,7 @@
   };
   Acheteurs.prototype.charger = function (force) {
     var self = this, etat = document.getElementById('ach-etat');
-    if (!cache.acheteurs) { AMX.vider(this.elListe); for (var i = 0; i < 3; i++) this.elListe.appendChild(h('div.squelette', { style: { height: '64px', marginBottom: '6px' } })); }
+    if (!cache.acheteurs) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur('Acheteurs')); }
     var pConc = cache.concessions ? Promise.resolve(cache.concessions) : AMX.post({ action: 'leadListe' }).then(function (d) { cache.concessions = (d && d.concessions) || Object.keys(AMX.CONCESSIONS).map(function (k) { return { id: k, nom: AMX.CONCESSIONS[k] }; }); return cache.concessions; }).catch(function () { return Object.keys(AMX.CONCESSIONS).map(function (k) { return { id: k, nom: AMX.CONCESSIONS[k] }; }); });
     return Promise.all([AMX.post({ action: 'acheteursExternes' }), pConc]).then(function (r) {
       var d = AMX.verifier(r[0], 'Impossible de lire les acheteurs');

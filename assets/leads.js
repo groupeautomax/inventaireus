@@ -397,7 +397,7 @@
       if (this.erreur) {
         this.elListe.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Serveur injoignable'), h('div', { text: this.erreur }), h('div', { style: { marginTop: '12px' } }, [h('button.btn', { type: 'button', html: I.rafraichir + '<span>Réessayer</span>', onclick: function () { self.charger(true); } })])]));
       } else {
-        for (var i = 0; i < 5; i++) this.elListe.appendChild(h('div.squelette', { style: { height: '64px', marginBottom: '6px' } }));
+        this.elListe.appendChild(AMX.chargeur('Leads'));
       }
       return;
     }

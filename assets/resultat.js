@@ -30,7 +30,7 @@
 
   var SEUIL_ERREUR = 8000;   // |profit| au-delà : erreur de saisie, exclu
   // Calculé au rendu (pas au chargement) : la liste visible dépend du compte (portée, 6 oct.).
-  function COMPAGNIES_() { return [['TOUT', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })); }
+  function COMPAGNIES_() { return [['TOUT', 'Toutes']].concat(Object.keys(AMX.compagniesPour('resultats')).map(function (c) { return [c, c]; })); }
 
   var PERIODES = [
     { cle: 'j10', libelle: '10 derniers jours', approx: true, debut: function (b) { return b.j10; } },
@@ -459,7 +459,7 @@
     this.elKpis.classList.toggle('cache', cache);
     if (cache) return;
     if (!this.lignes) {
-      PERIODES.forEach(function () { self.elKpis.appendChild(h('div.kpi.neutre.squelette', { 'aria-hidden': 'true' })); });
+      self.elKpis.appendChild(AMX.chargeur('Résultats'));
       return;
     }
     var b = bornes(), lignes = this.filtrees();

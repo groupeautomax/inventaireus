@@ -240,7 +240,7 @@
     var etat = document.getElementById('inv-etat');
     var enCache = AMX.inventaire.enCache(this.cfg.feuille);
     if (enCache) { this.vehicules = enCache; this.rendre(); }
-    else { this.elListe.innerHTML = ''; for (var i = 0; i < 6; i++) this.elListe.appendChild(h('div.squelette', { style: { height: '64px', marginBottom: '6px' } })); }
+    else { this.elListe.innerHTML = ''; this.elListe.appendChild(AMX.chargeur('Inventaire ' + this.cfg.titre)); }
     if (etat && !enCache) etat.textContent = 'Chargement depuis le serveur…';
     return AMX.inventaire.lire(this.cfg.feuille, force !== false).then(function (liste) {
       if (gen !== self.generation) return;

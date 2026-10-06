@@ -1265,6 +1265,12 @@
       self.rendreSauvegarde();
       self.etat('Évaluation enregistrée pour ce NIV (' + quand + ')' + (data.marche ? ' — prix standard ' + fmt(data.marche.standard) + '.' : '.'));
       AMX.toast('Évaluation enregistrée (NIV ' + vin + ')', 'ok');
+      // Alerte aux directeurs (Notif.gs, 6 oct.) : ce NIV a été évalué dans une autre concession il y a moins de 30 jours.
+      if (d.alerte && d.alerte.ok) {
+        var n = (d.alerte.destinataires || []).length;
+        self.etat('Attention : ce véhicule a aussi été évalué chez ' + (AMX.COMPAGNIES_TOUTES[(d.alerte.concessions || [])[0]] || 'une autre concession') + ' — ' + n + ' directeur' + (n > 1 ? 's' : '') + ' prévenu' + (n > 1 ? 's' : '') + ' (' + (d.alerte.courriels || 0) + ' courriel' + ((d.alerte.courriels || 0) > 1 ? 's' : '') + ', ' + (d.alerte.textos || 0) + ' texto' + ((d.alerte.textos || 0) > 1 ? 's' : '') + ').', 'attention');
+        AMX.toast('Alerte envoyée aux directeurs : même véhicule évalué dans deux concessions (' + (d.alerte.textos || 0) + ' texto' + ((d.alerte.textos || 0) > 1 ? 's' : '') + ', ' + (d.alerte.courriels || 0) + ' courriel' + ((d.alerte.courriels || 0) > 1 ? 's' : '') + ').', 'attention', 8000);
+      }
       history.replaceState(null, '', AMX.lien('outils', 'evaluation', { vin: vin }));
       self.rendreContexte();
     }).catch(function (e) {

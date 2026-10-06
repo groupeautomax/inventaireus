@@ -21,9 +21,9 @@
   var SITE_PUBLIC = 'https://groupeautomax.github.io/inventaireus/';
 
   // Mêmes clés que l'ancien site : une session ouverte reste ouverte.
-  var CLE = { mail: 'pg_utilisateur_v1', nom: 'pg_nom_v1', role: 'pg_role_v1', jeton: 'pg_jeton_v1', perms: 'amx_perms_v1', expire: 'amx_session_expire_v1' };
+  var CLE = { mail: 'pg_utilisateur_v1', nom: 'pg_nom_v1', role: 'pg_role_v1', jeton: 'pg_jeton_v1', perms: 'amx_perms_v1', expire: 'amx_session_expire_v1', tel: 'amx_tel_v1', textos: 'amx_textos_v1' };
 
-  var AMX = window.AMX = { URL: URL_BACKEND, SITE: SITE_PUBLIC, sections: {}, session: { courriel: '', nom: '', role: '', perms: null } };
+  var AMX = window.AMX = { URL: URL_BACKEND, SITE: SITE_PUBLIC, sections: {}, session: { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null } };
 
   // Session (6 oct.) : une connexion vaut 30 jours, sur le site comme dans l'app — c'est le serveur
   // (Auth.gs, AUTH_DUREE_JETON_J) qui tranche ; ici on garde la date pour l'afficher et éviter un aller-retour inutile.
@@ -113,6 +113,7 @@
     admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
     recherche: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
     fermer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    texto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     points: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
@@ -415,6 +416,9 @@
         if (p) {
           ecrire(CLE.nom, p.nom || ''); ecrire(CLE.role, p.role || ''); ecrire(CLE.perms, JSON.stringify(p));
           AMX.session.nom = p.nom || ''; AMX.session.role = p.role || ''; AMX.session.perms = p;
+          // Textos (6 oct.) : le numéro de la personne et l'état du service, pour le menu du compte.
+          if (d.telephone !== undefined) { AMX.session.telephone = String(d.telephone || ''); ecrire(CLE.tel, AMX.session.telephone); }
+          if (d.textos) { AMX.session.textos = d.textos; ecrire(CLE.textos, JSON.stringify(d.textos)); }
           AMX.appliquerPortee();
           document.dispatchEvent(new CustomEvent('amx:profil'));
         }
@@ -423,8 +427,8 @@
   }
 
   AMX.deconnecter = function (message) {
-    [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
-    AMX.session = { courriel: '', nom: '', role: '', perms: null };
+    [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
+    AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
     porte(message || '');
   };
@@ -577,6 +581,8 @@
       h('div.menu', [
         h('div.info', [h('div', { text: AMX.session.nom || '' }), h('div', { text: AMX.session.courriel }), AMX.sessionTexte() ? h('div.doux', { text: AMX.sessionTexte() }) : null]),
         h('div.sep'),
+        AMX.ligneTextos(),
+        h('div.sep'),
         h('button', { type: 'button', text: 'Déconnexion', onclick: function () { AMX.deconnecter(''); } })
       ])
     ]);
@@ -589,8 +595,60 @@
     barre.appendChild(h('span#etat-sync.etat-sync', { title: 'Connecté au serveur' }));
     barre.appendChild(usager);
     brancherRechercheGlobale(rech.querySelector('input'));
-    document.addEventListener('amx:profil', function () { dessinerBarre(); majNav(courante.section ? courante.section.id : ''); });
+    if (!dessinerBarre.branche) { dessinerBarre.branche = true; document.addEventListener('amx:profil', function () { dessinerBarre(); majNav(courante.section ? courante.section.id : ''); }); }
   }
+
+  /* ------------------------------ Textos (6 oct.) ------------------------------
+     Chacun inscrit son propre cellulaire depuis le menu du compte : c'est là qu'arrivent
+     les alertes aux directeurs (même véhicule évalué dans deux concessions) en plus du
+     courriel. Le serveur garde le numéro dans la colonne L de la feuille Utilisateurs
+     (POST monTelephone, Notif.gs) ; l'app ScanAutomax a le même réglage. */
+  AMX.telephoneTexte = function (brut) {
+    var s = String(brut || '').replace(/\D/g, '');
+    if (s.length === 11 && s.charAt(0) === '1') s = s.slice(1);
+    return s.length === 10 ? s.slice(0, 3) + ' ' + s.slice(3, 6) + ' ' + s.slice(6) : String(brut || '');
+  };
+  AMX.ligneTextos = function () {
+    var tel = AMX.session.telephone || '';
+    var textos = AMX.session.textos;
+    var directeur = AMX.session.role === 'admin' || AMX.session.role === 'proprietaire';
+    var ligne = h('div.textos' + (tel || !directeur ? '' : '.sans'), [
+      h('span', { html: ICONES.texto || '' }),
+      h('span.texte', [
+        h('span.etiquette', { text: directeur ? 'Alertes par texto' : 'Mon cellulaire (textos)' }),
+        h('span.valeur', { text: tel ? AMX.telephoneTexte(tel) : (directeur ? 'Aucun numéro — courriel seulement' : 'Aucun numéro') })
+      ]),
+      h('button.btn.petit', { type: 'button', text: tel ? 'Modifier' : 'Ajouter', onclick: function (e) { e.stopPropagation(); AMX.modifierTextos(); } })
+    ]);
+    if (textos && textos.actif === false) ligne.title = 'Les textos ne sont pas encore activés par l\'administrateur (Admin › Alertes aux directeurs).';
+    return ligne;
+  };
+  AMX.modifierTextos = function () {
+    var champ = h('input.saisie', { type: 'tel', placeholder: '514 555 0123', autocomplete: 'tel', value: AMX.telephoneTexte(AMX.session.telephone || '') });
+    var corps = h('div', [
+      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: (AMX.session.role === 'admin' || AMX.session.role === 'proprietaire') ? 'Directeur : votre cellulaire reçoit les alertes d\'évaluation par texto — quand un même véhicule est évalué dans deux concessions du groupe. Le courriel part toujours.' : 'Votre cellulaire pour les textos du groupe. Les alertes d\'évaluation (même véhicule évalué dans deux concessions) vont aux directeurs seulement.' }),
+      champ,
+      h('p.doux.petit', { style: { margin: '10px 0 0' }, text: '10 chiffres. Laissez vide pour ne plus recevoir de textos.' })
+    ]);
+    AMX.modale({
+      titre: 'Mon numéro pour les textos', corps: corps,
+      boutons: [
+        { texte: 'Annuler' },
+        { texte: 'Enregistrer', classe: 'primaire', action: function () {
+          var brut = champ.value.replace(/[^\d]/g, '');
+          if (brut.length === 11 && brut.charAt(0) === '1') brut = brut.slice(1);
+          if (brut && brut.length !== 10) { champ.style.borderColor = 'var(--rouge)'; champ.focus(); AMX.toast('Numéro : 10 chiffres (ex. 514 555 0123).', 'attention'); return false; }
+          return AMX.post({ action: 'monTelephone', telephone: brut }, { rejouer: true }).then(function (d) {
+            AMX.verifier(d, 'Numéro non enregistré');
+            AMX.session.telephone = brut; ecrire(CLE.tel, brut);
+            document.dispatchEvent(new CustomEvent('amx:profil'));
+            AMX.toast(brut ? 'Textos activés au ' + AMX.telephoneTexte(brut) + '.' : 'Numéro retiré : alertes par courriel seulement.', 'ok');
+          }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); return false; });
+        } }
+      ]
+    });
+    setTimeout(function () { champ.focus(); champ.select(); }, 50);
+  };
   function majNav(id) {
     document.querySelectorAll('#barre nav a').forEach(function (a) { a.classList.toggle('actif', a.dataset.section === id); });
   }
@@ -875,6 +933,8 @@
     if (jeton && mail) {
       AMX.session.courriel = mail; AMX.session.nom = lire(CLE.nom); AMX.session.role = lire(CLE.role);
       try { AMX.session.perms = JSON.parse(lire(CLE.perms) || 'null'); } catch (e) { AMX.session.perms = null; }
+      AMX.session.telephone = lire(CLE.tel) || '';
+      try { AMX.session.textos = JSON.parse(lire(CLE.textos) || 'null'); } catch (e) { AMX.session.textos = null; }
       AMX.appliquerPortee();
       ouvrir();
       chargerProfil();

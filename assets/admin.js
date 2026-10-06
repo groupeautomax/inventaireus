@@ -345,7 +345,7 @@
     this.elPanneau = h('aside.panneau', { style: { display: 'none' } });
     this.elParametres = this.construireParametres();
     this.elAlertes = this.construireAlertes();
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elParametres, this.elAlertes]), this.elPanneau]);
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elAlertes, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -400,6 +400,7 @@
       h('p.doux.petit', { style: { margin: 0 }, text: 'Quand le même véhicule est évalué dans deux concessions du groupe à moins de 30 jours d\'écart, les directeurs généraux des deux concessions (les administrateurs de concession) reçoivent une alerte par courriel — et par texto si leur compte a un numéro de téléphone et qu\'Infobip est configuré ici.' }),
       h('div.ligne-cle', [this.elSmsUrl.champ, this.elSmsCle.champ, this.elSmsFrom.champ, btn, btnRetirer]),
       h('div', [h('span.etiquette', { text: 'Textos : ' }), this.elEtatSms]),
+      this.elCompteTextos = h('div.compte-textos'),
       h('details', [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Compte Infobip (environ 0,01 $ par texto, numéro canadien 1 $/mois)' }), h('ol', [
         h('li', 'portal.infobip.com : ajoutez des fonds (le compte d\'essai ne texte que votre propre numéro), puis Canaux et numéros › Numéros › Acheter un numéro › Canada, SMS, numéro long virtuel.'),
         h('li', 'Outils pour les développeurs › Clés API : créez une clé ; l\'adresse de base (xxxxx.api.infobip.com) est affichée sur la même page.'),
@@ -407,6 +408,21 @@
       ])])
     ];
     return h('div.carte.admin-parametres', [h('div.carte-entete', [h('h2', 'Alertes aux directeurs (textos)')]), h('div.carte-corps', corps)]);
+  };
+  // Qui recevra les textos : compte des numéros inscrits, directeurs sans numéro nommés.
+  VueAdmin.prototype.rendreCompteTextos = function () {
+    if (!this.elCompteTextos) return;
+    AMX.vider(this.elCompteTextos);
+    var liste = (this.utilisateurs || []).filter(estActif);
+    if (!liste.length) return;
+    var avec = liste.filter(function (u) { return u.telephone; });
+    var directeursSans = liste.filter(function (u) { var r = roleConnu(u); return (r === 'admin' || r === 'proprietaire') && !u.telephone; });
+    this.elCompteTextos.appendChild(h('span.puce.texto', { text: pluriel(avec.length, 'compte') + ' avec numéro' }));
+    if (directeursSans.length) {
+      this.elCompteTextos.appendChild(h('span.puce.attention', { title: directeursSans.map(function (u) { return u.nomComplet || u.nom; }).join(', '), text: pluriel(directeursSans.length, 'directeur') + ' sans numéro — courriel seulement' }));
+    } else {
+      this.elCompteTextos.appendChild(h('span.doux.petit', { text: 'Tous les directeurs ont un numéro.' }));
+    }
   };
   VueAdmin.prototype.rendreEtatSms = function (p) {
     AMX.vider(this.elEtatSms);
@@ -631,6 +647,7 @@
       return;
     }
     var liste = this.filtrees(), total = this.utilisateurs.length;
+    this.rendreCompteTextos();
     AMX.vider(this.elCompte);
     this.elCompte.appendChild(h('b', { text: String(liste.length) }));
     this.elCompte.appendChild(document.createTextNode(' ' + (liste.length > 1 ? 'comptes' : 'compte') + (liste.length !== total ? ' sur ' + total : '')));
@@ -647,6 +664,15 @@
     liste.forEach(function (u) { self.elListe.appendChild(self.ligne(u)); });
   };
 
+  // Textos (6 oct.) : un numéro = la personne reçoit les alertes par texto ; un directeur sans numéro est signalé.
+  function telephoneTexte(brut) { return AMX.telephoneTexte ? AMX.telephoneTexte(brut) : String(brut || ''); }
+  function puceTexto(u, role, actif) {
+    if (!actif) return null;
+    var directeur = role === 'admin' || role === 'proprietaire';
+    if (u.telephone) return h('span.puce.texto', { title: directeur ? 'Directeur : reçoit les alertes d\'évaluation par texto au ' + telephoneTexte(u.telephone) : 'Numéro inscrit (' + telephoneTexte(u.telephone) + '). Les alertes d\'évaluation vont aux directeurs seulement.', text: directeur ? 'Texto · alertes évaluation' : 'Texto' });
+    if (directeur) return h('span.puce.attention', { title: 'Directeur sans numéro de cellulaire : il reçoit les alertes d\'évaluation par courriel seulement. Ajoutez son numéro dans le panneau (Téléphone).', text: 'Pas de texto' });
+    return null;
+  }
   // Une ligne = l'état enregistré sur le serveur, plus un repère si un brouillon diffère.
   VueAdmin.prototype.ligne = function (u) {
     var self = this, cle = nomCle(u.nom);
@@ -660,6 +686,7 @@
       verrouille(u) ? h('span.puce', { title: 'Seul le propriétaire peut modifier ou retirer un administrateur.', text: 'Géré par le propriétaire' }) : null,
       (u.concession !== TOUTES && u.acces && Object.keys(accesNorm(u.acces).domaines).length) ? h('span.puce.info', { title: accesTexte(u.acces, this.moiInfo), text: 'Accès +' }) : null,
       u.acheteur ? h('span.puce', { text: 'Acheteur' }) : null,
+      puceTexto(u, role, actif),
       ecarts.length ? h('span.puce.attention', { title: pluriel(ecarts.length, 'droit') + ' différent' + (ecarts.length > 1 ? 's' : '') + ' du rôle : ' + ecarts.join(', '), text: 'Droits personnalisés' }) : null,
       moi ? h('span.puce.info', { text: 'Vous' }) : null,
       !estCourriel(u.nom) ? h('span.puce.alerte', { title: 'Cette ligne du registre n\'est pas une adresse courriel valide.', text: 'Courriel invalide' }) : null,
@@ -751,7 +778,7 @@
         h('div.champ', [h('label', 'Nom'), inpNom]),
         h('div.champ.plein', [h('label', groupe ? 'Concessions — cochez une ou plusieurs' : 'Concession'), champConc]),
         h('div.champ', [h('label', 'Accès'), segActif]),
-        h('div.champ', [h('label', 'Téléphone (textos)'), inpTel]),
+        h('div.champ.champ-texto', [h('label', 'Téléphone (textos)'), inpTel, h('span.aide', { text: (b.role === 'admin' || b.role === 'proprietaire') ? 'Directeur : les alertes d\'évaluation (même véhicule évalué dans deux concessions) arrivent par texto à ce numéro, en plus du courriel.' : 'Les alertes d\'évaluation vont aux directeurs seulement ; ce numéro sert aux autres textos du groupe. Chacun peut aussi inscrire le sien depuis le menu de son compte.' })]),
         h('div.champ.plein', [h('label', 'Note'), inpNote]),
         h('label.case.plein', [cbAcheteur, h('span', 'Acheteur')])
       ])

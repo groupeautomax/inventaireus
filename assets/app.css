@@ -598,3 +598,21 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 @container (max-width: 600px) {
   .ligne.svc { grid-template-columns: 48px minmax(0, 1fr) 36px; }
 }
+
+/* Textos (6 oct.) — ligne « Alertes par texto » du menu du compte */
+.usager .menu .textos { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 12.5px; }
+.usager .menu .textos > span:first-child { width: 18px; height: 18px; color: var(--vert); flex: none; }
+.usager .menu .textos > span:first-child svg { width: 18px; height: 18px; }
+.usager .menu .textos .texte { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.usager .menu .textos .etiquette { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); }
+.usager .menu .textos .valeur { font-weight: 600; color: var(--encre-1); white-space: nowrap; }
+.usager .menu .textos.sans > span:first-child { color: var(--ambre); }
+.usager .menu .textos.sans .valeur { color: var(--ambre); font-weight: 500; }
+.usager .menu .textos .btn.petit { flex: none; width: auto; display: inline-flex; padding: 4px 10px; border-radius: 6px; background: var(--vert); color: #fff; font-size: 11.5px; font-weight: 600; }
+.usager .menu .textos .btn.petit:hover { background: #006e34; }
+.usager .menu .textos.sans .btn.petit { background: var(--ambre); }
+.barre .usager:has(.textos) .menu { min-width: 290px; }
+/* Textos — puces et carte Admin */
+.puce.texto { background: #E6F4EC; color: #0B6B35; border-color: #BFE3CC; }
+.admin-page .compte-textos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.admin-page .champ-texto .aide { display: block; font-size: 11px; color: var(--encre-3); line-height: 1.4; margin-top: 4px; }

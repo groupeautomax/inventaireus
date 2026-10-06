@@ -198,7 +198,7 @@
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; f.alerte = ''; self.rendre(); }, 120) })]);
     // Compagnie
     var seg = h('div.segment.bloc');
-    [['', 'Toutes'], ['STM', 'STM'], ['HAWKS', 'HAWKS']].forEach(function (c) {
+    [['', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })).forEach(function (c) {
       seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } }));
     });
     // Statuts
@@ -519,7 +519,8 @@
       inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sauver(); } });
       return h('div.champ', [h('label', { text: libelle }), bouton ? h('div', { style: { display: 'flex', gap: '6px' } }, [inp, bouton]) : inp]);
     };
-    var selCompagnie = h('select.saisie', { disabled: verrouille || !peutMontants }, [h('option', { value: '', text: '—', selected: !v.compagnie }), h('option', { value: 'STM', text: 'STM', selected: v.compagnie === 'STM' }), h('option', { value: 'HAWKS', text: 'HAWKS', selected: v.compagnie === 'HAWKS' })]);
+    var selCompagnie = h('select.saisie', { disabled: verrouille || !peutMontants }, AMX.optionsCompagnies('—'));
+    selCompagnie.value = AMX.COMPAGNIES[v.compagnie] ? v.compagnie : '';
     selCompagnie.addEventListener('change', function () { self.ecrire({ action: 'setCompagnie', id: v.id, value: selCompagnie.value }, 'Compagnie enregistrée'); });
     var blocInfos = h('div.bloc', [h('h3', 'Informations'),
       h('div.grille.c2', [
@@ -639,7 +640,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, blocRegistre, blocInfos, blocRappel, blocEblock, blocPhotos, blocCarfax, blocLiens, blocGestion
+      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocRegistre, blocInfos, blocRappel, blocEblock, blocPhotos, blocCarfax, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };
@@ -708,7 +709,7 @@
       onglets.forEach(function (o) { barre.appendChild(h('button' + (actif === o[0] ? '.actif' : ''), { type: 'button', text: o[1], onclick: function () { actif = o[0]; dessiner(); } })); });
       if (actif === 'ajout') {
         var ta = h('textarea.saisie', { rows: '7', placeholder: 'Un VIN par ligne.\nFacultatif : VIN, Modèle  (ex. 1GCUDEEL7RZ262077, CHEVROLET Silverado 2024)\nSans modèle, il est décodé automatiquement (NHTSA), avec vérification des rappels.' });
-        var selC = h('select.saisie', [h('option', { value: '', text: 'Compagnie…' }), h('option', { value: 'STM', text: 'STM' }), h('option', { value: 'HAWKS', text: 'HAWKS' })]);
+        var selC = h('select.saisie', AMX.optionsCompagnies('Compagnie…'));
         var selO = h('select.saisie', [h('option', { value: 'Achat', text: 'Achat' }), h('option', { value: 'Échange', text: 'Échange' })]);
         var c = compteur(ta, function (n) { return n + ' véhicule' + (n > 1 ? 's' : '') + ' prêt' + (n > 1 ? 's' : '') + ' à ajouter'; });
         var etat = h('div.doux.petit', { style: { marginTop: '8px' } });
@@ -716,7 +717,7 @@
         btn.addEventListener('click', function () {
           var lignes = lignesVin(ta.value).map(function (l) { var p = l.split(','); return { vin: (p[0] || '').trim().toUpperCase(), modele: p.slice(1).join(',').trim() }; }).filter(function (x) { return x.vin; });
           if (!lignes.length) return;
-          if (!selC.value) { AMX.toast('Choisissez une compagnie (STM ou HAWKS).', 'attention'); selC.focus(); return; }
+          if (!selC.value) { AMX.toast('Choisissez une compagnie (' + Object.keys(AMX.COMPAGNIES).join(', ') + ').', 'attention'); selC.focus(); return; }
           var vus = {}, internes = 0, existants = [];
           var presents = {}; self.vehicules.forEach(function (v) { presents[String(v.vin).toUpperCase()] = true; });
           lignes = lignes.filter(function (x) { if (vus[x.vin]) { internes++; return false; } vus[x.vin] = true; if (presents[x.vin]) { existants.push(x.vin); return false; } return true; });

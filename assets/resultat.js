@@ -29,7 +29,7 @@
   var h = AMX.h, I = AMX.icones;
 
   var SEUIL_ERREUR = 8000;   // |profit| au-delà : erreur de saisie, exclu
-  var COMPAGNIES = [['TOUT', 'Toutes'], ['STM', 'STM'], ['HAWKS', 'HAWKS']];
+  var COMPAGNIES = [['TOUT', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; }));
 
   var PERIODES = [
     { cle: 'j10', libelle: '10 derniers jours', approx: true, debut: function (b) { return b.j10; } },

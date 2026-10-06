@@ -952,8 +952,9 @@
   Evaluation.prototype.preremplirDepuisInventaire = function () {
     var v = this.vinCourant ? AMX.inventaire.parVin(this.vinCourant) : null;
     if (!v) return;
-    if (v.compagnie === 'HAWKS') this.elConcession.value = 'hawkesbury';
-    else if (v.compagnie === 'STM' && (this.elConcession.value === 'hawkesbury' || !this.elConcession.value)) this.elConcession.value = 'stemarie';
+    var cle = AMX.COMPAGNIE_CONCESSION[String(v.compagnie || '').toUpperCase()] || '';
+    if (cle && cle !== 'stemarie') this.elConcession.value = cle;
+    else if (cle === 'stemarie' && (this.elConcession.value === 'hawkesbury' || !this.elConcession.value)) this.elConcession.value = 'stemarie';
   };
 
   Evaluation.prototype.decoderDepuisChamp = function () {

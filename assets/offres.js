@@ -56,7 +56,7 @@
   function marque(modele) { return String(modele || '').trim().split(' ')[0].toUpperCase(); }
   function lienPublic(cle, vin) { return AMX.SITE + 'vitrine/vehicle.html?k=' + encodeURIComponent(cle) + '&vin=' + encodeURIComponent(vin); }
   function nomConcession(id) { return AMX.CONCESSIONS[String(id || '').toLowerCase()] || id || '—'; }
-  function compagnieVersConcession(c) { return { STM: 'stemarie', HAWKS: 'hawkesbury' }[String(c || '').toUpperCase()] || ''; }
+  function compagnieVersConcession(c) { return AMX.COMPAGNIE_CONCESSION[String(c || '').toUpperCase()] || ''; }
 
   /* =================================================================== */
   /*                           OFFRES REÇUES                             */
@@ -103,7 +103,7 @@
       grp.appendChild(h('label.case', [cb, h('span.pastille', { style: { background: 'var(--' + st.couleur + ')' } }), h('span', { text: st.libelle }), h('span.compte', { text: n })]));
     });
     var seg = h('div.segment.bloc');
-    [['', 'Toutes'], ['STM', 'STM'], ['HAWKS', 'HAWKS']].forEach(function (c) { seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } })); });
+    [['', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })).forEach(function (c) { seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } })); });
     this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie du véhicule' }), seg]));
     this.elRail.appendChild(grp);
   };

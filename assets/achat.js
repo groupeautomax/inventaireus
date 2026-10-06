@@ -270,7 +270,7 @@
       h('div.grille.c4', [
         date('f-date', 'Date'),
         champ('f-stock', 'Stock #', { mono: true }),
-        selection('f-compagnie', 'Compagnie', [['HAWKS', 'HAWKS'], ['STM', 'STM']]),
+        selection('f-compagnie', 'Compagnie', [['HAWKS', 'HAWKS'], ['STM', 'STM'], ['BMW', 'BMW']]),
         selection('f-destination', 'Destination inventaire', [['DETAIL', 'Detail'], ['US', 'É.-U.'], ['CAN', 'Canada']]),
         champ('f-niv', 'NIV', { mono: true, vin: true, placeholder: 'Numéro d\'identification' }),
         champ('f-marque', 'Marque'),
@@ -614,7 +614,7 @@
   // Nouvelle fiche d'un véhicule déjà au registre : compagnie, destination et stock proposés.
   Fiche.prototype.preremplirDepuisRegistre = function (v) {
     var change = false;
-    if (v.compagnie && !valeur('f-compagnie') && (v.compagnie === 'STM' || v.compagnie === 'HAWKS')) { val('f-compagnie', v.compagnie); change = true; }
+    if (v.compagnie && !valeur('f-compagnie') && AMX.COMPAGNIES[v.compagnie]) { val('f-compagnie', v.compagnie); change = true; }
     if (v._feuille && !valeur('f-destination') && AMX.FEUILLES.indexOf(v._feuille) >= 0) { val('f-destination', v._feuille); change = true; }
     if (v.stock && !valeur('f-stock')) { val('f-stock', v.stock); change = true; }
     if (change) this.basculerExport();

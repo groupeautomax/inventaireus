@@ -5,6 +5,7 @@
 
    Routes serveur utilisées (inchangées) :
      GET  ?ficheVin=VIN         → { trouve, donnees, dateMaj }
+     GET  ?evalVin=VIN          → { trouve, donnees, dateMaj }   (évaluation du NIV — Outils › Évaluation)
      GET  ?checkStatutVin=VIN   → { statut, vin, modele, compagnie, stock, feuille|source }
      POST { action: 'add', sheet, vin, modele, compagnie }   (VIN absent des registres)
      POST { action: 'saveFiche', vin, data }                 → { dateMaj }
@@ -13,6 +14,17 @@
 
    Les ids de champs (f-*, c-*) sont imposés par le backend : les clés des
    données enregistrées sont exactement ces ids, plus `_coutantTotal`.
+
+   Lien avec l'évaluation (Maxime, 6 oct.) : « on doit pouvoir transférer une
+   évaluation en fiche d'achat pour après l'envoyer dans l'inventaire ; et si
+   on remplit une fiche d'achat et que le NIV existe dans l'évaluation, le
+   système doit le dire et demander d'importer. »
+   → Dès qu'un NIV complet est connu (chargé, tapé ou reçu de l'évaluation),
+     la fiche interroge ?evalVin= ; si une évaluation existe, une bannière le
+     dit (véhicule, km, prix payé / vente, évaluée quand et par qui) avec
+     « Importer dans la fiche » (remplit seulement les cases vides) et « Voir
+     l'évaluation ». Arrivée depuis l'évaluation (#/achat?vin=…&source=evaluation),
+     l'import se fait tout seul pour une nouvelle fiche.
    ========================================================================= */
 (function () {
   'use strict';
@@ -46,7 +58,7 @@
     var s = document.createElement('style');
     s.id = 'css-achat';
     s.textContent = [
-      '.achat-page .carte, .achat-page .resume-sombre, .achat-page .achat-verrou { margin-bottom: 14px; }',
+      '.achat-page .carte, .achat-page .resume-sombre, .achat-page .achat-verrou, .achat-page .achat-eval { margin-bottom: 14px; }',
       '.achat-page .achat-pile { display: flex; flex-direction: column; gap: 12px; }',
       '.achat-page textarea.achat-dommages { color: var(--rouge); font-weight: 600; border-color: var(--rouge-bg); background: var(--rouge-bg); }',
       '.achat-page textarea.achat-dommages::placeholder { color: var(--encre-4); font-weight: 400; }',
@@ -72,6 +84,9 @@
       '.achat-page .achat-total .l { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
       '.achat-page .achat-total b { font-size: 18px; font-variant-numeric: tabular-nums; }',
       '.achat-page .achat-verrou { align-items: center; flex-wrap: wrap; }',
+      '.achat-page .achat-eval { align-items: center; flex-wrap: wrap; gap: 10px; }',
+      '.achat-page .achat-eval .texte b { display: block; margin-bottom: 2px; }',
+      '.achat-page .achat-eval .actions-ligne { display: flex; gap: 6px; flex-wrap: wrap; }',
       '.achat-page .achat-verrou .texte { flex: 1 1 260px; }',
       '.achat-page .achat-verrou .texte b { display: block; margin-bottom: 2px; }',
       '.achat-page .achat-verrou.ferme { background: var(--prune-bg); border-color: var(--prune-bord); color: var(--prune); }',
@@ -170,6 +185,9 @@
     this.contexte = null;       // véhicule tel que renvoyé par checkStatutVin
     this.contexteVerifie = false;
     this.decode = null;         // { vin, make, model, year } (NHTSA)
+    this.evaluation = null;     // { vin, donnees, dateMaj } — évaluation existante pour le NIV courant
+    this.evalVerifiee = '';     // dernier NIV interrogé auprès des évaluations
+    this.source = '';           // d'où on arrive (eblock, evaluation)
     this.generation = 0;
 
     this.construire();
@@ -200,6 +218,7 @@
       var pre = {}; cles.forEach(function (k) { pre[k] = String(p[k] || ''); });
       this.prerempli = pre;
     }
+    this.source = String(p.source || '');
     return p.vin ? String(p.vin).trim() : '';
   };
 
@@ -251,6 +270,9 @@
       h('div.achat-lookup', [h('div.champ', [h('label', { 'for': 'vin-lookup', text: 'Lien avec le registre — NIV à charger' }), this.elLookup]), this.btnCharger]),
       this.elContexte
     ])]);
+
+    // Bannière « une évaluation existe pour ce NIV » (importer / voir)
+    this.elEval = h('div.alerte-bloc.info.achat-eval.noprint.cache');
 
     // Bannière de verrouillage (dossier comptabilisé)
     this.elVerrou = h('div.alerte-bloc.achat-verrou.noprint.cache');
@@ -374,7 +396,7 @@
     this.elFiche = h('div.achat-fiche', [identification, provenance, couts, statut, vente, livraison]);
     var note = h('p.doux.petit.noprint.achat-note', 'Le coûtant total additionne tous les champs de coûts et les PAD cochés. Le prix de vente retenu dépend de la destination : prix de vente estimé (É.-U.), wholesale (Canada) ou prix détail (Detail).');
 
-    this.elPage = h('div.page.etroite.achat-page', [entete, lookup, this.elVerrou, resume, this.elFiche, note]);
+    this.elPage = h('div.page.etroite.achat-page', [entete, lookup, this.elEval, this.elVerrou, resume, this.elFiche, note]);
     this.conteneur.appendChild(this.elPage);
 
     // Liaisons : tout changement recalcule ; la destination bascule les blocs.
@@ -391,7 +413,91 @@
         if (vin !== self.vinVerifie) self.verifierVerrouillage(vin, false);
       }
       if (vin.length >= 11 && !(self.decode && self.decode.vin === vin)) self.decoderVin(vin);
+      // NIV complet tapé à la main : y a-t-il une évaluation ? On le dit.
+      if (vin.length === 17 && vin.toUpperCase() !== self.evalVerifiee) self.verifierEvaluation(vin, false);
     });
+  };
+
+  /* --------------------- Lien avec l'évaluation ------------------------- */
+  // Correspondance évaluation → fiche (seulement les cases vides sont remplies).
+  var EVAL_VERS_FICHE = [
+    ['marque', 'f-marque'], ['modele', 'f-modele'], ['annee', 'f-annee'], ['km', 'f-km'],
+    ['prixAchat', 'f-prixachat'],      // prix d'achat (enchère / vendeur)
+    ['frais', 'f-fraisautres'],        // frais estimés à l'évaluation → « Frais autres » (à ventiler au besoin)
+    ['recon', 'f-service'],            // reconditionnement estimé → « Service / Pré-safety »
+    ['prixVente', 'f-prixdetail'],     // prix de vente visé → prix détail
+    ['prixVente', 'f-coutestime']      // … et « Prix de détail » du bloc vente
+  ];
+  function resumeEvaluation(d) {
+    d = d || {};
+    var veh = [d.annee, d.marque, d.modele, d.version].filter(Boolean).join(' ');
+    var bouts = [];
+    if (veh) bouts.push(veh);
+    if (d.km) bouts.push(AMX.fmtNombre(parseInt(String(d.km).replace(/[^0-9]/g, ''), 10) || 0) + ' km');
+    if (d.prixPaye || d.prixAchat) bouts.push('payé ' + AMX.fmtArgent(parseFloat(d.prixPaye || d.prixAchat) || 0, 0));
+    if (d.prixVente) bouts.push('vente visée ' + AMX.fmtArgent(parseFloat(d.prixVente) || 0, 0));
+    if (d.marche && d.marche.standard) bouts.push('marché ' + AMX.fmtArgent(d.marche.standard, 0));
+    return bouts.join(' · ');
+  }
+
+  // Interroge les évaluations pour ce NIV ; `importer` = remplir tout de suite (arrivée depuis l'évaluation).
+  Fiche.prototype.verifierEvaluation = function (vin, importer) {
+    var self = this;
+    vin = String(vin || '').trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { this.evaluation = null; this.rendreEvaluation(); return Promise.resolve(); }
+    this.evalVerifiee = vin;
+    return AMX.get('evalVin=' + encodeURIComponent(vin)).then(function (d) {
+      if (String(self.vinCourant || '').toUpperCase() !== vin) return;
+      self.evaluation = (d && d.trouve) ? { vin: vin, donnees: d.donnees || {}, dateMaj: d.dateMaj || '' } : null;
+      if (self.evaluation && importer) self.importerEvaluation(true);
+      self.rendreEvaluation();
+    }).catch(function () { self.evalVerifiee = ''; });
+  };
+
+  Fiche.prototype.rendreEvaluation = function () {
+    var self = this, ev = this.evaluation;
+    AMX.vider(this.elEval);
+    if (!ev || this.verrouillee) { this.elEval.classList.add('cache'); return; }
+    var d = ev.donnees || {};
+    var qui = d._enregistrePar || d._par || '';
+    var quand = ev.dateMaj || d._le || '';
+    var manquants = EVAL_VERS_FICHE.filter(function (m) { var v = d[m[0]]; var e = el(m[1]); return v !== undefined && v !== null && String(v).trim() !== '' && e && !String(e.value || '').trim(); }).length;
+    this.elEval.classList.remove('cache');
+    this.elEval.appendChild(h('span', { html: I.info }));
+    this.elEval.appendChild(h('div.texte', { style: { flex: '1 1 260px' } }, [
+      h('b', { text: 'Une évaluation existe pour ce NIV' + (ev.importee ? ' — importée dans la fiche' : '') }),
+      h('span', { text: resumeEvaluation(d) + (quand ? ' · évaluée le ' + AMX.fmtDate(quand, true) : '') + (qui ? ' par ' + String(qui).split('@')[0] : '') + (ev.importee ? '.' : (manquants ? '. ' + manquants + ' case(s) de la fiche peuvent être remplies à partir d\'elle.' : '. Toutes les cases correspondantes sont déjà remplies.')) })
+    ]));
+    var actions = h('div.actions-ligne');
+    if (!ev.importee && manquants) actions.appendChild(h('button.btn.primaire.petit', { type: 'button', html: I.ok + '<span>Importer dans la fiche</span>', onclick: function () { self.importerEvaluation(false); } }));
+    actions.appendChild(h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: ev.vin }), text: 'Voir l\'évaluation' }));
+    this.elEval.appendChild(actions);
+  };
+
+  // Remplit les cases vides de la fiche avec l'évaluation ; propose compagnie et destination Detail.
+  Fiche.prototype.importerEvaluation = function (silencieux) {
+    var ev = this.evaluation; if (!ev) return;
+    var d = ev.donnees || {}, n = 0, libelles = [];
+    EVAL_VERS_FICHE.forEach(function (m) {
+      var v = d[m[0]], e = el(m[1]);
+      if (v === undefined || v === null || String(v).trim() === '' || !e || String(e.value || '').trim()) return;
+      if (m[1] === 'f-annee' || m[1] === 'f-km') v = String(v).replace(/[^0-9]/g, '');
+      else if (/^f-(prixachat|fraisautres|service|prixdetail|coutestime)$/.test(m[1])) { v = String(v).replace(/[^0-9.,-]/g, '').replace(',', '.'); if (!v || isNaN(parseFloat(v))) return; v = String(Math.round(parseFloat(v) * 100) / 100); }
+      e.value = v; n++;
+      if (m[1] === 'f-fraisautres') libelles.push('frais → « Frais autres »');
+      else if (m[1] === 'f-service') libelles.push('recon → « Service / Pré-safety »');
+    });
+    // Concession de l'évaluation → compagnie ; une évaluation vise le détail.
+    var compagnie = '';
+    Object.keys(AMX.COMPAGNIE_CONCESSION || {}).forEach(function (c) { if (AMX.COMPAGNIE_CONCESSION[c] === d.concession) compagnie = c; });
+    if (compagnie && !valeur('f-compagnie')) { val('f-compagnie', compagnie); n++; }
+    if (!valeur('f-destination')) { val('f-destination', 'DETAIL'); n++; }
+    if (!valeur('f-date')) val('f-date', new Date().toISOString().slice(0, 10));
+    ev.importee = true;
+    this.basculerExport();
+    this.recalculer();
+    this.rendreEvaluation();
+    if (!silencieux || n) AMX.toast(n ? 'Évaluation importée : ' + n + ' case(s) remplie(s)' + (libelles.length ? ' (' + libelles.join(', ') + ')' : '') + '. Vérifiez, complétez, puis enregistrez : le véhicule ira à l\'inventaire.' : 'Rien à importer : les cases correspondantes sont déjà remplies.', n ? 'ok' : 'attention', 8000);
   };
 
   /* ------------------------------ Calculs ------------------------------ */
@@ -561,11 +667,15 @@
       }
       val('f-niv', vin);
       self.vinCourant = vin; self.contexte = null; self.contexteVerifie = false; self.decode = null;
+      self.evaluation = null; self.evalVerifiee = ''; self.rendreEvaluation();
       self.rendreContexte();
       self.appliquerPrerempli();
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];
       if (vin.length >= 11) taches.push(self.decoderVin(vin));
+      // Évaluation existante ? Arrivée depuis l'évaluation sur une nouvelle fiche : import direct.
+      var depuisEval = self.source === 'evaluation'; self.source = '';
+      taches.push(self.verifierEvaluation(vin, depuisEval && self.nouvelle));
       return Promise.all(taches);
     }).catch(function (e) {
       if (gen !== self.generation) return;
@@ -666,6 +776,7 @@
     this.btnTaux.disabled = this.verrouillee;
     this.btnEnregistrer.disabled = this.verrouillee;
     this.elPage.classList.toggle('achat-verrouille', this.verrouillee);
+    if (this.elEval) this.rendreEvaluation();
 
     AMX.vider(this.elVerrou);
     this.elVerrou.className = 'alerte-bloc achat-verrou noprint';
@@ -794,6 +905,7 @@
       self.elLookup.value = '';
       self.vinCharge = ''; self.vinCourant = ''; self.vinVerifie = '';
       self.nouvelle = true; self.contexte = null; self.contexteVerifie = false; self.decode = null;
+      self.evaluation = null; self.evalVerifiee = ''; self.rendreEvaluation();
       self.rendreContexte();
       self.basculerExport();
       self.etat('Fiche vide. Entrez un NIV pour charger une fiche existante ou en créer une nouvelle.');

@@ -266,26 +266,59 @@
   }
   function attendre(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  // GET avec reprise (Apps Script renvoie parfois un 404 HTML passager).
+  // GET avec reprise et requête de secours. Apps Script (/exec) a deux
+  // humeurs : un 404 HTML passager, et une requête qui reste « en attente »
+  // 20 à 60 s alors que la même, relancée, répond en 3 s (mesuré le 6 oct. :
+  // 2 à 4 s côté script, 12 à 30 s vus du navigateur). Donc : chaque tentative
+  // a une durée maximale (GET_DELAI_MS), un 404 est repris tout de suite, et si
+  // rien n'est arrivé après GET_SECOURS_MS une deuxième tentative part en
+  // parallèle — la première réponse valable gagne, l'autre est annulée. Un GET
+  // ne modifie rien : le doublon est sans danger.
+  var GET_DELAI_MS = 25000, GET_SECOURS_MS = 6000;
   AMX.get = function (params, opts) {
     opts = opts || {};
     var q = typeof params === 'string' ? params : Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
-    var url = URL_BACKEND + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&_=' + Date.now();
+    var base = URL_BACKEND + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton));
     enCours++; majEtat(false);
-    var essais = opts.essais === undefined ? 3 : opts.essais;
-    var tenter = function (reste) {
-      return _fetch(url, { method: 'GET', cache: 'no-store' }).then(function (r) {
+    var essais = opts.essais === undefined ? 4 : opts.essais;
+    var delai = opts.delai || GET_DELAI_MS;
+    var aborts = [];
+    var unAppel = function () {
+      var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      if (ctrl) aborts.push(ctrl);
+      var minuterie = ctrl ? setTimeout(function () { ctrl.abort(); }, delai) : null;
+      var fin = function () { if (minuterie) clearTimeout(minuterie); };
+      return _fetch(base + '&_=' + Date.now() + Math.floor(Math.random() * 1000), { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
       }).then(function (t) {
+        fin();
         var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); }
         return d;
-      }).catch(function (err) {
-        if (reste <= 0) throw err;
-        return attendre(700 * (essais - reste + 1)).then(function () { return tenter(reste - 1); });
-      });
+      }, function (err) { fin(); throw (err && err.name === 'AbortError') ? new Error('Pas de réponse en ' + Math.round(delai / 1000) + ' s') : err; });
     };
-    return tenter(essais).then(function (d) {
+    var course = new Promise(function (resolve, reject) {
+      var restants = essais, enVol = 0, fini = false, derniere = null, secours = null;
+      var lancer = function () {
+        if (fini || restants <= 0) return;
+        restants--; enVol++;
+        unAppel().then(function (d) {
+          if (fini) return;
+          fini = true; if (secours) clearTimeout(secours);
+          aborts.forEach(function (c) { try { c.abort(); } catch (e) {} });
+          resolve(d);
+        }, function (err) {
+          enVol--;
+          if (fini) return;
+          derniere = err;
+          if (restants > 0) setTimeout(lancer, /HTTP 404/.test(String(err && err.message)) ? 250 : 700);
+          else if (enVol === 0) { fini = true; reject(derniere); }
+        });
+      };
+      lancer();
+      secours = setTimeout(function () { if (!fini) lancer(); }, opts.secours || GET_SECOURS_MS);
+    });
+    return course.then(function (d) {
       enCours--; majEtat(false);
       if (surRefus(d)) throw new Error('Session expirée');
       return d;
@@ -324,7 +357,8 @@
     if (p[cle] !== undefined) return !!p[cle];
     return AMX.session.role === 'admin';
   };
-  AMX.estAdmin = function () { return AMX.session.role === 'admin' || AMX.perm('gererUtilisateurs'); };
+  AMX.estAdmin = function () { return AMX.session.role === 'admin' || AMX.session.role === 'proprietaire' || AMX.perm('gererUtilisateurs'); };
+  AMX.estProprietaire = function () { return AMX.session.role === 'proprietaire' || AMX.perm('gererAdmins'); };
 
   function chargerProfil() {
     return _fetch(URL_BACKEND + '?permissions=1&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&utilisateur=' + encodeURIComponent(lire(CLE.mail)) + '&_=' + Date.now())
@@ -335,6 +369,7 @@
         if (p) {
           ecrire(CLE.nom, p.nom || ''); ecrire(CLE.role, p.role || ''); ecrire(CLE.perms, JSON.stringify(p));
           AMX.session.nom = p.nom || ''; AMX.session.role = p.role || ''; AMX.session.perms = p;
+          AMX.appliquerPortee();
           document.dispatchEvent(new CustomEvent('amx:profil'));
         }
         return p;
@@ -673,13 +708,44 @@
     return s;
   };
   AMX.badgeStatut = function (id, feuille) { var s = AMX.statut(id, feuille); return h('span.badge.' + s.couleur, { text: s.libelle }); };
-  AMX.COMPAGNIES = { STM: 'Ste-Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke' };
+  // Les cinq concessions du groupe (6 oct.) : STM, HAWKS, BMW, VW, HYUNDAI.
+  AMX.COMPAGNIES_TOUTES = { STM: 'Ste-Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil' };
   // Compagnie du registre → clé de concession (contrats, évaluation, offres).
-  AMX.COMPAGNIE_CONCESSION = { STM: 'stemarie', HAWKS: 'hawkesbury', BMW: 'bmwsherbrooke' };
-  AMX.optionsCompagnies = function (vide) { var l = vide ? [h('option', { value: '', text: vide })] : []; Object.keys(AMX.COMPAGNIES).forEach(function (c) { l.push(h('option', { value: c, text: c })); }); return l; };
-  AMX.CONCESSIONS = {
+  AMX.COMPAGNIE_CONCESSION = { STM: 'stemarie', HAWKS: 'hawkesbury', BMW: 'bmwsherbrooke', VW: 'vwbrossard', HYUNDAI: 'hyundailongueuil' };
+  AMX.CONCESSIONS_TOUTES = {
     stemarie: 'Ste Marie Automobiles Ltée', hawkesbury: 'Hawkesbury Chevrolet Buick Cadillac', vwbrossard: 'VW Brossard', bmwsherbrooke: 'BMW Sherbrooke', hyundailongueuil: 'Hyundai Longueuil'
   };
+  // Portée (Maxime, 6 oct.) : « chaque concession voit uniquement les informations
+  // de sa concession ». Le serveur filtre tout ; ici on limite les sélecteurs et
+  // les filtres à ce que le compte peut choisir (perms.concessions, perms.toutes).
+  // AMX.COMPAGNIES / AMX.CONCESSIONS sont les listes VISIBLES ; les modules les
+  // lisent au rendu, donc elles suivent le profil (amx:profil).
+  AMX.COMPAGNIES = Object.assign({}, AMX.COMPAGNIES_TOUTES);
+  AMX.CONCESSIONS = Object.assign({}, AMX.CONCESSIONS_TOUTES);
+  AMX.appliquerPortee = function () {
+    // Listes du domaine « inventaire » (sa concession, ses accès entiers, ses accès inventaire) ;
+    // les autres domaines passent par AMX.compagniesPour / AMX.concessionsPour ci-dessous.
+    AMX.COMPAGNIES = AMX.compagniesPour('inventaire'); AMX.CONCESSIONS = AMX.concessionsPour('inventaire');
+  };
+  AMX.estGroupe = function () { var p = AMX.session.perms; return !p || p.toutes !== false; };
+  AMX.maConcession = function () { var p = AMX.session.perms; return (p && !p.toutes && p.concession) ? p.concession : ''; };
+  // Accès supplémentaires (6 oct., soir) : perms.portees = { inventaire | evaluations | resultats | service : '*' | [codes] }.
+  // Un compte limité à sa concession peut voir d'autres concessions en entier, ou un
+  // seul domaine (ex. Maxime Fabian : toutes les évaluations du groupe). Les pages qui
+  // ont leur domaine lisent ces listes au lieu de AMX.COMPAGNIES / AMX.CONCESSIONS.
+  AMX.DOMAINES = ['inventaire', 'evaluations', 'resultats', 'service'];
+  AMX.codesPour = function (domaine) {
+    var p = AMX.session.perms, tous = Object.keys(AMX.COMPAGNIES_TOUTES);
+    if (!p || p.toutes !== false) return tous;
+    var v = p.portees && p.portees[domaine];
+    if (v === '*') return tous;
+    var codes = (v && v.length) ? v : (p.concessions && p.concessions.length ? p.concessions : (p.concession ? [p.concession] : tous));
+    return codes.filter(function (c) { return AMX.COMPAGNIES_TOUTES[c]; });
+  };
+  AMX.compagniesPour = function (domaine) { var o = {}; AMX.codesPour(domaine).forEach(function (c) { o[c] = AMX.COMPAGNIES_TOUTES[c]; }); return o; };
+  AMX.concessionsPour = function (domaine) { var o = {}; AMX.codesPour(domaine).forEach(function (c) { var k = AMX.COMPAGNIE_CONCESSION[c]; if (k) o[k] = AMX.CONCESSIONS_TOUTES[k]; }); return o; };
+  AMX.estGroupePour = function (domaine) { return AMX.codesPour(domaine).length === Object.keys(AMX.COMPAGNIES_TOUTES).length; };
+  AMX.optionsCompagnies = function (vide) { var l = vide ? [h('option', { value: '', text: vide })] : []; Object.keys(AMX.COMPAGNIES).forEach(function (c) { l.push(h('option', { value: c, text: c })); }); return l; };
   AMX.STATUTS_OFFRE = {
     nouvelle: { libelle: 'À traiter', couleur: 'ambre' }, contre: { libelle: 'Contre-offre', couleur: 'violet' },
     acceptee: { libelle: 'Acceptée', couleur: 'bleu' }, contrat: { libelle: 'Contrat signé', couleur: 'vert' },
@@ -742,6 +808,7 @@
     if (jeton && mail) {
       AMX.session.courriel = mail; AMX.session.nom = lire(CLE.nom); AMX.session.role = lire(CLE.role);
       try { AMX.session.perms = JSON.parse(lire(CLE.perms) || 'null'); } catch (e) { AMX.session.perms = null; }
+      AMX.appliquerPortee();
       ouvrir();
       chargerProfil();
     } else {

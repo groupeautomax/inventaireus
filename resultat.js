@@ -29,7 +29,8 @@
   var h = AMX.h, I = AMX.icones;
 
   var SEUIL_ERREUR = 8000;   // |profit| au-delà : erreur de saisie, exclu
-  var COMPAGNIES = [['TOUT', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; }));
+  // Calculé au rendu (pas au chargement) : la liste visible dépend du compte (portée, 6 oct.).
+  function COMPAGNIES_() { return [['TOUT', 'Toutes']].concat(Object.keys(AMX.compagniesPour('resultats')).map(function (c) { return [c, c]; })); }
 
   var PERIODES = [
     { cle: 'j10', libelle: '10 derniers jours', approx: true, debut: function (b) { return b.j10; } },
@@ -306,7 +307,7 @@
     this.enChargement = false; this.generation = 0; this.detruit = false;
 
     this.compagnie = AMX.memo.lire('resultat_cie', 'TOUT');
-    if (!trouver(COMPAGNIES.map(function (c) { return { cle: c[0] }; }), this.compagnie)) this.compagnie = 'TOUT';
+    if (!trouver(COMPAGNIES_().map(function (c) { return { cle: c[0] }; }), this.compagnie)) this.compagnie = 'TOUT';
     this.periode = null;         // cle de la période ouverte (liste des véhicules)
     this.regroupement = AMX.memo.lire('resultat_regroupement', 'marque');
     if (!trouver(REGROUPEMENTS, this.regroupement)) this.regroupement = 'marque';
@@ -338,7 +339,7 @@
     this.elEtat = h('p', { text: 'Chargement des registres de ventes…' });
     this.btnsCie = {};
     this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Compagnie' });
-    COMPAGNIES.forEach(function (c) {
+    COMPAGNIES_().forEach(function (c) {
       var b = h('button', { type: 'button', text: c[1], onclick: function () { self.changerCompagnie(c[0]); } });
       self.btnsCie[c[0]] = b;
       self.elSegment.appendChild(b);

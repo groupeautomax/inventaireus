@@ -51,7 +51,8 @@
     charger: function (force) {
       if (!force && cache.reponse && Date.now() - cache.quand < 60000) return Promise.resolve(cache.reponse);
       if (promesse) return promesse;
-      promesse = AMX.get({ service: 1, tout: 1 }).then(function (d) {
+      // force (bouton Rafraîchir, après une écriture) : frais=1 saute le cache serveur (120 s).
+      promesse = AMX.get(force ? { service: 1, tout: 1, frais: 1 } : { service: 1, tout: 1 }).then(function (d) {
         AMX.verifier(d, 'Suivi service indisponible');
         cache.reponse = d; cache.quand = Date.now(); promesse = null;
         document.dispatchEvent(new CustomEvent('amx:service'));
@@ -146,7 +147,8 @@
     this.charger();
     this.surService = function () { self.suivis = AMX.service.enCache() || self.suivis; self.construireRail(); self.rendre(); AMX.rafraichirSousBarre(); };
     document.addEventListener('amx:service', this.surService);
-    this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) self.charger(true); }, 120000);
+    // Rafraîchissement périodique : sans frais=1 (le cache serveur suffit, il est vidé à chaque écriture).
+    this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) self.charger(); }, 120000);
   }
   Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: '', etapes: null, retard: false }; };
   Suivi.prototype.demonter = function () { clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); };
@@ -186,7 +188,7 @@
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock, BT', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendre(); }, 120) })]);
     var seg = h('div.segment.bloc');
-    [['', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })).forEach(function (c) {
+    [['', 'Toutes']].concat(Object.keys(AMX.compagniesPour('service')).map(function (c) { return [c, c]; })).forEach(function (c) {
       seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } }));
     });
     this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
@@ -321,9 +323,9 @@
     var auDetail = f.compagnie ? ((resume.parCompagnie || {})[f.compagnie] || {}).auDetail : resume.auDetail;
     if (auDetail === undefined || auDetail === null) auDetail = tous.filter(function (s) { return s.statut !== 'refuse' && s.dansRegistre !== false; }).length;
     var parStatut = resume.registreParStatut || {};
-    var sousDetail = f.compagnie ? 'registre Detail · ' + AMX.COMPAGNIES[f.compagnie] : (parStatut.achete || parStatut.stock ? (parStatut.achete || 0) + ' acheté' + ((parStatut.achete || 0) > 1 ? 's' : '') + ' · ' + (parStatut.stock || 0) + ' en stock' : 'registre Detail');
+    var sousDetail = f.compagnie ? 'registre Detail · ' + AMX.COMPAGNIES_TOUTES[f.compagnie] : (parStatut.achete || parStatut.stock ? (parStatut.achete || 0) + ' acheté' + ((parStatut.achete || 0) > 1 ? 's' : '') + ' · ' + (parStatut.stock || 0) + ' en stock' : 'registre Detail');
     this.elKpis.appendChild(kpi(auDetail, 'Au détail', { classe: 'neutre', sous: sousDetail, onclick: function () { AMX.aller('inventaire', 'detail'); } }));
-    this.elKpis.appendChild(kpi(enCours.length, 'En reconditionnement', { sous: f.compagnie ? AMX.COMPAGNIES[f.compagnie] : 'Toutes compagnies', actif: this.onglet === 'encours' && !f.retard, onclick: function () { f.retard = false; f.etapes = null; AMX.aller('service', 'encours'); } }));
+    this.elKpis.appendChild(kpi(enCours.length, 'En reconditionnement', { sous: f.compagnie ? AMX.COMPAGNIES_TOUTES[f.compagnie] : 'Toutes compagnies', actif: this.onglet === 'encours' && !f.retard, onclick: function () { f.retard = false; f.etapes = null; AMX.aller('service', 'encours'); } }));
     this.elKpis.appendChild(kpi(aAutoriser, 'Direction', { classe: aAutoriser ? 'attention' : '', sous: 'à vérifier / autoriser', actif: this.onglet === 'autoriser', onclick: function () { AMX.aller('service', 'autoriser'); } }));
     this.elKpis.appendChild(kpi(enRetard, 'En retard', { classe: enRetard ? 'alerte' : '', sous: 'cible ' + cibles.total + ' j', actif: f.retard, onclick: function () { f.retard = !f.retard; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.rendre(); } }));
     this.elKpis.appendChild(kpi(moy === null ? '—' : moy + ' j', 'Moyenne → ligne', { classe: 'neutre', sous: prets.length ? 'sur ' + prets.length + ' prêt' + (prets.length > 1 ? 's' : '') + ' (30 j)' : 'aucun prêt (30 j)' }));
@@ -339,7 +341,7 @@
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     var puces = [];
     if (f.retard) puces.push(['En retard', function () { f.retard = false; }]);
-    if (f.compagnie) puces.push([AMX.COMPAGNIES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
+    if (f.compagnie) puces.push([AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
     if (f.etapes) puces.push([f.etapes.length + ' étape(s)', function () { f.etapes = null; }]);
     if (f.recherche) puces.push(['« ' + f.recherche + ' »', function () { f.recherche = ''; }]);
     puces.forEach(function (p) { var b = h('button.puce.info', { type: 'button', title: 'Retirer ce filtre', html: esc(p[0]) + ' ✕' }); b.addEventListener('click', function () { p[1](); self.construireRail(); self.rendre(); }); self.elOutils.appendChild(b); });
@@ -399,7 +401,7 @@
     this.elPanneau.style.display = '';
     var st = STATUTS[s.statut] || STATUTS.encours;
     var peutEtape = AMX.perm('changerStatut');
-    var directeur = AMX.perm('modifierMontants') || AMX.session.role === 'admin' || AMX.session.role === 'gestionnaire';
+    var directeur = AMX.perm('modifierMontants') || AMX.session.role === 'admin' || AMX.session.role === 'proprietaire' || AMX.session.role === 'gestionnaire';
     var peutAutoriser = directeur;
     var accepte = s.autorisation.decision === 'accepte', refuse = s.autorisation.decision === 'refuse';
     var idxPorte = indexEtape('autorisation', etapes);
@@ -583,7 +585,7 @@
     var blocVehicule = h('div.bloc', [h('h3', 'Véhicule'),
       h('dl.kv.serre', [
         h('dt', '# stock'), h('dd', { text: s.stock || '—' }),
-        h('dt', 'Compagnie'), h('dd', { text: (AMX.COMPAGNIES[s.compagnie] || s.compagnie || '—') }),
+        h('dt', 'Compagnie'), h('dd', { text: (AMX.COMPAGNIES_TOUTES[s.compagnie] || s.compagnie || '—') }),
         h('dt', 'Registre'), h('dd', [s.dansRegistre ? AMX.badgeStatut(s.statutVehicule, 'DETAIL') : h('span.puce.attention', { text: 'absent du registre Detail' })]),
         h('dt', 'Acheté le'), h('dd', { text: s.dateAjout ? AMX.fmtDate(s.dateAjout) + ' (' + AMX.joursDepuis(s.dateAjout) + ' j)' : '—' }),
         h('dt', 'Arrivée'), h('dd', { text: s.arrivee ? AMX.fmtDate(s.arrivee) : '—' }),

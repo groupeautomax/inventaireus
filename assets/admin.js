@@ -344,7 +344,8 @@
     this.elNote = h('p.doux.petit.admin-note', 'Le rôle donne les droits de départ ; les droits personnalisés permettent d\'en accorder ou d\'en retirer à une personne précise. Chaque personne se connecte avec son propre courriel et un code reçu par courriel. Désactiver un compte coupe l\'accès au site et à l\'app ScanAutomax sans effacer l\'historique ; toute modification est immédiate.');
     this.elPanneau = h('aside.panneau', { style: { display: 'none' } });
     this.elParametres = this.construireParametres();
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elParametres]), this.elPanneau]);
+    this.elAlertes = this.construireAlertes();
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elParametres, this.elAlertes]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -378,6 +379,72 @@
     ];
     return h('div.carte.admin-parametres', [h('div.carte-entete', [h('h2', 'Données de marché (MarketCheck)')]), h('div.carte-corps', corps)]);
   };
+  /* ------------------- Alertes aux directeurs : textos (Twilio) ------------------
+     Maxime, 6 oct. : « quand une évaluation est faite dans une concession puis dans
+     une autre, le directeur général doit recevoir une notification ; on pourrait
+     ajouter des numéros de téléphone pour faire des textos ». Le courriel part
+     toujours ; le texto demande un compte Twilio (SID, jeton, numéro d'envoi),
+     gardé sur le serveur (Notif.gs), et un numéro sur chaque compte (ci-contre). */
+  VueAdmin.prototype.construireAlertes = function () {
+    var self = this;
+    this.elEtatSms = h('span.etat-cle', [h('span.badge.gris.sans-point', { text: 'Vérification…' })]);
+    var champ = function (id, libelle, placeholder, type) { var i = h('input#' + id, { type: type || 'text', autocomplete: 'off', spellcheck: 'false', placeholder: placeholder }); return { el: i, champ: h('div.champ', [h('label', { 'for': id, text: libelle }), i]) }; };
+    this.elSmsSid = champ('adm-sms-sid', 'Account SID', 'AC…');
+    this.elSmsToken = champ('adm-sms-token', 'Auth Token', 'jeton Twilio', 'password');
+    this.elSmsFrom = champ('adm-sms-from', 'Numéro d\'envoi', '+1 450 555 0123');
+    var btn = h('button.btn.primaire#adm-sms-enregistrer', { type: 'button', html: I.ok + '<span>Enregistrer Twilio</span>', onclick: function () { self.enregistrerSms(btn); } });
+    var btnRetirer = h('button.btn.danger.petit', { type: 'button', text: 'Retirer', onclick: function () { self.retirerSms(); } });
+    this.btnSmsRetirer = btnRetirer;
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Quand le même véhicule est évalué dans deux concessions du groupe à moins de 30 jours d\'écart, les directeurs généraux des deux concessions (les administrateurs de concession) reçoivent une alerte par courriel — et par texto si leur compte a un numéro de téléphone et que Twilio est configuré ici.' }),
+      h('div.ligne-cle', [this.elSmsSid.champ, this.elSmsToken.champ, this.elSmsFrom.champ, btn, btnRetirer]),
+      h('div', [h('span.etiquette', { text: 'Textos : ' }), this.elEtatSms]),
+      h('details', [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Obtenir un compte Twilio (environ 0,01 $ par texto)' }), h('ol', [
+        h('li', 'Créez un compte sur twilio.com, puis achetez un numéro canadien (Phone Numbers › Buy a number, SMS).'),
+        h('li', 'Dans la console, copiez l\'Account SID et l\'Auth Token (page d\'accueil du compte).'),
+        h('li', 'Collez les trois valeurs ci-dessus et enregistrez. Ajoutez ensuite un numéro de téléphone aux comptes des directeurs (panneau du compte › Téléphone).')
+      ])])
+    ];
+    return h('div.carte.admin-parametres', [h('div.carte-entete', [h('h2', 'Alertes aux directeurs (textos)')]), h('div.carte-corps', corps)]);
+  };
+  VueAdmin.prototype.rendreEtatSms = function (p) {
+    AMX.vider(this.elEtatSms);
+    if (p === null) { this.elEtatSms.appendChild(h('span.badge.ambre.sans-point', { text: 'Route absente — redéployez le script' })); return; }
+    var complet = p && p.TWILIO_SID && p.TWILIO_SID.present && p.TWILIO_TOKEN && p.TWILIO_TOKEN.present && p.TWILIO_FROM && p.TWILIO_FROM.present;
+    if (complet) {
+      this.elEtatSms.appendChild(h('span.badge.vert', { text: 'Textos actifs' }));
+      this.elEtatSms.appendChild(h('span.mono.doux', { text: p.TWILIO_FROM.valeur || '' }));
+      this.btnSmsRetirer.classList.remove('cache');
+    } else {
+      this.elEtatSms.appendChild(h('span.badge.gris.sans-point', { text: 'Courriel seulement — Twilio non configuré' }));
+      this.btnSmsRetirer.classList.add('cache');
+    }
+  };
+  VueAdmin.prototype.enregistrerSms = function (btn) {
+    var self = this;
+    var sid = this.elSmsSid.el.value.trim(), token = this.elSmsToken.el.value.trim(), de = this.elSmsFrom.el.value.replace(/[^\d+]/g, '');
+    if (!/^AC[0-9a-f]{32}$/i.test(sid)) { AMX.toast('L\'Account SID commence par AC et fait 34 caractères.', 'attention'); return; }
+    if (token.length < 16) { AMX.toast('Collez l\'Auth Token complet.', 'attention'); return; }
+    if (!/^\+?1?\d{10}$/.test(de)) { AMX.toast('Numéro d\'envoi : 10 chiffres (ex. +1 450 555 0123).', 'attention'); return; }
+    if (de.charAt(0) !== '+') de = '+' + (de.length === 10 ? '1' + de : de);
+    btn.classList.add('occupe');
+    var poser = function (cle, valeur) { return AMX.post({ action: 'reglerParametre', cle: cle, valeur: valeur }).then(function (d) { AMX.verifier(d, 'Refusé : ' + cle); }); };
+    poser('TWILIO_SID', sid).then(function () { return poser('TWILIO_TOKEN', token); }).then(function () { return poser('TWILIO_FROM', de); }).then(function () {
+      self.elSmsSid.el.value = ''; self.elSmsToken.el.value = ''; self.elSmsFrom.el.value = '';
+      self.rendreEtatSms({ TWILIO_SID: { present: true }, TWILIO_TOKEN: { present: true }, TWILIO_FROM: { present: true, valeur: de } });
+      AMX.toast('Twilio enregistré : les alertes partiront aussi par texto.', 'ok');
+    }).catch(function (e) { AMX.toast('Non enregistré — ' + AMX.erreurTexte(e), 'erreur'); }).then(function () { btn.classList.remove('occupe'); });
+  };
+  VueAdmin.prototype.retirerSms = function () {
+    var self = this;
+    AMX.confirmer('Retirer Twilio ?', 'Les alertes continueront par courriel seulement.', { danger: true, ok: 'Retirer' }).then(function (oui) {
+      if (!oui) return;
+      return Promise.all(['TWILIO_SID', 'TWILIO_TOKEN', 'TWILIO_FROM'].map(function (cle) { return AMX.post({ action: 'reglerParametre', cle: cle, valeur: '' }); })).then(function () {
+        self.rendreEtatSms({});
+        AMX.toast('Twilio retiré.', 'ok');
+      });
+    }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
+  };
   VueAdmin.prototype.rendreEtatCle = function (p) {
     AMX.vider(this.elEtatCle);
     if (p === null) { this.elEtatCle.appendChild(h('span.badge.ambre.sans-point', { text: 'Route absente — redéployez le script (Marche.gs)' })); this.btnCle.disabled = true; return; }
@@ -395,9 +462,10 @@
     var self = this;
     return AMX.get({ parametres: 1 }).then(function (d) {
       if (self.detruit) return;
-      if (!d || d.refuse || !d.ok || !d.parametres) { self.rendreEtatCle(null); return; }
+      if (!d || d.refuse || !d.ok || !d.parametres) { self.rendreEtatCle(null); self.rendreEtatSms(null); return; }
       self.rendreEtatCle(d.parametres.MARKETCHECK_KEY || { present: false });
-    }).catch(function () { if (!self.detruit) self.rendreEtatCle(null); });
+      self.rendreEtatSms(d.parametres);
+    }).catch(function () { if (!self.detruit) { self.rendreEtatCle(null); self.rendreEtatSms(null); } });
   };
   VueAdmin.prototype.enregistrerCle = function () {
     var self = this, valeur = this.elCle.value.trim();
@@ -463,7 +531,7 @@
     var cle = nomCle(u.nom);
     if (!this.brouillons[cle]) {
       this.brouillons[cle] = { role: roleConnu(u), actif: estActif(u), acheteur: !!u.acheteur, note: String(u.note || ''), ecarts: ecartsDe(u, this.reference),
-        concession: String(u.concession || ''), nomComplet: String(u.nomComplet || ''), acces: accesNorm(u.acces) };
+        concession: String(u.concession || ''), nomComplet: String(u.nomComplet || ''), acces: accesNorm(u.acces), telephone: String(u.telephone || '') };
     }
     return this.brouillons[cle];
   };
@@ -473,7 +541,7 @@
     return b.role !== roleConnu(u) || b.actif !== estActif(u) || b.acheteur !== !!u.acheteur ||
       b.note.trim() !== String(u.note || '').trim() || !memesEcarts(b.ecarts, ecartsDe(u, this.reference)) ||
       b.concession !== String(u.concession || '') || b.nomComplet.trim() !== String(u.nomComplet || '').trim() ||
-      accesCle(b.acces) !== accesCle(u.acces);
+      accesCle(b.acces) !== accesCle(u.acces) || b.telephone.trim() !== String(u.telephone || '').trim();
   };
 
   VueAdmin.prototype.passeFiltres = function (u) {
@@ -662,6 +730,7 @@
       ? casesConcessions(b, { codes: codesTous, moiInfo: moiInfo, bloque: verrou || moi, apres: rafraichir })
       : h('div.saisie.fixe', { text: nomConcession(moiInfo.concession, moiInfo), title: 'Les comptes que vous gérez sont dans votre concession.' });
     var inpNom = h('input', { type: 'text', value: b.nomComplet, placeholder: 'Prénom Nom', autocomplete: 'off', disabled: verrou, oninput: function (e) { b.nomComplet = e.target.value; leger(); } });
+    var inpTel = h('input', { type: 'tel', value: b.telephone, placeholder: '450 555 0123 (textos d\'alerte)', autocomplete: 'off', disabled: verrou, oninput: function (e) { b.telephone = e.target.value; leger(); } });
     selRole.addEventListener('change', function () { b.role = selRole.value; nettoyerEcarts(b, ref); rafraichir(); });
     var segActif = h('div.segment.bloc', { title: moi ? 'Vous ne pouvez pas couper votre propre accès.' : null }, [
       h('button' + (b.actif ? '.actif' : ''), { type: 'button', text: 'Actif', disabled: moi || verrou, onclick: function () { if (!b.actif) { b.actif = true; rafraichir(); } } }),
@@ -679,6 +748,7 @@
         h('div.champ', [h('label', 'Nom'), inpNom]),
         h('div.champ.plein', [h('label', groupe ? 'Concessions — cochez une ou plusieurs' : 'Concession'), champConc]),
         h('div.champ', [h('label', 'Accès'), segActif]),
+        h('div.champ', [h('label', 'Téléphone (textos)'), inpTel]),
         h('div.champ.plein', [h('label', 'Note'), inpNote]),
         h('label.case.plein', [cbAcheteur, h('span', 'Acheteur')])
       ])
@@ -811,7 +881,7 @@
   /* ------------------------------ Actions ------------------------------ */
   VueAdmin.prototype.enregistrer = function (u, btn) {
     var self = this, cle = nomCle(u.nom), b = this.brouillonDe(u);
-    var corps = { action: 'majUtilisateur', nom: u.nom, role: b.role, actif: b.actif, acheteur: b.acheteur, note: b.note.trim(), concession: b.concession, nomComplet: b.nomComplet.trim() };
+    var corps = { action: 'majUtilisateur', nom: u.nom, role: b.role, actif: b.actif, acheteur: b.acheteur, note: b.note.trim(), concession: b.concession, nomComplet: b.nomComplet.trim(), telephone: b.telephone.trim() };
     if (this.reference) corps.droits = copier(b.ecarts);
     var moiInfo = this.moiInfo, accorde = !!(moiInfo && (moiInfo.accorderAcces || !moiInfo.concession || moiInfo.concession === TOUTES));
     if (accorde) corps.acces = (b.concession && b.concession !== TOUTES) ? accesNettoyer(b.acces, b.concession) : { concessions: [], domaines: {} };
@@ -821,7 +891,7 @@
       if (r.ok !== true) throw new Error(r.erreur || r.message || 'Le serveur n\'a pas confirmé la mise à jour.');
       AMX.toast(u.nom + ' mis à jour', 'ok');
       // Reflet immédiat, puis rechargement de la liste pour rester fidèle au serveur.
-      u.role = b.role; u.actif = b.actif; u.acheteur = b.acheteur; u.note = corps.note; u.concession = b.concession; u.nomComplet = corps.nomComplet;
+      u.role = b.role; u.actif = b.actif; u.acheteur = b.acheteur; u.note = corps.note; u.concession = b.concession; u.nomComplet = corps.nomComplet; u.telephone = corps.telephone;
       if (corps.acces) u.acces = corps.acces;
       if (self.reference) u.droits = copier(b.ecarts);
       delete self.brouillons[cle];

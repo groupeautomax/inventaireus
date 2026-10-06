@@ -151,7 +151,7 @@
     this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) self.charger(); }, 120000);
   }
   Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: '', etapes: null, retard: false }; };
-  Suivi.prototype.demonter = function () { clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); };
+  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); };
   Suivi.prototype.naviguer = function (ctx) {
     if (ctx.onglet !== this.onglet) { this.onglet = ctx.onglet; this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || ''; this.construireRail(); this.rendre(); }
     else if (ctx.params.vin && ctx.params.vin !== this.selection) { this.selection = ctx.params.vin; this.rendre(); }
@@ -181,17 +181,22 @@
       this.elKpis, this.elAgencement
     ]));
     this.construireRail();
+    // Les permissions (portée, compagnies visibles) arrivent souvent après le premier rendu : on refait le rail.
+    var moi = this;
+    this.surProfil = function () { if (!moi.detruit) { moi.construireRail(); moi.rendre(); } };
+    document.addEventListener('amx:profil', this.surProfil);
   };
 
   Suivi.prototype.construireRail = function () {
     var self = this, f = this.filtres, etapes = AMX.service.etapes();
     AMX.vider(this.elRail);
-    var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock, BT', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendre(); }, 120) })]);
+    var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock, BT — tous les suivis', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendre(); }, 120) })]);
     var seg = h('div.segment.bloc');
     [['', 'Toutes']].concat(Object.keys(AMX.compagniesPour('service')).map(function (c) { return [c, c]; })).forEach(function (c) {
       seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } }));
     });
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
+    this.elBandeau = AMX.bandeauPortee('service', f.compagnie, !!f.recherche);
+    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
     if (this.onglet !== 'termines') {
       var grp = h('div.groupe', [h('h3', ['Étape courante', h('button', { type: 'button', text: f.etapes ? 'Toutes' : '', onclick: function () { f.etapes = null; self.construireRail(); self.rendre(); } })])]);
       var base = this.base();
@@ -275,8 +280,15 @@
   Suivi.prototype.filtrer = function () {
     var f = this.filtres;
     var l = this.base();
-    if (f.etapes && this.onglet !== 'termines') l = l.filter(function (s) { return f.etapes.indexOf(s.etapeCourante) >= 0; });
-    if (f.retard) l = l.filter(function (s) { return s.enRetard; });
+    // Recherche « partout » (Maxime, 6 oct.) : dès qu'on tape, on fouille tous les suivis —
+    // en cours, direction, terminés, refusés — sans tenir compte de l'onglet, des étapes ni du
+    // retard. Seule la compagnie choisie reste. La ligne dit où il en est.
+    if (f.recherche && f.recherche.trim()) {
+      l = this.suivis.filter(function (s) { return !f.compagnie || String(s.compagnie || '').toUpperCase() === f.compagnie; });
+    } else {
+      if (f.etapes && this.onglet !== 'termines') l = l.filter(function (s) { return f.etapes.indexOf(s.etapeCourante) >= 0; });
+      if (f.retard) l = l.filter(function (s) { return s.enRetard; });
+    }
     if (f.recherche) {
       var t = f.recherche.trim().toLowerCase();
       l = l.filter(function (s) { return String(s.vin).toLowerCase().indexOf(t) >= 0 || String(s.modele || '').toLowerCase().indexOf(t) >= 0 || String(s.stock || '').toLowerCase().indexOf(t) >= 0 || String(s.btNo || '').toLowerCase().indexOf(t) >= 0; });
@@ -294,6 +306,7 @@
 
   /* -------------------------------- Rendu --------------------------------- */
   Suivi.prototype.rendre = function () {
+    if (this.elBandeau && this.elBandeau.parentNode) { var nb = AMX.bandeauPortee('service', this.filtres.compagnie, !!this.filtres.recherche); this.elBandeau.parentNode.replaceChild(nb, this.elBandeau); this.elBandeau = nb; }
     this.rendreKpis();
     var liste = this.filtrer();
     this.listeCourante = liste;
@@ -343,7 +356,7 @@
     if (f.retard) puces.push(['En retard', function () { f.retard = false; }]);
     if (f.compagnie) puces.push([AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
     if (f.etapes) puces.push([f.etapes.length + ' étape(s)', function () { f.etapes = null; }]);
-    if (f.recherche) puces.push(['« ' + f.recherche + ' »', function () { f.recherche = ''; }]);
+    if (f.recherche) puces = [['« ' + f.recherche + ' » — tous les suivis' + (f.compagnie ? ', ' + (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : ''), function () { f.recherche = ''; }]];
     puces.forEach(function (p) { var b = h('button.puce.info', { type: 'button', title: 'Retirer ce filtre', html: esc(p[0]) + ' ✕' }); b.addEventListener('click', function () { p[1](); self.construireRail(); self.rendre(); }); self.elOutils.appendChild(b); });
     this.elOutils.appendChild(h('span.espace'));
     this.elOutils.appendChild(sel);
@@ -368,12 +381,15 @@
     var cour = etapeDef(s.etapeCourante, etapes);
     var cls = 'div.ligne.svc' + (s.enRetard ? '.retard' : '') + (s.statut === 'encours' && s.etapeCourante === 'autorisation' ? '.attente' : '') + (this.selection && String(s.vin).toUpperCase() === String(this.selection).toUpperCase() ? '.actif' : '');
     var etapeTexte = s.statut === 'encours' ? (cour ? cour.libelle : '—') : st.libelle;
+    // En recherche « partout » : dire dans quel onglet le véhicule vit s'il n'est pas dans celui-ci.
+    var ongletDe = s.statut !== 'encours' ? 'termines' : (attendDirecteur(s) ? 'autoriser' : 'encours');
+    var ailleurs = (this.filtres.recherche && ongletDe !== this.onglet) ? { termines: 'Terminés', autoriser: 'Direction', encours: 'En cours' }[ongletDe] : '';
     var sousEtape = s.statut === 'encours' && s.joursEtape !== null && s.joursEtape !== undefined ? ('depuis ' + s.joursEtape + ' j' + (s.cibleEtape ? ' · cible ' + s.cibleEtape + ' j' : '')) : '';
     var el = h(cls, { dataset: { vin: s.vin } }, [
       h('div.vignette', { title: s.hasPhotos ? 'Photos disponibles' : 'Aucune photo' }, [AMX.logoMarque(marque(s)), s.hasPhotos ? h('span.cam', { html: I.photo }) : null]),
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', { text: s.modele || '(modèle à préciser)' }),
-        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null, s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null])
+        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null, s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null])
       ]),
       h('div.cell.parcours', [h('span.l', 'Parcours'), parcours(s, { compact: true })]),
       h('div.cell.statut', [h('span.l', 'Étape'), h('span', [h('span.badge.' + (s.statut === 'encours' ? (s.etapeCourante === 'autorisation' ? 'ambre' : (s.enRetard ? 'rouge' : 'bleu')) : st.couleur), { text: etapeTexte })]), sousEtape ? h('span.jours' + (s.cibleEtape && s.joursEtape > s.cibleEtape ? '.alerte' : ''), { text: sousEtape }) : null]),

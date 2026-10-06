@@ -794,6 +794,22 @@
   AMX.compagniesPour = function (domaine) { var o = {}; AMX.codesPour(domaine).forEach(function (c) { o[c] = AMX.COMPAGNIES_TOUTES[c]; }); return o; };
   AMX.concessionsPour = function (domaine) { var o = {}; AMX.codesPour(domaine).forEach(function (c) { var k = AMX.COMPAGNIE_CONCESSION[c]; if (k) o[k] = AMX.CONCESSIONS_TOUTES[k]; }); return o; };
   AMX.estGroupePour = function (domaine) { return AMX.codesPour(domaine).length === Object.keys(AMX.COMPAGNIES_TOUTES).length; };
+  // Bandeau « Recherche dans : … » (Maxime, 6 oct. : « rendre visible dès le début dans quelle
+  // concession on cherche, ou le groupe au complet »). `compagnie` = filtre choisi ('' = tout ce
+  // que le compte voit dans ce domaine) ; `partout` = la recherche ignore statuts et registres.
+  AMX.bandeauPortee = function (domaine, compagnie, partout) {
+    var codes = AMX.codesPour(domaine);
+    var texte, classe = '';
+    if (compagnie) { texte = AMX.COMPAGNIES_TOUTES[compagnie] || compagnie; }
+    else if (AMX.estGroupePour(domaine)) { texte = 'Tout le groupe (' + codes.length + ' concessions)'; classe = '.groupe'; }
+    else if (codes.length === 1) { texte = AMX.COMPAGNIES_TOUTES[codes[0]] || codes[0]; }
+    else { texte = codes.map(function (c) { return AMX.COMPAGNIES_TOUTES[c] || c; }).join(' + '); }
+    return h('div.portee-recherche' + classe, { title: 'La recherche porte sur ' + texte + (partout ? ', tous statuts et tous registres confondus' : '') }, [
+      h('span.ic', { html: ICONES.recherche }),
+      h('span', [h('span.l', 'Recherche dans : '), h('b', { text: texte })]),
+      partout ? h('span.puce.ok', { text: 'partout' }) : null
+    ]);
+  };
   AMX.optionsCompagnies = function (vide) { var l = vide ? [h('option', { value: '', text: vide })] : []; Object.keys(AMX.COMPAGNIES).forEach(function (c) { l.push(h('option', { value: c, text: c })); }); return l; };
   AMX.STATUTS_OFFRE = {
     nouvelle: { libelle: 'À traiter', couleur: 'ambre' }, contre: { libelle: 'Contre-offre', couleur: 'violet' },

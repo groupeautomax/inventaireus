@@ -147,6 +147,7 @@
   };
 
   Registre.prototype.demonter = function () {
+    this.detruit = true;
     clearInterval(this.minuterie);
     document.removeEventListener('visibilitychange', this.surVisible);
     document.removeEventListener('amx:carfax', this.surCarfax);
@@ -190,12 +191,15 @@
     ]);
     this.conteneur.appendChild(page);
     this.construireRail();
+    // Les permissions (portée, compagnies visibles) arrivent souvent après le premier rendu : on refait le rail.
+    this.surProfil = function () { if (!self.detruit) { self.construireRail(); self.rendre(); } };
+    document.addEventListener('amx:profil', this.surProfil);
   };
 
   Registre.prototype.construireRail = function () {
     var self = this, f = this.filtres, cfg = this.cfg;
     AMX.vider(this.elRail);
-    var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; f.alerte = ''; self.rendre(); }, 120) })]);
+    var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock — tous statuts, tous registres', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; f.alerte = ''; self.rendre(); }, 120) })]);
     // Compagnie
     var seg = h('div.segment.bloc');
     [['', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })).forEach(function (c) {
@@ -229,7 +233,8 @@
         selectFiltre('Registre reçu', 'registre', [['', 'Tous'], ['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Reçu · mauvais nom']])
       ])
     ]);
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
+    this.elBandeau = AMX.bandeauPortee('inventaire', f.compagnie, !!f.recherche);
+    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
     this.elRail.appendChild(grpStatut);
     this.elRail.appendChild(grpAutres);
   };
@@ -298,8 +303,30 @@
     var f = this.filtres;
     return this.vehicules.filter(function (v) { return !f.compagnie || v.compagnie === f.compagnie; });
   };
+  // Recherche « partout » (Maxime, 6 oct. : « on doit toujours trouver le stock, peu importe où il
+  // est, sans cliquer Acheté / En stock / Expédié ») : dès qu'on tape, les statuts et les autres
+  // filtres ne comptent plus, et les deux autres registres sont fouillés aussi (en cache ; sinon
+  // on les charge et la liste se redessine à leur arrivée). Seule la compagnie choisie reste.
+  Registre.prototype.rechercherPartout = function (t) {
+    var self = this, f = this.filtres, cfg = this.cfg;
+    var tout = this.vehicules.slice();
+    ['US', 'CAN', 'DETAIL'].forEach(function (feuille) {
+      if (feuille === cfg.feuille) return;
+      var l = AMX.inventaire.enCache(feuille);
+      if (l) { tout = tout.concat(l); return; }
+      if (!self.chargementsAutres) self.chargementsAutres = {};
+      if (self.chargementsAutres[feuille]) return;
+      self.chargementsAutres[feuille] = true;
+      AMX.inventaire.lire(feuille, false).then(function () { if (!self.detruit && self.filtres.recherche) self.rendre(); }).catch(function () {});
+    });
+    return tout.filter(function (v) {
+      if (f.compagnie && v.compagnie !== f.compagnie) return false;
+      return String(v.vin).toLowerCase().indexOf(t) >= 0 || String(v.modele || '').toLowerCase().indexOf(t) >= 0 || String(v.stock || '').toLowerCase().indexOf(t) >= 0;
+    });
+  };
   Registre.prototype.filtrer = function () {
     var f = this.filtres, cfg = this.cfg;
+    if (f.recherche && f.recherche.trim()) return trier(this.rechercherPartout(f.recherche.trim().toLowerCase()), this.tri);
     var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
     var statuts = f.statuts || actifs;
     var l = this.base().filter(function (v) {
@@ -322,6 +349,7 @@
 
   /* -------------------------------- Rendu ------------------------------ */
   Registre.prototype.rendre = function () {
+    if (this.elBandeau && this.elBandeau.parentNode) { var nb = AMX.bandeauPortee('inventaire', this.filtres.compagnie, !!this.filtres.recherche); this.elBandeau.parentNode.replaceChild(nb, this.elBandeau); this.elBandeau = nb; }
     this.rendreKpis();
     var liste = this.filtrer();
     this.listeCourante = liste;
@@ -372,7 +400,7 @@
     if (f.statuts && f.statuts.length === 1) puces.push([AMX.statut(f.statuts[0], this.cfg.feuille).libelle, function () { f.statuts = null; }]);
     else if (f.statuts && f.statuts.length === this.cfg.statuts.length) puces.push(['Vendus et comptabilisés inclus', function () { f.statuts = null; }]);
     if (f.compagnie) puces.push([AMX.COMPAGNIES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
-    if (f.recherche) puces.push(['« ' + f.recherche + ' »', function () { f.recherche = ''; }]);
+    if (f.recherche) puces = [['« ' + f.recherche + ' » — tous statuts, tous registres' + (f.compagnie ? ', ' + (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : ''), function () { f.recherche = ''; }]];
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     puces.forEach(function (p) {
       var b = h('button.puce.info', { type: 'button', title: 'Retirer ce filtre', html: esc(p[0]) + ' ✕' });
@@ -418,7 +446,8 @@
 
   Registre.prototype.ligne = function (v) {
     var self = this, cfg = this.cfg;
-    var st = AMX.statut(v.statut, cfg.feuille);
+    var autreRegistre = v._feuille && v._feuille !== cfg.feuille ? v._feuille : '';
+    var st = AMX.statut(v.statut, autreRegistre || cfg.feuille);
     var reg = registreDe(v), regInfo = REGISTRE[reg] || REGISTRE.non;
     var retard = enRetardRegistre(v), retardA = enRetardAchat(v);
     var jours = AMX.joursDepuis(v.dateAjout);
@@ -438,7 +467,7 @@
       vignette,
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', { text: v.modele || '(modèle à préciser)' }),
-        h('div.sous', [h('span.vin', { text: v.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), v.origine === 'Échange' ? h('span.puce', { text: 'Échange' }) : null])
+        h('div.sous', [h('span.vin', { text: v.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), autreRegistre ? h('span.puce.registre-autre', { text: 'Registre ' + AMX.inventaire.nomFeuille(autreRegistre), title: 'Ce véhicule est dans un autre registre — cliquez pour l\'ouvrir là-bas.' }) : null, v.origine === 'Échange' ? h('span.puce', { text: 'Échange' }) : null])
       ]),
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle })]),
         v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : (retardA ? h('span.jours.attention', { text: 'Acheté depuis ' + jours + ' j' }) : h('span.jours', { text: 'Acheté il y a ' + jours + ' j' }))]),
@@ -447,7 +476,7 @@
       h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' })]),
       h('button.plus', { type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
-    el.addEventListener('click', function () { self.selectionner(v.vin); });
+    el.addEventListener('click', function () { if (autreRegistre) AMX.aller('inventaire', autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
     return el;
   };
 

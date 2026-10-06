@@ -651,11 +651,38 @@
         return self.ecrire({ action: 'serviceEtape', vin: s.vin, etape: 'verification', etat: 'fait', resultat: choix, note: note.value.trim() });
       } }] });
   };
+  // Refus au détail : on choisit tout de suite où part le véhicule (Maxime, 6 oct. :
+  // « quand on fait un refus de détail, il faut proposer US ou Canada et faire le
+  // choix immédiatement ») — le serveur refuse ET transfère dans la même action.
   Suivi.prototype.modaleRefus = function (s) {
     var self = this;
+    var destination = '';
     var motif = h('textarea.saisie', { rows: 3, placeholder: 'Pourquoi le véhicule ne va pas au détail (kilométrage, état, marché…)', maxlength: 500 });
-    AMX.modale({ titre: 'Refuser au détail', corps: h('div', [h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: s.modele + ' · ' + s.vin + ' — aucune inspection, aucun lavage ni photo ne seront faits pour le détail. Le véhicule partira en wholesale.' }), h('div.champ', [h('label', 'Motif'), motif])]),
-      boutons: [{ texte: 'Annuler' }, { texte: 'Refuser au détail', classe: 'danger', action: function () { return self.ecrire({ action: 'serviceAutoriser', vin: s.vin, decision: 'refuse', motif: motif.value.trim() }); } }] });
+    var btnOk;
+    var choix = h('div.svc-destinations', [['US', 'É.-U.', 'Registre É.-U. — export'], ['CAN', 'Canada', 'Registre Canada — wholesale local']].map(function (d) {
+      return h('button.svc-destination', { type: 'button', dataset: { dest: d[0] }, onclick: function () {
+        destination = d[0];
+        choix.querySelectorAll('.svc-destination').forEach(function (b) { b.classList.toggle('actif', b.dataset.dest === destination); });
+        if (btnOk) { btnOk.disabled = false; btnOk.innerHTML = 'Refuser et transférer → ' + d[1]; }
+      } }, [h('b', { text: d[1] }), h('span', { text: d[2] })]);
+    }));
+    var corps = h('div', [
+      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: s.modele + ' · ' + s.vin + ' — aucune inspection, aucun lavage ni photo ne seront faits pour le détail.' }),
+      h('div.champ', [h('label', 'Où part le véhicule ?'), choix, h('div.doux.petit', { style: { marginTop: '6px' }, text: 'Il quitte le registre Detail et arrive au registre choisi avec le statut « Acheté », tout de suite.' })]),
+      h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Motif'), motif])
+    ]);
+    var m = AMX.modale({ titre: 'Refuser au détail', corps: corps,
+      boutons: [{ texte: 'Annuler' }, { texte: 'Choisissez É.-U. ou Canada', classe: 'danger', action: function () {
+        if (!destination) return false;
+        return self.ecrire({ action: 'serviceAutoriser', vin: s.vin, decision: 'refuse', motif: motif.value.trim(), destination: destination }).then(function (d) {
+          // Le véhicule a changé de registre : on rafraîchit les deux et la liste du service.
+          AMX.inventaire.lire('DETAIL', true).catch(function () {}); AMX.inventaire.lire(destination, true).catch(function () {});
+          if (d && d.transfere) AMX.service.charger(true).catch(function () {});
+          return d;
+        });
+      } }] });
+    btnOk = m && m.el ? m.el.querySelector('.btn.danger') : document.querySelector('.modale .btn.danger');
+    if (btnOk) btnOk.disabled = true;
   };
   Suivi.prototype.modaleBt = function (s, e, etat) {
     var self = this;

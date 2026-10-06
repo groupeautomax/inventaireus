@@ -292,7 +292,8 @@
   /* ------------------------------ Section ------------------------------ */
   AMX.section('resultat', {
     titre: 'Résultat', icone: 'resultat', ordre: 50,
-    visible: function () { return AMX.estAdmin(); },
+    // Visible avec le droit « Voir les résultats » (gestionnaire par défaut), pas seulement pour les admins (6 oct. : Patrick, gestionnaire, ne voyait pas Résultats).
+    visible: function () { return AMX.perm('voirResultats') || AMX.estAdmin(); },
     monter: function (conteneur, ctx) { return new Resultat(conteneur, ctx); }
   });
 

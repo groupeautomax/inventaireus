@@ -540,6 +540,12 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 .ligne.attente::before { content: ''; position: absolute; left: -1px; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--ambre); }
 .ligne.svc.retard::before { background: var(--rouge); }
 .ligne .svc-rouge { color: var(--rouge); }
+.svc-destinations { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }   /* refus au détail : où part le véhicule */
+.svc-destination { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--ligne-forte); border-radius: var(--rayon-s); background: var(--carte); cursor: pointer; text-align: left; font: inherit; color: var(--encre); }
+.svc-destination b { font-size: 15px; }
+.svc-destination span { font-size: 11.5px; color: var(--encre-3); }
+.svc-destination:hover { border-color: var(--encre-4); }
+.svc-destination.actif { border-color: var(--vert); background: var(--vert-clair); box-shadow: inset 0 0 0 1px var(--vert); }
 .svc-parcours { display: flex; align-items: flex-start; gap: 3px; }
 .svc-pas { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; min-width: 0; }
 .svc-pas .pt { display: block; width: 100%; height: 8px; border-radius: 4px; background: var(--gris-bord); position: relative; font-size: 0; line-height: 0; }

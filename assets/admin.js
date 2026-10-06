@@ -82,6 +82,63 @@
     });
     return n;
   }
+  // Les concessions d'un compte (la principale, colonne J, puis celles vues en entier).
+  function concessionsDe(concession, acces) {
+    if (concession === TOUTES) return [TOUTES];
+    var l = concession ? [concession] : [];
+    accesNorm(acces).concessions.forEach(function (c) { if (l.indexOf(c) < 0) l.push(c); });
+    return l;
+  }
+  function nomsConcessions(concession, acces, moiInfo) {
+    var l = concessionsDe(concession, acces);
+    if (!l.length) return '(à assigner)';
+    if (l[0] === TOUTES) return 'Groupe';
+    return l.map(function (c) { return nomConcession(c, moiInfo); }).join(' + ');
+  }
+  // Cocher / décocher une concession sur un brouillon { concession, acces } : la
+  // première cochée devient la principale (celle qui « possède » le compte pour
+  // la gestion), les autres sont vues en entier. On garde toujours au moins une.
+  function basculerConcession(b, code, oui) {
+    b.acces = accesNorm(b.acces);
+    if (code === TOUTES) {
+      if (oui) { b.concession = TOUTES; b.acces.concessions = []; }
+      else b.concession = '';
+      return '';
+    }
+    if (oui) {
+      if (!b.concession || b.concession === TOUTES) b.concession = code;
+      else if (b.concession !== code && b.acces.concessions.indexOf(code) < 0) b.acces.concessions.push(code);
+      return '';
+    }
+    if (b.concession === code) {
+      var reste = b.acces.concessions.slice();
+      if (!reste.length) return 'Un compte doit avoir au moins une concession — cochez-en une autre avant de retirer celle-ci.';
+      b.concession = reste.shift(); b.acces.concessions = reste;
+    } else b.acces.concessions = b.acces.concessions.filter(function (x) { return x !== code; });
+    return '';
+  }
+  // Groupe de cases « Concessions » (Maxime, 6 oct. : « juste laisser le système
+  // cocher deux concessions, c'est plus simple »). opts : { codes, moiInfo, bloque, apres(message) }
+  function casesConcessions(b, opts) {
+    var codes = opts.codes, moiInfo = opts.moiInfo, bloque = !!opts.bloque;
+    var groupeCoche = b.concession === TOUTES;
+    var el = h('div.admin-concessions');
+    var caseA = function (code, libelle, coche, desactive, principale) {
+      var cb = h('input', { type: 'checkbox', value: code, checked: coche, disabled: desactive, onchange: function (e) {
+        var msg = basculerConcession(b, code, e.target.checked);
+        if (msg) { e.target.checked = !e.target.checked; AMX.toast(msg, 'attention'); return; }
+        opts.apres();
+      } });
+      return h('label.case' + (coche ? '.cochee' : ''), [cb, h('span', { text: libelle }), principale ? h('span.puce.info', { text: 'principale', title: 'La concession qui gère ce compte (son administrateur peut le modifier).' }) : null]);
+    };
+    codes.forEach(function (c) {
+      var coche = groupeCoche || b.concession === c || accesNorm(b.acces).concessions.indexOf(c) >= 0;
+      el.appendChild(caseA(c, nomConcession(c, moiInfo), coche, bloque || groupeCoche, !groupeCoche && b.concession === c && accesNorm(b.acces).concessions.length > 0));
+    });
+    el.appendChild(caseA(TOUTES, 'Tout le groupe (toutes les concessions, comme Marc-André)', groupeCoche, bloque, false));
+    return el;
+  }
+
   // Résumé lisible : « BMW, VW en entier · Évaluations : toutes · Service : STM ».
   function accesTexte(a, moiInfo) {
     var n = accesNorm(a), parts = [];
@@ -203,6 +260,19 @@
       '.admin-acces input[type=checkbox]:disabled { cursor: default; opacity: .45; }',
       '.admin-acces .implicite { color: var(--encre-4); font-size: 11px; }',
       '.admin-acces-enveloppe { overflow-x: auto; margin-top: 4px; }',
+      // Cases « Concessions » : une par concession, plus « Tout le groupe ».
+      '.admin-concessions { display: flex; flex-direction: column; gap: 4px; }',
+      '.admin-concessions .case { padding: 5px 8px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte-2); min-height: 32px; }',
+      '.admin-concessions .case.cochee { border-color: var(--vert); background: var(--vert-clair); }',
+      '.admin-concessions .case .puce { margin-left: auto; }',
+      '.admin-concessions input[type=checkbox]:disabled + span { color: var(--encre-4); }',
+      '.admin-details { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 0 10px; background: var(--carte-2); }',
+      '.admin-details summary { cursor: pointer; padding: 9px 0; font-size: 12.5px; font-weight: 600; color: var(--encre-2); list-style: none; display: flex; align-items: center; gap: 8px; }',
+      '.admin-details summary::-webkit-details-marker { display: none; }',
+      '.admin-details summary::before { content: "▸"; color: var(--encre-4); transition: transform .15s; }',
+      '.admin-details[open] summary::before { transform: rotate(90deg); }',
+      '.admin-details .admin-details-corps { padding: 0 0 10px; }',
+      '.admin-page .saisie.fixe, .modale .saisie.fixe { display: flex; align-items: center; min-height: 34px; padding: 0 10px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); font-size: 13px; color: var(--encre-2); background: var(--carte-2); cursor: default; }',
       // Modale d'ajout.
       '.admin-form { display: flex; flex-direction: column; gap: 12px; }',
       '.admin-form .intro { margin: 0; color: var(--encre-3); line-height: 1.5; }',
@@ -515,9 +585,9 @@
     var groupe = !this.moiInfo || !this.moiInfo.concession || this.moiInfo.concession === TOUTES;
     var badges = [
       badgeRole(role, actif, u.role),
-      groupe ? h('span.puce' + (u.concession === TOUTES ? '.info' : (u.concession ? '' : '.alerte')), { text: u.concession === TOUTES ? 'Groupe' : nomConcession(u.concession, this.moiInfo) }) : null,
+      groupe ? h('span.puce' + (u.concession === TOUTES ? '.info' : (u.concession ? '' : '.alerte')), { text: nomsConcessions(u.concession, u.acces, this.moiInfo) }) : null,
       verrouille(u) ? h('span.puce', { title: 'Seul le propriétaire peut modifier ou retirer un administrateur.', text: 'Géré par le propriétaire' }) : null,
-      (u.concession !== TOUTES && !accesVide(u.acces)) ? h('span.puce.info', { title: accesTexte(u.acces, this.moiInfo), text: 'Accès +' }) : null,
+      (u.concession !== TOUTES && u.acces && Object.keys(accesNorm(u.acces).domaines).length) ? h('span.puce.info', { title: accesTexte(u.acces, this.moiInfo), text: 'Accès +' }) : null,
       u.acheteur ? h('span.puce', { text: 'Acheteur' }) : null,
       ecarts.length ? h('span.puce.attention', { title: pluriel(ecarts.length, 'droit') + ' différent' + (ecarts.length > 1 ? 's' : '') + ' du rôle : ' + ecarts.join(', '), text: 'Droits personnalisés' }) : null,
       moi ? h('span.puce.info', { text: 'Vous' }) : null,
@@ -585,11 +655,12 @@
     if (!choix.some(function (o) { return o[0] === b.role; })) choix = choix.concat([[b.role, ROLES[b.role] || b.role]]);   // rôle actuel non attribuable d'ici (admin, propriétaire) : affiché, pas proposé
     var selRole = h('select', { disabled: moi || verrou, title: moi ? 'Vous ne pouvez pas changer votre propre rôle.' : (verrou ? 'Seul le propriétaire peut modifier un administrateur.' : null) },
       choix.map(function (o) { return h('option', { value: o[0], text: o[1], selected: b.role === o[0] }); }));
-    var optionsConc = (groupe ? [[TOUTES, 'Groupe Automax (toutes les concessions)']].concat(((moiInfo && moiInfo.concessions) || Object.keys(AMX.COMPAGNIES_TOUTES)).map(function (c) { return [c, nomConcession(c, moiInfo)]; })) : [[moiInfo.concession, nomConcession(moiInfo.concession, moiInfo)]]);
-    if (!b.concession) optionsConc = [['', '(à assigner)']].concat(optionsConc);
-    var selConc = h('select', { disabled: !groupe || verrou || moi, title: !groupe ? 'Les comptes que vous gérez sont dans votre concession.' : null },
-      optionsConc.map(function (o) { return h('option', { value: o[0], text: o[1], selected: b.concession === o[0] }); }));
-    selConc.addEventListener('change', function () { b.concession = selConc.value; leger(); });
+    // Concessions : des cases à cocher (une ou plusieurs ; « Tout le groupe » pour voir tout).
+    // Un admin de concession ne gère que la sienne : texte fixe.
+    var codesTous = (moiInfo && moiInfo.toutes) || Object.keys(AMX.COMPAGNIES_TOUTES);
+    var champConc = groupe
+      ? casesConcessions(b, { codes: codesTous, moiInfo: moiInfo, bloque: verrou || moi, apres: rafraichir })
+      : h('div.saisie.fixe', { text: nomConcession(moiInfo.concession, moiInfo), title: 'Les comptes que vous gérez sont dans votre concession.' });
     var inpNom = h('input', { type: 'text', value: b.nomComplet, placeholder: 'Prénom Nom', autocomplete: 'off', disabled: verrou, oninput: function (e) { b.nomComplet = e.target.value; leger(); } });
     selRole.addEventListener('change', function () { b.role = selRole.value; nettoyerEcarts(b, ref); rafraichir(); });
     var segActif = h('div.segment.bloc', { title: moi ? 'Vous ne pouvez pas couper votre propre accès.' : null }, [
@@ -605,8 +676,8 @@
       verrou ? h('div.alerte-bloc.attention.admin-avis', [h('span', { html: I.cadenas }), h('div', 'Administrateur de concession : seul le propriétaire (Maxime Allard) peut modifier ou retirer ce compte.')]) : null,
       h('div.grille.c2', [
         h('div.champ', [h('label', 'Rôle'), selRole]),
-        h('div.champ', [h('label', 'Concession'), selConc]),
         h('div.champ', [h('label', 'Nom'), inpNom]),
+        h('div.champ.plein', [h('label', groupe ? 'Concessions — cochez une ou plusieurs' : 'Concession'), champConc]),
         h('div.champ', [h('label', 'Accès'), segActif]),
         h('div.champ.plein', [h('label', 'Note'), inpNote]),
         h('label.case.plein', [cbAcheteur, h('span', 'Acheteur')])
@@ -703,15 +774,23 @@
       h('thead', [h('tr', [h('th', ''), h('th', { text: 'En entier', title: 'Tout voir de cette concession, comme un membre de son équipe' })].concat(domaines.map(function (d) { return h('th', { text: DOMAINE_NOMS[d] || d, title: noms[d] || DOMAINE_AIDE[d] || '' }); })))]),
       h('tbody', lignes)
     ]);
-    var resume = accesTexte(a, moiInfo);
-    var btnRien = h('button.btn.petit', { type: 'button', text: 'Retirer tous les accès', disabled: bloque || accesVide(a), onclick: function () { b.acces = accesNorm(null); o.rafraichir(); } });
+    var resume = accesTexte(a, moiInfo), parDomaine = Object.keys(a.domaines).length > 0;
+    var btnRien = h('button.btn.petit', { type: 'button', text: 'Retirer les accès par domaine', disabled: bloque || !parDomaine, onclick: function () { b.acces = accesNorm({ concessions: a.concessions }); o.rafraichir(); } });
+    var details = h('details.admin-details', [
+      h('summary', ['Accès par domaine (avancé)', parDomaine ? h('span.puce.info', { text: 'en place' }) : null]),
+      h('div.admin-details-corps', [
+        h('p.admin-pied', { style: { margin: '0 0 8px' }, text: 'Pour donner un seul domaine d\'une autre concession — par exemple toutes les évaluations du groupe sans le reste. Les concessions cochées plus haut sont déjà vues en entier.' }),
+        !peut ? h('div.alerte-bloc.info.admin-avis', [h('span', { html: I.info }), h('div', 'Les accès par domaine sont accordés par le propriétaire ou le groupe' + (resume ? ' — accordés : ' + resume + '.' : '. Aucun pour ce compte.'))]) : null,
+        !b.actif && peut ? h('div.alerte-bloc.attention.admin-avis', [h('span', { html: I.alerte }), h('div', 'Compte désactivé : les accès ne s\'appliquent pas tant qu\'il n\'est pas réactivé.')]) : null,
+        h('div.admin-acces-enveloppe', [table]),
+        h('div.actions-ligne', { style: { marginTop: '8px' } }, [peut ? btnRien : null])
+      ])
+    ]);
+    if (parDomaine) details.open = true;
     return h('div.bloc', [
-      h('h3', ['Accès supplémentaires', peut ? btnRien : null]),
-      h('p.admin-pied', { style: { margin: '0 0 8px' }, text: 'Ce compte est limité à ' + nomConcession(b.concession, moiInfo) + '. Cochez d\'autres concessions, en entier ou pour un seul domaine (ex. toutes les évaluations du groupe).' }),
-      !peut ? h('div.alerte-bloc.info.admin-avis', [h('span', { html: I.info }), h('div', 'Les accès supplémentaires sont accordés par le propriétaire ou le groupe' + (resume ? ' — accordés : ' + resume + '.' : '. Aucun pour ce compte.'))]) : null,
-      !b.actif && peut ? h('div.alerte-bloc.attention.admin-avis', [h('span', { html: I.alerte }), h('div', 'Compte désactivé : les accès ne s\'appliquent pas tant qu\'il n\'est pas réactivé.')]) : null,
-      h('div.admin-acces-enveloppe', [table]),
-      h('p.admin-pied', { text: resume ? 'Accordés : ' + resume + '.' : 'Aucun accès supplémentaire : ce compte ne voit que ' + nomConcession(b.concession, moiInfo) + '.' })
+      h('h3', 'Accès supplémentaires'),
+      h('p.admin-pied', { style: { margin: '0 0 8px' }, text: resume ? 'Ce compte voit : ' + nomsConcessions(b.concession, a, moiInfo) + (Object.keys(a.domaines).length ? ' · ' + accesTexte({ domaines: a.domaines }, moiInfo) : '') + '.' : 'Ce compte ne voit que ' + nomConcession(b.concession, moiInfo) + '. Pour une deuxième concession, cochez-la dans « Concessions » plus haut.' }),
+      details
     ]);
   };
 
@@ -721,10 +800,10 @@
     var b = this.brouillonDe(u), modifie = this.estModifie(u);
     AMX.vider(el);
     el.appendChild(badgeRole(b.role, b.actif, u.role));
-    el.appendChild(h('span.puce' + (b.concession === TOUTES ? '.info' : ''), { text: b.concession === TOUTES ? 'Groupe' : nomConcession(b.concession, this.moiInfo) }));
+    el.appendChild(h('span.puce' + (b.concession === TOUTES ? '.info' : ''), { text: nomsConcessions(b.concession, b.acces, this.moiInfo) }));
     if (memeCourriel(u.nom, this.moi)) el.appendChild(h('span.puce.info', { text: 'Vous' }));
     if (b.acheteur) el.appendChild(h('span.puce', { text: 'Acheteur' }));
-    if (b.concession !== TOUTES && !accesVide(b.acces)) el.appendChild(h('span.puce.info', { title: accesTexte(b.acces, this.moiInfo), text: 'Accès +' }));
+    if (b.concession !== TOUTES && Object.keys(accesNorm(b.acces).domaines).length) el.appendChild(h('span.puce.info', { title: accesTexte(b.acces, this.moiInfo), text: 'Accès +' }));
     if (modifie) el.appendChild(h('span.puce.attention', { text: 'Non enregistrée' }));
     if (this.pBtnAnnuler) this.pBtnAnnuler.disabled = !modifie;
   };
@@ -737,7 +816,7 @@
     var moiInfo = this.moiInfo, accorde = !!(moiInfo && (moiInfo.accorderAcces || !moiInfo.concession || moiInfo.concession === TOUTES));
     if (accorde) corps.acces = (b.concession && b.concession !== TOUTES) ? accesNettoyer(b.acces, b.concession) : { concessions: [], domaines: {} };
     btn.classList.add('occupe');
-    return AMX.post(corps).then(function (r) {
+    return AMX.post(corps, { rejouer: true }).then(function (r) {
       AMX.verifier(r, 'Mise à jour refusée par le serveur');
       if (r.ok !== true) throw new Error(r.erreur || r.message || 'Le serveur n\'a pas confirmé la mise à jour.');
       AMX.toast(u.nom + ' mis à jour', 'ok');
@@ -762,8 +841,10 @@
     AMX.confirmer('Supprimer ce compte ?', message, { ok: 'Supprimer', danger: true }).then(function (ok) {
       if (!ok) return;
       btn.classList.add('occupe');
-      return AMX.post({ action: 'supprimerUtilisateur', nom: u.nom }).then(function (r) {
+      return AMX.post({ action: 'supprimerUtilisateur', nom: u.nom }, { rejouer: true }).then(function (r) {
         if (r && r.refuse) throw new Error(r.erreur || r.message || 'Action refusée pour ce compte.');
+        // Rejouée après un premier envoi qui a réussi sans réponse lisible : le compte n'est plus là, c'est bon.
+        if (r && r.ok === false && /introuvable/i.test(r.erreur || '')) r = { ok: true, supprime: true };
         if (!r || r.supprime !== true) throw new Error((r && (r.erreur || r.message)) || 'La suppression n\'est pas activée côté serveur (action « supprimerUtilisateur » absente). Utilisez « Désactivé » en attendant.');
         AMX.toast(u.nom + ' supprimé', 'ok');
         delete self.brouillons[cle];
@@ -773,8 +854,12 @@
         self.rendre();
         return self.charger();
       }).catch(function (e) {
-        AMX.toast('Suppression impossible — ' + AMX.erreurTexte(e), 'erreur', 8000);
-        btn.classList.remove('occupe');
+        // Le serveur a peut-être supprimé sans répondre (404 passager, délai) : on relit la liste avant de conclure.
+        return self.charger().then(function () {
+          if (!(self.utilisateurs || []).some(function (x) { return memeCourriel(x.nom, u.nom); })) { AMX.toast(u.nom + ' supprimé', 'ok'); self.selection = ''; history.replaceState(null, '', AMX.lien('admin', '')); self.rendre(); return; }
+          AMX.toast('Suppression impossible — ' + AMX.erreurTexte(e), 'erreur', 8000);
+          btn.classList.remove('occupe');
+        });
       });
     });
   };
@@ -786,8 +871,16 @@
     var inpMail = h('input', { type: 'email', placeholder: 'prenom@groupeautomax.com', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' });
     var inpNomC = h('input', { type: 'text', placeholder: 'Prénom Nom', autocomplete: 'off' });
     var selRole = h('select', choixRoles(moiInfo).map(function (o) { return h('option', { value: o[0], text: o[1] }); }));
-    var optionsConc = groupe ? ((moiInfo && moiInfo.concessions) || Object.keys(AMX.COMPAGNIES_TOUTES)).map(function (c) { return [c, nomConcession(c, moiInfo)]; }).concat([[TOUTES, 'Groupe Automax (toutes les concessions)']]) : [[moiInfo.concession, nomConcession(moiInfo.concession, moiInfo)]];
-    var selConc = h('select', { disabled: !groupe }, optionsConc.map(function (o) { return h('option', { value: o[0], text: o[1] }); }));
+    // Concessions : cases à cocher (groupe) ou la sienne, fixe (admin de concession).
+    var brouillonConc = { concession: groupe ? '' : moiInfo.concession, acces: accesNorm(null) };
+    var zoneConc = h('div');
+    var dessinerConc = function () {
+      AMX.vider(zoneConc);
+      zoneConc.appendChild(groupe
+        ? casesConcessions(brouillonConc, { codes: (moiInfo && moiInfo.toutes) || Object.keys(AMX.COMPAGNIES_TOUTES), moiInfo: moiInfo, bloque: false, apres: dessinerConc })
+        : h('div.saisie.fixe', { text: nomConcession(moiInfo.concession, moiInfo) }));
+    };
+    dessinerConc();
     var cbAcheteur = h('input', { type: 'checkbox' });
     var inpNote = h('input', { type: 'text', placeholder: 'ex. Hawkesbury, service', autocomplete: 'off' });
     var elErreur = h('div.admin-erreur');
@@ -796,8 +889,8 @@
       h('div.champ', [h('label', 'Courriel'), inpMail]),
       h('div.grille.c2', [
         h('div.champ', [h('label', 'Nom'), inpNomC]),
-        h('div.champ', [h('label', 'Concession'), selConc]),
         h('div.champ', [h('label', 'Rôle'), selRole]),
+        h('div.champ.plein', [h('label', groupe ? 'Concessions — cochez une ou plusieurs' : 'Concession'), zoneConc]),
         h('div.champ', [h('label', 'Acheteur'), h('label.case', [cbAcheteur, h('span', 'Compte d\'acheteur')])])
       ]),
       h('div.champ', [h('label', 'Note (facultatif)'), inpNote]),
@@ -813,8 +906,10 @@
         inpMail.focus();
         return false;
       }
-      var nouveau = { nom: mail, role: selRole.value, actif: true, acheteur: cbAcheteur.checked, note: inpNote.value.trim(), droits: {}, concession: selConc.value, nomComplet: inpNomC.value.trim(), modifiable: true };
-      return AMX.post({ action: 'majUtilisateur', nom: nouveau.nom, role: nouveau.role, actif: true, acheteur: nouveau.acheteur, note: nouveau.note, concession: nouveau.concession, nomComplet: nouveau.nomComplet }).then(function (r) {
+      if (groupe && !brouillonConc.concession) { elErreur.textContent = 'Cochez au moins une concession (ou « Tout le groupe »).'; return false; }
+      var accesN = accesNettoyer(brouillonConc.acces, brouillonConc.concession);
+      var nouveau = { nom: mail, role: selRole.value, actif: true, acheteur: cbAcheteur.checked, note: inpNote.value.trim(), droits: {}, concession: brouillonConc.concession, acces: accesN, nomComplet: inpNomC.value.trim(), modifiable: true };
+      return AMX.post({ action: 'majUtilisateur', nom: nouveau.nom, role: nouveau.role, actif: true, acheteur: nouveau.acheteur, note: nouveau.note, concession: nouveau.concession, acces: groupe ? accesN : undefined, nomComplet: nouveau.nomComplet }, { rejouer: true }).then(function (r) {
         AMX.verifier(r, 'Ajout refusé par le serveur');
         if (r.ok !== true) throw new Error(r.erreur || r.message || 'Le serveur n\'a pas confirmé l\'ajout.');
         AMX.toast(mail + ' ajouté', 'ok');

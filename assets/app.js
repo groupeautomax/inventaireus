@@ -353,22 +353,34 @@
       return d;
     }, function (err) { enCours--; majEtat(true); throw err; });
   };
-  // POST : jamais rejoué (une écriture dédoublée coûte plus cher qu'un échec).
+  // POST : jamais rejoué par défaut (une écriture dédoublée coûte plus cher
+  // qu'un échec). `opts.rejouer` : pour une action idempotente (modifier ou
+  // supprimer un compte), un 404 HTML passager de Google ou un délai dépassé
+  // est renvoyé une fois (6 oct. : « on ne peut pas supprimer un utilisateur »
+  // — le serveur avait supprimé, mais la réponse n'était jamais arrivée).
   AMX.post = function (corps, opts) {
     opts = opts || {};
-    var b = Object.assign({}, corps, { utilisateur: AMX.session.courriel, jeton: lire(CLE.jeton) });
-    enCours++; majEtat(false);
-    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var minuterie = ctrl ? setTimeout(function () { ctrl.abort(); }, opts.delai || 60000) : null;
-    return _fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b), signal: ctrl ? ctrl.signal : undefined })
-      .then(function (r) { return r.text(); })
-      .then(function (t) {
-        if (minuterie) clearTimeout(minuterie);
-        enCours--; majEtat(false);
-        var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur (' + t.slice(0, 60).replace(/<[^>]+>/g, '') + '…)'); }
-        if (surRefus(d)) throw new Error('Session expirée');
-        return d;
-      }, function (err) { if (minuterie) clearTimeout(minuterie); enCours--; majEtat(true); throw (err && err.name === 'AbortError') ? new Error('Le serveur met trop de temps à répondre.') : err; });
+    var envoyer = function () {
+      var b = Object.assign({}, corps, { utilisateur: AMX.session.courriel, jeton: lire(CLE.jeton) });
+      enCours++; majEtat(false);
+      var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var minuterie = ctrl ? setTimeout(function () { ctrl.abort(); }, opts.delai || 60000) : null;
+      return _fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b), signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          if (minuterie) clearTimeout(minuterie);
+          enCours--; majEtat(false);
+          var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur (' + t.slice(0, 60).replace(/<[^>]+>/g, '') + '…)'); }
+          if (surRefus(d)) throw new Error('Session expirée');
+          return d;
+        }, function (err) { if (minuterie) clearTimeout(minuterie); enCours--; majEtat(true); throw (err && err.name === 'AbortError') ? new Error('Le serveur met trop de temps à répondre.') : err; });
+    };
+    if (!opts.rejouer) return envoyer();
+    return envoyer().catch(function (e) {
+      var msg = AMX.erreurTexte(e);
+      if (!/illisible|trop de temps|Failed to fetch|NetworkError|Load failed|network/i.test(msg)) throw e;
+      return new Promise(function (res) { setTimeout(res, 500); }).then(envoyer);
+    });
   };
   // Lève une erreur lisible si le serveur dit non.
   AMX.verifier = function (d, defaut) {

@@ -401,7 +401,7 @@
     this.elPanneau.style.display = '';
     var st = STATUTS[s.statut] || STATUTS.encours;
     var peutEtape = AMX.perm('changerStatut');
-    var directeur = AMX.perm('modifierMontants') || AMX.session.role === 'admin' || AMX.session.role === 'gestionnaire';
+    var directeur = AMX.perm('modifierMontants') || AMX.session.role === 'admin' || AMX.session.role === 'proprietaire' || AMX.session.role === 'gestionnaire';
     var peutAutoriser = directeur;
     var accepte = s.autorisation.decision === 'accepte', refuse = s.autorisation.decision === 'refuse';
     var idxPorte = indexEtape('autorisation', etapes);

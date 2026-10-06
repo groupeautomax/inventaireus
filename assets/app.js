@@ -357,7 +357,8 @@
     if (p[cle] !== undefined) return !!p[cle];
     return AMX.session.role === 'admin';
   };
-  AMX.estAdmin = function () { return AMX.session.role === 'admin' || AMX.perm('gererUtilisateurs'); };
+  AMX.estAdmin = function () { return AMX.session.role === 'admin' || AMX.session.role === 'proprietaire' || AMX.perm('gererUtilisateurs'); };
+  AMX.estProprietaire = function () { return AMX.session.role === 'proprietaire' || AMX.perm('gererAdmins'); };
 
   function chargerProfil() {
     return _fetch(URL_BACKEND + '?permissions=1&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&utilisateur=' + encodeURIComponent(lire(CLE.mail)) + '&_=' + Date.now())
@@ -368,6 +369,7 @@
         if (p) {
           ecrire(CLE.nom, p.nom || ''); ecrire(CLE.role, p.role || ''); ecrire(CLE.perms, JSON.stringify(p));
           AMX.session.nom = p.nom || ''; AMX.session.role = p.role || ''; AMX.session.perms = p;
+          AMX.appliquerPortee();
           document.dispatchEvent(new CustomEvent('amx:profil'));
         }
         return p;
@@ -706,13 +708,29 @@
     return s;
   };
   AMX.badgeStatut = function (id, feuille) { var s = AMX.statut(id, feuille); return h('span.badge.' + s.couleur, { text: s.libelle }); };
-  AMX.COMPAGNIES = { STM: 'Ste-Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke' };
+  // Les cinq concessions du groupe (6 oct.) : STM, HAWKS, BMW, VW, HYUNDAI.
+  AMX.COMPAGNIES_TOUTES = { STM: 'Ste-Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil' };
   // Compagnie du registre → clé de concession (contrats, évaluation, offres).
-  AMX.COMPAGNIE_CONCESSION = { STM: 'stemarie', HAWKS: 'hawkesbury', BMW: 'bmwsherbrooke' };
-  AMX.optionsCompagnies = function (vide) { var l = vide ? [h('option', { value: '', text: vide })] : []; Object.keys(AMX.COMPAGNIES).forEach(function (c) { l.push(h('option', { value: c, text: c })); }); return l; };
-  AMX.CONCESSIONS = {
+  AMX.COMPAGNIE_CONCESSION = { STM: 'stemarie', HAWKS: 'hawkesbury', BMW: 'bmwsherbrooke', VW: 'vwbrossard', HYUNDAI: 'hyundailongueuil' };
+  AMX.CONCESSIONS_TOUTES = {
     stemarie: 'Ste Marie Automobiles Ltée', hawkesbury: 'Hawkesbury Chevrolet Buick Cadillac', vwbrossard: 'VW Brossard', bmwsherbrooke: 'BMW Sherbrooke', hyundailongueuil: 'Hyundai Longueuil'
   };
+  // Portée (Maxime, 6 oct.) : « chaque concession voit uniquement les informations
+  // de sa concession ». Le serveur filtre tout ; ici on limite les sélecteurs et
+  // les filtres à ce que le compte peut choisir (perms.concessions, perms.toutes).
+  // AMX.COMPAGNIES / AMX.CONCESSIONS sont les listes VISIBLES ; les modules les
+  // lisent au rendu, donc elles suivent le profil (amx:profil).
+  AMX.COMPAGNIES = Object.assign({}, AMX.COMPAGNIES_TOUTES);
+  AMX.CONCESSIONS = Object.assign({}, AMX.CONCESSIONS_TOUTES);
+  AMX.appliquerPortee = function () {
+    var p = AMX.session.perms, codes = Object.keys(AMX.COMPAGNIES_TOUTES);
+    if (p && p.concessions && p.concessions.length && !p.toutes) codes = p.concessions.filter(function (c) { return AMX.COMPAGNIES_TOUTES[c]; });
+    AMX.COMPAGNIES = {}; AMX.CONCESSIONS = {};
+    codes.forEach(function (c) { AMX.COMPAGNIES[c] = AMX.COMPAGNIES_TOUTES[c]; var k = AMX.COMPAGNIE_CONCESSION[c]; if (k) AMX.CONCESSIONS[k] = AMX.CONCESSIONS_TOUTES[k]; });
+  };
+  AMX.estGroupe = function () { var p = AMX.session.perms; return !p || p.toutes !== false; };
+  AMX.maConcession = function () { var p = AMX.session.perms; return (p && !p.toutes && p.concession) ? p.concession : ''; };
+  AMX.optionsCompagnies = function (vide) { var l = vide ? [h('option', { value: '', text: vide })] : []; Object.keys(AMX.COMPAGNIES).forEach(function (c) { l.push(h('option', { value: c, text: c })); }); return l; };
   AMX.STATUTS_OFFRE = {
     nouvelle: { libelle: 'À traiter', couleur: 'ambre' }, contre: { libelle: 'Contre-offre', couleur: 'violet' },
     acceptee: { libelle: 'Acceptée', couleur: 'bleu' }, contrat: { libelle: 'Contrat signé', couleur: 'vert' },
@@ -775,6 +793,7 @@
     if (jeton && mail) {
       AMX.session.courriel = mail; AMX.session.nom = lire(CLE.nom); AMX.session.role = lire(CLE.role);
       try { AMX.session.perms = JSON.parse(lire(CLE.perms) || 'null'); } catch (e) { AMX.session.perms = null; }
+      AMX.appliquerPortee();
       ouvrir();
       chargerProfil();
     } else {

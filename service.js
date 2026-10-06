@@ -60,6 +60,7 @@
       return promesse;
     },
     enCache: function () { return cache.reponse ? cache.reponse.suivis : null; },
+    resume: function () { return (cache.reponse && cache.reponse.resume) || null; },
     parVin: function (vin) {
       vin = String(vin || '').toUpperCase();
       var l = cache.reponse ? cache.reponse.suivis : [];
@@ -315,6 +316,13 @@
       if (opts.onclick) k.addEventListener('click', opts.onclick);
       return k;
     };
+    // Même compte que le registre Detail : au détail = en cours + prêts (suivis fermés).
+    var resume = AMX.service.resume() || {};
+    var auDetail = f.compagnie ? ((resume.parCompagnie || {})[f.compagnie] || {}).auDetail : resume.auDetail;
+    if (auDetail === undefined || auDetail === null) auDetail = tous.filter(function (s) { return s.statut !== 'refuse' && s.dansRegistre !== false; }).length;
+    var parStatut = resume.registreParStatut || {};
+    var sousDetail = f.compagnie ? 'registre Detail · ' + AMX.COMPAGNIES[f.compagnie] : (parStatut.achete || parStatut.stock ? (parStatut.achete || 0) + ' acheté' + ((parStatut.achete || 0) > 1 ? 's' : '') + ' · ' + (parStatut.stock || 0) + ' en stock' : 'registre Detail');
+    this.elKpis.appendChild(kpi(auDetail, 'Au détail', { classe: 'neutre', sous: sousDetail, onclick: function () { AMX.aller('inventaire', 'detail'); } }));
     this.elKpis.appendChild(kpi(enCours.length, 'En reconditionnement', { sous: f.compagnie ? AMX.COMPAGNIES[f.compagnie] : 'Toutes compagnies', actif: this.onglet === 'encours' && !f.retard, onclick: function () { f.retard = false; f.etapes = null; AMX.aller('service', 'encours'); } }));
     this.elKpis.appendChild(kpi(aAutoriser, 'Direction', { classe: aAutoriser ? 'attention' : '', sous: 'à vérifier / autoriser', actif: this.onglet === 'autoriser', onclick: function () { AMX.aller('service', 'autoriser'); } }));
     this.elKpis.appendChild(kpi(enRetard, 'En retard', { classe: enRetard ? 'alerte' : '', sous: 'cible ' + cibles.total + ' j', actif: f.retard, onclick: function () { f.retard = !f.retard; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.rendre(); } }));
@@ -544,6 +552,19 @@
       liste.appendChild(ligne);
     });
     blocEtapes.appendChild(liste);
+    // Véhicule déjà sur la ligne (en stock avant le suivi, ou reconditionné
+    // sans l'app) : un clic de directeur, tout est sauté avec une note.
+    if (directeur && s.statut === 'encours') {
+      var dejaStock = String(s.statutVehicule || '') === 'stock';
+      blocEtapes.appendChild(h('div.svc-deja', { style: { marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--ligne)' } }, [
+        h('div.doux.petit', { style: { marginBottom: '6px' }, text: dejaStock ? 'Ce véhicule est déjà « En stock » au registre : s\'il est déjà reconditionné, passez-le prêt d\'un coup.' : 'Déjà reconditionné sans passer par ici ?' }),
+        h('button.btn' + (dejaStock ? '' : '.fantome') + '.petit', { html: I.ok + '<span>Déjà prêt à vendre</span>', title: 'Marque les étapes restantes « sautées » (avec une note), accepte au détail et passe « Prêt à vendre »', onclick: function () {
+          AMX.confirmer('Déjà prêt à vendre', 'Les étapes non faites seront marquées « sautées » avec la note « déjà sur la ligne à la mise en place du suivi », l\'autorisation détail sera acceptée et ' + s.vin + ' passera « Prêt à vendre »' + (dejaStock ? '.' : ' (et « En stock » au registre).'), { ok: 'Marquer prêt' }).then(function (oui) {
+            if (oui) self.ecrire({ action: 'serviceDejaPret', vin: s.vin });
+          });
+        } })
+      ]));
+    }
 
     // Notes
     var blocNotes = h('div.bloc', [h('h3', 'Notes')]);

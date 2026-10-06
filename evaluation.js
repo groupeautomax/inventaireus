@@ -508,6 +508,10 @@
     this.elLiens.appendChild(h('a.btn.petit' + (carfax ? '' : ''), { href: carfax || URL_CARFAX_COMPTE, target: '_blank', rel: 'noopener', title: carfax ? 'Rapport CARFAX partagé de ce véhicule' : 'Mon compte CARFAX (aucun rapport partagé pour ce NIV)', html: I.externe + '<span>' + (carfax ? 'Rapport CARFAX' : 'CARFAX (compte)') + '</span>' }));
     this.elLiens.appendChild(h('a.btn.petit' + (vinOk ? '' : '.desactive'), { href: vinOk ? lienMarketGuide(vin) : '#', target: '_blank', rel: 'noopener', title: 'Valeurs d\'encan eBlock (vendus 90 jours) pour ce NIV', html: I.externe + '<span>eBlock Market Guide</span>' }));
     this.elLiens.appendChild(h('a.btn.petit', { href: URL_TORQUE, target: '_blank', rel: 'noopener', title: 'Évaluations Torque (Hawkesbury)', html: I.externe + '<span>Torque</span>' }));
+    // Évaluation → fiche d'achat → inventaire : la fiche s'ouvre préremplie
+    // avec cette évaluation (l'analyse en cours est conservée d'abord).
+    var self = this, veh = vinOk ? AMX.inventaire.parVin(vin) : null, ficheExiste = !!(veh && veh.ficheExiste);
+    this.elLiens.appendChild(h('button.btn.petit' + (vinOk ? '.primaire' : '.desactive'), { type: 'button', title: vinOk ? (ficheExiste ? 'Ouvrir la fiche d\'achat de ce véhicule (elle proposera d\'importer cette évaluation)' : 'Créer la fiche d\'achat de ce véhicule, préremplie avec cette évaluation, pour l\'envoyer à l\'inventaire') : 'Entrez un NIV complet', html: I.achat + '<span>' + (ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>', onclick: function () { if (vinOk) self.versFicheAchat(vin); } }));
     this.elRappels = h('span.eval-rappels#eval-rappels');
     this.elLiens.appendChild(this.elRappels);
     this.rendreRappels();
@@ -515,6 +519,21 @@
     // Historique Torque : une requête par NIV, seulement quand il change.
     if (vinOk && this.torqueVin !== vin && typeof AMX.torqueHistorique === 'function') { this.torqueVin = vin; AMX.torqueHistorique(vin, this.elTorque); }
     else if (!vinOk && this.torqueVin) { this.torqueVin = ''; AMX.vider(this.elTorque); }
+  };
+
+  // Conserve l'analyse (sauvegarde automatique) puis ouvre la fiche d'achat du
+  // NIV : les champs connus ici voyagent aussi dans l'adresse, au cas où la
+  // sauvegarde n'aurait pas eu le temps.
+  Evaluation.prototype.versFicheAchat = function (vin) {
+    var self = this;
+    var params = { vin: vin, source: 'evaluation' };
+    if (this.elMarque.value.trim()) params.marque = this.elMarque.value.trim();
+    if (this.elModele.value.trim()) params.modele = this.elModele.value.trim();
+    if (this.elAnnee.value.trim()) params.annee = this.elAnnee.value.trim();
+    if (this.elKm.value.trim()) params.km = this.elKm.value.trim();
+    var partir = function () { AMX.aller('achat', '', params); };
+    var p = this.parametresPrets() ? this.sauvegarderAuto() : Promise.resolve();
+    Promise.resolve(p).then(partir, partir);
   };
 
   /* ------------------------- Rappels de sécurité (NHTSA) -----------------

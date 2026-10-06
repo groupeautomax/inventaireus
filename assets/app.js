@@ -21,9 +21,14 @@
   var SITE_PUBLIC = 'https://groupeautomax.github.io/inventaireus/';
 
   // Mêmes clés que l'ancien site : une session ouverte reste ouverte.
-  var CLE = { mail: 'pg_utilisateur_v1', nom: 'pg_nom_v1', role: 'pg_role_v1', jeton: 'pg_jeton_v1', perms: 'amx_perms_v1' };
+  var CLE = { mail: 'pg_utilisateur_v1', nom: 'pg_nom_v1', role: 'pg_role_v1', jeton: 'pg_jeton_v1', perms: 'amx_perms_v1', expire: 'amx_session_expire_v1' };
 
   var AMX = window.AMX = { URL: URL_BACKEND, SITE: SITE_PUBLIC, sections: {}, session: { courriel: '', nom: '', role: '', perms: null } };
+
+  // Session (6 oct.) : une connexion vaut 30 jours, sur le site comme dans l'app — c'est le serveur
+  // (Auth.gs, AUTH_DUREE_JETON_J) qui tranche ; ici on garde la date pour l'afficher et éviter un aller-retour inutile.
+  AMX.sessionExpire = function () { var t = parseInt(lire(CLE.expire), 10); return isFinite(t) && t > 0 ? new Date(t) : null; };
+  AMX.sessionTexte = function () { var d = AMX.sessionExpire(); if (!d) return ''; var j = Math.ceil((d.getTime() - Date.now()) / 86400000); return 'Connecté jusqu\'au ' + d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long' }) + (j > 0 ? ' (' + j + ' jour' + (j > 1 ? 's' : '') + ')' : ''); };
 
   /* ------------------------------ Mémoire ------------------------------ */
   function lire(c) { try { return localStorage.getItem(c) || ''; } catch (e) { return ''; } }
@@ -418,7 +423,7 @@
   }
 
   AMX.deconnecter = function (message) {
-    [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
+    [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     AMX.session = { courriel: '', nom: '', role: '', perms: null };
     document.getElementById('appli').classList.remove('pret');
     porte(message || '');
@@ -441,7 +446,8 @@
         h('h1', { text: enCourriel ? 'Inventaire et ventes' : 'Code de vérification' }),
         h('p', enCourriel ? 'Entrez votre adresse courriel. Un code à six chiffres vous sera envoyé.' : ['Un code vient d\'être envoyé à ', h('strong', { text: courrielEnCours }), '.']),
         champ, bouton, erreur,
-        enCourriel ? null : h('button.lien', { type: 'button', text: 'Changer d\'adresse', onclick: function () { etape = 'courriel'; dessiner(''); } })
+        enCourriel ? null : h('button.lien', { type: 'button', text: 'Changer d\'adresse', onclick: function () { etape = 'courriel'; dessiner(''); } }),
+        h('p.porte-note', enCourriel ? 'Une connexion vaut 30 jours sur cet appareil, comme dans l\'app ScanAutomax. Sur iPhone, ajoutez le site à l\'écran d\'accueil (Partager → « Sur l\'écran d\'accueil ») pour que Safari garde la session.' : 'Le code est valide 10 minutes.')
       ]);
       p.appendChild(carte);
       var envoyer = function () {
@@ -463,8 +469,9 @@
         _fetch(URL_BACKEND + '?courriel=' + encodeURIComponent(courrielEnCours) + '&verifierCode=' + encodeURIComponent(code) + '&_=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
           if (!d || !d.ok || !d.jeton) { bouton.disabled = false; bouton.textContent = 'Se connecter'; erreur.textContent = (d && d.erreur) || 'Code refusé.'; return; }
           ecrire(CLE.jeton, d.jeton); ecrire(CLE.mail, courrielEnCours);
+          ecrire(CLE.expire, d.expire ? String(d.expire) : String(Date.now() + 30 * 86400000));
           AMX.session.courriel = courrielEnCours;
-          return chargerProfil().then(function () { ouvrir(); });
+          return chargerProfil().then(function () { ouvrir(); AMX.toast('Connecté pour ' + (d.dureeJours || 30) + ' jours sur cet appareil.', 'ok', 5000); });
         }).catch(function () { bouton.disabled = false; bouton.textContent = 'Se connecter'; erreur.textContent = 'Serveur injoignable. Réessayez.'; });
       };
       champ.addEventListener('keydown', function (e) { if (e.key === 'Enter') envoyer(); });
@@ -568,7 +575,7 @@
       h('div.avatar', { text: AMX.initiales(AMX.session.nom || AMX.session.courriel) }),
       h('div', [h('div.nom', { text: AMX.session.nom || AMX.session.courriel }), h('div.role', { text: AMX.session.role || '' })]),
       h('div.menu', [
-        h('div.info', [h('div', { text: AMX.session.nom || '' }), h('div', { text: AMX.session.courriel })]),
+        h('div.info', [h('div', { text: AMX.session.nom || '' }), h('div', { text: AMX.session.courriel }), AMX.sessionTexte() ? h('div.doux', { text: AMX.sessionTexte() }) : null]),
         h('div.sep'),
         h('button', { type: 'button', text: 'Déconnexion', onclick: function () { AMX.deconnecter(''); } })
       ])
@@ -847,6 +854,8 @@
   /* ------------------------------ Démarrage ----------------------------- */
   document.addEventListener('DOMContentLoaded', function () {
     var jeton = lire(CLE.jeton), mail = lire(CLE.mail);
+    var echeance = AMX.sessionExpire();
+    if (jeton && mail && echeance && echeance.getTime() < Date.now()) { AMX.deconnecter('Votre session de 30 jours est terminée. Reconnectez-vous.'); return; }
     if (jeton && mail) {
       AMX.session.courriel = mail; AMX.session.nom = lire(CLE.nom); AMX.session.role = lire(CLE.role);
       try { AMX.session.perms = JSON.parse(lire(CLE.perms) || 'null'); } catch (e) { AMX.session.perms = null; }

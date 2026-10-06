@@ -51,7 +51,8 @@
     charger: function (force) {
       if (!force && cache.reponse && Date.now() - cache.quand < 60000) return Promise.resolve(cache.reponse);
       if (promesse) return promesse;
-      promesse = AMX.get({ service: 1, tout: 1 }).then(function (d) {
+      // force (bouton Rafraîchir, après une écriture) : frais=1 saute le cache serveur (120 s).
+      promesse = AMX.get(force ? { service: 1, tout: 1, frais: 1 } : { service: 1, tout: 1 }).then(function (d) {
         AMX.verifier(d, 'Suivi service indisponible');
         cache.reponse = d; cache.quand = Date.now(); promesse = null;
         document.dispatchEvent(new CustomEvent('amx:service'));
@@ -146,7 +147,8 @@
     this.charger();
     this.surService = function () { self.suivis = AMX.service.enCache() || self.suivis; self.construireRail(); self.rendre(); AMX.rafraichirSousBarre(); };
     document.addEventListener('amx:service', this.surService);
-    this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) self.charger(true); }, 120000);
+    // Rafraîchissement périodique : sans frais=1 (le cache serveur suffit, il est vidé à chaque écriture).
+    this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) self.charger(); }, 120000);
   }
   Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: '', etapes: null, retard: false }; };
   Suivi.prototype.demonter = function () { clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); };

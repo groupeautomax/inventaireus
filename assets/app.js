@@ -266,26 +266,59 @@
   }
   function attendre(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  // GET avec reprise (Apps Script renvoie parfois un 404 HTML passager).
+  // GET avec reprise et requête de secours. Apps Script (/exec) a deux
+  // humeurs : un 404 HTML passager, et une requête qui reste « en attente »
+  // 20 à 60 s alors que la même, relancée, répond en 3 s (mesuré le 6 oct. :
+  // 2 à 4 s côté script, 12 à 30 s vus du navigateur). Donc : chaque tentative
+  // a une durée maximale (GET_DELAI_MS), un 404 est repris tout de suite, et si
+  // rien n'est arrivé après GET_SECOURS_MS une deuxième tentative part en
+  // parallèle — la première réponse valable gagne, l'autre est annulée. Un GET
+  // ne modifie rien : le doublon est sans danger.
+  var GET_DELAI_MS = 25000, GET_SECOURS_MS = 6000;
   AMX.get = function (params, opts) {
     opts = opts || {};
     var q = typeof params === 'string' ? params : Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
-    var url = URL_BACKEND + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&_=' + Date.now();
+    var base = URL_BACKEND + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton));
     enCours++; majEtat(false);
-    var essais = opts.essais === undefined ? 3 : opts.essais;
-    var tenter = function (reste) {
-      return _fetch(url, { method: 'GET', cache: 'no-store' }).then(function (r) {
+    var essais = opts.essais === undefined ? 4 : opts.essais;
+    var delai = opts.delai || GET_DELAI_MS;
+    var aborts = [];
+    var unAppel = function () {
+      var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      if (ctrl) aborts.push(ctrl);
+      var minuterie = ctrl ? setTimeout(function () { ctrl.abort(); }, delai) : null;
+      var fin = function () { if (minuterie) clearTimeout(minuterie); };
+      return _fetch(base + '&_=' + Date.now() + Math.floor(Math.random() * 1000), { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
       }).then(function (t) {
+        fin();
         var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); }
         return d;
-      }).catch(function (err) {
-        if (reste <= 0) throw err;
-        return attendre(700 * (essais - reste + 1)).then(function () { return tenter(reste - 1); });
-      });
+      }, function (err) { fin(); throw (err && err.name === 'AbortError') ? new Error('Pas de réponse en ' + Math.round(delai / 1000) + ' s') : err; });
     };
-    return tenter(essais).then(function (d) {
+    var course = new Promise(function (resolve, reject) {
+      var restants = essais, enVol = 0, fini = false, derniere = null, secours = null;
+      var lancer = function () {
+        if (fini || restants <= 0) return;
+        restants--; enVol++;
+        unAppel().then(function (d) {
+          if (fini) return;
+          fini = true; if (secours) clearTimeout(secours);
+          aborts.forEach(function (c) { try { c.abort(); } catch (e) {} });
+          resolve(d);
+        }, function (err) {
+          enVol--;
+          if (fini) return;
+          derniere = err;
+          if (restants > 0) setTimeout(lancer, /HTTP 404/.test(String(err && err.message)) ? 250 : 700);
+          else if (enVol === 0) { fini = true; reject(derniere); }
+        });
+      };
+      lancer();
+      secours = setTimeout(function () { if (!fini) lancer(); }, opts.secours || GET_SECOURS_MS);
+    });
+    return course.then(function (d) {
       enCours--; majEtat(false);
       if (surRefus(d)) throw new Error('Session expirée');
       return d;

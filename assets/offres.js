@@ -2,8 +2,10 @@
    Section « Offres & clients » : offres reçues (négociation, contrat),
    véhicules en vente (vitrine), acheteurs externes, leads.
    Routes serveur : offresRecues, offreAction (accepter | contre | refuser |
-   annuler | lien | km), contratPdf, vitrineListe, publierVehicule,
+   annuler | lien | km | signer), contratPdf, vitrineListe, publierVehicule,
    regenererCleVitrine, acheteursExternes, acheteurExterneInviter, leadListe.
+   Signature électronique (7 oct.) : l'acheteur signe sur sa page ; le
+   directeur contresigne ici (« Signer le contrat », tablette AMX.tablette).
    ========================================================================= */
 (function () {
   'use strict';
@@ -57,6 +59,112 @@
   function lienPublic(cle, vin) { return AMX.SITE + 'vitrine/vehicle.html?k=' + encodeURIComponent(cle) + '&vin=' + encodeURIComponent(vin); }
   function nomConcession(id) { return AMX.CONCESSIONS[String(id || '').toLowerCase()] || id || '—'; }
   function compagnieVersConcession(c) { return AMX.COMPAGNIE_CONCESSION[String(c || '').toUpperCase()] || ''; }
+
+  /* Tablette de signature (7 oct.) — source : site/mock/tablette-signature.js
+     (même code dans vitrine/offre.html et vitrine/reponse.html). */
+  function creerTablette(conteneur, opts) {
+    opts = opts || {};
+    var canvas = document.createElement('canvas');
+    canvas.className = 'tablette-canvas';
+    canvas.setAttribute('aria-label', 'Zone de signature');
+    conteneur.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
+    var traits = (opts.traits || []).map(function (t) { return t.slice(); });
+    var courant = null, largeur = 0, hauteur = 0, ratio = 1;
+
+    function mesurer() {
+      ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      largeur = Math.max(100, conteneur.clientWidth || 300);
+      hauteur = Math.max(100, conteneur.clientHeight || 180);
+      canvas.width = Math.round(largeur * ratio); canvas.height = Math.round(hauteur * ratio);
+      canvas.style.width = largeur + 'px'; canvas.style.height = hauteur + 'px';
+      redessiner();
+    }
+    function tracer(c, t, echelle, dx, dy) {
+      if (t.length < 2) {
+        c.beginPath(); c.arc((t[0][0] - dx) * echelle, (t[0][1] - dy) * echelle, 1.3 * echelle, 0, Math.PI * 2); c.fill();
+        return;
+      }
+      c.beginPath();
+      c.moveTo((t[0][0] - dx) * echelle, (t[0][1] - dy) * echelle);
+      for (var i = 1; i < t.length - 1; i++) {
+        var mx = (t[i][0] + t[i + 1][0]) / 2, my = (t[i][1] + t[i + 1][1]) / 2;
+        c.quadraticCurveTo((t[i][0] - dx) * echelle, (t[i][1] - dy) * echelle, (mx - dx) * echelle, (my - dy) * echelle);
+      }
+      var d = t[t.length - 1];
+      c.lineTo((d[0] - dx) * echelle, (d[1] - dy) * echelle);
+      c.stroke();
+    }
+    function preparer(c, echelle) {
+      c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = '#111'; c.fillStyle = '#111'; c.lineWidth = 2.4 * echelle;
+    }
+    function redessiner() {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      preparer(ctx, ratio);
+      traits.forEach(function (t) { tracer(ctx, t, ratio, 0, 0); });
+    }
+    function point(e) {
+      var r = canvas.getBoundingClientRect();
+      return [Math.round((e.clientX - r.left) * 10) / 10, Math.round((e.clientY - r.top) * 10) / 10];
+    }
+    function debut(e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      courant = [point(e)];
+      traits.push(courant);
+    }
+    function mouvement(e) {
+      if (!courant) return;
+      e.preventDefault();
+      var p = point(e), d = courant[courant.length - 1];
+      if (Math.abs(p[0] - d[0]) < 0.6 && Math.abs(p[1] - d[1]) < 0.6) return;
+      courant.push(p);
+      preparer(ctx, ratio);
+      ctx.beginPath();
+      ctx.moveTo(d[0] * ratio, d[1] * ratio); ctx.lineTo(p[0] * ratio, p[1] * ratio); ctx.stroke();
+    }
+    function fin(e) {
+      if (!courant) return;
+      courant = null;
+      redessiner();
+      if (opts.onChange) opts.onChange();
+    }
+    canvas.addEventListener('pointerdown', debut);
+    canvas.addEventListener('pointermove', mouvement);
+    canvas.addEventListener('pointerup', fin);
+    canvas.addEventListener('pointercancel', fin);
+    canvas.addEventListener('pointerleave', fin);
+    window.addEventListener('resize', mesurer);
+    mesurer();
+
+    function longueur() {
+      var l = 0;
+      traits.forEach(function (t) { for (var i = 1; i < t.length; i++) l += Math.sqrt(Math.pow(t[i][0] - t[i - 1][0], 2) + Math.pow(t[i][1] - t[i - 1][1], 2)); });
+      return l;
+    }
+    return {
+      vide: function () { return longueur() < 40; },
+      traits: function () { return traits.map(function (t) { return t.slice(); }); },
+      effacer: function () { traits = []; courant = null; redessiner(); if (opts.onChange) opts.onChange(); },
+      detruire: function () { window.removeEventListener('resize', mesurer); },
+      image: function () {
+        if (longueur() < 40) return '';
+        var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        traits.forEach(function (t) { t.forEach(function (p) { if (p[0] < x0) x0 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[0] > x1) x1 = p[0]; if (p[1] > y1) y1 = p[1]; }); });
+        var marge = 12, w = Math.max(40, x1 - x0 + marge * 2), hh = Math.max(40, y1 - y0 + marge * 2);
+        var echelle = Math.min(1, 600 / w, 220 / hh) * 2;
+        var sortie = document.createElement('canvas');
+        sortie.width = Math.ceil(w * echelle); sortie.height = Math.ceil(hh * echelle);
+        var c = sortie.getContext('2d');
+        preparer(c, echelle);
+        traits.forEach(function (t) { tracer(c, t, echelle, x0 - marge, y0 - marge); });
+        return sortie.toDataURL('image/png');
+      }
+    };
+  }
+  AMX.tablette = creerTablette;
 
   /* =================================================================== */
   /*                           OFFRES REÇUES                             */
@@ -132,10 +240,13 @@
   Recues.prototype.rendre = function () {
     var self = this, f = this.filtres;
     AMX.vider(this.elKpis);
+    var aContresigner = self.offres.filter(function (o) { return o.statut === 'contrat' && !o.contresigne; }).length;
     [['nouvelle', 'À traiter'], ['contre', 'Contre-offres en attente'], ['acceptee', 'Acceptées à finaliser'], ['contrat', 'Contrats signés']].forEach(function (k) {
       var n = self.offres.filter(function (o) { return o.statut === k[0]; }).length;
       var actif = f.statuts.length === 1 && f.statuts[0] === k[0];
-      self.elKpis.appendChild(h('button.kpi' + (actif ? '.actif' : '') + (k[0] === 'nouvelle' && n ? '.attention' : ''), { type: 'button', onclick: function () { f.statuts = actif ? ['nouvelle', 'contre', 'acceptee', 'contrat'] : [k[0]]; self.construireRail(); self.rendre(); } }, [h('div.valeur', { text: n }), h('div.libelle', { text: k[1] }), h('span.pastille', { style: { background: 'var(--' + AMX.STATUTS_OFFRE[k[0]].couleur + ')' } })]));
+      var attention = (k[0] === 'nouvelle' && n) || (k[0] === 'contrat' && aContresigner);
+      var libelle = k[1] + (k[0] === 'contrat' && aContresigner ? ' · ' + aContresigner + ' à contresigner' : '');
+      self.elKpis.appendChild(h('button.kpi' + (actif ? '.actif' : '') + (attention ? '.attention' : ''), { type: 'button', onclick: function () { f.statuts = actif ? ['nouvelle', 'contre', 'acceptee', 'contrat'] : [k[0]]; self.construireRail(); self.rendre(); } }, [h('div.valeur', { text: n }), h('div.libelle', { text: libelle }), h('span.pastille', { style: { background: 'var(--' + AMX.STATUTS_OFFRE[k[0]].couleur + ')' } })]));
     });
     var liste = this.filtrer();
     AMX.vider(this.elOutils);
@@ -153,7 +264,7 @@
       h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: o.modele || v.modele || o.vin }), h('div.sous', [h('span.vin', { text: o.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, v.compagnie ? h('span.puce', { text: v.compagnie }) : null])]),
       h('div.cell', [h('span.l', 'Acheteur'), h('span.v', { text: o.nom || o.courriel || '—' }), h('span.v.doux', { text: o.entreprise || o.courriel || '' })]),
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle })]), h('span.jours', { text: AMX.fmtDate(o.date, true) })]),
-      h('div.cell.indic', [h('span.l', 'Négociation'), h('div.indicateurs', [h('span.puce', { text: 'Offert ' + AMX.fmtArgent(o.prix) }), o.contre ? h('span.puce.info', { text: 'Contre ' + AMX.fmtArgent(o.contre) }) : null, o.noContrat ? h('span.puce.ok', { text: o.noContrat }) : null])]),
+      h('div.cell.indic', [h('span.l', 'Négociation'), h('div.indicateurs', [h('span.puce', { text: 'Offert ' + AMX.fmtArgent(o.prix) }), o.contre ? h('span.puce.info', { text: 'Contre ' + AMX.fmtArgent(o.contre) }) : null, o.noContrat ? h('span.puce.ok', { text: o.noContrat }) : null, o.statut === 'contrat' ? h('span.puce' + (o.contresigne ? '.ok' : '.attention'), { text: o.contresigne ? 'Signé ×2' : 'À contresigner' }) : null])]),
       h('div.montant', [h('span.l', o.statut === 'contrat' || o.statut === 'acceptee' ? 'Prix convenu' : (o.statut === 'contre' ? 'Contre-offre' : 'Offert')), h('span', { text: AMX.fmtArgent(montant) })]),
       h('button.plus', { type: 'button', html: I.chevron })
     ]);
@@ -205,7 +316,14 @@
       actions.appendChild(h('button.btn', { html: I.courriel + '<span>Renvoyer le lien</span>', onclick: function () { agir('lien', {}, 'Lien renvoyé à l\'acheteur'); } }));
       actions.appendChild(h('button.btn.danger', { text: 'Annuler l\'offre', onclick: function () { AMX.confirmer('Annuler l\'offre', 'Annuler la négociation avec ' + (o.nom || o.courriel) + ' ?', { danger: true, ok: 'Annuler l\'offre' }).then(function (ok) { if (ok) agir('annuler', {}, 'Offre annulée'); }); } }));
     } else if (o.statut === 'contrat') {
-      blocNego.appendChild(h('div.alerte-bloc.ok', { style: { marginTop: '10px' } }, [h('span', { html: I.ok }), h('div', ['Contrat ', h('b', { text: o.noContrat || '' }), ' signé le ' + AMX.fmtDate(o.contratLe, true) + (o.livraison ? ' · livraison ' + o.livraison : '')])]));
+      var sg = o.signatures || {}, sA = sg.acheteur, sV = sg.vendeur;
+      var ligneA = 'Signé par l\'acheteur' + (sA && sA.nom ? ' (' + sA.nom + ')' : '') + ' le ' + AMX.fmtDate((sA && sA.quand) || o.contratLe, true) + (sA && sA.tracee === false ? ' — nom tapé' : '');
+      if (o.contresigne) {
+        blocNego.appendChild(h('div.alerte-bloc.ok', { style: { marginTop: '10px' } }, [h('span', { html: I.ok }), h('div', [h('div', ['Contrat ', h('b', { text: o.noContrat || '' }), ' signé par les deux parties' + (o.livraison ? ' · livraison ' + o.livraison : '')]), h('div.petit', { text: ligneA }), h('div.petit', { text: 'Contresigné pour le vendeur' + (sV && sV.nom ? ' par ' + sV.nom : '') + ' le ' + AMX.fmtDate(sV && sV.quand, true) + ' — version finale envoyée aux deux parties' })])]));
+      } else {
+        blocNego.appendChild(h('div.alerte-bloc.attention', { style: { marginTop: '10px' } }, [h('span', { html: I.alerte }), h('div', [h('div', ['Contrat ', h('b', { text: o.noContrat || '' }), ' — à contresigner' + (o.livraison ? ' · livraison ' + o.livraison : '')]), h('div.petit', { text: ligneA + '. Il reste la signature du vendeur : les deux PDF seront refaits et renvoyés à l\'acheteur.' })])]));
+        if (peut) actions.appendChild(h('button.btn.primaire', { html: I.ok + '<span>Signer le contrat</span>', onclick: function () { self.modaleSigner(o, agir); } }));
+      }
       ['vendeur', 'acheteur'].forEach(function (copie) {
         actions.appendChild(h('button.btn', { html: I.telecharger + '<span>Contrat PDF (' + copie + ')</span>', onclick: function (e) {
           var b = e.currentTarget; b.classList.add('occupe');
@@ -240,7 +358,7 @@
 
     // Historique
     var hist = (o.historique || []).slice().reverse();
-    var LIB = { offre: 'Offre de l\'acheteur', contre: 'Contre-offre', acceptee: 'Acceptée', refusee: 'Refusée', annulee: 'Annulée', lien: 'Lien renvoyé', signature: 'Signature électronique', contrat: 'Contrat généré', courrielEchec: 'Courriel à l\'acheteur non parti', km: 'Kilométrage', note: 'Note' };
+    var LIB = { offre: 'Offre de l\'acheteur', contre: 'Contre-offre', acceptee: 'Acceptée', refusee: 'Refusée', annulee: 'Annulée', lien: 'Lien renvoyé', signature: 'Signature de l\'acheteur', signatureVendeur: 'Signature du vendeur', signe: 'Contrat signé par les deux parties', contrat: 'Contrat généré', courrielEchec: 'Courriel à l\'acheteur non parti', km: 'Kilométrage', note: 'Note' };
     var blocHist = h('div.bloc', [h('h3', 'Historique'), hist.length ? h('ul.chrono', hist.map(function (e) {
       return h('li' + (e.par === 'systeme' ? '.systeme' : '') + (e.type === 'courrielEchec' ? '.alerte' : ''), [
         h('div', [h('b', { text: LIB[e.type] || e.type }), e.montant ? ' · ' + AMX.fmtArgent(e.montant) : '', e.qui ? h('span.doux', { text: ' · ' + e.qui }) : null]),
@@ -264,6 +382,33 @@
       ]),
       blocNego, blocNote, blocAcheteur, blocHist, blocLiens
     ]));
+  };
+  /* Contresignature du directeur (7 oct.) : tablette, nom, autorisation. */
+  Recues.prototype.modaleSigner = function (o, agir) {
+    var cadre = h('div.tablette.vide', [h('div.indice', 'Signez ici')]);
+    var nom = h('input.saisie', { type: 'text', autocomplete: 'name', placeholder: 'Nom du signataire', value: AMX.session.nom || '' });
+    var accepte = h('input', { type: 'checkbox' });
+    var vendeur = compagnieVersConcession(vehiculeDe(o.vin).compagnie);
+    var nomVendeur = vendeur ? nomConcession(vendeur) : 'le vendeur';
+    var erreur = h('div.alerte-bloc.erreur', { style: { display: 'none' } });
+    var tablette = null;
+    var modale = AMX.modale({ titre: 'Signer le contrat ' + (o.noContrat || ''), corps: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, [
+      h('p', { style: { margin: 0, color: 'var(--encre-2)' }, text: 'Tracez votre signature (souris, doigt ou stylet). Elle sera imprimée sur les deux copies du contrat avec la date, l\'heure et votre courriel ; les PDF refaits partent aussitôt à l\'acheteur et à l\'équipe.' }),
+      h('div', [cadre, h('div.tablette-outils', [h('span', 'Votre signature apparaîtra sur le contrat.'), h('button', { type: 'button', text: 'Effacer et recommencer', onclick: function () { if (tablette) tablette.effacer(); } })])]),
+      h('div.champ', [h('label', 'Nom du signataire (imprimé au contrat)'), nom]),
+      h('label.case', [accepte, h('span', { text: 'Je suis autorisé(e) à signer ce contrat pour ' + nomVendeur + ' et j\'en accepte les conditions.' })]),
+      erreur
+    ]), boutons: [{ texte: 'Annuler' }, { texte: 'Signer le contrat', classe: 'primaire', action: function () {
+      var montrer = function (t) { erreur.textContent = t; erreur.style.display = ''; return false; };
+      if (nom.value.trim().length < 3) return montrer('Inscrivez le nom du signataire.');
+      var image = tablette ? tablette.image() : '';
+      if (!image) return montrer('Tracez votre signature dans le cadre.');
+      if (!accepte.checked) return montrer('Cochez la case d\'autorisation.');
+      erreur.style.display = 'none';
+      return agir('signer', { nom: nom.value.trim(), signatureImage: image, accepte: true, agent: navigator.userAgent }, 'Contrat contresigné — version finale envoyée à l\'acheteur et à l\'équipe').then(function () { return true; }, function () { return false; });
+    } }], onFermer: function () { if (tablette) tablette.detruire(); } });
+    tablette = AMX.tablette(cadre, { onChange: function () { cadre.classList.toggle('vide', tablette.vide()); } });
+    return modale;
   };
   Recues.prototype.modaleContre = function (o, agir) {
     var montant = h('input.saisie', { type: 'number', step: '100', placeholder: 'Montant de la contre-offre', value: o.contre || '' });

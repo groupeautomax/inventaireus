@@ -462,6 +462,18 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 .alerte-bloc.erreur { background: var(--rouge-bg); border-color: var(--rouge-bord); color: #912018; }
 .alerte-bloc.attention { background: var(--ambre-bg); border-color: var(--ambre-bord); color: #7A4E0B; }
 .alerte-bloc.info { background: var(--bleu-bg); border-color: var(--bleu-bord); color: #163E73; }
+.alerte-bloc .petit { font-size: 12px; opacity: .9; margin-top: 2px; }
+/* Tablette de signature (7 oct., modale « Signer le contrat ») : blanche même en mode sombre, comme le PDF. */
+.tablette { position: relative; height: 180px; border: 1px dashed var(--ligne-forte); border-radius: var(--rayon-s); background: #fff; touch-action: none; overflow: hidden; cursor: crosshair; }
+.tablette::before { content: ""; position: absolute; left: 22px; right: 22px; bottom: 44px; border-bottom: 1px solid #c9ced6; }
+.tablette::after { content: "✕"; position: absolute; left: 12px; bottom: 48px; color: #c9ced6; font-size: 15px; }
+.tablette .tablette-canvas { position: relative; display: block; z-index: 1; }
+.tablette.vide .indice { position: absolute; left: 0; right: 0; top: 46%; transform: translateY(-50%); text-align: center; color: #b2b8c2; font-size: 15px; pointer-events: none; }
+.tablette:not(.vide) .indice { display: none; }
+.tablette-outils { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--encre-3); }
+.tablette-outils button { border: 0; background: transparent; color: var(--encre-3); text-decoration: underline; font: inherit; font-size: 12px; cursor: pointer; padding: 2px 0; }
+.modale label.case { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--encre-2); }
+.modale label.case input { width: 18px; height: 18px; margin: 1px 0 0; flex: 0 0 auto; }
 .alerte-bloc svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
 
 /* Toast */

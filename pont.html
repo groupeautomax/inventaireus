@@ -21,6 +21,8 @@
   var URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
   var ORIGINES = ['https://dealer.torquemanagement.ca', 'https://app.eblock.com', 'https://dealer.carfax.ca'];
   var ACTIONS = ['torqueImporter', 'torquePhotosLancer', 'carfaxLiens', 'eblockImporter'];
+  // 7 oct. : lectures permises au signet (où en est l'archive, pour une mise à jour incrémentale).
+  var LECTURES = ['torqueEtat'];
   function lire(c) { try { return localStorage.getItem(c) || ''; } catch (e) { return ''; } }
   var jeton = lire('pg_jeton_v1'), courriel = lire('pg_utilisateur_v1');
   var parent = window.parent !== window ? window.parent : (window.opener || null);
@@ -34,6 +36,14 @@
     if (ORIGINES.indexOf(ev.origin) < 0) return;
     var m = ev.data || {};
     if (m.type === 'amx:ping') { repondre(ev.origin, { type: 'amx:pret', connecte: !!(jeton && courriel), courriel: courriel }); return; }
+    if (m.type === 'amx:lecture') {
+      var cle = Object.keys(m.requete || {}).filter(function (k) { return LECTURES.indexOf(k) >= 0; })[0];
+      if (!cle || !jeton || !courriel) { repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: { ok: false, erreur: cle ? 'Non connecté au site.' : 'Lecture non permise.' } }); return; }
+      fetch(URL_BACKEND + '?' + encodeURIComponent(cle) + '=' + encodeURIComponent(m.requete[cle]) + '&jeton=' + encodeURIComponent(jeton) + '&utilisateur=' + encodeURIComponent(courriel) + '&_=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: d }); }, function (err) { repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: { ok: false, erreur: String(err && err.message || err) } }); });
+      return;
+    }
     if (m.type !== 'amx:lot' || !m.corps || ACTIONS.indexOf(m.corps.action) < 0) return;
     if (!jeton || !courriel) { repondre(ev.origin, { type: 'amx:resultat', id: m.id, resultat: { ok: false, erreur: 'Connectez-vous au site d\'inventaire (groupeautomax.github.io) dans un autre onglet, puis recommencez.' } }); return; }
     var corps = {}; for (var k in m.corps) corps[k] = m.corps[k];

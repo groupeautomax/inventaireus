@@ -76,6 +76,27 @@
   button:disabled { opacity: .55; cursor: default; }
   .replis { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--trait); }
 
+  /* Tablette de signature (7 oct.) : toujours blanche, comme le PDF. */
+  .tablette {
+    position: relative; height: 180px; border: 1px dashed #9aa1ab; border-radius: 10px;
+    background: #fff; touch-action: none; overflow: hidden; cursor: crosshair; margin-top: 6px;
+  }
+  .tablette::before { content: ""; position: absolute; left: 22px; right: 22px; bottom: 44px; border-bottom: 1px solid #c9ced6; }
+  .tablette::after { content: "✕"; position: absolute; left: 12px; bottom: 48px; color: #c9ced6; font-size: 15px; }
+  .tablette .tablette-canvas { position: relative; display: block; z-index: 1; }
+  .tablette.vide .indice { position: absolute; left: 0; right: 0; top: 46%; transform: translateY(-50%); text-align: center; color: #b2b8c2; font-size: 15px; pointer-events: none; }
+  .tablette:not(.vide) .indice { display: none; }
+  .tablette-outils { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; color: var(--doux); }
+  .tablette-outils button { border: 0; background: transparent; color: var(--doux); text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; padding: 4px 0; }
+  .case { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 15px; }
+  .case input { width: 22px; height: 22px; margin: 2px 0 0; flex: 0 0 auto; }
+  .signatures { list-style: none; margin: 10px 0 0; padding: 0; }
+  .signatures li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--trait); font-size: 14px; }
+  .signatures li .pastilleSig { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex: 0 0 auto; background: #c9ced6; }
+  .signatures li.fait .pastilleSig { background: var(--vert); }
+  .signatures li .qui { font-weight: 600; }
+  .signatures li .quand { color: var(--doux); font-size: 13px; }
+
   .historique { list-style: none; margin: 0; padding: 0; }
   .historique li { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--trait); font-size: 14px; }
   .historique li:last-child { border-bottom: 0; }
@@ -169,6 +190,11 @@ const T = {
   MONTANT_INVALIDE: "Indiquez un montant.",
   PRIX_INVALIDE: "Le prix offert est illisible : répondez par une contre-offre.",
   ACTION_INCONNUE: "Action inconnue.",
+  PAS_DE_CONTRAT: "Le contrat n'est pas encore signé par l'acheteur.",
+  NOM_REQUIS: "Inscrivez le nom du signataire.",
+  SIGNATURE_REQUISE: "Cochez la case d'autorisation.",
+  SIGNATURE_INVALIDE: "La signature n'a pas pu être lue : effacez et recommencez.",
+  SIGNATURE_TRACEE_REQUISE: "Tracez votre signature dans le cadre.",
   pied: n => (n || "Offres") + " — page réservée à l'équipe."
 };
 
@@ -177,11 +203,120 @@ let gesteOuvert = "";         // "" | "accepter" | "contre" | "refuser"
 let occupe = false;
 let confirmation = "";        // message vert après un geste
 let avertissement = "";       // message orange : geste fait, mais courriel non parti
+let tablette = null;          // tablette de signature (7 oct.) ; ses traits survivent au re-rendu
+let traitsSig = [];
 
 const params = new URLSearchParams(location.search);
 const idOffre = params.get("o") || "";
 const jeton = params.get("e") || "";
 const gesteDemande = (params.get("a") || "").toLowerCase();
+
+/* ---------------------------------------------------------------------------
+   Tablette de signature (7 oct.) — source : site/mock/tablette-signature.js
+   (même code dans offre.html et assets/offres.js).
+   --------------------------------------------------------------------------- */
+function creerTablette(conteneur, opts) {
+  opts = opts || {};
+  var canvas = document.createElement('canvas');
+  canvas.className = 'tablette-canvas';
+  canvas.setAttribute('aria-label', 'Zone de signature');
+  conteneur.appendChild(canvas);
+  var ctx = canvas.getContext('2d');
+  var traits = (opts.traits || []).map(function (t) { return t.slice(); });
+  var courant = null, largeur = 0, hauteur = 0, ratio = 1;
+
+  function mesurer() {
+    ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    largeur = Math.max(100, conteneur.clientWidth || 300);
+    hauteur = Math.max(100, conteneur.clientHeight || 180);
+    canvas.width = Math.round(largeur * ratio); canvas.height = Math.round(hauteur * ratio);
+    canvas.style.width = largeur + 'px'; canvas.style.height = hauteur + 'px';
+    redessiner();
+  }
+  function tracer(c, t, echelle, dx, dy) {
+    if (t.length < 2) {
+      c.beginPath(); c.arc((t[0][0] - dx) * echelle, (t[0][1] - dy) * echelle, 1.3 * echelle, 0, Math.PI * 2); c.fill();
+      return;
+    }
+    c.beginPath();
+    c.moveTo((t[0][0] - dx) * echelle, (t[0][1] - dy) * echelle);
+    for (var i = 1; i < t.length - 1; i++) {
+      var mx = (t[i][0] + t[i + 1][0]) / 2, my = (t[i][1] + t[i + 1][1]) / 2;
+      c.quadraticCurveTo((t[i][0] - dx) * echelle, (t[i][1] - dy) * echelle, (mx - dx) * echelle, (my - dy) * echelle);
+    }
+    var d = t[t.length - 1];
+    c.lineTo((d[0] - dx) * echelle, (d[1] - dy) * echelle);
+    c.stroke();
+  }
+  function preparer(c, echelle) {
+    c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = '#111'; c.fillStyle = '#111'; c.lineWidth = 2.4 * echelle;
+  }
+  function redessiner() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    preparer(ctx, ratio);
+    traits.forEach(function (t) { tracer(ctx, t, ratio, 0, 0); });
+  }
+  function point(e) {
+    var r = canvas.getBoundingClientRect();
+    return [Math.round((e.clientX - r.left) * 10) / 10, Math.round((e.clientY - r.top) * 10) / 10];
+  }
+  function debut(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    courant = [point(e)];
+    traits.push(courant);
+  }
+  function mouvement(e) {
+    if (!courant) return;
+    e.preventDefault();
+    var p = point(e), d = courant[courant.length - 1];
+    if (Math.abs(p[0] - d[0]) < 0.6 && Math.abs(p[1] - d[1]) < 0.6) return;
+    courant.push(p);
+    preparer(ctx, ratio);
+    ctx.beginPath();
+    ctx.moveTo(d[0] * ratio, d[1] * ratio); ctx.lineTo(p[0] * ratio, p[1] * ratio); ctx.stroke();
+  }
+  function fin(e) {
+    if (!courant) return;
+    courant = null;
+    redessiner();
+    if (opts.onChange) opts.onChange();
+  }
+  canvas.addEventListener('pointerdown', debut);
+  canvas.addEventListener('pointermove', mouvement);
+  canvas.addEventListener('pointerup', fin);
+  canvas.addEventListener('pointercancel', fin);
+  canvas.addEventListener('pointerleave', fin);
+  window.addEventListener('resize', mesurer);
+  mesurer();
+
+  function longueur() {
+    var l = 0;
+    traits.forEach(function (t) { for (var i = 1; i < t.length; i++) l += Math.sqrt(Math.pow(t[i][0] - t[i - 1][0], 2) + Math.pow(t[i][1] - t[i - 1][1], 2)); });
+    return l;
+  }
+  return {
+    vide: function () { return longueur() < 40; },
+    traits: function () { return traits.map(function (t) { return t.slice(); }); },
+    effacer: function () { traits = []; courant = null; redessiner(); if (opts.onChange) opts.onChange(); },
+    detruire: function () { window.removeEventListener('resize', mesurer); },
+    image: function () {
+      if (longueur() < 40) return '';
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      traits.forEach(function (t) { t.forEach(function (p) { if (p[0] < x0) x0 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[0] > x1) x1 = p[0]; if (p[1] > y1) y1 = p[1]; }); });
+      var marge = 12, w = Math.max(40, x1 - x0 + marge * 2), hh = Math.max(40, y1 - y0 + marge * 2);
+      var echelle = Math.min(1, 600 / w, 220 / hh) * 2;
+      var sortie = document.createElement('canvas');
+      sortie.width = Math.ceil(w * echelle); sortie.height = Math.ceil(hh * echelle);
+      var c = sortie.getContext('2d');
+      preparer(c, echelle);
+      traits.forEach(function (t) { tracer(c, t, echelle, x0 - marge, y0 - marge); });
+      return sortie.toDataURL('image/png');
+    }
+  };
+}
 
 function echappe(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
@@ -323,9 +458,28 @@ function dessinerEtat() {
     h += '<p class="aide">L\'acheteur doit inscrire ses coordonnées, le lieu de livraison et signer depuis son courriel. Le contrat vous arrivera par courriel dès qu\'il aura signé.</p>';
     h += '<div class="boutons"><button type="button" class="secondaire" id="btnRenvoyer">Renvoyer le courriel à l\'acheteur</button></div>';
   } else if (o.statut === "contrat") {
-    h += '<span class="etat action">Contrat signé</span>';
+    const sg = o.signatures || {}, sA = sg.acheteur, sV = sg.vendeur;
+    const nomVendeur = (o.vendeur && o.vendeur.nom) || "le vendeur";
+    h += o.contresigne ? '<span class="etat action">Contrat signé par les deux parties</span>' : '<span class="etat attente">Signé par l\'acheteur — à contresigner</span>';
     h += '<div class="sous">Contrat ' + echappe(o.noContrat) + (o.contratLe ? " — " + echappe(dateLisible(o.contratLe)) : "") + '</div><div class="montant">' + echappe(argent(o.prixFinal)) + "</div>";
-    h += '<p class="aide">Les deux copies sont dans Drive › Contrats et vous ont été envoyées par courriel.</p>';
+    h += '<ul class="signatures">';
+    h += '<li class="fait"><span class="pastilleSig"></span><div><div class="qui">Acheteur' + (sA && sA.nom ? " — " + echappe(sA.nom) : "") + '</div><div class="quand">Signé le ' + echappe(dateLisible((sA && sA.quand) || o.contratLe)) + (sA && sA.tracee ? " (signature tracée)" : " (nom tapé)") + "</div></div></li>";
+    h += '<li class="' + (sV ? "fait" : "") + '"><span class="pastilleSig"></span><div><div class="qui">' + echappe(nomVendeur) + (sV && sV.nom ? " — " + echappe(sV.nom) : "") + '</div><div class="quand">' + (sV ? "Contresigné le " + echappe(dateLisible(sV.quand)) : "En attente de votre signature") + "</div></div></li></ul>";
+    if (o.contresigne) {
+      h += '<p class="aide" style="margin-top:12px">La version finale, signée par les deux parties, est partie à l\'acheteur et à l\'équipe ; les deux PDF sont dans Drive › Contrats.</p>';
+    } else if (gesteOuvert === "signer") {
+      h += '<div class="replis"><h2>Signer le contrat pour ' + echappe(nomVendeur) + "</h2>" +
+        '<p class="aide">Tracez votre signature dans le cadre (au doigt ou à la souris). Les deux PDF seront refaits avec les deux signatures et renvoyés à l\'acheteur.</p>' +
+        '<div class="tablette vide" id="tablette"><div class="indice">Signez ici</div></div>' +
+        '<div class="tablette-outils"><span>Votre signature apparaîtra sur le contrat.</span><button type="button" id="btnEffacer">Effacer et recommencer</button></div>' +
+        '<label for="nomSig">Nom du signataire (tel qu\'imprimé au contrat)</label><input id="nomSig" type="text" autocomplete="name" value="' + echappe(val("qui") || nomMemorise()) + '">' +
+        '<label class="case"><input type="checkbox" id="accepteSig"><span>Je suis autorisé(e) à signer ce contrat pour ' + echappe(nomVendeur) + ' et j\'en accepte les conditions.</span></label>' +
+        '<div class="boutons"><button type="button" class="principal" id="btnEnvoyerSigner">Signer le contrat</button>' +
+        '<button type="button" class="discret" id="btnFermer">Annuler</button></div></div>';
+    } else {
+      h += '<p class="aide" style="margin-top:12px">La copie vendeur vous a été envoyée par courriel ; il reste à contresigner.</p>';
+      h += '<div class="boutons"><button type="button" class="principal" id="btnSigner">Signer le contrat</button></div>';
+    }
   } else if (o.statut === "refusee") {
     h += '<span class="etat ferme">Offre refusée</span><p class="aide">La négociation est terminée.</p>';
   } else if (o.statut === "annulee") {
@@ -345,6 +499,15 @@ function dessinerEtat() {
   sur("btnEnvoyerContre", () => agir("contre", { montant: val("montant"), message: val("messageContre") }));
   sur("btnEnvoyerRefus", () => agir("refuser", { message: val("messageRefus") }));
   sur("btnRenvoyer", () => agir("lien", {}));
+  sur("btnSigner", () => ouvrir("signer"));
+  sur("btnEnvoyerSigner", () => signer());
+  if (tablette) { tablette.detruire(); tablette = null; }
+  const cadre = document.getElementById("tablette");
+  if (cadre) {
+    tablette = creerTablette(cadre, { traits: traitsSig, onChange: () => { traitsSig = tablette.traits(); cadre.classList.toggle("vide", tablette.vide()); } });
+    cadre.classList.toggle("vide", tablette.vide());
+    sur("btnEffacer", () => tablette.effacer());
+  }
   if (!peutAgir) geler(true);
   if (gesteOuvert === "contre") { const m = document.getElementById("montant"); if (m) m.focus(); }
 }
@@ -367,7 +530,8 @@ function dessinerHistorique() {
   if (!h.length) { bloc.hidden = true; return; }
   const libelles = {
     offre: "Offre de l'acheteur", contre: "Contre-offre du vendeur", acceptee: "Acceptée",
-    refusee: "Refusée", annulee: "Annulée", contrat: "Contrat signé", courrielEchec: "Courriel à l'acheteur non parti"
+    refusee: "Refusée", annulee: "Annulée", contrat: "Contrat généré", courrielEchec: "Courriel à l'acheteur non parti",
+    signature: "Signature de l'acheteur", signatureVendeur: "Signature du vendeur", signe: "Contrat signé par les deux parties", lien: "Lien renvoyé"
   };
   document.getElementById("historique").innerHTML = h.slice().reverse().map(e => {
     let lib = libelles[e.type] || e.type;
@@ -407,12 +571,28 @@ async function agir(reponse, extra) {
     confirmation = reponse === "accepter" ? (parti ? "Offre acceptée : l'acheteur a reçu le lien pour finaliser et signer." : "Offre acceptée.")
       : reponse === "contre" ? (parti ? "Contre-offre envoyée à l'acheteur par courriel." : "Contre-offre enregistrée.")
       : reponse === "refuser" ? (parti ? "Refus envoyé à l'acheteur." : "Refus enregistré.")
+      : reponse === "signer" ? (j.deja ? "Le contrat était déjà contresigné." : (parti ? "Contrat contresigné : la version finale est partie à l'acheteur et à l'équipe." : "Contrat contresigné."))
       : (j.envoye ? "Courriel renvoyé à l'acheteur." : (j.courrielErreur ? "" : "Rien à renvoyer pour l'instant."));
+    if (reponse === "signer") traitsSig = [];
     avertissement = parti ? "" : "Le courriel à l'acheteur n'est pas parti" + (j.courrielErreur ? " : " + j.courrielErreur : ".") + " Vous pouvez le joindre directement avec les coordonnées ci-dessus.";
     await charger();
   } catch (e) {
     occupe = false; geler(false); montrerErreur("RESEAU");
   }
+}
+
+async function signer() {
+  const nom = val("nomSig");
+  const accepte = !!(document.getElementById("accepteSig") || {}).checked;
+  if (nom.length < 3) { montrerErreur("NOM_REQUIS"); return; }
+  const signatureImage = tablette ? tablette.image() : "";
+  if (!signatureImage) { montrerErreur("SIGNATURE_TRACEE_REQUISE"); return; }
+  if (!accepte) { montrerErreur("SIGNATURE_REQUISE"); return; }
+  const qui = document.getElementById("qui");
+  if (qui && !qui.value) qui.value = nom;
+  const b = document.getElementById("btnEnvoyerSigner");
+  if (b) b.textContent = "Signature et génération des PDF…";
+  await agir("signer", { nom: nom, signatureImage: signatureImage, accepte: true, agent: navigator.userAgent });
 }
 
 async function charger() {
@@ -433,7 +613,7 @@ async function charger() {
 }
 
 // Le bouton du courriel pré-ouvre le geste ; rien ne part sans un clic ici.
-if (gesteDemande === "accepter" || gesteDemande === "contre" || gesteDemande === "refuser") gesteOuvert = gesteDemande;
+if (gesteDemande === "accepter" || gesteDemande === "contre" || gesteDemande === "refuser" || gesteDemande === "signer") gesteOuvert = gesteDemande;
 charger();
 </script>
 </body>

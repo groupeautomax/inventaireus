@@ -146,6 +146,26 @@
   .case input { width: 22px; height: 22px; margin: 2px 0 0; flex: 0 0 auto; }
   .signature { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 22px; }
 
+  /* Tablette de signature (7 oct.) : on y trace au doigt ou à la souris.
+     Toujours blanche, même en mode sombre : l'image doit ressembler au PDF. */
+  .tablette {
+    position: relative; height: 180px; border: 1px dashed #9aa1ab; border-radius: 10px;
+    background: #fff; touch-action: none; overflow: hidden; cursor: crosshair; margin-top: 6px;
+  }
+  .tablette::before { content: ""; position: absolute; left: 22px; right: 22px; bottom: 44px; border-bottom: 1px solid #c9ced6; }
+  .tablette::after { content: "✕"; position: absolute; left: 12px; bottom: 48px; color: #c9ced6; font-size: 15px; }
+  .tablette .tablette-canvas { position: relative; display: block; z-index: 1; }
+  .tablette.vide .indice { position: absolute; left: 0; right: 0; top: 46%; transform: translateY(-50%); text-align: center; color: #b2b8c2; font-size: 15px; pointer-events: none; }
+  .tablette:not(.vide) .indice { display: none; }
+  .tablette-outils { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; color: var(--doux); }
+  .tablette-outils button { border: 0; background: transparent; color: var(--doux); text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; padding: 4px 0; }
+  .signatures { list-style: none; margin: 12px 0 0; padding: 0; }
+  .signatures li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--trait); font-size: 14px; }
+  .signatures li .pastilleSig { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex: 0 0 auto; background: #c9ced6; }
+  .signatures li.fait .pastilleSig { background: var(--vert); }
+  .signatures li .qui { font-weight: 600; }
+  .signatures li .quand { color: var(--doux); font-size: 13px; }
+
   .historique { list-style: none; margin: 0; padding: 0; }
   .historique li { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--trait); font-size: 14px; }
   .historique li:last-child { border-bottom: 0; }
@@ -328,17 +348,27 @@ const T = {
     conditionsTitre: "Conditions de vente",
     accepteConditions: "J'ai lu les conditions et j'accepte d'acheter ce véhicule au total indiqué.",
     signatureTitre: "Signature électronique",
-    signatureAide: "Tapez votre nom complet : il tient lieu de signature, avec la date, l'heure et votre courriel.",
+    signatureAide: "Tracez votre signature dans le cadre (au doigt ou à la souris), puis tapez votre nom complet. La date, l'heure et votre courriel sont consignés avec elle.",
+    tabletteIndice: "Signez ici",
+    tabletteAide: "Votre signature apparaîtra sur le contrat.",
+    effacer: "Effacer et recommencer",
     signature: "Votre nom complet",
     signer: "Signer et conclure la vente",
     signatureEnCours: "Génération du contrat…",
     contratTitre: n => "Contrat " + n,
     contratDetail: (c, d) => "Signé le " + d + ". Le contrat de vente (PDF) a été envoyé à " + c + ", avec les modalités de paiement. Le véhicule est libéré dès réception du paiement complet.",
+    signaturesTitre: "Signatures",
+    sigAcheteur: n => "Vous" + (n ? " (" + n + ")" : ""),
+    sigVendeur: (v, n) => v + (n ? " (" + n + ")" : ""),
+    sigFaite: d => "Signé le " + d,
+    sigAttente: "En attente de la contresignature — vous recevrez la version finale par courriel.",
+    sigFinale: d => "Contrat signé par les deux parties le " + d + ". La version finale (PDF) vous a été envoyée par courriel.",
     fermeeDetail: "Cette négociation est terminée. Merci de votre intérêt — d'autres véhicules vous attendent dans l'inventaire.",
     annuleeDetail: "Le vendeur a annulé cette transaction. Contactez-le pour toute question.",
     envoi: "Envoi…",
     types: { offre: "Offre de l'acheteur", contre: "Contre-offre du vendeur", acceptee: "Prix accepté", refusee: "Offre refusée",
-             annulee: "Transaction annulée", signature: "Signature électronique", contrat: "Contrat généré" },
+             annulee: "Transaction annulée", signature: "Signature électronique", contrat: "Contrat généré",
+             signatureVendeur: "Signature du vendeur", signe: "Contrat signé par les deux parties" },
     LIEN_INVALIDE: "Ce lien n'est plus valide. Vérifiez le courriel reçu ou contactez votre représentant.",
     FERMEE: "Cette négociation est fermée.",
     PAS_DE_CONTRE: "Il n'y a pas de contre-offre à accepter.",
@@ -348,6 +378,8 @@ const T = {
     COURRIEL_INVALIDE: "Veuillez entrer une adresse courriel valide.",
     LIVRAISON_REQUISE: "Choisissez le lieu de livraison.",
     SIGNATURE_REQUISE: "Tapez votre nom complet et cochez la case d'acceptation.",
+    SIGNATURE_TRACEE_REQUISE: "Tracez votre signature dans le cadre.",
+    SIGNATURE_INVALIDE: "La signature n'a pas pu être lue : effacez et recommencez.",
     PAS_ACCEPTEE: "Cette offre n'est pas encore acceptée.",
     OCCUPE: "Le serveur est occupé, réessayez dans un instant.",
     ERREUR: "Une erreur est survenue. Réessayez ou contactez le vendeur.",
@@ -425,17 +457,27 @@ const T = {
     conditionsTitre: "Terms of sale",
     accepteConditions: "I have read the terms and agree to buy this vehicle for the total shown.",
     signatureTitre: "Electronic signature",
-    signatureAide: "Type your full name: it serves as your signature, together with the date, time and your email.",
+    signatureAide: "Draw your signature in the box (finger or mouse), then type your full name. The date, time and your email are recorded with it.",
+    tabletteIndice: "Sign here",
+    tabletteAide: "Your signature will appear on the contract.",
+    effacer: "Clear and start over",
     signature: "Your full name",
     signer: "Sign and close the sale",
     signatureEnCours: "Generating the contract…",
     contratTitre: n => "Contract " + n,
     contratDetail: (c, d) => "Signed on " + d + ". The bill of sale (PDF) was sent to " + c + ", with payment instructions. The vehicle is released once payment is received in full.",
+    signaturesTitre: "Signatures",
+    sigAcheteur: n => "You" + (n ? " (" + n + ")" : ""),
+    sigVendeur: (v, n) => v + (n ? " (" + n + ")" : ""),
+    sigFaite: d => "Signed on " + d,
+    sigAttente: "Awaiting the seller's countersignature — you will receive the final version by email.",
+    sigFinale: d => "Contract signed by both parties on " + d + ". The final version (PDF) was emailed to you.",
     fermeeDetail: "This negotiation is over. Thank you for your interest — other vehicles are waiting in the inventory.",
     annuleeDetail: "The seller cancelled this transaction. Contact them with any question.",
     envoi: "Sending…",
     types: { offre: "Buyer's offer", contre: "Seller's counter-offer", acceptee: "Price accepted", refusee: "Offer declined",
-             annulee: "Transaction cancelled", signature: "Electronic signature", contrat: "Contract generated" },
+             annulee: "Transaction cancelled", signature: "Electronic signature", contrat: "Contract generated",
+             signatureVendeur: "Seller's signature", signe: "Contract signed by both parties" },
     LIEN_INVALIDE: "This link is no longer valid. Check the email you received or contact your representative.",
     FERMEE: "This negotiation is closed.",
     PAS_DE_CONTRE: "There is no counter-offer to accept.",
@@ -445,12 +487,121 @@ const T = {
     COURRIEL_INVALIDE: "Please enter a valid email address.",
     LIVRAISON_REQUISE: "Choose the delivery location.",
     SIGNATURE_REQUISE: "Type your full name and tick the acceptance box.",
+    SIGNATURE_TRACEE_REQUISE: "Draw your signature in the box.",
+    SIGNATURE_INVALIDE: "The signature could not be read: clear it and try again.",
     PAS_ACCEPTEE: "This offer is not accepted yet.",
     OCCUPE: "The server is busy, try again in a moment.",
     ERREUR: "Something went wrong. Try again or contact the seller.",
     RESEAU: "Could not reach the server. Check your connection and try again."
   }
 };
+
+/* ---------------------------------------------------------------------------
+   Tablette de signature (7 oct.) — source : site/mock/tablette-signature.js
+   (même code dans reponse.html et assets/offres.js).
+   --------------------------------------------------------------------------- */
+function creerTablette(conteneur, opts) {
+  opts = opts || {};
+  var canvas = document.createElement('canvas');
+  canvas.className = 'tablette-canvas';
+  canvas.setAttribute('aria-label', 'Zone de signature');
+  conteneur.appendChild(canvas);
+  var ctx = canvas.getContext('2d');
+  var traits = (opts.traits || []).map(function (t) { return t.slice(); });
+  var courant = null, largeur = 0, hauteur = 0, ratio = 1;
+
+  function mesurer() {
+    ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    largeur = Math.max(100, conteneur.clientWidth || 300);
+    hauteur = Math.max(100, conteneur.clientHeight || 180);
+    canvas.width = Math.round(largeur * ratio); canvas.height = Math.round(hauteur * ratio);
+    canvas.style.width = largeur + 'px'; canvas.style.height = hauteur + 'px';
+    redessiner();
+  }
+  function tracer(c, t, echelle, dx, dy) {
+    if (t.length < 2) {
+      c.beginPath(); c.arc((t[0][0] - dx) * echelle, (t[0][1] - dy) * echelle, 1.3 * echelle, 0, Math.PI * 2); c.fill();
+      return;
+    }
+    c.beginPath();
+    c.moveTo((t[0][0] - dx) * echelle, (t[0][1] - dy) * echelle);
+    for (var i = 1; i < t.length - 1; i++) {
+      var mx = (t[i][0] + t[i + 1][0]) / 2, my = (t[i][1] + t[i + 1][1]) / 2;
+      c.quadraticCurveTo((t[i][0] - dx) * echelle, (t[i][1] - dy) * echelle, (mx - dx) * echelle, (my - dy) * echelle);
+    }
+    var d = t[t.length - 1];
+    c.lineTo((d[0] - dx) * echelle, (d[1] - dy) * echelle);
+    c.stroke();
+  }
+  function preparer(c, echelle) {
+    c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = '#111'; c.fillStyle = '#111'; c.lineWidth = 2.4 * echelle;
+  }
+  function redessiner() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    preparer(ctx, ratio);
+    traits.forEach(function (t) { tracer(ctx, t, ratio, 0, 0); });
+  }
+  function point(e) {
+    var r = canvas.getBoundingClientRect();
+    return [Math.round((e.clientX - r.left) * 10) / 10, Math.round((e.clientY - r.top) * 10) / 10];
+  }
+  function debut(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    courant = [point(e)];
+    traits.push(courant);
+  }
+  function mouvement(e) {
+    if (!courant) return;
+    e.preventDefault();
+    var p = point(e), d = courant[courant.length - 1];
+    if (Math.abs(p[0] - d[0]) < 0.6 && Math.abs(p[1] - d[1]) < 0.6) return;
+    courant.push(p);
+    preparer(ctx, ratio);
+    ctx.beginPath();
+    ctx.moveTo(d[0] * ratio, d[1] * ratio); ctx.lineTo(p[0] * ratio, p[1] * ratio); ctx.stroke();
+  }
+  function fin(e) {
+    if (!courant) return;
+    courant = null;
+    redessiner();
+    if (opts.onChange) opts.onChange();
+  }
+  canvas.addEventListener('pointerdown', debut);
+  canvas.addEventListener('pointermove', mouvement);
+  canvas.addEventListener('pointerup', fin);
+  canvas.addEventListener('pointercancel', fin);
+  canvas.addEventListener('pointerleave', fin);
+  window.addEventListener('resize', mesurer);
+  mesurer();
+
+  function longueur() {
+    var l = 0;
+    traits.forEach(function (t) { for (var i = 1; i < t.length; i++) l += Math.sqrt(Math.pow(t[i][0] - t[i - 1][0], 2) + Math.pow(t[i][1] - t[i - 1][1], 2)); });
+    return l;
+  }
+  return {
+    vide: function () { return longueur() < 40; },
+    traits: function () { return traits.map(function (t) { return t.slice(); }); },
+    effacer: function () { traits = []; courant = null; redessiner(); if (opts.onChange) opts.onChange(); },
+    detruire: function () { window.removeEventListener('resize', mesurer); },
+    image: function () {
+      if (longueur() < 40) return '';
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      traits.forEach(function (t) { t.forEach(function (p) { if (p[0] < x0) x0 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[0] > x1) x1 = p[0]; if (p[1] > y1) y1 = p[1]; }); });
+      var marge = 12, w = Math.max(40, x1 - x0 + marge * 2), hh = Math.max(40, y1 - y0 + marge * 2);
+      var echelle = Math.min(1, 600 / w, 220 / hh) * 2;
+      var sortie = document.createElement('canvas');
+      sortie.width = Math.ceil(w * echelle); sortie.height = Math.ceil(hh * echelle);
+      var c = sortie.getContext('2d');
+      preparer(c, echelle);
+      traits.forEach(function (t) { tracer(c, t, echelle, x0 - marge, y0 - marge); });
+      return sortie.toDataURL('image/png');
+    }
+  };
+}
 
 function langueChoisie() {
   try {
@@ -464,6 +615,7 @@ let langue = langueChoisie();
 let offre = null;
 let saisieContre = false;     // le formulaire « autre offre » est déplié
 const brouillon = {};         // ce que l'acheteur a tapé, conservé au changement de langue
+let tablette = null;          // la tablette de signature du formulaire de finalisation (7 oct.)
 function t() { return T[langue]; }
 
 const params = new URLSearchParams(location.search);
@@ -701,7 +853,14 @@ function dessiner() {
   } else if (o.statut === "contrat") {
     h += "<h2>" + echappe(t().contratTitre(o.noContrat || "")) + "</h2>";
     h += '<div class="montant">' + echappe(argent(o.prixFinal)) + '</div><div class="sous">' + echappe(langue === "en" ? "Agreed price, before taxes" : "Prix convenu, avant taxes") + "</div>";
-    h += '<p class="aide" style="margin-top:12px">' + echappe(t().contratDetail((o.acheteur && o.acheteur.courriel) || o.courriel, dateLisible(o.contratLe))) + "</p>";
+    h += '<p class="aide" style="margin-top:12px">' + echappe(o.contresigne && o.signeLe ? t().sigFinale(dateLisible(o.signeLe)) : t().contratDetail((o.acheteur && o.acheteur.courriel) || o.courriel, dateLisible(o.contratLe))) + "</p>";
+    // Les deux signatures (7 oct.) : la vôtre, puis celle du vendeur.
+    const sg = o.signatures || {};
+    const sA = sg.acheteur, sV = sg.vendeur;
+    h += "<h2>" + echappe(t().signaturesTitre) + "</h2><ul class=\"signatures\">";
+    h += '<li class="fait"><span class="pastilleSig"></span><div><div class="qui">' + echappe(t().sigAcheteur(sA && sA.nom)) + '</div><div class="quand">' + echappe(t().sigFaite(dateLisible((sA && sA.quand) || o.contratLe))) + "</div></div></li>";
+    h += '<li class="' + (sV ? "fait" : "") + '"><span class="pastilleSig"></span><div><div class="qui">' + echappe(t().sigVendeur((o.vendeur && o.vendeur.nom) || "", sV && sV.nom)) + '</div><div class="quand">' + echappe(sV ? t().sigFaite(dateLisible(sV.quand)) : t().sigAttente) + "</div></div></li>";
+    h += "</ul>";
     if (o.livraison) h += tableauTaxes(o.prixFinal, o.livraison);
   } else if (o.statut === "annulee") {
     h += '<p class="aide">' + echappe(t().annuleeDetail) + "</p>";
@@ -794,6 +953,8 @@ function formulaireFinalisation() {
 
   h += '<h2 style="margin-top:22px">' + echappe(t().signatureTitre) + "</h2>";
   h += '<p class="aide">' + echappe(t().signatureAide) + "</p>";
+  h += '<div class="tablette vide" id="tablette"><div class="indice">' + echappe(t().tabletteIndice) + "</div></div>";
+  h += '<div class="tablette-outils"><span>' + echappe(t().tabletteAide) + '</span><button type="button" id="btnEffacer">' + echappe(t().effacer) + "</button></div>";
   h += '<label for="signature">' + echappe(t().signature) + '</label><input id="signature" class="signature" value="' + echappe(valeur("signature")) + '" autocomplete="off">';
   h += '<div class="boutons"><button type="submit" class="principal" id="btnSigner">' + echappe(t().signer) + "</button></div>";
   h += "</form>";
@@ -830,6 +991,19 @@ function brancher() {
     }
   });
   on("formFinal", "submit", ev => { ev.preventDefault(); finaliser(); });
+
+  // Tablette de signature : les traits survivent au re-rendu du formulaire
+  // (changement de langue, de pays…) grâce au brouillon.
+  if (tablette) { tablette.detruire(); tablette = null; }
+  const cadre = document.getElementById("tablette");
+  if (cadre) {
+    tablette = creerTablette(cadre, {
+      traits: brouillon.traits || [],
+      onChange: () => { brouillon.traits = tablette.traits(); cadre.classList.toggle("vide", tablette.vide()); }
+    });
+    cadre.classList.toggle("vide", tablette.vide());
+    on("btnEffacer", "click", () => tablette.effacer());
+  }
 }
 
 function erreur(code) {
@@ -897,6 +1071,8 @@ async function finaliser() {
   if (acheteur.courriel.indexOf("@") < 0) { erreur("COURRIEL_INVALIDE"); return; }
   if (!valeur("livraison")) { erreur("LIVRAISON_REQUISE"); return; }
   if (!valeur("accepte", false) || String(valeur("signature")).trim().length < 3) { erreur("SIGNATURE_REQUISE"); return; }
+  const signatureImage = tablette ? tablette.image() : "";
+  if (!signatureImage) { erreur("SIGNATURE_TRACEE_REQUISE"); return; }
 
   const bouton = document.getElementById("btnSigner");
   bouton.disabled = true;
@@ -904,7 +1080,7 @@ async function finaliser() {
   try {
     const j = await poster({
       action: "offreFinaliser", o: idOffre, acheteur: acheteur, livraison: valeur("livraison"),
-      langue: langue, signature: String(valeur("signature")).trim(), accepte: true,
+      langue: langue, signature: String(valeur("signature")).trim(), signatureImage: signatureImage, accepte: true,
       agent: navigator.userAgent
     });
     if (!j.ok) {

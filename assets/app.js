@@ -661,6 +661,8 @@
         h('div.sep'),
         AMX.ligneTextos(),
         h('div.sep'),
+        // Guide et aide (7 oct.) : la référence de toutes les fonctions, avec recherche par question (assets/aide.js).
+        AMX.sections.aide ? h('button.aide-menu', { type: 'button', html: (ICONES.aide || '') + '<span>Guide et aide</span>', onclick: function () { usager.classList.remove('ouvert'); AMX.aller('aide', 'questions'); } }) : null,
         h('button', { type: 'button', text: 'Déconnexion', onclick: function () { AMX.deconnecter(''); } })
       ])
     ]);

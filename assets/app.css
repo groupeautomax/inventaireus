@@ -255,6 +255,8 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 }
 .barre .usager .menu a:hover, .barre .usager .menu button:hover { background: var(--gris-bg); }
 .barre .usager .menu .sep { height: 1px; background: var(--ligne); margin: 4px 0; }
+.barre .usager .menu .aide-menu { display: flex; align-items: center; gap: 8px; color: var(--vert); font-weight: 600; }
+.barre .usager .menu .aide-menu svg { width: 16px; height: 16px; }
 .barre .usager .menu .info { padding: 8px 10px 6px; font-size: 11.5px; color: var(--encre-3); }
 .barre .etat-sync { width: 8px; height: 8px; border-radius: 50%; background: var(--vert); flex: none; }
 .barre .etat-sync.occupe { background: var(--ambre); animation: pulser 1s infinite; }

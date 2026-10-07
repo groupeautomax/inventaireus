@@ -312,6 +312,8 @@
     // répertorie, en rouge comme sur eBlock.
     this.btnEblock = h('a.btn.noprint#eblock-btn', { href: '#', target: '_blank', rel: 'noopener', title: 'Ouvrir le véhicule sur eBlock', html: I.externe + '<span>Ouvrir</span>' });
     this.elDommagesListe = h('ul.achat-dommages-liste');
+    // Fiche descriptive importée d'eBlock (Outils › Fiches eBlock, 7 oct.) : cote, dommages avec photos, pneus.
+    this.elFicheEblock = h('div.noprint', { style: { marginTop: '10px' } });
     var signetEblock = h('a.btn.petit.noprint', { href: CODE_SIGNET_EBLOCK, text: 'Automax ← eBlock', title: 'Glissez ce bouton dans votre barre de favoris, puis cliquez-le depuis la page du véhicule sur eBlock : le NIV et les dommages arrivent ici tout seuls.', draggable: 'true' });
     signetEblock.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis la page du véhicule sur eBlock.', 'attention', 7000); });
     var provenance = carte(h('div.carte-entete-ligne', [h('h2', { html: 'Rapport d\'état eBlock <span class="doux petit" style="font-weight:400">— lien de partage et dommages répertoriés</span>' }), signetEblock]), [
@@ -320,7 +322,8 @@
         h('div.champ', [h('label', { 'for': 'f-dommages', text: 'Dommages répertoriés — un par ligne' }),
           h('textarea#f-dommages.achat-dommages', { rows: '4', placeholder: 'Hood\nFront Bumper\nTires / Rims…' })])
       ]),
-      this.elDommagesListe
+      this.elDommagesListe,
+      this.elFicheEblock
     ]);
 
     // Coûts (inclut Frais et ajustements)
@@ -670,6 +673,7 @@
       self.evaluation = null; self.evalVerifiee = ''; self.rendreEvaluation();
       self.rendreContexte();
       self.appliquerPrerempli();
+      if (typeof AMX.eblockFiche === 'function') AMX.eblockFiche(vin, self.elFicheEblock);
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];
       if (vin.length >= 11) taches.push(self.decoderVin(vin));

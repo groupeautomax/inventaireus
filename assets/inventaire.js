@@ -602,6 +602,15 @@
       }).catch(function () {});
     }
 
+    // Fiche descriptive eBlock importée (Outils › Fiches eBlock, 7 oct.) : cote d'état,
+    // dommages avec photos, pneus — montrée seulement si le véhicule a été acheté sur eBlock.
+    var blocFicheEblock = null;
+    if (typeof AMX.eblockFiche === 'function') {
+      var zoneEb = h('div');
+      blocFicheEblock = h('div.bloc.cache', [h('h3', ['Fiche eBlock']), zoneEb]);
+      AMX.eblockFiche(v.vin, zoneEb).then(function (achats) { if (achats && achats.length && blocFicheEblock.isConnected) blocFicheEblock.classList.remove('cache'); });
+    }
+
     // Photos
     var blocPhotos = h('div.bloc', [h('h3', ['Photos', h('a.btn.petit', { href: 'scan.html', target: '_blank', rel: 'noopener', html: I.photo + '<span>Ajouter (scan)</span>' })])]);
     var zonePhotos = h('div.chargement', [h('span.spin'), 'Chargement des photos…']);
@@ -673,7 +682,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocRegistre, blocInfos, blocRappel, blocEblock, blocPhotos, blocCarfax, blocLiens, blocGestion
+      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocRegistre, blocInfos, blocRappel, blocFicheEblock, blocEblock, blocPhotos, blocCarfax, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

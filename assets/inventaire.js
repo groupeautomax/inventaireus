@@ -262,7 +262,7 @@
     if (document.hidden || this.ecritures > 0) return;
     var a = document.activeElement;
     if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && this.elAgencement.contains(a)) return;
-    this.charger(true);
+    this.charger('frais');   // v=39 : seul le rafraîchissement explicite exige un recalcul côté serveur
   };
 
   // Une écriture : jamais rejouée, liste rafraîchie ensuite.

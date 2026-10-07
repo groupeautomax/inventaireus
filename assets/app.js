@@ -712,9 +712,11 @@
     document.dispatchEvent(new CustomEvent('amx:inventaire', { detail: { feuille: feuille } }));
   }
   // Les trois registres d'un coup ; repli sur ?sheet= par feuille si le script en ligne ne connaît pas encore la route.
+  // `force` = relire le serveur (son cache de 120 s suffit : il est vidé à chaque écriture) ;
+  // `force === 'frais'` = le bouton Rafraîchir : on exige un recalcul (?frais=1, ~5 s de plus).
   function chargerTout(force) {
     if (promesseTout) return promesseTout;
-    promesseTout = AMX.get(force ? { registres: 1, frais: 1 } : { registres: 1 }).then(function (d) {
+    promesseTout = AMX.get(force === 'frais' ? { registres: 1, frais: 1 } : { registres: 1 }).then(function (d) {
       if (!d || !d.ok || !Array.isArray(d.US)) throw new Error('route registres absente');
       FEUILLES.forEach(function (f) { poserFeuille(f, Array.isArray(d[f]) ? d[f] : []); });
       sauverRegistres();

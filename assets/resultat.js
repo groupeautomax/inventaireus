@@ -307,7 +307,9 @@
     this.erreur = ''; this.refus = '';
     this.enChargement = false; this.generation = 0; this.detruit = false;
 
-    this.compagnie = AMX.memo.lire('resultat_cie', 'TOUT');
+    // Même concession que le reste du site (7 oct.) : le choix fait dans Inventaire ou Service
+    // est repris ici, et un choix fait ici est gardé pour les autres pages.
+    this.compagnie = AMX.compagnieChoisie('resultats') || 'TOUT';
     if (!trouver(COMPAGNIES_().map(function (c) { return { cle: c[0] }; }), this.compagnie)) this.compagnie = 'TOUT';
     this.periode = null;         // cle de la période ouverte (liste des véhicules)
     this.regroupement = AMX.memo.lire('resultat_regroupement', 'marque');
@@ -402,7 +404,7 @@
   Resultat.prototype.changerCompagnie = function (cie) {
     if (cie === this.compagnie) return;
     this.compagnie = cie;
-    AMX.memo.ecrire('resultat_cie', cie);
+    AMX.choisirCompagnie(cie === 'TOUT' ? '' : cie);
     this.groupesOuverts = {};
     if (this.periode === 'perso') { this.periode = null; this.fenetrePerso = null; this.seauActif = -1; this.acheteurActif = ''; }
     this.rendre();

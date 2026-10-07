@@ -143,7 +143,9 @@
   }
 
   Registre.prototype.filtresDefaut = function () {
-    return { recherche: '', compagnie: '', statuts: null /* null = actifs */, origine: '', rappel: '', importateur: '', registre: '', alerte: '' };
+    // La compagnie n'est PAS remise à zéro : c'est le choix du site (AMX.compagnieChoisie), gardé
+    // d'un onglet et d'une page à l'autre tant qu'on ne clique pas sur une autre concession.
+    return { recherche: '', compagnie: AMX.compagnieChoisie('inventaire'), statuts: null /* null = actifs */, origine: '', rappel: '', importateur: '', registre: '', alerte: '' };
   };
 
   Registre.prototype.demonter = function () {
@@ -192,7 +194,8 @@
     this.conteneur.appendChild(page);
     this.construireRail();
     // Les permissions (portée, compagnies visibles) arrivent souvent après le premier rendu : on refait le rail.
-    this.surProfil = function () { if (!self.detruit) { self.construireRail(); self.rendre(); } };
+    // Profil (portée) arrivé après le montage : on revalide la concession choisie (un vieux choix hors portée est ignoré).
+    this.surProfil = function () { if (!self.detruit) { self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); } };
     document.addEventListener('amx:profil', this.surProfil);
   };
 
@@ -200,11 +203,12 @@
     var self = this, f = this.filtres, cfg = this.cfg;
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock — tous statuts, tous registres', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; f.alerte = ''; self.rendre(); }, 120) })]);
-    // Compagnie
-    var seg = h('div.segment.bloc');
-    [['', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })).forEach(function (c) {
-      seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } }));
-    });
+    // Concession : liste verticale (les 5 toujours visibles), compte des véhicules actifs du
+    // registre par concession, choix gardé pour tout le site (AMX.choisirCompagnie).
+    var actifsCie = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; }), vehicules = this.vehicules;
+    var choix = AMX.choixCompagnie({ domaine: 'inventaire', valeur: f.compagnie,
+      compte: function (c) { return vehicules.filter(function (v) { return actifsCie.indexOf(v.statut) >= 0 && (!c || v.compagnie === c); }).length; },
+      onchange: function (c) { f.compagnie = c; f.alerte = ''; self.construireRail(); self.rendre(); } });
     // Statuts
     var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
     var statutsSel = f.statuts || actifs;
@@ -234,7 +238,7 @@
       ])
     ]);
     this.elBandeau = AMX.bandeauPortee('inventaire', f.compagnie, !!f.recherche);
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
+    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech, choix ? h('div', { style: { height: '10px' } }) : null, choix ? h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Concession' }) : null, choix]));
     this.elRail.appendChild(grpStatut);
     this.elRail.appendChild(grpAutres);
   };
@@ -399,7 +403,7 @@
     if (f.alerte === 'retardAchat') puces.push(['Pas en stock 7 j+', function () { f.alerte = ''; }]);
     if (f.statuts && f.statuts.length === 1) puces.push([AMX.statut(f.statuts[0], this.cfg.feuille).libelle, function () { f.statuts = null; }]);
     else if (f.statuts && f.statuts.length === this.cfg.statuts.length) puces.push(['Vendus et comptabilisés inclus', function () { f.statuts = null; }]);
-    if (f.compagnie) puces.push([AMX.COMPAGNIES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
+    if (f.compagnie) puces.push([AMX.COMPAGNIES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; AMX.choisirCompagnie(''); }]);
     if (f.recherche) puces = [['« ' + f.recherche + ' » — tous statuts, tous registres' + (f.compagnie ? ', ' + (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : ''), function () { f.recherche = ''; }]];
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     puces.forEach(function (p) {

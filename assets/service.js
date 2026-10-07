@@ -158,7 +158,9 @@
     // Rafraîchissement périodique : sans frais=1 (le cache serveur suffit, il est vidé à chaque écriture).
     this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) self.charger(); }, 120000);
   }
-  Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: '', etapes: null, retard: false }; };
+  // La compagnie n'est PAS remise à zéro : c'est le choix du site (AMX.compagnieChoisie), gardé
+  // d'un onglet et d'une page à l'autre tant que Maxime ne clique pas sur une autre concession.
+  Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: AMX.compagnieChoisie('service'), etapes: null, retard: false }; };
   Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); };
   Suivi.prototype.naviguer = function (ctx) {
     if (ctx.onglet !== this.onglet) { this.onglet = ctx.onglet; this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || ''; this.construireRail(); this.rendre(); }
@@ -191,7 +193,8 @@
     this.construireRail();
     // Les permissions (portée, compagnies visibles) arrivent souvent après le premier rendu : on refait le rail.
     var moi = this;
-    this.surProfil = function () { if (!moi.detruit) { moi.construireRail(); moi.rendre(); } };
+    // Profil (portée) arrivé après le montage : on revalide la concession choisie (un vieux choix hors portée est ignoré).
+    this.surProfil = function () { if (!moi.detruit) { moi.filtres.compagnie = AMX.compagnieChoisie('service'); moi.construireRail(); moi.rendre(); } };
     document.addEventListener('amx:profil', this.surProfil);
   };
 
@@ -199,12 +202,15 @@
     var self = this, f = this.filtres, etapes = AMX.service.etapes();
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock, BT — tous les suivis', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendre(); }, 120) })]);
-    var seg = h('div.segment.bloc');
-    [['', 'Toutes']].concat(Object.keys(AMX.compagniesPour('service')).map(function (c) { return [c, c]; })).forEach(function (c) {
-      seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } }));
-    });
+    // Concession : liste verticale (les 5 toujours visibles), compte des suivis de l'onglet par
+    // concession, choix gardé pour tout le site (AMX.choisirCompagnie) jusqu'au prochain clic.
+    var o = this.onglet, suivis = this.suivis;
+    var parOnglet = function (s) { return o === 'termines' ? s.statut !== 'encours' : o === 'autoriser' ? attendDirecteur(s) : s.statut === 'encours'; };
+    var choix = AMX.choixCompagnie({ domaine: 'service', valeur: f.compagnie,
+      compte: function (c) { return suivis.filter(function (s) { return parOnglet(s) && (!c || String(s.compagnie || '').toUpperCase() === c); }).length; },
+      onchange: function (c) { f.compagnie = c; self.construireRail(); self.rendre(); } });
     this.elBandeau = AMX.bandeauPortee('service', f.compagnie, !!f.recherche);
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
+    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech, choix ? h('div', { style: { height: '10px' } }) : null, choix ? h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Concession' }) : null, choix]));
     if (this.onglet !== 'termines') {
       var grp = h('div.groupe', [h('h3', ['Étape courante', h('button', { type: 'button', text: f.etapes ? 'Toutes' : '', onclick: function () { f.etapes = null; self.construireRail(); self.rendre(); } })])]);
       var base = this.base();
@@ -362,7 +368,7 @@
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     var puces = [];
     if (f.retard) puces.push(['En retard', function () { f.retard = false; }]);
-    if (f.compagnie) puces.push([AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
+    if (f.compagnie) puces.push([AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; AMX.choisirCompagnie(''); }]);
     if (f.etapes) puces.push([f.etapes.length + ' étape(s)', function () { f.etapes = null; }]);
     if (f.recherche) puces = [['« ' + f.recherche + ' » — tous les suivis' + (f.compagnie ? ', ' + (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : ''), function () { f.recherche = ''; }]];
     puces.forEach(function (p) { var b = h('button.puce.info', { type: 'button', title: 'Retirer ce filtre', html: esc(p[0]) + ' ✕' }); b.addEventListener('click', function () { p[1](); self.construireRail(); self.rendre(); }); self.elOutils.appendChild(b); });

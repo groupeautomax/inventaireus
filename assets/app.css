@@ -156,6 +156,18 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .segment button { border: none; background: transparent; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; color: var(--encre-3); }
 .segment button.actif { background: #fff; color: var(--encre); box-shadow: var(--ombre); }
 .segment.bloc { display: flex; } .segment.bloc button { flex: 1; }
+/* Choix de concession (rail, 7 oct.) : liste verticale — nom complet, pastille, compte.
+   Les 5 concessions sont toujours visibles (le segment horizontal en cachait 2). */
+.choix-cie { display: flex; flex-direction: column; gap: 2px; }
+.choix-cie .choix { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 6px 8px; font-size: 12.5px; color: var(--encre-2); cursor: pointer; line-height: 1.2; }
+.choix-cie .choix:hover { background: var(--gris-bg); }
+.choix-cie .choix.actif { background: var(--vert-clair); border-color: var(--vert); color: var(--encre); font-weight: 600; }
+.choix-cie .choix .pastille { width: 9px; height: 9px; border-radius: 50%; background: var(--gris); flex: none; }
+.choix-cie .choix.vert .pastille { background: var(--vert); } .choix-cie .choix.bleu .pastille { background: var(--bleu); } .choix-cie .choix.violet .pastille { background: var(--violet); } .choix-cie .choix.sombre .pastille { background: var(--noir-2); } .choix-cie .choix.ambre .pastille { background: var(--ambre); }
+.choix-cie .choix.toutes .pastille { background: linear-gradient(135deg, var(--vert), var(--noir-2)); }
+.choix-cie .choix .nom { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.choix-cie .choix .n { font-size: 11.5px; color: var(--encre-4); font-variant-numeric: tabular-nums; font-weight: 500; }
+.choix-cie .choix.actif .n { color: var(--vert); }
 
 /* ----------------------------- Badges ---------------------------------- */
 .badge {

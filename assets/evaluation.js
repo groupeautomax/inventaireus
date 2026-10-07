@@ -1292,7 +1292,8 @@
     injecterCss();
     this.liste = null; this.parConcession = {}; this.erreur = ''; this.refus = '';
     this.generation = 0;
-    this.concession = AMX.memo.lire('registre_eval_concession', '');
+    // Même concession que le reste du site (7 oct.) : choix partagé Inventaire / Service / Résultats.
+    this.concession = AMX.COMPAGNIE_CONCESSION[AMX.compagnieChoisie('evaluations')] || '';
     if (this.concession && !AMX.concessionsPour('evaluations')[this.concession]) this.concession = '';
     this.recherche = '';
     this.statut = AMX.memo.lire('registre_eval_statut', 'tous');
@@ -1438,7 +1439,7 @@
     var base = this.base();
     var carte = function (cle, libelle, lignes) {
       var ag = agregerRegistre(lignes), actif = self.concession === cle;
-      var k = h('button.registre-carte' + (actif ? '.actif' : '') + (cle ? '.' + (COULEUR_CONCESSION[cle] || 'gris') : '.toutes'), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.concession = cle; AMX.memo.ecrire('registre_eval_concession', cle); self.rendre(); } }, [
+      var k = h('button.registre-carte' + (actif ? '.actif' : '') + (cle ? '.' + (COULEUR_CONCESSION[cle] || 'gris') : '.toutes'), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.concession = cle; AMX.choisirCompagnie(AMX.CONCESSION_COMPAGNIE[cle] || ''); self.rendre(); } }, [
         h('div.haut', [h('div.nom', { text: libelle }), h('div.n.num', { text: String(ag.n) })]),
         h('div.bas', ag.n ? [
           h('span', [h('b', { text: fmt(ag.detail) }), ' détail']),

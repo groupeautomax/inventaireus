@@ -92,7 +92,7 @@
     injecterCss();
     this.generation = 0;
     this.liste = null; this.erreur = ''; this.refus = '';
-    this.concession = AMX.memo.lire('torque_concession', '');
+    this.concession = AMX.COMPAGNIE_CONCESSION[AMX.compagnieChoisie('evaluations')] || '';   // même concession que le reste du site (7 oct.)
     this.periode = AMX.memo.lire('torque_periode', 'tout');
     this.statut = ''; this.recherche = ''; this.archivees = false;
     this.tri = { cle: 'creeLe', desc: true };
@@ -284,7 +284,7 @@
     var base = this.base();
     var carte = function (cle, libelle, lignes) {
       var ag = agreger(lignes), actif = self.concession === cle;
-      return h('button.torque-carte' + (actif ? '.actif' : '') + (cle ? '.' + (COULEUR_CONCESSION[cle] || 'gris') : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.concession = cle; AMX.memo.ecrire('torque_concession', cle); self.rendre(); } }, [
+      return h('button.torque-carte' + (actif ? '.actif' : '') + (cle ? '.' + (COULEUR_CONCESSION[cle] || 'gris') : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.concession = cle; AMX.choisirCompagnie(AMX.CONCESSION_COMPAGNIE[cle] || ''); self.rendre(); } }, [
         h('div.haut', [h('div.nom', { text: libelle }), h('div.n.num', { text: AMX.fmtNombre(ag.n) })]),
         h('div.bas', ag.n ? [h('span', [h('b', { text: String(ag.nRepris) }), ' repris']), h('span', [h('b', { text: String(ag.nPerdu) }), ' perdus']), h('span', [h('b', { text: fmt(ag.interneMoy) }), ' interne moy.']), h('span', [h('b', { text: fmt(ag.venteMoy) }), ' vente moy.'])] : [h('span.doux', 'aucune évaluation')])
       ]);

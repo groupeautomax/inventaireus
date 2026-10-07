@@ -69,7 +69,7 @@
       '.eb-table td.vehicule { display: flex; gap: 8px; align-items: center; min-width: 230px; } .eb-table td.vehicule .nom { font-weight: 600; } .eb-table td.vehicule .vin { font-family: var(--mono); font-size: 11px; color: var(--encre-3); }',
       '.eb-table td.photo img { width: 60px; height: 45px; object-fit: cover; border-radius: 6px; background: var(--gris-bg); display: block; }',
       '.eb-table td.photo .sans { width: 60px; height: 45px; border-radius: 6px; background: var(--gris-bg); display: flex; align-items: center; justify-content: center; color: var(--encre-4); font-size: 10px; }',
-      '.eb-table tr.sans-fiche td { color: var(--encre-3); } .eb-table td .pieces { color: var(--rouge); font-weight: 600; font-size: 12px; max-width: 170px; }',
+      '.eb-table tr.sans-fiche td { color: var(--encre-3); } .eb-table td .pieces { color: var(--rouge); font-weight: 600; font-size: 11.5px; max-width: 190px; white-space: normal; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }',
       '.eb-table td.num, .eb-table td.date, .eb-table td.badges { white-space: nowrap; } .eb-table td.pneus { max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; } .eb-table td.decl { max-width: 150px; font-size: 12px; }',
       '.eb-etapes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; } .eb-etapes .section-titre { margin-bottom: 4px; } .eb-etapes p { margin: 0 0 8px; color: var(--encre-2); font-size: 12.5px; }',
       '.eb-import-etat { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; } .eb-import-etat .case { background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 8px; padding: 8px 10px; } .eb-import-etat .case b { display: block; font-size: 18px; } .eb-import-etat .mini { font-size: 11px; color: var(--encre-3); }',
@@ -281,7 +281,7 @@
         h('td.badges', [badgeInventaire(r)]),
         h('td.num', [h('div', { text: fmt(r.prixPaye) }), nombre(r.totalFacture) !== null ? h('div.mini', { text: 'facture ' + fmt(r.totalFacture) }) : null]),
         h('td.num', r.fiche ? [badgeCote(r.cote)] : [h('span.doux', '—')]),
-        h('td.num', r.fiche ? [h('div', { text: String(nd) }), nd ? h('div.pieces', { text: r.pieces || '' }) : null] : [h('span.doux', '—')]),
+        h('td.num', r.fiche ? [h('div', { text: String(nd) }), nd ? h('div.pieces', { text: r.pieces || '', title: r.pieces || '' }) : null] : [h('span.doux', '—')]),
         h('td.decl', { text: r.fiche ? (r.declarations || '—') : '—' }),
         h('td.pneus', { text: r.fiche ? (r.pneus || '—') : '—', title: r.pneus || '' }),
         h('td', r.fiche ? [h('span.badge.sans-point.vert', { text: 'Fiche' })] : [h('span.badge.sans-point.' + (r.enStock ? 'ambre' : 'gris'), { text: r.enStock ? 'À lire' : 'Pas lue', title: r.enStock ? 'Recliquez le signet dans eBlock pour lire cette fiche' : 'Véhicule plus à l\'inventaire : la fiche n\'est pas lue' })])

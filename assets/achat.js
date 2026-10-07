@@ -594,6 +594,7 @@
     this.btnEblock.classList.toggle('desactive', !lien);
     this.btnEblock.setAttribute('aria-disabled', lien ? 'false' : 'true');
     var dommages = AMX.listeDommages(el('f-dommages') ? el('f-dommages').value : '');
+    if (AMX.eblockTraduireLignes) dommages = AMX.eblockTraduireLignes(dommages);   // affichage en français même si le champ est en anglais
     AMX.vider(this.elDommagesListe);
     if (dommages.length) {
       var nDom = AMX.nbDommages(dommages);
@@ -619,9 +620,11 @@
     this.prerempli = null;
     var n = 0, morceaux = [];
     function poser(id, valeur) { var e = el(id); if (valeur && e && !String(e.value || '').trim()) { e.value = valeur; n++; return true; } return false; }
-    if (poser('f-dommages', p.dommages)) morceaux.push(AMX.listeDommages(p.dommages).length + ' dommage(s) répertorié(s)');
+    // Le signet eBlock envoie les pièces en anglais (« Hood ») : on les pose en français.
+    var dommagesFr = p.dommages && AMX.eblockTraduireLignes ? AMX.eblockTraduireLignes(AMX.listeDommages(p.dommages)).join('\n') : p.dommages;
+    if (poser('f-dommages', dommagesFr)) morceaux.push(AMX.nbDommages(AMX.listeDommages(dommagesFr)) + ' dommage(s) répertorié(s)');
     if (p.eblock && AMX.eblockValide(p.eblock)) poser('f-eblock', p.eblock);
-    poser('f-marque', p.marque); poser('f-modele', p.modele); poser('f-annee', p.annee); poser('f-couleur', p.couleur); poser('f-km', p.km);
+    poser('f-marque', p.marque); poser('f-modele', p.modele); poser('f-annee', p.annee); poser('f-couleur', AMX.eblockTraduireCouleur ? AMX.eblockTraduireCouleur(p.couleur) : p.couleur); poser('f-km', p.km);
     this.rendreEblock();
     this.recalculer();
     // Le lien CARFAX qu'eBlock fournit (rapport public) s'attache au véhicule

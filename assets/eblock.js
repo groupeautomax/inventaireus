@@ -662,6 +662,12 @@
     return el;
   };
 
+  // Traductions partagées (fiche d'achat, Suivi service) : « Hood » → « Capot », « BLUE » → « Bleu ».
+  AMX.eblockTraduirePieces = EBLOCK_traduirePieces_;
+  AMX.eblockTraduireCouleur = EBLOCK_traduireCouleur_;
+  // Liste de dommages (une par ligne, anglais de l'ancien signet ou français) → lignes en français.
+  AMX.eblockTraduireLignes = function (lignes) { return (lignes || []).map(function (x) { return EBLOCK_traduirePieces_(x) || x; }); };
+
   AMX.vues = AMX.vues || {};
   AMX.vues.FichesEblock = FichesEblock;
 })();

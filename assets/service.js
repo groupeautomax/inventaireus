@@ -463,6 +463,7 @@
       var rien = true;
       if (d.dommages && d.dommages.length) {
         rien = false;
+        if (AMX.eblockTraduireLignes) d.dommages = AMX.eblockTraduireLignes(d.dommages);   // vieilles fiches d'achat en anglais
         var nDom = AMX.nbDommages(d.dommages);
         zoneDossier.appendChild(h('div', { style: { marginBottom: '8px' } }, [h('span.badge.rouge', { text: nDom + ' dommage' + (nDom > 1 ? 's' : '') + ' répertorié' + (nDom > 1 ? 's' : '') + ' à l\'achat' }), h('ul.dommages-liste', d.dommages.map(function (x) { return h('li', { text: x }); }))]));
       } else if (d.fiche) zoneDossier.appendChild(h('div', { style: { marginBottom: '8px' } }, [h('span.badge.vert', { text: 'Aucun dommage répertorié à l\'achat' })]));
@@ -471,7 +472,7 @@
         rien = false;
         zoneDossier.appendChild(h('dl.kv.serre', { style: { marginBottom: '8px' } }, [
           d.fiche.km ? h('dt', 'Km à l\'achat') : null, d.fiche.km ? h('dd', { text: AMX.fmtNombre(AMX.montant(d.fiche.km)) + ' km' }) : null,
-          d.fiche.couleur ? h('dt', 'Couleur') : null, d.fiche.couleur ? h('dd', { text: d.fiche.couleur }) : null,
+          d.fiche.couleur ? h('dt', 'Couleur') : null, d.fiche.couleur ? h('dd', { text: AMX.eblockTraduireCouleur ? AMX.eblockTraduireCouleur(d.fiche.couleur) : d.fiche.couleur }) : null,
           d.fiche.prixAchat ? h('dt', 'Prix d\'achat') : null, d.fiche.prixAchat ? h('dd', { text: AMX.fmtArgent(d.fiche.prixAchat) }) : null,
           (d.fiche.recon && (d.fiche.recon.carrosserie || d.fiche.recon.service || d.fiche.recon.lavage)) ? h('dt', 'Recon prévu') : null,
           (d.fiche.recon && (d.fiche.recon.carrosserie || d.fiche.recon.service || d.fiche.recon.lavage)) ? h('dd', { text: ['carrosserie ' + (d.fiche.recon.carrosserie ? AMX.fmtArgent(d.fiche.recon.carrosserie) : '—'), 'service ' + (d.fiche.recon.service ? AMX.fmtArgent(d.fiche.recon.service) : '—'), 'lavage ' + (d.fiche.recon.lavage ? AMX.fmtArgent(d.fiche.recon.lavage) : '—')].join(' · ') }) : null

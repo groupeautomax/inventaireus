@@ -536,13 +536,13 @@
       blocStatut.appendChild(actions);
     }
 
-    // Registre reçu
+    // Registre reçu — une ligne compacte au bas du bloc Statut (7 oct. : « trop gros » en bloc à part).
     var reg = registreDe(v);
-    var segReg = h('div.segment.bloc');
+    var segReg = h('div.segment.petit');
     [['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Mauvais nom']].forEach(function (o) {
       segReg.appendChild(h('button' + (reg === o[0] ? '.actif' : ''), { type: 'button', text: o[1], disabled: verrouille || !peutStatut, onclick: function () { if (reg !== o[0]) self.ecrire({ action: 'setDoc', id: v.id, value: o[0] }, 'Registre mis à jour'); } }));
     });
-    var blocRegistre = h('div.bloc', [h('h3', ['Registre d\'immatriculation', enRetardRegistre(v) ? h('span.puce.alerte', { text: AMX.joursDepuis(v.dateAjout) + ' j sans registre' }) : null]), segReg]);
+    blocStatut.appendChild(h('div.ligne-registre', [h('span.l', { text: 'Registre' }), segReg, enRetardRegistre(v) ? h('span.puce.alerte', { text: AMX.joursDepuis(v.dateAjout) + ' j sans registre' }) : null]));
 
     // Informations éditables
     var champ = function (libelle, valeur, opts) {
@@ -589,17 +589,28 @@
     // Rapport d'état eBlock (fiche d'achat) : lien de partage et dommages
     // répertoriés, en rouge. Chargé à part, seulement si une fiche existe, et
     // montré seulement s'il y a quelque chose.
+    // Fiche descriptive eBlock importée (Outils › Fiches eBlock, 7 oct.) : cote d'état,
+    // dommages avec photos, pneus — montrée seulement si le véhicule a été acheté sur eBlock.
+    var blocFicheEblock = null, ficheEblockLa = false;
+    if (typeof AMX.eblockFiche === 'function') {
+      var zoneEb = h('div');
+      blocFicheEblock = h('div.bloc.cache', [h('h3', ['Fiche eBlock']), zoneEb]);
+      AMX.eblockFiche(v.vin, zoneEb, { maxPieces: 6 }).then(function (achats) { if (achats && achats.length && blocFicheEblock.isConnected) { ficheEblockLa = true; blocFicheEblock.classList.remove('cache'); if (blocEblock) blocEblock.classList.add('cache'); } });
+    }
+    // Dommages de la fiche d'achat (en français) — seulement s'il n'y a pas de fiche eBlock, sinon c'est en double.
     var blocEblock = null;
     if (v.ficheExiste && AMX.ficheDe) {
-      blocEblock = h('div.bloc.cache', [h('h3', ['Rapport d\'état eBlock'])]);
+      blocEblock = h('div.bloc.cache', [h('h3', ['Dommages (fiche d\'achat)'])]);
       AMX.ficheDe(v.vin).then(function (f) {
-        if (!f || !blocEblock.isConnected) return;
+        if (!f || !blocEblock.isConnected || ficheEblockLa) return;
         var lien = AMX.eblockValide(f['f-eblock']), dommages = AMX.listeDommages(f['f-dommages']);
+        if (AMX.eblockTraduireLignes) dommages = AMX.eblockTraduireLignes(dommages);
         if (!lien && !dommages.length) return;
         blocEblock.classList.remove('cache');
         if (dommages.length) {
+          var nDom = AMX.nbDommages(dommages);
           blocEblock.appendChild(h('div', [
-            h('span.badge.rouge', { text: dommages.length + ' dommage' + (dommages.length > 1 ? 's' : '') + ' répertorié' + (dommages.length > 1 ? 's' : '') }),
+            h('span.badge.rouge', { text: nDom + ' dommage' + (nDom > 1 ? 's' : '') + ' répertorié' + (nDom > 1 ? 's' : '') }),
             h('ul.dommages-liste', dommages.map(function (d) { return h('li', { text: d }); }))
           ]));
         }
@@ -607,14 +618,35 @@
       }).catch(function () {});
     }
 
-    // Fiche descriptive eBlock importée (Outils › Fiches eBlock, 7 oct.) : cote d'état,
-    // dommages avec photos, pneus — montrée seulement si le véhicule a été acheté sur eBlock.
-    var blocFicheEblock = null;
-    if (typeof AMX.eblockFiche === 'function') {
-      var zoneEb = h('div');
-      blocFicheEblock = h('div.bloc.cache', [h('h3', ['Fiche eBlock']), zoneEb]);
-      AMX.eblockFiche(v.vin, zoneEb).then(function (achats) { if (achats && achats.length && blocFicheEblock.isConnected) blocFicheEblock.classList.remove('cache'); });
-    }
+    // Évaluation (Outils › Évaluation marché) : ce qu'on en sait, depuis la fiche d'inventaire (7 oct.).
+    var blocEval = h('div.bloc', [h('h3', ['Évaluation', h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.vin }), text: 'Ouvrir' })])]);
+    var zoneEval = h('div.doux.petit', 'Chargement…');
+    blocEval.appendChild(zoneEval);
+    AMX.get('evalVin=' + encodeURIComponent(v.vin), { essais: 1 }).then(function (d) {
+      if (!zoneEval.isConnected) return;
+      AMX.vider(zoneEval); zoneEval.className = '';
+      if (!d || !d.trouve) {
+        zoneEval.appendChild(h('div.actions-ligne', [h('span.doux.petit', { style: { alignSelf: 'center' }, text: 'Pas encore évalué.' }), h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.vin }), html: I.outils + '<span>Évaluer ce véhicule</span>' })]));
+        return;
+      }
+      var e = d.donnees || {}, m = (e.marche && typeof e.marche === 'object') ? e.marche : null;
+      var argent = function (x) { var n = parseFloat(String(x === undefined || x === null ? '' : x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n; };
+      var paye = argent(e.prixPaye) || argent(e.prixAchat), recon = argent(e.recon), vente = argent(e.prixVente), standard = m ? argent(m.standard) : null, marge = argent(e.marge);
+      var qui = String(e._enregistrePar || e._par || '').split('@')[0], quand = d.dateMaj || e._le || '';
+      var veh = [e.annee, e.marque, e.modele, e.version].filter(Boolean).join(' '), kmEval = parseInt(String(e.km || '').replace(/[^0-9]/g, ''), 10);
+      if (veh || kmEval) zoneEval.appendChild(h('div', { style: { marginBottom: '6px', fontSize: '12.5px' }, text: [veh, kmEval ? AMX.fmtNombre(kmEval) + ' km' : ''].filter(Boolean).join(' · ') }));
+      zoneEval.appendChild(h('div.actions-ligne', [
+        paye !== null ? h('span.puce', { text: 'payé ' + AMX.fmtArgent(paye, 0) }) : null,
+        recon !== null ? h('span.puce', { text: 'recon ' + AMX.fmtArgent(recon, 0) }) : null,
+        vente !== null ? h('span.puce.ok', { text: 'détail ' + AMX.fmtArgent(vente, 0) }) : null,
+        standard !== null ? h('span.puce.info', { text: 'marché ' + AMX.fmtArgent(standard, 0) + (m && m.actifs && m.actifs.n ? ' · ' + m.actifs.n + ' annonces' : ''), title: 'Prix standard de l\'analyse de marché' }) : null,
+        marge !== null ? h('span.puce' + (marge < 0 ? '.alerte' : ''), { text: 'marge ' + AMX.fmtArgent(marge, 0) }) : null,
+        e.etat ? h('span.puce', { text: 'état : ' + e.etat }) : null, e.pneus ? h('span.puce', { text: 'pneus : ' + e.pneus }) : null, e.pareBrise ? h('span.puce', { text: 'pare-brise : ' + e.pareBrise }) : null, e.accident ? h('span.puce.alerte', { text: 'accident : ' + e.accident }) : null
+      ]));
+      var note = e.notes || e.note;
+      if (note) zoneEval.appendChild(h('div.doux.petit', { style: { marginTop: '6px' }, text: String(note).slice(0, 240) }));
+      zoneEval.appendChild(h('div.doux.petit', { style: { marginTop: '6px' }, text: 'Évaluée' + (quand ? ' le ' + AMX.fmtDate(quand, true) : '') + (qui ? ' par ' + qui : '') + (e.concession ? ' · ' + (AMX.CONCESSIONS_TOUTES && AMX.CONCESSIONS_TOUTES[e.concession] ? AMX.CONCESSIONS_TOUTES[e.concession] : e.concession) : '') }));
+    }).catch(function (err) { if (!zoneEval.isConnected) return; zoneEval.textContent = 'Évaluation indisponible : ' + AMX.erreurTexte(err); });
 
     // Photos
     var blocPhotos = h('div.bloc', [h('h3', ['Photos', h('a.btn.petit', { href: 'scan.html', target: '_blank', rel: 'noopener', html: I.photo + '<span>Ajouter (scan)</span>' })])]);
@@ -639,27 +671,28 @@
     };
     champCfx.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sauverCfx(champCfx.value); } });
     champCfx.addEventListener('paste', function () { setTimeout(function () { if (AMX.carfax.valide(champCfx.value)) sauverCfx(champCfx.value); }, 30); });
-    var blocCarfax = h('div.bloc', [h('h3', ['Rapport CARFAX', lienCfx ? h('span.puce.ok', { text: 'disponible' }) : h('a.btn.petit', { href: AMX.lien('outils', 'carfax'), text: 'Importer depuis mon compte' })]),
-      lienCfx ? h('div.actions-ligne', [
-        h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Voir le rapport</span>' }),
-        h('button.btn', { html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(lienCfx, 'Lien du rapport copié'); } }),
-        h('button.btn.fantome', { text: 'Remplacer', onclick: function () { blocCarfax.querySelector('.cfx-saisie').classList.remove('cache'); champCfx.focus(); champCfx.select(); } }),
-        h('button.btn.fantome', { text: 'Retirer', onclick: function () { AMX.confirmer('Retirer le lien CARFAX', 'Le bouton « Rapport CARFAX » disparaîtra de la page de l\'acheteur pour ce véhicule.').then(function (ok) { if (ok) sauverCfx(''); }); } })
-      ]) : null,
-      h('div.cfx-saisie' + (lienCfx ? '.cache' : ''), { style: { marginTop: lienCfx ? '10px' : '0' } }, [
-        h('div.champ', [h('label', 'Lien du rapport'), h('div', { style: { display: 'flex', gap: '6px' } }, [champCfx, h('button.btn.petit', { text: 'Enregistrer', onclick: function () { sauverCfx(champCfx.value); } })]),
-          h('div.aide', 'Dans votre compte CARFAX (Mes rapports › Mes RHV), ouvrez le rapport et copiez l\'adresse de la page. Le lien s\'affiche ensuite sur la page publique du véhicule.')])
-      ])
+    // Rapports et liens : CARFAX, fiche d'achat, window sticker, mise en vente — un seul bloc, une
+    // rangée de boutons (7 oct. : le CARFAX était en double et prenait trop de place). Le lien
+    // CARFAX se gère derrière « lien… » (coller / remplacer / retirer).
+    var zoneCfx = h('div.cfx-saisie.cache', { style: { marginTop: '10px' } }, [
+      h('div.champ', [h('label', lienCfx ? 'Remplacer le lien du rapport' : 'Coller le lien du rapport'), h('div', { style: { display: 'flex', gap: '6px' } }, [champCfx, h('button.btn.petit', { text: 'Enregistrer', onclick: function () { sauverCfx(champCfx.value); } })]),
+        h('div.aide', 'Compte CARFAX › Mes rapports › Mes RHV : ouvrez le rapport et copiez l\'adresse de la page (vhr.carfax.ca/?id=…). Le lien sort aussi sur la page publique du véhicule.')]),
+      lienCfx ? h('div.actions-ligne', { style: { marginTop: '6px' } }, [
+        h('button.btn.petit', { html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(lienCfx, 'Lien du rapport copié'); } }),
+        h('button.btn.petit.fantome', { text: 'Retirer le lien', onclick: function () { AMX.confirmer('Retirer le lien CARFAX', 'Le bouton « Rapport CARFAX » disparaîtra de la page de l\'acheteur pour ce véhicule.').then(function (ok) { if (ok) sauverCfx(''); }); } })
+      ]) : null
     ]);
-
-    // Liens
     var sticker = stickerUrl(v);
-    var blocLiens = h('div.bloc', [h('h3', 'Liens'), h('div.actions-ligne', [
-      h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }),
-      sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null,
-      lienCfx ? null : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié)', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
-      AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null
-    ])]);
+    var blocLiens = h('div.bloc', [h('h3', ['Rapports et liens', h('button.btn.petit.fantome', { type: 'button', text: lienCfx ? 'lien CARFAX…' : 'coller un lien CARFAX…', onclick: function () { zoneCfx.classList.toggle('cache'); if (!zoneCfx.classList.contains('cache')) { champCfx.focus(); champCfx.select(); } } })]),
+      h('div.actions-ligne', [
+        lienCfx ? h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Rapport CARFAX</span>' })
+          : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
+        h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }),
+        sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null,
+        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null
+      ]),
+      zoneCfx
+    ]);
 
     // Transfert + suppression
     var selTransfert = h('select.saisie', { style: { flex: 1 } }, [h('option', { value: '', text: 'Transférer vers…' })].concat(cfg.transferts.map(function (t) { return h('option', { value: t, text: AMX.inventaire.nomFeuille(t) }); })));
@@ -687,7 +720,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocRegistre, blocInfos, blocRappel, blocFicheEblock, blocEblock, blocPhotos, blocCarfax, blocLiens, blocGestion
+      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocInfos, blocEval, blocFicheEblock, blocEblock, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

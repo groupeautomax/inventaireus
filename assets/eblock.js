@@ -588,8 +588,9 @@
   /* ------------- Bloc compact d'un NIV (panneau d'inventaire, fiche d'achat) -------------- */
   // Rend dans `conteneur` la fiche eBlock du véhicule s'il a été acheté sur eBlock et
   // que sa fiche a été importée. Renvoie la promesse (null si rien).
-  AMX.eblockFiche = function (vin, conteneur) {
+  AMX.eblockFiche = function (vin, conteneur, opts) {
     injecterCss();
+    opts = opts || {};
     AMX.vider(conteneur);
     vin = String(vin || '').trim().toUpperCase();
     if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return Promise.resolve(null);
@@ -606,7 +607,7 @@
       ].concat((et.declarations || []).map(decla))));
       bloc.appendChild(h('div', { text: 'Acheté le ' + (r.achatLe ? AMX.fmtDate(r.achatLe) : '—') + ' · ' + fmt(r.prixPaye) + (r.vendeur ? ' · ' + r.vendeur : '') }));
       // Pièces endommagées en français (de la fiche si on l'a, sinon de la colonne de la feuille), puis les photos.
-      if (r.fiche && nd) bloc.appendChild(listePieces(f && (f.dommages || []).length ? EBLOCK_piecesListe_(f.dommages).join(', ') : r.pieces, 8));
+      if (r.fiche && nd) bloc.appendChild(listePieces(f && (f.dommages || []).length ? EBLOCK_piecesListe_(f.dommages).join(', ') : r.pieces, opts.maxPieces || 8));
       if (f && (f.dommages || []).length) bloc.appendChild(h('div.vignettes', f.dommages.slice(0, 6).map(function (dm) { var piece = EBLOCK_traduirePiece_(dm.piece); return h('a', { href: dm.url, target: '_blank', rel: 'noopener', title: piece }, [h('img', { src: dm.vignette || dm.url, alt: piece, loading: 'lazy', referrerpolicy: 'no-referrer' }), piece ? h('span.piece', { text: piece }) : null]); })));
       if (r.fiche && r.pneus) bloc.appendChild(h('div.doux.petit', { text: 'Pneus : ' + r.pneus }));
       bloc.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } }, [

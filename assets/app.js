@@ -428,7 +428,7 @@
 
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
-    try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); } catch (e) {}
+    try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
     porte(message || '');
@@ -476,7 +476,7 @@
           ecrire(CLE.jeton, d.jeton); ecrire(CLE.mail, courrielEnCours);
           ecrire(CLE.expire, d.expire ? String(d.expire) : String(Date.now() + 30 * 86400000));
           AMX.session.courriel = courrielEnCours;
-          try { AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); } catch (e2) {}   // jamais les listes d'une autre personne
+          try { AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e2) {}   // jamais les listes d'une autre personne
           return chargerProfil().then(function () { ouvrir(); AMX.toast('Connecté pour ' + (d.dureeJours || 30) + ' jours sur cet appareil.', 'ok', 5000); try { AMX.inventaire.precharger(); if (AMX.service && AMX.service.precharger) AMX.service.precharger(); } catch (e3) {} });
         }).catch(function () { bouton.disabled = false; bouton.textContent = 'Se connecter'; erreur.textContent = 'Serveur injoignable. Réessayez.'; });
       };

@@ -99,6 +99,11 @@
     this.recherche = '';
     this.tri = { cle: 'achatLe', desc: true };
     this.construire();
+    // Dernière liste gardée en local (une semaine) : la page s'affiche tout de suite, puis se
+    // rafraîchit — Google met parfois 25 s+ à livrer une réponse à l'ouverture d'une page.
+    var local = AMX.cacheLocal.lire('eblock', 7 * 86400000);
+    if (local && Array.isArray(local.donnees)) { this.liste = local.donnees; this.duCache = true; }
+    this.rendre();
     this.naviguer(ctx || {});
     this.charger();
     // Le profil (portée) peut arriver après le montage : les cartes suivent.
@@ -165,21 +170,25 @@
   };
 
   /* ------------------------------ Données ------------------------------ */
-  FichesEblock.prototype.charger = function (manuel) {
+  FichesEblock.prototype.charger = function (manuel, tentative) {
     var self = this, gen = ++this.generation;
+    tentative = tentative || 1;
     if (manuel) this.btnRafraichir.classList.add('occupe');
     return AMX.get({ eblock: 1 }).then(function (d) {
       if (gen !== self.generation) return;
       self.btnRafraichir.classList.remove('occupe');
       if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.rendre(); return; }
       if (!d || !d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
-      self.liste = d.achats || []; self.erreur = ''; self.refus = '';
+      self.liste = d.achats || []; self.duCache = false; self.erreur = ''; self.refus = '';
+      AMX.cacheLocal.ecrire('eblock', self.liste);
       self.rendre();
       if (!self.liste.length) self.elImport.open = true;
       if (self.ouvrirId) { var id = self.ouvrirId; self.ouvrirId = null; AMX.eblockOuvrir(id); }
       if (manuel) AMX.toast('Fiches eBlock mises à jour — ' + self.liste.length + ' achat' + (self.liste.length > 1 ? 's' : ''), 'ok');
     }).catch(function (e) {
       if (gen !== self.generation) return;
+      // Délai dépassé (Google qui traîne) : on réessaie tout seul deux fois, sans bruit.
+      if (tentative < 3 && /Pas de réponse|réseau|HTTP 5|illisible/i.test(String(e && e.message || e))) { self.generation--; setTimeout(function () { if (gen === self.generation) self.charger(manuel, tentative + 1); }, 2500); return; }
       self.btnRafraichir.classList.remove('occupe');
       self.erreur = AMX.erreurTexte(e); self.rendre();
       AMX.toast('Impossible de charger les fiches eBlock — ' + self.erreur, 'erreur');
@@ -205,7 +214,7 @@
     if (this.refus) { this.elEtat.textContent = this.refus; this.elVide.appendChild(h('div.vide', [h('div', { html: I.cadenas }), h('h3', 'Accès non autorisé'), h('div', { text: this.refus })])); this.elTable.textContent = ''; return; }
     if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement des fiches…'; if (!this.erreur) this.elVide.appendChild(AMX.chargeur('Fiches eBlock')); return; }
     var total = this.liste.length, enStock = this.liste.filter(function (r) { return r.enStock; }).length, fiches = this.liste.filter(function (r) { return r.fiche; }).length;
-    this.elEtat.textContent = total ? (total + ' achat' + (total > 1 ? 's' : '') + ' eBlock, ' + enStock + ' encore à l\'inventaire, ' + fiches + ' fiche' + (fiches > 1 ? 's' : '') + ' descriptive' + (fiches > 1 ? 's' : '') + ' — rapport d\'état, dommages, pneus, peinture, options, photos. Cliquez une ligne pour la fiche complète.') : 'Aucun achat eBlock importé pour l\'instant : installez le signet ci-dessous et cliquez-le depuis eBlock › My Block › Buyer.';
+    this.elEtat.textContent = (total ? (total + ' achat' + (total > 1 ? 's' : '') + ' eBlock, ' + enStock + ' encore à l\'inventaire, ' + fiches + ' fiche' + (fiches > 1 ? 's' : '') + ' descriptive' + (fiches > 1 ? 's' : '') + ' — rapport d\'état, dommages, pneus, peinture, options, photos. Cliquez une ligne pour la fiche complète.') : 'Aucun achat eBlock importé pour l\'instant : installez le signet ci-dessous et cliquez-le depuis eBlock › My Block › Buyer.') + (this.erreur ? ' (liste gardée localement — serveur injoignable : ' + this.erreur + ')' : (this.duCache ? ' (mise à jour en cours…)' : ''));
     [['stock', 'Encore à l\'inventaire'], ['tous', 'Tous les achats']].forEach(function (p) {
       self.elSegment.appendChild(h('button' + (p[0] === self.portee ? '.actif' : ''), { type: 'button', text: p[1], onclick: function () { self.portee = p[0]; AMX.memo.ecrire('eblock_portee', p[0]); self.rendre(); } }));
     });

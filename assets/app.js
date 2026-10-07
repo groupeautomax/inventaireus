@@ -295,11 +295,46 @@
     e.className = 'etat-sync' + (err ? ' erreur' : (enCours > 0 ? ' occupe' : ''));
     e.title = err ? 'Dernière requête en erreur' : (enCours > 0 ? 'Synchronisation…' : 'Connecté au serveur');
   }
-  function surRefus(d) {
-    if (d && d.refuse && d.code === 'jeton') { AMX.deconnecter('Votre session a expiré. Reconnectez-vous.'); return true; }
-    return false;
-  }
   function attendre(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // Déconnexions intempestives (Maxime, 7 oct. : « les utilisateurs se font déconnecter à tout
+  // bout de champ, il faut que ça arrête »). Diagnostic côté serveur : aucun jeton expiré ni
+  // révoqué, mais des reconnexions à 1–3 minutes d'intervalle — juste après la connexion, Google
+  // ne « voyait » pas encore le jeton (lecture périmée des propriétés) et répondait
+  // « Session expirée » ; une seule réponse suffisait pour tout effacer. Désormais : un refus
+  // « jeton » rend la session DOUTEUSE, jamais fermée d'emblée. On revérifie 1,5 s puis 3 s plus
+  // tard avec un appel de permissions ; seule une double confirmation déconnecte. Un serveur
+  // injoignable pendant la vérification ne déconnecte pas non plus. La requête refusée est
+  // rejouée une fois si la session tient.
+  var SESSION_VERIF_MS = [1500, 3000];
+  var verifSession = null;
+  function refusJeton(d) { return !!(d && d.refuse && d.code === 'jeton'); }
+  function refusTemporaire(d) { return !!(d && d.refuse && d.code === 'temporaire'); }
+  AMX.sessionDouteuse = function () {
+    if (verifSession) return verifSession;
+    if (!lire(CLE.jeton)) { AMX.deconnecter('Reconnectez-vous pour continuer.'); return Promise.resolve(false); }
+    var essai = function (ms) {
+      return attendre(ms).then(function () {
+        return _fetch(URL_BACKEND + '?permissions=1&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&utilisateur=' + encodeURIComponent(lire(CLE.mail)) + '&_=' + Date.now(), { cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { return refusJeton(d) ? 'refus' : 'ok'; }, function () { return 'muet'; });
+      });
+    };
+    verifSession = essai(SESSION_VERIF_MS[0]).then(function (v) { return v === 'refus' ? essai(SESSION_VERIF_MS[1]) : v; }).then(function (v) {
+      verifSession = null;
+      if (v === 'refus') { AMX.deconnecter('Votre session a expiré. Reconnectez-vous.'); return false; }
+      return true;   // 'ok' ou serveur muet : on garde la session
+    }, function () { verifSession = null; return true; });
+    return verifSession;
+  };
+  // Un refus « jeton » sur une requête : vérification, puis rejeu (une fois) si la session tient.
+  function surRefusJeton(rejouer, dejaRejoue) {
+    if (dejaRejoue) { AMX.sessionDouteuse(); throw new Error('Session en cours de vérification. Réessayez dans un instant.'); }
+    return AMX.sessionDouteuse().then(function (valide) {
+      if (!valide) throw new Error('Session expirée');
+      return rejouer();
+    });
+  }
 
   // GET avec reprise et requête de secours. Apps Script (/exec) a deux
   // humeurs : un 404 HTML passager, et une requête qui reste « en attente »
@@ -329,6 +364,7 @@
       }).then(function (t) {
         fin();
         var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); }
+        if (refusTemporaire(d)) throw new Error(d.erreur || 'Le serveur n\'a pas pu vérifier la session.');   // panne passagère côté Google : on réessaie, on ne déconnecte pas
         return d;
       }, function (err) { fin(); throw (err && err.name === 'AbortError') ? new Error('Pas de réponse en ' + Math.round(delai / 1000) + ' s') : err; });
     };
@@ -355,7 +391,7 @@
     });
     return course.then(function (d) {
       enCours--; majEtat(false);
-      if (surRefus(d)) throw new Error('Session expirée');
+      if (refusJeton(d)) return surRefusJeton(function () { return AMX.get(params, Object.assign({}, opts, { rejoue: true })); }, opts.rejoue);
       return d;
     }, function (err) { enCours--; majEtat(true); throw err; });
   };
@@ -377,14 +413,16 @@
           if (minuterie) clearTimeout(minuterie);
           enCours--; majEtat(false);
           var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur (' + t.slice(0, 60).replace(/<[^>]+>/g, '') + '…)'); }
-          if (surRefus(d)) throw new Error('Session expirée');
+          if (refusTemporaire(d)) throw new Error(d.erreur || 'Le serveur n\'a pas pu vérifier la session. Réessayez.');
+          // Refus « jeton » : le serveur n'a rien fait, rejouer l'écriture est sans danger.
+          if (refusJeton(d)) return surRefusJeton(function () { return AMX.post(corps, Object.assign({}, opts, { rejoue: true })); }, opts.rejoue);
           return d;
         }, function (err) { if (minuterie) clearTimeout(minuterie); enCours--; majEtat(true); throw (err && err.name === 'AbortError') ? new Error('Le serveur met trop de temps à répondre.') : err; });
     };
     if (!opts.rejouer) return envoyer();
     return envoyer().catch(function (e) {
       var msg = AMX.erreurTexte(e);
-      if (!/illisible|trop de temps|Failed to fetch|NetworkError|Load failed|network/i.test(msg)) throw e;
+      if (!/illisible|trop de temps|pas pu vérifier|Failed to fetch|NetworkError|Load failed|network/i.test(msg)) throw e;
       return new Promise(function (res) { setTimeout(res, 500); }).then(envoyer);
     });
   };
@@ -407,11 +445,16 @@
   AMX.estAdmin = function () { return AMX.session.role === 'admin' || AMX.session.role === 'proprietaire' || AMX.perm('gererUtilisateurs'); };
   AMX.estProprietaire = function () { return AMX.session.role === 'proprietaire' || AMX.perm('gererAdmins'); };
 
-  function chargerProfil() {
-    return _fetch(URL_BACKEND + '?permissions=1&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&utilisateur=' + encodeURIComponent(lire(CLE.mail)) + '&_=' + Date.now())
+  function chargerProfil(deuxieme) {
+    return _fetch(URL_BACKEND + '?permissions=1&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&utilisateur=' + encodeURIComponent(lire(CLE.mail)) + '&_=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d && d.refuse && d.code === 'jeton') { AMX.deconnecter('Votre session a expiré. Reconnectez-vous.'); return null; }
+        if (refusTemporaire(d) && !deuxieme) return attendre(1200).then(function () { return chargerProfil(true); });
+        if (refusJeton(d)) {
+          // Jamais de déconnexion sur une seule réponse : on revérifie, puis on recharge le profil si la session tient.
+          if (deuxieme) return null;
+          return AMX.sessionDouteuse().then(function (valide) { return valide ? chargerProfil(true) : null; });
+        }
         var p = d && d.permissions;
         if (p) {
           ecrire(CLE.nom, p.nom || ''); ecrire(CLE.role, p.role || ''); ecrire(CLE.perms, JSON.stringify(p));
@@ -475,6 +518,15 @@
           if (!d || !d.ok || !d.jeton) { bouton.disabled = false; bouton.textContent = 'Se connecter'; erreur.textContent = (d && d.erreur) || 'Code refusé.'; return; }
           ecrire(CLE.jeton, d.jeton); ecrire(CLE.mail, courrielEnCours);
           ecrire(CLE.expire, d.expire ? String(d.expire) : String(Date.now() + 30 * 86400000));
+          // 7 oct. : si le navigateur n'a pas gardé le jeton (mémoire pleine, navigation privée),
+          // on libère les caches et on réessaie ; sinon on le dit clairement plutôt que de
+          // laisser la personne se reconnecter en boucle.
+          if (lire(CLE.jeton) !== d.jeton) {
+            try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_|^__amx|^amx_carfax_attente$/.test(k); }).forEach(effacer); } catch (e4) {}
+            ecrire(CLE.jeton, d.jeton); ecrire(CLE.mail, courrielEnCours);
+            ecrire(CLE.expire, d.expire ? String(d.expire) : String(Date.now() + 30 * 86400000));
+            if (lire(CLE.jeton) !== d.jeton) { bouton.disabled = false; bouton.textContent = 'Se connecter'; erreur.textContent = 'Ce navigateur refuse de garder la session (navigation privée ? stockage bloqué ?). Ouvrez le site dans Safari ou Chrome en mode normal.'; return; }
+          }
           AMX.session.courriel = courrielEnCours;
           try { AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e2) {}   // jamais les listes d'une autre personne
           return chargerProfil().then(function () { ouvrir(); AMX.toast('Connecté pour ' + (d.dureeJours || 30) + ' jours sur cet appareil.', 'ok', 5000); try { AMX.inventaire.precharger(); if (AMX.service && AMX.service.precharger) AMX.service.precharger(); } catch (e3) {} });

@@ -152,11 +152,11 @@
     var d = h('details.carte#torque-import', [
       h('summary.carte-entete', { style: { cursor: 'pointer' } }, [h('h2', 'Importer depuis Torque — avant la fin de l\'abonnement')]),
       h('div.carte-corps', [
-        h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)' } }, 'Le signet lit toutes les évaluations de la concession affichée dans Torque (actives et archivées : véhicule, client, conseiller, valeurs, prix de vente, profit, reconditionnement, statut, état, pneus, pare-brise, carrosserie, notes, options, photos) et les analyses de marché, puis les envoie ici. Il utilise la session Torque déjà ouverte dans votre navigateur, comme Torque lui-même ; il ne modifie rien dans Torque. Une concession à la fois ; recliquer le signet met à jour ce qui a changé.'),
+        h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)' } }, 'Le signet lit toutes les évaluations de la concession affichée dans Torque (actives et archivées : véhicule, client, conseiller, valeurs, prix de vente, profit, reconditionnement, statut, état, pneus, pare-brise, carrosserie, notes, options, photos) et les analyses de marché, puis les envoie ici. Il utilise la session Torque déjà ouverte dans votre navigateur, comme Torque lui-même ; il ne modifie rien dans Torque. Une concession à la fois. Quand l\'archive existe déjà, le signet propose une mise à jour : il ne relit que les évaluations créées ou modifiées depuis la dernière importation (quelques pages au lieu de toutes) — « Annuler » relit tout.'),
         h('div.torque-etapes', [
           h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
           h('div', [h('div.section-titre', '2. Dans Torque'), h('p', 'Connectez-vous sur dealer.torquemanagement.ca et choisissez la concession en haut à gauche (BMW Sherbrooke, Hawkesbury, Hyundai Longueuil, Ste Marie Automobiles Ltée, VW Brossard). Gardez cet onglet du site ouvert et connecté.')]),
-          h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', 'Une bande verte suit la progression en bas de la page Torque. À la fin, changez de concession et recliquez. Revenez ici : « Rafraîchir ».')])
+          h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', 'Une bande verte suit la progression en bas de la page Torque. Si une archive existe déjà, répondez OK à « Mise à jour » : seules les nouveautés et les modifications sont lues. À la fin, changez de concession et recliquez. Revenez ici : « Rafraîchir ».')])
         ]),
         this.elImportEtat,
         this.elPhotos

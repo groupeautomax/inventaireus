@@ -45,6 +45,9 @@
   /* ------------------------- Cache partagé (AMX.service) -------------------- */
   var cache = { reponse: null, quand: 0 };
   var promesse = null;
+  // v=39 : avance depuis le cache local (affichage immédiat, rafraîchi en arrière-plan).
+  (function () { var o = AMX.cacheLocal && AMX.cacheLocal.lire('service', 7 * 86400000); if (o && o.donnees && Array.isArray(o.donnees.suivis)) { cache.reponse = o.donnees; cache.quand = 0; } })();
+  function sauverService() { if (AMX.cacheLocal && cache.reponse) AMX.cacheLocal.ecrire('service', cache.reponse); }
   AMX.service = {
     etapes: function () { return (cache.reponse && cache.reponse.etapes) || ETAPES; },
     cibles: function () { return (cache.reponse && cache.reponse.cibles) || { etapes: {}, total: 5 }; },
@@ -55,6 +58,7 @@
       promesse = AMX.get(force ? { service: 1, tout: 1, frais: 1 } : { service: 1, tout: 1 }).then(function (d) {
         AMX.verifier(d, 'Suivi service indisponible');
         cache.reponse = d; cache.quand = Date.now(); promesse = null;
+        sauverService();
         document.dispatchEvent(new CustomEvent('amx:service'));
         return d;
       }, function (e) { promesse = null; throw e; });
@@ -73,8 +77,12 @@
       var l = cache.reponse.suivis, trouve = false;
       for (var i = 0; i < l.length; i++) if (String(l[i].vin).toUpperCase() === String(suivi.vin).toUpperCase()) { l[i] = suivi; trouve = true; }
       if (!trouve) l.unshift(suivi);
+      sauverService();
       document.dispatchEvent(new CustomEvent('amx:service'));
     },
+    // Au démarrage : la liste part en arrière-plan pour que la page Service s'ouvre d'un coup.
+    precharger: function () { if (!cache.reponse || Date.now() - cache.quand > 120000) AMX.service.charger(false).catch(function () {}); },
+    vider: function () { cache.reponse = null; cache.quand = 0; if (AMX.cacheLocal) AMX.cacheLocal.oublier('service'); },
     parcours: parcours,
     bloc: blocRegistre
   };

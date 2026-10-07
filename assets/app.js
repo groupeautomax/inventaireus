@@ -428,6 +428,7 @@
 
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
+    try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); } catch (e) {}
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
     porte(message || '');
@@ -475,7 +476,8 @@
           ecrire(CLE.jeton, d.jeton); ecrire(CLE.mail, courrielEnCours);
           ecrire(CLE.expire, d.expire ? String(d.expire) : String(Date.now() + 30 * 86400000));
           AMX.session.courriel = courrielEnCours;
-          return chargerProfil().then(function () { ouvrir(); AMX.toast('Connecté pour ' + (d.dureeJours || 30) + ' jours sur cet appareil.', 'ok', 5000); });
+          try { AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); } catch (e2) {}   // jamais les listes d'une autre personne
+          return chargerProfil().then(function () { ouvrir(); AMX.toast('Connecté pour ' + (d.dureeJours || 30) + ' jours sur cet appareil.', 'ok', 5000); try { AMX.inventaire.precharger(); if (AMX.service && AMX.service.precharger) AMX.service.precharger(); } catch (e3) {} });
         }).catch(function () { bouton.disabled = false; bouton.textContent = 'Se connecter'; erreur.textContent = 'Serveur injoignable. Réessayez.'; });
       };
       champ.addEventListener('keydown', function (e) { if (e.key === 'Enter') envoyer(); });
@@ -667,34 +669,87 @@
   }
 
   /* --------------------------- Cache inventaire ------------------------- */
+  /* --------------------------- Cache local (v=39) --------------------------
+     Vitesse (Maxime, 6 oct. soir) : Google met 1,5 à 11 s à répondre, même pour
+     une réponse que le script sort en 1 s. Donc on garde les grosses listes dans
+     localStorage et on les affiche TOUT DE SUITE au prochain chargement, puis on
+     rafraîchit en arrière-plan (l'écran se redessine si ça a changé). Le serveur
+     reste la vérité ; le cache n'est qu'une avance. */
+  AMX.cacheLocal = {
+    lire: function (cle, maxAge) {
+      try {
+        var t = localStorage.getItem('amx_cache_' + cle); if (!t) return null;
+        var o = JSON.parse(t);
+        if (!o || !o.quand || (maxAge && Date.now() - o.quand > maxAge)) return null;
+        return o;
+      } catch (e) { return null; }
+    },
+    ecrire: function (cle, donnees) {
+      try { localStorage.setItem('amx_cache_' + cle, JSON.stringify({ quand: Date.now(), donnees: donnees })); } catch (e) { /* quota : tant pis */ }
+    },
+    oublier: function (cle) { try { localStorage.removeItem('amx_cache_' + cle); } catch (e) {} }
+  };
+  var CACHE_LOCAL_MAX = 7 * 86400000;   // au-delà d'une semaine on ne s'en sert plus
+
   // Partagé entre les sections : la liste US / CAN / DETAIL, rechargée sur
   // demande, et un index par VIN pour la recherche globale et les offres.
+  // v=39 : les trois registres arrivent en UNE requête (?registres=1, cache
+  // serveur 120 s, ?frais=1 après une écriture) au lieu de trois — mesuré le
+  // 6 oct. : 3 × 4-5 s en série contre 2-3 s pour l'ensemble — et le dernier
+  // état est gardé dans localStorage pour s'afficher d'un coup au chargement.
   var FEUILLES = AMX.FEUILLES = ['US', 'CAN', 'DETAIL'];
   var cache = { US: null, CAN: null, DETAIL: null, quand: {} };
   var promesses = {};
+  var promesseTout = null;
+  (function () {   // avance depuis le cache local
+    var o = AMX.cacheLocal.lire('registres', CACHE_LOCAL_MAX);
+    if (o && o.donnees) FEUILLES.forEach(function (f) { if (Array.isArray(o.donnees[f])) { cache[f] = o.donnees[f]; cache[f].forEach(function (v) { v._feuille = f; }); cache.quand[f] = o.quand; } });
+  })();
+  function sauverRegistres() { AMX.cacheLocal.ecrire('registres', { US: cache.US || [], CAN: cache.CAN || [], DETAIL: cache.DETAIL || [] }); }
+  function poserFeuille(feuille, liste) {
+    liste.forEach(function (v) { v._feuille = feuille; });
+    cache[feuille] = liste; cache.quand[feuille] = Date.now();
+    document.dispatchEvent(new CustomEvent('amx:inventaire', { detail: { feuille: feuille } }));
+  }
+  // Les trois registres d'un coup ; repli sur ?sheet= par feuille si le script en ligne ne connaît pas encore la route.
+  function chargerTout(force) {
+    if (promesseTout) return promesseTout;
+    promesseTout = AMX.get(force ? { registres: 1, frais: 1 } : { registres: 1 }).then(function (d) {
+      if (!d || !d.ok || !Array.isArray(d.US)) throw new Error('route registres absente');
+      FEUILLES.forEach(function (f) { poserFeuille(f, Array.isArray(d[f]) ? d[f] : []); });
+      sauverRegistres();
+      promesseTout = null;
+      return cache;
+    }, function (e) {
+      promesseTout = null;
+      if (!/registres absente/.test(String(e && e.message))) throw e;
+      return Promise.all(FEUILLES.map(function (f) { return AMX.get({ sheet: f }).then(function (d) { poserFeuille(f, (d && d.vehicules) || []); }); })).then(function () { sauverRegistres(); return cache; });
+    });
+    return promesseTout;
+  }
   AMX.inventaire = {
     lire: function (feuille, force) {
       if (!force && cache[feuille]) return Promise.resolve(cache[feuille]);
       if (promesses[feuille]) return promesses[feuille];
-      promesses[feuille] = AMX.get({ sheet: feuille }).then(function (d) {
-        var liste = (d && d.vehicules) || [];
-        liste.forEach(function (v) { v._feuille = feuille; });
-        cache[feuille] = liste; cache.quand[feuille] = Date.now();
-        delete promesses[feuille];
-        document.dispatchEvent(new CustomEvent('amx:inventaire', { detail: { feuille: feuille } }));
-        return liste;
-      }, function (e) { delete promesses[feuille]; throw e; });
+      promesses[feuille] = chargerTout(force).then(function () { delete promesses[feuille]; return cache[feuille] || []; }, function (e) { delete promesses[feuille]; throw e; });
       return promesses[feuille];
     },
-    remplacer: function (feuille, liste) { if (Array.isArray(liste)) { liste.forEach(function (v) { v._feuille = feuille; }); cache[feuille] = liste; cache.quand[feuille] = Date.now(); document.dispatchEvent(new CustomEvent('amx:inventaire', { detail: { feuille: feuille } })); } },
+    remplacer: function (feuille, liste) { if (Array.isArray(liste)) { poserFeuille(feuille, liste); sauverRegistres(); } },
     enCache: function (feuille) { return cache[feuille]; },
-    tout: function (force) { return Promise.all(FEUILLES.map(function (f) { return AMX.inventaire.lire(f, force).catch(function () { return cache[f] || []; }); })).then(function (l) { return [].concat(l[0], l[1], l[2]); }); },
+    quand: function (feuille) { return cache.quand[feuille] || 0; },
+    tout: function (force) {
+      var manque = FEUILLES.some(function (f) { return !cache[f]; });
+      var p = (force || manque) ? chargerTout(force).catch(function () { return cache; }) : Promise.resolve(cache);
+      return p.then(function () { return [].concat(cache.US || [], cache.CAN || [], cache.DETAIL || []); });
+    },
+    precharger: function () { if (FEUILLES.some(function (f) { return !cache[f]; }) || Date.now() - Math.min(cache.quand.US || 0, cache.quand.CAN || 0, cache.quand.DETAIL || 0) > 120000) chargerTout(false).catch(function () {}); },
     parVin: function (vin) {
       vin = String(vin || '').toUpperCase();
       for (var i = 0; i < FEUILLES.length; i++) { var l = cache[FEUILLES[i]]; if (!l) continue; for (var j = 0; j < l.length; j++) if (String(l[j].vin).toUpperCase() === vin) return l[j]; }
       return null;
     },
-    nomFeuille: function (f) { return { US: 'É.-U.', CAN: 'Canada', DETAIL: 'Detail' }[f] || f; }
+    nomFeuille: function (f) { return { US: 'É.-U.', CAN: 'Canada', DETAIL: 'Detail' }[f] || f; },
+    vider: function () { FEUILLES.forEach(function (f) { cache[f] = null; }); cache.quand = {}; AMX.cacheLocal.oublier('registres'); }
   };
 
   /* ------------------------- Fiche d'achat (lecture) ---------------------- */
@@ -938,6 +993,9 @@
       AMX.appliquerPortee();
       ouvrir();
       chargerProfil();
+      // v=39 : les grosses listes partent tout de suite, en parallèle du profil, pour que
+      // la première page (et la suivante) s'affichent sans attendre Google.
+      setTimeout(function () { try { AMX.inventaire.precharger(); if (AMX.service && AMX.service.precharger) AMX.service.precharger(); } catch (e) {} }, 50);
     } else {
       porte('');
     }

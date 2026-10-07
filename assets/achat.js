@@ -299,7 +299,7 @@
         champ('f-modele', 'Modèle'),
         champ('f-annee', 'Année', { type: 'number', inputmode: 'numeric' }),
         champ('f-couleur', 'Couleur'),
-        champ('f-km', 'KM', { type: 'number', inputmode: 'numeric' }),
+        champ('f-km', 'KM (obligatoire avec un stock #)', { type: 'number', inputmode: 'numeric' }),
         champ('f-fournisseur', 'Fournisseur'),
         champ('f-vendeur', 'Vendeur'),
         champ('f-villeprovenance', 'Ville de provenance'),
@@ -831,6 +831,11 @@
     if (this.verrouillee) { AMX.toast('Dossier comptabilisé : déverrouillez la fiche avant d\'enregistrer.', 'attention'); return; }
     var vin = valeur('f-niv').trim();
     if (!vin) { AMX.toast('Le NIV doit être rempli avant d\'enregistrer.', 'attention'); el('f-niv').focus(); return; }
+    // Km obligatoire dès qu'il y a un # stock (Maxime, 7 oct. ; même règle que le serveur, Stock.gs).
+    if (valeur('f-stock').trim() && !AMX.kmValide(valeur('f-km'))) {
+      AMX.toast('Le kilométrage est obligatoire pour enregistrer un # stock : entrez d\'abord le km.', 'erreur');
+      el('f-km').classList.add('manque'); el('f-km').focus(); return;
+    }
     var btn = this.btnEnregistrer;
     btn.classList.add('occupe');
     this.etat('Vérification du registre…');

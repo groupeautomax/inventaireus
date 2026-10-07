@@ -167,6 +167,8 @@
     var d = decimales === undefined ? 0 : decimales;
     return n.toLocaleString('fr-CA', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/ /g, ' ') + ' $';
   };
+  // Un kilométrage valide (> 0, chiffres seulement) ou null — même règle que Stock.gs.
+  AMX.kmValide = function (x) { if (x === null || x === undefined) return null; var n = Number(String(x).replace(/[^\d.]/g, '')); return isNaN(n) || n <= 0 ? null : Math.round(n); };
   AMX.fmtNombre = function (n) { return isNaN(n) ? '—' : Number(n).toLocaleString('fr-CA').replace(/ /g, ' '); };
   AMX.initiales = function (nom) {
     var p = String(nom || '').trim().split(/[\s.@_-]+/).filter(Boolean);
@@ -400,12 +402,18 @@
   // supprimer un compte), un 404 HTML passager de Google ou un délai dépassé
   // est renvoyé une fois (6 oct. : « on ne peut pas supprimer un utilisateur »
   // — le serveur avait supprimé, mais la réponse n'était jamais arrivée).
+  // 7 oct. (vitesse) : pour une écriture IDEMPOTENTE (statut, étape du service, # stock, coût,
+  // registre reçu…), `opts.secours` lance une deuxième requête identique si rien n'est revenu après
+  // POST_SECOURS_MS — Google laisse parfois un appel « en attente » 20 à 60 s alors que le même,
+  // relancé, répond en 3 s. La première réponse valable gagne, l'autre est annulée. Jamais pour
+  // une action qui crée quelque chose (ajout, envoi de courriel, import).
+  var POST_SECOURS_MS = 7000;
   AMX.post = function (corps, opts) {
     opts = opts || {};
-    var envoyer = function () {
+    var envoyer = function (ctrlExterne) {
       var b = Object.assign({}, corps, { utilisateur: AMX.session.courriel, jeton: lire(CLE.jeton) });
       enCours++; majEtat(false);
-      var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var ctrl = ctrlExterne || ((typeof AbortController !== 'undefined') ? new AbortController() : null);
       var minuterie = ctrl ? setTimeout(function () { ctrl.abort(); }, opts.delai || 60000) : null;
       return _fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b), signal: ctrl ? ctrl.signal : undefined })
         .then(function (r) { return r.text(); })
@@ -419,11 +427,27 @@
           return d;
         }, function (err) { if (minuterie) clearTimeout(minuterie); enCours--; majEtat(true); throw (err && err.name === 'AbortError') ? new Error('Le serveur met trop de temps à répondre.') : err; });
     };
-    if (!opts.rejouer) return envoyer();
-    return envoyer().catch(function (e) {
+    var course = function () {
+      if (!opts.secours || typeof AbortController === 'undefined') return envoyer();
+      return new Promise(function (res, rej) {
+        var ctrls = [], fini = false, erreurs = 0, total = 1, minuterie = null;
+        var lancer = function () {
+          var ctrl = new AbortController(); ctrls.push(ctrl);
+          envoyer(ctrl).then(function (d) {
+            if (fini) return; fini = true; if (minuterie) clearTimeout(minuterie);
+            ctrls.forEach(function (c) { if (c !== ctrl) { try { c.abort(); } catch (e) {} } });
+            res(d);
+          }, function (e) { if (fini) return; erreurs++; if (erreurs >= total) { fini = true; if (minuterie) clearTimeout(minuterie); rej(e); } });
+        };
+        lancer();
+        minuterie = setTimeout(function () { if (!fini) { total = 2; lancer(); } }, opts.secours === true ? POST_SECOURS_MS : opts.secours);
+      });
+    };
+    if (!opts.rejouer) return course();
+    return course().catch(function (e) {
       var msg = AMX.erreurTexte(e);
       if (!/illisible|trop de temps|pas pu vérifier|Failed to fetch|NetworkError|Load failed|network/i.test(msg)) throw e;
-      return new Promise(function (res) { setTimeout(res, 500); }).then(envoyer);
+      return new Promise(function (res) { setTimeout(res, 500); }).then(course);
     });
   };
   // Lève une erreur lisible si le serveur dit non.
@@ -789,6 +813,19 @@
       return promesses[feuille];
     },
     remplacer: function (feuille, liste) { if (Array.isArray(liste)) { poserFeuille(feuille, liste); sauverRegistres(); } },
+    // 7 oct. (vitesse) : retouche UN véhicule en place (mise à jour optimiste avant la réponse du
+    // serveur, ou `vehicule` renvoyé par lui). Renvoie les anciennes valeurs pour pouvoir revenir en
+    // arrière, ou null si le véhicule n'est pas dans la liste. `cle` = id ou NIV.
+    retoucher: function (feuille, cle, champs) {
+      var l = cache[feuille]; if (!l || !champs) return null;
+      var k = String(cle || '').toUpperCase(), v = null;
+      for (var i = 0; i < l.length; i++) { if (String(l[i].id) === String(cle) || String(l[i].vin).toUpperCase() === k) { v = l[i]; break; } }
+      if (!v) return null;
+      var avant = {};
+      Object.keys(champs).forEach(function (c) { avant[c] = v[c]; v[c] = champs[c]; });
+      sauverRegistres();
+      return avant;
+    },
     enCache: function (feuille) { return cache[feuille]; },
     quand: function (feuille) { return cache.quand[feuille] || 0; },
     tout: function (force) {

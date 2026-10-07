@@ -311,6 +311,20 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 .kpi.attention .valeur { color: var(--ambre); }
 .kpi.neutre { cursor: default; }
 .kpi.neutre:hover { background: none; }
+/* Valeur des inventaires (7 oct.) : les trois registres en $ sous les chiffres clés. */
+.valeur-registres { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: -6px 0 14px; font-size: 12px; color: var(--encre-3); }
+.valeur-registres > .l { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 10.5px; margin-right: 4px; }
+.valeur-registres .reg, .valeur-registres .total { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 10px; border: 1px solid var(--ligne); border-radius: 999px; background: var(--carte); font: inherit; color: inherit; cursor: pointer; }
+.valeur-registres .reg:hover { background: var(--carte-2); }
+.valeur-registres .reg.courant { border-color: var(--vert); background: var(--vert-clair); color: var(--encre); cursor: default; }
+.valeur-registres .total { cursor: default; border-style: dashed; }
+.valeur-registres .t { font-weight: 600; }
+.valeur-registres .v { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--encre); }
+.valeur-registres .n { font-size: 11px; color: var(--encre-4); }
+/* Km obligatoire pour le # stock (7 oct.) : champ en rouge tant qu'il manque. */
+.champ.champ-km.manque input { border-color: var(--rouge); background: var(--rouge-bg); }
+.champ.champ-km.manque label::after { content: ' — obligatoire'; color: var(--rouge); font-weight: 600; }
+input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 
 /* Agencement rail + liste + panneau */
 .agencement { display: grid; grid-template-columns: var(--rail-l) minmax(0, 1fr); gap: 14px; align-items: start; }

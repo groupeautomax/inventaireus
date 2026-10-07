@@ -259,16 +259,44 @@
   };
 
   // Une écriture : jamais rejouée ; le serveur renvoie le suivi à jour.
+  // 7 oct. (vitesse — Maxime : « changer de statut est trop long ») : une étape cochée se voit
+  // TOUT DE SUITE (le suivi est retouché localement avant l'envoi), la requête part avec une
+  // requête de secours, puis le `suivi` renvoyé par le serveur remplace la retouche ; refus ou
+  // erreur → on remet l'ancien suivi.
+  var ACTIONS_SECOURS = { serviceEtape: 1, serviceNote: 1, serviceAutoriser: 1, serviceDejaPret: 1 };
+  Suivi.prototype.retoucheOptimiste = function (payload) {
+    if (payload.action !== 'serviceEtape') return null;
+    var s = AMX.service.parVin(payload.vin);
+    if (!s || !s.etapes || !s.etapes[payload.etape]) return null;
+    var copie = JSON.parse(JSON.stringify(s));
+    var e = copie.etapes[payload.etape], now = payload.date ? new Date(payload.date).toISOString() : new Date().toISOString();
+    var inchange = e.etat === payload.etat && !payload.date;
+    if (payload.etat === 'encours') { e.etat = 'encours'; if (!inchange) { e.debut = now; e.fin = ''; } }
+    else if (payload.etat === 'fait' || payload.etat === 'saute') { e.etat = payload.etat; if (!inchange) { e.fin = now; e.debut = e.debut || now; } }
+    else { e.etat = 'afaire'; e.debut = ''; e.fin = ''; e.resultat = ''; }
+    e.par = AMX.session.courriel || e.par;
+    if (payload.note !== undefined) e.note = payload.note;
+    if (payload.no !== undefined) { e.no = payload.no; if (payload.etape === 'bt') copie.btNo = payload.no; }
+    if (payload.resultat !== undefined) e.resultat = payload.resultat;
+    if (payload.etape === 'arrivee' && payload.etat === 'fait') copie.arrivee = e.fin;
+    if (payload.etape === 'pret') copie.statut = payload.etat === 'fait' ? 'pret' : (copie.statut === 'pret' ? 'encours' : copie.statut);
+    copie._optimiste = true;
+    return { avant: s, apres: copie };
+  };
   Suivi.prototype.ecrire = function (payload, message) {
     var self = this;
     this.ecritures++; this.generation++;
     var etat = document.getElementById('svc-etat'); if (etat) etat.textContent = 'Enregistrement…';
-    return AMX.post(payload).then(function (d) {
+    var retouche = this.retoucheOptimiste(payload);
+    if (retouche) AMX.service.remplacer(retouche.apres);
+    var revenir = function () { if (retouche) { AMX.service.remplacer(retouche.avant); retouche = null; } };
+    return AMX.post(payload, { secours: ACTIONS_SECOURS[payload.action] ? true : false }).then(function (d) {
       self.ecritures--;
       if (d.refuse || d.ok === false) {
         var motif = d.erreur || d.message || 'action refusée';
         AMX.toast('Non enregistré — ' + motif, d.bloque ? 'attention' : 'erreur', 6000);
         if (etat) etat.textContent = motif;
+        revenir();
         throw new Error(motif);
       }
       if (d.suivi) AMX.service.remplacer(d.suivi);
@@ -280,6 +308,7 @@
     }, function (e) {
       self.ecritures--;
       AMX.toast('Réponse du serveur incertaine — relecture… (' + AMX.erreurTexte(e) + ')', 'attention', 6000);
+      revenir();
       return AMX.service.charger(true).then(function () { throw e; });
     });
   };

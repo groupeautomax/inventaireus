@@ -136,6 +136,8 @@
     AMX.carfax.charger().then(function () { self.rendre(); }).catch(function () {});
     this.surCarfax = function () { self.rendre(); };
     document.addEventListener('amx:carfax', this.surCarfax);
+    // Achats eBlock (puce « eBlock · n dommages » sur les lignes) : même cache que la page Fiches eBlock.
+    if (AMX.eblock) { AMX.eblock.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:eblock', this.surCarfax); }
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
     this.surVisible = function () { if (!document.hidden) self.rafraichir(); };
     document.addEventListener('visibilitychange', this.surVisible);
@@ -153,6 +155,7 @@
     clearInterval(this.minuterie);
     document.removeEventListener('visibilitychange', this.surVisible);
     document.removeEventListener('amx:carfax', this.surCarfax);
+    document.removeEventListener('amx:eblock', this.surCarfax);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
   };
@@ -465,6 +468,8 @@
       v.ficheExiste ? h('span.puce' + (v.ficheStockRempli ? '.ok' : '.attention'), { text: v.ficheStockRempli ? 'Fiche ✓' : 'Fiche sans stock' }) : null,
       // Un clic sur la puce ouvre le rapport directement (comme sur eBlock), sans ouvrir la fiche.
       AMX.carfax.lien(v.vin) ? h('a.puce.info.lien-puce', { href: AMX.carfax.lien(v.vin), target: '_blank', rel: 'noopener', text: 'CARFAX', title: 'Voir le rapport CARFAX', onclick: function (e) { e.stopPropagation(); } }) : null,
+      // Acheté sur eBlock : la fiche descriptive (dommages, cote) s'ouvre d'un clic, sans ouvrir le panneau.
+      AMX.eblockPuce ? AMX.eblockPuce(v.vin) : null,
       cfg.importateur && v.importateur ? h('span.puce', { text: v.importateur }) : null
     ];
     var el = h(cls, { dataset: { id: v.id } }, [

@@ -778,6 +778,8 @@
     String(texte || '').split(/\r?\n|;|,(?!\s*\d)/).forEach(function (s) { s = s.trim(); if (s && !vus[s.toLowerCase()]) { vus[s.toLowerCase()] = 1; out.push(s); } });
     return out;
   };
+  // Nombre de dommages d'une liste : « Capot ×2 » en compte deux (comme les photos d'eBlock).
+  AMX.nbDommages = function (liste) { return (liste || []).reduce(function (n, x) { var m = String(x).match(/×\s*(\d+)\s*$/); return n + (m ? parseInt(m[1], 10) : 1); }, 0); };
 
   /* -------------------------- Logos des marques --------------------------- */
   // Dans la liste, la vignette d'un véhicule sans photo montre le logo du

@@ -596,7 +596,8 @@
     var dommages = AMX.listeDommages(el('f-dommages') ? el('f-dommages').value : '');
     AMX.vider(this.elDommagesListe);
     if (dommages.length) {
-      this.elDommagesListe.appendChild(h('li.achat-dommages-titre', { text: dommages.length + ' dommage' + (dommages.length > 1 ? 's' : '') + ' répertorié' + (dommages.length > 1 ? 's' : '') + ' sur eBlock' }));
+      var nDom = AMX.nbDommages(dommages);
+      this.elDommagesListe.appendChild(h('li.achat-dommages-titre', { text: nDom + ' dommage' + (nDom > 1 ? 's' : '') + ' répertorié' + (nDom > 1 ? 's' : '') + ' sur eBlock' }));
       dommages.forEach(function (d) { this.elDommagesListe.appendChild(h('li', { text: d })); }, this);
     }
   };

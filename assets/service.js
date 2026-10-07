@@ -155,13 +155,16 @@
     this.charger();
     this.surService = function () { self.suivis = AMX.service.enCache() || self.suivis; self.construireRail(); self.rendre(); AMX.rafraichirSousBarre(); };
     document.addEventListener('amx:service', this.surService);
+    // Achats eBlock : puce « eBlock · n dommages » sur les lignes, fiche dans le dossier (même cache que Fiches eBlock).
+    this.surEblock = function () { if (!self.detruit) self.rendre(); };
+    if (AMX.eblock) { AMX.eblock.charger().then(this.surEblock).catch(function () {}); document.addEventListener('amx:eblock', this.surEblock); }
     // Rafraîchissement périodique : sans frais=1 (le cache serveur suffit, il est vidé à chaque écriture).
     this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) self.charger(); }, 120000);
   }
   // La compagnie n'est PAS remise à zéro : c'est le choix du site (AMX.compagnieChoisie), gardé
   // d'un onglet et d'une page à l'autre tant que Maxime ne clique pas sur une autre concession.
   Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: AMX.compagnieChoisie('service'), etapes: null, retard: false }; };
-  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); };
+  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); };
   Suivi.prototype.naviguer = function (ctx) {
     if (ctx.onglet !== this.onglet) { this.onglet = ctx.onglet; this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || ''; this.construireRail(); this.rendre(); }
     else if (ctx.params.vin && ctx.params.vin !== this.selection) { this.selection = ctx.params.vin; this.rendre(); }
@@ -403,7 +406,7 @@
       h('div.vignette', { title: s.hasPhotos ? 'Photos disponibles' : 'Aucune photo' }, [AMX.logoMarque(marque(s)), s.hasPhotos ? h('span.cam', { html: I.photo }) : null]),
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', { text: s.modele || '(modèle à préciser)' }),
-        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null, s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null])
+        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null, s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null, AMX.eblockPuce ? AMX.eblockPuce(s.vin) : null])
       ]),
       h('div.cell.parcours', [h('span.l', 'Parcours'), parcours(s, { compact: true })]),
       h('div.cell.statut', [h('span.l', 'Étape'), h('span', [h('span.badge.' + (s.statut === 'encours' ? (s.etapeCourante === 'autorisation' ? 'ambre' : (s.enRetard ? 'rouge' : 'bleu')) : st.couleur), { text: etapeTexte })]), sousEtape ? h('span.jours' + (s.cibleEtape && s.joursEtape > s.cibleEtape ? '.alerte' : ''), { text: sousEtape }) : null]),
@@ -441,6 +444,16 @@
     // eBlock et dommages de la fiche d'achat, photos de l'app, évaluation,
     // Torque. C'est ce que le directeur corrobore à la livraison.
     var blocDossier = h('div.bloc', [h('h3', ['Évaluation, photos et dommages', h('a.btn.petit', { href: AMX.lien('achat', '', { vin: s.vin }), text: s.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche' })])]);
+    // Fiche eBlock du véhicule (cote, dommages avec photos, pneus) — c'est ce que le directeur
+    // compare à la livraison, même si la fiche d'achat n'est pas encore remplie.
+    var zoneEblock = h('div.svc-eblock.cache', { style: { marginBottom: '10px' } });
+    blocDossier.appendChild(zoneEblock);
+    if (AMX.eblockFiche) AMX.eblockFiche(s.vin, zoneEblock).then(function (achats) {
+      if (!(achats && achats.length) || !zoneEblock.isConnected) return;
+      zoneEblock.classList.remove('cache');
+      // « Rien de connu sur ce véhicule » n'a plus de sens : la fiche eBlock est là.
+      var rienConnu = blocDossier.querySelector('.svc-dossier .alerte-bloc.info'); if (rienConnu) rienConnu.remove();
+    });
     var zoneDossier = h('div.chargement', [h('span.spin'), 'Chargement du dossier…']);
     blocDossier.appendChild(zoneDossier);
     AMX.get({ serviceDossier: s.vin }).then(function (d) {
@@ -450,7 +463,8 @@
       var rien = true;
       if (d.dommages && d.dommages.length) {
         rien = false;
-        zoneDossier.appendChild(h('div', { style: { marginBottom: '8px' } }, [h('span.badge.rouge', { text: d.dommages.length + ' dommage' + (d.dommages.length > 1 ? 's' : '') + ' répertorié' + (d.dommages.length > 1 ? 's' : '') + ' à l\'achat' }), h('ul.dommages-liste', d.dommages.map(function (x) { return h('li', { text: x }); }))]));
+        var nDom = AMX.nbDommages(d.dommages);
+        zoneDossier.appendChild(h('div', { style: { marginBottom: '8px' } }, [h('span.badge.rouge', { text: nDom + ' dommage' + (nDom > 1 ? 's' : '') + ' répertorié' + (nDom > 1 ? 's' : '') + ' à l\'achat' }), h('ul.dommages-liste', d.dommages.map(function (x) { return h('li', { text: x }); }))]));
       } else if (d.fiche) zoneDossier.appendChild(h('div', { style: { marginBottom: '8px' } }, [h('span.badge.vert', { text: 'Aucun dommage répertorié à l\'achat' })]));
       if (d.eblock) { rien = false; zoneDossier.appendChild(h('div', { style: { marginBottom: '8px' } }, [h('a.btn.petit', { href: d.eblock, target: '_blank', rel: 'noopener', html: I.externe + '<span>Rapport d\'état eBlock</span>' })])); }
       if (d.fiche) {
@@ -494,7 +508,7 @@
         zoneDossier.appendChild(h('div.doux.petit', { style: { marginTop: '8px' }, text: d.photos.length + ' photo' + (d.photos.length > 1 ? 's' : '') + ' prise' + (d.photos.length > 1 ? 's' : '') + ' avec l\'app' + (d.photos.length > 8 ? ' (8 montrées)' : '') }));
         zoneDossier.appendChild(grille);
       } else zoneDossier.appendChild(h('div.doux.petit', { style: { marginTop: '6px' }, text: 'Aucune photo prise avec l\'app.' }));
-      if (rien && !(d.photos && d.photos.length)) zoneDossier.insertBefore(h('div.alerte-bloc.info', { style: { marginBottom: '8px' } }, [h('span', { html: I.info }), h('div', 'Rien de connu sur ce véhicule : ni fiche d\'achat, ni évaluation, ni photos. Le directeur vérifie sur place et note ce qu\'il voit.')]), zoneDossier.firstChild);
+      if (rien && !(d.photos && d.photos.length) && zoneEblock.classList.contains('cache')) zoneDossier.insertBefore(h('div.alerte-bloc.info', { style: { marginBottom: '8px' } }, [h('span', { html: I.info }), h('div', 'Rien de connu sur ce véhicule : ni fiche d\'achat, ni évaluation, ni photos. Le directeur vérifie sur place et note ce qu\'il voit.')]), zoneDossier.firstChild);
     }).catch(function (e) { if (!zoneDossier.isConnected) return; AMX.vider(zoneDossier); zoneDossier.className = 'doux petit'; zoneDossier.textContent = 'Dossier indisponible : ' + AMX.erreurTexte(e); });
 
     // Résumé

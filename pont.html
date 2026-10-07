@@ -20,7 +20,7 @@
 (function () {
   var URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
   var ORIGINES = ['https://dealer.torquemanagement.ca', 'https://app.eblock.com', 'https://dealer.carfax.ca'];
-  var ACTIONS = ['torqueImporter', 'torquePhotosLancer', 'carfaxLiens'];
+  var ACTIONS = ['torqueImporter', 'torquePhotosLancer', 'carfaxLiens', 'eblockImporter'];
   function lire(c) { try { return localStorage.getItem(c) || ''; } catch (e) { return ''; } }
   var jeton = lire('pg_jeton_v1'), courriel = lire('pg_utilisateur_v1');
   var parent = window.parent !== window ? window.parent : (window.opener || null);

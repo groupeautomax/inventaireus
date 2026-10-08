@@ -7,14 +7,22 @@
                 concurrents (Concurrence.gs), et les statistiques PAR PERSONNE
                 (demande de Maxime) : qui envoie des demandes d'avis, qui reçoit
                 quelles notes (sondages et avis Google attribués).
-     Avis     — la liste des avis, filtres, état interne (nouveau → réglé),
-                assignation à un compte, attribution aux employés concernés.
+     Avis     — la liste des avis, filtres (concession, note, état, personne),
+                état interne (nouveau → réglé), RESPONSABLE (le compte qui
+                répond ou rappelle le client) et CRÉDITÉS (les comptes concernés,
+                choisis parmi les comptes de la concession, filtre Vente / Service),
+                « Mes avis » pour chacun.
      Sondages — les demandes d'avis envoyées aux clients (texto / courriel) et
                 le bouton « Demander un avis » (livraison, fin de service).
 
    Règles (Maxime, 7 oct.) : le sondage part à TOUS les clients, le lien Google
    est montré à TOUS (jamais de filtrage selon la note) ; une note ≤ 3 alerte
    les directeurs (courriel + texto) pour rappeler le client dans l'heure.
+
+   Attribution à des utilisateurs (Maxime, 8 oct. soir) : les comptes viennent
+   de la feuille Utilisateurs avec leur rôle et leur département (Role.gs ›
+   ROLES_ : vendeur, direction des ventes, service, direction service, BDC…) ;
+   chaque personne voit ses avis (responsable ou crédité) et ses statistiques.
 
    Routes serveur (AvisSuivi.gs) :
      GET  ?avis=1     POST avisEtat, avisAssigner, avisEmployes, sondageCreer
@@ -35,7 +43,23 @@
     regle:      { libelle: 'Réglé',        couleur: 'gris' }
   };
   var A_TRAITER = { nouveau: 1, a_repondre: 1, assigne: 1, brouillon: 1 };
-  var SEUIL = 3;
+  var SEUIL = 3;   // réglable dans Admin › Réglages des avis (le serveur renvoie seuilNegatif)
+  var DEP_NOMS = { direction: 'Direction', ventes: 'Ventes', service: 'Service', pieces: 'Pièces', marketing: 'Marketing', administration: 'Administration' };
+  var DEP_COULEUR = { direction: 'sombre', ventes: 'vert', service: 'ambre', pieces: 'ambre', marketing: 'violet', administration: 'gris' };
+  function puceDep(dep) { return dep ? h('span.puce.avis-dep.avis-dep-' + (DEP_COULEUR[dep] || 'gris'), { text: DEP_NOMS[dep] || dep }) : null; }
+  function deTypeDep(dep, type) {   // un compte est-il du bon département pour un avis / sondage de ce type ?
+    if (!type) return true;
+    if (type === 'service') return dep === 'service' || dep === 'pieces';
+    return dep === 'ventes' || dep === '' || dep === 'direction';
+  }
+  function libelleUtilisateur(u) { return u.nom + (u.roleLibelle ? ' · ' + u.roleLibelle : (u.role ? ' · ' + u.role : '')); }
+  // Vente ou service ? Selon le département de la fiche Google (AvisFiches, réglable dans Admin), sinon d'après son nom.
+  function typeDeFiche(d, nomFiche) {
+    var f = (d && d.fiches || []).filter(function (x) { return x.nom === nomFiche; })[0];
+    var dep = f ? String(f.departement || '') : '';
+    if (dep) return dep === 'service' || dep === 'pieces' ? 'service' : 'vente';
+    return /service|pi[eè]ces/i.test(String(nomFiche || '')) ? 'service' : 'vente';
+  }
 
   function injecterCss() {
     if (document.getElementById('css-avis')) return;
@@ -67,6 +91,18 @@
       '.avis-carte .cote .champ > label { font-size: 10.5px; }',
       '.avis-carte .cote select { height: 30px; font-size: 12.5px; }',
       '.avis-employes { display: flex; gap: 4px; flex-wrap: wrap; min-height: 22px; }',
+      '.avis-employes .puce.moi { background: var(--vert-clair); color: var(--vert); border-color: transparent; }',
+      '.puce.avis-dep { border-color: transparent; }',
+      '.puce.avis-dep-vert { background: var(--vert-clair); color: var(--vert); }',
+      '.puce.avis-dep-ambre { background: var(--ambre-bg); color: var(--ambre); }',
+      '.puce.avis-dep-violet { background: #efe9fb; color: #6b3fd1; }',
+      '.puce.avis-dep-sombre { background: var(--noir-2); color: #fff; }',
+      '.avis-choix { display: grid; gap: 6px; max-height: 340px; overflow: auto; }',
+      '.avis-choix label.champ.inline { cursor: pointer; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); margin: 0; }',
+      '.avis-choix label.champ.inline.coche { border-color: var(--vert); background: var(--vert-clair); }',
+      '.avis-choix-outils { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }',
+      '.avis-choix-outils input.saisie { flex: 1 1 160px; height: 32px; }',
+      '.avis-personnes-outils { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
       '.avis-filtres { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }',
       '.avis-filtres input.saisie { width: 220px; height: 32px; }',
       '.avis-filtres select.saisie { width: auto; height: 32px; }',
@@ -93,6 +129,7 @@
       if (promesse) return promesse;
       promesse = AMX.get({ avis: 1 }).then(function (d) {
         AMX.verifier(d, 'Suivi des avis indisponible');
+        if (d.seuilNegatif >= 1 && d.seuilNegatif <= 4) SEUIL = Number(d.seuilNegatif);
         cache.reponse = d; cache.quand = Date.now(); promesse = null;
         document.dispatchEvent(new CustomEvent('amx:avis'));
         return d;
@@ -138,7 +175,8 @@
     this.conteneur = conteneur;
     this.onglet = ctx.onglet || 'apercu';
     this.params = ctx.params || {};
-    this.filtres = { recherche: '', concession: AMX.maConcession(), etoiles: '', etat: '' };
+    this.filtres = { recherche: '', concession: AMX.maConcession(), etoiles: '', etat: '', personne: (ctx.params && ctx.params.personne) || '' };
+    this.filtrePersonnes = '';   // Aperçu › tableau par personne : '', 'ventes', 'service', 'direction', 'autres'
     this.construire();
     this.charger();
     this.surAvis = function () { self.rendre(); AMX.rafraichirSousBarre(); };
@@ -190,6 +228,9 @@
   /* --------------------------------- Aperçu --------------------------------- */
   Avis.prototype.rendreApercu = function (d) {
     var self = this, g = d.stats.groupe, ss = d.stats.sondages, rep = d.repere || {};
+    var moiC = AMX.session.courriel;
+    var mesAvis = d.avis.filter(function (a) { return a.assigneA === moiC || a.employes.indexOf(moiC) >= 0; });
+    var mesATraiter = mesAvis.filter(function (a) { return A_TRAITER[a.etat]; }).length;
     var kpi = function (valeur, libelle, sous, classe, action) {
       return h('button.kpi' + (classe ? '.' + classe : '') + (action ? '' : '.neutre'), { type: 'button', onclick: action || null }, [
         h('div.valeur', { text: valeur }), h('div.libelle', { text: libelle }), sous ? h('div.sous', { text: sous }) : null]);
@@ -202,7 +243,8 @@
       kpi(String(g.aTraiter), 'À traiter', 'avis sans suite', g.aTraiter ? 'attention' : '', function () { AMX.aller('avis', 'avis'); }),
       kpi(String(ss.envoyes30), 'Sondages 30 j', ss.enAttente ? ss.enAttente + ' en attente d\'envoi' : (ss.envoyes + ' au total'), '', function () { AMX.aller('avis', 'sondages'); }),
       kpi(ss.note !== null ? fmtNote1(ss.note) : '—', 'Note sondages', ss.tauxReponse !== null ? ss.tauxReponse + ' % de réponses' : 'aucune réponse encore', ss.negatifs ? 'attention' : ''),
-      kpi(String(ss.clicsGoogle), 'Clics vers Google', 'depuis le sondage')
+      kpi(String(ss.clicsGoogle), 'Clics vers Google', 'depuis le sondage'),
+      kpi(String(mesAvis.length), 'Mes avis', mesATraiter ? mesATraiter + ' à traiter' : 'responsable ou crédité', mesATraiter ? 'attention' : '', function () { self.filtres.personne = 'moi'; AMX.aller('avis', 'avis'); })
     ]));
 
     // Par concession
@@ -249,13 +291,20 @@
     var personnes = d.stats.personnes || [];
     var moi = AMX.session.courriel;
     var admin = AMX.estAdmin();
-    var visibles = admin ? personnes.filter(function (p) { return p.demandesEnvoyees || p.avisAttribues || p.reponduesSondage || p.avisRepondus || p.role === 'vendeur' || p.role === 'utilisateur'; }) : personnes.filter(function (p) { return p.courriel === moi; });
+    var actif = function (p) { return p.demandesEnvoyees || p.avisAttribues || p.reponduesSondage || p.avisRepondus; };
+    var terrain = function (p) { return p.departement === 'ventes' || p.departement === 'service' || p.departement === 'pieces' || p.role === 'vendeur' || p.role === 'utilisateur'; };
+    var groupeP = function (p) { if (p.role === 'admin' || p.role === 'proprietaire' || p.departement === 'direction') return 'direction'; if (p.departement === 'ventes') return 'ventes'; if (p.departement === 'service' || p.departement === 'pieces') return 'service'; return 'autres'; };
+    var visibles = admin ? personnes.filter(function (p) { return (actif(p) || terrain(p)) && (!self.filtrePersonnes || groupeP(p) === self.filtrePersonnes); }) : personnes.filter(function (p) { return p.courriel === moi; });
     if (!admin && !visibles.length) visibles = [{ courriel: moi, nom: AMX.session.nom || moi, concession: AMX.maConcession(), demandesEnvoyees: 0, demandes30: 0, reponduesSondage: 0, noteSondage: null, negatifsSondage: 0, clicsGoogle: 0, avisAttribues: 0, noteAvis: null, avis5: 0, avisNegatifs: 0, avisRepondus: 0 }];
+    var segP = h('div.segment', [['', 'Tous'], ['ventes', 'Ventes'], ['service', 'Service'], ['direction', 'Direction'], ['autres', 'Autres']].map(function (o) {
+      return h('button' + (self.filtrePersonnes === o[0] ? '.actif' : ''), { type: 'button', text: o[1], onclick: function () { self.filtrePersonnes = o[0]; self.rendre(); } });
+    }));
     var tblP = h('table.tableau', [
-      h('thead', [h('tr', [h('th', 'Personne'), h('th', 'Concession'), h('th.num', { title: 'Demandes d\'avis envoyées aux clients (30 j / total)' }, 'Demandes envoyées'), h('th.num', { title: 'Sondages répondus par les clients de cette personne' }, 'Notes reçues'), h('th.num', 'Note moy.'), h('th.num', 'Négatifs'), h('th.num', 'Clics Google'), h('th.num', { title: 'Avis Google attribués à cette personne' }, 'Avis attribués'), h('th.num', 'Note avis'), h('th.num', '5 ★'), h('th.num', { title: 'Avis dont cette personne avait la charge et qui ont reçu une réponse' }, 'Réponses')])]),
+      h('thead', [h('tr', [h('th', 'Personne'), h('th', 'Rôle'), h('th', 'Concession'), h('th.num', { title: 'Demandes d\'avis envoyées aux clients (30 j / total)' }, 'Demandes envoyées'), h('th.num', { title: 'Sondages répondus par les clients de cette personne' }, 'Notes reçues'), h('th.num', 'Note moy.'), h('th.num', 'Négatifs'), h('th.num', 'Clics Google'), h('th.num', { title: 'Avis Google crédités à cette personne' }, 'Avis crédités'), h('th.num', 'Note avis'), h('th.num', '5 ★'), h('th.num', { title: 'Avis dont cette personne avait la charge et qui ont reçu une réponse' }, 'Réponses')])]),
       h('tbody', visibles.length ? visibles.map(function (p) {
-        return h('tr' + (p.courriel === moi ? '.avis-moi' : ''), [
+        return h('tr.cliquable' + (p.courriel === moi ? '.avis-moi' : ''), { title: 'Voir les avis de ' + p.nom, onclick: function () { self.filtres.personne = p.courriel; AMX.aller('avis', 'avis'); } }, [
           h('td', [h('div', { style: { fontWeight: 600 } }, p.nom), h('div.mini', p.courriel)]),
+          h('td', [h('div', { text: p.roleLibelle || p.role || '—' }), puceDep(p.departement)]),
           h('td', p.concession === '*' ? 'Groupe' : nomConcession(p.concession)),
           h('td.num', [h('b', String(p.demandes30)), h('span.doux', ' / ' + p.demandesEnvoyees)]),
           h('td.num', String(p.reponduesSondage)),
@@ -267,11 +316,11 @@
           h('td.num', p.avis5 ? h('span.avis-pos', String(p.avis5)) : h('span.doux', '0')),
           h('td.num', String(p.avisRepondus))
         ]);
-      }) : [h('tr', [h('td', { colspan: 11 }, h('span.doux', 'Personne n\'a encore envoyé de demande ni reçu de note.'))])])
+      }) : [h('tr', [h('td', { colspan: 12 }, h('span.doux', 'Personne n\'a encore envoyé de demande ni reçu de note.'))])])
     ]);
     this.elCorps.appendChild(h('div.carte', [
       h('div.carte-entete', [h('h2', ['Par personne', h('span.sous', admin ? 'qui envoie des demandes d\'avis, qui reçoit quelles notes' : 'vos demandes et vos notes')]),
-        h('span.doux.petit', 'Les avis Google sont attribués à la main dans l\'onglet Avis (bouton « Employés »).')]),
+        admin ? h('div.avis-personnes-outils', [segP, h('span.doux.petit', 'Les avis Google sont attribués dans l\'onglet Avis : un responsable et des crédités par avis.')]) : null]),
       h('div.defile', [tblP])
     ]));
   };
@@ -279,8 +328,10 @@
   /* ---------------------------------- Avis ---------------------------------- */
   Avis.prototype.rendreAvis = function (d) {
     var self = this, f = this.filtres;
+    var moiC = AMX.session.courriel;
     var liste = d.avis.filter(function (a) {
       if (f.concession && a.concession !== f.concession) return false;
+      if (f.personne) { var qui = f.personne === 'moi' ? moiC : f.personne; if (a.assigneA !== qui && a.employes.indexOf(qui) < 0) return false; }
       if (f.etoiles === 'neg' && !estNegatif(a)) return false;
       if (f.etoiles && f.etoiles !== 'neg' && a.etoiles !== Number(f.etoiles)) return false;
       if (f.etat === 'traiter' && !A_TRAITER[a.etat]) return false;
@@ -296,6 +347,8 @@
         h('option', { value: '', text: 'Toutes les notes', selected: !f.etoiles }), h('option', { value: 'neg', text: 'Négatifs (≤ ' + SEUIL + ' ★)', selected: f.etoiles === 'neg' }),
         h('option', { value: '5', text: '5 ★', selected: f.etoiles === '5' }), h('option', { value: '4', text: '4 ★', selected: f.etoiles === '4' }), h('option', { value: '3', text: '3 ★', selected: f.etoiles === '3' }), h('option', { value: '2', text: '2 ★', selected: f.etoiles === '2' }), h('option', { value: '1', text: '1 ★', selected: f.etoiles === '1' })]),
       h('select.saisie', { onchange: function (e) { f.etat = e.target.value; self.rendre(); } }, [h('option', { value: '', text: 'Tous les états', selected: !f.etat }), h('option', { value: 'traiter', text: 'À traiter', selected: f.etat === 'traiter' })].concat(Object.keys(ETATS).map(function (k) { return h('option', { value: k, text: ETATS[k].libelle, selected: f.etat === k }); }))),
+      h('select.saisie', { title: 'Responsable ou crédité', onchange: function (e) { f.personne = e.target.value; self.rendre(); } }, [h('option', { value: '', text: 'Toutes les personnes', selected: !f.personne }), h('option', { value: 'moi', text: 'Mes avis', selected: f.personne === 'moi' })].concat(
+        d.utilisateurs.filter(function (u) { return !f.concession || u.concession === '*' || (u.concessions || [u.concession]).indexOf(f.concession) >= 0; }).map(function (u) { return h('option', { value: u.courriel, text: u.nom + (u.departement ? ' (' + (DEP_NOMS[u.departement] || u.departement) + ')' : ''), selected: f.personne === u.courriel }); }))),
       h('span.doux.petit', liste.length + ' avis' + (liste.length !== d.avis.length ? ' sur ' + d.avis.length : ''))
     ]);
     this.elCorps.appendChild(filtres);
@@ -303,14 +356,37 @@
     this.elCorps.appendChild(h('div.avis-liste', liste.map(function (a) { return self.carteAvis(a, d); })));
   };
 
+  // Les comptes qui voient cette concession (principale, accès supplémentaire ou groupe), triés : son département d'abord.
+  Avis.prototype.utilisateursPour = function (d, concession, type) {
+    var l = d.utilisateurs.filter(function (u) { return u.concession === '*' || u.concession === concession || (u.concessions || []).indexOf(concession) >= 0; });
+    return l.slice().sort(function (x, y) {
+      var dx = deTypeDep(x.departement || '', type) ? 0 : 1, dy = deTypeDep(y.departement || '', type) ? 0 : 1;
+      if (dx !== dy) return dx - dy;
+      return x.nom.localeCompare(y.nom, 'fr');
+    });
+  };
+  function selectPersonnes(liste, valeur, vide, type) {
+    var sel = h('select.saisie', [h('option', { value: '', text: vide, selected: !valeur })]);
+    var groupes = [['Même département', function (u) { return deTypeDep(u.departement || '', type); }], ['Autres', function (u) { return !deTypeDep(u.departement || '', type); }]];
+    groupes.forEach(function (g) {
+      var dans = liste.filter(g[1]); if (!dans.length) return;
+      var og = h('optgroup', { label: g[0] });
+      dans.forEach(function (u) { og.appendChild(h('option', { value: u.courriel, text: libelleUtilisateur(u), selected: valeur === u.courriel })); });
+      sel.appendChild(og);
+    });
+    if (valeur && !liste.some(function (u) { return u.courriel === valeur; })) sel.appendChild(h('option', { value: valeur, text: nomDe(valeur), selected: true }));
+    return sel;
+  }
   Avis.prototype.carteAvis = function (a, d) {
-    var self = this;
-    var utilisateurs = d.utilisateurs.filter(function (u) { return u.concession === '*' || u.concession === a.concession; });
+    var self = this, moiC = AMX.session.courriel;
+    var typeAvis = typeDeFiche(d, a.fiche);
+    var utilisateurs = this.utilisateursPour(d, a.concession, typeAvis);
     var selEtat = h('select.saisie', { onchange: function (e) { self.ecrire({ action: 'avisEtat', id: a.id, etat: e.target.value }, 'État mis à jour'); } },
       Object.keys(ETATS).map(function (k) { return h('option', { value: k, text: ETATS[k].libelle, selected: a.etat === k }); }));
-    var selAssign = h('select.saisie', { onchange: function (e) { self.ecrire({ action: 'avisAssigner', id: a.id, courriel: e.target.value }, e.target.value ? 'Assigné à ' + nomDe(e.target.value) : 'Assignation retirée'); } },
-      [h('option', { value: '', text: '— personne —', selected: !a.assigneA })].concat(utilisateurs.map(function (u) { return h('option', { value: u.courriel, text: u.nom, selected: a.assigneA === u.courriel }); })));
-    var employes = h('div.avis-employes', a.employes.length ? a.employes.map(function (c) { return h('span.puce', nomDe(c)); }) : [h('span.doux.petit', 'aucun')]);
+    var selAssign = selectPersonnes(utilisateurs, a.assigneA, '— personne —', typeAvis);
+    selAssign.addEventListener('change', function (e) { self.ecrire({ action: 'avisAssigner', id: a.id, courriel: e.target.value }, e.target.value ? 'Responsable : ' + nomDe(e.target.value) : 'Responsable retiré'); });
+    var employes = h('div.avis-employes', a.employes.length ? a.employes.map(function (c) { return h('span.puce' + (c === moiC ? '.moi' : ''), { title: c }, nomDe(c)); }) : [h('span.doux.petit', 'aucun')]);
+    var moiCredite = a.employes.indexOf(moiC) >= 0;
     var date = a.creeLe ? AMX.fmtDate(a.creeLe) : '';
     var jours = AMX.joursDepuis(a.creeLe);
     return h('div.avis-carte' + (estNegatif(a) ? '.negatif' : ''), [
@@ -324,25 +400,51 @@
       ]),
       h('div.cote', [
         h('div.champ', [h('label', 'État'), selEtat]),
-        h('div.champ', [h('label', 'Responsable'), selAssign]),
-        h('div.champ', [h('label', ['Employés concernés ', h('button.btn.fantome.petit', { type: 'button', style: { marginLeft: '4px' }, onclick: function () { self.choisirEmployes(a, utilisateurs); } }, 'Modifier')]), employes]),
-        a.lien ? h('a.btn.petit', { href: a.lien, target: '_blank', rel: 'noopener' }, [AMX.svg('externe'), ' Voir sur Google']) : null
+        h('div.champ', [h('label', { title: 'Le compte qui répond à l\'avis ou rappelle le client' }, 'Responsable'), selAssign]),
+        h('div.champ', [h('label', { title: 'Les comptes concernés par cet avis : il compte dans leurs statistiques « avis crédités »' }, ['Crédités ', h('button.btn.fantome.petit', { type: 'button', style: { marginLeft: '4px' }, onclick: function () { self.choisirEmployes(a, utilisateurs, typeAvis); } }, 'Modifier')]), employes]),
+        h('div.actions-ligne', { style: { gap: '6px', flexWrap: 'wrap' } }, [
+          moiCredite ? null : h('button.btn.petit', { type: 'button', title: 'M\'ajouter aux crédités', onclick: function () { self.ecrire({ action: 'avisEmployes', id: a.id, employes: a.employes.concat([moiC]) }, 'Avis crédité à vous'); } }, 'Me créditer'),
+          a.assigneA === moiC ? null : h('button.btn.petit', { type: 'button', title: 'Devenir le responsable de cet avis', onclick: function () { self.ecrire({ action: 'avisAssigner', id: a.id, courriel: moiC }, 'Vous êtes responsable de cet avis'); } }, 'Je m\'en occupe'),
+          a.lien ? h('a.btn.petit', { href: a.lien, target: '_blank', rel: 'noopener' }, [AMX.svg('externe'), ' Google']) : null
+        ])
       ])
     ]);
   };
 
-  Avis.prototype.choisirEmployes = function (a, utilisateurs) {
+  Avis.prototype.choisirEmployes = function (a, utilisateurs, type) {
     var self = this;
     var choix = {}; a.employes.forEach(function (c) { choix[c] = true; });
+    var filtre = { dep: type === 'service' ? 'service' : (type === 'vente' ? 'ventes' : ''), q: '' };
+    var liste = h('div.avis-choix');
+    var dessiner = function () {
+      AMX.vider(liste);
+      var l = utilisateurs.filter(function (u) {
+        if (filtre.dep === 'ventes' && !deTypeDep(u.departement || '', 'vente')) return false;
+        if (filtre.dep === 'service' && !deTypeDep(u.departement || '', 'service')) return false;
+        if (filtre.q && (u.nom + ' ' + u.courriel + ' ' + (u.roleLibelle || '')).toLowerCase().indexOf(filtre.q) < 0) return false;
+        return true;
+      });
+      // Les personnes déjà cochées restent visibles quel que soit le filtre.
+      utilisateurs.forEach(function (u) { if (choix[u.courriel] && l.indexOf(u) < 0) l.push(u); });
+      if (!l.length) { liste.appendChild(h('p.doux.petit', 'Aucun compte ne correspond.')); return; }
+      l.forEach(function (u) {
+        var lab;
+        var cb = h('input', { type: 'checkbox', checked: !!choix[u.courriel], onchange: function (e) { if (e.target.checked) choix[u.courriel] = true; else delete choix[u.courriel]; lab.classList.toggle('coche', e.target.checked); } });
+        lab = h('label.champ.inline' + (choix[u.courriel] ? '.coche' : ''), [cb, h('span', [u.nom, h('span.doux.petit', ' · ' + (u.roleLibelle || u.role || '') + (u.concession && u.concession !== '*' ? ' · ' + nomConcession(u.concession) : '')), ' ', puceDep(u.departement)])]);
+        liste.appendChild(lab);
+      });
+    };
+    var seg = h('div.segment', [['', 'Tous'], ['ventes', 'Vente'], ['service', 'Service']].map(function (o) {
+      return h('button' + (filtre.dep === o[0] ? '.actif' : ''), { type: 'button', text: o[1], onclick: function (e) { filtre.dep = o[0]; seg.querySelectorAll('button').forEach(function (b) { b.classList.remove('actif'); }); e.currentTarget.classList.add('actif'); dessiner(); } });
+    }));
     var corps = h('div', [
-      h('p', { style: { margin: '0 0 10px', color: 'var(--encre-2)', lineHeight: '1.5' } }, 'Qui est concerné par cet avis ? Ces personnes le verront dans leurs statistiques « notes reçues ».'),
-      h('div', { style: { display: 'grid', gap: '6px', maxHeight: '320px', overflow: 'auto' } }, utilisateurs.map(function (u) {
-        var cb = h('input', { type: 'checkbox', checked: !!choix[u.courriel], onchange: function (e) { if (e.target.checked) choix[u.courriel] = true; else delete choix[u.courriel]; } });
-        return h('label.champ.inline', { style: { cursor: 'pointer' } }, [cb, h('span', [u.nom, h('span.doux.petit', ' · ' + (u.role || '') + (u.concession && u.concession !== '*' ? ' · ' + nomConcession(u.concession) : ''))])]);
-      }))
+      h('p', { style: { margin: '0 0 10px', color: 'var(--encre-2)', lineHeight: '1.5' } }, 'Qui est concerné par cet avis ? Ces comptes le verront dans « Mes avis » et dans leurs statistiques (avis crédités, note, 5 ★).'),
+      h('div.avis-choix-outils', [seg, h('input.saisie', { type: 'search', placeholder: 'Nom…', oninput: function (e) { filtre.q = e.target.value.trim().toLowerCase(); dessiner(); } })]),
+      liste
     ]);
+    dessiner();
     AMX.modale({
-      titre: 'Employés concernés', corps: corps,
+      titre: 'Crédités — ' + (a.auteur || 'avis') + ' (' + a.etoiles + ' ★)', corps: corps,
       boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
         return self.ecrire({ action: 'avisEmployes', id: a.id, employes: Object.keys(choix) }, 'Attribution enregistrée');
       } }]
@@ -377,7 +479,8 @@
     this.elCorps.appendChild(h('div.alerte-bloc.ok', { style: { marginBottom: '14px' } }, [AMX.svg('ok'), h('div', [
       h('b', 'Comment ça marche. '), 'À la livraison ou à la fin d\'un service, cliquez « Demander un avis » : le client reçoit un texto (ou un courriel) avec un sondage de 10 secondes. ',
       'Tous les clients reçoivent ensuite le lien pour laisser un avis Google — c\'est la règle de Google. Une note de ', String(SEUIL), ' ou moins prévient tout de suite les directeurs (courriel + texto) pour rappeler le client dans l\'heure.'])]));
-    var liste = d.sondages.filter(function (s) { return !self.filtres.concession || s.concession === self.filtres.concession; });
+    var moiS = AMX.session.courriel, fp = self.filtres.personne ? (self.filtres.personne === 'moi' ? moiS : self.filtres.personne) : '';
+    var liste = d.sondages.filter(function (s) { return (!self.filtres.concession || s.concession === self.filtres.concession) && (!fp || s.vendeur === fp || s.envoyePar === fp); });
     if (!liste.length) { this.elCorps.appendChild(h('div.vide', [AMX.svg('courriel'), h('h3', 'Aucune demande d\'avis encore'), h('p', 'Le bouton « Demander un avis » en haut à droite envoie le premier sondage.')])); return; }
     var tbl = h('table.tableau', [
       h('thead', [h('tr', [h('th', 'Date'), h('th', 'Client'), h('th', 'Concession'), h('th', 'Type'), h('th', 'Vendeur / conseiller'), h('th', 'Envoyé par'), h('th', 'Envoi'), h('th.num', 'Note'), h('th', 'Commentaire'), h('th', 'Google')])]),
@@ -407,8 +510,8 @@
     var selConc = h('select', { onchange: function (e) { conc = e.target.value; majVendeurs(); } }, concessions.map(function (c) { return h('option', { value: c, text: AMX.COMPAGNIES[c], selected: c === conc }); }));
     var type = 'vente';
     var segType = h('div.segment.bloc', [
-      h('button' + (type === 'vente' ? '.actif' : ''), { type: 'button', onclick: function (e) { type = 'vente'; segType.querySelectorAll('button').forEach(function (b) { b.classList.remove('actif'); }); e.currentTarget.classList.add('actif'); } }, 'Vente / livraison'),
-      h('button', { type: 'button', onclick: function (e) { type = 'service'; segType.querySelectorAll('button').forEach(function (b) { b.classList.remove('actif'); }); e.currentTarget.classList.add('actif'); } }, 'Service')
+      h('button' + (type === 'vente' ? '.actif' : ''), { type: 'button', onclick: function (e) { type = 'vente'; segType.querySelectorAll('button').forEach(function (b) { b.classList.remove('actif'); }); e.currentTarget.classList.add('actif'); majVendeurs(); } }, 'Vente / livraison'),
+      h('button', { type: 'button', onclick: function (e) { type = 'service'; segType.querySelectorAll('button').forEach(function (b) { b.classList.remove('actif'); }); e.currentTarget.classList.add('actif'); majVendeurs(); } }, 'Service')
     ]);
     var nom = h('input', { type: 'text', placeholder: 'Prénom Nom', autocomplete: 'off' });
     var tel = h('input', { type: 'tel', placeholder: '514 555-1234', autocomplete: 'off', inputmode: 'tel' });
@@ -416,11 +519,14 @@
     var vin = h('input', { type: 'text', placeholder: '17 caractères (facultatif)', autocomplete: 'off', maxlength: '17', spellcheck: 'false' });
     var selVendeur = h('select');
     function majVendeurs() {
+      var moi = AMX.session.courriel, actuel = selVendeur.value || moi;
       AMX.vider(selVendeur);
-      var moi = AMX.session.courriel;
-      var liste = d.utilisateurs.filter(function (u) { return u.concession === '*' || u.concession === conc; });
-      if (!liste.some(function (u) { return u.courriel === moi; })) liste.unshift({ courriel: moi, nom: AMX.session.nom || moi });
-      liste.forEach(function (u) { selVendeur.appendChild(h('option', { value: u.courriel, text: u.nom, selected: u.courriel === moi })); });
+      var liste = (d.utilisateurs || []).filter(function (u) { return u.concession === '*' || u.concession === conc || (u.concessions || []).indexOf(conc) >= 0; });
+      if (!liste.some(function (u) { return u.courriel === moi; })) liste.unshift({ courriel: moi, nom: AMX.session.nom || moi, departement: '' });
+      var memeDep = liste.filter(function (u) { return deTypeDep(u.departement || '', type); }), autres = liste.filter(function (u) { return !deTypeDep(u.departement || '', type); });
+      var ajouter = function (titre, l) { if (!l.length) return; var og = h('optgroup', { label: titre }); l.forEach(function (u) { og.appendChild(h('option', { value: u.courriel, text: libelleUtilisateur(u), selected: u.courriel === actuel })); }); selVendeur.appendChild(og); };
+      ajouter(type === 'service' ? 'Service' : 'Ventes', memeDep); ajouter('Autres', autres);
+      if (!selVendeur.value) selVendeur.value = moi;
     }
     majVendeurs();
     var corps = h('div.grille', { style: { gap: '12px' } }, [

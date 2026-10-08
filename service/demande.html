@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Demande de travaux — approbation</title>
+<style>
+  :root { --vert: #008a44; --texte: #16181c; --doux: #6b7280; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px; --ambre: #b45309; --rouge: #b42318; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 720px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; }
+  .pousse { margin-left: auto; color: var(--doux); font-size: 13px; }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  h1 { font-size: 20px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.3px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .vin { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--doux); }
+  .sous { color: var(--doux); font-size: 14px; }
+  .etat { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-bottom: 10px; }
+  .etat.attente { background: #fff4d6; color: #8a5a00; }
+  .etat.ok { background: #e7f5ed; color: #0a6136; }
+  .etat.retour { background: #fdecec; color: #8a1d1d; }
+  .ligne { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--trait); font-size: 14px; }
+  .ligne:last-child { border-bottom: 0; }
+  .ligne .k { color: var(--doux); flex: 0 0 auto; }
+  .ligne .v { font-weight: 600; text-align: right; word-break: break-word; }
+  .travaux { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+  .travaux li { display: flex; align-items: center; gap: 8px; font-size: 15px; padding: 6px 0; }
+  .travaux li::before { content: "✓"; width: 22px; height: 22px; border-radius: 50%; background: #e7f5ed; color: #0a6136; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; flex: 0 0 auto; }
+  .citation { border-left: 3px solid var(--trait); padding: 4px 12px; margin: 10px 0 0; font-size: 15px; white-space: pre-wrap; }
+  .alerte { border-radius: 10px; padding: 12px 14px; font-size: 14px; margin-top: 10px; }
+  .alerte.urgent { background: #fdecec; color: #8a1d1d; font-weight: 600; }
+  .alerte.info { background: #eef4ff; color: #1e3a8a; }
+  .dommages { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  input, textarea { width: 100%; padding: 12px 13px; font: inherit; font-size: 16px; border: 1px solid var(--trait); border-radius: 10px; background: var(--fond); color: var(--texte); }
+  input:focus, textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  input.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 20px; letter-spacing: .5px; }
+  textarea { min-height: 72px; resize: vertical; }
+  .boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.principal, button.secondaire, button.danger { padding: 14px 18px; font: inherit; font-size: 16px; font-weight: 650; border-radius: 12px; cursor: pointer; border: 0; flex: 1 1 auto; }
+  button.principal { background: var(--vert); color: #fff; }
+  button.secondaire { background: var(--fond); color: var(--texte); border: 1px solid var(--trait); }
+  button.danger { background: #fdecec; color: #8a1d1d; }
+  button:disabled { opacity: .55; cursor: default; }
+  .erreur { color: var(--rouge); font-size: 14px; margin-top: 10px; min-height: 1.2em; }
+  .cache { display: none !important; }
+  .merci { text-align: center; padding: 10px 0 4px; }
+  .merci .gros { width: 64px; height: 64px; border-radius: 50%; background: #e7f5ed; color: #0a6136; display: inline-grid; place-items: center; font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+  a.lien { color: var(--vert); font-weight: 600; }
+  .pied { color: var(--doux); font-size: 12.5px; text-align: center; margin: 18px 0 8px; }
+  @media (max-width: 480px) { .travaux { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse">Suivi service — demande de travaux</span></div></header>
+<main>
+  <div class="bloc" id="chargement"><div class="sous">Chargement de la demande…</div></div>
+  <div class="bloc cache" id="invalide"><h1>Lien invalide ou expiré</h1><p class="sous">Ce lien ne correspond à aucune demande de travaux. Demandez aux ventes de renvoyer la demande, ou ouvrez-la dans ScanAutomax.</p></div>
+
+  <div id="contenu" class="cache">
+    <div class="bloc">
+      <span class="etat" id="etat"></span>
+      <h1 id="modele"></h1>
+      <div class="sous" id="stock"></div>
+      <div class="vin" id="vin"></div>
+      <div class="alerte urgent cache" id="urgent">Client en attente — demande urgente.</div>
+    </div>
+    <div class="bloc">
+      <h2>Travaux demandés</h2>
+      <ul class="travaux" id="travaux"></ul>
+      <div class="citation cache" id="notes"></div>
+      <div id="details"></div>
+    </div>
+    <div class="bloc cache" id="dossier">
+      <h2>Ce qu'on sait du véhicule</h2>
+      <div id="dossier-corps"></div>
+    </div>
+
+    <div class="bloc" id="formulaire">
+      <h2>Approuver la demande</h2>
+      <p class="sous" style="margin:0">Inscrivez le numéro du bon de travail : l'étape « BT ouvert » du suivi se remplit et les ventes voient l'icône passer au vert.</p>
+      <label for="nom">Votre nom</label>
+      <input id="nom" type="text" autocomplete="name" placeholder="Prénom et nom" maxlength="80">
+      <label for="bt">Numéro du bon de travail</label>
+      <input id="bt" class="mono" type="text" inputmode="numeric" autocomplete="off" placeholder="ex. 48213" maxlength="40">
+      <div id="zone-question" class="cache">
+        <label for="question">Question ou raison du retour</label>
+        <textarea id="question" placeholder="Ex. : quel budget pour les pneus ? Le véhicule n'est pas encore arrivé…" maxlength="500"></textarea>
+      </div>
+      <div class="erreur" id="erreur"></div>
+      <div class="boutons">
+        <button class="principal" id="btn-approuver" type="button">Approuver avec ce no de BT</button>
+        <button class="secondaire" id="btn-retour" type="button">Retourner avec une question</button>
+      </div>
+      <div class="boutons cache" id="boutons-retour">
+        <button class="danger" id="btn-envoyer-retour" type="button">Envoyer la question aux ventes</button>
+        <button class="secondaire" id="btn-annuler-retour" type="button">Annuler</button>
+      </div>
+    </div>
+
+    <div class="bloc cache" id="ferme">
+      <div class="merci"><div class="gros" id="ferme-icone">✓</div><h1 id="ferme-titre"></h1><p class="sous" id="ferme-texte"></p></div>
+    </div>
+    <p class="pied"><a class="lien" id="lien-site" href="#" target="_blank" rel="noopener">Ouvrir ce véhicule dans ScanAutomax</a></p>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+  var ETATS = { envoyee: ['attente', 'En attente de votre approbation'], approuvee: ['ok', 'BT approuvé'], retournee: ['retour', 'Retournée aux ventes'], annulee: ['', 'Annulée par les ventes'] };
+  var q = new URLSearchParams(location.search);
+  var id = q.get('d') || '', jeton = q.get('e') || '';
+  var $ = function (s) { return document.getElementById(s); };
+  var demande = null;
+
+  function argent(n) { n = Number(n); if (!isFinite(n)) return ''; return Math.round(n).toLocaleString('fr-CA') + ' $'; }
+  function dateLisible(iso) { var d = new Date(iso); if (isNaN(d)) return ''; return d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }); }
+  function montrer(el, oui) { el.classList.toggle('cache', !oui); }
+  function ligne(k, v) { var d = document.createElement('div'); d.className = 'ligne'; d.innerHTML = '<span class="k"></span><span class="v"></span>'; d.firstChild.textContent = k; d.lastChild.textContent = v; return d; }
+
+  function rendre(rep) {
+    demande = rep.demande;
+    var d = demande;
+    $('marque').textContent = (rep.concession && rep.concession.nom) || 'ScanAutomax';
+    var e = ETATS[d.etat] || ['', d.etatLibelle || d.etat];
+    $('etat').className = 'etat ' + e[0]; $('etat').textContent = e[1];
+    $('modele').textContent = d.modele || 'Véhicule';
+    $('stock').textContent = (d.stock ? '# stock ' + d.stock + ' · ' : '') + (d.compagnie || '');
+    $('vin').textContent = 'NIV ' + d.vin;
+    montrer($('urgent'), d.urgence === 'client');
+    var ul = $('travaux'); ul.innerHTML = '';
+    (d.travaux || []).forEach(function (t) {
+      if (t === 'autre') return;
+      var def = (rep.travaux || []).filter(function (x) { return x.id === t; })[0];
+      var li = document.createElement('li'); li.textContent = def ? def.libelle : t; ul.appendChild(li);
+    });
+    if (d.autre) { var li2 = document.createElement('li'); li2.textContent = 'Autre : ' + d.autre; ul.appendChild(li2); }
+    montrer($('notes'), !!d.notes); $('notes').textContent = d.notes || '';
+    var det = $('details'); det.innerHTML = '';
+    if (d.budget !== null && d.budget !== undefined && d.budget !== '') det.appendChild(ligne('Budget autorisé', argent(d.budget)));
+    det.appendChild(ligne('Demandé par', (d.demandeParNom || d.demandePar || '—') + (d.demandeLe ? ', le ' + dateLisible(d.demandeLe) : '')));
+    if (d.rappels) det.appendChild(ligne('Rappels envoyés', String(d.rappels)));
+    var doss = rep.dossier || {}, dc = $('dossier-corps'); dc.innerHTML = '';
+    var aDossier = false;
+    if (doss.km) { dc.appendChild(ligne('Kilométrage à l\'achat', Number(String(doss.km).replace(/[^\d]/g, '')).toLocaleString('fr-CA') + ' km')); aDossier = true; }
+    if (doss.dommages && doss.dommages.length) {
+      aDossier = true;
+      var p = document.createElement('div'); p.className = 'ligne'; p.innerHTML = '<span class="k">Dommages répertoriés à l\'achat</span>';
+      var ol = document.createElement('ul'); ol.className = 'dommages';
+      doss.dommages.forEach(function (x) { var li = document.createElement('li'); li.textContent = x; ol.appendChild(li); });
+      dc.appendChild(p); dc.appendChild(ol);
+    }
+    if (doss.eblock) { aDossier = true; var a = document.createElement('p'); a.innerHTML = '<a class="lien" target="_blank" rel="noopener"></a>'; a.firstChild.href = doss.eblock; a.firstChild.textContent = 'Rapport d\'état eBlock'; dc.appendChild(a); }
+    montrer($('dossier'), aDossier);
+    $('lien-site').href = rep.lienSite || '#';
+    try { $('nom').value = localStorage.getItem('amx_demande_nom') || ''; } catch (e) {}
+    if (d.etat === 'envoyee') { montrer($('formulaire'), true); montrer($('ferme'), false); }
+    else {
+      montrer($('formulaire'), false); montrer($('ferme'), true);
+      if (d.etat === 'approuvee') { $('ferme-icone').textContent = '✓'; $('ferme-titre').textContent = 'BT ' + d.btNo + ' approuvé'; $('ferme-texte').textContent = 'Par ' + (d.approuvePar || '') + (d.approuveLe ? ', le ' + dateLisible(d.approuveLe) : '') + '. Le suivi service est à jour.'; }
+      else if (d.etat === 'retournee') { $('ferme-icone').textContent = '?'; $('ferme-titre').textContent = 'Retournée aux ventes'; $('ferme-texte').textContent = 'Question envoyée : « ' + (d.commentaire || '') + ' ». Les ventes corrigeront la demande et vous recevrez un nouveau courriel.'; }
+      else { $('ferme-icone').textContent = '–'; $('ferme-titre').textContent = 'Demande annulée'; $('ferme-texte').textContent = 'Les ventes ont annulé cette demande. Rien à faire.'; }
+    }
+    montrer($('chargement'), false); montrer($('contenu'), true);
+  }
+
+  function charger() {
+    if (!id || !jeton) { montrer($('chargement'), false); montrer($('invalide'), true); return; }
+    fetch(SCRIPT_URL + '?demandeLien=' + encodeURIComponent(id) + '&e=' + encodeURIComponent(jeton) + '&_=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (rep) {
+        if (!rep || !rep.ok) { montrer($('chargement'), false); montrer($('invalide'), true); if (rep && rep.erreur && rep.code !== 'LIEN_INVALIDE') $('invalide').querySelector('p').textContent = rep.erreur; return; }
+        rendre(rep);
+      })
+      .catch(function () { $('chargement').querySelector('.sous').textContent = 'Impossible de joindre le serveur. Réessayez dans un instant.'; });
+  }
+
+  function envoyer(geste) {
+    var nom = $('nom').value.trim(), bt = $('bt').value.trim(), question = $('question').value.trim();
+    var err = $('erreur'); err.textContent = '';
+    if (nom.length < 2) { err.textContent = 'Indiquez votre nom.'; $('nom').focus(); return; }
+    if (geste === 'approuver' && bt.length < 2) { err.textContent = 'Inscrivez le numéro du bon de travail.'; $('bt').focus(); return; }
+    if (geste === 'retourner' && !question) { err.textContent = 'Écrivez la question ou la raison du retour.'; $('question').focus(); return; }
+    try { localStorage.setItem('amx_demande_nom', nom); } catch (e) {}
+    var boutons = document.querySelectorAll('#formulaire button'); boutons.forEach(function (b) { b.disabled = true; });
+    /* text/plain volontairement : un Content-Type application/json déclenche une requête préparatoire OPTIONS à laquelle Apps Script ne répond pas. */
+    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'demandeRepondre', id: id, e: jeton, geste: geste, nom: nom, btNo: bt, commentaire: question }) })
+      .then(function (r) { return r.json(); })
+      .then(function (rep) {
+        boutons.forEach(function (b) { b.disabled = false; });
+        if (!rep || !rep.ok) {
+          if (rep && (rep.code === 'DEJA' || rep.code === 'ANNULEE')) { charger(); return; }
+          err.textContent = (rep && rep.erreur) || 'Réponse inattendue du serveur.'; return;
+        }
+        rendre({ demande: rep.demande, concession: { nom: $('marque').textContent }, dossier: {}, travaux: [], lienSite: $('lien-site').href });
+        // Les travaux ne sont pas renvoyés avec le dossier : on les redemande pour l'affichage complet.
+        charger();
+      })
+      .catch(function () { boutons.forEach(function (b) { b.disabled = false; }); err.textContent = 'Impossible de joindre le serveur. Réessayez.'; });
+  }
+
+  $('btn-approuver').addEventListener('click', function () { envoyer('approuver'); });
+  $('btn-retour').addEventListener('click', function () { montrer($('zone-question'), true); montrer($('boutons-retour'), true); $('btn-approuver').classList.add('cache'); $('btn-retour').classList.add('cache'); $('question').focus(); });
+  $('btn-annuler-retour').addEventListener('click', function () { montrer($('zone-question'), false); montrer($('boutons-retour'), false); $('btn-approuver').classList.remove('cache'); $('btn-retour').classList.remove('cache'); });
+  $('btn-envoyer-retour').addEventListener('click', function () { envoyer('retourner'); });
+  $('bt').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); envoyer('approuver'); } });
+  charger();
+})();
+</script>
+</body>
+</html>

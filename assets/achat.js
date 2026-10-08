@@ -213,7 +213,7 @@
   // (dommages, eblock) — gardé pour après le chargement de la fiche.
   Fiche.prototype.lireParams = function (ctx) {
     var p = (ctx && ctx.params) || {};
-    var cles = ['dommages', 'eblock', 'carfax', 'marque', 'modele', 'annee', 'couleur', 'km'];
+    var cles = ['dommages', 'eblock', 'carfax', 'marque', 'modele', 'annee', 'couleur', 'km', 'mmr', 'tauxUs', 'depenseUs', 'destination'];   // 8 oct. : la boîte Canada / É.-U. de l'évaluation voyage aussi
     if (cles.some(function (k) { return p[k]; })) {
       var pre = {}; cles.forEach(function (k) { pre[k] = String(p[k] || ''); });
       this.prerempli = pre;
@@ -359,7 +359,9 @@
 
     // Wholesale / Vente Detail / Vente USA (selon la destination)
     this.elTitreVente = h('h2#wholesale-section-title', { text: TITRE_VENTE_DEFAUT });
-    this.btnTaux = h('button.btn.noprint#taux-auto-btn', { type: 'button', title: 'Taux Banque du Canada du jour, moins 2 %', text: 'Taux auto (−2 %)', onclick: function () { self.obtenirTaux(); } });
+    // 8 oct. : même écart que la boîte « Canada ou États-Unis ? » (paramètre du propriétaire, 3 % par défaut — avant : 2 % codé en dur).
+    this.btnTaux = h('button.btn.noprint#taux-auto-btn', { type: 'button', title: 'Taux Banque du Canada du jour, moins l\'écart réglé par le propriétaire', text: 'Taux auto (−' + this.ecartTaux() + ' %)', onclick: function () { self.obtenirTaux(); } });
+    if (AMX.export && AMX.export.charger) AMX.export.charger().then(function () { self.btnTaux.textContent = 'Taux auto (−' + self.ecartTaux() + ' %)'; var lab = self.el ? self.el.querySelector('label[for="f-taux"]') : null; if (lab) lab.textContent = 'Taux USD→CAD (taux − ' + self.ecartTaux() + ' %)'; }, function () {});
     this.rangWholesale = h('div.grille.c3#wholesale-row', [champ('f-wsacheteur', 'Wholesale — acheteur'), cout('f-wsprix', 'Wholesale — prix ($)'), date('f-wsdate', 'Wholesale — date de livraison')]);
     this.rangPadCanada = h('div.achat-cases#pad-canada-row', [caseA('c-pad212', 'PAD Canada (212 $)'), caseA('c-pad499-canada', 'PAD Détail (499 $)')]);
     this.rangDetail = h('div.grille.c4#detail-vente-row', [cout('f-prixdetail', 'Prix détail ($)'), caseA('c-pad499', 'PAD Détail (499 $)'), caseA('c-presafety', 'Pré-safety'), cout('f-presafetymontant', 'Montant pré-safety ($)')]);
@@ -373,7 +375,7 @@
         h('div.grille.c4', [
           champ('f-ecartmmr', 'Écart MMR (livraison − initial)', { readonly: true }),
           champ('f-ecartmmrpct', 'Écart MMR (%)', { readonly: true }),
-          champ('f-taux', 'Taux USD→CAD (taux − 2 %)', { type: 'number', step: '0.0001', placeholder: 'ex. 1,3200', apres: this.btnTaux }),
+          champ('f-taux', 'Taux USD→CAD (taux − ' + this.ecartTaux() + ' %)', { type: 'number', step: '0.0001', placeholder: 'ex. 1,3241', apres: this.btnTaux }),
           cout('f-defense', 'Dépense ($) — nette dans le prix de vente')
         ]),
         h('div.grille.c3', [
@@ -429,7 +431,10 @@
     ['frais', 'f-fraisautres'],        // frais estimés à l'évaluation → « Frais autres » (à ventiler au besoin)
     ['recon', 'f-service'],            // reconditionnement estimé → « Service / Pré-safety »
     ['prixVente', 'f-prixdetail'],     // prix de vente visé → prix détail
-    ['prixVente', 'f-coutestime']      // … et « Prix de détail » du bloc vente
+    ['prixVente', 'f-coutestime'],     // … et « Prix de détail » du bloc vente
+    ['mmr', 'f-mmrinitial'],           // 8 oct. — boîte Canada / É.-U. : MMR ($ US)
+    ['tauxUs', 'f-taux'],              // taux USD→CAD déjà réduit de l'écart (ex. 1,3241)
+    ['depenseUs', 'f-defense']         // ajustement retiré après conversion (6 000 $)
   ];
   function resumeEvaluation(d) {
     d = d || {};
@@ -485,7 +490,8 @@
       var v = d[m[0]], e = el(m[1]);
       if (v === undefined || v === null || String(v).trim() === '' || !e || String(e.value || '').trim()) return;
       if (m[1] === 'f-annee' || m[1] === 'f-km') v = String(v).replace(/[^0-9]/g, '');
-      else if (/^f-(prixachat|fraisautres|service|prixdetail|coutestime)$/.test(m[1])) { v = String(v).replace(/[^0-9.,-]/g, '').replace(',', '.'); if (!v || isNaN(parseFloat(v))) return; v = String(Math.round(parseFloat(v) * 100) / 100); }
+      else if (m[1] === 'f-taux') { v = String(v).replace(/[^0-9.,-]/g, '').replace(',', '.'); if (!v || isNaN(parseFloat(v))) return; v = parseFloat(v).toFixed(4); }
+      else if (/^f-(prixachat|fraisautres|service|prixdetail|coutestime|mmrinitial|defense)$/.test(m[1])) { v = String(v).replace(/[^0-9.,-]/g, '').replace(',', '.'); if (!v || isNaN(parseFloat(v))) return; v = String(Math.round(parseFloat(v) * 100) / 100); }
       e.value = v; n++;
       if (m[1] === 'f-fraisautres') libelles.push('frais → « Frais autres »');
       else if (m[1] === 'f-service') libelles.push('recon → « Service / Pré-safety »');
@@ -494,7 +500,9 @@
     var compagnie = '';
     Object.keys(AMX.COMPAGNIE_CONCESSION || {}).forEach(function (c) { if (AMX.COMPAGNIE_CONCESSION[c] === d.concession) compagnie = c; });
     if (compagnie && !valeur('f-compagnie')) { val('f-compagnie', compagnie); n++; }
-    if (!valeur('f-destination')) { val('f-destination', 'DETAIL'); n++; }
+    // Verdict « plus rentable aux États-Unis » de la boîte Canada / É.-U. → registre É.-U. ; sinon une évaluation vise le détail.
+    if (!valeur('f-destination')) { val('f-destination', d.us && d.us.verdict === 'us' ? 'US' : 'DETAIL'); n++; }
+    if (d.mmr && !valeur('f-mmrinitialdate')) val('f-mmrinitialdate', new Date().toISOString().slice(0, 10));
     if (!valeur('f-date')) val('f-date', new Date().toISOString().slice(0, 10));
     ev.importee = true;
     this.basculerExport();
@@ -625,6 +633,10 @@
     if (poser('f-dommages', dommagesFr)) morceaux.push(AMX.nbDommages(AMX.listeDommages(dommagesFr)) + ' dommage(s) répertorié(s)');
     if (p.eblock && AMX.eblockValide(p.eblock)) poser('f-eblock', p.eblock);
     poser('f-marque', p.marque); poser('f-modele', p.modele); poser('f-annee', p.annee); poser('f-couleur', AMX.eblockTraduireCouleur ? AMX.eblockTraduireCouleur(p.couleur) : p.couleur); poser('f-km', p.km);
+    // Boîte « Canada ou États-Unis ? » de l'évaluation (8 oct.) : MMR, taux ajusté et dépense → section Export ; verdict É.-U. → destination.
+    if (poser('f-mmrinitial', p.mmr)) { poser('f-mmrinitialdate', new Date().toISOString().slice(0, 10)); morceaux.push('MMR ' + p.mmr + ' $ US'); }
+    poser('f-taux', p.tauxUs); poser('f-defense', p.depenseUs);
+    if (p.destination && /^(US|CAN|DETAIL)$/.test(p.destination) && el('f-destination') && !valeur('f-destination')) { val('f-destination', p.destination); this.basculerExport(); }
     this.rendreEblock();
     this.recalculer();
     // Le lien CARFAX qu'eBlock fournit (rapport public) s'attache au véhicule
@@ -890,18 +902,29 @@
   };
 
   /* ------------------------------ Divers ------------------------------- */
+  // L'écart retiré au taux du jour : le paramètre du propriétaire (Export.gs, boîte Canada / É.-U.), 3 % par défaut.
+  Fiche.prototype.ecartTaux = function () { var p = AMX.export && AMX.export.params ? AMX.export.params() : null; var e = p && typeof p.ecartPct === 'number' ? p.ecartPct : 3; return e; };
   Fiche.prototype.obtenirTaux = function () {
     var self = this, btn = this.btnTaux;
     if (this.verrouillee) return;
     btn.classList.add('occupe');
-    fetch(URL_TAUX).then(function (r) { return r.json(); }).then(function (d) {
-      var obs = d && d.observations && d.observations[0];
-      var brut = obs && obs.FXUSDCAD && parseFloat(obs.FXUSDCAD.v);
-      if (!brut) throw new Error('taux introuvable');
-      var ajuste = brut * 0.98; // taux Banque du Canada moins 2 %
+    var ecart = this.ecartTaux();
+    var appliquer = function (brut, source) {
+      var ajuste = Math.round(brut * (1 - ecart / 100) * 10000) / 10000;   // même formule qu'Export.gs et que la boîte Canada / É.-U.
       val('f-taux', ajuste.toFixed(4));
       self.recalculer();
-      AMX.toast('Taux Banque du Canada ' + brut.toFixed(4) + ' → ' + ajuste.toFixed(4) + ' (−2 %)', 'ok', 5000);
+      AMX.toast('Taux Banque du Canada ' + brut.toFixed(4) + (source ? ' (' + source + ')' : '') + ' → ' + ajuste.toFixed(4) + ' (−' + ecart + ' %)', 'ok', 5000);
+    };
+    // Le serveur a le taux du jour (cache 6 h, dernier taux en repli) ; sinon la Banque du Canada directement.
+    var serveur = (AMX.export && AMX.export.charger) ? AMX.export.charger().then(function (d) { var t = d && d.taux; if (t && t.ok && t.taux) { appliquer(t.taux, t.date || t.source); return true; } return false; }, function () { return false; }) : Promise.resolve(false);
+    serveur.then(function (fait) {
+      if (fait) return;
+      return fetch(URL_TAUX).then(function (r) { return r.json(); }).then(function (d) {
+        var obs = d && d.observations && d.observations[0];
+        var brut = obs && obs.FXUSDCAD && parseFloat(obs.FXUSDCAD.v);
+        if (!brut) throw new Error('taux introuvable');
+        appliquer(brut, obs.d || '');
+      });
     }).catch(function () {
       AMX.toast('Taux introuvable — entrez-le manuellement.', 'erreur');
     }).then(function () { btn.classList.remove('occupe'); });

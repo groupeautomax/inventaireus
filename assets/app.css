@@ -668,3 +668,18 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 .puce.texto { background: #E6F4EC; color: #0B6B35; border-color: #BFE3CC; }
 .admin-page .compte-textos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .admin-page .champ-texto .aide { display: block; font-size: 11px; color: var(--encre-3); line-height: 1.4; margin-top: 4px; }
+
+/* ---- Demande de travaux au service (8 oct.) : puces BT et formulaire ---- */
+.puce.dem-puce { font-weight: 700; }
+.puce.dem-puce.dem-envoyee { background: #FFF1D6; color: #8A5A00; border: 1px solid #F3D28B; }
+.puce.dem-puce.dem-approuvee { background: var(--vert-clair); color: var(--vert); border: 1px solid #9BD3B3; }
+.puce.dem-puce.dem-retournee { background: #FDECEC; color: #8A1D1D; border: 1px solid #F3B4B4; }
+.puce.dem-puce.dem-aucune { background: var(--gris-bg); color: var(--encre-3); }
+a.puce.dem-puce:hover { text-decoration: none; filter: brightness(.96); }
+.svc-travaux { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; margin-bottom: 6px; }
+.svc-travaux .case { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding: 4px 0; }
+.svc-decision .btn { white-space: nowrap; }
+.svc-demande dl.kv.serre dd { word-break: break-word; }
+.svc-etape-demande { margin-top: 4px; }
+.svc-verdict { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; }
+@media (max-width: 640px) { .svc-travaux { grid-template-columns: 1fr; } }

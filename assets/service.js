@@ -14,6 +14,16 @@
    Routes serveur :
      GET  ?service=1&tout=1[&compagnie=]   POST serviceEtape, serviceAutoriser,
      GET  ?serviceVin=NIV                  serviceNote, serviceCibles, serviceMiroir
+
+   Demande de travaux (8 oct., Demande.gs) — Maxime : « quand c'est détail, on
+   doit pouvoir remplir un bon de travail (lavage, inspection, autres) ; le
+   service l'approuve en indiquant le no de BT pour que l'icône passe au
+   vert ; le service reçoit la demande par courriel et les ventes voient le
+   statut. » L'étape 3 devient « Décision : Détail / Wholesale » ; Détail
+   ouvre la demande ; icône orange (envoyée) → verte (BT approuvé) → rouge
+   (retournée avec une question).
+     GET  ?demandes=1&tout=1   POST demandeCreer, demandeAction (approuver /
+     retourner / renvoyer / annuler), demandeReglages
    ========================================================================= */
 (function () {
   'use strict';
@@ -87,6 +97,66 @@
     bloc: blocRegistre
   };
 
+  /* ----------------------- Demandes de travaux (AMX.demandes) -------------------
+     Cache partagé par le service, le registre Detail (puces) et la fiche du véhicule. */
+  var DEM_ETATS = { envoyee: { libelle: 'Envoyée au service', couleur: 'ambre', puce: 'attention' }, approuvee: { libelle: 'BT approuvé', couleur: 'vert', puce: 'ok' }, retournee: { libelle: 'Retournée (question du service)', couleur: 'rouge', puce: 'alerte' }, annulee: { libelle: 'Annulée', couleur: 'gris', puce: '' } };
+  var DEM_TRAVAUX = [{ id: 'lavage', libelle: 'Lavage' }, { id: 'inspection', libelle: 'Inspection / safety' }, { id: 'mecanique', libelle: 'Mécanique' }, { id: 'carrosserie', libelle: 'Carrosserie' }, { id: 'esthetique', libelle: 'Esthétique' }, { id: 'photos', libelle: 'Photos' }, { id: 'autre', libelle: 'Autre' }];
+  var demCache = { rep: null, quand: 0, promesse: null };
+  (function () { var o = AMX.cacheLocal && AMX.cacheLocal.lire('demandes', 7 * 86400000); if (o && o.donnees && Array.isArray(o.donnees.demandes)) { demCache.rep = o.donnees; demCache.quand = 0; } })();
+  AMX.demandes = {
+    charger: function (force) {
+      if (!force && demCache.rep && Date.now() - demCache.quand < 60000) return Promise.resolve(demCache.rep);
+      if (demCache.promesse) return demCache.promesse;
+      demCache.promesse = AMX.get({ demandes: 1, tout: 1 }).then(function (d) {
+        demCache.promesse = null;
+        if (!d || d.refuse || !d.ok) { if (d && /route/i.test(d.erreur || '')) demCache.indisponible = true; return demCache.rep || { ok: false, demandes: [] }; }
+        demCache.rep = d; demCache.quand = Date.now(); demCache.indisponible = false;
+        if (AMX.cacheLocal) AMX.cacheLocal.ecrire('demandes', d);
+        document.dispatchEvent(new CustomEvent('amx:demandes'));
+        return d;
+      }, function (e) { demCache.promesse = null; return demCache.rep || { ok: false, demandes: [] }; });
+      return demCache.promesse;
+    },
+    enCache: function () { return demCache.rep ? demCache.rep.demandes : null; },
+    travaux: function () { return (demCache.rep && demCache.rep.travaux) || DEM_TRAVAUX; },
+    resume: function () { return (demCache.rep && demCache.rep.resume) || null; },
+    // La demande vivante du NIV (envoyée / retournée), sinon la plus récente.
+    parVin: function (vin) {
+      vin = String(vin || '').toUpperCase();
+      var l = demCache.rep ? demCache.rep.demandes : [], meilleure = null;
+      l.forEach(function (d) {
+        if (String(d.vin).toUpperCase() !== vin) return;
+        var vivante = d.etat === 'envoyee' || d.etat === 'retournee', mv = meilleure && (meilleure.etat === 'envoyee' || meilleure.etat === 'retournee');
+        if (!meilleure || (vivante && !mv) || (vivante === mv && String(d.maj) > String(meilleure.maj))) meilleure = d;
+      });
+      return meilleure;
+    },
+    poser: function (demande) {
+      if (!demande) return;
+      if (!demCache.rep) demCache.rep = { ok: true, demandes: [], travaux: DEM_TRAVAUX };
+      var l = demCache.rep.demandes, trouve = false;
+      for (var i = 0; i < l.length; i++) if (l[i].id === demande.id) { l[i] = demande; trouve = true; }
+      if (!trouve) l.unshift(demande);
+      if (AMX.cacheLocal) AMX.cacheLocal.ecrire('demandes', demCache.rep);
+      document.dispatchEvent(new CustomEvent('amx:demandes'));
+    },
+    vider: function () { demCache.rep = null; demCache.quand = 0; if (AMX.cacheLocal) AMX.cacheLocal.oublier('demandes'); },
+    etat: function (vin) { var d = AMX.demandes.parVin(vin); return d ? d.etat : ''; },
+    libelle: function (etat) { return (DEM_ETATS[etat] || {}).libelle || etat || ''; }
+  };
+  // La puce « BT » d'un véhicule : grise (aucune demande) / orange (envoyée) / verte (approuvée, no) / rouge (retournée).
+  AMX.demandePuce = function (vin, opts) {
+    opts = opts || {};
+    var d = AMX.demandes.parVin(vin);
+    if (!d || d.etat === 'annulee') return opts.toujours ? h('span.puce.dem-puce.dem-aucune', { text: 'BT', title: 'Aucune demande de travaux au service' }) : null;
+    var e = DEM_ETATS[d.etat] || DEM_ETATS.envoyee;
+    var texte = d.etat === 'approuvee' ? 'BT ' + (d.btNo || '✓') : (d.etat === 'retournee' ? 'BT · question' : 'BT · demandé');
+    var titre = e.libelle + (d.etat === 'envoyee' && d.heuresAttente !== null && d.heuresAttente !== undefined ? ' — il y a ' + AMX.demandes.heures(d.heuresAttente) : '') + (d.etat === 'approuvee' ? ' par ' + (d.approuvePar || '') : '') + (d.etat === 'retournee' && d.commentaire ? ' : ' + d.commentaire : '') + ' — cliquez pour le suivi service';
+    var el = h('a.puce.dem-puce.dem-' + d.etat + (e.puce ? '.' + e.puce : ''), { href: AMX.lien('service', 'encours', { vin: vin }), text: texte, title: titre, onclick: function (ev) { ev.stopPropagation(); } });
+    return el;
+  };
+  AMX.demandes.heures = function (hrs) { hrs = Number(hrs) || 0; if (hrs < 1) return 'moins d\'une heure'; if (hrs < 48) return Math.round(hrs) + ' h'; return Math.round(hrs / 24) + ' j'; };
+
   /* ------------------------------ Parcours -------------------------------- */
   // Neuf pastilles : fait (vert), en cours (bleu), à faire (gris), sauté (hachuré),
   // autorisation en attente (ambre) ou refusée (rouge), verrouillé (cadenas).
@@ -125,9 +195,11 @@
         s.joursTotal !== null && s.joursTotal !== undefined ? h('span.puce' + (s.enRetard ? '.alerte' : ''), { text: s.joursTotal + ' j depuis l\'arrivée' }) : null
       ]));
       zone.appendChild(parcours(s));
-      if (s.statut === 'encours' && s.etapeCourante === 'autorisation') zone.appendChild(h('div.alerte-bloc.attention', { style: { marginTop: '8px' } }, [h('span', { html: I.alerte }), h('div', 'En attente de l\'autorisation détail : le BT ne peut pas être ouvert.')]));
+      if (s.statut === 'encours' && s.etapeCourante === 'autorisation') zone.appendChild(h('div.alerte-bloc.attention', { style: { marginTop: '8px' } }, [h('span', { html: I.alerte }), h('div', 'En attente de la décision Détail / Wholesale : le BT ne peut pas être ouvert.')]));
+      var dp = AMX.demandePuce(v.vin); if (dp) zone.appendChild(h('div', { style: { marginTop: '8px' } }, [dp]));
     };
     AMX.service.charger().then(dessiner).catch(function (e) { AMX.vider(zone); zone.className = 'doux petit'; zone.textContent = 'Suivi indisponible : ' + AMX.erreurTexte(e); });
+    AMX.demandes.charger().catch(function () {});
     return bloc;
   }
 
@@ -155,16 +227,20 @@
     this.charger();
     this.surService = function () { self.suivis = AMX.service.enCache() || self.suivis; self.construireRail(); self.rendre(); AMX.rafraichirSousBarre(); };
     document.addEventListener('amx:service', this.surService);
+    // Demandes de travaux (8 oct.) : puces BT sur les lignes, bloc dans le panneau, KPI « au service ».
+    this.surDemandes = function () { if (!self.detruit) self.rendre(); };
+    document.addEventListener('amx:demandes', this.surDemandes);
+    AMX.demandes.charger().then(this.surDemandes).catch(function () {});
     // Achats eBlock : puce « eBlock · n dommages » sur les lignes, fiche dans le dossier (même cache que Fiches eBlock).
     this.surEblock = function () { if (!self.detruit) self.rendre(); };
     if (AMX.eblock) { AMX.eblock.charger().then(this.surEblock).catch(function () {}); document.addEventListener('amx:eblock', this.surEblock); }
     // Rafraîchissement périodique : sans frais=1 (le cache serveur suffit, il est vidé à chaque écriture).
-    this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) self.charger(); }, 120000);
+    this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) { self.charger(); AMX.demandes.charger(true).catch(function () {}); } }, 120000);
   }
   // La compagnie n'est PAS remise à zéro : c'est le choix du site (AMX.compagnieChoisie), gardé
   // d'un onglet et d'une page à l'autre tant que Maxime ne clique pas sur une autre concession.
   Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: AMX.compagnieChoisie('service'), etapes: null, retard: false }; };
-  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); };
+  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); document.removeEventListener('amx:demandes', this.surDemandes); };
   Suivi.prototype.naviguer = function (ctx) {
     if (ctx.onglet !== this.onglet) { this.onglet = ctx.onglet; this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || ''; this.construireRail(); this.rendre(); }
     else if (ctx.params.vin && ctx.params.vin !== this.selection) { this.selection = ctx.params.vin; this.rendre(); }
@@ -334,6 +410,7 @@
     } else {
       if (f.etapes && this.onglet !== 'termines') l = l.filter(function (s) { return f.etapes.indexOf(s.etapeCourante) >= 0; });
       if (f.retard) l = l.filter(function (s) { return s.enRetard; });
+      if (f.demandes) l = l.filter(function (s) { var e = AMX.demandes.etat(s.vin); return e === 'envoyee' || e === 'retournee'; });
     }
     if (f.recherche) {
       var t = f.recherche.trim().toLowerCase();
@@ -390,6 +467,10 @@
     this.elKpis.appendChild(kpi(moy === null ? '—' : moy + ' j', 'Moyenne → ligne', { classe: 'neutre', sous: prets.length ? 'sur ' + prets.length + ' prêt' + (prets.length > 1 ? 's' : '') + ' (30 j)' : 'aucun prêt (30 j)' }));
     this.elKpis.appendChild(kpi(prets.length, 'Prêts 30 j', { sous: 'passés en stock', actif: this.onglet === 'termines', onclick: function () { AMX.aller('service', 'termines'); } }));
     if (refuses) this.elKpis.appendChild(kpi(refuses, 'Refusés 30 j', { classe: 'neutre', sous: 'vers wholesale' }));
+    // Demandes de travaux en attente du service (8 oct.)
+    var dem = (AMX.demandes.enCache() || []).filter(function (d) { return (!f.compagnie || String(d.compagnie || '').toUpperCase() === f.compagnie); });
+    var attente = dem.filter(function (d) { return d.etat === 'envoyee'; }).length, retournees = dem.filter(function (d) { return d.etat === 'retournee'; }).length;
+    if (AMX.demandes.enCache()) this.elKpis.appendChild(kpi(attente, 'Au service', { classe: attente ? 'attention' : 'neutre', sous: retournees ? retournees + ' retournée' + (retournees > 1 ? 's' : '') + ' avec une question' : 'demandes en attente du no de BT', actif: f.demandes, onclick: function () { f.demandes = !f.demandes; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.rendre(); } }));
   };
 
   Suivi.prototype.rendreOutils = function (liste) {
@@ -400,6 +481,7 @@
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     var puces = [];
     if (f.retard) puces.push(['En retard', function () { f.retard = false; }]);
+    if (f.demandes) puces.push(['Au service (demande de travaux)', function () { f.demandes = false; }]);
     if (f.compagnie) puces.push([AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; AMX.choisirCompagnie(''); }]);
     if (f.etapes) puces.push([f.etapes.length + ' étape(s)', function () { f.etapes = null; }]);
     if (f.recherche) puces = [['« ' + f.recherche + ' » — tous les suivis' + (f.compagnie ? ', ' + (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : ''), function () { f.recherche = ''; }]];
@@ -435,7 +517,7 @@
       h('div.vignette', { title: s.hasPhotos ? 'Photos disponibles' : 'Aucune photo' }, [AMX.logoMarque(marque(s)), s.hasPhotos ? h('span.cam', { html: I.photo }) : null]),
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', { text: s.modele || '(modèle à préciser)' }),
-        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null, s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null, AMX.eblockPuce ? AMX.eblockPuce(s.vin) : null])
+        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, AMX.demandePuce(s.vin) || (s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null), s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null, AMX.eblockPuce ? AMX.eblockPuce(s.vin) : null])
       ]),
       h('div.cell.parcours', [h('span.l', 'Parcours'), parcours(s, { compact: true })]),
       h('div.cell.statut', [h('span.l', 'Étape'), h('span', [h('span.badge.' + (s.statut === 'encours' ? (s.etapeCourante === 'autorisation' ? 'ambre' : (s.enRetard ? 'rouge' : 'bleu')) : st.couleur), { text: etapeTexte })]), sousEtape ? h('span.jours' + (s.cibleEtape && s.joursEtape > s.cibleEtape ? '.alerte' : ''), { text: sousEtape }) : null]),
@@ -550,19 +632,63 @@
       parcours(s)
     ]);
 
-    // Autorisation détail — la porte
-    var blocAuto = h('div.bloc', [h('h3', ['Autorisation détail', accepte ? h('span.puce.ok', { text: 'Accepté' }) : (refuse ? h('span.puce.alerte', { text: 'Refusé' }) : h('span.puce.attention', { text: 'En attente' }))])]);
+    // Décision : Détail / Wholesale — la porte (8 oct. : « une action doit être prise
+    // dans le système lorsque dans le suivi on choisit wholesale ou détail »).
+    var dem = AMX.demandes.parVin(s.vin);
+    var demVivante = dem && (dem.etat === 'envoyee' || dem.etat === 'retournee') ? dem : null;
+    var blocAuto = h('div.bloc', [h('h3', ['Décision : Détail ou Wholesale', accepte ? h('span.puce.ok', { text: 'Détail' }) : (refuse ? h('span.puce.alerte', { text: 'Wholesale' }) : h('span.puce.attention', { text: 'À décider' }))])]);
+    // Le verdict de l'évaluation (boîte « Canada ou États-Unis ? »), quand il existe.
+    var zoneVerdict = h('div.svc-verdict.cache', { style: { marginBottom: '8px' } });
+    blocAuto.appendChild(zoneVerdict);
+    if (AMX.export && AMX.export.verdicts) AMX.export.verdicts().then(function (par) {
+      var u = par && par[String(s.vin).toUpperCase()]; if (!u || !u.verdict || !zoneVerdict.isConnected) return;
+      zoneVerdict.classList.remove('cache');
+      zoneVerdict.appendChild(h('span.puce' + (u.verdict === 'us' ? '.info' : (u.verdict === 'ca' ? '.ok' : '')), { text: 'Évaluation : ' + (u.verdict === 'us' ? 'plus rentable aux États-Unis' : (u.verdict === 'ca' ? 'plus rentable au Canada' : 'gros égal')) + ' (' + AMX.export.texteVerdict(u) + ')' }));
+      zoneVerdict.appendChild(h('span.doux.petit', { text: ' gros É.-U. ' + AMX.fmtArgent(u.grosUS) + ' vs gros Canada ' + AMX.fmtArgent(u.grosCA) + (u.margeDetailCA !== null && u.margeDetailCA !== undefined ? ' · marge détail Canada ' + AMX.fmtArgent(u.margeDetailCA) : '') }));
+      zoneVerdict.appendChild(h('a.petit', { href: AMX.lien('outils', 'evaluation', { vin: s.vin }), text: ' Ouvrir l\'évaluation', style: { marginLeft: '6px' } }));
+    }).catch(function () {});
     if (accepte || refuse) {
-      blocAuto.appendChild(h('div.doux.petit', { style: { marginBottom: '8px' } }, [(accepte ? 'Accepté au détail' : 'Refusé au détail') + ' le ' + AMX.fmtDate(s.autorisation.le, true) + (s.autorisation.par ? ' par ' + nomCourt(s.autorisation.par) : ''), refuse && s.autorisation.motif ? h('div', { style: { color: 'var(--rouge)', marginTop: '4px' } }, ['Motif : ' + s.autorisation.motif]) : null]));
+      blocAuto.appendChild(h('div.doux.petit', { style: { marginBottom: '8px' } }, [(accepte ? 'Accepté au détail' : 'Refusé au détail (wholesale)') + ' le ' + AMX.fmtDate(s.autorisation.le, true) + (s.autorisation.par ? ' par ' + nomCourt(s.autorisation.par) : ''), refuse && s.autorisation.motif ? h('div', { style: { color: 'var(--rouge)', marginTop: '4px' } }, ['Motif : ' + s.autorisation.motif]) : null]));
       if (refuse) blocAuto.appendChild(h('div.alerte-bloc.erreur', { style: { marginBottom: '8px' } }, [h('span', { html: I.alerte }), h('div', 'Pas d\'inspection, de lavage ni de photos pour le détail. Le véhicule part en wholesale : transférez-le vers le registre Canada ou É.-U. ci-dessous.')]));
-      if (peutAutoriser) blocAuto.appendChild(h('div.actions-ligne', [h('button.btn.fantome.petit', { text: 'Remettre en attente', onclick: function () { AMX.confirmer('Remettre l\'autorisation en attente', 'La décision « ' + (accepte ? 'accepté' : 'refusé') + ' » sera effacée pour ' + s.vin + '.').then(function (ok) { if (ok) self.ecrire({ action: 'serviceAutoriser', vin: s.vin, decision: 'annuler' }); }); } })]));
+      if (peutAutoriser) blocAuto.appendChild(h('div.actions-ligne', [h('button.btn.fantome.petit', { text: 'Remettre en attente', onclick: function () { AMX.confirmer('Remettre la décision en attente', 'La décision « ' + (accepte ? 'détail' : 'wholesale') + ' » sera effacée pour ' + s.vin + '.').then(function (ok) { if (ok) self.ecrire({ action: 'serviceAutoriser', vin: s.vin, decision: 'annuler' }); }); } })]));
     } else {
-      blocAuto.appendChild(h('div.alerte-bloc.attention', { style: { marginBottom: '10px' } }, [h('span', { html: I.alerte }), h('div', 'Tant que le véhicule n\'est pas accepté au détail, le BT, la mécanique, la carrosserie, l\'esthétique et les photos restent verrouillés.')]));
-      if (peutAutoriser) blocAuto.appendChild(h('div.actions-ligne', [
-        h('button.btn.primaire', { html: I.ok + '<span>Accepter au détail</span>', onclick: function () { self.ecrire({ action: 'serviceAutoriser', vin: s.vin, decision: 'accepte' }); } }),
-        h('button.btn.danger', { text: 'Refuser (wholesale)', onclick: function () { self.modaleRefus(s); } })
+      blocAuto.appendChild(h('div.alerte-bloc.attention', { style: { marginBottom: '10px' } }, [h('span', { html: I.alerte }), h('div', 'Détail : la demande de travaux part au service (lavage, inspection…) et le BT reste verrouillé jusqu\'à son approbation. Wholesale : le véhicule est transféré tout de suite au registre Canada ou É.-U.')]));
+      if (peutAutoriser) blocAuto.appendChild(h('div.actions-ligne.svc-decision', [
+        h('button.btn.primaire', { html: I.ok + '<span>Détail → demander les travaux</span>', title: 'Accepte au détail et envoie la demande de travaux au service', onclick: function () { self.modaleDemande(s, null); } }),
+        h('button.btn', { text: 'Détail sans demande', title: 'Accepter au détail sans envoyer de demande au service (BT à ouvrir à la main)', onclick: function () { self.ecrire({ action: 'serviceAutoriser', vin: s.vin, decision: 'accepte' }); } }),
+        h('button.btn.danger', { text: 'Wholesale (Canada / É.-U.)', onclick: function () { self.modaleRefus(s); } })
       ]));
-      else blocAuto.appendChild(h('div.doux.petit', 'Seuls les gestionnaires et administrateurs peuvent accepter ou refuser (droit « Modifier les coûts »).'));
+      else blocAuto.appendChild(h('div.doux.petit', 'Seuls les gestionnaires et administrateurs peuvent décider (droit « Modifier les coûts »).'));
+    }
+
+    // Demande de travaux au service (8 oct.)
+    var blocDemande = null;
+    if (s.statut === 'encours' && (accepte || dem)) {
+      var e0 = dem ? (DEM_ETATS[dem.etat] || DEM_ETATS.envoyee) : null;
+      blocDemande = h('div.bloc.svc-demande', [h('h3', ['Demande de travaux au service', dem && dem.etat !== 'annulee' ? h('span.puce' + (e0.puce ? '.' + e0.puce : ''), { text: e0.libelle }) : h('span.puce', { text: 'Aucune' })])]);
+      if (dem && dem.etat !== 'annulee') {
+        var travauxTexte = (dem.travauxLibelles || []).concat(dem.autre ? ['Autre : ' + dem.autre] : []).join(', ');
+        blocDemande.appendChild(h('dl.kv.serre', { style: { marginBottom: '8px' } }, [
+          h('dt', 'Travaux'), h('dd', { text: travauxTexte || '—' }),
+          dem.notes ? h('dt', 'Notes') : null, dem.notes ? h('dd', { text: dem.notes }) : null,
+          dem.budget !== null && dem.budget !== undefined && dem.budget !== '' ? h('dt', 'Budget') : null, dem.budget !== null && dem.budget !== undefined && dem.budget !== '' ? h('dd', { text: AMX.fmtArgent(dem.budget) }) : null,
+          h('dt', 'Demandée'), h('dd', { text: AMX.fmtDate(dem.demandeLe, true) + (dem.demandePar ? ' par ' + nomCourt(dem.demandePar) : '') + (dem.nDestinataires ? ' · ' + dem.nDestinataires + ' destinataire' + (dem.nDestinataires > 1 ? 's' : '') : '') + (dem.urgence === 'client' ? ' · CLIENT EN ATTENTE' : '') }),
+          dem.etat === 'approuvee' ? h('dt', 'BT') : null, dem.etat === 'approuvee' ? h('dd', [h('span.puce.ok.mono', { text: 'BT ' + dem.btNo }), h('span.doux.petit', { text: ' approuvé le ' + AMX.fmtDate(dem.approuveLe, true) + (dem.approuvePar ? ' par ' + nomCourt(dem.approuvePar) : '') })]) : null,
+          dem.etat === 'retournee' ? h('dt', 'Question') : null, dem.etat === 'retournee' ? h('dd', { style: { color: 'var(--rouge)' }, text: (dem.commentaire || '') + (dem.approuvePar ? ' — ' + nomCourt(dem.approuvePar) : '') }) : null,
+          dem.etat === 'envoyee' ? h('dt', 'Attente') : null, dem.etat === 'envoyee' ? h('dd', { text: 'depuis ' + AMX.demandes.heures(dem.heuresAttente) + (dem.rappels ? ' · ' + dem.rappels + ' rappel' + (dem.rappels > 1 ? 's' : '') + ' envoyé' + (dem.rappels > 1 ? 's' : '') : '') + ' — le service a reçu un courriel avec un lien pour approuver' }) : null
+        ]));
+        var actionsDem = h('div.actions-ligne');
+        if (demVivante && peutEtape) {
+          actionsDem.appendChild(h('button.btn.petit' + (dem.etat === 'retournee' ? '.primaire' : ''), { text: dem.etat === 'retournee' ? 'Corriger et renvoyer' : 'Modifier et renvoyer', onclick: function () { self.modaleDemande(s, dem); } }));
+          // Le service connecté peut approuver ici (même geste que la page du courriel).
+          actionsDem.appendChild(h('button.btn.petit', { text: 'Approuver avec un no de BT', title: 'Pour le service : approuve la demande et remplit l\'étape « BT ouvert »', onclick: function () { self.modaleApprouver(s, dem); } }));
+          actionsDem.appendChild(h('button.btn.fantome.petit', { text: 'Annuler la demande', onclick: function () { AMX.confirmer('Annuler la demande de travaux', 'La demande pour ' + s.vin + ' sera annulée ; le service n\'y donnera pas suite.', { ok: 'Annuler la demande', danger: true }).then(function (ok) { if (ok) self.actionDemande({ action: 'demandeAction', id: dem.id, geste: 'annuler' }); }); } }));
+        }
+        if (actionsDem.childNodes.length) blocDemande.appendChild(actionsDem);
+      } else {
+        blocDemande.appendChild(h('div.doux.petit', { style: { marginBottom: '8px' }, text: s.btNo ? 'BT ' + s.btNo + ' ouvert à la main — aucune demande n\'est passée par le service.' : 'Aucune demande envoyée au service : le BT est à ouvrir à la main, ou envoyez la demande (lavage, inspection, mécanique…).' }));
+        if (peutEtape && !s.btNo) blocDemande.appendChild(h('div.actions-ligne', [h('button.btn.primaire.petit', { html: I.ok + '<span>Demander les travaux au service</span>', onclick: function () { self.modaleDemande(s, null); } })]));
+      }
     }
 
     // Étapes
@@ -588,6 +714,8 @@
       ]);
       var res = x.resultat && RESULTATS[x.resultat];
       if (x.no || x.note || res) ligne.appendChild(h('div.svc-etape-detail', [res ? h('span.badge.' + res.couleur, { text: res.libelle }) : null, x.no ? h('span.puce.info.mono', { text: (e.id === 'bt' ? 'BT ' : '') + x.no }) : null, x.note ? h('span.doux.petit', { text: x.note }) : null]));
+      // Étape « BT ouvert » : l'état de la demande au service (orange / vert / rouge), sans refaire la demande.
+      if (e.id === 'bt' && dem && dem.etat !== 'annulee') { var eb = DEM_ETATS[dem.etat] || DEM_ETATS.envoyee; ligne.appendChild(h('div.svc-etape-detail.svc-etape-demande', [h('span.puce' + (eb.puce ? '.' + eb.puce : ''), { text: dem.etat === 'approuvee' ? 'BT ' + dem.btNo + ' approuvé par le service' : (dem.etat === 'retournee' ? 'Retournée : ' + (dem.commentaire || '') : 'Demande envoyée au service — en attente du no de BT (' + AMX.demandes.heures(dem.heuresAttente) + ')') })])); }
       if (e.directeur && !directeur) {
         if (x.etat !== 'fait') ligne.appendChild(h('div.doux.petit', { style: { marginTop: '6px' } }, 'Réservée aux directeurs (gestionnaires et administrateurs).'));
       } else if (peutEtape && !verrou && s.statut !== 'refuse') {
@@ -703,8 +831,90 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocResume, blocDossier, blocAuto, blocEtapes, blocNotes, blocVehicule, blocWholesale
+      blocResume, blocDossier, blocAuto, blocDemande, blocEtapes, blocNotes, blocVehicule, blocWholesale
     ]));
+  };
+
+  /* ---------------------- Demande de travaux : modales ---------------------- */
+  // Une écriture de demande : le serveur renvoie la demande (et le suivi à jour).
+  Suivi.prototype.actionDemande = function (payload, message) {
+    var self = this, etat = document.getElementById('svc-etat');
+    this.ecritures++;
+    if (etat) etat.textContent = 'Envoi…';
+    return AMX.post(payload).then(function (d) {
+      self.ecritures--;
+      if (!d || d.refuse || d.ok === false) {
+        var motif = (d && (d.erreur || d.message)) || 'action refusée';
+        AMX.toast('Non enregistré — ' + motif, d && d.bloque ? 'attention' : 'erreur', 7000);
+        if (etat) etat.textContent = motif;
+        throw new Error(motif);
+      }
+      if (d.demande) AMX.demandes.poser(d.demande);
+      if (d.suivi) AMX.service.remplacer(d.suivi);
+      AMX.toast(d.message || message || 'Enregistré', d.avertissement ? 'attention' : 'ok', d.avertissement ? 8000 : 4000);
+      if (etat) etat.textContent = 'Enregistré à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+      AMX.inventaire.lire('DETAIL', true).catch(function () {});
+      return d;
+    }, function (e) {
+      self.ecritures--;
+      if (!(e && /Non enregistré|refusée|action refusée/.test(e.message))) AMX.toast('Réponse du serveur incertaine — relecture… (' + AMX.erreurTexte(e) + ')', 'attention', 6000);
+      AMX.demandes.charger(true).catch(function () {}); AMX.service.charger(true).catch(function () {});
+      throw e;
+    });
+  };
+  // Le formulaire : cases (lavage, inspection…), autre, notes, budget, urgence. `existante` = corriger et renvoyer.
+  Suivi.prototype.modaleDemande = function (s, existante) {
+    var self = this;
+    var travaux = AMX.demandes.travaux();
+    var coches = {};
+    (existante ? existante.travaux : ['lavage', 'inspection']).forEach(function (t) { coches[t] = true; });
+    var cases = h('div.svc-travaux');
+    var champAutre = h('input.saisie', { type: 'text', placeholder: 'Précisez (ex. : essuie-glaces, tapis)', maxlength: 300, value: existante ? existante.autre || '' : '' });
+    var inputs = {};
+    travaux.forEach(function (t) {
+      var cb = h('input', { type: 'checkbox', checked: !!coches[t.id] });
+      inputs[t.id] = cb;
+      cb.addEventListener('change', function () { if (t.id === 'autre') { champAutre.style.display = cb.checked ? '' : 'none'; if (cb.checked) champAutre.focus(); } });
+      cases.appendChild(h('label.case', [cb, h('span', { text: t.libelle })]));
+    });
+    champAutre.style.display = coches.autre ? '' : 'none';
+    var notes = h('textarea.saisie', { rows: 3, placeholder: 'Ce que le service doit savoir (client, délai, pièces…)', maxlength: 1000 });
+    notes.value = existante ? existante.notes || '' : '';
+    var budget = h('input.saisie', { type: 'number', inputmode: 'numeric', placeholder: 'ex. 2000', min: '0', step: '50', value: existante && existante.budget !== null && existante.budget !== undefined ? existante.budget : '' });
+    var urgence = h('select.saisie', [h('option', { value: 'normal', text: 'Normal' }), h('option', { value: 'client', text: 'Client en attente (urgent)' })]);
+    urgence.value = existante && existante.urgence === 'client' ? 'client' : 'normal';
+    var corps = h('div', [
+      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: (s.modele || '') + ' · ' + s.vin + (s.stock ? ' · # ' + s.stock : '') + ' — le service reçoit un courriel avec un lien : il inscrit le numéro du bon de travail, l\'étape « BT ouvert » se remplit et l\'icône passe au vert.' + (existante ? '' : (s.autorisation.decision === 'accepte' ? '' : ' Le véhicule est accepté au détail du même coup.')) }),
+      existante && existante.etat === 'retournee' ? h('div.alerte-bloc.erreur', { style: { marginBottom: '10px' } }, [h('span', { html: I.alerte }), h('div', { text: 'Question du service : ' + (existante.commentaire || '') })]) : null,
+      h('div.champ', [h('label', 'Travaux demandés'), cases, champAutre]),
+      h('div.grille.c2', { style: { marginTop: '10px' } }, [h('div.champ', [h('label', 'Budget autorisé ($)'), budget]), h('div.champ', [h('label', 'Urgence'), urgence])]),
+      h('div.champ', { style: { marginTop: '10px' } }, [h('label', 'Notes pour le service'), notes])
+    ]);
+    AMX.modale({ titre: existante ? 'Corriger la demande de travaux' : 'Demande de travaux au service', corps: corps,
+      boutons: [{ texte: 'Annuler' }, { texte: existante ? 'Renvoyer au service' : 'Envoyer au service', classe: 'primaire', action: function () {
+        var choisis = Object.keys(inputs).filter(function (k) { return inputs[k].checked; });
+        var autre = champAutre.value.trim();
+        if (inputs.autre.checked && !autre) { champAutre.style.borderColor = 'var(--rouge)'; champAutre.focus(); return false; }
+        if (!autre) choisis = choisis.filter(function (k) { return k !== 'autre'; });
+        if (!choisis.length) { AMX.toast('Cochez au moins un travail.', 'attention'); return false; }
+        var payload = existante ? { action: 'demandeAction', id: existante.id, geste: 'renvoyer' } : { action: 'demandeCreer', vin: s.vin };
+        Object.assign(payload, { travaux: choisis, autre: autre, notes: notes.value.trim(), budget: budget.value.trim(), urgence: urgence.value });
+        return self.actionDemande(payload).then(function () { return true; }, function () { return false; });
+      } }] });
+  };
+  // Pour le service connecté : approuver (no de BT) ou retourner avec une question.
+  Suivi.prototype.modaleApprouver = function (s, dem) {
+    var self = this;
+    var no = h('input.saisie.mono', { type: 'text', placeholder: 'No du bon de travail', maxlength: 40 });
+    var question = h('textarea.saisie', { rows: 2, placeholder: 'Question ou raison du retour (si vous retournez la demande)', maxlength: 500 });
+    AMX.modale({ titre: 'Approuver la demande — ' + s.vin, corps: h('div', [
+        h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: 'Travaux : ' + ((dem.travauxLibelles || []).concat(dem.autre ? ['Autre : ' + dem.autre] : []).join(', ') || '—') + (dem.notes ? ' — ' + dem.notes : '') }),
+        h('div.champ', [h('label', 'No du BT'), no]),
+        h('div.champ', { style: { marginTop: '10px' } }, [h('label', 'Ou retourner avec une question'), question])
+      ]),
+      boutons: [{ texte: 'Annuler' },
+        { texte: 'Retourner aux ventes', classe: 'danger', action: function () { if (!question.value.trim()) { question.style.borderColor = 'var(--rouge)'; question.focus(); return false; } return self.actionDemande({ action: 'demandeAction', id: dem.id, geste: 'retourner', commentaire: question.value.trim() }).then(function () { return true; }, function () { return false; }); } },
+        { texte: 'Approuver', classe: 'primaire', action: function () { if (no.value.trim().length < 2) { no.style.borderColor = 'var(--rouge)'; no.focus(); return false; } return self.actionDemande({ action: 'demandeAction', id: dem.id, geste: 'approuver', btNo: no.value.trim() }).then(function () { return true; }, function () { return false; }); } }] });
   };
 
   /* ------------------------------- Modales -------------------------------- */
@@ -809,6 +1019,7 @@
       var r = { '# Stock': s.stock || '', 'VIN': s.vin, 'Modèle': s.modele || '', 'Compagnie': s.compagnie || '', 'Statut': (STATUTS[s.statut] || {}).libelle || s.statut, 'Étape courante': (etapeDef(s.etapeCourante, etapes) || {}).libelle || '', 'Jours depuis l\'arrivée': s.joursTotal === null ? '' : s.joursTotal, 'En retard': s.enRetard ? 'OUI' : '', 'Arrivée': AMX.fmtDate(s.arrivee),
         'Autorisation': s.autorisation.decision === 'accepte' ? 'Accepté' : (s.autorisation.decision === 'refuse' ? 'Refusé' : 'En attente'), 'Autorisé par': nomCourt(s.autorisation.par), 'Motif refus': s.autorisation.motif || '', 'BT no': s.btNo || '' };
       etapes.forEach(function (e) { if (e.id !== 'arrivee' && !e.porte) r[e.libelle] = fin(s, e.id); });
+      var dx = AMX.demandes.parVin(s.vin); r['Demande au service'] = dx && dx.etat !== 'annulee' ? AMX.demandes.libelle(dx.etat) + (dx.btNo ? ' (BT ' + dx.btNo + ')' : '') : '';
       r['Dernière note'] = s.notes && s.notes.length ? s.notes[s.notes.length - 1].texte : '';
       r['Mis à jour'] = AMX.fmtDate(s.maj, true);
       return r;

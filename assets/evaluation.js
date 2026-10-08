@@ -34,6 +34,67 @@
   var URL_TORQUE = 'https://dealer.torquemanagement.ca/vehicle-management/evaluations/list';
   var URL_CARFAX_COMPTE = 'https://dealer.carfax.ca/';
   var TOLERANCE_KM = 30000;
+  var URL_MMR = 'https://mmr.manheim.com/';
+
+  /* ------------------- AMX.export : Canada ou États-Unis ? -------------------
+     LE calcul de gros É.-U., le même que Export.gs (serveur), que la section
+     Export de la fiche d'achat et que l'app (ExportCalc) :
+       tauxAjusté = taux × (1 − écart %) ; converti = MMR × tauxAjusté ;
+       grosUS ($ CA) = converti − ajustement (6 000 $ retirés APRÈS la conversion).
+     Les paramètres (préfixes de NIV exportables, écart, ajustement, pas des
+     flèches, dates d'encan) et le taux du jour (Banque du Canada) viennent de
+     GET ?exportParams=1, gardés 1 h dans la session. */
+  var EXPORT_DEFAUT = { prefixes: ['1', '4', '5'], ecartPct: 3, ecartAchatPct: 4, ecartEchangePct: 3, pasEcart: 0.5, ajustement: 6000, pasAjustement: 500, tauxManuel: 0, premierEncan: '', derniereExpedition: '' };
+  var exportCache = { rep: null, quand: 0, promesse: null };
+  (function () { try { var o = JSON.parse(sessionStorage.getItem('amx_export_params_v1') || 'null'); if (o && o.rep && Date.now() - o.quand < 3600000) { exportCache.rep = o.rep; exportCache.quand = o.quand; } } catch (e) {} })();
+  AMX.export = {
+    charger: function (force) {
+      if (!force && exportCache.rep && Date.now() - exportCache.quand < 3600000) return Promise.resolve(exportCache.rep);
+      if (exportCache.promesse) return exportCache.promesse;
+      exportCache.promesse = AMX.get({ exportParams: 1 }).then(function (d) {
+        exportCache.promesse = null;
+        if (!d || d.refuse || !d.ok) return exportCache.rep || { ok: false, params: EXPORT_DEFAUT, taux: { ok: false } };
+        exportCache.rep = d; exportCache.quand = Date.now();
+        try { sessionStorage.setItem('amx_export_params_v1', JSON.stringify({ rep: d, quand: exportCache.quand })); } catch (e) {}
+        document.dispatchEvent(new CustomEvent('amx:export'));
+        return d;
+      }, function () { exportCache.promesse = null; return exportCache.rep || { ok: false, params: EXPORT_DEFAUT, taux: { ok: false } }; });
+      return exportCache.promesse;
+    },
+    params: function () { return (exportCache.rep && exportCache.rep.params) || EXPORT_DEFAUT; },
+    taux: function () { return (exportCache.rep && exportCache.rep.taux) || null; },
+    peutModifier: function () { return !!(exportCache.rep && exportCache.rep.peutModifier); },
+    oublier: function () { exportCache.rep = null; exportCache.quand = 0; try { sessionStorage.removeItem('amx_export_params_v1'); } catch (e) {} },
+    // Les verdicts de toutes les évaluations (?evaluationsUs=1) : registre, panneau du suivi service. 5 min en mémoire.
+    verdicts: function (force) {
+      if (!force && exportCache.verdicts && Date.now() - exportCache.verdictsQuand < 300000) return Promise.resolve(exportCache.verdicts);
+      if (exportCache.pVerdicts) return exportCache.pVerdicts;
+      exportCache.pVerdicts = AMX.get({ evaluationsUs: 1 }).then(function (d) { exportCache.pVerdicts = null; if (d && d.ok) { exportCache.verdicts = d.parVin || {}; exportCache.verdictsQuand = Date.now(); } return exportCache.verdicts || {}; }, function () { exportCache.pVerdicts = null; return exportCache.verdicts || {}; });
+      return exportCache.pVerdicts;
+    },
+    oublierVerdicts: function () { exportCache.verdictsQuand = 0; },
+    exportable: function (vin) { var v = String(vin || '').trim().toUpperCase(); if (!v) return false; return (AMX.export.params().prefixes || []).some(function (p) { return v.indexOf(String(p).toUpperCase()) === 0; }); },
+    calculer: function (mmr, taux, ecartPct, ajustement) {
+      var m = nombre(mmr), t = nombre(taux), e = nombre(ecartPct), a = nombre(ajustement);
+      if (e === null) e = 0; if (a === null) a = 0;
+      var tauxAjuste = t !== null ? Math.round(t * (1 - e / 100) * 10000) / 10000 : null;
+      var converti = (m !== null && tauxAjuste !== null) ? Math.round(m * tauxAjuste) : null;
+      return { mmr: m, taux: t, ecartPct: e, tauxAjuste: tauxAjuste, converti: converti, ajustement: a, grosUS: converti !== null ? Math.round(converti - a) : null };
+    },
+    verdict: function (grosUS, grosCA, margeDetailCA) {
+      var u = nombre(grosUS), c = nombre(grosCA), md = nombre(margeDetailCA);
+      var out = { grosUS: u, grosCA: c, margeDetailCA: md, ecart: null, ecartPct: null, verdict: '' };
+      if (u === null || c === null) return out;
+      out.ecart = Math.round(u - c); out.ecartPct = c ? Math.round((u - c) / c * 1000) / 10 : null;
+      out.verdict = Math.abs(out.ecart) < 250 ? 'egal' : (out.ecart > 0 ? 'us' : 'ca');
+      return out;
+    },
+    texteVerdict: function (v) {
+      if (!v || !v.verdict) return '';
+      if (v.verdict === 'egal') return 'Égal (± ' + fmt(Math.abs(v.ecart)) + ')';
+      return (v.verdict === 'us' ? 'É.-U. +' : 'Canada +') + fmt(Math.abs(v.ecart));
+    }
+  };
 
   /* ------------------------------ Helpers ------------------------------ */
   function fmt(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : AMX.fmtArgent(n, 0); }
@@ -164,6 +225,42 @@
       '.eval-cible .btn { align-self: flex-start; margin-top: 4px; }',
       '.eval-cible.agressif { box-shadow: inset 4px 0 0 var(--rouge); } .eval-cible.standard { box-shadow: inset 4px 0 0 var(--vert); background: var(--vert-clair); } .eval-cible.conservateur { box-shadow: inset 4px 0 0 var(--bleu); }',
       '.eval-attente.mini { padding: 14px; font-size: 12px; }',
+      // Boîte « Canada ou États-Unis ? » (8 oct.)
+      '#sec-export .carte-corps { padding: 12px 14px; }',
+      '.eval-export-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }',
+      '.eval-export-tete h2 { margin: 0; font-size: 14px; }',
+      '.eval-export-tete .mini { color: var(--encre-3); }',
+      '.eval-export-tete .droite { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
+      '.eval-export-replie { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--encre-3); }',
+      '.eval-export-grille { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px 22px; align-items: start; }',
+      '.eval-export-calc { display: flex; flex-direction: column; gap: 8px; }',
+      '.eval-export-ligne { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }',
+      '.eval-export-ligne .champ { flex: 1 1 130px; min-width: 120px; }',
+      '.eval-export-ligne .op { height: 32px; display: flex; align-items: center; font-weight: 700; color: var(--encre-3); font-size: 16px; flex: none; }',
+      '.eval-export-champ-us input { background: var(--vert-clair); border-color: var(--vert); font-weight: 700; font-size: 15px; }',
+      '.eval-stepper { display: flex; align-items: center; gap: 0; }',
+      '.eval-stepper input { border-radius: var(--rayon-s) 0 0 var(--rayon-s); text-align: right; }',
+      '.eval-stepper .fleches { display: flex; flex-direction: column; border: 1px solid var(--ligne); border-left: none; border-radius: 0 var(--rayon-s) var(--rayon-s) 0; overflow: hidden; height: 32px; }',
+      '.eval-stepper .fleches button { border: none; background: var(--carte-2); color: var(--encre-2); width: 26px; height: 16px; line-height: 14px; font-size: 10px; cursor: pointer; padding: 0; }',
+      '.eval-stepper .fleches button:hover { background: var(--ligne); }',
+      '.eval-export-prereglages { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11.5px; color: var(--encre-3); }',
+      '.eval-export-prereglages button { font-size: 11px; padding: 3px 8px; }',
+      '.eval-export-chaine { font-size: 12.5px; color: var(--encre-2); line-height: 1.5; font-variant-numeric: tabular-nums; }',
+      '.eval-export-chaine b { font-size: 14px; }',
+      '.eval-export-taux { font-size: 11.5px; color: var(--encre-3); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
+      '.eval-export-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }',
+      '.eval-export-col { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; background: var(--fond); }',
+      '.eval-export-col .l { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; }',
+      '.eval-export-col .v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }',
+      '.eval-export-col .s { font-size: 11px; color: var(--encre-3); line-height: 1.35; }',
+      '.eval-export-col input { height: 30px; font-size: 14px; font-weight: 700; margin-top: 2px; }',
+      '.eval-export-col.us { box-shadow: inset 4px 0 0 var(--bleu); } .eval-export-col.ca { box-shadow: inset 4px 0 0 var(--vert); } .eval-export-col.detail { box-shadow: inset 4px 0 0 var(--ambre); }',
+      '.eval-export-col.gagnant { background: var(--vert-clair); border-color: var(--vert); }',
+      '.eval-export-verdict { margin-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }',
+      '.eval-export-verdict .badge { font-size: 13px; padding: 5px 12px; }',
+      '.eval-sommaire .item.verdict .v { color: #fff; } .eval-sommaire .item.verdict.us .v { color: #7CC4FF; } .eval-sommaire .item.verdict.ca .v { color: var(--vert-vif); }',
+      '@media (max-width: 1200px) { .eval-export-grille { grid-template-columns: 1fr; } }',
+      '@media (max-width: 900px) { .eval-export-cols { grid-template-columns: 1fr; } }',
       '.eval-pile { display: flex; flex-direction: column; gap: 12px; }',
       '.eval-note { margin: 0; font-size: 11.5px; color: var(--encre-3); line-height: 1.5; }',
       '#eval-detail-resume:not(:empty) { margin-top: 2px; }',
@@ -266,9 +363,15 @@
     this.minuterieAuto = null;
     this.filtres = { memeVersion: false, kmProche: false, tri: 'prix' };
     this.derniereSauvegarde = null;           // bloc `marche` d'une évaluation rechargée
+    // Boîte « Canada ou États-Unis ? » (8 oct.) : ce que l'utilisateur a tapé ou réglé pour ce NIV.
+    this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '' };
+    this.exportForce = false;                 // « Comparer quand même » pour un NIV non exportable
 
     this.construire();
     this.rendreMarche();
+    this.surExport = function () { self.rendreExport(); };
+    document.addEventListener('amx:export', this.surExport);
+    AMX.export.charger().then(function () { self.rendreExport(); }, function () {});
 
     this.surInventaire = function () { self.rendreContexte(); };
     document.addEventListener('amx:inventaire', this.surInventaire);
@@ -283,6 +386,7 @@
   Evaluation.prototype.demonter = function () {
     document.removeEventListener('amx:inventaire', this.surInventaire);
     document.removeEventListener('amx:carfax', this.surCarfax);
+    document.removeEventListener('amx:export', this.surExport);
     this.generation++;
   };
 
@@ -415,9 +519,178 @@
 
     this.elTaux.addEventListener('input', function () { self.rendreMarche(); });
 
-    this.el = h('div.page.eval-page', [entete, this.elSommaire, vehicule, detail, marche]);
+    // --- Canada ou États-Unis ? (8 oct.) — mise de l'avant : première carte sous le véhicule
+    this.elExport = h('div.carte#sec-export');
+    this.construireExport();
+
+    this.el = h('div.page.eval-page', [entete, this.elSommaire, vehicule, this.elExport, detail, marche]);
     this.rendreSommaire();
     this.rendreLiens();
+    this.rendreExport();
+  };
+
+  /* ------------------- Canada ou États-Unis ? (8 oct.) --------------------
+     Maxime : « pour les véhicules qui peuvent être exportés (NIV débutant par
+     1, 4 et 5) on devrait avoir une boîte de comparaison pour déterminer si le
+     véhicule est plus rentable à vendre aux États-Unis ou au Canada. Le calcul
+     US est MMR (l'utilisateur met la valeur) × taux actuel (−3 %, qui peut
+     varier) − 6 000 (à faire varier avec des flèches) = valeur wholesale pour
+     les États-Unis. Le 6 000 se soustrait après la conversion ; on compare
+     wholesale vs wholesale, et la marge potentielle détail Canada en plus. »
+     Les champs sont construits une fois (construireExport) ; les résultats
+     se redessinent à chaque frappe (rendreExport) sans toucher aux champs. */
+  Evaluation.prototype.construireExport = function () {
+    var self = this;
+    var cMmr = champ('e-us-mmr', 'MMR ($ US)', { type: 'number', inputmode: 'numeric', placeholder: 'Valeur Manheim' });
+    cMmr.el.classList.add('eval-export-champ-us');
+    var cTaux = champ('e-us-taux', 'Taux USD→CAD du jour', { type: 'number', step: '0.0001', placeholder: '1,3650' });
+    this.elUsMmr = cMmr.input; this.elUsTaux = cTaux.input;
+    this.elUsEcart = h('input#e-us-ecart', { type: 'number', step: '0.5', inputmode: 'decimal', 'aria-label': 'Écart au taux, en %' });
+    this.elUsAjust = h('input#e-us-ajust', { type: 'number', step: '500', inputmode: 'numeric', 'aria-label': 'Ajustement en $ CA' });
+    var stepper = function (input, delta, nom) {
+      var pas = function () { var p = AMX.export.params(); return nom === 'ecart' ? (p.pasEcart || 0.5) : (p.pasAjustement || 500); };
+      var bouger = function (sens) { var v = nombre(input.value); if (v === null) v = nom === 'ecart' ? (AMX.export.params().ecartPct || 0) : (AMX.export.params().ajustement || 0); v = Math.max(0, Math.round((v + sens * pas()) * 100) / 100); input.value = String(v); self.usModifie(nom); };
+      return h('div.eval-stepper', [input, h('div.fleches', [h('button', { type: 'button', title: '+ ' + delta, text: '▲', onclick: function () { bouger(1); } }), h('button', { type: 'button', title: '− ' + delta, text: '▼', onclick: function () { bouger(-1); } })])]);
+    };
+    var cEcart = h('div.champ', [h('label', { 'for': 'e-us-ecart', text: 'Écart au taux (−%)' }), stepper(this.elUsEcart, 'pas', 'ecart')]);
+    var cAjust = h('div.champ', [h('label', { 'for': 'e-us-ajust', text: 'Ajustement ($ CA, après conversion)' }), stepper(this.elUsAjust, 'pas', 'ajust')]);
+    this.elUsPrereglages = h('div.eval-export-prereglages');
+    this.elUsChaine = h('div.eval-export-chaine');
+    this.elUsTauxInfo = h('div.eval-export-taux');
+    this.elUsGrosCA = h('input#e-us-grosca', { type: 'number', inputmode: 'numeric', placeholder: 'Encan / VinAudit', 'aria-label': 'Valeur de gros Canada ($ CA)' });
+    // Les trois colonnes sont construites une fois (le champ « gros Canada » doit garder le focus pendant la frappe).
+    var col = function (cls, libelle, extra) { var o = { el: null, v: h('div.v.num', '—'), s: h('div.s', '') }; o.el = h('div.eval-export-col.' + cls, [h('div.l', libelle), o.v, extra || null, o.s]); return o; };
+    this.colUs = col('us', 'Gros É.-U. ($ CA)'); this.colCa = col('ca', 'Gros Canada ($ CA)', this.elUsGrosCA); this.colDetail = col('detail', 'Marge détail Canada');
+    this.elUsCols = h('div.eval-export-cols', [this.colUs.el, this.colCa.el, this.colDetail.el]);
+    this.elUsVerdict = h('div.eval-export-verdict');
+    this.elUsReplie = h('div.eval-export-replie');
+    this.elUsCorps = h('div.eval-export-grille', [
+      h('div.eval-export-calc', [
+        h('div.eval-export-ligne', [cMmr.el, h('span.op', '×'), cTaux.el, h('span.op', '−'), cEcart, h('span.op', '−'), cAjust]),
+        this.elUsPrereglages, this.elUsChaine, this.elUsTauxInfo
+      ]),
+      h('div', [this.elUsCols, this.elUsVerdict])
+    ]);
+    this.btnUsMmr = h('a.btn.petit', { href: URL_MMR, target: '_blank', rel: 'noopener', title: 'Ouvrir Manheim MMR (le NIV est copié)', html: I.externe + '<span>Ouvrir MMR</span>', onclick: function () { if (self.vinCourant) AMX.copier(self.vinCourant, 'NIV copié — collez-le dans MMR'); } });
+    this.btnUsComparer = h('button.btn.petit', { type: 'button', text: 'Comparer quand même', onclick: function () { self.exportForce = true; self.rendreExport(); self.elUsMmr.focus(); } });
+    this.elUsEtiquette = h('span.mini');
+    this.elExport.appendChild(h('div.carte-corps', [
+      h('div.eval-export-tete', [h('h2', 'Canada ou États-Unis ?'), this.elUsEtiquette, h('div.droite', [this.btnUsMmr])]),
+      this.elUsReplie, this.elUsCorps
+    ]));
+    [this.elUsMmr, this.elUsTaux, this.elUsEcart, this.elUsAjust].forEach(function (el) { el.addEventListener('input', function () { self.usModifie(el === self.elUsTaux ? 'taux' : (el === self.elUsEcart ? 'ecart' : (el === self.elUsAjust ? 'ajust' : 'mmr'))); }); });
+    this.elUsGrosCA.addEventListener('input', function () { self.us.grosCA = self.elUsGrosCA.value; self.us.grosCASource = self.elUsGrosCA.value ? 'saisie' : ''; self.rendreExport(); self.planifierAuto(); });
+  };
+
+  Evaluation.prototype.usModifie = function (quoi) {
+    if (quoi === 'mmr') this.us.mmr = this.elUsMmr.value;
+    else if (quoi === 'taux') { this.us.taux = nombre(this.elUsTaux.value); this.us.tauxSource = 'saisie'; this.us.tauxDate = ''; }
+    else if (quoi === 'ecart') this.us.ecartPct = nombre(this.elUsEcart.value);
+    else if (quoi === 'ajust') this.us.ajustement = nombre(this.elUsAjust.value);
+    this.rendreExport();
+    this.planifierAuto();
+  };
+
+  // Les valeurs effectives : ce que l'utilisateur a réglé, sinon les paramètres du serveur et le taux du jour.
+  Evaluation.prototype.usEffectif = function () {
+    var p = AMX.export.params(), t = AMX.export.taux();
+    var taux = this.us.taux !== null && this.us.taux !== undefined ? this.us.taux : (t && t.ok ? t.taux : null);
+    var ecart = this.us.ecartPct !== null && this.us.ecartPct !== undefined ? this.us.ecartPct : p.ecartPct;
+    var ajust = this.us.ajustement !== null && this.us.ajustement !== undefined ? this.us.ajustement : p.ajustement;
+    var tauxSource = this.us.taux !== null && this.us.taux !== undefined ? 'saisie' : (t && t.ok ? t.source : '');
+    var tauxDate = this.us.taux !== null && this.us.taux !== undefined ? '' : (t && t.ok ? t.date : '');
+    return { taux: taux, ecartPct: ecart, ajustement: ajust, tauxSource: tauxSource, tauxDate: tauxDate };
+  };
+
+  // Gros Canada : la saisie, sinon la valeur « gros » VinAudit (Canada) reçue ou conservée.
+  Evaluation.prototype.usGrosCA = function () {
+    if (this.us.grosCA !== '' && this.us.grosCA !== null && this.us.grosCA !== undefined && nombre(this.us.grosCA) !== null) return { valeur: nombre(this.us.grosCA), source: this.us.grosCASource || 'saisie' };
+    var v = this.valeurs && this.valeurs.ok && this.valeurs.pays !== 'us' ? this.valeurs : null;
+    if (v && v.gros && v.gros.moyenne) return { valeur: v.gros.moyenne, source: 'VinAudit' };
+    var sv = this.derniereSauvegarde && this.derniereSauvegarde.valeurs;
+    if (sv && sv.pays !== 'us' && sv.gros && sv.gros.moyenne) return { valeur: sv.gros.moyenne, source: 'VinAudit (conservée)' };
+    return { valeur: null, source: '' };
+  };
+
+  // Marge potentielle détail Canada : prix de détail visé (sinon marché standard) − payé − recon.
+  Evaluation.prototype.usMargeDetail = function () {
+    var paye = nombre(this.elPaye.value), recon = nombre(this.elRecon.value) || 0, prix = nombre(this.elPrix.value);
+    var a = this.analyses.ca, c = (a && a.ok) ? this.calculs(a) : null;
+    var base = prix !== null ? prix : (c && c.standard ? c.standard : (this.derniereSauvegarde && this.derniereSauvegarde.pays !== 'us' ? this.derniereSauvegarde.standard : null));
+    if (base === null || base === undefined || paye === null) return { valeur: null, base: base, source: prix !== null ? 'votre détail' : 'marché standard' };
+    return { valeur: Math.round(base - paye - recon), base: base, source: prix !== null ? 'votre détail' : 'marché standard' };
+  };
+
+  // Le bloc conservé avec l'évaluation (et figé à l'expédition).
+  Evaluation.prototype.usCollecter = function () {
+    var e = this.usEffectif();
+    var c = AMX.export.calculer(this.us.mmr, e.taux, e.ecartPct, e.ajustement);
+    var gca = this.usGrosCA(), md = this.usMargeDetail();
+    var v = AMX.export.verdict(c.grosUS, gca.valeur, md.valeur);
+    if (c.grosUS === null && gca.valeur === null && !this.us.mmr) return null;
+    return { mmr: c.mmr, taux: e.taux, tauxDate: e.tauxDate, tauxSource: e.tauxSource, ecartPct: c.ecartPct, tauxAjuste: c.tauxAjuste, converti: c.converti, ajustement: c.ajustement,
+      grosUS: c.grosUS, grosCA: gca.valeur, grosCASource: gca.source, margeDetailCA: md.valeur, margeDetailBase: md.base, ecart: v.ecart, ecartPct2: v.ecartPct, verdict: v.verdict, calculeLe: new Date().toISOString() };
+  };
+
+  Evaluation.prototype.rendreExport = function () {
+    var self = this; if (!this.elExport) return;
+    var vin = (this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    var p = AMX.export.params();
+    var exportable = AMX.export.exportable(vin);
+    var montrer = exportable || this.exportForce;
+    this.elExport.classList.toggle('eval-export-repliee', !montrer);
+    AMX.vider(this.elUsReplie);
+    this.elUsEtiquette.textContent = vin ? (exportable ? 'Fabriqué aux États-Unis (NIV en ' + vin.charAt(0) + ') — exportable' : 'NIV en ' + vin.charAt(0) + ' : pas fabriqué aux États-Unis') : 'Pour un NIV en ' + (p.prefixes || []).join(', ');
+    if (!montrer) {
+      this.elUsCorps.style.display = 'none';
+      this.elUsReplie.appendChild(h('span', { text: vin ? 'La comparaison gros É.-U. / gros Canada s\'affiche d\'elle-même pour les NIV qui commencent par ' + (p.prefixes || []).join(', ') + '.' : 'Entrez un NIV : la comparaison s\'affiche d\'elle-même pour les véhicules fabriqués aux États-Unis.' }));
+      if (vin) this.elUsReplie.appendChild(this.btnUsComparer);
+      return;
+    }
+    this.elUsCorps.style.display = '';
+    // Champs : on ne touche à un champ que s'il n'a pas le focus (sinon la frappe est cassée).
+    var e = this.usEffectif();
+    var poser = function (el, val) { if (document.activeElement === el) return; var s = (val === null || val === undefined) ? '' : String(val); if (el.value !== s) el.value = s; };
+    poser(this.elUsMmr, this.us.mmr);
+    poser(this.elUsTaux, e.taux !== null ? e.taux.toFixed(4) : '');
+    poser(this.elUsEcart, e.ecartPct);
+    poser(this.elUsAjust, e.ajustement);
+    AMX.vider(this.elUsPrereglages);
+    var pre = function (txt, pct, actif) { return h('button.btn' + (actif ? '.primaire' : '.fantome'), { type: 'button', text: txt + ' ' + pct + ' %', onclick: function () { self.elUsEcart.value = String(pct); self.usModifie('ecart'); } }); };
+    this.elUsPrereglages.appendChild(h('span', { text: 'Préréglages :' }));
+    this.elUsPrereglages.appendChild(pre('Achat', p.ecartAchatPct, e.ecartPct === p.ecartAchatPct));
+    this.elUsPrereglages.appendChild(pre('Échange', p.ecartEchangePct, e.ecartPct === p.ecartEchangePct && p.ecartEchangePct !== p.ecartAchatPct));
+    this.elUsPrereglages.appendChild(h('span.doux', { text: '· flèches : ' + (p.pasEcart || 0.5) + ' % et ' + fmt(p.pasAjustement || 500) }));
+    // La chaîne du calcul, en clair
+    var c = AMX.export.calculer(this.us.mmr, e.taux, e.ecartPct, e.ajustement);
+    AMX.vider(this.elUsChaine);
+    if (c.grosUS !== null) {
+      this.elUsChaine.appendChild(h('span', { text: AMX.fmtNombre(c.mmr) + ' $ US × ' + c.tauxAjuste.toFixed(4) + ' (' + c.taux.toFixed(4) + ' − ' + c.ecartPct + ' %) = ' + fmt(c.converti) + ' − ' + fmt(c.ajustement) + ' = ' }));
+      this.elUsChaine.appendChild(h('b', { text: fmt(c.grosUS) + ' CA' }));
+    } else this.elUsChaine.appendChild(h('span.doux', { text: c.taux === null ? 'Taux du jour indisponible : tapez-le dans « Taux USD→CAD ».' : 'Entrez le MMR (Manheim, en $ US) : la valeur de gros É.-U. en $ CA se calcule tout de suite.' }));
+    AMX.vider(this.elUsTauxInfo);
+    var t = AMX.export.taux();
+    if (e.tauxSource === 'saisie') this.elUsTauxInfo.appendChild(h('span', { text: 'Taux tapé à la main' + (t && t.ok ? ' · Banque du Canada ' + t.taux.toFixed(4) + (t.date ? ' (' + t.date + ')' : '') : '') }));
+    else if (t && t.ok) this.elUsTauxInfo.appendChild(h('span', { text: 'Banque du Canada ' + (t.date ? 'le ' + t.date : '') + (t.source === 'dernier' ? ' (dernier taux reçu)' : (t.source === 'manuel' ? ' (taux manuel du propriétaire)' : '')) }));
+    else this.elUsTauxInfo.appendChild(h('span.puce.attention', { text: 'Taux du jour indisponible' }));
+    if (e.tauxSource === 'saisie' && t && t.ok) this.elUsTauxInfo.appendChild(h('button.btn.fantome.petit', { type: 'button', text: 'Reprendre le taux du jour', onclick: function () { self.us.taux = null; self.us.tauxSource = ''; self.rendreExport(); self.planifierAuto(); } }));
+    if (p.premierEncan) this.elUsTauxInfo.appendChild(h('span.doux', { text: '· premier encan US ' + AMX.fmtDate(p.premierEncan) + (p.derniereExpedition ? ', dernières expéditions ' + AMX.fmtDate(p.derniereExpedition) : '') }));
+    // Trois colonnes : gros É.-U. | gros Canada | marge détail Canada
+    var gca = this.usGrosCA(), md = this.usMargeDetail();
+    var v = AMX.export.verdict(c.grosUS, gca.valeur, md.valeur);
+    this.colUs.el.classList.toggle('gagnant', v.verdict === 'us'); this.colUs.v.textContent = fmt(c.grosUS); this.colUs.s.textContent = c.grosUS !== null ? 'MMR converti, moins ' + fmt(c.ajustement) : 'MMR à entrer';
+    poser(this.elUsGrosCA, this.us.grosCA !== '' && this.us.grosCA !== null ? this.us.grosCA : '');
+    if (this.us.grosCA === '' || this.us.grosCA === null) this.elUsGrosCA.placeholder = gca.valeur !== null ? fmt(gca.valeur) + ' (' + gca.source + ')' : 'Encan / VinAudit';
+    this.colCa.el.classList.toggle('gagnant', v.verdict === 'ca'); this.colCa.v.textContent = fmt(gca.valeur); this.colCa.s.textContent = gca.valeur !== null ? 'Source : ' + gca.source : 'Tapez la valeur de gros (encan), ou obtenez les valeurs VinAudit plus bas';
+    this.colDetail.v.textContent = fmt(md.valeur); this.colDetail.s.textContent = md.valeur !== null ? md.source + ' ' + fmt(md.base) + ' − payé − recon' : 'Prix payé + prix de détail (ou analyse de marché) pour la calculer';
+    AMX.vider(this.elUsVerdict);
+    if (v.verdict) {
+      var cls = v.verdict === 'us' ? 'bleu' : (v.verdict === 'ca' ? 'vert' : 'gris');
+      this.elUsVerdict.appendChild(h('span.badge.' + cls, { text: v.verdict === 'egal' ? 'Gros égal' : (v.verdict === 'us' ? 'Plus rentable aux États-Unis' : 'Plus rentable au Canada') }));
+      this.elUsVerdict.appendChild(h('span', { text: 'gros É.-U. ' + fmt(v.grosUS) + ' vs gros Canada ' + fmt(v.grosCA) + ' : ' + (v.ecart >= 0 ? '+' : '−') + fmt(Math.abs(v.ecart)) + (v.ecartPct !== null ? ' (' + (v.ecartPct >= 0 ? '+' : '') + v.ecartPct + ' %)' : '') + ' pour les É.-U.' }));
+      if (md.valeur !== null) this.elUsVerdict.appendChild(h('span.doux', { text: '· détail Canada : ' + fmt(md.valeur) + ' de marge si on le garde' }));
+    } else this.elUsVerdict.appendChild(h('span.doux', { text: 'Le verdict (gros contre gros) apparaît dès que les deux valeurs de gros sont connues.' }));
+    this.rendreSommaire();
   };
 
   /* --------------------------- Prix de détail ---------------------------- */
@@ -441,6 +714,7 @@
     }
     if (source === 'marge' && marge !== null) AMX.memo.ecrire('eval_marge', String(marge));
     this.rendreMarche();
+    this.rendreExport();
   };
 
   Evaluation.prototype.rendrePrixDetail = function () {
@@ -495,7 +769,10 @@
     this.elSommaire.appendChild(item('Marché std', c ? fmt(c.standard) : '—'));
     this.elSommaire.appendChild(item('Marché %', pct(pos), pos === null ? '' : (pos <= 0.97 ? 'pos' : (pos <= 1.03 ? '' : 'neg'))));
     this.elSommaire.appendChild(item('Rang', c && c.rang ? c.rang + '/' + c.rangSur : '—'));
-    this.elSommaire.appendChild(h('nav.sauts', [['sec-vehicule', 'Véhicule'], ['sec-prix', 'Prix'], ['sec-marche', 'Marché']].map(function (x) {
+    // Verdict Canada / É.-U. (8 oct.) — seulement quand la boîte a de quoi comparer.
+    var us = this.elExport ? this.usCollecter() : null;
+    if (us && us.verdict) this.elSommaire.appendChild(item('Verdict', AMX.export.texteVerdict(us), 'verdict.' + us.verdict));
+    this.elSommaire.appendChild(h('nav.sauts', [['sec-vehicule', 'Véhicule'], ['sec-export', 'CA / É.-U.'], ['sec-prix', 'Prix'], ['sec-marche', 'Marché']].map(function (x) {
       return h('a', { href: '#', text: x[1], onclick: function (e) { e.preventDefault(); var el = document.getElementById(x[0]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
     })));
   };
@@ -520,6 +797,7 @@
     // Historique Torque : une requête par NIV, seulement quand il change.
     if (vinOk && this.torqueVin !== vin && typeof AMX.torqueHistorique === 'function') { this.torqueVin = vin; AMX.torqueHistorique(vin, this.elTorque); }
     else if (!vinOk && this.torqueVin) { this.torqueVin = ''; AMX.vider(this.elTorque); }
+    if (this.elExport && (vin || this.vinCourant) !== this.vinExport) { this.vinExport = vin || this.vinCourant; this.rendreExport(); }
   };
 
   // Conserve l'analyse (sauvegarde automatique) puis ouvre la fiche d'achat du
@@ -532,6 +810,8 @@
     if (this.elModele.value.trim()) params.modele = this.elModele.value.trim();
     if (this.elAnnee.value.trim()) params.annee = this.elAnnee.value.trim();
     if (this.elKm.value.trim()) params.km = this.elKm.value.trim();
+    var us = this.usCollecter();
+    if (us && us.mmr !== null) { params.mmr = String(us.mmr); if (us.tauxAjuste !== null) params.tauxUs = us.tauxAjuste.toFixed(4); params.depenseUs = String(us.ajustement); if (us.verdict === 'us') params.destination = 'US'; }
     var partir = function () { AMX.aller('achat', '', params); };
     var p = this.parametresPrets() ? this.sauvegarderAuto() : Promise.resolve();
     Promise.resolve(p).then(partir, partir);
@@ -645,6 +925,7 @@
       else self.analyses[pays] = d || { ok: false, erreur: 'Réponse vide' };
       self.analyses[pays]._recu = Date.now();
       self.rendreMarche();
+      self.rendreExport();
       if (self.analyses[pays].ok) {
         self.etat('Analyse ' + (pays === 'us' ? 'du marché américain' : 'du marché canadien') + ' reçue : ' + ((self.analyses[pays].actifs || {}).n || 0) + ' annonces actives, ' + ((self.analyses[pays].vendus || {}).n90 || 0) + ' ventes déduites sur 90 jours.');
         // Chaque analyse est conservée d'office dans le registre (évaluateur + concession).
@@ -871,12 +1152,18 @@
       valeurs = { source: 'VinAudit', pays: v.pays, devise: v.devise, km: v.km, vehicule: v.vehicule || '', genereLe: v.genereLe, detail: res(v.detail), gros: res(v.gros), echange: res(v.echange) };
     } else if (this.derniereSauvegarde && this.derniereSauvegarde.valeurs) valeurs = this.derniereSauvegarde.valeurs;
     if (marche && valeurs) marche.valeurs = valeurs;
+    // Boîte « Canada ou États-Unis ? » : le bloc `us`, plus trois clés plates pour la fiche d'achat (EVAL_VERS_FICHE).
+    var us = this.usCollecter();
     return {
       marque: this.elMarque.value, modele: this.elModele.value, annee: this.elAnnee.value, version: this.elVersion.value,
       km: this.elKm.value, tauxKm: this.elTaux.value, prixVente: this.elPrix.value, prixAchat: this.elAchat.value, frais: this.elFrais.value, prixPaye: this.elPaye.value, recon: this.elRecon.value, marge: this.elMarge.value, concession: this.elConcession.value,
       comparables: this.comparablesCharges || [],
       marche: marche,
-      valeurs: valeurs
+      valeurs: valeurs,
+      us: us,
+      mmr: us && us.mmr !== null ? String(us.mmr) : '',
+      tauxUs: us && us.tauxAjuste !== null ? String(us.tauxAjuste) : '',
+      depenseUs: us ? String(us.ajustement) : ''
     };
   };
 
@@ -902,6 +1189,12 @@
     if (this.derniereSauvegarde && !this.derniereSauvegarde.valeurs && data.valeurs) this.derniereSauvegarde.valeurs = data.valeurs;
     this.chargerRappels();
     this.valeurs = null; this.valeursEnCours = false; this.rendreValeurs();
+    // Boîte « Canada ou États-Unis ? » : ce qui avait été réglé pour ce NIV.
+    var u = (data.us && typeof data.us === 'object') ? data.us : null;
+    this.us = { mmr: u && u.mmr !== null && u.mmr !== undefined ? String(u.mmr) : '', taux: u && u.tauxSource === 'saisie' && u.taux ? u.taux : null, tauxDate: '', tauxSource: u && u.tauxSource === 'saisie' ? 'saisie' : '',
+      ecartPct: u && u.ecartPct !== null && u.ecartPct !== undefined ? u.ecartPct : null, ajustement: u && u.ajustement !== null && u.ajustement !== undefined ? u.ajustement : null,
+      grosCA: u && u.grosCASource === 'saisie' && u.grosCA !== null && u.grosCA !== undefined ? String(u.grosCA) : '', grosCASource: u && u.grosCASource === 'saisie' ? 'saisie' : '' };
+    this.exportForce = !!(u && u.mmr !== null && u.mmr !== undefined && String(u.mmr) !== '');
     if (this.derniereSauvegarde && this.derniereSauvegarde.portee) { var pv = this.derniereSauvegarde.pays === 'us' ? 'us' : 'ca'; this.portee[pv] = porteeValide(this.derniereSauvegarde.portee, this.portee[pv]); if (this.derniereSauvegarde.etat && ETATS[pv][this.derniereSauvegarde.etat]) this.etats[pv] = this.derniereSauvegarde.etat; }
     // Statut posé par le serveur (Api.gs) : « auto » ou « enregistree » ; les anciennes fiches sans statut ont été enregistrées à la main.
     this.sauvegarde = { statut: data._statut === 'auto' ? 'auto' : 'enregistree', dateMaj: data._le || '', enregistreLe: data._enregistreLe || (data._statut === 'auto' ? '' : (data._le || '')), enregistrePar: data._enregistrePar || (data._statut === 'auto' ? '' : (data._par || '')) };
@@ -911,6 +1204,7 @@
     this.enCours = { ca: false, us: false };
     this.genAnalyse.ca++; this.genAnalyse.us++;
     this.rendreMarche();
+    this.rendreExport();
   };
 
   Evaluation.prototype.oublierAnalyses = function () {
@@ -930,10 +1224,13 @@
     this.rendreSauvegarde();
     this.valeurs = null; this.valeursEnCours = false; this.rendreValeurs();
     this.rappels = null; this.rappelsCle = ''; this.rendreRappels();
+    this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '' };
+    this.exportForce = false;
     this.analyses = { ca: null, us: null };
     this.enCours = { ca: false, us: false };
     this.genAnalyse.ca++; this.genAnalyse.us++;
     this.rendreMarche();
+    this.rendreExport();
   };
 
   /* ---------------------------- Chargement ------------------------------ */
@@ -1114,6 +1411,7 @@
       self.valeursEnCours = false;
       self.valeurs = (d && d.refuse) ? { ok: false, erreur: d.erreur || 'Accès refusé' } : (d || { ok: false, erreur: 'Réponse vide' });
       self.rendreValeurs();
+      self.rendreExport();   // la valeur « gros » Canada alimente la boîte Canada / É.-U.
       if (self.valeurs.ok) self.planifierAuto();
     }).catch(function (e) {
       if (gen !== self.generation) return;
@@ -1223,6 +1521,7 @@
       if (gen !== self.generation || !d || !d.ok) return;
       self.vinCourant = vin; self.vinCharge = vin;
       if (data.marche) self.derniereSauvegarde = data.marche;
+      if (data.us) AMX.export.oublierVerdicts();
       self.sauvegarde = { statut: d.statut || 'auto', dateMaj: d.dateMaj || new Date().toISOString(), enregistreLe: d.enregistreLe || '', enregistrePar: d.enregistrePar || '' };
       self.rendreSauvegarde();
       history.replaceState(null, '', AMX.lien('outils', 'evaluation', { vin: vin }));
@@ -1261,6 +1560,7 @@
       var quand = AMX.fmtDate(d.dateMaj || new Date().toISOString(), true);
       self.vinCourant = vin; self.vinCharge = vin;
       if (data.marche) self.derniereSauvegarde = data.marche;
+      if (data.us) AMX.export.oublierVerdicts();
       self.sauvegarde = { statut: 'enregistree', dateMaj: d.dateMaj || new Date().toISOString(), enregistreLe: d.enregistreLe || d.dateMaj || new Date().toISOString(), enregistrePar: d.enregistrePar || (AMX.session && AMX.session.courriel) || '' };
       self.rendreSauvegarde();
       self.etat('Évaluation enregistrée pour ce NIV (' + quand + ')' + (data.marche ? ' — prix standard ' + fmt(data.marche.standard) + '.' : '.'));
@@ -1316,6 +1616,7 @@
     { cle: 'prixVente', libelle: 'Prix de détail', num: true, valeur: function (r) { return nombre(r.prixVente); } },
     { cle: 'standard', libelle: 'Marché std', num: true, valeur: function (r) { return r.standard; } },
     { cle: 'marchePct', libelle: 'Marché %', num: true, valeur: function (r) { return r.marchePct; } },
+    { cle: 'us', libelle: 'CA / É.-U.', num: true, valeur: function (r) { return r.us && typeof r.us.ecart === 'number' ? r.us.ecart : null; } },
     { cle: 'veille', libelle: 'Veille', num: true, valeur: function (r) { return r.veille && typeof r.veille.marchePct === 'number' ? r.veille.marchePct : null; } },
     { cle: 'statut', libelle: 'Statut', valeur: function (r) { return r.statut === 'auto' ? 'auto' : 'enregistree'; } },
     { cle: 'par', libelle: 'Évaluateur', valeur: function (r) { return (r.par || '').split('@')[0]; } }
@@ -1370,12 +1671,15 @@
   Registre.prototype.charger = function (manuel) {
     var self = this, gen = ++this.generation;
     if (manuel) this.btnRafraichir.classList.add('occupe');
+    // Les verdicts Canada / É.-U. (8 oct.) arrivent par une seconde route, sans bloquer le registre.
+    AMX.get({ evaluationsUs: 1 }).then(function (u) { if (gen !== self.generation || !u || !u.ok) return; self.us = u.parVin || {}; if (self.liste) { self.liste.forEach(function (r) { r.us = self.us[r.vin] || null; }); self.rendreTable(); } }).catch(function () {});
     return AMX.get({ evaluations: 1 }).then(function (d) {
       if (gen !== self.generation) return;
       self.btnRafraichir.classList.remove('occupe');
       if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.rendre(); return; }
       if (!d || !d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
       self.liste = d.evaluations || []; self.parConcession = d.parConcession || {}; self.erreur = ''; self.refus = '';
+      if (self.us) self.liste.forEach(function (r) { r.us = self.us[r.vin] || null; });
       self.rendre();
       if (manuel) AMX.toast('Registre mis à jour — ' + self.liste.length + ' évaluation' + (self.liste.length > 1 ? 's' : ''), 'ok');
     }).catch(function (e) {
@@ -1507,6 +1811,7 @@
         h('td.num.registre-detail', { text: fmt(nombre(r.prixVente)) }),
         h('td.num', { text: fmt(r.standard), title: r.analyseLe ? 'Analyse du ' + AMX.fmtDate(r.analyseLe, true) + (r.pays === 'us' ? ' (États-Unis)' : ' (Canada)') : 'Pas d\'analyse de marché enregistrée' }),
         h('td.num', m ? [h('span.puce' + (m > 1.03 ? '.alerte' : (m < 0.97 ? '.ok' : '.attention')), { text: pct(m) }), r.rang ? h('div.mini', { text: 'rang ' + r.rang + '/' + r.rangSur }) : null] : '—'),
+        h('td.num.registre-us', r.us && r.us.verdict ? [h('span.puce' + (r.us.verdict === 'us' ? '.info' : (r.us.verdict === 'ca' ? '.ok' : '')), { text: AMX.export.texteVerdict(r.us), title: 'Gros É.-U. ' + fmt(r.us.grosUS) + ' vs gros Canada ' + fmt(r.us.grosCA) + (r.us.margeDetailCA !== null && r.us.margeDetailCA !== undefined ? ' · marge détail Canada ' + fmt(r.us.margeDetailCA) : '') + (r.us.calculeLe ? ' · ' + AMX.fmtDateCourte(r.us.calculeLe) : '') }), r.us.mmr ? h('div.mini', { text: 'MMR ' + AMX.fmtNombre(r.us.mmr) + ' $ US' }) : null] : [h('span.doux', '—')]),
         h('td.num.registre-veille', r.veille && typeof r.veille.marchePct === 'number' ? [h('span.puce' + (r.veille.derive ? '.alerte' : (r.veille.marchePct < 0.97 ? '.ok' : '')), { text: (r.veille.marchePct >= 1 ? '+' : '') + Math.round((r.veille.marchePct - 1) * 100) + ' %', title: 'Détail ' + fmt(nombre(r.prixVente)) + ' vs moyenne active ' + fmt(r.veille.moyenneActive) + ' (' + r.veille.nActifs + ' annonces, ' + (r.veille.lieu || '') + ')' }), h('div.mini', { text: AMX.fmtDateCourte(r.veille.le) })] : [h('span.doux', '—')]),
         h('td.registre-statut', [h('span.badge.sans-point.' + (auto ? 'gris' : 'vert'), { text: auto ? 'Auto' : 'Enregistrée', title: auto ? 'Analyse conservée automatiquement — ouvrez-la et cliquez « Enregistrer » pour la confirmer' : 'Enregistrée' + (r.enregistreLe ? ' le ' + AMX.fmtDate(r.enregistreLe, true) : '') + (r.enregistrePar ? ' par ' + r.enregistrePar.split('@')[0] : '') })]),
         h('td', r.par ? [h('span.registre-par', { title: r.par }, [h('span.avatar', { text: AMX.initiales(r.par.split('@')[0].replace(/[._-]/g, ' ')) }), h('span', { text: r.par.split('@')[0] })])] : '—')
@@ -1520,7 +1825,7 @@
     var tfoot = h('tfoot', [h('tr', [
       h('td', { colspan: '4', text: 'Total — ' + ag.n + ' évaluation' + (ag.n > 1 ? 's' : '') }),
       h('td.num', { text: fmt(ag.paye) }), h('td.num', ''), h('td.num.' + (ag.marge >= 0 ? 'inf' : 'sup'), [h('div', { text: fmt(ag.marge) }), ag.margeMoy !== null ? h('div.mini', { style: { fontWeight: 400 }, text: 'moy. ' + fmt(ag.margeMoy) }) : null]),
-      h('td.num', { text: fmt(ag.detail) }), h('td.num', ''), h('td.num', { text: ag.pctMoy !== null ? 'moy. ' + pct(ag.pctMoy) : '' }), h('td.num', ''), h('td', { text: ag.nEnr + ' enr. · ' + ag.nAuto + ' auto' }), h('td', '')
+      h('td.num', { text: fmt(ag.detail) }), h('td.num', ''), h('td.num', { text: ag.pctMoy !== null ? 'moy. ' + pct(ag.pctMoy) : '' }), h('td.num', ''), h('td.num', ''), h('td', { text: ag.nEnr + ' enr. · ' + ag.nAuto + ' auto' }), h('td', '')
     ])]);
     this.elTable.appendChild(h('table.tableau#registre-table', [thead, tbody, tfoot]));
   };
@@ -1532,7 +1837,7 @@
     var rows = lignes.map(function (r) {
       return { 'Date': r.dateMaj ? AMX.fmtDate(r.dateMaj) : '', 'Statut': r.statut === 'auto' ? 'Analyse automatique' : 'Enregistrée', 'Enregistrée le': r.enregistreLe ? AMX.fmtDate(r.enregistreLe, true) : '', 'Enregistrée par': r.enregistrePar || '', 'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Version': r.version, 'Concession': AMX.CONCESSIONS_TOUTES[concessionDe(r)],
         'KM': nombre(r.km), 'Prix payé': nombre(r.prixPaye), 'Reconditionnement': nombre(r.recon), 'Marge': nombre(r.marge), 'Prix de détail': nombre(r.prixVente),
-        'Marché agressif': r.agressif, 'Marché standard': r.standard, 'Marché conservateur': r.conservateur, 'Marché %': r.marchePct !== null && r.marchePct !== undefined ? Math.round(r.marchePct * 1000) / 10 : '', 'Rang': r.rang ? r.rang + '/' + r.rangSur : '', 'Pays': r.pays, 'État / province': r.etat || '', 'Veille %': r.veille && typeof r.veille.marchePct === 'number' ? Math.round((r.veille.marchePct - 1) * 1000) / 10 : '', 'Veille le': r.veille && r.veille.le ? AMX.fmtDate(r.veille.le) : '', 'Analyse le': r.analyseLe ? AMX.fmtDate(r.analyseLe, true) : '', 'Par': r.par };
+        'Marché agressif': r.agressif, 'Marché standard': r.standard, 'Marché conservateur': r.conservateur, 'Marché %': r.marchePct !== null && r.marchePct !== undefined ? Math.round(r.marchePct * 1000) / 10 : '', 'Rang': r.rang ? r.rang + '/' + r.rangSur : '', 'Pays': r.pays, 'CA / É.-U.': r.us && r.us.verdict ? AMX.export.texteVerdict(r.us) : '', 'Gros É.-U.': r.us ? r.us.grosUS : '', 'Gros Canada': r.us ? r.us.grosCA : '', 'MMR ($ US)': r.us ? r.us.mmr : '', 'État / province': r.etat || '', 'Veille %': r.veille && typeof r.veille.marchePct === 'number' ? Math.round((r.veille.marchePct - 1) * 1000) / 10 : '', 'Veille le': r.veille && r.veille.le ? AMX.fmtDate(r.veille.le) : '', 'Analyse le': r.analyseLe ? AMX.fmtDate(r.analyseLe, true) : '', 'Par': r.par };
     });
     var ws = XLSX.utils.json_to_sheet(rows);
     var wb = XLSX.utils.book_new();

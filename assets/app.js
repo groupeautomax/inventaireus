@@ -21,7 +21,9 @@
   var SITE_PUBLIC = 'https://groupeautomax.github.io/inventaireus/';
 
   // Mêmes clés que l'ancien site : une session ouverte reste ouverte.
-  var CLE = { mail: 'pg_utilisateur_v1', nom: 'pg_nom_v1', role: 'pg_role_v1', jeton: 'pg_jeton_v1', perms: 'amx_perms_v1', expire: 'amx_session_expire_v1', tel: 'amx_tel_v1', textos: 'amx_textos_v1' };
+  var CLE = { mail: 'pg_utilisateur_v1', nom: 'pg_nom_v1', role: 'pg_role_v1', jeton: 'pg_jeton_v1', perms: 'amx_perms_v1', expire: 'amx_session_expire_v1', tel: 'amx_tel_v1', textos: 'amx_textos_v1', canal: 'amx_canal_code_v1' };
+  // CLE.canal (8 oct.) : par où cette personne a reçu son dernier code sur CET appareil — 'courriel' ou
+  // 'texto'. Propre à l'appareil, gardé à la déconnexion : le bouton proposé en premier s'en souvient.
 
   var AMX = window.AMX = { URL: URL_BACKEND, SITE: SITE_PUBLIC, sections: {}, session: { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null } };
 
@@ -501,40 +503,81 @@
     porte(message || '');
   };
 
+  // Porte (8 oct.) : « on pourrait donner le choix » — le code arrive par courriel ou par texto, au
+  // choix de la personne. Le serveur (Auth.gs, `canal`) prend le numéro dans SON compte, jamais ici ;
+  // sans numéro inscrit, il envoie par courriel et l'explique (`message`). Le dernier canal utilisé
+  // sur cet appareil (CLE.canal) est proposé en premier la fois suivante.
   function porte(message) {
     var p = document.getElementById('porte');
     p.style.display = 'flex';
     var etape = 'courriel', courrielEnCours = lire(CLE.mail);
+    var canal = lire(CLE.canal) === 'texto' ? 'texto' : 'courriel';   // dernier canal utilisé ici
+    var envoi = null;   // dernière réponse de demanderCode : { canal, destination, message, textoPossible }
     var dessiner = function (msg) {
       var enCourriel = etape === 'courriel';
+      var parTexto = !!(envoi && envoi.canal === 'texto');
       AMX.vider(p);
       var champ = enCourriel
         ? h('input', { type: 'email', id: 'porte-mail', autocomplete: 'username', placeholder: 'prenom@groupeautomax.com', value: courrielEnCours })
         : h('input.code', { type: 'text', id: 'porte-code', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '6', placeholder: '000000' });
-      var bouton = h('button.btn.primaire.large.bloc', { type: 'button', text: enCourriel ? 'Recevoir mon code' : 'Se connecter' });
       var erreur = h('div.erreur', { text: msg || '' });
+      var boutons, bouton = null;
+      if (enCourriel) {
+        var bCourriel = h('button.btn.large.bloc', { type: 'button', id: 'porte-courriel', text: 'Recevoir mon code par courriel', onclick: function () { demander('courriel', this); } });
+        var bTexto = h('button.btn.large.bloc', { type: 'button', id: 'porte-texto', text: 'Recevoir mon code par texto', onclick: function () { demander('texto', this); } });
+        (canal === 'texto' ? bTexto : bCourriel).classList.add('primaire');
+        boutons = h('div.porte-canaux', canal === 'texto' ? [bTexto, bCourriel] : [bCourriel, bTexto]);
+      } else {
+        bouton = h('button.btn.primaire.large.bloc', { type: 'button', id: 'porte-valider', text: 'Se connecter' });
+        boutons = bouton;
+      }
+      var liens = null;
+      if (!enCourriel) {
+        var autre = parTexto ? 'courriel' : 'texto';
+        liens = h('div.porte-liens', [
+          // « Plutôt par texto » seulement si le compte a un numéro et que les textos sont actifs ; sinon le
+          // serveur l'a déjà expliqué dans `message`, inutile de proposer un bouton qui finirait en courriel.
+          (autre === 'texto' && envoi && envoi.textoPossible === false) ? null
+            : h('button.lien', { type: 'button', id: 'porte-autre-canal', text: 'Recevoir plutôt par ' + autre, onclick: function () { demander(autre, this); } }),
+          h('button.lien', { type: 'button', id: 'porte-changer', text: 'Changer d\'adresse', onclick: function () { etape = 'courriel'; envoi = null; dessiner(''); } })
+        ]);
+      }
       var carte = h('div.porte-carte', [
         h('div.porte-logo', [h('img', { src: 'assets/logo.png', alt: 'Groupe Automax' })]),
         h('h1', { text: enCourriel ? 'Inventaire et ventes' : 'Code de vérification' }),
-        h('p', enCourriel ? 'Entrez votre adresse courriel. Un code à six chiffres vous sera envoyé.' : ['Un code vient d\'être envoyé à ', h('strong', { text: courrielEnCours }), '.']),
-        champ, bouton, erreur,
-        enCourriel ? null : h('button.lien', { type: 'button', text: 'Changer d\'adresse', onclick: function () { etape = 'courriel'; dessiner(''); } }),
-        h('p.porte-note', enCourriel ? 'Une connexion vaut 30 jours sur cet appareil, comme dans l\'app ScanAutomax. Sur iPhone, ajoutez le site à l\'écran d\'accueil (Partager → « Sur l\'écran d\'accueil ») pour que Safari garde la session.' : 'Le code est valide 10 minutes.')
+        h('p', enCourriel
+          ? 'Entrez votre adresse courriel, puis choisissez où recevoir votre code à six chiffres.'
+          : ['Un code vient d\'être envoyé par ', h('strong', { text: parTexto ? 'texto' : 'courriel' }), parTexto ? ' au ' : ' à ', h('strong', { text: (envoi && envoi.destination) || courrielEnCours }), '.']),
+        (!enCourriel && envoi && envoi.message) ? h('p.porte-avis', { text: envoi.message }) : null,
+        champ, boutons, erreur, liens,
+        h('p.porte-note', enCourriel
+          ? 'Par texto, le code va au cellulaire inscrit à votre compte (« Mon compte »). Une connexion vaut 30 jours sur cet appareil, comme dans l\'app ScanAutomax. Sur iPhone, ajoutez le site à l\'écran d\'accueil (Partager → « Sur l\'écran d\'accueil ») pour que Safari garde la session.'
+          : 'Le code est valide 10 minutes.')
       ]);
       p.appendChild(carte);
-      var envoyer = function () {
+
+      // Demande (ou redemande) un code par `choix` ; `declencheur` = le bouton cliqué, mis en attente.
+      var demander = function (choix, declencheur) {
+        var mail = enCourriel ? champ.value.trim().toLowerCase() : courrielEnCours;
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { erreur.textContent = 'Entrez une adresse courriel valide.'; return; }
         erreur.textContent = '';
-        if (etape === 'courriel') {
-          var mail = champ.value.trim().toLowerCase();
-          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { erreur.textContent = 'Entrez une adresse courriel valide.'; return; }
-          bouton.disabled = true; bouton.textContent = 'Envoi du code…';
-          _fetch(URL_BACKEND + '?demanderCode=' + encodeURIComponent(mail) + '&_=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
-            bouton.disabled = false; bouton.textContent = 'Recevoir mon code';
-            if (!d || !d.ok) { erreur.textContent = (d && d.erreur) || 'Envoi impossible. Réessayez.'; return; }
-            courrielEnCours = mail; etape = 'code'; dessiner('');
-          }).catch(function () { bouton.disabled = false; bouton.textContent = 'Recevoir mon code'; erreur.textContent = 'Serveur injoignable. Vérifiez votre connexion.'; });
-          return;
-        }
+        var tous = Array.prototype.slice.call(carte.querySelectorAll('button'));
+        var texteAvant = declencheur ? declencheur.textContent : '';
+        tous.forEach(function (b) { b.disabled = true; });
+        if (declencheur) declencheur.textContent = 'Envoi du code…';
+        var retablir = function () { tous.forEach(function (b) { b.disabled = false; }); if (declencheur) declencheur.textContent = texteAvant; };
+        _fetch(URL_BACKEND + '?demanderCode=' + encodeURIComponent(mail) + '&canal=' + encodeURIComponent(choix) + '&_=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+          retablir();
+          if (!d || !d.ok) { erreur.textContent = (d && d.erreur) || 'Envoi impossible. Réessayez.'; return; }
+          courrielEnCours = mail;
+          envoi = { canal: d.canal === 'texto' ? 'texto' : 'courriel', destination: d.destination || '', message: d.message || '', textoPossible: d.textoPossible !== false };
+          canal = envoi.canal; ecrire(CLE.canal, canal);   // on retient le canal vraiment utilisé, pas celui demandé
+          etape = 'code'; dessiner('');
+        }).catch(function () { retablir(); erreur.textContent = 'Serveur injoignable. Vérifiez votre connexion.'; });
+      };
+
+      var valider = function () {
+        erreur.textContent = '';
         var code = champ.value.replace(/\D/g, '');
         if (code.length !== 6) { erreur.textContent = 'Le code a six chiffres.'; return; }
         bouton.disabled = true; bouton.textContent = 'Vérification…';
@@ -556,8 +599,13 @@
           return chargerProfil().then(function () { ouvrir(); AMX.toast('Connecté pour ' + (d.dureeJours || 30) + ' jours sur cet appareil.', 'ok', 5000); try { AMX.inventaire.precharger(); if (AMX.service && AMX.service.precharger) AMX.service.precharger(); } catch (e3) {} });
         }).catch(function () { bouton.disabled = false; bouton.textContent = 'Se connecter'; erreur.textContent = 'Serveur injoignable. Réessayez.'; });
       };
-      champ.addEventListener('keydown', function (e) { if (e.key === 'Enter') envoyer(); });
-      bouton.addEventListener('click', envoyer);
+
+      // Entrée dans le champ : le canal proposé en premier (étape courriel) ou la vérification (étape code).
+      champ.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        if (enCourriel) demander(canal, carte.querySelector('.porte-canaux .primaire')); else valider();
+      });
+      if (bouton) bouton.addEventListener('click', valider);
       setTimeout(function () { champ.focus(); }, 40);
     };
     dessiner(message);

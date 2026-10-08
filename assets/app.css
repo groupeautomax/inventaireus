@@ -95,8 +95,16 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 #porte input:focus { border-color: var(--vert); box-shadow: 0 0 0 3px rgba(0, 136, 64, .15); }
 #porte input.code { font-family: var(--mono); font-size: 24px; letter-spacing: 8px; text-align: center; }
 #porte .erreur { color: var(--rouge); font-size: 12px; margin-top: 8px; min-height: 16px; }
-#porte .lien { background: none; border: none; color: var(--encre-3); font-size: 12px; margin-top: 10px; text-decoration: underline; width: 100%; }
+#porte .lien { background: none; border: none; color: var(--encre-3); font-size: 12px; margin-top: 10px; text-decoration: underline; width: 100%; cursor: pointer; }
+#porte .lien:disabled { opacity: .5; cursor: default; }
 #porte p.porte-note { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--ligne); font-size: 11.5px; color: var(--encre-4); }
+/* 8 oct. — le code par courriel OU par texto : deux boutons empilés (le dernier canal utilisé en
+   premier, en vert), avis du serveur quand il a dû se rabattre sur le courriel, liens côte à côte. */
+#porte .porte-canaux { display: flex; flex-direction: column; gap: 8px; }
+#porte .porte-canaux .btn { justify-content: center; }
+#porte p.porte-avis { margin: -6px 0 14px; padding: 9px 11px; border-radius: 9px; background: var(--ambre-bg); border: 1px solid var(--ambre-bord); color: var(--encre-2); font-size: 12px; }
+#porte .porte-liens { display: flex; justify-content: center; gap: 4px 16px; flex-wrap: wrap; }
+#porte .porte-liens .lien { width: auto; padding: 4px 2px; }
 .usager .menu .info .doux { font-size: 11px; color: var(--encre-4); margin-top: 2px; }
 
 /* ----------------------------- Boutons --------------------------------- */

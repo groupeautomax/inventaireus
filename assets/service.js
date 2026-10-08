@@ -643,8 +643,9 @@
     if (AMX.export && AMX.export.verdicts) AMX.export.verdicts().then(function (par) {
       var u = par && par[String(s.vin).toUpperCase()]; if (!u || !u.verdict || !zoneVerdict.isConnected) return;
       zoneVerdict.classList.remove('cache');
-      zoneVerdict.appendChild(h('span.puce' + (u.verdict === 'us' ? '.info' : (u.verdict === 'ca' ? '.ok' : '')), { text: 'Évaluation : ' + (u.verdict === 'us' ? 'plus rentable aux États-Unis' : (u.verdict === 'ca' ? 'plus rentable au Canada' : 'gros égal')) + ' (' + AMX.export.texteVerdict(u) + ')' }));
-      zoneVerdict.appendChild(h('span.doux.petit', { text: ' gros É.-U. ' + AMX.fmtArgent(u.grosUS) + ' vs gros Canada ' + AMX.fmtArgent(u.grosCA) + (u.margeDetailCA !== null && u.margeDetailCA !== undefined ? ' · marge détail Canada ' + AMX.fmtArgent(u.margeDetailCA) : '') }));
+      // (8 oct., soir) le verdict compare les PROFITS : É.-U., gros Canada, détail.
+      zoneVerdict.appendChild(h('span.puce' + (u.verdict === 'us' ? '.info' : (u.verdict === 'ca' ? '.ok' : (u.verdict === 'detail' ? '.attention' : ''))), { text: 'Évaluation : ' + AMX.export.phraseVerdict(u).toLowerCase() + ' (' + AMX.export.texteVerdict(u) + ')' }));
+      zoneVerdict.appendChild(h('span.doux.petit', { text: ' ' + AMX.export.texteProfits(u) }));
       zoneVerdict.appendChild(h('a.petit', { href: AMX.lien('outils', 'evaluation', { vin: s.vin }), text: ' Ouvrir l\'évaluation', style: { marginLeft: '6px' } }));
     }).catch(function () {});
     if (accepte || refuse) {

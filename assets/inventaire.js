@@ -798,7 +798,10 @@
           : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
         h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }),
         sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null,
-        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null
+        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
+        // Vérifications gratuites qui complètent CARFAX (8 oct., soir) : le NIV est copié, on le colle sur le site.
+        h('a.btn.fantome', { href: 'https://www.nicb.org/vincheck', target: '_blank', rel: 'noopener', title: 'NICB VINCheck : volé non retrouvé, salvage / inondation (assureurs américains) — le NIV est copié', html: I.externe + '<span>Vérifier NICB</span>', onclick: function () { AMX.copier(v.vin, 'NIV copié — collez-le dans VINCheck'); } }),
+        h('a.btn.fantome', { href: 'https://www.iseecars.com/vin', target: '_blank', rel: 'noopener', title: 'iSeeCars : historique des annonces et des prix aux États-Unis — le NIV est copié', html: I.externe + '<span>Historique É.-U.</span>', onclick: function () { AMX.copier(v.vin, 'NIV copié — collez-le dans iSeeCars'); } })
       ]),
       zoneCfx
     ]);

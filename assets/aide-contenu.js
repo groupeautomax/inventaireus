@@ -1,4 +1,4 @@
-/* Aide ScanAutomax — le contenu (7 oct. 2026).
+/* Aide ScanAutomax — le contenu (8 oct. 2026).
    C'est la référence de toutes les fonctions du site et de l'app, lue par assets/aide.js
    (onglet « Aide » du site, menu du compte « Guide et aide », Réglages de l'app).
 
@@ -20,9 +20,9 @@
   window.AMX = window.AMX || {};
 
   AMX.AIDE_CONTENU = {
-    version: '7 octobre 2026',
+    version: '8 octobre 2026',
 
-    frequentes: ['inv-statut', 'inv-stock-km', 'achat-quand', 'svc-autoriser', 'eval-lancer', 'dem-connexion', 'app-installer', 'inv-recherche', 'svc-refus', 'offre-publier', 'dep-deconnecte', 'dep-lent'],
+    frequentes: ['inv-statut', 'inv-stock-km', 'achat-quand', 'svc-autoriser', 'eval-lancer', 'dem-connexion', 'app-installer', 'inv-recherche', 'svc-refus', 'offre-publier', 'offre-signer', 'dep-deconnecte', 'dep-lent'],
 
     sections: [
 
@@ -226,7 +226,10 @@
             r: '<p>Offres › <b>Offres reçues</b> → l\'offre : <b>Accepter</b>, <b>Contre-offre</b>, <b>Refuser</b>, Renvoyer le lien, Annuler ; km pour le contrat, note interne, historique. Statuts : nouvelle → contre → acceptée → contrat (ou refusée / annulée). Les courriels à l\'équipe ont les mêmes boutons : on peut répondre sans ouvrir le site.</p>',
             liens: [{ t: 'Offres reçues', s: 'offres', o: 'recues' }] },
           { id: 'offre-contrat', q: 'Comment est produit le contrat ?', mots: 'contrat pdf taxes signature livraison province légal',
-            r: '<p>À l\'acceptation : contrat PDF au nom légal de la concession (adresse, NEQ, TPS/TVQ, permis SAAQ ou OMVIC), taxes selon la province de <b>livraison</b>, envoyé aux deux parties ; l\'acheteur finalise ses coordonnées sur sa page. Les deux copies sont dans l\'offre (QuickLook dans l\'app). Le lien <b>Central Fleet</b> prépare la demande de transport.</p>' },
+            r: '<p>À l\'acceptation : contrat PDF au nom légal de la concession (adresse, NEQ, TPS/TVQ, permis SAAQ ou OMVIC), taxes selon la province de <b>livraison</b>, envoyé aux deux parties ; l\'acheteur finalise ses coordonnées sur sa page et <b>trace sa signature</b> dans le cadre prévu (voir « Comment signer un contrat »). Les deux copies sont dans l\'offre (QuickLook dans l\'app). Le lien <b>Central Fleet</b> prépare la demande de transport.</p>' },
+          { id: 'offre-signer', q: 'Comment signer un contrat (signature électronique) ?', mots: 'signer signature électronique contresigner tablette tracer directeur contrat signé deux parties certificat',
+            r: '<p>Depuis le 7 octobre, les contrats se signent sans papier, en deux temps.</p><ol><li><b>L\'acheteur</b> finalise sur sa page : coordonnées, livraison, conditions, puis il trace sa signature au doigt ou à la souris et tape son nom. Le contrat PDF part avec sa signature ; la case du vendeur indique « En attente de la signature électronique du vendeur ».</li><li><b>L\'équipe</b> reçoit le courriel « Contrat … signé par l\'acheteur — à contresigner » avec un bouton <b>Signer le contrat</b>. Le directeur contresigne depuis ce courriel ou depuis le site : Offres › <b>Offres reçues</b> → l\'offre → <b>Signer le contrat</b> (tablette, nom du signataire, case « Je suis autorisé(e) à signer pour la concession »). Il faut le droit de changer les statuts.</li><li>Les <b>deux PDF sont refaits</b> avec les deux signatures et un <b>certificat de signature électronique</b> (partie, nom, courriel, date et heure, méthode, appareil), puis renvoyés aux deux parties : c\'est la version finale.</li></ol><p>Dans la liste des offres : puce « À contresigner » tant que le vendeur n\'a pas signé, « Signé ×2 » ensuite ; la carte « Contrats signés » compte ceux qu\'il reste à contresigner. Les contrats signés avant le 7 octobre (nom tapé) peuvent être contresignés de la même façon.</p>',
+            liens: [{ t: 'Offres reçues', s: 'offres', o: 'recues' }] },
           { id: 'offre-acheteurs', q: 'Comment inviter un concessionnaire acheteur ?', mots: 'acheteurs externes inviter inscrire base fiche',
             r: '<p>Offres › <b>Acheteurs</b> → Inviter : nom, courriel, langue ; l\'invitation part au nom de votre concession avec un bouton « Inscrire ma concession ». Chaque contrat signé alimente aussi la base. La fiche de l\'acheteur préremplit ses prochains contrats.</p>',
             liens: [{ t: 'Acheteurs', s: 'offres', o: 'acheteurs' }] },
@@ -310,7 +313,7 @@
       { id: 'depannage', titre: 'Dépannage', intro: 'Quand quelque chose ne va pas.',
         articles: [
           { id: 'dep-deconnecte', q: 'Je me fais déconnecter', mots: 'déconnecté session expirée reconnecter code répété',
-            r: '<p>Depuis le 7 octobre, le site et l\'app revérifient la session avant de la fermer : une déconnexion ne vient plus que d\'une session de plus de 30 jours, d\'un compte désactivé ou d\'un navigateur qui a effacé ses données (navigation privée, Safari après 7 jours sans visite — voir Démarrer). Si ça se reproduit, notez l\'heure et dites-le à Maxime.</p>' },
+            r: '<p>Depuis le 7 octobre, le site et l\'app revérifient la session avant de la fermer : une déconnexion ne vient plus que d\'une session de plus de 30 jours, d\'un compte désactivé ou d\'un navigateur qui a effacé ses données (navigation privée, Safari après 7 jours sans visite — voir Démarrer). Exception : le soir du 7 octobre, toutes les sessions ont été fermées lors d\'une intervention sur le serveur ; une seule reconnexion (courriel + code) suffisait. Si ça se reproduit, notez l\'heure et dites-le à Maxime.</p>' },
           { id: 'dep-lent', q: 'C\'est lent, ou « Pas de réponse en 25 s »', mots: 'lent lenteur attente serveur injoignable réponse 25 s délai',
             r: '<p>Les listes s\'affichent d\'abord depuis la mémoire de l\'appareil puis se synchronisent ; une écriture (statut, étape) se voit tout de suite. Si « Pas de réponse » apparaît, c\'est le serveur Google qui tarde : le site relance de lui-même une requête de secours. Attendez quelques secondes ou cliquez <b>Rafraîchir</b>. Un véhicule changé pendant une panne est quand même enregistré dès que la réponse arrive (l\'état en bas de liste le confirme).</p>' },
           { id: 'dep-refus', q: '« Refusé » ou « droit manquant »', mots: 'refusé droit manquant permission interdit action',
@@ -335,6 +338,9 @@
     ],
 
     nouveautes: [
+      { date: '8 octobre 2026', titre: 'Signature électronique des contrats',
+        texte: 'Les contrats de vente aux acheteurs externes se signent maintenant sans papier. L\'acheteur trace sa signature sur sa page en finalisant ; l\'équipe reçoit un courriel « à contresigner » et le directeur signe depuis ce courriel ou depuis Offres › Offres reçues → Signer le contrat (tablette, nom, case d\'autorisation). Les deux PDF sont refaits avec les deux signatures et un certificat de signature électronique, puis renvoyés aux deux parties. La liste des offres indique « À contresigner » ou « Signé ×2 ». Note : le soir du 7 octobre, tout le monde a dû se reconnecter une fois après une intervention sur le serveur — c\'est normal, et c\'est réglé.',
+        liens: [{ t: 'Offres reçues', s: 'offres', o: 'recues' }] },
       { date: '7 octobre 2026', titre: 'Aide dans le site, km obligatoire, valeur des inventaires, neufs, écritures plus rapides',
         texte: 'Cette aide (menu du compte → Guide et aide, et onglet Aide). Le kilométrage est obligatoire pour poser un # stock. La bande « Valeur des inventaires » donne le total en $ par registre. L\'onglet Neufs suit les véhicules neufs du DMS (VW Brossard) ; un administrateur peut retirer une unité du suivi pour de bon. Changer un statut ou cocher une étape se voit tout de suite, même quand le serveur tarde. Le panneau du véhicule est allégé (évaluation visible, registre d\'immatriculation sur une ligne). Dans l\'app : accueil « Inventaire usagé » / « Inventaire neuf ».',
         liens: [{ t: 'Neufs', s: 'inventaire', o: 'neufs' }] },

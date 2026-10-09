@@ -264,6 +264,9 @@
       // Boîte « Canada ou États-Unis ? » (8 oct.)
       '#sec-export .carte-corps { padding: 12px 14px; }',
       '.eval-export-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }',
+      '.eval-export-tete.cliquable { cursor: pointer; margin: -12px -14px 10px; padding: 12px 14px 0; border-radius: var(--rayon) var(--rayon) 0 0; }',
+      '.eval-export-tete.cliquable:hover h2 { color: var(--vert); }',
+      '.eval-export-tete h2::before { content: "▸ "; color: var(--encre-3); font-size: 12px; } .eval-export-ouverte .eval-export-tete h2::before { content: "▾ "; } .eval-export-repliee .eval-export-tete h2::before { content: ""; }',
       '.eval-export-tete h2 { margin: 0; font-size: 14px; }',
       '.eval-export-tete .mini { color: var(--encre-3); }',
       '.eval-export-tete .droite { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
@@ -564,7 +567,8 @@
     this.elExport = h('div.carte#sec-export');
     this.construireExport();
 
-    this.el = h('div.page.eval-page', [entete, this.elSommaire, vehicule, this.elExport, detail, marche]);
+    // (8 oct., soir — Maxime) le calcul de l'évaluation plus haut ; la comparaison Canada / É.-U. en dessous, à ouvrir d'un clic.
+    this.el = h('div.page.eval-page', [entete, this.elSommaire, vehicule, detail, this.elExport, marche]);
     this.rendreSommaire();
     this.rendreLiens();
     this.rendreExport();
@@ -592,7 +596,7 @@
      champs qui ont le focus. */
   Evaluation.prototype.construireExport = function () {
     var self = this;
-    this.exportOuvert = AMX.memo.lire('eval_export_ouvert', '0') === '1';
+    this.exportOuvert = false;          // toujours repliée au chargement : il faut cliquer dessus pour l'ouvrir
     this.reglagesOuverts = false;
     // Les deux cases visibles
     var cMmr = champ('e-us-mmr', 'MMR ($ US)', { type: 'number', inputmode: 'numeric', placeholder: 'Valeur Manheim' });
@@ -633,10 +637,8 @@
     this.btnUsOuvrir = h('button.btn.petit#e-us-ouvrir', { type: 'button', onclick: function () { self.basculerExport(!self.exportOuvert); } });
     this.btnUsComparer = h('button.btn.petit', { type: 'button', text: 'Comparer quand même', onclick: function () { self.exportForce = true; self.basculerExport(true); self.elUsMmr.focus(); } });
     this.elUsEtiquette = h('span.mini');
-    this.elExport.appendChild(h('div.carte-corps', [
-      h('div.eval-export-tete', [h('h2', 'Canada ou États-Unis ?'), this.elUsEtiquette, h('div.droite', [this.btnUsMmr, this.btnUsOuvrir])]),
-      this.elUsResume, this.elUsCorps
-    ]));
+    this.elUsTete = h('div.eval-export-tete.cliquable', { title: 'Ouvrir ou fermer la comparaison', onclick: function (e) { if (e.target.closest('a, button')) return; if (self.exportDisponible) self.basculerExport(!self.exportOuvert); } }, [h('h2', 'Canada ou États-Unis ?'), this.elUsEtiquette, h('div.droite', [this.btnUsMmr, this.btnUsOuvrir])]);
+    this.elExport.appendChild(h('div.carte-corps', [this.elUsTete, this.elUsResume, this.elUsCorps]));
     var champs = [[this.elUsMmr, 'mmr'], [this.elUsTaux, 'taux'], [this.elUsEcart, 'ecart'], [this.elUsAjust, 'ajust'], [this.elUsGrosPct, 'grospct']];
     champs.forEach(function (c) { c[0].addEventListener('input', function () { self.usModifie(c[1]); }); });
     this.elUsGrosCA.addEventListener('input', function () { self.us.grosCA = self.elUsGrosCA.value; self.us.grosCASource = self.elUsGrosCA.value ? 'saisie' : ''; self.rendreExport(); self.planifierAuto(); });
@@ -644,7 +646,6 @@
 
   Evaluation.prototype.basculerExport = function (ouvrir) {
     this.exportOuvert = !!ouvrir;
-    AMX.memo.ecrire('eval_export_ouvert', this.exportOuvert ? '1' : '0');
     this.rendreExport();
   };
 
@@ -729,7 +730,9 @@
     var p = AMX.export.params();
     var exportable = AMX.export.exportable(vin);
     var montrer = exportable || this.exportForce;
+    this.exportDisponible = montrer;
     this.elExport.classList.toggle('eval-export-repliee', !montrer);
+    this.elExport.classList.toggle('eval-export-ouverte', montrer && this.exportOuvert);
     AMX.vider(this.elUsResume);
     this.elUsEtiquette.textContent = vin ? (exportable ? 'Fabriqué aux États-Unis (NIV en ' + vin.charAt(0) + ') — exportable' : 'NIV en ' + vin.charAt(0) + ' : pas fabriqué aux États-Unis') : 'Pour un NIV en ' + (p.prefixes || []).join(', ');
     if (!montrer) {
@@ -894,7 +897,7 @@
     // Verdict Canada / É.-U. (8 oct.) — seulement quand la boîte a de quoi comparer.
     var us = this.elExport ? this.usCollecter() : null;
     if (us && us.verdict) this.elSommaire.appendChild(item('Verdict', AMX.export.texteVerdict(us), 'verdict.' + us.verdict));
-    this.elSommaire.appendChild(h('nav.sauts', [['sec-vehicule', 'Véhicule'], ['sec-export', 'CA / É.-U.'], ['sec-prix', 'Prix'], ['sec-marche', 'Marché']].map(function (x) {
+    this.elSommaire.appendChild(h('nav.sauts', [['sec-vehicule', 'Véhicule'], ['sec-prix', 'Prix'], ['sec-export', 'CA / É.-U.'], ['sec-marche', 'Marché']].map(function (x) {
       return h('a', { href: '#', text: x[1], onclick: function (e) { e.preventDefault(); var el = document.getElementById(x[0]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
     })));
   };
@@ -1317,8 +1320,6 @@
       ecartPct: u && u.ecartPct !== null && u.ecartPct !== undefined ? u.ecartPct : null, ajustement: u && u.ajustement !== null && u.ajustement !== undefined ? u.ajustement : null,
       grosCA: u && u.grosCASource === 'saisie' && u.grosCA !== null && u.grosCA !== undefined ? String(u.grosCA) : '', grosCASource: u && u.grosCASource === 'saisie' ? 'saisie' : '',
       grosPct: u && u.grosPct !== null && u.grosPct !== undefined ? nombre(u.grosPct) : null };
-    // Une évaluation où quelqu'un a déjà entré un MMR : la boîte s'ouvre d'elle-même (sans changer le choix mémorisé).
-    if (this.us.mmr) this.exportOuvert = true;
     this.exportForce = !!(u && u.mmr !== null && u.mmr !== undefined && String(u.mmr) !== '');
     if (this.derniereSauvegarde && this.derniereSauvegarde.portee) { var pv = this.derniereSauvegarde.pays === 'us' ? 'us' : 'ca'; this.portee[pv] = porteeValide(this.derniereSauvegarde.portee, this.portee[pv]); if (this.derniereSauvegarde.etat && ETATS[pv][this.derniereSauvegarde.etat]) this.etats[pv] = this.derniereSauvegarde.etat; }
     // Statut posé par le serveur (Api.gs) : « auto » ou « enregistree » ; les anciennes fiches sans statut ont été enregistrées à la main.

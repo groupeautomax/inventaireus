@@ -483,7 +483,10 @@
     this.enChargement = true;
     if (manuel) this.btnRafraichir.classList.add('occupe');
     if (!this.lignes) this.rendre();   // squelettes
-    return AMX.get(this.source.route + (manuel && this.estCan() ? '&force=1' : '')).then(function (d) {
+    // Wholesale Canada : relire les Livres des ventes prend 15 à 30 s côté serveur (Rafraîchir, ou cache
+    // expiré) — une seule requête, patiente, plutôt que la requête de secours à 6 s et la coupure à 25 s.
+    var opts = this.estCan() ? { delai: 60000, secours: 45000 } : undefined;
+    return AMX.get(this.source.route + (manuel && this.estCan() ? '&force=1' : ''), opts).then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;
       self.btnRafraichir.classList.remove('occupe');
@@ -494,7 +497,9 @@
       }
       if (!d || d.ok === false) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
       var n = normaliser(d.rows || [], self.source.seuil);
-      self.lignes = n.lignes; self.exclues = n.exclues; self.quand = new Date();
+      self.lignes = n.lignes; self.exclues = n.exclues;
+      var lu = self.estCan() && d.genereLe ? new Date(d.genereLe) : null;   // heure de lecture des livres (cache serveur)
+      self.quand = lu && !isNaN(lu.getTime()) ? lu : new Date();
       self.enAttente = normaliser(d.enAttente || [], Infinity).lignes;
       self.exclus = d.exclus || null; self.horsPortee = !!d.horsPortee; self.livres = d.livres || []; self.livreErreurs = d.erreurs || [];
       self.erreur = ''; self.refus = '';
@@ -560,7 +565,7 @@
       var tout = agreger(parCie), ach = agreger(parCie.filter(function (r) { return r.type === 'achat'; })), ech = agreger(parCie.filter(function (r) { return r.type === 'echange'; }));
       var attente = this.enAttente.filter(function (r) { return c === 'TOUT' || r.compagnie === c; });
       this.elEtat.appendChild(document.createTextNode(
-        tout.nb + ' vente' + (tout.nb > 1 ? 's' : '') + ' comptabilisée' + (tout.nb > 1 ? 's' : '') + ' (' + pluriel(ach.nb, 'achat') + ' ' + AMX.fmtArgent(ach.profitTotal, 0) + ' · ' + pluriel(ech.nb, 'échange') + ' ' + AMX.fmtArgent(ech.profitTotal, 0) + ')' + (c !== 'TOUT' ? ' · ' + c : '') + ' · mis à jour à ' + heure(this.quand)
+        tout.nb + ' vente' + (tout.nb > 1 ? 's' : '') + ' comptabilisée' + (tout.nb > 1 ? 's' : '') + ' (' + pluriel(ach.nb, 'achat') + ' ' + AMX.fmtArgent(ach.profitTotal, 0) + ' · ' + pluriel(ech.nb, 'échange') + ' ' + AMX.fmtArgent(ech.profitTotal, 0) + ')' + (c !== 'TOUT' ? ' · ' + c : '') + ' · livres lus à ' + heure(this.quand)
       ));
       if (attente.length) this.elEtat.appendChild(h('span.puce.attention', { title: 'Ventes inscrites au livre mais pas encore comptabilisées : leur profit réel n\'est pas connu, elles ne comptent pas.', text: attente.length + ' en attente' }));
       if (this.exclus && this.exclus.lmb && (c === 'TOUT' || c === 'STM')) this.elEtat.appendChild(h('span.puce.gris', { title: 'Lignes LMB CAN du livre de Ste-Marie, exclues des statistiques (profit comptabilisé ' + AMX.fmtArgent(this.exclus.lmbProfit || 0) + ').', text: 'LMB exclus (' + this.exclus.lmb + ')' }));

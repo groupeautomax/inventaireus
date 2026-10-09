@@ -44,7 +44,7 @@
      Les paramètres (préfixes de NIV exportables, écart, ajustement, pas des
      flèches, dates d'encan) et le taux du jour (Banque du Canada) viennent de
      GET ?exportParams=1, gardés 1 h dans la session. */
-  var EXPORT_DEFAUT = { prefixes: ['1', '4', '5'], ecartPct: 3, ecartAchatPct: 4, ecartEchangePct: 3, pasEcart: 0.5, ajustement: 6000, pasAjustement: 500, grosPct: 15, pasGrosPct: 1, tauxManuel: 0, premierEncan: '', derniereExpedition: '' };
+  var EXPORT_DEFAUT = { prefixes: ['1', '4', '5'], ecartPct: 3, ecartAchatPct: 4, ecartEchangePct: 3, pasEcart: 0.5, ajustement: 6000, pasAjustement: 500, grosPct: 15, pasGrosPct: 1, alerteMmrPct: 10, tauxManuel: 0, premierEncan: '', derniereExpedition: '' };
   var exportCache = { rep: null, quand: 0, promesse: null };
   (function () { try { var o = JSON.parse(sessionStorage.getItem('amx_export_params_v1') || 'null'); if (o && o.rep && Date.now() - o.quand < 3600000) { exportCache.rep = o.rep; exportCache.quand = o.quand; } } catch (e) {} })();
   AMX.export = {
@@ -291,7 +291,13 @@
       '.eval-export-chaine { font-size: 12.5px; color: var(--encre-2); line-height: 1.5; font-variant-numeric: tabular-nums; }',
       '.eval-export-chaine b { font-size: 14px; }',
       '.eval-export-taux { font-size: 11.5px; color: var(--encre-3); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
-      '.eval-export-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }',
+      '.eval-export-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }',
+      '@media (max-width: 1200px) { .eval-export-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
+      '.eval-export-col.marche { box-shadow: inset 4px 0 0 var(--ligne-forte, #98A2B3); }',
+      '.eval-export-col.marche.ok { box-shadow: inset 4px 0 0 var(--vert); } .eval-export-col.marche.ok .v { color: var(--vert); }',
+      '.eval-export-col.marche.alerte { box-shadow: inset 4px 0 0 var(--rouge); background: var(--rouge-bg); border-color: var(--rouge-bord); } .eval-export-col.marche.alerte .v { color: var(--rouge); } .eval-export-col.marche.alerte .l { color: var(--rouge); }',
+      '.eval-export-col.marche .s button { margin-top: 3px; }',
+      '.eval-export-resume .badge.rouge, .eval-export-verdict .badge.rouge { font-weight: 700; }',
       '.eval-export-col { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; background: var(--fond); }',
       '.eval-export-col.ca.estime .v { color: var(--encre-2); font-style: italic; }',
       '.eval-export-col.ca.estime .v::before { content: "≈ "; font-style: normal; }',
@@ -521,7 +527,7 @@
     this.elNiv.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.elNiv.blur(); } });
     this.elNiv.addEventListener('input', function () { self.rendreLiens(); });
     [this.elMarque, this.elModele, this.elAnnee].forEach(function (el) { el.addEventListener('input', AMX.debounce(function () { self.rendreSommaire(); self.chargerRappels(); }, 600)); });
-    this.elKm.addEventListener('input', function () { self.rendreMarche(); });
+    this.elKm.addEventListener('input', function () { self.rendreMarche(); self.rendreExport(); });
     this.elKm.addEventListener('change', function () { self.rendreOpenlane(); });
     this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
@@ -564,7 +570,7 @@
     marche.id = 'sec-marche';
     this.majSegment();
 
-    this.elTaux.addEventListener('input', function () { self.rendreMarche(); });
+    this.elTaux.addEventListener('input', function () { self.rendreMarche(); self.rendreExport(); });
 
     // --- Canada ou États-Unis ? (8 oct.) — mise de l'avant : première carte sous le véhicule
     this.elExport = h('div.carte#sec-export');
@@ -596,7 +602,11 @@
      gros Canada), le reste (taux, écart, ajustement, écart gros/détail) sous
      « Réglages ». Les champs sont construits une fois (construireExport) ; les
      résultats se redessinent à chaque frappe (rendreExport) sans toucher aux
-     champs qui ont le focus. */
+     champs qui ont le focus.
+     (9 oct.) 4e tuile « Marché É.-U. vs MMR » : la moyenne des annonces américaines
+     ramenées au km (en $ US) doit dépasser le MMR de EXPORT_PARAMS.alerteMmrPct
+     (10 %) — sinon la tuile, le résumé replié, le verdict et le sommaire passent au
+     ROUGE. L'analyse américaine part d'elle-même dès qu'un MMR est tapé. */
   Evaluation.prototype.construireExport = function () {
     var self = this;
     this.exportOuvert = false;          // toujours repliée au chargement : il faut cliquer dessus pour l'ouvrir
@@ -629,7 +639,9 @@
     // Les trois colonnes de profit, construites une fois
     var col = function (cls, libelle) { var o = { el: null, v: h('div.v.num', '—'), s: h('div.s', '') }; o.el = h('div.eval-export-col.' + cls, [h('div.l', libelle), o.v, o.s]); return o; };
     this.colUs = col('us', 'Profit É.-U.'); this.colCa = col('ca', 'Profit gros Canada'); this.colDetail = col('detail', 'Profit détail Canada');
-    this.elUsCols = h('div.eval-export-cols', [this.colUs.el, this.colCa.el, this.colDetail.el]);
+    // (9 oct. — Maxime) 4e tuile : la moyenne des annonces américaines ramenées au km doit dépasser le MMR de 10 %, sinon ROUGE.
+    this.colMarche = col('marche', 'Marché É.-U. vs MMR');
+    this.elUsCols = h('div.eval-export-cols', [this.colUs.el, this.colCa.el, this.colDetail.el, this.colMarche.el]);
     this.elUsVerdict = h('div.eval-export-verdict');
     this.elUsCorps = h('div.eval-export-corps', [
       h('div.eval-export-ligne.saisie', [cMmr.el, cGros.el, h('div.champ.reglages', [h('label', { text: ' ' }), this.btnUsReglages])]),
@@ -697,6 +709,42 @@
     return { valeur: null, source: '', estime: false };
   };
 
+  /* Marché américain « pondéré au km » (9 oct.) : la moyenne des prix des annonces É.-U. ramenés au kilométrage
+     du véhicule (mêmes règles que les cibles : prix − (km véhicule − km annonce) × taux, filtres de la page),
+     en $ US comme le MMR. Sans analyse en page : celle conservée avec l'évaluation si elle était américaine. */
+  Evaluation.prototype.usMarcheUS = function () {
+    var a = this.analyses.us;
+    if (a && a.ok) {
+      var liste = this.annoncesRetenues(a);
+      var ajustes = liste.map(function (x) { return x.ajuste; }).filter(function (v) { return v !== null && v !== undefined && !isNaN(v); });
+      if (ajustes.length) return { moyenne: Math.round(moyenne(ajustes)), n: ajustes.length, source: ajustes.length + ' annonce' + (ajustes.length > 1 ? 's' : '') + ' au km', vivant: true };
+      var st = a.actifs && a.actifs.prix;
+      if (st && st.moyenne) return { moyenne: Math.round(st.moyenne), n: (a.actifs && a.actifs.n) || 0, source: 'moyenne du marché', vivant: true };
+      return null;
+    }
+    var sv = this.derniereSauvegarde;
+    if (sv && sv.pays === 'us' && sv.standard) return { moyenne: Math.round(sv.standard), n: (sv.actifs && sv.actifs.n) || 0, source: 'analyse conservée' + (sv.genereLe ? ' du ' + AMX.fmtDateCourte(sv.genereLe) : ''), vivant: false };
+    return null;
+  };
+  // Seuil : paramètre EXPORT_PARAMS.alerteMmrPct (10 % par défaut). pct = moyenne É.-U. ÷ MMR − 1 ; alerte si pct < seuil.
+  Evaluation.prototype.usAlerteMmr = function (mmr) {
+    var p = AMX.export.params();
+    var seuil = (p.alerteMmrPct !== undefined && p.alerteMmrPct !== null && nombre(p.alerteMmrPct) !== null) ? nombre(p.alerteMmrPct) : 10;
+    var m = this.usMarcheUS(), mmrN = nombre(mmr);
+    var out = { seuil: seuil, marche: m, mmr: mmrN, pct: null, alerte: null };
+    if (m && m.moyenne && mmrN) { out.pct = Math.round((m.moyenne / mmrN - 1) * 1000) / 10; out.alerte = out.pct < seuil; }
+    return out;
+  };
+  // Dès qu'un MMR est tapé et que la boîte est ouverte, l'analyse américaine part d'elle-même (une fois par NIV) :
+  // on ne peut pas juger le MMR sans le marché É.-U. Un appel MarketCheck de plus par évaluation comparée.
+  Evaluation.prototype.usAssurerAnalyseUS = function () {
+    var vin = (this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    if (!this.exportOuvert || !this.us.mmr || !vin) return;
+    if ((this.analyses.us && this.analyses.us.ok) || this.enCours.us || this.usAutoUS === vin || !this.parametresPrets()) return;
+    this.usAutoUS = vin;
+    this.analyser('us', false);
+  };
+
   // Marge potentielle détail Canada : prix de détail visé (sinon marché standard) − payé − recon.
   Evaluation.prototype.usMargeDetail = function () {
     var paye = nombre(this.elPaye.value), recon = nombre(this.elRecon.value) || 0, prix = nombre(this.elPrix.value);
@@ -721,8 +769,10 @@
   Evaluation.prototype.usCollecter = function () {
     var r = this.usProfits(), c = r.c, gca = r.gca, md = r.md, v = r.v;
     if (c.grosUS === null && gca.valeur === null && !this.us.mmr) return null;
+    var al = this.usAlerteMmr(c.mmr);
     return { mmr: c.mmr, taux: r.e.taux, tauxDate: r.e.tauxDate, tauxSource: r.e.tauxSource, ecartPct: c.ecartPct, tauxAjuste: c.tauxAjuste, converti: c.converti, ajustement: c.ajustement,
       grosUS: c.grosUS, grosCA: gca.valeur, grosCASource: gca.source, grosCAEstime: !!gca.estime, grosPct: this.usGrosPct(),
+      marcheUS: al.marche ? al.marche.moyenne : null, marcheUSn: al.marche ? al.marche.n : null, marcheUSPct: al.pct, alerteMmr: al.alerte === true, alerteMmrSeuil: al.seuil,
       paye: r.paye, profitUS: r.profitUS, profitCA: r.profitCA, profitDetail: r.profitDetail, margeDetailCA: md.valeur, margeDetailBase: md.base,
       meilleur: v.meilleur, second: v.second, ecart: v.ecart, verdict: v.verdict, calculeLe: new Date().toISOString() };
   };
@@ -753,16 +803,19 @@
     if (!this.exportOuvert) {
       // Repliée (par défaut) : une ligne — le verdict s'il existe, sinon l'invitation.
       this.elUsCorps.style.display = 'none';
+      var alR = this.usAlerteMmr(c.mmr);
+      if (alR.alerte) this.elUsResume.appendChild(h('span.badge.rouge', { text: 'Marché É.-U. ' + (alR.pct >= 0 ? '+' : '') + alR.pct + ' % vs MMR (seuil ' + alR.seuil + ' %)' }));
       if (v.verdict) {
         this.elUsResume.appendChild(h('span.badge.' + AMX.export.classeVerdict(v), { text: AMX.export.phraseVerdict(v) }));
         this.elUsResume.appendChild(h('span', { text: AMX.export.texteProfits(v) }));
-      } else {
+      } else if (!alR.alerte) {
         this.elUsResume.appendChild(h('span', { text: 'Cliquez pour comparer les profits (É.-U., gros Canada, détail).' }));
       }
       this.rendreSommaire();
       return;
     }
     this.elUsCorps.style.display = '';
+    this.usAssurerAnalyseUS();
     // Champs : on ne touche à un champ que s'il n'a pas le focus (sinon la frappe est cassée).
     var poser = function (el, val) { if (document.activeElement === el) return; var s = (val === null || val === undefined) ? '' : String(val); if (el.value !== s) el.value = s; };
     poser(this.elUsMmr, this.us.mmr);
@@ -802,7 +855,25 @@
     this.colCa.s.textContent = gca.valeur !== null ? ((gca.estime ? '≈ ' : '') + fmt(gca.valeur) + ' − payé ' + payeTexte + (gca.estime ? ' · estimé : ' + gca.source : ' · ' + gca.source)) : 'Tapez la valeur de gros (encan / eBlock), ou lancez l\'analyse de marché : MarketCheck donne un gros estimé.';
     this.colDetail.el.classList.toggle('gagnant', v.verdict === 'detail'); this.colDetail.v.textContent = fmt(md.valeur);
     this.colDetail.s.textContent = md.valeur !== null ? md.source + ' ' + fmt(md.base) + ' − payé − recon' : 'Prix payé + prix de détail (ou analyse de marché) pour la calculer';
+    // 4e tuile : marché É.-U. (moyenne des annonces au km, $ US) face au MMR — ROUGE sous le seuil.
+    var al = this.usAlerteMmr(c.mmr);
+    this.colMarche.el.classList.toggle('alerte', al.alerte === true);
+    this.colMarche.el.classList.toggle('ok', al.alerte === false);
+    AMX.vider(this.colMarche.s);
+    if (al.pct !== null) {
+      this.colMarche.v.textContent = (al.pct >= 0 ? '+' : '') + AMX.fmtNombre(al.pct) + ' %';
+      this.colMarche.s.appendChild(h('span', { text: 'moyenne ' + AMX.fmtNombre(al.marche.moyenne) + ' $ US (' + al.marche.source + ') vs MMR ' + AMX.fmtNombre(al.mmr) + ' $ US · seuil + ' + al.seuil + ' %' + (al.alerte ? ' — le marché ne couvre pas le MMR' : '') }));
+    } else {
+      this.colMarche.v.textContent = '—';
+      if (c.mmr === null) this.colMarche.s.appendChild(h('span', { text: 'MMR à entrer : la moyenne des annonces É.-U. doit le dépasser de ' + al.seuil + ' %.' }));
+      else if (this.enCours.us) this.colMarche.s.appendChild(h('span', { text: 'Analyse du marché américain en cours…' }));
+      else {
+        this.colMarche.s.appendChild(h('span', { text: 'Marché américain à analyser (seuil + ' + al.seuil + ' % du MMR).' }));
+        this.colMarche.s.appendChild(h('button.btn.petit', { type: 'button', text: 'Analyser le marché américain', onclick: function () { self.usAutoUS = ''; self.analyser('us', true); } }));
+      }
+    }
     AMX.vider(this.elUsVerdict);
+    if (al.alerte) this.elUsVerdict.appendChild(h('span.badge.rouge', { text: 'Alerte : marché É.-U. ' + (al.pct >= 0 ? '+' : '') + al.pct + ' % vs MMR, sous le seuil de ' + al.seuil + ' %' }));
     if (v.verdict) {
       this.elUsVerdict.appendChild(h('span.badge.' + AMX.export.classeVerdict(v), { text: AMX.export.phraseVerdict(v) }));
       this.elUsVerdict.appendChild(h('span', { text: AMX.export.texteProfits(v) }));
@@ -902,6 +973,7 @@
     // Verdict Canada / É.-U. (8 oct.) — seulement quand la boîte a de quoi comparer.
     var us = this.elExport ? this.usCollecter() : null;
     if (us && us.verdict) this.elSommaire.appendChild(item('Verdict', AMX.export.texteVerdict(us), 'verdict.' + us.verdict));
+    if (us && us.alerteMmr) this.elSommaire.appendChild(item('É.-U. vs MMR', (us.marcheUSPct >= 0 ? '+' : '') + us.marcheUSPct + ' %', 'neg'));
     this.elSommaire.appendChild(h('nav.sauts', [['sec-vehicule', 'Véhicule'], ['sec-prix', 'Prix'], ['sec-export', 'CA / É.-U.'], ['sec-marche', 'Marché']].map(function (x) {
       return h('a', { href: '#', text: x[1], onclick: function (e) { e.preventDefault(); var el = document.getElementById(x[0]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
     })));
@@ -1668,6 +1740,8 @@
     var self = this, vin = this.vinPourSauvegarde();
     clearTimeout(this.minuterieAuto);
     if (!vin || !this.parametresPrets()) return Promise.resolve();
+    // (9 oct.) un NIV tapé mais pas encore chargé : on ne sauvegarde pas les chiffres de l'ancien véhicule sous le nouveau.
+    if (this.vinCourant && vin !== String(this.vinCourant).trim().toUpperCase()) return Promise.resolve();
     var data = this.collecter(), gen = this.generation;
     return AMX.post({ action: 'saveEvaluation', vin: vin, data: data, auto: true }).then(function (d) {
       if (gen !== self.generation || !d || !d.ok) return;

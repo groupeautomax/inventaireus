@@ -314,6 +314,8 @@
     this.elDommagesListe = h('ul.achat-dommages-liste');
     // Fiche descriptive importée d'eBlock (Outils › Fiches eBlock, 7 oct.) : cote, dommages avec photos, pneus.
     this.elFicheEblock = h('div.noprint', { style: { marginTop: '10px' } });
+    // Valeurs OpenLane (9 oct.) : ventes comparables et prévision Market guide du NIV (signet OpenLane).
+    this.elOpenlane = h('div.noprint.achat-openlane', { style: { marginTop: '10px' } });
     var signetEblock = h('a.btn.petit.noprint', { href: CODE_SIGNET_EBLOCK, text: 'Automax ← eBlock', title: 'Glissez ce bouton dans votre barre de favoris, puis cliquez-le depuis la page du véhicule sur eBlock : le NIV et les dommages arrivent ici tout seuls.', draggable: 'true' });
     signetEblock.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis la page du véhicule sur eBlock.', 'attention', 7000); });
     var provenance = carte(h('div.carte-entete-ligne', [h('h2', { html: 'Rapport d\'état eBlock <span class="doux petit" style="font-weight:400">— lien de partage et dommages répertoriés</span>' }), signetEblock]), [
@@ -323,7 +325,8 @@
           h('textarea#f-dommages.achat-dommages', { rows: '4', placeholder: 'Hood\nFront Bumper\nTires / Rims…' })])
       ]),
       this.elDommagesListe,
-      this.elFicheEblock
+      this.elFicheEblock,
+      this.elOpenlane
     ]);
 
     // Coûts (inclut Frais et ajustements)
@@ -690,6 +693,7 @@
       self.rendreContexte();
       self.appliquerPrerempli();
       if (typeof AMX.eblockFiche === 'function') AMX.eblockFiche(vin, self.elFicheEblock);
+      if (typeof AMX.openlaneBloc === 'function') { AMX.vider(self.elOpenlane); var zoneOl = h('div'); self.elOpenlane.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Valeurs OpenLane')); self.elOpenlane.appendChild(zoneOl); AMX.openlaneBloc(vin, zoneOl, { km: AMX.kmValide(valeur('f-km')) || undefined }).catch(function () {}); }
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];
       if (vin.length >= 11) taches.push(self.decoderVin(vin));

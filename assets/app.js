@@ -106,6 +106,7 @@
   };
 
   var ICONES = AMX.icones = {
+    accueil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5L12 4l9 7.5"/><path d="M5.5 10v9.5h5v-5.5h3v5.5h5V10"/></svg>',
     suggestions: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V17h5v-1.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>',
     inventaire: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l1.5-5A2 2 0 0 1 6.4 4.5h11.2a2 2 0 0 1 1.9 1.5L21 11"/><rect x="3" y="11" width="18" height="7" rx="1.5"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></svg>',
     offres: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 13.5l-7 7-10-10V3.5h7l10 10z"/><circle cx="8" cy="8" r="1.5"/></svg>',
@@ -653,6 +654,10 @@
   function router() {
     if (!AMX.session.courriel) return;
     var r = lireHash();
+    // 9 oct. : adresse vide (connexion, ouverture du site) → la page de départ choisie par l'utilisateur (accueil.js), sinon l'Accueil.
+    if (!r.section && AMX.accueil) { var dep = AMX.accueil.depart(); if (dep) { AMX.aller(dep.section, dep.onglet, r.params); return; } }
+    // 9 oct. : Suggestions est devenu un onglet d'Aide ; l'ancienne adresse reste valable.
+    if (r.section === 'suggestions' && !AMX.sections.suggestions && AMX.sections.aide) { AMX.aller('aide', 'suggestions', r.params); return; }
     var secs = AMX.listeSections();
     var sec = AMX.sections[r.section];
     if (!sec || (sec.visible && !sec.visible())) {
@@ -717,7 +722,7 @@
     ]);
     usager.addEventListener('click', function (e) { if (e.target.closest('.menu')) return; usager.classList.toggle('ouvert'); });
     document.addEventListener('click', function (e) { if (!usager.contains(e.target)) usager.classList.remove('ouvert'); });
-    barre.appendChild(h('a.marque', { href: '#/', title: 'Groupe Automax' }, [h('img', { src: 'assets/logo.png', alt: 'Groupe Automax' })]));
+    barre.appendChild(h('a.marque', { href: AMX.sections.accueil ? '#/accueil' : '#/', title: 'Groupe Automax — Accueil' }, [h('img', { src: 'assets/logo.png', alt: 'Groupe Automax' })]));
     barre.appendChild(nav);
     barre.appendChild(h('div.espace'));
     barre.appendChild(rech);
@@ -1109,6 +1114,8 @@
   };
 
   /* ----------------------- Recherche globale ---------------------------- */
+  // Aussi branchée sur la grande boîte de l'Accueil (accueil.js).
+  AMX.brancherRecherche = brancherRechercheGlobale;
   function brancherRechercheGlobale(input) {
     if (!input) return;
     var boite = null;

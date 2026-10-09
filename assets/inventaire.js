@@ -163,6 +163,7 @@
     document.addEventListener('amx:carfax', this.surCarfax);
     // Achats eBlock (puce « eBlock · n dommages » sur les lignes) : même cache que la page Fiches eBlock.
     if (AMX.eblock) { AMX.eblock.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:eblock', this.surCarfax); }
+    if (AMX.openlane) { AMX.openlane.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:openlane', this.surCarfax); }
     if (AMX.demandes) { AMX.demandes.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:demandes', this.surCarfax); }
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
     this.surVisible = function () { if (!document.hidden) self.rafraichir(); };
@@ -182,6 +183,7 @@
     document.removeEventListener('visibilitychange', this.surVisible);
     document.removeEventListener('amx:carfax', this.surCarfax);
     document.removeEventListener('amx:eblock', this.surCarfax);
+    document.removeEventListener('amx:openlane', this.surCarfax);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
   };
@@ -548,6 +550,8 @@
       AMX.carfax.lien(v.vin) ? h('a.puce.info.lien-puce', { href: AMX.carfax.lien(v.vin), target: '_blank', rel: 'noopener', text: 'CARFAX', title: 'Voir le rapport CARFAX', onclick: function (e) { e.stopPropagation(); } }) : null,
       // Acheté sur eBlock : la fiche descriptive (dommages, cote) s'ouvre d'un clic, sans ouvrir le panneau.
       AMX.eblockPuce ? AMX.eblockPuce(v.vin) : null,
+      // Valeurs OpenLane (9 oct.) : prévision (ou moyenne des ventes comparables) d'un clic, sans ouvrir le panneau.
+      AMX.openlanePuce ? AMX.openlanePuce(v.vin) : null,
       // Demande de travaux au service (8 oct.) : orange = envoyée, verte = BT approuvé, rouge = retournée.
       (cfg.feuille === 'DETAIL' && AMX.demandePuce) ? AMX.demandePuce(v.vin) : null,
       cfg.importateur && v.importateur ? h('span.puce', { text: v.importateur }) : null
@@ -698,6 +702,14 @@
       blocFicheEblock = h('div.bloc.cache', [h('h3', ['Fiche eBlock']), zoneEb]);
       AMX.eblockFiche(v.vin, zoneEb, { maxPieces: 6 }).then(function (achats) { if (achats && achats.length && blocFicheEblock.isConnected) { ficheEblockLa = true; blocFicheEblock.classList.remove('cache'); if (blocEblock) blocEblock.classList.add('cache'); } });
     }
+    // Valeurs OpenLane (9 oct.) : ventes comparables, prévision 30-60-90 j, ajusté au km — ou le bouton pour les demander.
+    var blocOpenlane = null;
+    if (typeof AMX.openlaneBloc === 'function') {
+      var zoneOl = h('div');
+      blocOpenlane = h('div.bloc', [h('h3', ['Valeurs OpenLane']), zoneOl]);
+      // Le km du moment vient de la fiche d'achat (comme la puce km de l'en-tête) : il sert à la prévision.
+      AMX.ficheDe(v.vin).then(function (f) { return f ? AMX.kmValide(f['f-km']) : null; }, function () { return null; }).then(function (km) { AMX.openlaneBloc(v.vin, zoneOl, { km: km || undefined }); }).catch(function () {});
+    }
     // Dommages de la fiche d'achat (en français) — seulement s'il n'y a pas de fiche eBlock, sinon c'est en double.
     var blocEblock = null;
     if (v.ficheExiste && AMX.ficheDe) {
@@ -823,7 +835,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocEval, blocFicheEblock, blocEblock, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocEval, blocFicheEblock, blocEblock, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

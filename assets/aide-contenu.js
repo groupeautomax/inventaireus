@@ -20,7 +20,7 @@
   window.AMX = window.AMX || {};
 
   AMX.AIDE_CONTENU = {
-    version: '8 octobre 2026',
+    version: '9 octobre 2026',
 
     frequentes: ['inv-statut', 'inv-stock-km', 'achat-quand', 'svc-autoriser', 'eval-lancer', 'dem-connexion', 'app-installer', 'inv-recherche', 'svc-refus', 'offre-publier', 'offre-signer', 'dep-deconnecte', 'dep-lent'],
 
@@ -32,6 +32,9 @@
           { id: 'dem-connexion', q: 'Comment me connecter au site ?', mots: 'connexion login courriel code mot de passe entrer accès ouvrir',
             r: '<p>Ouvrez <b>groupeautomax.github.io/inventaireus</b>, entrez votre courriel, puis le code à six chiffres reçu par courriel. Il n\'y a pas de mot de passe. Votre compte doit d\'abord avoir été créé par l\'administrateur de votre concession (Admin › Comptes).</p><p>Une fois connecté, l\'appareil reste connecté <b>30 jours</b> ; le menu du compte (en haut à droite) affiche « Connecté jusqu\'au … ».</p>',
             liens: [{ t: 'Ouvrir l\'inventaire', s: 'inventaire', o: 'us' }] },
+          { id: 'dem-accueil', q: 'Sur quelle page le site s\'ouvre-t-il ? Puis-je choisir ?', mots: 'accueil page de départ démarrer ouvrir commencer première page étoile tuiles',
+            r: '<p>Le site s\'ouvre sur l\'<b>Accueil</b> : une recherche de véhicule, une tuile par section avec ses onglets et leurs compteurs, la dernière nouveauté. Pour commencer ailleurs (par exemple Inventaire › Detail ou Suivi service), choisissez la <b>Page de départ</b> au bas de l\'Accueil, ou cliquez l\'étoile d\'une tuile. Le choix est gardé sur votre appareil ; le logo Groupe Automax ramène toujours à l\'Accueil.</p>',
+            liens: [{ t: 'Accueil', s: 'accueil', o: '' }] },
           { id: 'dem-app-site', q: 'Site ou app : lequel utiliser ?', mots: 'différence iphone bureau terrain cour quand',
             r: '<p>Les deux lisent et écrivent le même registre, avec le même compte et les mêmes droits.</p><ul><li><b>Le site</b> (ordinateur, tablette, téléphone) : inventaire complet, fiche d\'achat, suivi service, évaluations, offres, résultats, administration, et cette aide.</li><li><b>L\'app iPhone</b> : la cour — scanner un NIV, changer un statut, photos, audit, fiche d\'achat au scan, suivi service et évaluation en déplacement, hors réseau.</li></ul><p>Un changement fait d\'un côté est visible de l\'autre quelques secondes plus tard.</p>' },
           { id: 'dem-session', q: 'Combien de temps ma session dure-t-elle ?', mots: 'session expire 30 jours durée déconnexion automatique',
@@ -86,6 +89,9 @@
             r: '<p>Panneau → bloc Gestion → <b>Supprimer</b> (administrateur seulement). La ligne disparaît du registre ; le journal garde la trace. Pour un véhicule vendu, préférez les statuts Vendu puis Comptabilisé : il reste dans les résultats.</p>', roles: 'admin' },
           { id: 'inv-carfax', q: 'Où est le rapport CARFAX d\'un véhicule ?', mots: 'carfax rapport historique lien puce commander',
             r: '<p>Sur la ligne, la puce <b>CARFAX</b> ouvre le rapport (lien public du compte concessionnaire). Dans le panneau, bloc <b>Rapports et liens</b> : « Rapport CARFAX », ou « Commander un CARFAX » qui copie le NIV et ouvre le compte dealer.carfax.ca. Les liens arrivent par l\'import CARFAX (Outils) et par les fiches eBlock ; on peut aussi coller un lien (« lien CARFAX… » dans le titre du bloc).</p>' },
+          { id: 'inv-openlane', q: 'Que montre le bloc « Valeurs OpenLane » et la puce « OpenLane 23 055 $ » ?', mots: 'openlane valeur gros prévision ventes comparables ajusté km puce',
+            r: '<p>Ce que le véhicule vaut à l\'encan OpenLane : la moyenne (et min / max) des ventes comparables des 90 derniers jours, la même moyenne <b>ajustée au km</b> du véhicule (0,10 $ / km), et la <b>prévision OpenLane</b> au km connu, aujourd\'hui et dans 90 jours. Sur la ligne, la puce « OpenLane 23 055 $ » reprend la prévision (ou la moyenne des ventes) ; un clic ouvre le détail avec la liste des ventes. Sans km (fiche d\'achat), il n\'y a pas de prévision. Les valeurs sont lues par le favori OpenLane (Outils › Valeurs OpenLane).</p>',
+            liens: [{ t: 'Valeurs OpenLane', s: 'outils', o: 'openlane' }] },
           { id: 'inv-eblock', q: 'Que montre le bloc « Fiche eBlock » ?', mots: 'eblock dommages rapport état encan pièces photos pneus peinture',
             r: '<p>Pour un véhicule acheté sur eBlock dont la fiche a été importée (Outils › Fiches eBlock) : la cote, les pièces endommagées en français, les photos de dommages, les pneus et l\'épaisseur de peinture. Sur la ligne, la puce « eBlock · 3 dommages » (rouge), « sans dommage » (vert) ou « fiche à lire ». Le bloc <b>Dommages (fiche d\'achat)</b> reprend ce que l\'acheteur a noté dans la fiche d\'achat.</p>' },
           { id: 'inv-photos', q: 'Comment ajouter des photos ?', mots: 'photos prendre téléverser angle vitrine galerie',
@@ -206,6 +212,9 @@
           { id: 'out-eblock', q: 'Comment importer les fiches eBlock ?', mots: 'eblock fiches import rapport état achats my block',
             r: '<ol><li>Outils › <b>Fiches eBlock</b> : glissez le favori « Automax ← eBlock (fiches) ».</li><li>Dans eBlock, My Block › Buyer, cliquez le favori : les achats depuis le début de l\'année sont listés, puis la fiche complète de chaque véhicule encore à l\'inventaire est lue (rapport d\'état, photos, pneus, peinture, options, valeurs).</li></ol><p>La fiche d\'achat du véhicule est complétée (dommages en français, lien, km, couleur), le panneau d\'inventaire et le suivi service montrent la fiche. « Encore à l\'inventaire / Tous les achats » filtre la table.</p>',
             liens: [{ t: 'Fiches eBlock', s: 'outils', o: 'eblock' }] },
+          { id: 'outils-openlane', q: 'Comment lire les valeurs OpenLane (Market guide) ?', mots: 'openlane market guide valeurs ventes comparables prévision gros signet favori 30 60 90 jours',
+            r: '<ol><li>Outils › <b>Valeurs OpenLane</b> : glissez le favori « Automax ← OpenLane (valeurs) » dans la barre de favoris.</li><li>Dans OpenLane (app.openlane.ca), ouvrez Market guide et cliquez le favori : le site donne la liste des NIV à lire (inventaire en stock, évaluations des 60 derniers jours, NIV demandés à la main) et, pour chacun, OpenLane fournit les ventes passées comparables (min / moyenne / max, 90 jours, même version quand il y en a assez) et la prévision de prix à 30, 60 et 90 jours au kilométrage connu.</li></ol><p>Une valeur de moins de 7 jours n\'est pas relue. Pour un NIV précis : « Un NIV en particulier » (NIV + km) dans la carte d\'import, ou le bouton « Demander les valeurs OpenLane » dans le panneau d\'inventaire, la fiche d\'achat ou l\'évaluation — il sera lu au prochain clic du favori.</p>',
+            liens: [{ t: 'Valeurs OpenLane', s: 'outils', o: 'openlane' }] },
           { id: 'out-carfax', q: 'Comment attacher les rapports CARFAX aux véhicules ?', mots: 'carfax import liens rapports mes rhv automatique',
             r: '<p>Outils › <b>Import CARFAX</b> : favori « Automax ← CARFAX », cliqué depuis Mes rapports › Mes RHV du compte concessionnaire : il parcourt les pages et pose le lien du rapport sur chaque véhicule (le plus récent gagne). Une tâche automatique le fait aussi deux fois par jour. Zone de collage en secours.</p>',
             liens: [{ t: 'Import CARFAX', s: 'outils', o: 'carfax' }] },
@@ -338,6 +347,9 @@
     ],
 
     nouveautes: [
+      { date: '9 octobre 2026', titre: 'Page d\'accueil, valeurs OpenLane par NIV, Suggestions dans Aide',
+        texte: 'Le site s\'ouvre maintenant sur une page d\'accueil (recherche, une tuile par section, nouveautés) et chacun choisit sa page de départ (étoile d\'une tuile ou liste au bas de l\'Accueil). Outils › Valeurs OpenLane : le favori « Automax ← OpenLane (valeurs) », cliqué dans Market guide, lit pour chaque véhicule en stock, chaque évaluation récente et chaque NIV demandé les ventes comparables OpenLane (min / moyenne / max sur 90 jours) et la prévision de prix à 30, 60 et 90 jours au km connu. Les valeurs apparaissent dans le panneau d\'inventaire, la fiche d\'achat, le suivi service et l\'évaluation, et une puce « OpenLane 23 055 $ » sur les lignes. L\'onglet Suggestions est maintenant dans Aide.',
+        liens: [{ t: 'Accueil', s: 'accueil', o: '' }, { t: 'Valeurs OpenLane', s: 'outils', o: 'openlane' }, { t: 'Suggestions', s: 'aide', o: 'suggestions' }] },
       { date: '8 octobre 2026', titre: 'Signature électronique des contrats',
         texte: 'Les contrats de vente aux acheteurs externes se signent maintenant sans papier. L\'acheteur trace sa signature sur sa page en finalisant ; l\'équipe reçoit un courriel « à contresigner » et le directeur signe depuis ce courriel ou depuis Offres › Offres reçues → Signer le contrat (tablette, nom, case d\'autorisation). Les deux PDF sont refaits avec les deux signatures et un certificat de signature électronique, puis renvoyés aux deux parties. La liste des offres indique « À contresigner » ou « Signé ×2 ». Note : le soir du 7 octobre, tout le monde a dû se reconnecter une fois après une intervention sur le serveur — c\'est normal, et c\'est réglé.',
         liens: [{ t: 'Offres reçues', s: 'offres', o: 'recues' }] },

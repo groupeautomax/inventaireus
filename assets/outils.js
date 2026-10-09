@@ -110,6 +110,7 @@
       { id: 'evaluations', titre: 'Registre d\'évaluations' },
       { id: 'torque', titre: 'Archive Torque' },
       { id: 'eblock', titre: 'Fiches eBlock' },
+      { id: 'openlane', titre: 'Valeurs OpenLane' },
       { id: 'verification', titre: 'Vérification Excel' },
       { id: 'carfax', titre: 'Import CARFAX' }
     ],
@@ -126,9 +127,9 @@
     this.naviguer(ctx || {});
   }
   Outils.prototype.naviguer = function (ctx) {
-    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax' || ctx.onglet === 'evaluations' || ctx.onglet === 'torque' || ctx.onglet === 'eblock')) ? ctx.onglet : 'evaluation';
+    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax' || ctx.onglet === 'evaluations' || ctx.onglet === 'torque' || ctx.onglet === 'eblock' || ctx.onglet === 'openlane')) ? ctx.onglet : 'evaluation';
     if (!this.vues[id]) {
-      this.vues[id] = id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : (id === 'torque' ? new AMX.vues.ArchiveTorque(ctx) : (id === 'eblock' ? new AMX.vues.FichesEblock(ctx) : new AMX.vues.Evaluation(ctx)))));
+      this.vues[id] = id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : (id === 'torque' ? new AMX.vues.ArchiveTorque(ctx) : (id === 'eblock' ? new AMX.vues.FichesEblock(ctx) : (id === 'openlane' ? new AMX.vues.ValeursOpenlane(ctx) : new AMX.vues.Evaluation(ctx))))));
       this.conteneur.appendChild(this.vues[id].el);
     } else if (this.vues[id].naviguer) {
       this.vues[id].naviguer(ctx);

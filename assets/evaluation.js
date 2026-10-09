@@ -498,6 +498,8 @@
     this.elDetailResume = h('div#eval-detail-resume');
     this.elCibles = h('div#eval-cibles');
     this.elValeurs = h('div.eval-valeurs#eval-valeurs');
+    // Valeurs OpenLane (9 oct.) : ventes comparables et prévision Market guide du NIV, lues par le signet OpenLane.
+    this.elOpenlane = h('div.eval-valeurs.eval-openlane#eval-openlane.cache');
     var detail = h('div.carte#sec-prix', [h('div.carte-corps', [h('div.eval-prix-grille', [
       h('div.eval-prix-calc', [
         h('div.eval-formule', [cAchat.el, h('span.op', '+'), cFrais.el, h('span.op', '='), cPaye.el]),
@@ -505,7 +507,7 @@
         this.elDetailResume
       ]),
       this.elCibles
-    ]), this.elValeurs])]);
+    ]), this.elValeurs, this.elOpenlane])]);
     this.rendreValeurs();
     [this.elAchat, this.elFrais].forEach(function (el) { el.addEventListener('input', function () { self.recalculerDetail('achat'); }); });
     this.elPaye.addEventListener('input', function () { self.recalculerDetail('paye'); });
@@ -520,6 +522,7 @@
     this.elNiv.addEventListener('input', function () { self.rendreLiens(); });
     [this.elMarque, this.elModele, this.elAnnee].forEach(function (el) { el.addEventListener('input', AMX.debounce(function () { self.rendreSommaire(); self.chargerRappels(); }, 600)); });
     this.elKm.addEventListener('input', function () { self.rendreMarche(); });
+    this.elKm.addEventListener('change', function () { self.rendreOpenlane(); });
     this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
     this.elConcession.addEventListener('change', function () { AMX.memo.ecrire('eval_concession', self.elConcession.value); self.oublierAnalyses(); });
@@ -905,9 +908,25 @@
   };
 
   /* ----------------------------- Liens ---------------------------------- */
+  /* Bloc « Valeurs OpenLane » (9 oct.) : pour un NIV complet, les valeurs lues par le signet (ou le bouton pour
+     les demander, avec le km du formulaire pour la prévision). Rafraîchi quand le NIV ou le km change. */
+  Evaluation.prototype.rendreOpenlane = function () {
+    var self = this, el = this.elOpenlane; if (!el || typeof AMX.openlaneBloc !== 'function') return;
+    var vin = (this.elNiv.value || '').trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { el.classList.add('cache'); AMX.vider(el); this.openlaneVin = ''; return; }
+    var km = AMX.kmValide(this.elKm.value), cle = vin + '|' + (km || '');
+    if (this.openlaneVin === cle) return;
+    this.openlaneVin = cle;
+    AMX.vider(el);
+    el.appendChild(h('div.eval-valeurs-entete', [h('div', [h('h3', 'Valeurs OpenLane'), h('span.mini.doux', { text: 'Market guide · ventes comparables 90 j, prévision 30-60-90 j au km du formulaire' })])]));
+    var zone = h('div'); el.appendChild(zone); el.classList.remove('cache');
+    AMX.openlaneBloc(vin, zone, { km: km || undefined }).then(function (r) { if (self.openlaneVin !== cle) return; if (!r && !zone.childNodes.length) zone.appendChild(h('span.doux.petit', 'Rien de lu pour ce NIV.')); }).catch(function () {});
+  };
+
   Evaluation.prototype.rendreLiens = function () {
     var vin = (this.elNiv.value || '').trim().toUpperCase();
     var vinOk = /^[A-HJ-NPR-Z0-9]{17}$/.test(vin);
+    this.rendreOpenlane();
     AMX.vider(this.elLiens);
     var carfax = (vinOk && AMX.carfax && AMX.carfax.lien) ? AMX.carfax.lien(vin) : '';
     this.elLiens.appendChild(h('a.btn.petit' + (carfax ? '' : ''), { href: carfax || URL_CARFAX_COMPTE, target: '_blank', rel: 'noopener', title: carfax ? 'Rapport CARFAX partagé de ce véhicule' : 'Mon compte CARFAX (aucun rapport partagé pour ce NIV)', html: I.externe + '<span>' + (carfax ? 'Rapport CARFAX' : 'CARFAX (compte)') + '</span>' }));

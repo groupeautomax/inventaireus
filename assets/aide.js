@@ -123,15 +123,25 @@
     this.params = ctx.params || {};
     this.el = h('div.page.etroite.aide-page');
     conteneur.appendChild(this.el);
+    // Onglet Suggestions : la vue de suggestions.js, montée une seule fois à côté de la page d'aide.
+    this.elSug = null; this.sug = null;
     this.rendre();
     var self = this;
     this.surProfil = function () { self.rendre(); };
     document.addEventListener('amx:profil', this.surProfil);
   }
-  VueAide.prototype.demonter = function () { document.removeEventListener('amx:profil', this.surProfil); };
+  VueAide.prototype.demonter = function () { document.removeEventListener('amx:profil', this.surProfil); if (this.sug && this.sug.demonter) { try { this.sug.demonter(); } catch (e) {} } };
   VueAide.prototype.naviguer = function (ctx) { this.onglet = ctx.onglet || 'questions'; this.params = ctx.params || {}; this.rendre(); };
 
   VueAide.prototype.rendre = function () {
+    if (this.onglet === 'suggestions' && AMX.vues && AMX.vues.Suggestions) {
+      if (!this.elSug) { this.elSug = h('div'); this.conteneur.appendChild(this.elSug); this.sug = new AMX.vues.Suggestions(this.elSug, { onglet: 'suggestions', params: this.params }); }
+      else if (this.sug && this.sug.naviguer) this.sug.naviguer({ onglet: 'suggestions', params: this.params });
+      this.el.classList.add('cache'); this.elSug.classList.remove('cache');
+      return;
+    }
+    if (this.elSug) this.elSug.classList.add('cache');
+    this.el.classList.remove('cache');
     AMX.vider(this.el);
     var c = contenu();
     var entete = h('div.entete-page', [
@@ -308,7 +318,9 @@
       { id: 'questions', titre: 'Recherche' },
       { id: 'guide', titre: 'Guide' },
       { id: 'admin', titre: 'Administrateurs', visible: function () { return rang() >= 3; } },
-      { id: 'nouveautes', titre: 'Nouveautés' }
+      { id: 'nouveautes', titre: 'Nouveautés' },
+      // 9 oct. : les suggestions des utilisateurs vivent ici (Maxime : « mettre l'onglet suggestion dans aide »).
+      { id: 'suggestions', titre: 'Suggestions', compteur: function () { return (AMX.suggestions && AMX.suggestions.aTraiter()) || ''; } }
     ],
     monter: function (conteneur, ctx) { return new VueAide(conteneur, ctx); }
   });

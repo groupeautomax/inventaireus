@@ -234,13 +234,14 @@
     // Achats eBlock : puce « eBlock · n dommages » sur les lignes, fiche dans le dossier (même cache que Fiches eBlock).
     this.surEblock = function () { if (!self.detruit) self.rendre(); };
     if (AMX.eblock) { AMX.eblock.charger().then(this.surEblock).catch(function () {}); document.addEventListener('amx:eblock', this.surEblock); }
+    if (AMX.openlane) { AMX.openlane.charger().then(this.surEblock).catch(function () {}); document.addEventListener('amx:openlane', this.surEblock); }
     // Rafraîchissement périodique : sans frais=1 (le cache serveur suffit, il est vidé à chaque écriture).
     this.minuterie = setInterval(function () { if (!document.hidden && !self.ecritures) { self.charger(); AMX.demandes.charger(true).catch(function () {}); } }, 120000);
   }
   // La compagnie n'est PAS remise à zéro : c'est le choix du site (AMX.compagnieChoisie), gardé
   // d'un onglet et d'une page à l'autre tant que Maxime ne clique pas sur une autre concession.
   Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: AMX.compagnieChoisie('service'), etapes: null, retard: false }; };
-  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); document.removeEventListener('amx:demandes', this.surDemandes); };
+  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); document.removeEventListener('amx:openlane', this.surEblock); document.removeEventListener('amx:demandes', this.surDemandes); };
   Suivi.prototype.naviguer = function (ctx) {
     if (ctx.onglet !== this.onglet) { this.onglet = ctx.onglet; this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || ''; this.construireRail(); this.rendre(); }
     else if (ctx.params.vin && ctx.params.vin !== this.selection) { this.selection = ctx.params.vin; this.rendre(); }
@@ -517,7 +518,7 @@
       h('div.vignette', { title: s.hasPhotos ? 'Photos disponibles' : 'Aucune photo' }, [AMX.logoMarque(marque(s)), s.hasPhotos ? h('span.cam', { html: I.photo }) : null]),
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', { text: s.modele || '(modèle à préciser)' }),
-        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, AMX.demandePuce(s.vin) || (s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null), s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null, AMX.eblockPuce ? AMX.eblockPuce(s.vin) : null])
+        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, AMX.demandePuce(s.vin) || (s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null), s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null, AMX.eblockPuce ? AMX.eblockPuce(s.vin) : null, AMX.openlanePuce ? AMX.openlanePuce(s.vin) : null])
       ]),
       h('div.cell.parcours', [h('span.l', 'Parcours'), parcours(s, { compact: true })]),
       h('div.cell.statut', [h('span.l', 'Étape'), h('span', [h('span.badge.' + (s.statut === 'encours' ? (s.etapeCourante === 'autorisation' ? 'ambre' : (s.enRetard ? 'rouge' : 'bleu')) : st.couleur), { text: etapeTexte })]), sousEtape ? h('span.jours' + (s.cibleEtape && s.joursEtape > s.cibleEtape ? '.alerte' : ''), { text: sousEtape }) : null]),
@@ -567,6 +568,8 @@
     });
     var zoneDossier = h('div.chargement', [h('span.spin'), 'Chargement du dossier…']);
     blocDossier.appendChild(zoneDossier);
+    // Valeurs OpenLane (9 oct.) : ce que vaut le véhicule au gros aujourd'hui et dans 90 jours, pour décider vite.
+    if (AMX.openlaneBloc) { var zoneOl = h('div.svc-openlane', { style: { marginTop: '10px' } }); blocDossier.appendChild(zoneOl); AMX.openlaneBloc(s.vin, zoneOl, {}).catch(function () {}); }
     AMX.get({ serviceDossier: s.vin }).then(function (d) {
       if (!zoneDossier.isConnected) return;
       AMX.vider(zoneDossier); zoneDossier.className = 'svc-dossier';

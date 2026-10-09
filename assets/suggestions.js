@@ -83,13 +83,10 @@
     document.head.appendChild(s);
   }
 
-  AMX.section('suggestions', {
-    titre: 'Suggestions', icone: 'suggestions', ordre: 60,
-    onglets: [
-      { id: 'liste', titre: 'Suggestions', compteur: function () { return AMX.suggestions.aTraiter() || ''; } }
-    ],
-    monter: function (conteneur, ctx) { return new Suggestions(conteneur, ctx); }
-  });
+  // 9 oct. (Maxime : « mettre l'onglet suggestion dans aide ») : plus de section dans la barre,
+  // la vue est montée par aide.js sous l'onglet Aide › Suggestions (compteur = à traiter).
+  AMX.vues = AMX.vues || {};
+  AMX.vues.Suggestions = Suggestions;
 
   function Suggestions(conteneur, ctx) {
     var self = this;
@@ -292,7 +289,7 @@
             if (!r || !r.ok) { AMX.toast((r && r.erreur) || 'Refusé', 'erreur'); return false; }
             AMX.suggestions.poser(r.suggestion);
             AMX.toast(r.message || 'Suggestion envoyée', 'ok', 6000);
-            if (!(AMX.courante && AMX.courante.section && AMX.courante.section.id === 'suggestions')) AMX.aller('suggestions', 'liste');
+            if (!(AMX.courante && AMX.courante.section && AMX.courante.section.id === 'aide' && AMX.courante.onglet && AMX.courante.onglet.id === 'suggestions')) AMX.aller('aide', 'suggestions');
             return true;
           }, function (e) { AMX.toast(e.message || 'Erreur', 'erreur'); return false; });
         } }

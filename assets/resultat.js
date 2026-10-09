@@ -23,14 +23,32 @@
        cours ; marque, modèle et année ignorent les lignes sans marque.
 
    Toutes les données serveur sont rendues via textContent (jamais innerHTML).
+
+   (9 oct.) Deux onglets, même vue paramétrée par une SOURCE :
+     - « É.-U. » : les registres de ventes (?resultatRaw=1), comme avant ;
+     - « Wholesale Canada » : le Livre des ventes de Ste-Marie (?resultatCan=1,
+       ResultatCan.gs) — LMB exclus, achats et échanges séparés (segment), seules
+       les ventes COMPTABILISÉES comptent (profit réel inscrit) ; les autres sont
+       « en attente » avec leur profit prévu ; les ajustements comptables sont
+       rattachés au véhicule (# stock) ou listés à part.
    ========================================================================= */
 (function () {
   'use strict';
   var h = AMX.h, I = AMX.icones;
 
-  var SEUIL_ERREUR = 8000;   // |profit| au-delà : erreur de saisie, exclu
+  var SEUIL_ERREUR = 8000;   // |profit| au-delà : erreur de saisie, exclu (registres É.-U.)
   // Calculé au rendu (pas au chargement) : la liste visible dépend du compte (portée, 6 oct.).
   function COMPAGNIES_() { return [['TOUT', 'Toutes']].concat(Object.keys(AMX.compagniesPour('resultats')).map(function (c) { return [c, c]; })); }
+
+  // Les deux sources (9 oct.) : chaque onglet a sa route, ses libellés, son seuil d'erreur et ses regroupements.
+  var TYPES_CAN = [['tous', 'Tous'], ['achat', 'Achats'], ['echange', 'Échanges']];
+  var LIBELLE_TYPE = { achat: 'Achat', echange: 'Échange' };
+  var SOURCES = {
+    us: { cle: 'us', route: 'resultatRaw=1', titre: 'Résultat', sous: '', colVente: 'Vente', exportVente: 'Prix de vente US', seuil: SEUIL_ERREUR, approx: true, compagnies: true, types: null, memo: 'resultat',
+      chargement: 'Chargement des registres de ventes…' },
+    can: { cle: 'can', route: 'resultatCan=1', titre: 'Wholesale Canada', sous: 'Livres des ventes des concessions (comptabilité)', colVente: 'Vente ($ CA)', exportVente: 'Prix de vente ($ CA)', seuil: 25000, approx: false, compagnies: true, types: TYPES_CAN, memo: 'resultat_can',
+      chargement: 'Lecture des Livres des ventes…' }
+  };
 
   var PERIODES = [
     { cle: 'j10', libelle: '10 derniers jours', approx: true, debut: function (b) { return b.j10; } },
@@ -46,6 +64,16 @@
     { cle: 'annee', libelle: 'Par année', colonne: 'Année', champ: 'annee', requiertMarque: true },
     { cle: 'provenance', libelle: 'Par provenance', colonne: 'Provenance', champ: 'provenance' },
     { cle: 'acheteur', libelle: 'Par acheteur interne', colonne: 'Acheteur', champ: 'acheteur' }
+  ];
+  // Wholesale Canada : en plus, par type (achat / échange) et par client (« Vendu à »).
+  var REGROUPEMENTS_CAN = [
+    { cle: 'type', libelle: 'Achats / échanges', colonne: 'Type', champ: 'typeLibelle' },
+    { cle: 'provenance', libelle: 'Par provenance', colonne: 'Acheté de', champ: 'provenance' },
+    { cle: 'client', libelle: 'Par client', colonne: 'Vendu à', champ: 'venduA' },
+    { cle: 'acheteur', libelle: 'Par acheteur interne', colonne: 'Acheteur', champ: 'acheteur' },
+    { cle: 'marque', libelle: 'Par marque', colonne: 'Marque', champ: 'marque', requiertMarque: true },
+    { cle: 'modele', libelle: 'Par modèle', colonne: 'Modèle', champ: 'modele', requiertMarque: true },
+    { cle: 'annee', libelle: 'Par année', colonne: 'Année', champ: 'annee', requiertMarque: true }
   ];
 
   // Évolution : granularité × horizon (nombre de périodes affichées).
@@ -87,6 +115,8 @@
   function marge(v) { return v.coutTotal > 0 ? v.profit / v.coutTotal : NaN; }
   function signeClasse(n) { return n >= 0 ? 'resultat-pos' : 'resultat-neg'; }
   function trouver(liste, cle) { for (var i = 0; i < liste.length; i++) if (liste[i].cle === cle) return liste[i]; return null; }
+  // Erreur d'un Livre des ventes, en clair : la note du serveur (après « — ») plutôt que le message technique.
+  function erreurLivre(e) { var t = String((e && e.erreur) || ''); var i = t.lastIndexOf(' — '); return i >= 0 ? t.slice(i + 3) : (t.length > 90 ? t.slice(0, 90) + '…' : t); }
 
   function injecterCss() {
     if (document.getElementById('css-resultat')) return;
@@ -94,6 +124,12 @@
     s.id = 'css-resultat';
     s.textContent = [
       '.resultat-page .carte { margin-bottom: 14px; overflow: hidden; }',
+      '.resultat-page h1 .resultat-h1-sous { display: block; font-size: 12.5px; font-weight: 400; color: var(--encre-3); letter-spacing: 0; margin-top: 2px; }',
+      '.resultat-page .puce.type-achat { background: var(--bleu-bg); color: var(--bleu); } .resultat-page .puce.type-echange { background: var(--ambre-bg); color: var(--ambre); } .resultat-page .puce.type-ajust { background: var(--gris-bg); color: var(--gris); }',
+      '.resultat-page .resultat-ajust { font-size: 11px; color: var(--encre-3); cursor: help; }',
+      '.resultat-page .resultat-attente .carte-corps { padding-top: 0; }',
+      '.resultat-page .tableau.resultat-ta { min-width: 640px; }',
+      '.resultat-page .resultat-onglet.cache { display: none; }',
       '.resultat-page .carte-entete h2 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }',
       '.resultat-page .carte-entete h2 .sous { font-weight: 400; font-size: 12px; color: var(--encre-3); }',
       '.resultat-page .resultat-actions { display: flex; gap: 6px; align-items: center; flex: none; }',
@@ -135,14 +171,22 @@
 
   /* ------------------------------ Calculs ------------------------------ */
   // Lignes brutes → lignes normalisées (nombres, horodatage) ; exclusion des erreurs de saisie.
-  function normaliser(rows) {
+  function normaliser(rows, seuil) {
     var gardees = [], exclues = 0;
+    seuil = seuil || SEUIL_ERREUR;
     (rows || []).forEach(function (r) {
       if (!r) return;
       var profit = num(r.profit);
-      if (Math.abs(profit) > SEUIL_ERREUR) { exclues++; return; }
+      if (Math.abs(profit) > seuil) { exclues++; return; }
       var d = r.date ? new Date(r.date) : null;
       gardees.push({
+        // Livre des ventes (Wholesale Canada) : type, ajustements, client, profit prévu, comptabilisé
+        type: String(r.type || '').trim(), typeLibelle: LIBELLE_TYPE[String(r.type || '').trim()] || '(autre)',
+        ajust: !!r.ajust, ajustements: Array.isArray(r.ajustements) ? r.ajustements : [],
+        venduA: String(r.venduA || '').trim(), vendeur: String(r.vendeur || '').trim(), statut: String(r.statut || '').trim(),
+        profitPrevu: (r.profitPrevu === null || r.profitPrevu === undefined) ? null : num(r.profitPrevu),
+        comptabilise: r.comptabilise !== false, dateCompta: r.dateCompta || '', coutEstime: !!r.coutEstime, typeSource: String(r.typeSource || ''),
+        profitReel: (r.profitReel === null || r.profitReel === undefined) ? null : num(r.profitReel),
         vin: String(r.vin || '').trim(),
         vinComplet: String(r.vinComplet || r.vin || '').trim(),
         stock: String(r.stock || '').trim(),
@@ -214,10 +258,10 @@
 
   // Totaux d'une liste : nb, profit total, coût total, vente totale, profit moyen, marge pondérée.
   function agreger(liste) {
-    var nb = liste.length, profit = 0, cout = 0, vente = 0, approx = 0;
-    liste.forEach(function (r) { profit += r.profit; cout += r.coutTotal; vente += r.prixVenteUS; if (r.dateApprox) approx++; });
+    var nb = 0, nbAjust = 0, ajust = 0, profit = 0, cout = 0, vente = 0, approx = 0;
+    liste.forEach(function (r) { profit += r.profit; cout += r.coutTotal; vente += r.prixVenteUS; if (r.dateApprox) approx++; if (r.ajust) { nbAjust++; ajust += r.profit; } else nb++; });
     return {
-      nb: nb, profitTotal: profit, coutTotal: cout, venteTotal: vente, nbApprox: approx,
+      nb: nb, nbAjust: nbAjust, ajustTotal: ajust, profitTotal: profit, coutTotal: cout, venteTotal: vente, nbApprox: approx,
       profitMoyen: nb > 0 ? profit / nb : 0,
       marge: cout > 0 ? profit / cout : 0,
       vehicules: liste.slice().sort(function (a, b) { return b.profit - a.profit; })
@@ -251,6 +295,20 @@
     { cle: 'profit', libelle: 'Profit', num: true },
     { cle: 'marge', libelle: 'Marge', num: true, valeur: marge }
   ];
+  var COL_VEHICULES_CAN = [
+    { cle: 'date', libelle: 'Date', valeur: function (r) { return r.t; } },
+    { cle: 'vehicule', libelle: 'Véhicule', valeur: function (r) { return r.ajust ? 'Ajustement ' + (r.venduA || r.provenance || r.statut) : nomVehicule(r); } },
+    { cle: 'type', libelle: 'Type', valeur: function (r) { return r.typeLibelle; } },
+    { cle: 'stock', libelle: 'Stock', valeur: function (r) { return r.stock; } },
+    { cle: 'vin', libelle: 'VIN', valeur: vinCourt },
+    { cle: 'acheteur', libelle: 'Acheteur', valeur: function (r) { return r.acheteur; } },
+    { cle: 'venduA', libelle: 'Vendu à', valeur: function (r) { return r.venduA; } },
+    { cle: 'coutTotal', libelle: 'Coût', num: true },
+    { cle: 'prixVenteUS', libelle: 'Vente ($ CA)', num: true },
+    { cle: 'profit', libelle: 'Profit réel', num: true },
+    { cle: 'marge', libelle: 'Marge', num: true, valeur: marge }
+  ];
+  function colonnesDe(source) { return source && source.cle === 'can' ? COL_VEHICULES_CAN : COL_VEHICULES; }
 
   function trierPar(liste, colonnes, tri) {
     var c = trouver(colonnes, tri.cle);
@@ -294,12 +352,46 @@
     titre: 'Résultat', icone: 'resultat', ordre: 50,
     // Visible avec le droit « Voir les résultats » (gestionnaire par défaut), pas seulement pour les admins (6 oct. : Patrick, gestionnaire, ne voyait pas Résultats).
     visible: function () { return AMX.perm('voirResultats') || AMX.estAdmin(); },
-    monter: function (conteneur, ctx) { return new Resultat(conteneur, ctx); }
+    // (9 oct.) deux onglets : les registres É.-U. et les Livres des ventes wholesale Canada des concessions (le serveur applique la portée).
+    onglets: [
+      { id: 'us', titre: 'É.-U.' },
+      { id: 'can', titre: 'Wholesale Canada' }
+    ],
+    monter: function (conteneur, ctx) { return new Resultats(conteneur, ctx); }
   });
 
-  function Resultat(conteneur) {
+  // Conteneur des onglets : chaque vue est construite une fois et simplement affichée / masquée.
+  function Resultats(conteneur, ctx) {
     injecterCss();
     this.conteneur = conteneur;
+    this.vues = {};
+    this.naviguer(ctx || {});
+  }
+  Resultats.prototype.naviguer = function (ctx) {
+    var id = (ctx && ctx.onglet === 'can') ? 'can' : 'us';
+    if (!this.vues[id]) {
+      var el = h('div.resultat-onglet', { dataset: { source: id } });
+      this.conteneur.appendChild(el);
+      this.vues[id] = new Resultat(el, SOURCES[id]);
+    }
+    var vues = this.vues;
+    Object.keys(vues).forEach(function (k) { vues[k].conteneur.classList.toggle('cache', k !== id); });
+    this.onglet = id;
+  };
+  Resultats.prototype.demonter = function () {
+    var vues = this.vues;
+    Object.keys(vues).forEach(function (k) { if (vues[k].demonter) { try { vues[k].demonter(); } catch (e) {} } });
+    this.vues = {};
+  };
+
+  function Resultat(conteneur, source) {
+    var self = this;
+    injecterCss();
+    this.source = source || SOURCES.us;
+    this.conteneur = conteneur;
+    this.enAttente = [];         // Wholesale Canada : ventes pas encore comptabilisées (profit prévu)
+    this.exclus = null;          // Wholesale Canada : { lmb, lmbProfit, ajustOrphelins }
+    this.type = 'tous';          // Wholesale Canada : tous / achat / echange
     this.lignes = null;          // lignes normalisées (null tant que rien n'est chargé)
     this.exclues = 0;            // lignes écartées (|profit| > seuil)
     this.quand = null;           // heure du dernier chargement réussi
@@ -311,19 +403,20 @@
     // est repris ici, et un choix fait ici est gardé pour les autres pages.
     this.compagnie = AMX.compagnieChoisie('resultats') || 'TOUT';
     if (!trouver(COMPAGNIES_().map(function (c) { return { cle: c[0] }; }), this.compagnie)) this.compagnie = 'TOUT';
+    if (this.source.types) { this.type = AMX.memo.lire(this.source.memo + '_type', 'tous'); if (!TYPES_CAN.some(function (t) { return t[0] === self.type; })) this.type = 'tous'; }
     this.periode = null;         // cle de la période ouverte (liste des véhicules)
-    this.regroupement = AMX.memo.lire('resultat_regroupement', 'marque');
-    if (!trouver(REGROUPEMENTS, this.regroupement)) this.regroupement = 'marque';
+    this.regroupement = AMX.memo.lire(this.source.memo + '_regroupement', this.regroupements()[0].cle);
+    if (!trouver(this.regroupements(), this.regroupement)) this.regroupement = this.regroupements()[0].cle;
     this.triVehicules = { cle: 'profit', desc: true };
     this.triGroupes = { cle: 'profitTotal', desc: true };
     this.groupesOuverts = {};
     this.fenetrePerso = null;    // { debut, fin, libelle, approx } quand la liste vient d'une barre ou d'un acheteur
-    this.granularite = AMX.memo.lire('resultat_granularite', 'mois');
+    this.granularite = AMX.memo.lire(this.source.memo + '_granularite', 'mois');
     if (!trouver(GRANULARITES, this.granularite)) this.granularite = 'mois';
-    this.horizon = parseInt(AMX.memo.lire('resultat_horizon_' + this.granularite, ''), 10) || trouver(GRANULARITES, this.granularite).horizons[1][0];
-    this.fenetreAcheteurs = AMX.memo.lire('resultat_acheteurs_fenetre', 'annee');
+    this.horizon = parseInt(AMX.memo.lire(this.source.memo + '_horizon_' + this.granularite, ''), 10) || trouver(GRANULARITES, this.granularite).horizons[1][0];
+    this.fenetreAcheteurs = AMX.memo.lire(this.source.memo + '_acheteurs_fenetre', 'annee');
     if (!trouver(FENETRES_ACHETEURS, this.fenetreAcheteurs)) this.fenetreAcheteurs = 'annee';
-    this.mesureAcheteurs = AMX.memo.lire('resultat_acheteurs_mesure', 'profitTotal');
+    this.mesureAcheteurs = AMX.memo.lire(this.source.memo + '_acheteurs_mesure', 'profitTotal');
     if (!trouver(MESURES_ACHETEURS, this.mesureAcheteurs)) this.mesureAcheteurs = 'profitTotal';
     this.seauActif = -1; this.acheteurActif = '';
     if (AMX.graph && AMX.graph.css) AMX.graph.css();
@@ -333,34 +426,53 @@
   }
 
   Resultat.prototype.demonter = function () { this.detruit = true; this.generation++; };
+  Resultat.prototype.regroupements = function () { return this.source.cle === 'can' ? REGROUPEMENTS_CAN : REGROUPEMENTS; };
+  Resultat.prototype.estCan = function () { return this.source.cle === 'can'; };
+  // Suffixe des titres : la compagnie (É.-U.) ou le type (Wholesale Canada).
+  Resultat.prototype.suffixe = function () {
+    var s = this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '';
+    if (this.estCan() && this.type !== 'tous') s += ' · ' + (this.type === 'achat' ? 'achats' : 'échanges');
+    return s;
+  };
 
   /* --------------------------- Construction ---------------------------- */
   Resultat.prototype.construire = function () {
     var self = this;
     AMX.vider(this.conteneur);
 
-    this.elEtat = h('p', { text: 'Chargement des registres de ventes…' });
-    this.btnsCie = {};
+    this.elEtat = h('p', { text: this.source.chargement });
+    this.btnsCie = {}; this.btnsType = {};
     this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Compagnie' });
     COMPAGNIES_().forEach(function (c) {
       var b = h('button', { type: 'button', text: c[1], onclick: function () { self.changerCompagnie(c[0]); } });
       self.btnsCie[c[0]] = b;
       self.elSegment.appendChild(b);
     });
+    this.elSegmentType = null;
+    if (this.source.types) {
+      // Wholesale Canada : achats et échanges séparés (Maxime, 9 oct.)
+      this.elSegmentType = h('div.segment', { role: 'group', 'aria-label': 'Achats ou échanges' });
+      this.source.types.forEach(function (t) {
+        var b = h('button', { type: 'button', text: t[1], onclick: function () { self.changerType(t[0]); } });
+        self.btnsType[t[0]] = b;
+        self.elSegmentType.appendChild(b);
+      });
+    }
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
-    this.elActions = h('div.actions', [this.elSegment, this.btnRafraichir]);
+    this.elActions = h('div.actions', [this.elSegment, this.elSegmentType, this.btnRafraichir]);
 
     this.elVide = h('div');
     this.elKpis = h('div.kpis');
     this.elNote = h('p.resultat-note.doux.petit.cache');
+    this.elAttente = h('div.carte.resultat-attente.cache');
     this.elEvolution = h('div.carte.resultat-evolution.cache');
     this.elAcheteurs = h('div.carte.resultat-acheteurs.cache');
     this.elDetail = h('div.carte.resultat-detail.cache');
     this.elVentilation = h('div.carte.resultat-ventilation.cache');
 
     this.elPage = h('div.page.etroite.resultat-page', [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Résultat'), this.elEtat]), this.elActions]),
-      this.elVide, this.elKpis, this.elNote, this.elEvolution, this.elAcheteurs, this.elDetail, this.elVentilation
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', [this.source.titre, this.source.sous ? h('span.resultat-h1-sous', { text: this.source.sous }) : null]), this.elEtat]), this.elActions]),
+      this.elVide, this.elKpis, this.elNote, this.elAttente, this.elEvolution, this.elAcheteurs, this.elDetail, this.elVentilation
     ]);
     this.conteneur.appendChild(this.elPage);
   };
@@ -371,7 +483,7 @@
     this.enChargement = true;
     if (manuel) this.btnRafraichir.classList.add('occupe');
     if (!this.lignes) this.rendre();   // squelettes
-    return AMX.get('resultatRaw=1').then(function (d) {
+    return AMX.get(this.source.route + (manuel && this.estCan() ? '&force=1' : '')).then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;
       self.btnRafraichir.classList.remove('occupe');
@@ -381,8 +493,10 @@
         return;
       }
       if (!d || d.ok === false) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
-      var n = normaliser(d.rows || []);
+      var n = normaliser(d.rows || [], self.source.seuil);
       self.lignes = n.lignes; self.exclues = n.exclues; self.quand = new Date();
+      self.enAttente = normaliser(d.enAttente || [], Infinity).lignes;
+      self.exclus = d.exclus || null; self.horsPortee = !!d.horsPortee; self.livres = d.livres || []; self.livreErreurs = d.erreurs || [];
       self.erreur = ''; self.refus = '';
       self.rendre();
       if (manuel) AMX.toast('Résultats mis à jour — ' + pluriel(self.lignes.length, 'vente'), 'ok');
@@ -397,8 +511,17 @@
   };
 
   Resultat.prototype.filtrees = function () {
-    var c = this.compagnie;
-    return (this.lignes || []).filter(function (r) { return c === 'TOUT' || r.compagnie === c; });
+    var c = this.compagnie, t = this.estCan() ? this.type : 'tous';
+    return (this.lignes || []).filter(function (r) { return (c === 'TOUT' || r.compagnie === c) && (t === 'tous' || r.type === t); });
+  };
+  // Wholesale Canada : Achats / Échanges / Tous (mémo par navigateur).
+  Resultat.prototype.changerType = function (t) {
+    if (t === this.type) return;
+    this.type = t;
+    AMX.memo.ecrire(this.source.memo + '_type', t);
+    this.groupesOuverts = {};
+    if (this.periode === 'perso') { this.periode = null; this.fenetrePerso = null; this.seauActif = -1; this.acheteurActif = ''; }
+    this.rendre();
   };
 
   Resultat.prototype.changerCompagnie = function (cie) {
@@ -416,6 +539,7 @@
     this.rendreVide();
     this.rendreKpis();
     this.rendreNote();
+    this.rendreAttente();
     this.rendreEvolution();
     this.rendreAcheteurs();
     this.rendreDetail();
@@ -425,17 +549,33 @@
   Resultat.prototype.rendreEntete = function () {
     var self = this;
     Object.keys(this.btnsCie).forEach(function (k) { self.btnsCie[k].classList.toggle('actif', k === self.compagnie); });
+    Object.keys(this.btnsType).forEach(function (k) { self.btnsType[k].classList.toggle('actif', k === self.type); });
     AMX.vider(this.elEtat);
     if (this.refus) { this.elEtat.textContent = 'Accès réservé aux administrateurs.'; this.elActions.classList.add('cache'); return; }
     this.elActions.classList.remove('cache');
-    if (!this.lignes) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable.' : 'Chargement des registres de ventes…'; return; }
-    var n = this.filtrees().length;
-    this.elEtat.appendChild(document.createTextNode(
-      pluriel(n, 'vente') + (this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '') + ' · mis à jour à ' + heure(this.quand)
-    ));
+    if (!this.lignes) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable.' : this.source.chargement; return; }
+    var a = agreger(this.filtrees()), n = a.nb;
+    if (this.estCan()) {
+      var c = this.compagnie, parCie = (this.lignes || []).filter(function (r) { return c === 'TOUT' || r.compagnie === c; });
+      var tout = agreger(parCie), ach = agreger(parCie.filter(function (r) { return r.type === 'achat'; })), ech = agreger(parCie.filter(function (r) { return r.type === 'echange'; }));
+      var attente = this.enAttente.filter(function (r) { return c === 'TOUT' || r.compagnie === c; });
+      this.elEtat.appendChild(document.createTextNode(
+        tout.nb + ' vente' + (tout.nb > 1 ? 's' : '') + ' comptabilisée' + (tout.nb > 1 ? 's' : '') + ' (' + pluriel(ach.nb, 'achat') + ' ' + AMX.fmtArgent(ach.profitTotal, 0) + ' · ' + pluriel(ech.nb, 'échange') + ' ' + AMX.fmtArgent(ech.profitTotal, 0) + ')' + (c !== 'TOUT' ? ' · ' + c : '') + ' · mis à jour à ' + heure(this.quand)
+      ));
+      if (attente.length) this.elEtat.appendChild(h('span.puce.attention', { title: 'Ventes inscrites au livre mais pas encore comptabilisées : leur profit réel n\'est pas connu, elles ne comptent pas.', text: attente.length + ' en attente' }));
+      if (this.exclus && this.exclus.lmb && (c === 'TOUT' || c === 'STM')) this.elEtat.appendChild(h('span.puce.gris', { title: 'Lignes LMB CAN du livre de Ste-Marie, exclues des statistiques (profit comptabilisé ' + AMX.fmtArgent(this.exclus.lmbProfit || 0) + ').', text: 'LMB exclus (' + this.exclus.lmb + ')' }));
+      (this.livreErreurs || []).forEach(function (e) {
+        if (c !== 'TOUT' && e.compagnie !== c) return;
+        self.elEtat.appendChild(h('span.puce.alerte', { title: erreurLivre(e) + '\n' + e.erreur, text: e.compagnie + ' : livre illisible' }));
+      });
+    } else {
+      this.elEtat.appendChild(document.createTextNode(
+        pluriel(n, 'vente') + (this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '') + ' · mis à jour à ' + heure(this.quand)
+      ));
+    }
     if (this.exclues) {
       this.elEtat.appendChild(h('span.puce.attention', {
-        title: pluriel(this.exclues, 'ligne') + ' dont le profit dépasse ' + AMX.fmtArgent(SEUIL_ERREUR) + ' en valeur absolue : erreur de saisie probable, exclue' + (this.exclues > 1 ? 's' : '') + ' des calculs.',
+        title: pluriel(this.exclues, 'ligne') + ' dont le profit dépasse ' + AMX.fmtArgent(this.source.seuil) + ' en valeur absolue : erreur de saisie probable, exclue' + (this.exclues > 1 ? 's' : '') + ' des calculs.',
         text: pluriel(this.exclues, 'exclue')
       }));
     }
@@ -452,6 +592,13 @@
     if (!this.lignes && this.erreur) {
       this.elVide.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Serveur injoignable'), h('div', { text: this.erreur }),
         h('div', { style: { marginTop: '12px' } }, [h('button.btn', { type: 'button', html: I.rafraichir + '<span>Réessayer</span>', onclick: function () { self.charger(true); } })])]));
+      return;
+    }
+    // Wholesale Canada : aucun Livre des ventes dans la portée du compte (ou aucune ligne lisible).
+    if (this.estCan() && this.lignes && !this.lignes.length && !this.enAttente.length) {
+      var ls = this.livres || [], err = this.livreErreurs || [];
+      this.elVide.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', this.horsPortee ? 'Aucun Livre des ventes pour votre concession' : 'Aucune vente wholesale comptabilisée'),
+        h('div', { text: this.horsPortee ? 'Les Livres des ventes lus sont ceux de Ste-Marie, BMW Sherbrooke, VW Brossard et Hyundai Longueuil.' : (ls.length ? 'Livres lus : ' + ls.map(function (l) { return l.compagnie + ' (' + l.lignes + ' lignes)'; }).join(', ') + '.' : '') + (err.length ? ' Illisibles : ' + err.map(function (e) { return e.compagnie; }).join(', ') + '.' : '') })]));
     }
   };
 
@@ -470,13 +617,15 @@
     PERIODES.forEach(function (p) {
       var f = self.fenetres[p.cle] = fenetre(lignes, p.debut(b), b.fin);
       var actif = self.periode === p.cle;
+      var approx = p.approx && self.source.approx;
       var titre = p.libelle + ' : ' + pluriel(f.nb, 'vente') + ', profit moyen ' + AMX.fmtArgent(f.profitMoyen) + '.';
-      if (p.approx) titre += '\n≈ ' + TEXTE_APPROX + (f.nbApprox ? ' Ici, ' + f.nbApprox + ' date' + (f.nbApprox > 1 ? 's' : '') + ' sur ' + f.nb + ' ' + (f.nbApprox > 1 ? 'sont approximatives' : 'est approximative') + '.' : '');
+      if (approx) titre += '\n≈ ' + TEXTE_APPROX + (f.nbApprox ? ' Ici, ' + f.nbApprox + ' date' + (f.nbApprox > 1 ? 's' : '') + ' sur ' + f.nb + ' ' + (f.nbApprox > 1 ? 'sont approximatives' : 'est approximative') + '.' : '');
+      if (f.nbAjust) titre += '\n' + pluriel(f.nbAjust, 'ajustement comptable') + ' sans véhicule (' + AMX.fmtArgent(f.ajustTotal) + ') compris dans le total.';
       titre += '\nCliquer pour ' + (actif ? 'masquer' : 'voir') + ' la liste des véhicules.';
-      var k = h('button.kpi' + (actif ? '.actif' : '') + (p.approx ? '.resultat-kpi-approx' : ''), { type: 'button', title: titre, 'aria-pressed': actif ? 'true' : 'false' }, [
+      var k = h('button.kpi' + (actif ? '.actif' : '') + (approx ? '.resultat-kpi-approx' : ''), { type: 'button', title: titre, 'aria-pressed': actif ? 'true' : 'false' }, [
         h('div.valeur.num.' + signeClasse(f.profitTotal), { text: AMX.fmtArgent(f.profitTotal) }),
-        h('div.libelle', [p.libelle, p.approx ? h('span.resultat-approx', { text: '≈', 'aria-label': 'approximatif' }) : null]),
-        h('div.sous', { text: f.nb ? pluriel(f.nb, 'vente') + ' · marge ' + (f.coutTotal > 0 ? fmtPct(f.marge) : '—') : 'aucune vente' })
+        h('div.libelle', [p.libelle, approx ? h('span.resultat-approx', { text: '≈', 'aria-label': 'approximatif' }) : null]),
+        h('div.sous', { text: f.nb || f.nbAjust ? pluriel(f.nb, 'vente') + ' · marge ' + (f.coutTotal > 0 ? fmtPct(f.marge) : '—') + (f.nbAjust ? ' · ' + f.nbAjust + ' ajust.' : '') : 'aucune vente' })
       ]);
       k.addEventListener('click', function () {
         var ouvre = self.periode !== p.cle;
@@ -495,12 +644,55 @@
     AMX.vider(this.elNote);
     if (!this.lignes || this.refus) { this.elNote.classList.add('cache'); return; }
     this.elNote.classList.remove('cache');
+    if (this.estCan()) {
+      var ex = this.exclus || {}, att = agreger(this.enAttente);
+      this.elNote.appendChild(document.createTextNode(
+        'Seules les ventes comptabilisées comptent (profit réel inscrit par la comptabilité dans le Livre des ventes). ' +
+        (this.enAttente.length ? pluriel(this.enAttente.length, 'vente') + ' en attente (profit prévu ' + AMX.fmtArgent(att.profitTotal, 0) + '). ' : 'Aucune vente en attente. ') +
+        (ex.lmb ? 'LMB exclus : ' + pluriel(ex.lmb, 'ligne') + ' (' + AMX.fmtArgent(ex.lmbProfit || 0, 0) + '). ' : '') +
+        'Les ajustements comptables (transport, crédits, annulations) sont rattachés au véhicule par # stock' + (ex.ajustOrphelins ? ' ; ' + ex.ajustOrphelins + ' sans véhicule dans le livre ' + (ex.ajustOrphelins > 1 ? 'sont listés' : 'est listé') + ' à part' : '') + '. ' +
+        'Marge = profit ÷ coût (Ste-Marie : achat + BT + frais + transport ; BMW, VW, Hyundai : coût ≈ prix de vente − profit, et achat / échange déduit du # stock). Chaque vente a sa date exacte.' +
+        ((this.livreErreurs || []).length ? ' Livre illisible : ' + this.livreErreurs.map(function (e) { return e.compagnie + ' — ' + erreurLivre(e); }).join(' ; ') + '.' : '')
+      ));
+      return;
+    }
     this.elNote.appendChild(h('span.resultat-approx', { text: '≈', 'aria-hidden': 'true' }));
     this.elNote.appendChild(document.createTextNode(
       ' Les fenêtres 10 et 30 jours sont approximatives (mois de dépôt, le 15 servant de repère) ; trimestre, semestre et année restent fiables. ' +
       'Marge = profit ÷ coût total. ' +
-      (this.exclues ? pluriel(this.exclues, 'vente') + ' dont |profit| dépasse ' + AMX.fmtArgent(SEUIL_ERREUR) + ' ' + (this.exclues > 1 ? 'sont exclues' : 'est exclue') + ' (erreur de saisie probable).' : 'Les ventes dont |profit| dépasse ' + AMX.fmtArgent(SEUIL_ERREUR) + ' seraient exclues comme erreurs de saisie ; aucune aujourd\'hui.')
+      (this.exclues ? pluriel(this.exclues, 'vente') + ' dont |profit| dépasse ' + AMX.fmtArgent(this.source.seuil) + ' ' + (this.exclues > 1 ? 'sont exclues' : 'est exclue') + ' (erreur de saisie probable).' : 'Les ventes dont |profit| dépasse ' + AMX.fmtArgent(this.source.seuil) + ' seraient exclues comme erreurs de saisie ; aucune aujourd\'hui.')
     ));
+  };
+
+  // Wholesale Canada : les ventes inscrites mais pas encore comptabilisées (profit PRÉVU), hors statistiques.
+  Resultat.prototype.rendreAttente = function () {
+    var self = this;
+    AMX.vider(this.elAttente);
+    var liste = this.estCan() ? this.enAttente.filter(function (r) { return (self.type === 'tous' || r.type === self.type) && (self.compagnie === 'TOUT' || r.compagnie === self.compagnie); }) : [];
+    var cache = !this.lignes || !!this.refus || !liste.length;
+    this.elAttente.classList.toggle('cache', cache);
+    if (cache) return;
+    var a = agreger(liste);
+    this.elAttente.appendChild(h('div.carte-entete', [
+      h('h2', ['En attente de la comptabilité', h('span.sous', { text: pluriel(a.nb, 'vente') + ' · profit prévu ' + AMX.fmtArgent(a.profitTotal, 0) + ' · pas encore dans les statistiques' })])
+    ]));
+    var tbody = h('tbody');
+    liste.slice().sort(function (x, y) { return (y.t || 0) - (x.t || 0); }).forEach(function (v) {
+      tbody.appendChild(h('tr', [
+        h('td.num', { text: v.date ? AMX.fmtDate(v.date) : '—' }),
+        h('td', [h('div', { text: nomVehicule(v) }), v.provenance ? h('div.mini', { text: v.provenance }) : null]),
+        h('td', [h('span.puce.type-' + (v.type || 'ajust'), { text: v.typeLibelle })]),
+        h('td', { text: v.venduA || '—' }),
+        h('td', { text: v.acheteur || '—' }),
+        h('td.num', { text: AMX.fmtArgent(v.coutTotal) }),
+        h('td.num', { text: AMX.fmtArgent(v.prixVenteUS) }),
+        h('td.num.' + signeClasse(v.profit), { text: AMX.fmtArgent(v.profit) })
+      ]));
+    });
+    this.elAttente.appendChild(h('div.carte-corps', [h('div.resultat-defilant', [h('table.tableau.resultat-ta', [
+      h('thead', [h('tr', [h('th', 'Date'), h('th', 'Véhicule'), h('th', 'Type'), h('th', 'Vendu à'), h('th', 'Acheteur'), h('th.num', 'Coût'), h('th.num', 'Vente ($ CA)'), h('th.num', 'Profit prévu')])]),
+      tbody
+    ])])]));
   };
 
   // Liste des véhicules de la période ouverte.
@@ -512,16 +704,17 @@
     this.elDetail.classList.remove('cache');
     var f = p.cle === 'perso' ? this.fenetreListe(this.fenetrePerso) : (this.fenetres[p.cle] || agreger([]));
 
-    var sous = f.nb
-      ? pluriel(f.nb, 'vente') + ' · profit moyen ' + AMX.fmtArgent(f.profitMoyen) + ' · marge ' + (f.coutTotal > 0 ? fmtPct(f.marge) : '—') + (this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '')
-      : 'aucune vente dans cette fenêtre' + (this.compagnie !== 'TOUT' ? ' pour ' + this.compagnie : '');
-    var titre = h('h2', [p.libelle, p.approx ? h('span.resultat-approx', { text: '≈', title: TEXTE_APPROX }) : null, h('span.sous', { text: sous })]);
+    var sous = f.nb || f.nbAjust
+      ? pluriel(f.nb, 'vente') + ' · profit moyen ' + AMX.fmtArgent(f.profitMoyen) + ' · marge ' + (f.coutTotal > 0 ? fmtPct(f.marge) : '—') + (f.nbAjust ? ' · ' + pluriel(f.nbAjust, 'ajustement') : '') + this.suffixe()
+      : 'aucune vente dans cette fenêtre' + (this.compagnie !== 'TOUT' && !this.estCan() ? ' pour ' + this.compagnie : '');
+    var approxP = p.approx && this.source.approx;
+    var titre = h('h2', [p.libelle, approxP ? h('span.resultat-approx', { text: '≈', title: TEXTE_APPROX }) : null, h('span.sous', { text: sous })]);
     var btnExport = h('button.btn.petit', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', disabled: !f.nb, onclick: function () { self.exporter(); } });
     var btnFermer = h('button.btn.petit.icone.fantome', { type: 'button', 'aria-label': 'Fermer la liste', title: 'Fermer', html: I.fermer, onclick: function () { self.periode = null; self.fenetrePerso = null; self.seauActif = -1; self.acheteurActif = ''; self.rendreKpis(); self.rendreEvolution(); self.rendreAcheteurs(); self.rendreDetail(); } });
     this.elDetail.appendChild(h('div.carte-entete', [titre, h('div.resultat-actions', [btnExport, btnFermer])]));
 
     if (!f.vehicules.length) {
-      this.elDetail.appendChild(h('div.carte-corps', [h('div.vide', [h('div', { html: I.voiture }), h('h3', 'Aucune vente'), h('div', { text: 'Aucun véhicule vendu dans cette fenêtre' + (this.compagnie !== 'TOUT' ? ' pour ' + this.compagnie : '') + '.' })])]));
+      this.elDetail.appendChild(h('div.carte-corps', [h('div.vide', [h('div', { html: I.voiture }), h('h3', 'Aucune vente'), h('div', { text: 'Aucun véhicule vendu dans cette fenêtre' + this.suffixe() + '.' })])]));
       return;
     }
     this.elDetail.appendChild(this.tableVehicules(f.vehicules, this.triVehicules, function (c) { changerTri(self.triVehicules, c); self.rendreDetail(); }));
@@ -537,23 +730,24 @@
 
     var b = bornes();
     var annee = this.filtrees().filter(function (r) { return r.t >= b.annee && r.t <= b.fin; });
-    var reg = trouver(REGROUPEMENTS, this.regroupement) || REGROUPEMENTS[0];
+    var REG = this.regroupements();
+    var reg = trouver(REG, this.regroupement) || REG[0];
     var base = reg.requiertMarque ? annee.filter(function (r) { return r.marque; }) : annee;
     var groupes = grouper(base, reg.champ);
 
     this.elVentilation.appendChild(h('div.carte-entete', [
-      h('h2', ['Ventilation', h('span.sous', { text: 'année ' + new Date().getFullYear() + ' · ' + pluriel(base.length, 'vente') + (base.length !== annee.length ? ' avec marque sur ' + annee.length : '') + (this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '') })]),
+      h('h2', ['Ventilation', h('span.sous', { text: 'année ' + new Date().getFullYear() + ' · ' + pluriel(base.length, 'vente') + (base.length !== annee.length ? ' avec marque sur ' + annee.length : '') + this.suffixe() })]),
       h('span.doux.petit', { text: 'Cliquez une ligne pour voir ses véhicules' })
     ]));
 
     var onglets = h('div.onglets', { role: 'tablist' });
-    REGROUPEMENTS.forEach(function (r) {
+    REG.forEach(function (r) {
       onglets.appendChild(h('button' + (r.cle === reg.cle ? '.actif' : ''), {
         type: 'button', role: 'tab', 'aria-selected': r.cle === reg.cle ? 'true' : 'false', text: r.libelle,
         onclick: function () {
           if (r.cle === self.regroupement) return;
           self.regroupement = r.cle;
-          AMX.memo.ecrire('resultat_regroupement', r.cle);
+          AMX.memo.ecrire(self.source.memo + '_regroupement', r.cle);
           self.groupesOuverts = {};
           self.rendreVentilation();
         }
@@ -562,7 +756,7 @@
     this.elVentilation.appendChild(h('div.resultat-onglets', [onglets]));
 
     if (!groupes.length) {
-      this.elVentilation.appendChild(h('div.carte-corps', [h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune donnée'), h('div', { text: 'Aucune vente de l\'année en cours pour cette catégorie' + (this.compagnie !== 'TOUT' ? ' (' + this.compagnie + ')' : '') + '.' })])]));
+      this.elVentilation.appendChild(h('div.carte-corps', [h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune donnée'), h('div', { text: 'Aucune vente de l\'année en cours pour cette catégorie' + this.suffixe() + '.' })])]));
       return;
     }
     this.elVentilation.appendChild(this.tableGroupes(groupes, reg));
@@ -592,25 +786,25 @@
     var valeurs = [], nb = [], cumul = [], total = 0, approx = 0, nbTotal = 0;
     liste.forEach(function (sx) {
       var dans = lignes.filter(function (r) { return r.t >= sx.debut && r.t <= sx.fin; });
-      var p = 0; dans.forEach(function (r) { p += r.profit; if (r.dateApprox) approx++; });
-      total += p; nbTotal += dans.length;
-      valeurs.push(p); nb.push(dans.length); cumul.push(total);
+      var p = 0, nv = 0; dans.forEach(function (r) { p += r.profit; if (r.dateApprox) approx++; if (!r.ajust) nv++; });
+      total += p; nbTotal += nv;
+      valeurs.push(p); nb.push(nv); cumul.push(total);
     });
 
     // En-tête : titre + granularité + horizon
     var segment = h('div.segment', { role: 'group', 'aria-label': 'Granularité' }, GRANULARITES.map(function (g) {
       return h('button' + (g.cle === self.granularite ? '.actif' : ''), { type: 'button', text: g.libelle, onclick: function () {
         if (g.cle === self.granularite) return;
-        self.granularite = g.cle; AMX.memo.ecrire('resultat_granularite', g.cle);
-        self.horizon = parseInt(AMX.memo.lire('resultat_horizon_' + g.cle, ''), 10) || g.horizons[1][0];
+        self.granularite = g.cle; AMX.memo.ecrire(self.source.memo + '_granularite', g.cle);
+        self.horizon = parseInt(AMX.memo.lire(self.source.memo + '_horizon_' + g.cle, ''), 10) || g.horizons[1][0];
         self.seauActif = -1; if (self.periode === 'perso' && self.fenetrePerso && !self.fenetrePerso.acheteur) { self.periode = null; self.fenetrePerso = null; }
         self.rendreEvolution(); self.rendreAcheteurs(); self.rendreDetail();
       } });
     }));
     var selHorizon = h('select.saisie', { 'aria-label': 'Horizon', style: { height: '28px', width: 'auto' } }, gran.horizons.map(function (o) { return h('option', { value: String(o[0]), selected: o[0] === self.horizon ? true : undefined, text: o[1] }); }));
-    selHorizon.addEventListener('change', function () { self.horizon = parseInt(selHorizon.value, 10); AMX.memo.ecrire('resultat_horizon_' + self.granularite, String(self.horizon)); self.seauActif = -1; self.rendreEvolution(); self.rendreAcheteurs(); });
+    selHorizon.addEventListener('change', function () { self.horizon = parseInt(selHorizon.value, 10); AMX.memo.ecrire(self.source.memo + '_horizon_' + self.granularite, String(self.horizon)); self.seauActif = -1; self.rendreEvolution(); self.rendreAcheteurs(); });
     this.elEvolution.appendChild(h('div.carte-entete', [
-      h('h2', ['Évolution du profit', h('span.sous', { text: pluriel(nbTotal, 'vente') + ' · ' + AMX.fmtArgent(total) + ' sur ' + trouver(gran.horizons.map(function (o) { return { cle: o[0], libelle: o[1] }; }), this.horizon).libelle + (this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '') })]),
+      h('h2', ['Évolution du profit', h('span.sous', { text: pluriel(nbTotal, 'vente') + ' · ' + AMX.fmtArgent(total) + ' sur ' + trouver(gran.horizons.map(function (o) { return { cle: o[0], libelle: o[1] }; }), this.horizon).libelle + this.suffixe() })]),
       h('div.resultat-actions', [segment, selHorizon])
     ]));
 
@@ -624,7 +818,7 @@
         var sx = liste[i];
         if (self.seauActif === i) { self.seauActif = -1; self.periode = null; self.fenetrePerso = null; self.rendreKpis(); self.rendreEvolution(); self.rendreAcheteurs(); self.rendreDetail(); return; }
         self.seauActif = i; self.acheteurActif = '';
-        self.ouvrirPerso({ debut: sx.debut, fin: sx.fin, libelle: sx.long, approx: gran.approx });
+        self.ouvrirPerso({ debut: sx.debut, fin: sx.fin, libelle: sx.long, approx: gran.approx && self.source.approx });
       }
     }));
     corps.appendChild(h('div.graph-legende', [
@@ -632,7 +826,7 @@
       h('span.graph-legende-item', [h('i', { style: { background: 'var(--bleu)', borderRadius: '50%' } }), 'Profit cumulé depuis le début de la fenêtre (axe de droite)']),
       h('span.doux', { text: 'Cliquez une barre pour voir ses véhicules.' })
     ]));
-    if (gran.approx && approx) corps.appendChild(h('p.resultat-note.doux.petit', { style: { margin: '10px 0 0' } }, [h('span.resultat-approx', { text: '≈' }), ' ' + approx + ' des ' + nbTotal + ' ventes affichées n\'ont que le mois de dépôt (placées au 15) : la répartition par semaine est approximative, le total par mois reste juste.']));
+    if (gran.approx && this.source.approx && approx) corps.appendChild(h('p.resultat-note.doux.petit', { style: { margin: '10px 0 0' } }, [h('span.resultat-approx', { text: '≈' }), ' ' + approx + ' des ' + nbTotal + ' ventes affichées n\'ont que le mois de dépôt (placées au 15) : la répartition par semaine est approximative, le total par mois reste juste.']));
     this.elEvolution.appendChild(corps);
   };
 
@@ -651,18 +845,18 @@
     var groupes = grouper(lignes, 'acheteur').sort(function (x, y) { return y[mesure.cle] - x[mesure.cle]; });
 
     var segFen = h('div.segment', { role: 'group', 'aria-label': 'Fenêtre' }, FENETRES_ACHETEURS.map(function (f) {
-      return h('button' + (f.cle === self.fenetreAcheteurs ? '.actif' : ''), { type: 'button', text: f.libelle, onclick: function () { if (f.cle === self.fenetreAcheteurs) return; self.fenetreAcheteurs = f.cle; AMX.memo.ecrire('resultat_acheteurs_fenetre', f.cle); self.acheteurActif = ''; self.rendreAcheteurs(); } });
+      return h('button' + (f.cle === self.fenetreAcheteurs ? '.actif' : ''), { type: 'button', text: f.libelle, onclick: function () { if (f.cle === self.fenetreAcheteurs) return; self.fenetreAcheteurs = f.cle; AMX.memo.ecrire(self.source.memo + '_acheteurs_fenetre', f.cle); self.acheteurActif = ''; self.rendreAcheteurs(); } });
     }));
     var selMesure = h('select.saisie', { 'aria-label': 'Mesure', style: { height: '28px', width: 'auto' } }, MESURES_ACHETEURS.map(function (m) { return h('option', { value: m.cle, selected: m.cle === self.mesureAcheteurs ? true : undefined, text: m.libelle }); }));
-    selMesure.addEventListener('change', function () { self.mesureAcheteurs = selMesure.value; AMX.memo.ecrire('resultat_acheteurs_mesure', selMesure.value); self.rendreAcheteurs(); });
-    var total = 0; groupes.forEach(function (g) { total += g.profitTotal; });
+    selMesure.addEventListener('change', function () { self.mesureAcheteurs = selMesure.value; AMX.memo.ecrire(self.source.memo + '_acheteurs_mesure', selMesure.value); self.rendreAcheteurs(); });
+    var total = 0, nbVentes = 0; groupes.forEach(function (g) { total += g.profitTotal; nbVentes += g.nb; });
     this.elAcheteurs.appendChild(h('div.carte-entete', [
-      h('h2', ['Par acheteur', h('span.sous', { text: fen.libelle.toLowerCase() + ' · ' + pluriel(lignes.length, 'vente') + ' · ' + AMX.fmtArgent(total) + (this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '') })]),
+      h('h2', [this.estCan() ? 'Par acheteur interne' : 'Par acheteur', h('span.sous', { text: fen.libelle.toLowerCase() + ' · ' + pluriel(nbVentes, 'vente') + ' · ' + AMX.fmtArgent(total) + this.suffixe() })]),
       h('div.resultat-actions', [segFen, selMesure])
     ]));
     var corps = h('div.carte-corps');
     if (!groupes.length) {
-      corps.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune vente'), h('div', { text: 'Aucune vente dans cette fenêtre' + (this.compagnie !== 'TOUT' ? ' pour ' + this.compagnie : '') + '.' })]));
+      corps.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune vente'), h('div', { text: 'Aucune vente dans cette fenêtre' + this.suffixe() + '.' })]));
       this.elAcheteurs.appendChild(corps); return;
     }
     var actifIdx = -1;
@@ -679,7 +873,7 @@
         self.ouvrirPerso({ debut: debut, fin: b.fin, acheteur: g.cle, libelle: g.cle + ' — ' + fen.libelle.toLowerCase(), approx: false });
       }
     })]));
-    corps.appendChild(h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Cliquez un acheteur pour voir ses véhicules. Les ventes sans acheteur inscrit au registre sont regroupées sous « (non spécifié) ».' }));
+    corps.appendChild(h('p.doux.petit', { style: { margin: '6px 0 0' }, text: this.estCan() ? 'Cliquez un acheteur pour voir ses véhicules. Les échanges sont sous « Échangé » ; les ventes sans acheteur inscrit au livre sous « (non spécifié) ».' : 'Cliquez un acheteur pour voir ses véhicules. Les ventes sans acheteur inscrit au registre sont regroupées sous « (non spécifié) ».' }));
 
     // Cumul par acheteur sur les périodes de l'évolution (6 premiers)
     var gran = trouver(GRANULARITES, this.granularite);
@@ -702,12 +896,30 @@
   // Tableau des véhicules ; `surTri` facultatif (sans lui, en-tête non cliquable). opts.sansTotal : pas de pied.
   Resultat.prototype.tableVehicules = function (liste, tri, surTri, opts) {
     opts = opts || {};
-    var lignes = trierPar(liste, COL_VEHICULES, tri);
+    var COLS = colonnesDe(this.source), can = this.estCan();
+    var lignes = trierPar(liste, COLS, tri);
     var tbody = h('tbody');
     lignes.forEach(function (v) {
       var complet = vinLong(v);
       var tdVin = h('td.mono' + (complet ? '.resultat-vin' : ''), { title: complet ? 'NIV ' + complet + ' — cliquer pour copier' : null, text: vinCourt(v) || '—' });
       if (complet) tdVin.addEventListener('click', function () { AMX.copier(complet, 'NIV copié'); });
+      if (can) {
+        var ajTitre = v.ajustements.length ? v.ajustements.map(function (a) { return (a.libelle || a.statut) + ' : ' + AMX.fmtArgent(a.montant); }).join('\n') : '';
+        tbody.appendChild(h('tr' + (v.ajust ? '.resultat-ligne-ajust' : ''), [
+          h('td.num', { text: v.date ? AMX.fmtDate(v.date) : '—' }),
+          h('td', [h('div', { text: v.ajust ? 'Ajustement — ' + (v.venduA || v.provenance || v.statut) : nomVehicule(v) }), v.ajust ? h('div.mini', { text: v.statut }) : (v.provenance ? h('div.mini', { text: 'de ' + v.provenance }) : null)]),
+          h('td', [h('span.puce.type-' + (v.ajust ? 'ajust' : (v.type || 'ajust')), { text: v.ajust ? 'Ajust. ' + v.typeLibelle.toLowerCase() : v.typeLibelle })]),
+          h('td.mono', { text: v.stock || '—' }),
+          tdVin,
+          h('td', { text: v.acheteur || '—' }),
+          h('td', { text: v.venduA || '—' }),
+          h('td.num', { text: v.ajust ? '—' : (v.coutEstime ? '≈ ' : '') + AMX.fmtArgent(v.coutTotal), title: v.coutEstime ? 'Coût estimé : prix de vente − profit réel (le livre n\'a pas le coût)' : null }),
+          h('td.num', { text: v.ajust ? '—' : AMX.fmtArgent(v.prixVenteUS) }),
+          h('td.num.' + signeClasse(v.profit), [AMX.fmtArgent(v.profit), v.ajustements.length ? h('div.resultat-ajust', { title: 'Profit réel inscrit ' + AMX.fmtArgent(v.profitReel !== undefined && v.profitReel !== null ? v.profitReel : v.profit) + '\n' + ajTitre, text: v.ajustements.length + ' ajust. (' + AMX.fmtArgent(v.ajustements.reduce(function (s, a) { return s + num(a.montant); }, 0)) + ')' }) : null]),
+          h('td.num', { text: v.ajust ? '—' : fmtPct(marge(v)) })
+        ]));
+        return;
+      }
       tbody.appendChild(h('tr', [
         h('td.num', { title: v.dateApprox ? 'Date approximative (mois de dépôt seulement)' : null }, [AMX.fmtDate(v.date), v.dateApprox ? h('span.resultat-approx', { text: '≈' }) : null]),
         h('td', [h('div', { text: nomVehicule(v) }), v.provenance ? h('div.mini', { text: v.provenance }) : null]),
@@ -725,14 +937,14 @@
     if (!opts.sansTotal) {
       var a = agreger(liste);
       pied = h('tfoot', [h('tr', [
-        h('td', { colspan: '6', text: 'Total — ' + pluriel(a.nb, 'vente') }),
+        h('td', { colspan: String(COLS.length - 4), text: 'Total — ' + pluriel(a.nb, 'vente') + (a.nbAjust ? ' + ' + pluriel(a.nbAjust, 'ajustement') : '') }),
         h('td.num', { text: AMX.fmtArgent(a.coutTotal) }),
         h('td.num', { text: AMX.fmtArgent(a.venteTotal) }),
         h('td.num.' + signeClasse(a.profitTotal), { text: AMX.fmtArgent(a.profitTotal) }),
         h('td.num', { text: a.coutTotal > 0 ? fmtPct(a.marge) : '—' })
       ])]);
     }
-    return h('div.resultat-defilant', [h('table.tableau.resultat-tv', [entete(COL_VEHICULES, tri, surTri), tbody, pied])]);
+    return h('div.resultat-defilant', [h('table.tableau.resultat-tv', [entete(COLS, tri, surTri), tbody, pied])]);
   };
 
   // Tableau des groupes ; une ligne cliquée déplie les véhicules du groupe.
@@ -780,11 +992,24 @@
   Resultat.prototype.exporter = function () {
     var p = this.periode === 'perso' && this.fenetrePerso ? { cle: 'periode', libelle: this.fenetrePerso.libelle } : trouver(PERIODES, this.periode);
     var f = p ? (p.cle === 'periode' ? this.fenetreListe(this.fenetrePerso) : this.fenetres[p.cle]) : null;
-    var liste = f ? trierPar(f.vehicules, COL_VEHICULES, this.triVehicules) : [];
+    var liste = f ? trierPar(f.vehicules, colonnesDe(this.source), this.triVehicules) : [];
     if (!liste.length) { AMX.toast('Aucune vente à exporter.', 'attention'); return; }
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
+    var can = this.estCan();
     var rows = liste.map(function (v) {
       var m = marge(v);
+      if (can) {
+        return {
+          'Date de vente': v.date ? AMX.fmtDate(v.date) : '', 'Type': v.ajust ? 'Ajustement ' + v.typeLibelle.toLowerCase() : v.typeLibelle, 'Statut du livre': v.statut,
+          'Marque': v.marque, 'Modèle': v.modele, 'Année': v.annee, 'Stock #': v.stock, 'NIV': vinLong(v),
+          'Acheté de': v.provenance, 'Vendu à': v.venduA, 'Acheteur': v.acheteur, 'Vendeur': v.vendeur,
+          'Coût total': v.ajust ? '' : v.coutTotal, 'Prix de vente ($ CA)': v.ajust ? '' : v.prixVenteUS,
+          'Profit réel inscrit': (v.profitReel === null || v.profitReel === undefined) ? v.profit : v.profitReel,
+          'Ajustements': v.ajustements.length ? v.ajustements.map(function (a) { return (a.libelle || a.statut) + ' ' + AMX.fmtArgent(a.montant); }).join(' ; ') : '',
+          'Profit': v.profit, 'Marge (%)': v.ajust || isNaN(m) ? '' : Math.round(m * 1000) / 10,
+          'Comptabilisé le': v.dateCompta ? AMX.fmtDate(v.dateCompta) : ''
+        };
+      }
       return {
         'Date': AMX.fmtDate(v.date), 'Date approximative': v.dateApprox ? 'oui' : '',
         'Marque': v.marque, 'Modèle': v.modele, 'Année': v.annee, 'Stock #': v.stock, 'NIV': vinLong(v),
@@ -794,10 +1019,12 @@
       };
     });
     var ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{ wch: 11 }, { wch: 9 }, { wch: 12 }, { wch: 18 }, { wch: 7 }, { wch: 10 }, { wch: 19 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }];
+    ws['!cols'] = can
+      ? [{ wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 7 }, { wch: 9 }, { wch: 19 }, { wch: 16 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 30 }, { wch: 10 }, { wch: 9 }, { wch: 13 }]
+      : [{ wch: 11 }, { wch: 9 }, { wch: 12 }, { wch: 18 }, { wch: 7 }, { wch: 10 }, { wch: 19 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }];
     var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Résultat');
-    XLSX.writeFile(wb, 'resultat-' + p.cle + '-' + this.compagnie.toLowerCase() + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, can ? 'Wholesale Canada' : 'Résultat');
+    XLSX.writeFile(wb, (can ? 'wholesale-canada-' : 'resultat-') + p.cle + '-' + (can ? this.type : this.compagnie.toLowerCase()) + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
     AMX.toast('Export Excel — ' + pluriel(liste.length, 'ligne') + ' (' + p.libelle + ')', 'ok');
   };
 })();

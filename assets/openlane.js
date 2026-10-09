@@ -23,6 +23,8 @@
   'use strict';
   var h = AMX.h, esc = AMX.esc, I = AMX.icones;
   var URL_MARCHE = 'https://app.openlane.ca/marketguide';
+  /** Market guide avec le NIV (et le km) dans l'adresse : le favori « Automax ← OpenLane » lit ce NIV en premier. */
+  function lienMarche(vin, km) { vin = String(vin || '').trim().toUpperCase(); km = nombre(km); return URL_MARCHE + (vin ? '#amx=' + encodeURIComponent(vin + (km !== null ? ',' + Math.round(km) : '')) : ''); }
   var TAUX_KM = 0.10;   // $ par km pour « ajusté à votre km » (même repère que l'évaluation)
   // Chargeur du signet (généré par mock/signet-build.py) — ne jamais éditer la constante à la main.
   var CODE_SIGNET_OPENLANE = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-openlane.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
@@ -395,8 +397,7 @@
         r.vehiculeId && r.registre ? h('a.btn', { href: AMX.lien('inventaire', r.registre.toLowerCase(), { vin: vin }), text: 'Voir à l\'inventaire' }) : null,
         h('a.btn', { href: AMX.lien('outils', 'evaluation', { vin: vin }), text: 'Évaluation' }),
         h('a.btn', { href: AMX.lien('achat', '', { vin: vin }), html: I.achat + '<span>Fiche d\'achat</span>' }),
-        peutDemander() ? h('button.btn.fantome', { type: 'button', text: r.luLe ? 'Relire au prochain signet' : 'Demander', onclick: function (e) { var b = e.currentTarget; b.classList.add('occupe'); AMX.openlane.demander(vin, r.km).then(function (x) { b.classList.remove('occupe'); AMX.toast(x && x.ok ? 'Ce NIV sera relu au prochain clic du signet dans OpenLane.' : ((x && x.erreur) || 'Refusé'), x && x.ok ? 'ok' : 'erreur'); }, function (err) { b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(err), 'erreur'); }); } }) : null,
-        h('a.btn.fantome', { href: URL_MARCHE, target: '_blank', rel: 'noopener', html: I.externe + '<span>Market guide</span>' })
+        peutDemander() ? h('button.btn', { type: 'button', html: I.externe + '<span>' + (r.luLe ? 'Mettre à jour sur OpenLane' : 'Lire sur OpenLane') + '</span>', title: 'Ouvre Market guide avec ce NIV : cliquez-y le favori « Automax ← OpenLane (valeurs) »', onclick: function (e) { var b = e.currentTarget; AMX.openlane.ouvrir(vin, r.km); b.classList.add('occupe'); AMX.openlane.demander(vin, r.km).then(function (x) { b.classList.remove('occupe'); AMX.toast(x && x.ok ? 'OpenLane ouvert : cliquez-y le favori « Automax ← OpenLane », puis Rafraîchir ici.' : ((x && x.erreur) || 'Refusé'), x && x.ok ? 'ok' : 'erreur', 7000); }, function (err) { b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(err), 'erreur'); }); } }) : h('a.btn.fantome', { href: lienMarche(vin, r.km), target: '_blank', rel: 'noopener', html: I.externe + '<span>Market guide</span>' })
       ]);
       corps.appendChild(actions);
     }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Valeurs indisponibles'), h('div', { text: AMX.erreurTexte(e) })])); });
@@ -436,13 +437,15 @@
       var km = nombre(opts.km !== undefined ? opts.km : (r && r.km));
       var info = r && r.aLire ? 'Demandé — sera lu au prochain clic du signet dans OpenLane.' : '';
       if (peutDemander() && !(r && r.aLire)) {
-        var btn = h('button.btn.petit', { type: 'button', text: r && r.luLe ? 'Mettre à jour (signet)' : 'Demander les valeurs OpenLane', onclick: function () {
+        // Ouvre Market guide avec ce NIV dans l'adresse (le favori le lit en premier) ET enregistre la demande (lu au prochain passage de toute façon).
+        var btn = h('button.btn.petit' + (r && r.luLe ? '' : '.primaire'), { type: 'button', html: I.externe + '<span>' + (r && r.luLe ? 'Mettre à jour sur OpenLane' : 'Lire sur OpenLane') + '</span>', title: 'Ouvre OpenLane › Market guide : cliquez-y le favori « Automax ← OpenLane (valeurs) », puis revenez ici.', onclick: function () {
+          AMX.openlane.ouvrir(vin, km);
           btn.classList.add('occupe');
-          AMX.openlane.demander(vin, km).then(function (x) { btn.classList.remove('occupe'); if (x && x.ok) { btn.replaceWith(h('span.doux.petit', 'Demandé — cliquez le signet « Automax ← OpenLane » dans OpenLane, puis rouvrez.')); } else AMX.toast((x && x.erreur) || 'Refusé', 'erreur'); }, function (e) { btn.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+          AMX.openlane.demander(vin, km).then(function (x) { btn.classList.remove('occupe'); if (x && x.ok) btn.replaceWith(h('span.doux.petit', 'OpenLane ouvert dans un autre onglet — cliquez-y le favori « Automax ← OpenLane », puis revenez ici (Rafraîchir).')); else AMX.toast((x && x.erreur) || 'Refusé', 'erreur'); }, function (e) { btn.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(e), 'erreur'); });
         } });
         zone.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' } }, [btn, km === null ? h('span.doux.petit', 'Sans km, pas de prévision.') : null]));
-      } else if (info) zone.appendChild(h('span.doux.petit', { text: info }));
-      else if (!peutDemander()) zone.appendChild(h('span.doux.petit', 'Valeurs non lues (signet OpenLane).'));
+      } else if (info) zone.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' } }, [h('span.doux.petit', { text: info }), h('a.btn.petit.fantome', { href: lienMarche(vin, km), target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir OpenLane</span>' })]));
+      else if (!peutDemander()) zone.appendChild(h('span.doux.petit', 'Valeurs non lues (favori OpenLane).'));
       return zone;
     };
     return AMX.get({ openlaneVin: vin }, { essais: 1 }).then(function (d) {
@@ -489,6 +492,9 @@
     valeur: function (vin) { return (olIndex && olIndex[String(vin || '').toUpperCase()]) || null; },
     enCache: function () { return olIndex; },
     ajuste: ajuste,
+    lienMarche: lienMarche,
+    /** Ouvre Market guide dans un autre onglet avec ce NIV (à appeler dans un clic, sinon Chrome bloque la fenêtre). */
+    ouvrir: function (vin, km) { try { window.open(lienMarche(vin, km), '_blank', 'noopener'); } catch (e) {} },
     /** Demande (ou redemande) la lecture d'un NIV au prochain signet ; km facultatif. */
     demander: function (vin, km) {
       return AMX.post({ action: 'openlaneImporter', phase: 'demander', vin: String(vin || '').trim().toUpperCase(), km: km === undefined || km === null ? '' : String(km) }).then(function (r) {

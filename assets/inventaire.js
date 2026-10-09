@@ -536,8 +536,12 @@
     // Sans photo : le logo du constructeur (voir AMX.logoMarque) ; avec photos,
     // le logo tient lieu de repli jusqu'à ce que la miniature charge.
     var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })]) : h('div.vignette', { title: 'Aucune photo' }, [AMX.logoMarque(marque(v))]);
+    // Rappels (8 oct., soir — Maxime) : rouge ou vert, pas le détail ; un clic sur la puce rouge ouvre le détail.
+    var puceRappel = v.rappel === 'oui'
+      ? h('span.puce.alerte.rappel-puce', { text: 'Rappel', title: 'Rappel ouvert — cliquez pour le détail', onclick: function (e) { e.stopPropagation(); self.rappelsOuverts = true; self.selectionner(v.vin); } })
+      : (v.rappel === 'non' ? h('span.puce.ok', { text: 'Sans rappel', title: 'Aucun rappel ouvert (NHTSA)' }) : h('span.puce', { text: 'Rappel ?', title: 'Rappel non vérifié' }));
     var indicateurs = [
-      v.rappel === 'oui' ? h('span.puce.alerte', { text: 'Rappel', title: v.rappelDetail || 'Rappel ouvert' }) : (v.rappel === 'non' ? null : h('span.puce', { text: 'Rappel ?', title: 'Rappel non vérifié' })),
+      puceRappel,
       h('span.puce' + (reg === 'oui-bon' ? '.ok' : (reg === 'oui-mauvais' ? '.attention' : (retard ? '.alerte' : ''))), { text: reg === 'non' ? (retard ? 'Registre · ' + jours + ' j' : 'Registre à recevoir') : regInfo.libelle }),
       v.ficheExiste ? h('span.puce' + (v.ficheStockRempli ? '.ok' : '.attention'), { text: v.ficheStockRempli ? 'Fiche ✓' : 'Fiche sans stock' }) : null,
       // Un clic sur la puce ouvre le rapport directement (comme sur eBlock), sans ouvrir la fiche.
@@ -552,10 +556,12 @@
       vignette,
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', { text: v.modele || '(modèle à préciser)' }),
-        h('div.sous', [h('span.vin', { text: v.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), autreRegistre ? h('span.puce.registre-autre', { text: 'Registre ' + AMX.inventaire.nomFeuille(autreRegistre), title: 'Ce véhicule est dans un autre registre — cliquez pour l\'ouvrir là-bas.' }) : null, v.origine === 'Échange' ? h('span.puce', { text: 'Échange' }) : null])
+        // Les informations du véhicule sont ici, dans la ligne (8 oct., soir — Maxime) : le NIV (une seule fois,
+        // un clic le copie), # stock, compagnie, origine, importateur ; la date d'achat est sous le statut.
+        h('div.sous', [h('span.vin', { text: v.vin, title: 'Copier le NIV', onclick: function (e) { e.stopPropagation(); AMX.copier(v.vin, 'NIV copié'); } }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), v.origine ? h('span.puce', { text: v.origine }) : null, autreRegistre ? h('span.puce.registre-autre', { text: 'Registre ' + AMX.inventaire.nomFeuille(autreRegistre), title: 'Ce véhicule est dans un autre registre — cliquez pour l\'ouvrir là-bas.' }) : null])
       ]),
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle })]),
-        v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : (retardA ? h('span.jours.attention', { text: 'Acheté depuis ' + jours + ' j' }) : h('span.jours', { text: 'Acheté il y a ' + jours + ' j' }))]),
+        v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : h('span.jours' + (retardA ? '.attention' : ''), { text: 'Acheté le ' + AMX.fmtDate(v.dateAjout) + ' · ' + jours + ' j' })]),
       h('div.cell.maj', [h('span.l', 'Mise à jour'), h('span.v', { text: AMX.fmtDate(v.maj, true) })]),
       h('div.cell.indic', [h('span.l', 'Suivi'), h('div.indicateurs', indicateurs)]),
       h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' })]),
@@ -620,80 +626,66 @@
     });
     blocStatut.appendChild(h('div.ligne-registre', [h('span.l', { text: 'Registre' }), segReg, enRetardRegistre(v) ? h('span.puce.alerte', { text: AMX.joursDepuis(v.dateAjout) + ' j sans registre' }) : null]));
 
-    // Informations éditables
-    var champ = function (libelle, valeur, opts) {
-      opts = opts || {};
-      var inp = h('input.saisie', { type: opts.type || 'text', value: valeur || '', placeholder: opts.placeholder || '—', disabled: opts.disabled, step: opts.step });
-      if (opts.mono) inp.classList.add('mono');
-      var bouton = opts.action ? h('button.btn.petit', { text: opts.texteBouton || 'Enregistrer', style: { visibility: 'hidden' } }) : null;
-      inp.addEventListener('input', function () { if (bouton) bouton.style.visibility = (inp.value.trim() !== String(valeur || '').trim()) ? 'visible' : 'hidden'; });
-      // Une fois envoyée, la valeur devient la référence : le « change » du blur qui suit un Entrée ne renvoie pas.
-      var sauver = function () { if (!opts.action) return; var val = inp.value.trim(); if (val === String(valeur || '').trim()) return; if (opts.action(val, inp) === false) return; valeur = val; if (bouton) bouton.style.visibility = 'hidden'; };
-      if (bouton) bouton.addEventListener('click', sauver);
-      if (!opts.explicite) inp.addEventListener('change', sauver);
-      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sauver(); } });
-      return h('div.champ', [h('label', { text: libelle }), bouton ? h('div', { style: { display: 'flex', gap: '6px' } }, [inp, bouton]) : inp]);
-    };
     var selCompagnie = h('select.saisie', { disabled: verrouille || !peutMontants }, AMX.optionsCompagnies('—'));
     selCompagnie.value = AMX.COMPAGNIES[v.compagnie] ? v.compagnie : '';
-    selCompagnie.addEventListener('change', function () { self.ecrire({ action: 'setCompagnie', id: v.id, value: selCompagnie.value }, 'Compagnie enregistrée', { optimiste: { champs: { compagnie: selCompagnie.value } } }).catch(function () {}); });
     // Km obligatoire pour enregistrer un # stock (Maxime, 7 oct.) : le km vit dans la fiche d'achat (f-km) ;
     // le serveur refuse un # stock sans km (Stock.gs), le site l'envoie avec le # stock quand il vient d'être tapé.
     var peutStock = peutMontants || AMX.perm('ficheAchat');
-    var kmConnu = null, kmSaisi = '';
-    var champKm = champ('Km', '', { type: 'number', step: '1', placeholder: 'obligatoire', disabled: verrouille || !peutStock, action: function (val, inp) {
-      var n = AMX.kmValide(val);
-      if (!n) { AMX.toast('Kilométrage invalide : un nombre de km supérieur à zéro.', 'erreur'); inp.focus(); return false; }
-      AMX.post({ action: 'setKm', vin: v.vin, value: n }).then(function (d) {
-        AMX.verifier(d, 'Kilométrage refusé');
-        kmConnu = d.km || n; AMX.ficheOublier(v.vin); AMX.toast('Kilométrage enregistré — ' + AMX.fmtNombre(kmConnu) + ' km', 'ok');
-        champKm.classList.remove('manque');
-      }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
-    } });
-    champKm.classList.add('champ-km');
-    var inpKm = champKm.querySelector('input');
-    inpKm.addEventListener('input', function () { kmSaisi = inpKm.value; });
+    var kmConnu = null;
+    var puceKm = h('span.puce.cache', { title: 'Kilométrage (fiche d\'achat)' });
     AMX.ficheDe(v.vin).then(function (f) {
       if (self.selection !== v.vin) return;
       kmConnu = f ? AMX.kmValide(f['f-km']) : null;
-      if (kmConnu) { inpKm.value = kmConnu; inpKm.placeholder = ''; champKm.classList.remove('manque'); }
-      else if (v.stock) champKm.classList.add('manque');
+      if (kmConnu) { puceKm.textContent = AMX.fmtNombre(kmConnu) + ' km'; puceKm.classList.remove('cache'); }
     }).catch(function () {});
-    var blocInfos = h('div.bloc', [h('h3', 'Informations'),
-      h('div.grille.c2', [
-        champ('# Stock', v.stock, { mono: true, disabled: verrouille || !peutStock, action: function (val, inp) {
-          var kmTape = AMX.kmValide(kmSaisi || inpKm.value);
-          if (val && !kmConnu && !kmTape) {
-            AMX.toast('Le kilométrage est obligatoire pour enregistrer un # stock : entrez d\'abord le km.', 'erreur');
-            champKm.classList.add('manque'); inpKm.focus(); return false;
-          }
-          var corps = { action: 'setStock', id: v.id, value: val };
-          if (val && !kmConnu && kmTape) corps.km = kmTape;
-          self.ecrire(corps, '# stock enregistré' + (corps.km ? ' avec le kilométrage' : ''), { optimiste: { champs: { stock: val } } }).then(function () { if (corps.km) { kmConnu = kmTape; AMX.ficheOublier(v.vin); } }).catch(function () {});
-        } }),
-        champKm,
-        champ('Coût', v.cout, { type: 'number', step: '0.01', disabled: verrouille || !peutMontants, action: function (val) { self.ecrire({ action: 'setCost', id: v.id, value: val }, 'Coût enregistré', { optimiste: { champs: { cout: val } } }).catch(function () {}); } }),
+    // Les informations (stock, km, coût, compagnie, NIV) se corrigent dans une petite fenêtre « Modifier… » (bloc Gestion) :
+    // dans le panneau elles ne sont plus affichées, la ligne les montre déjà (8 oct., soir — Maxime).
+    var modifierInfos = function () {
+      var inpStock = h('input.saisie.mono#inv-stock', { value: v.stock || '', placeholder: '—', disabled: verrouille || !peutStock });
+      var inpKm2 = h('input.saisie#inv-km', { type: 'number', step: '1', value: kmConnu || '', placeholder: kmConnu ? '' : 'obligatoire avec un # stock', disabled: verrouille || !peutStock });
+      var inpCout = h('input.saisie', { type: 'number', step: '0.01', value: v.cout || '', placeholder: '—', disabled: verrouille || !peutMontants });
+      var inpVin = h('input.saisie.mono', { value: v.vin, disabled: verrouille || !peutMontants });
+      var corps = h('div.grille.c2', [
+        h('div.champ', [h('label', '# Stock'), inpStock]),
+        h('div.champ', [h('label', 'Km'), inpKm2]),
+        h('div.champ', [h('label', 'Coût'), inpCout]),
         h('div.champ', [h('label', 'Compagnie'), selCompagnie]),
-        h('div.champ', [h('label', 'Origine'), h('input.saisie', { value: v.origine || '—', disabled: true })]),
-        cfg.importateur ? h('div.champ', [h('label', 'Importateur'), h('input.saisie', { value: v.importateur || '—', disabled: true })]) : null,
-        h('div.champ', [h('label', 'Acheté le'), h('input.saisie', { value: AMX.fmtDate(v.dateAjout) + ' (' + AMX.joursDepuis(v.dateAjout) + ' j)', disabled: true })]),
-        h('div.plein', [champ('VIN (correction)', v.vin, { mono: true, disabled: verrouille || !peutMontants, explicite: true, texteBouton: 'Corriger', action: function (val, inp) {
-          if (!/^[A-HJ-NPR-Z0-9]{11,17}$/i.test(val)) { AMX.toast('VIN invalide (11 à 17 caractères, sans I, O ni Q).', 'erreur'); return; }
-          AMX.confirmer('Corriger le VIN', 'Remplacer ' + v.vin + ' par ' + val.toUpperCase() + ' ? Cette action modifie le registre.').then(function (ok) { if (ok) self.ecrire({ action: 'setVin', id: v.id, value: val.toUpperCase() }, 'VIN corrigé').then(function () { self.selection = val.toUpperCase(); self.rendre(); }); else inp.value = v.vin; });
-        } })])
-      ])
-    ]);
+        h('div.champ.plein', [h('label', 'NIV (correction — modifie le registre)'), inpVin])
+      ]);
+      AMX.modale({ titre: 'Modifier — ' + (v.modele || v.vin), corps: corps, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+        var stock = inpStock.value.trim(), km = AMX.kmValide(inpKm2.value), cout = inpCout.value.trim(), vinNouveau = inpVin.value.trim().toUpperCase();
+        if (inpKm2.value.trim() && !km) { AMX.toast('Kilométrage invalide : un nombre de km supérieur à zéro.', 'erreur'); inpKm2.focus(); return false; }
+        if (stock && stock !== String(v.stock || '').trim() && !kmConnu && !km) { AMX.toast('Le kilométrage est obligatoire pour enregistrer un # stock : entrez le km.', 'erreur'); inpKm2.classList.add('manque'); inpKm2.focus(); return false; }
+        if (vinNouveau !== v.vin && !/^[A-HJ-NPR-Z0-9]{11,17}$/.test(vinNouveau)) { AMX.toast('NIV invalide (11 à 17 caractères, sans I, O ni Q).', 'erreur'); inpVin.focus(); return false; }
+        var suite = Promise.resolve();
+        var stockChange = stock !== String(v.stock || '').trim(), kmChange = !!(km && km !== kmConnu);
+        // Un nouveau # stock avec un km tapé : les deux partent ensemble (setStock { value, km }) ; sinon setKm seul.
+        if (kmChange && !(stockChange && stock)) suite = suite.then(function () { return AMX.post({ action: 'setKm', vin: v.vin, value: km }).then(function (d) { AMX.verifier(d, 'Kilométrage refusé'); kmConnu = d.km || km; AMX.ficheOublier(v.vin); AMX.toast('Kilométrage enregistré — ' + AMX.fmtNombre(kmConnu) + ' km', 'ok'); }); });
+        if (stockChange) suite = suite.then(function () { var corps = { action: 'setStock', id: v.id, value: stock }; if (stock && kmChange) corps.km = km; return self.ecrire(corps, '# stock enregistré' + (corps.km ? ' avec le kilométrage' : ''), { optimiste: { champs: { stock: stock } } }).then(function () { if (corps.km) { kmConnu = km; AMX.ficheOublier(v.vin); } }); });
+        if (cout !== String(v.cout || '').trim()) suite = suite.then(function () { return self.ecrire({ action: 'setCost', id: v.id, value: cout }, 'Coût enregistré', { optimiste: { champs: { cout: cout } } }); });
+        if (selCompagnie.value !== (AMX.COMPAGNIES[v.compagnie] ? v.compagnie : '')) suite = suite.then(function () { return self.ecrire({ action: 'setCompagnie', id: v.id, value: selCompagnie.value }, 'Compagnie enregistrée', { optimiste: { champs: { compagnie: selCompagnie.value } } }); });
+        if (vinNouveau !== v.vin) suite = suite.then(function () { return AMX.confirmer('Corriger le NIV', 'Remplacer ' + v.vin + ' par ' + vinNouveau + ' ? Cette action modifie le registre.').then(function (ok) { if (!ok) return; return self.ecrire({ action: 'setVin', id: v.id, value: vinNouveau }, 'NIV corrigé').then(function () { self.selection = vinNouveau; self.rendre(); }); }); });
+        return suite.then(function () { if (self.selection === v.vin) self.rendrePanneau(); }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
+      } }] });
+      setTimeout(function () { (stockVide() ? inpStock : inpKm2).focus(); }, 50);
+    };
+    var stockVide = function () { return !String(v.stock || '').trim(); };
 
-    // Rappels
-    var blocRappel = h('div.bloc', [h('h3', ['Rappels NHTSA', h('button.btn.petit', { text: 'Revérifier', onclick: function (e) { e.target.classList.add('occupe'); e.target.textContent = 'Vérification…'; self.reverifierRappel(v); } })])]);
+    // Rappels (8 oct., soir — Maxime) : rouge ou vert, le détail seulement en cliquant.
+    var ouvrirRappels = !!self.rappelsOuverts; self.rappelsOuverts = false;
+    var blocRappel = h('div.bloc', [h('h3', ['Rappels', h('button.btn.petit.fantome', { text: 'Revérifier', onclick: function (e) { e.target.classList.add('occupe'); e.target.textContent = 'Vérification…'; self.reverifierRappel(v); } })])]);
+    var rapUrl = RAPPELS_FABRICANT[marque(v)];
     if (v.rappel === 'oui') {
       var comps = String(v.rappelDetail || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       var uniques = comps.filter(function (c, i) { return comps.indexOf(c) === i; });
-      blocRappel.appendChild(h('div', [h('span.badge.rouge', { text: uniques.length + ' rappel' + (uniques.length > 1 ? 's' : '') + ' ouvert' + (uniques.length > 1 ? 's' : '') }), h('ul', { style: { margin: '8px 0 0', paddingLeft: '18px', color: 'var(--encre-2)', fontSize: '12px', lineHeight: '1.5' } }, uniques.map(function (c) { return h('li', { text: c }); }))]));
-    } else if (v.rappel === 'non') blocRappel.appendChild(h('span.badge.vert', { text: 'Aucun rappel ouvert' }));
+      var detailRappel = h('div.rappel-detail' + (ouvrirRappels ? '' : '.cache'), [
+        h('ul', { style: { margin: '8px 0 0', paddingLeft: '18px', color: 'var(--encre-2)', fontSize: '12px', lineHeight: '1.5' } }, uniques.map(function (c) { return h('li', { text: c }); })),
+        rapUrl ? h('div', { style: { marginTop: '8px' } }, [h('a.btn.petit', { href: rapUrl, target: '_blank', rel: 'noopener', html: I.externe + '<span>Page des rappels ' + esc(marque(v)) + '</span>' })]) : null
+      ]);
+      var badgeRappel = h('button.badge.rouge.rappel-badge', { type: 'button', title: 'Cliquez pour le détail', text: uniques.length + ' rappel' + (uniques.length > 1 ? 's' : '') + ' ouvert' + (uniques.length > 1 ? 's' : '') + (ouvrirRappels ? ' ▾' : ' ▸'), onclick: function () { var ouvert = detailRappel.classList.toggle('cache'); badgeRappel.textContent = badgeRappel.textContent.replace(/[▸▾]$/, ouvert ? '▸' : '▾'); } });
+      blocRappel.appendChild(badgeRappel); blocRappel.appendChild(detailRappel);
+    } else if (v.rappel === 'non') blocRappel.appendChild(h('span.badge.vert', { text: 'Aucun rappel' }));
     else blocRappel.appendChild(h('span.badge.gris', { text: 'Non vérifié' }));
-    var rapUrl = RAPPELS_FABRICANT[marque(v)];
-    if (rapUrl) blocRappel.appendChild(h('div', { style: { marginTop: '8px' } }, [h('a.btn.petit', { href: rapUrl, target: '_blank', rel: 'noopener', html: I.externe + '<span>Page des rappels ' + esc(marque(v)) + '</span>' })]));
 
     // Rapport d'état eBlock (fiche d'achat) : lien de partage et dommages
     // répertoriés, en rouge. Chargé à part, seulement si une fiche existe, et
@@ -798,16 +790,13 @@
           : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
         h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }),
         sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null,
-        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
-        // Vérifications gratuites qui complètent CARFAX (8 oct., soir) : le NIV est copié, on le colle sur le site.
-        h('a.btn.fantome', { href: 'https://www.nicb.org/vincheck', target: '_blank', rel: 'noopener', title: 'NICB VINCheck : volé non retrouvé, salvage / inondation (assureurs américains) — le NIV est copié', html: I.externe + '<span>Vérifier NICB</span>', onclick: function () { AMX.copier(v.vin, 'NIV copié — collez-le dans VINCheck'); } }),
-        h('a.btn.fantome', { href: 'https://www.iseecars.com/vin', target: '_blank', rel: 'noopener', title: 'iSeeCars : historique des annonces et des prix aux États-Unis — le NIV est copié', html: I.externe + '<span>Historique É.-U.</span>', onclick: function () { AMX.copier(v.vin, 'NIV copié — collez-le dans iSeeCars'); } })
+        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null
       ]),
       zoneCfx
     ]);
 
     // Transfert + suppression
-    var selTransfert = h('select.saisie', { style: { flex: 1 } }, [h('option', { value: '', text: 'Transférer vers…' })].concat(cfg.transferts.map(function (t) { return h('option', { value: t, text: AMX.inventaire.nomFeuille(t) }); })));
+    var selTransfert = h('select.saisie', { style: { flex: '1 1 170px', minWidth: '170px' } }, [h('option', { value: '', text: 'Transférer vers…' })].concat(cfg.transferts.map(function (t) { return h('option', { value: t, text: AMX.inventaire.nomFeuille(t) }); })));
     selTransfert.addEventListener('change', function () {
       var cible = selTransfert.value; if (!cible) return; selTransfert.value = '';
       AMX.confirmer('Transférer le véhicule', v.vin + ' sera retiré du registre ' + cfg.titre + ' et ajouté au registre ' + AMX.inventaire.nomFeuille(cible) + ' avec le statut « Acheté ».').then(function (ok) {
@@ -816,6 +805,7 @@
       });
     });
     var blocGestion = h('div.bloc', [h('h3', 'Gestion'), h('div.actions-ligne', [
+      (peutStock || peutMontants) && !verrouille ? h('button.btn', { html: I.outils + '<span>Modifier (stock, km, coût)…</span>', onclick: modifierInfos }) : null,
       peutStatut && !verrouille ? selTransfert : null,
       peutSupprimer ? h('button.btn.danger', { html: I.corbeille + '<span>Supprimer</span>', onclick: function () {
         AMX.confirmerSaisie('Supprimer définitivement', 'Suppression de ' + v.vin + (v.stock ? ' (stock ' + v.stock + ')' : '') + '. Cette action est irréversible. Retapez le VIN complet pour confirmer.', v.vin, { ok: 'Supprimer', danger: true }).then(function (ok) {
@@ -828,11 +818,12 @@
       h('div.panneau-entete', [
         h('div', { style: { minWidth: 0 } }, [
           h('h2', { text: v.modele || '(modèle à préciser)' }),
-          h('div.sous', [h('span.mono', { text: v.vin }), h('button.btn.fantome.petit.icone', { title: 'Copier le VIN', html: I.copier, onclick: function () { AMX.copier(v.vin, 'VIN copié'); } }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' })])
+          // Pas de NIV ici (il est dans la ligne, 8 oct., soir — Maxime) : # stock, km (de la fiche d'achat), compagnie.
+          h('div.sous', [v.stock ? h('span.puce.mono', { text: v.stock }) : null, puceKm, h('span.puce', { text: v.compagnie || '—' })])
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocInfos, blocEval, blocFicheEblock, blocEblock, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocEval, blocFicheEblock, blocEblock, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

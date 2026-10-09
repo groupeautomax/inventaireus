@@ -405,7 +405,11 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 .ligne .vignette .cam svg { width: 11px; height: 11px; }
 .ligne .titre { font-weight: 600; font-size: 13.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ligne .sous { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
-.ligne .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-2); letter-spacing: .02em; }
+.ligne .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-2); letter-spacing: .02em; cursor: copy; }
+.ligne .vin:hover { color: var(--vert); }
+.ligne .puce.rappel-puce { cursor: pointer; }
+.rappel-badge { border: none; cursor: pointer; font: inherit; font-size: 12px; }
+.rappel-badge:hover { filter: brightness(.95); }
 .ligne .cell { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ligne .cell .l { font-size: 10.5px; color: var(--encre-4); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
 .ligne .cell .v { font-size: 12.5px; color: var(--encre-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

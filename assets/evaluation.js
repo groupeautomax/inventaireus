@@ -731,13 +731,15 @@
     var exportable = AMX.export.exportable(vin);
     var montrer = exportable || this.exportForce;
     this.exportDisponible = montrer;
+    // (8 oct., soir — Maxime) pas de phrases d'explication (« NIV en 1, 4, 5 »…) : sans NIV la boîte n'apparaît pas ;
+    // un NIV pas fabriqué aux É.-U. n'a que le bouton « Comparer quand même ».
+    this.elExport.style.display = vin ? '' : 'none';
     this.elExport.classList.toggle('eval-export-repliee', !montrer);
     this.elExport.classList.toggle('eval-export-ouverte', montrer && this.exportOuvert);
     AMX.vider(this.elUsResume);
-    this.elUsEtiquette.textContent = vin ? (exportable ? 'Fabriqué aux États-Unis (NIV en ' + vin.charAt(0) + ') — exportable' : 'NIV en ' + vin.charAt(0) + ' : pas fabriqué aux États-Unis') : 'Pour un NIV en ' + (p.prefixes || []).join(', ');
+    this.elUsEtiquette.textContent = vin ? (exportable ? 'Fabriqué aux É.-U.' : 'Pas fabriqué aux É.-U.') : '';
     if (!montrer) {
       this.elUsCorps.style.display = 'none'; this.btnUsOuvrir.style.display = 'none'; this.btnUsMmr.style.display = 'none';
-      this.elUsResume.appendChild(h('span', { text: vin ? 'La comparaison des profits É.-U. / gros Canada / détail est pour les NIV qui commencent par ' + (p.prefixes || []).join(', ') + '.' : 'Entrez un NIV : la comparaison É.-U. / Canada est offerte pour les NIV en ' + (p.prefixes || []).join(', ') + '.' }));
       if (vin) this.elUsResume.appendChild(this.btnUsComparer);
       this.rendreSommaire();
       return;
@@ -752,7 +754,7 @@
         this.elUsResume.appendChild(h('span.badge.' + AMX.export.classeVerdict(v), { text: AMX.export.phraseVerdict(v) }));
         this.elUsResume.appendChild(h('span', { text: AMX.export.texteProfits(v) }));
       } else {
-        this.elUsResume.appendChild(h('span', { text: r.paye === null ? 'Entrez le prix payé, le MMR et le gros Canada pour comparer les profits É.-U., gros Canada et détail.' : 'Entrez le MMR (et le gros Canada si vous l\'avez) pour comparer les profits É.-U., gros Canada et détail.' }));
+        this.elUsResume.appendChild(h('span', { text: 'Cliquez pour comparer les profits (É.-U., gros Canada, détail).' }));
       }
       this.rendreSommaire();
       return;
@@ -788,11 +790,11 @@
     if (c.grosUS !== null) {
       this.elUsChaine.appendChild(h('span', { text: 'Prix de vente É.-U. : ' + AMX.fmtNombre(c.mmr) + ' $ US × ' + c.tauxAjuste.toFixed(4) + ' (' + c.taux.toFixed(4) + ' − ' + c.ecartPct + ' %) = ' + fmt(c.converti) + ' − ' + fmt(c.ajustement) + ' = ' }));
       this.elUsChaine.appendChild(h('b', { text: fmt(c.grosUS) + ' CA' }));
-    } else this.elUsChaine.appendChild(h('span.doux', { text: c.taux === null ? 'Taux du jour indisponible : tapez-le dans les réglages.' : 'Entrez le MMR (Manheim, en $ US) : le prix de vente É.-U. en $ CA se calcule tout de suite.' }));
+    } else this.elUsChaine.appendChild(h('span.doux', { text: c.taux === null ? 'Taux du jour indisponible : tapez-le dans les réglages.' : 'Entrez le MMR ($ US).' }));
     // Trois colonnes : profit É.-U. | profit gros Canada | profit détail Canada
     var payeTexte = r.paye !== null ? fmt(r.paye) : 'prix payé ?';
     this.colUs.el.classList.toggle('gagnant', v.verdict === 'us'); this.colUs.v.textContent = fmt(r.profitUS);
-    this.colUs.s.textContent = c.grosUS !== null ? (r.paye !== null ? fmt(c.grosUS) + ' − payé ' + payeTexte : 'Entrez le prix payé (section Prix) pour le profit') : 'MMR à entrer';
+    this.colUs.s.textContent = c.grosUS !== null ? (r.paye !== null ? fmt(c.grosUS) + ' − payé ' + payeTexte : 'Prix payé à entrer') : 'MMR à entrer';
     this.colCa.el.classList.toggle('gagnant', v.verdict === 'ca'); this.colCa.el.classList.toggle('estime', !!gca.estime); this.colCa.v.textContent = fmt(r.profitCA);
     this.colCa.s.textContent = gca.valeur !== null ? ((gca.estime ? '≈ ' : '') + fmt(gca.valeur) + ' − payé ' + payeTexte + (gca.estime ? ' · estimé : ' + gca.source : ' · ' + gca.source)) : 'Tapez la valeur de gros (encan / eBlock), ou lancez l\'analyse de marché : MarketCheck donne un gros estimé.';
     this.colDetail.el.classList.toggle('gagnant', v.verdict === 'detail'); this.colDetail.v.textContent = fmt(md.valeur);

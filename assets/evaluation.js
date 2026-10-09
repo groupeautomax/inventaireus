@@ -905,6 +905,21 @@
     this.rendreExport();
   };
 
+  // « Prendre ce prix » (suggestion d'un utilisateur, 9 oct.) : le prix de détail choisi (agressif / standard /
+  // conservateur) donne le prix d'ACHAT à ne pas dépasser pour garder la marge visée et le reconditionnement :
+  // achat = prix − marge − recon − frais (payé = achat + frais). Sans marge inscrite : ancienne règle (marge déduite).
+  Evaluation.prototype.prendrePrix = function (v) {
+    this.elPrix.value = String(Math.round(v));
+    var marge = nombre(this.elMarge.value);
+    if (marge === null) { this.recalculerDetail('prix'); return; }
+    var recon = nombre(this.elRecon.value) || 0, frais = nombre(this.elFrais.value) || 0;
+    var achatMax = Math.round(v - marge - recon - frais);
+    this.elAchat.value = String(achatMax);
+    this.recalculerDetail('achat');   // payé = achat + frais, détail = payé + recon + marge (= le prix pris), puis rendu
+    this.planifierAuto();
+    AMX.toast('Prix d\'achat calculé : ' + fmt(achatMax) + ' = ' + fmt(v) + ' − ' + fmt(marge) + ' de marge − ' + fmt(recon) + ' recon − ' + fmt(frais) + ' frais', 'ok');
+  };
+
   Evaluation.prototype.rendrePrixDetail = function () {
     var self = this;
     AMX.vider(this.elDetailResume); AMX.vider(this.elCibles);
@@ -940,7 +955,7 @@
           h('div.l', { text: nom }), h('div.v.num', { text: fmt(v) }),
           h('div.s', { text: maxAchat !== null ? 'Achat max. ' + fmt(maxAchat) + ' pour garder ' + fmt(marge) + ' de marge' : 'Entrez une marge pour le prix d\'achat maximal' }),
           margeSi !== null ? h('div.s.' + (margeSi >= (marge || 0) ? 'pos' : 'neg'), { text: 'Au prix payé : marge ' + fmt(margeSi) }) : null,
-          h('button.btn.petit', { type: 'button', text: 'Prendre ce prix', onclick: function () { self.elPrix.value = String(Math.round(v)); self.recalculerDetail('prix'); } })
+          h('button.btn.petit', { type: 'button', text: 'Prendre ce prix', onclick: function () { self.prendrePrix(v); } })
         ]);
       };
       this.elCibles.appendChild(h('div.eval-cibles', [cible('Agressif', c.agressif, 'agressif'), cible('Standard', c.standard, 'standard'), cible('Conservateur', c.conservateur, 'conservateur')]));

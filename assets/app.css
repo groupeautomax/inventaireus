@@ -558,16 +558,21 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 @media (max-width: 1280px) {
   :root { --panneau-l: 380px; --rail-l: 220px; }
 }
-/* Neuf onglets dans la barre (Suggestions, 8 oct. soir) : sous 1 440 px on resserre pour que tout tienne sans défiler. */
-@media (max-width: 1440px) {
+/* Onze onglets dans la barre (CSI, 10 oct.) : sous 1 640 px on resserre pour que tout tienne sans défiler. */
+@media (max-width: 1640px) {
   .barre nav a { padding: 0 10px; gap: 5px; font-size: 12.5px; }
-  .barre .recherche-globale { width: 240px; }
+  .barre .recherche-globale { width: 250px; }
 }
-@media (max-width: 1340px) {
+@media (max-width: 1440px) {
   .barre { gap: 8px; padding: 0 14px; }
   .barre nav a { padding: 0 8px; font-size: 12px; }
-  .barre .recherche-globale { width: 170px; }
+  .barre .recherche-globale { width: 190px; }
   .barre .usager .role { display: none; }
+}
+@media (max-width: 1340px) {
+  .barre nav a { padding: 0 7px; }
+  .barre .recherche-globale { width: 150px; }
+  .barre .usager .nom { max-width: 110px; }
 }
 @media (max-width: 1100px) {
   .agencement.avec-panneau { grid-template-columns: var(--rail-l) minmax(0, 1fr); }

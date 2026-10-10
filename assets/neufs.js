@@ -40,6 +40,15 @@
   var FANTOME_J = 730;                // > 2 ans au DMS : probablement un reste à nettoyer
   var DEMO_KM = 10000;
   var STATUTS_DMS = { 'EN-INVENT.': ['En stock', 'vert'], 'DEMO': ['Démo', 'violet'], 'ECH. CONC.': ['Échange concessionnaire', 'ambre'], 'TRANSIT': ['En transit', 'bleu'], 'VENDU': ['Vendu', 'gris'], 'COMMANDE': ['Commandé', 'bleu'] };
+  // (10 oct.) Portails des constructeurs : le signet « Automax ← Hyundai » (chargeur généré par mock/signet-build.py — ne jamais
+  // éditer la constante à la main) lit le pipeline, les ventes déclarées (RDR) et les factures du portail des ventes Hyundai, et
+  // le CSI sur BoostCX. Le stock atterrit ici (feuille Neufs, source portail-hyundai) ; ventes et commandes via ?constructeur=1.
+  var CODE_SIGNET_HYUNDAI = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-hyundai.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
+  var PORTAILS = {
+    HYUNDAI: { nom: 'Portail Hyundai', source: 'hyundai', url: 'https://salesportal-hacc.am.hyundai-corp.io/salesportal/index.html#/dealerstocklist', csi: 'https://hacc.boostcx.com/bcx/dashboard/combined', signet: function () { return CODE_SIGNET_HYUNDAI; } }
+  };
+  function peutImporterPortail() { return !!(AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.perm('gererUtilisateurs') || AMX.estAdmin()); }
+  function libelleTypeVente(t) { var x = String(t || ''); if (/demo|slc|loan|courtoisie/i.test(x)) return 'Démo / courtoisie'; if (/fleet|flotte/i.test(x)) return 'Flotte'; if (/lease|location|bail/i.test(x)) return 'Location'; if (/retail|detail|détail/i.test(x)) return 'Détail'; return x || '—'; }
 
   function tranche(j) { if (j === null || j === undefined || isNaN(j)) return null; for (var i = 0; i < TRANCHES.length; i++) if (j >= TRANCHES[i].min && j <= TRANCHES[i].max) return TRANCHES[i]; return TRANCHES[TRANCHES.length - 1]; }
   function statutDms(v) { var cle = String(v.statutLibelle || '').toUpperCase(); var s = STATUTS_DMS[cle]; if (s) return { libelle: s[0], couleur: s[1] }; if (/TRANSIT/.test(cle)) return { libelle: 'En transit', couleur: 'bleu' }; if (/DEMO|DÉMO/.test(cle)) return { libelle: 'Démo', couleur: 'violet' }; return { libelle: v.statutLibelle || v.statut || '—', couleur: 'gris' }; }
@@ -83,13 +92,21 @@
       '.neufs-fiche dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 12.5px; margin: 0; } .neufs-fiche dt { color: var(--encre-3); } .neufs-fiche dd { margin: 0; }',
       '.neufs-prix { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; } .neufs-prix .tuile { background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 8px; padding: 8px 10px; } .neufs-prix .l { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); } .neufs-prix .v { font-size: 16px; font-weight: 700; }',
       '.neufs-options { display: flex; flex-wrap: wrap; gap: 4px; } .neufs-options span { background: var(--gris-bg); border-radius: 999px; padding: 2px 8px; font-size: 11.5px; }',
-      '.neufs-vide { padding: 28px 12px; text-align: center; color: var(--encre-3); }'
+      '.neufs-vide { padding: 28px 12px; text-align: center; color: var(--encre-3); }',
+      '.neufs-portail .carte-entete { flex-wrap: wrap; } .neufs-portail .carte-entete h2 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; } .neufs-portail .carte-entete h2 .sous { font-weight: 400; font-size: 12px; color: var(--encre-3); }',
+      '.neufs-portail-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }',
+      '.neufs-portail h3 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 0 0 6px; }',
+      '.neufs-portail .tableau { min-width: 0; } .neufs-portail td.num, .neufs-portail th.num { text-align: right; font-variant-numeric: tabular-nums; }',
+      '.neufs-portail .neufs-mois { display: flex; gap: 4px; align-items: flex-end; height: 64px; margin: 4px 0 2px; } .neufs-portail .neufs-mois i { flex: 1; background: var(--vert); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; } .neufs-portail .neufs-mois i.actuel { background: var(--bleu); }',
+      '.neufs-portail .neufs-mois-leg { display: flex; gap: 4px; font-size: 10px; color: var(--encre-3); } .neufs-portail .neufs-mois-leg span { flex: 1; text-align: center; }',
+      '.neufs-signet { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 4px; } .neufs-signet p { margin: 4px 0 8px; font-size: 12.5px; color: var(--encre-2); line-height: 1.5; }'
     ].join('\n');
     document.head.appendChild(s);
   }
 
   /* ------------------------------ Données ------------------------------ */
   var cache = { donnees: null, le: 0, promesse: null };
+  var cachePortail = { donnees: null, le: 0, promesse: null };
   var DUREE_CACHE_MS = 5 * 60000;
   AMX.neufs = {
     charger: function (force) {
@@ -106,7 +123,19 @@
       return cache.promesse;
     },
     enCache: function () { return cache.donnees; },
-    vider: function () { cache.donnees = null; cache.le = 0; },
+    vider: function () { cache.donnees = null; cache.le = 0; cachePortail.donnees = null; },
+    // Portails des constructeurs (?constructeur=1) : ventes déclarées, commandes en attente, factures, état des lectures.
+    chargerPortail: function (force) {
+      if (!force && cachePortail.donnees && Date.now() - cachePortail.le < DUREE_CACHE_MS) return Promise.resolve(cachePortail.donnees);
+      if (cachePortail.promesse) return cachePortail.promesse;
+      cachePortail.promesse = AMX.get({ constructeur: 1 }).then(function (d) {
+        cachePortail.promesse = null;
+        if (!d || d.ok === false || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
+        cachePortail.donnees = d; cachePortail.le = Date.now();
+        return d;
+      }, function (e) { cachePortail.promesse = null; throw e; });
+      return cachePortail.promesse;
+    },
     // Nombre de neufs en stock de la concession choisie (compteur de l'onglet).
     compteur: function () { var d = cache.donnees; if (!d) return ''; var c = AMX.compagnieChoisie('inventaire'); return d.vehicules.filter(function (v) { return v.enStock && (!c || v.compagnie === c); }).length; },
     monter: function (conteneur, ctx) { return new VueNeufs(conteneur, ctx); },
@@ -208,8 +237,10 @@
     this.elEtat = h('p', { text: 'Chargement des neufs…' });
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
-    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Véhicules neufs'), this.elEtat]), h('div.actions', [this.btnRafraichir, this.btnExport])]);
+    this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail Hyundai</span>', title: 'Lire le pipeline, les ventes déclarées et les factures depuis le portail des ventes Hyundai (favori à cliquer sur le portail)', onclick: function () { self.ouvrirSignet('HYUNDAI'); } });
+    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Véhicules neufs'), this.elEtat]), h('div.actions', [this.btnPortail, this.btnRafraichir, this.btnExport])]);
     this.elChoix = h('div');
+    this.elPortail = h('div.carte.neufs-portail');
     this.elCartes = h('div.neufs-cartes');
     this.elVieillissement = h('div.carte');
     this.elRevue = h('div.carte');
@@ -229,7 +260,7 @@
     ])])]);
     this.elTable = h('div.neufs-table');
     this.elExclus = h('div.neufs-exclus');
-    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elCartes, this.elVieillissement, this.elRevue, this.elGroupes, barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])])]);
+    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elCartes, this.elVieillissement, this.elPortail, this.elRevue, this.elGroupes, barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])])]);
     this.conteneur.appendChild(this.el);
   };
 
@@ -237,6 +268,8 @@
     var self = this, gen = ++this.generation;
     if (force) this.btnRafraichir.classList.add('occupe');
     if (!AMX.neufs.enCache()) this.elTable.appendChild(AMX.chargeur('Véhicules neufs'));
+    this.portail = this.portail || null;
+    AMX.neufs.chargerPortail(force).then(function (p) { if (gen !== self.generation) return; self.portail = p; self.rendrePortail(); }, function () { if (gen !== self.generation) return; self.portail = null; self.rendrePortail(); });
     return AMX.neufs.charger(force).then(function (d) {
       if (gen !== self.generation) return;
       self.donnees = d; self.erreur = '';
@@ -273,10 +306,12 @@
     if (!this.donnees) return;
     var liste = this.visibles(), enStock = liste.filter(function (v) { return v.enStock; });
     var feeds = this.donnees.feeds || {}, cies = this.compagnie ? [this.compagnie] : Object.keys(AMX.COMPAGNIES);
-    var derniers = cies.map(function (c) { return feeds[c] ? nomCie(c) + ' ' + AMX.fmtDate(feeds[c].le, true) : null; }).filter(Boolean);
-    this.elEtat.textContent = enStock.length + ' neuf' + (enStock.length > 1 ? 's' : '') + ' en stock' + (this.compagnie ? ' — ' + nomCie(this.compagnie) : ' — tout le groupe') + (derniers.length ? ' · feed du DMS : ' + derniers.join(' · ') : ' · aucun feed reçu encore');
+    var derniers = cies.map(function (c) { return feeds[c] ? nomCie(c) + ' ' + AMX.fmtDate(feeds[c].le, true) + (/portail/.test(String(feeds[c].source || '')) ? ' (portail)' : '') : null; }).filter(Boolean);
+    this.elEtat.textContent = enStock.length + ' neuf' + (enStock.length > 1 ? 's' : '') + ' en stock' + (this.compagnie ? ' — ' + nomCie(this.compagnie) : ' — tout le groupe') + (derniers.length ? ' · dernière lecture : ' + derniers.join(' · ') : ' · aucun feed reçu encore');
+    this.btnPortail.classList.toggle('cache', !(peutImporterPortail() && (!this.compagnie || PORTAILS[this.compagnie])));
     this.rendreCartes(enStock);
     this.rendreVieillissement(enStock);
+    this.rendrePortail();
     this.rendreRevue(liste);
     this.rendreGroupes(liste);
     this.rendreSelects();
@@ -331,6 +366,69 @@
       ]);
     })));
     this.elExclus.appendChild(det);
+  };
+
+  /* Carte « Portail du constructeur » : ventes déclarées au constructeur (RDR) par mois et par modèle, commandes en attente,
+     factures — ce que le signet a lu sur le portail (Hyundai pour l'instant). */
+  VueNeufs.prototype.rendrePortail = function () {
+    var self = this, p = this.portail, c = this.compagnie;
+    AMX.vider(this.elPortail);
+    var cies = c ? [c] : Object.keys(PORTAILS);
+    var etats = (p && p.etats) || {};
+    var ventes = ((p && p.ventes) || []).filter(function (v) { return !c || v.compagnie === c; });
+    var commandes = ((p && p.commandes) || []).filter(function (v) { return !c || v.compagnie === c; });
+    var lus = cies.filter(function (x) { return etats[x] && etats[x].le; });
+    var cache = !lus.length && !ventes.length;
+    this.elPortail.classList.toggle('cache', cache);
+    if (cache) return;
+    var etat = lus.length ? etats[lus[0]] : null;
+    var sous = lus.map(function (x) { return nomCie(x) + ' lu le ' + AMX.fmtDate(etats[x].le, true) + (etats[x].par ? ' par ' + String(etats[x].par).split('@')[0] : ''); }).join(' · ');
+    this.elPortail.appendChild(h('div.carte-entete', [h('h2', ['Portail du constructeur', h('span.sous', { text: sous })]), peutImporterPortail() ? h('button.btn.petit', { type: 'button', html: I.externe + '<span>Relire le portail</span>', onclick: function () { self.ouvrirSignet(lus[0] || cies[0]); } }) : null]));
+    // Ventes déclarées par mois (12 derniers mois) + par type ; par modèle (12 mois)
+    var mois = [], now = new Date();
+    for (var i = 11; i >= 0; i--) { var d = new Date(now.getFullYear(), now.getMonth() - i, 1); mois.push({ cle: d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2), libelle: ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][d.getMonth()], n: 0 }); }
+    var parMois = {}; mois.forEach(function (m) { parMois[m.cle] = m; });
+    var parType = {}, parModele = {}, total12 = 0, ceMois = 0, cleMois = mois[11].cle;
+    ventes.forEach(function (v) { var k = String(v.dateVente).slice(0, 7); if (parMois[k]) { parMois[k].n++; total12++; } if (k === cleMois) ceMois++; var t = libelleTypeVente(v.typeVente); parType[t] = (parType[t] || 0) + 1; if (parMois[k]) { var m = v.modele || '—'; parModele[m] = parModele[m] || { n: 0, cout: 0, nCout: 0 }; parModele[m].n++; if (v.coutFacture) { parModele[m].cout += v.coutFacture; parModele[m].nCout++; } } });
+    var max = Math.max(1, Math.max.apply(null, mois.map(function (m) { return m.n; })));
+    var colVentes = h('div', [
+      h('h3', { text: 'Ventes déclarées (RDR) — ' + total12 + ' sur 12 mois · ' + ceMois + ' ce mois' }),
+      h('div.neufs-mois', mois.map(function (m, i) { return h('i' + (i === 11 ? '.actuel' : ''), { style: { height: Math.round(100 * m.n / max) + '%' }, title: m.cle + ' : ' + m.n + ' vente' + (m.n > 1 ? 's' : '') }); })),
+      h('div.neufs-mois-leg', mois.map(function (m) { return h('span', { text: m.libelle }); })),
+      h('p.doux.petit', { style: { margin: '6px 0 0' }, text: Object.keys(parType).sort(function (a, b) { return parType[b] - parType[a]; }).map(function (t) { return t + ' ' + parType[t]; }).join(' · ') + ' — livraisons déclarées au constructeur, pas les profits (voir Résultat › Véhicules neufs).' })
+    ]);
+    var modeles = Object.keys(parModele).sort(function (a, b) { return parModele[b].n - parModele[a].n; }).slice(0, 8);
+    var montants = !!(p && p.montants);
+    var colModeles = h('div', [
+      h('h3', { text: 'Par modèle — 12 mois' }),
+      modeles.length ? h('table.tableau', [h('thead', [h('tr', [h('th', 'Modèle'), h('th.num', 'Ventes'), h('th.num', 'Part')].concat(montants ? [h('th.num', 'Coût facture moy.')] : []))]), h('tbody', modeles.map(function (m) { var x = parModele[m]; return h('tr', [h('td', { text: m }), h('td.num', { text: String(x.n) }), h('td.num', { text: Math.round(100 * x.n / Math.max(1, total12)) + ' %' })].concat(montants ? [h('td.num', { text: x.nCout ? AMX.fmtArgent(x.cout / x.nCout, 0) : '—' })] : [])); }))]) : h('p.doux.petit', 'aucune vente déclarée sur 12 mois')
+    ]);
+    var totalCmd = commandes.reduce(function (s, x) { return s + (x.n || 0); }, 0);
+    var parModeleCmd = {}; commandes.forEach(function (x) { var k = (x.annee ? x.annee + ' ' : '') + (x.modele || '—'); parModeleCmd[k] = (parModeleCmd[k] || 0) + (x.n || 0); });
+    var cmdModeles = Object.keys(parModeleCmd).sort(function (a, b) { return parModeleCmd[b] - parModeleCmd[a]; });
+    var factures = null;
+    if (p && p.factures) { cies.forEach(function (x) { var f = p.factures[x]; if (!f) return; factures = factures || { n: 0, net: 0 }; factures.n += f.n || 0; factures.net += f.net || 0; }); }
+    var colCmd = h('div', [
+      h('h3', { text: 'Commandes en attente (DVOS) — ' + totalCmd }),
+      cmdModeles.length ? h('table.tableau', [h('thead', [h('tr', [h('th', 'Année · modèle'), h('th.num', 'Unités')])]), h('tbody', cmdModeles.slice(0, 10).map(function (k) { return h('tr', [h('td', { text: k }), h('td.num', { text: String(parModeleCmd[k]) })]); }))]) : h('p.doux.petit', 'aucune commande en attente'),
+      etat && etat.stock ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Dernier passage : ' + (etat.stock.total || 0) + ' NIV (' + (etat.stock.enStock || 0) + ' en stock, ' + (etat.stock.demos || 0) + ' démos / courtoisie, ' + (etat.stock.transit || 0) + ' en transit)' + (etat.stock.initial ? ' — premier import' : ' · ' + (etat.stock.arrivees || 0) + ' arrivée' + (etat.stock.arrivees > 1 ? 's' : '') + ', ' + (etat.stock.sorties || 0) + ' sortie' + (etat.stock.sorties > 1 ? 's' : '')) + (factures ? ' · ' + factures.n + ' facture' + (factures.n > 1 ? 's' : '') + (montants && factures.net ? ' (' + AMX.fmtArgent(factures.net, 0) + ')' : '') : '') + '.' }) : null
+    ]);
+    this.elPortail.appendChild(h('div.carte-corps', [h('div.neufs-portail-grille', [colVentes, colModeles, colCmd])]));
+  };
+  /* Fenêtre du signet : le favori à glisser, le mode d'emploi, les liens vers le portail et le CSI. */
+  VueNeufs.prototype.ouvrirSignet = function (cie) {
+    var p = PORTAILS[cie] || PORTAILS.HYUNDAI, code = p.signet();
+    var signet = h('a.btn.primaire', { href: code, text: 'Automax ← ' + nomCie(cie), title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
+    signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis le portail, connecté.', 'attention', 8000); });
+    var corps = h('div', [
+      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' } }, 'Un seul favori pour deux sites. Cliqué sur le portail des ventes, il lit le pipeline complet (en stock, démos et courtoisie, en transit, commandes en attente), les ventes déclarées des 12 derniers mois et les factures du constructeur (coût de chaque NIV), puis les envoie ici : le suivi des neufs se remplit comme avec un feed du DMS. Cliqué sur BoostCX, il lit les scores NPS et les sondages (onglet CSI). Rien n\'est modifié sur les portails.'),
+      h('div.neufs-signet', [
+        h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
+        h('div', [h('div.section-titre', '2. Ouvrir le portail'), h('p', 'Connecté avec votre compte du constructeur, sur n\'importe quelle liste (Stock › Dealer Stock List).'), h('a.btn', { href: p.url, target: '_blank', rel: 'noopener', html: I.externe + '<span>' + p.nom + '</span>' }), p.csi ? h('a.btn', { href: p.csi, target: '_blank', rel: 'noopener', style: { marginLeft: '6px' }, html: I.externe + '<span>CSI (BoostCX)</span>' }) : null]),
+        h('div', [h('div.section-titre', '3. Cliquer le favori'), h('p', 'Une bande verte suit la progression en bas de la page (environ 20 secondes). À la fin, revenez ici : « Rafraîchir ». Une fois par jour suffit ; un passage par semaine pour le CSI.')])
+      ])
+    ]);
+    AMX.modale({ titre: p.nom + ' → ScanAutomax', corps: corps, large: true, boutons: [{ texte: 'Fermer', action: function (fermer) { fermer(); } }] });
   };
 
   VueNeufs.prototype.rendreCartes = function (enStock) {

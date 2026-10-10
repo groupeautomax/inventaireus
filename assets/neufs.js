@@ -79,6 +79,10 @@
       '.neufs-jauge i { display: block; height: 100%; } .neufs-jauge .vert { background: var(--vert); } .neufs-jauge .bleu { background: var(--bleu); } .neufs-jauge .ambre { background: var(--ambre); } .neufs-jauge .rouge { background: var(--rouge); } .neufs-jauge .sombre { background: var(--noir-2); }',
       '.neufs-legende { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; } .neufs-legende button { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; color: var(--encre-2); } .neufs-legende button.actif { font-weight: 700; color: var(--encre); } .neufs-legende i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }',
       '.neufs-legende i.vert { background: var(--vert); } .neufs-legende i.bleu { background: var(--bleu); } .neufs-legende i.ambre { background: var(--ambre); } .neufs-legende i.rouge { background: var(--rouge); } .neufs-legende i.sombre { background: var(--noir-2); }',
+      '.neufs-statuts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; } .neufs-statuts .etiquette { margin-right: 4px; }',
+      '.neufs-statut { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 1px solid var(--bordure); border-radius: 999px; background: #fff; color: var(--encre); font: inherit; font-size: 13px; cursor: pointer; } .neufs-statut:hover { border-color: var(--encre-3); } .neufs-statut b { font-weight: 700; } .neufs-statut i { width: 8px; height: 8px; border-radius: 50%; background: var(--encre-3); }',
+      '.neufs-statut.vert i { background: var(--vert); } .neufs-statut.bleu i { background: var(--bleu); } .neufs-statut.violet i { background: var(--violet); } .neufs-statut.ambre i { background: var(--ambre); } .neufs-statut.gris i { background: var(--encre-3); }',
+      '.neufs-statut.actif { border-color: var(--vert); background: var(--vert-clair); box-shadow: 0 0 0 1px var(--vert) inset; }',
       '.neufs-outils { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .neufs-outils .recherche { display: flex; align-items: center; gap: 6px; flex: 1 1 200px; } .neufs-outils .recherche svg { width: 16px; height: 16px; color: var(--encre-3); } .neufs-outils .recherche input { flex: 1; height: 32px; } .neufs-outils select { height: 32px; width: auto; } .neufs-outils .compte { margin-left: auto; font-size: 12px; }',
       '.neufs-table { overflow-x: auto; } .neufs-table .tableau { min-width: 880px; } .neufs-table td, .neufs-table th { padding: 7px 10px; } .neufs-table tr.rangee { cursor: pointer; } .neufs-table tr.rangee:hover td { background: var(--carte-2); }',
       '.neufs-table td.vehicule .nom { font-weight: 600; } .neufs-table td.vehicule .vin { font-family: var(--mono); font-size: 11px; color: var(--encre-3); }',
@@ -251,19 +255,21 @@
     this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, version, couleur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { self.filtres.modele = e.target.value; self.filtres.version = ''; self.rendreTable(); self.rendreSelects(); } });
     this.selVersion = h('select.saisie', { 'aria-label': 'Version', onchange: function (e) { self.filtres.version = e.target.value; self.rendreTable(); } });
-    this.selStatut = h('select.saisie', { 'aria-label': 'Statut', onchange: function (e) { self.filtres.statut = e.target.value; self.rendreTable(); } });
+    this.elStatuts = h('div.neufs-statuts', { role: 'group', 'aria-label': 'Statut' });   /* pastilles cliquables avec le compte par statut */
     this.selAnnee = h('select.saisie', { 'aria-label': 'Année-modèle', onchange: function (e) { self.filtres.annee = e.target.value; self.rendreTable(); } });
     this.selEmplacement = h('select.saisie', { 'aria-label': 'Emplacement', onchange: function (e) { self.filtres.emplacement = e.target.value; self.rendreTable(); } });
     var caseSortis = h('input', { type: 'checkbox' });
     caseSortis.addEventListener('change', function () { self.filtres.sortis = caseSortis.checked; self.rendreTable(); });
     this.elCompte = h('span.compte.doux');
-    var barre = h('div.carte', [h('div.carte-corps', [h('div.neufs-outils', [
-      h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.selModele, this.selVersion, this.selStatut, this.selAnnee, this.selEmplacement,
+    var barre = h('div.carte', [h('div.carte-corps', [this.elStatuts, h('div.neufs-outils', [
+      h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.selModele, this.selVersion, this.selAnnee, this.selEmplacement,
       h('label.case', { title: 'Les véhicules disparus du feed (vendus, livrés, transférés) sont gardés avec leur date de sortie' }, [caseSortis, h('span', 'Inclure les sortis')]), this.elCompte
     ])])]);
+    this.elBarre = barre;
     this.elTable = h('div.neufs-table');
     this.elExclus = h('div.neufs-exclus');
-    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elCartes, this.elVieillissement, this.elPortail, this.elRevue, this.elGroupes, barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])])]);
+    // Ordre voulu par Maxime (10 oct.) : concessions → statuts + recherche → liste, puis les indicateurs et les analyses.
+    this.el = h('div.page.neufs-page', [entete, this.elChoix, barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])]), this.elCartes, this.elVieillissement, this.elPortail, this.elRevue, this.elGroupes]);
     this.conteneur.appendChild(this.el);
   };
 
@@ -451,14 +457,14 @@
     var detentionJour = d.montants ? Math.round(enStock.reduce(function (s, v) { return s + ((v.coutFacture || 0) * (d.parametres.tauxPlan || 5) / 100 / 365); }, 0)) : null;
     var carte = function (couleur, nom, n, bas, filtre) {
       var c = h('button.neufs-carte.' + couleur, { type: 'button' }, [h('div.nom', { text: nom }), h('div.n', { text: n }), bas ? h('div.bas', { text: bas }) : null]);
-      c.addEventListener('click', function () { if (filtre) filtre(); });
+      c.addEventListener('click', function () { if (filtre) { filtre(); self.rendreSelects(); self.elBarre.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
       return c;
     };
     this.elCartes.appendChild(carte('vert', 'En stock', AMX.fmtNombre(enStock.length), (g.total.sorties ? g.total.sorties + ' sortie' + (g.total.sorties > 1 ? 's' : '') + ' en 90 j' : 'aucune sortie en 90 j'), function () { self.filtres = Object.assign(self.filtres, { tranche: '', statut: '', sortis: false }); self.rendreTable(); }));
     this.elCartes.appendChild(carte(g.total.appro === null ? 'gris' : (g.total.appro > 90 ? 'rouge' : (g.total.appro > 60 ? 'ambre' : 'vert')), 'Jours d\'approvisionnement', g.total.appro === null ? '—' : fmtJours(g.total.appro), 'stock ÷ ventes/jour (90 j) · norme ~75 j'));
     this.elCartes.appendChild(carte(ages.length ? (moyenne(ages) > 90 ? 'rouge' : (moyenne(ages) > 60 ? 'ambre' : 'vert')) : 'gris', 'Âge moyen', fmtJours(moyenne(ages)), 'cible < 45 j · hors échanges et fantômes'));
     this.elCartes.appendChild(carte(pct60 > 10 ? 'rouge' : 'vert', 'Plus de 60 jours', AMX.fmtNombre(plus60) + ' (' + pct60 + ' %)', 'cible < 10 % · hors échanges et fantômes', function () { self.filtres.tranche = 'plus60'; self.rendreTable(); }));
-    this.elCartes.appendChild(carte(demos ? 'violet' : 'gris', 'Démos', AMX.fmtNombre(demos), echanges ? echanges + ' échange' + (echanges > 1 ? 's' : '') + ' conc.' : '', function () { self.filtres.statut = 'DEMO'; self.selStatut.value = 'DEMO'; self.rendreTable(); }));
+    this.elCartes.appendChild(carte(demos ? 'violet' : 'gris', 'Démos', AMX.fmtNombre(demos), echanges ? echanges + ' échange' + (echanges > 1 ? 's' : '') + ' conc.' : '', function () { self.filtres.statut = 'DEMO'; self.rendreTable(); }));
     if (anneeMax) this.elCartes.appendChild(carte(ancienne ? 'ambre' : 'vert', 'Ancienne année-modèle', AMX.fmtNombre(ancienne), 'avant ' + anneeMax + ' — à écouler d\'abord', function () { self.filtres.annee = 'ancienne'; self.rendreTable(); }));
     if (detention !== null) this.elCartes.appendChild(carte('sombre', 'Coût de détention', AMX.fmtArgent(detention), AMX.fmtArgent(detentionJour) + ' / jour à ' + (d.parametres.tauxPlan || 5) + ' %'));
   };
@@ -528,8 +534,19 @@
     var uniques = function (fn) { var o = {}; liste.forEach(function (v) { var k = fn(v); if (k) o[k] = (o[k] || 0) + 1; }); return Object.keys(o).sort().map(function (k) { return [k, k + ' (' + o[k] + ')']; }); };
     remplir(this.selModele, uniques(function (v) { return v.modele; }), 'Tous les modèles', f.modele);
     remplir(this.selVersion, uniques(function (v) { return (!f.modele || v.modele === f.modele) ? v.version : ''; }), 'Toutes les versions', f.version);
-    var statuts = {}; liste.forEach(function (v) { var s = statutDms(v); statuts[String(v.statutLibelle || '').toUpperCase()] = s.libelle; });
-    remplir(this.selStatut, Object.keys(statuts).map(function (k) { return [k, statuts[k]]; }), 'Tous les statuts', f.statut);
+    // Statuts : une pastille par statut présent (sur les véhicules en stock, ou tous si « Inclure les sortis »), avec le compte.
+    var base = liste.filter(function (v) { return f.sortis || v.enStock; }), statuts = {}, ordre = [];
+    base.forEach(function (v) { var k = String(v.statutLibelle || '').toUpperCase(), s = statutDms(v); if (!statuts[k]) { statuts[k] = { libelle: s.libelle, couleur: s.couleur, n: 0 }; ordre.push(k); } statuts[k].n++; });
+    if (f.statut && !statuts[f.statut]) f.statut = '';
+    var rang = { 'EN-INVENT.': 0, 'DEMO': 1, 'TRANSIT': 2, 'COMMANDE': 3, 'ECH. CONC.': 4 };
+    ordre.sort(function (a, b) { var ra = rang[a] === undefined ? 9 : rang[a], rb = rang[b] === undefined ? 9 : rang[b]; return ra - rb || statuts[b].n - statuts[a].n; });
+    AMX.vider(this.elStatuts);
+    var pastille = function (cle, libelle, n, couleur) {
+      return h('button.neufs-statut' + (couleur ? '.' + couleur : '') + (f.statut === cle ? '.actif' : ''), { type: 'button', title: cle ? 'Ne montrer que « ' + libelle + ' »' : 'Tous les statuts', onclick: function () { f.statut = f.statut === cle ? '' : cle; self.rendreSelects(); self.rendreTable(); } }, [couleur ? h('i') : null, h('span', { text: libelle }), h('b', { text: AMX.fmtNombre(n) })]);
+    };
+    this.elStatuts.appendChild(h('span.etiquette', { text: 'Statut' }));
+    this.elStatuts.appendChild(pastille('', 'Tous', base.length, ''));
+    ordre.forEach(function (k) { self.elStatuts.appendChild(pastille(k, statuts[k].libelle, statuts[k].n, statuts[k].couleur)); });
     var annees = uniques(function (v) { return v.annee; }).reverse();
     remplir(this.selAnnee, [['ancienne', 'Ancienne année-modèle']].concat(annees), 'Toutes les années', f.annee);
     remplir(this.selEmplacement, uniques(function (v) { return v.emplacement; }), 'Tous les emplacements', f.emplacement);

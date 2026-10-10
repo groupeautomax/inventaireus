@@ -42,12 +42,16 @@
 
   // Les deux sources (9 oct.) : chaque onglet a sa route, ses libellés, son seuil d'erreur et ses regroupements.
   var TYPES_CAN = [['tous', 'Tous'], ['achat', 'Achats'], ['echange', 'Échanges']];
-  var LIBELLE_TYPE = { achat: 'Achat', echange: 'Échange' };
+  // Véhicules neufs (10 oct.) : stock ou commande (Locate = commande) d'après « Type (neuf) » / « Provenance » du livre.
+  var TYPES_NEUF = [['tous', 'Tous'], ['stock', 'Stock'], ['commande', 'Commandes']];
+  var LIBELLE_TYPE = { achat: 'Achat', echange: 'Échange', stock: 'Stock', commande: 'Commande', demo: 'Démo' };
   var SOURCES = {
     us: { cle: 'us', route: 'resultatRaw=1', titre: 'Résultat', sous: '', colVente: 'Vente', exportVente: 'Prix de vente US', seuil: SEUIL_ERREUR, approx: true, compagnies: true, types: null, memo: 'resultat',
-      chargement: 'Chargement des registres de ventes…' },
-    can: { cle: 'can', route: 'resultatCan=1', titre: 'Wholesale Canada', sous: 'Livres des ventes des concessions (comptabilité)', colVente: 'Vente ($ CA)', exportVente: 'Prix de vente ($ CA)', seuil: 25000, approx: false, compagnies: true, types: TYPES_CAN, memo: 'resultat_can',
-      chargement: 'Lecture des Livres des ventes…' }
+      chargement: 'Chargement des registres de ventes…', champAcheteur: 'acheteur', titreAcheteurs: 'Par acheteur' },
+    can: { cle: 'can', livres: true, route: 'resultatCan=1', titre: 'Wholesale Canada', sous: 'Livres des ventes des concessions (comptabilité)', colVente: 'Vente ($ CA)', exportVente: 'Prix de vente ($ CA)', seuil: 25000, approx: false, compagnies: true, types: TYPES_CAN, memo: 'resultat_can',
+      chargement: 'Lecture des Livres des ventes…', champAcheteur: 'acheteur', titreAcheteurs: 'Par acheteur interne', segmentTypes: 'Achats ou échanges', nomVente: 'vente', nomVentePl: 'ventes', comptabilisees: true },
+    neuf: { cle: 'neuf', livres: true, route: 'resultatNeuf=1', titre: 'Véhicules neufs', sous: 'Livres Ventes Neuf des concessions (comptabilité) — profit front + F&I', colVente: 'Vente ($ CA)', exportVente: 'Prix de vente ($ CA)', seuil: 40000, approx: false, compagnies: true, types: TYPES_NEUF, memo: 'resultat_neuf',
+      chargement: 'Lecture des Livres Ventes Neuf…', champAcheteur: 'vendeur', titreAcheteurs: 'Par conseiller', segmentTypes: 'Stock ou commande', nomVente: 'vente neuve', nomVentePl: 'ventes neuves', comptabilisees: false }
   };
 
   var PERIODES = [
@@ -71,6 +75,17 @@
     { cle: 'provenance', libelle: 'Par provenance', colonne: 'Acheté de', champ: 'provenance' },
     { cle: 'client', libelle: 'Par client', colonne: 'Vendu à', champ: 'venduA' },
     { cle: 'acheteur', libelle: 'Par acheteur interne', colonne: 'Acheteur', champ: 'acheteur' },
+    { cle: 'marque', libelle: 'Par marque', colonne: 'Marque', champ: 'marque', requiertMarque: true },
+    { cle: 'modele', libelle: 'Par modèle', colonne: 'Modèle', champ: 'modele', requiertMarque: true },
+    { cle: 'annee', libelle: 'Par année', colonne: 'Année', champ: 'annee', requiertMarque: true }
+  ];
+
+  // Véhicules neufs : par type (stock / commande), conseiller, directeur commercial, client, marque, modèle, année.
+  var REGROUPEMENTS_NEUF = [
+    { cle: 'type', libelle: 'Stock / commandes', colonne: 'Type', champ: 'typeLibelle' },
+    { cle: 'conseiller', libelle: 'Par conseiller', colonne: 'Conseiller', champ: 'vendeur' },
+    { cle: 'directeur', libelle: 'Par directeur commercial', colonne: 'Directeur', champ: 'directeur' },
+    { cle: 'client', libelle: 'Par client', colonne: 'Client', champ: 'venduA' },
     { cle: 'marque', libelle: 'Par marque', colonne: 'Marque', champ: 'marque', requiertMarque: true },
     { cle: 'modele', libelle: 'Par modèle', colonne: 'Modèle', champ: 'modele', requiertMarque: true },
     { cle: 'annee', libelle: 'Par année', colonne: 'Année', champ: 'annee', requiertMarque: true }
@@ -126,6 +141,7 @@
       '.resultat-page .carte { margin-bottom: 14px; overflow: hidden; }',
       '.resultat-page h1 .resultat-h1-sous { display: block; font-size: 12.5px; font-weight: 400; color: var(--encre-3); letter-spacing: 0; margin-top: 2px; }',
       '.resultat-page .puce.type-achat { background: var(--bleu-bg); color: var(--bleu); } .resultat-page .puce.type-echange { background: var(--ambre-bg); color: var(--ambre); } .resultat-page .puce.type-ajust { background: var(--gris-bg); color: var(--gris); }',
+      '.resultat-page .puce.type-stock { background: var(--vert-bg); color: var(--vert); } .resultat-page .puce.type-commande { background: var(--violet-bg, var(--bleu-bg)); color: var(--violet, var(--bleu)); } .resultat-page .puce.type-demo { background: var(--ambre-bg); color: var(--ambre); }',
       '.resultat-page .resultat-ajust { font-size: 11px; color: var(--encre-3); cursor: help; }',
       '.resultat-page .resultat-attente .carte-corps { padding-top: 0; }',
       '.resultat-page .tableau.resultat-ta { min-width: 640px; }',
@@ -183,9 +199,10 @@
         // Livre des ventes (Wholesale Canada) : type, ajustements, client, profit prévu, comptabilisé
         type: String(r.type || '').trim(), typeLibelle: LIBELLE_TYPE[String(r.type || '').trim()] || '(autre)',
         ajust: !!r.ajust, ajustements: Array.isArray(r.ajustements) ? r.ajustements : [],
-        venduA: String(r.venduA || '').trim(), vendeur: String(r.vendeur || '').trim(), statut: String(r.statut || '').trim(),
+        venduA: String(r.venduA || '').trim(), vendeur: String(r.vendeur || '').trim(), directeur: String(r.directeur || '').trim(), statut: String(r.statut || '').trim(),
         profitPrevu: (r.profitPrevu === null || r.profitPrevu === undefined) ? null : num(r.profitPrevu),
         comptabilise: r.comptabilise !== false, dateCompta: r.dateCompta || '', coutEstime: !!r.coutEstime, typeSource: String(r.typeSource || ''),
+        profitSource: r.profitSource === 'prevu' ? 'prevu' : 'reel',
         profitReel: (r.profitReel === null || r.profitReel === undefined) ? null : num(r.profitReel),
         vin: String(r.vin || '').trim(),
         vinComplet: String(r.vinComplet || r.vin || '').trim(),
@@ -308,7 +325,18 @@
     { cle: 'profit', libelle: 'Profit réel', num: true },
     { cle: 'marge', libelle: 'Marge', num: true, valeur: marge }
   ];
-  function colonnesDe(source) { return source && source.cle === 'can' ? COL_VEHICULES_CAN : COL_VEHICULES; }
+  var COL_VEHICULES_NEUF = [
+    { cle: 'date', libelle: 'Date', valeur: function (r) { return r.t; } },
+    { cle: 'vehicule', libelle: 'Véhicule', valeur: function (r) { return r.ajust ? 'Ajustement ' + (r.venduA || r.statut) : nomVehicule(r); } },
+    { cle: 'type', libelle: 'Type', valeur: function (r) { return r.typeLibelle; } },
+    { cle: 'stock', libelle: 'Stock', valeur: function (r) { return r.stock; } },
+    { cle: 'vin', libelle: 'VIN', valeur: vinCourt },
+    { cle: 'vendeur', libelle: 'Conseiller', valeur: function (r) { return r.vendeur; } },
+    { cle: 'venduA', libelle: 'Client', valeur: function (r) { return r.venduA; } },
+    { cle: 'prixVenteUS', libelle: 'Vente ($ CA)', num: true },
+    { cle: 'profit', libelle: 'Profit (front + F&I)', num: true }
+  ];
+  function colonnesDe(source) { return source && source.cle === 'neuf' ? COL_VEHICULES_NEUF : (source && source.cle === 'can' ? COL_VEHICULES_CAN : COL_VEHICULES); }
 
   function trierPar(liste, colonnes, tri) {
     var c = trouver(colonnes, tri.cle);
@@ -355,7 +383,8 @@
     // (9 oct.) deux onglets : les registres É.-U. et les Livres des ventes wholesale Canada des concessions (le serveur applique la portée).
     onglets: [
       { id: 'us', titre: 'É.-U.' },
-      { id: 'can', titre: 'Wholesale Canada' }
+      { id: 'can', titre: 'Wholesale Canada' },
+      { id: 'neuf', titre: 'Véhicules neufs' }
     ],
     monter: function (conteneur, ctx) { return new Resultats(conteneur, ctx); }
   });
@@ -368,7 +397,7 @@
     this.naviguer(ctx || {});
   }
   Resultats.prototype.naviguer = function (ctx) {
-    var id = (ctx && ctx.onglet === 'can') ? 'can' : 'us';
+    var id = (ctx && SOURCES[ctx.onglet] && ctx.onglet !== 'us') ? ctx.onglet : 'us';
     if (!this.vues[id]) {
       var el = h('div.resultat-onglet', { dataset: { source: id } });
       this.conteneur.appendChild(el);
@@ -403,7 +432,7 @@
     // est repris ici, et un choix fait ici est gardé pour les autres pages.
     this.compagnie = AMX.compagnieChoisie('resultats') || 'TOUT';
     if (!trouver(COMPAGNIES_().map(function (c) { return { cle: c[0] }; }), this.compagnie)) this.compagnie = 'TOUT';
-    if (this.source.types) { this.type = AMX.memo.lire(this.source.memo + '_type', 'tous'); if (!TYPES_CAN.some(function (t) { return t[0] === self.type; })) this.type = 'tous'; }
+    if (this.source.types) { this.type = AMX.memo.lire(this.source.memo + '_type', 'tous'); if (!this.source.types.some(function (t) { return t[0] === self.type; })) this.type = 'tous'; }
     this.periode = null;         // cle de la période ouverte (liste des véhicules)
     this.regroupement = AMX.memo.lire(this.source.memo + '_regroupement', this.regroupements()[0].cle);
     if (!trouver(this.regroupements(), this.regroupement)) this.regroupement = this.regroupements()[0].cle;
@@ -426,12 +455,14 @@
   }
 
   Resultat.prototype.demonter = function () { this.detruit = true; this.generation++; };
-  Resultat.prototype.regroupements = function () { return this.source.cle === 'can' ? REGROUPEMENTS_CAN : REGROUPEMENTS; };
-  Resultat.prototype.estCan = function () { return this.source.cle === 'can'; };
-  // Suffixe des titres : la compagnie (É.-U.) ou le type (Wholesale Canada).
+  Resultat.prototype.regroupements = function () { return this.source.cle === 'neuf' ? REGROUPEMENTS_NEUF : (this.source.cle === 'can' ? REGROUPEMENTS_CAN : REGROUPEMENTS); };
+  // « estCan » = une source lue dans les Livres des ventes (Wholesale Canada ET Véhicules neufs) ; « estNeuf » précise l'onglet.
+  Resultat.prototype.estCan = function () { return !!this.source.livres; };
+  Resultat.prototype.estNeuf = function () { return this.source.cle === 'neuf'; };
+  // Suffixe des titres : la compagnie (É.-U.) ou le type (Wholesale Canada, Véhicules neufs).
   Resultat.prototype.suffixe = function () {
     var s = this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '';
-    if (this.estCan() && this.type !== 'tous') s += ' · ' + (this.type === 'achat' ? 'achats' : 'échanges');
+    if (this.estCan() && this.type !== 'tous') s += ' · ' + ({ achat: 'achats', echange: 'échanges', stock: 'stock', commande: 'commandes' }[this.type] || this.type);
     return s;
   };
 
@@ -451,7 +482,7 @@
     this.elSegmentType = null;
     if (this.source.types) {
       // Wholesale Canada : achats et échanges séparés (Maxime, 9 oct.)
-      this.elSegmentType = h('div.segment', { role: 'group', 'aria-label': 'Achats ou échanges' });
+      this.elSegmentType = h('div.segment', { role: 'group', 'aria-label': this.source.segmentTypes || 'Type' });
       this.source.types.forEach(function (t) {
         var b = h('button', { type: 'button', text: t[1], onclick: function () { self.changerType(t[0]); } });
         self.btnsType[t[0]] = b;
@@ -562,11 +593,19 @@
     var a = agreger(this.filtrees()), n = a.nb;
     if (this.estCan()) {
       var c = this.compagnie, parCie = (this.lignes || []).filter(function (r) { return c === 'TOUT' || r.compagnie === c; });
-      var tout = agreger(parCie), ach = agreger(parCie.filter(function (r) { return r.type === 'achat'; })), ech = agreger(parCie.filter(function (r) { return r.type === 'echange'; }));
-      var attente = this.enAttente.filter(function (r) { return c === 'TOUT' || r.compagnie === c; });
+      var tout = agreger(parCie), attente = this.enAttente.filter(function (r) { return c === 'TOUT' || r.compagnie === c; });
+      var t1 = this.source.types[1][0], t2 = this.source.types[2][0];
+      var g1 = agreger(parCie.filter(function (r) { return r.type === t1; })), g2 = agreger(parCie.filter(function (r) { return r.type === t2; }));
+      var nom1 = this.estNeuf() ? 'en stock' : 'achat', nom2 = this.estNeuf() ? 'commande' : 'échange';
+      var p1 = this.estNeuf() ? g1.nb + ' en stock' : pluriel(g1.nb, nom1), p2 = pluriel(g2.nb, nom2);
+      var tete = this.estNeuf()
+        ? tout.nb + ' vente' + (tout.nb > 1 ? 's' : '') + ' neuve' + (tout.nb > 1 ? 's' : '')
+        : tout.nb + ' vente' + (tout.nb > 1 ? 's' : '') + ' comptabilisée' + (tout.nb > 1 ? 's' : '');
       this.elEtat.appendChild(document.createTextNode(
-        tout.nb + ' vente' + (tout.nb > 1 ? 's' : '') + ' comptabilisée' + (tout.nb > 1 ? 's' : '') + ' (' + pluriel(ach.nb, 'achat') + ' ' + AMX.fmtArgent(ach.profitTotal, 0) + ' · ' + pluriel(ech.nb, 'échange') + ' ' + AMX.fmtArgent(ech.profitTotal, 0) + ')' + (c !== 'TOUT' ? ' · ' + c : '') + ' · livres lus à ' + heure(this.quand)
+        tete + ' (' + p1 + ' ' + AMX.fmtArgent(g1.profitTotal, 0) + ' · ' + p2 + ' ' + AMX.fmtArgent(g2.profitTotal, 0) + ')' + (c !== 'TOUT' ? ' · ' + c : '') + ' · livres lus à ' + heure(this.quand)
       ));
+      var nPrevu = parCie.filter(function (r) { return r.profitSource === 'prevu' && !r.ajust; }).length;
+      if (nPrevu) this.elEtat.appendChild(h('span.puce.gris', { title: 'Ventes dont la comptabilité n\'a pas encore inscrit le profit réel : le profit prévu (front + F&I) est pris en attendant.', text: nPrevu + ' au prévu' }));
       if (attente.length) this.elEtat.appendChild(h('span.puce.attention', { title: 'Ventes inscrites au livre mais pas encore comptabilisées : leur profit réel n\'est pas connu, elles ne comptent pas.', text: attente.length + ' en attente' }));
       if (this.exclus && this.exclus.lmb && (c === 'TOUT' || c === 'STM')) this.elEtat.appendChild(h('span.puce.gris', { title: 'Lignes LMB CAN du livre de Ste-Marie, exclues des statistiques (profit comptabilisé ' + AMX.fmtArgent(this.exclus.lmbProfit || 0) + ').', text: 'LMB exclus (' + this.exclus.lmb + ')' }));
       (this.livreErreurs || []).forEach(function (e) {
@@ -602,7 +641,7 @@
     // Wholesale Canada : aucun Livre des ventes dans la portée du compte (ou aucune ligne lisible).
     if (this.estCan() && this.lignes && !this.lignes.length && !this.enAttente.length) {
       var ls = this.livres || [], err = this.livreErreurs || [];
-      this.elVide.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', this.horsPortee ? 'Aucun Livre des ventes pour votre concession' : 'Aucune vente wholesale comptabilisée'),
+      this.elVide.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', this.horsPortee ? 'Aucun Livre des ventes pour votre concession' : (this.estNeuf() ? 'Aucune vente de véhicule neuf' : 'Aucune vente wholesale comptabilisée')),
         h('div', { text: this.horsPortee ? 'Les Livres des ventes lus sont ceux de Ste-Marie, BMW Sherbrooke, VW Brossard et Hyundai Longueuil.' : (ls.length ? 'Livres lus : ' + ls.map(function (l) { return l.compagnie + ' (' + l.lignes + ' lignes)'; }).join(', ') + '.' : '') + (err.length ? ' Illisibles : ' + err.map(function (e) { return e.compagnie; }).join(', ') + '.' : '') })]));
     }
   };
@@ -630,7 +669,7 @@
       var k = h('button.kpi' + (actif ? '.actif' : '') + (approx ? '.resultat-kpi-approx' : ''), { type: 'button', title: titre, 'aria-pressed': actif ? 'true' : 'false' }, [
         h('div.valeur.num.' + signeClasse(f.profitTotal), { text: AMX.fmtArgent(f.profitTotal) }),
         h('div.libelle', [p.libelle, approx ? h('span.resultat-approx', { text: '≈', 'aria-label': 'approximatif' }) : null]),
-        h('div.sous', { text: f.nb || f.nbAjust ? pluriel(f.nb, 'vente') + ' · marge ' + (f.coutTotal > 0 ? fmtPct(f.marge) : '—') + (f.nbAjust ? ' · ' + f.nbAjust + ' ajust.' : '') : 'aucune vente' })
+        h('div.sous', { text: f.nb || f.nbAjust ? pluriel(f.nb, 'vente') + (self.estNeuf() ? ' · profit moyen ' + AMX.fmtArgent(f.profitMoyen, 0) : ' · marge ' + (f.coutTotal > 0 ? fmtPct(f.marge) : '—')) + (f.nbAjust ? ' · ' + f.nbAjust + ' ajust.' : '') : 'aucune vente' })
       ]);
       k.addEventListener('click', function () {
         var ouvre = self.periode !== p.cle;
@@ -649,6 +688,18 @@
     AMX.vider(this.elNote);
     if (!this.lignes || this.refus) { this.elNote.classList.add('cache'); return; }
     this.elNote.classList.remove('cache');
+    if (this.estNeuf()) {
+      var exN = this.exclus || {};
+      this.elNote.appendChild(document.createTextNode(
+        'Lu dans l\'onglet « Livre Ventes Neuf » de chaque concession. Profit = profit front + profit F&I : le réel quand la comptabilité l\'a inscrit, sinon le prévu (marqué « prévu »). ' +
+        'Stock ou commande d\'après le livre (Locate = commande). Les « Ajust. Neuf » sont rattachés au véhicule par # stock' + (exN.ajustOrphelins ? ' ; ' + exN.ajustOrphelins + ' sans véhicule dans le livre ' + (exN.ajustOrphelins > 1 ? 'sont listés' : 'est listé') + ' à part' : '') + '. ' +
+        (exN.autres ? pluriel(exN.autres, 'ligne') + ' hors ventes (échanges entre concessions…) ' + (exN.autres > 1 ? 'ignorées' : 'ignorée') + '. ' : '') +
+        (exN.annulees ? exN.annulees + ' vente' + (exN.annulees > 1 ? 's' : '') + ' annulée' + (exN.annulees > 1 ? 's' : '') + ' (CANCELLÉ / REFUSÉ) ' + (exN.annulees > 1 ? 'ignorées' : 'ignorée') + '. ' : '') +
+        'Pas de coût dans ces livres : pas de marge. Chaque vente a sa date exacte.' +
+        ((this.livreErreurs || []).length ? ' Livre illisible : ' + this.livreErreurs.map(function (e) { return e.compagnie + ' — ' + erreurLivre(e); }).join(' ; ') + '.' : '')
+      ));
+      return;
+    }
     if (this.estCan()) {
       var ex = this.exclus || {}, att = agreger(this.enAttente);
       this.elNote.appendChild(document.createTextNode(
@@ -656,7 +707,8 @@
         (this.enAttente.length ? pluriel(this.enAttente.length, 'vente') + ' en attente (profit prévu ' + AMX.fmtArgent(att.profitTotal, 0) + '). ' : 'Aucune vente en attente. ') +
         (ex.lmb ? 'LMB exclus : ' + pluriel(ex.lmb, 'ligne') + ' (' + AMX.fmtArgent(ex.lmbProfit || 0, 0) + '). ' : '') +
         'Les ajustements comptables (transport, crédits, annulations) sont rattachés au véhicule par # stock' + (ex.ajustOrphelins ? ' ; ' + ex.ajustOrphelins + ' sans véhicule dans le livre ' + (ex.ajustOrphelins > 1 ? 'sont listés' : 'est listé') + ' à part' : '') + '. ' +
-        'Marge = profit ÷ coût (Ste-Marie : achat + BT + frais + transport ; BMW, VW, Hyundai : coût ≈ prix de vente − profit, et achat / échange déduit du # stock). Chaque vente a sa date exacte.' +
+        'Marge = profit ÷ coût (Ste-Marie : achat + BT + frais + transport ; BMW, VW, Hyundai : coût ≈ prix de vente − profit, et achat / échange déduit du # stock). ' +
+        'Hyundai Longueuil n\'a pas de wholesale dans son livre : ses ventes d\'occasion sont prises, profit = front + F&I, réel quand il est inscrit sinon prévu (marqué « prévu »)' + (ex.annulees ? ' ; ' + ex.annulees + ' vente' + (ex.annulees > 1 ? 's' : '') + ' annulée' + (ex.annulees > 1 ? 's' : '') + ' (CANCELLÉ / REFUSÉ) ' + (ex.annulees > 1 ? 'ignorées' : 'ignorée') : '') + '. Chaque vente a sa date exacte.' +
         ((this.livreErreurs || []).length ? ' Livre illisible : ' + this.livreErreurs.map(function (e) { return e.compagnie + ' — ' + erreurLivre(e); }).join(' ; ') + '.' : '')
       ));
       return;
@@ -710,7 +762,7 @@
     var f = p.cle === 'perso' ? this.fenetreListe(this.fenetrePerso) : (this.fenetres[p.cle] || agreger([]));
 
     var sous = f.nb || f.nbAjust
-      ? pluriel(f.nb, 'vente') + ' · profit moyen ' + AMX.fmtArgent(f.profitMoyen) + ' · marge ' + (f.coutTotal > 0 ? fmtPct(f.marge) : '—') + (f.nbAjust ? ' · ' + pluriel(f.nbAjust, 'ajustement') : '') + this.suffixe()
+      ? pluriel(f.nb, 'vente') + ' · profit moyen ' + AMX.fmtArgent(f.profitMoyen) + (this.estNeuf() ? '' : ' · marge ' + (f.coutTotal > 0 ? fmtPct(f.marge) : '—')) + (f.nbAjust ? ' · ' + pluriel(f.nbAjust, 'ajustement') : '') + this.suffixe()
       : 'aucune vente dans cette fenêtre' + (this.compagnie !== 'TOUT' && !this.estCan() ? ' pour ' + this.compagnie : '');
     var approxP = p.approx && this.source.approx;
     var titre = h('h2', [p.libelle, approxP ? h('span.resultat-approx', { text: '≈', title: TEXTE_APPROX }) : null, h('span.sous', { text: sous })]);
@@ -770,7 +822,8 @@
   /* ---------------------------- Évolution ------------------------------- */
   // Agrégat d'une fenêtre personnalisée { debut, fin, acheteur? }.
   Resultat.prototype.fenetreListe = function (w) {
-    var lignes = this.filtrees().filter(function (r) { return r.t >= w.debut && r.t <= w.fin && (!w.acheteur || (r.acheteur || '(non spécifié)') === w.acheteur); });
+    var champW = this.source.champAcheteur || 'acheteur';
+    var lignes = this.filtrees().filter(function (r) { return r.t >= w.debut && r.t <= w.fin && (!w.acheteur || (r[champW] || '(non spécifié)') === w.acheteur); });
     return agreger(lignes);
   };
   Resultat.prototype.ouvrirPerso = function (w) {
@@ -847,7 +900,8 @@
     var mesure = trouver(MESURES_ACHETEURS, this.mesureAcheteurs) || MESURES_ACHETEURS[0];
     var debut = fen.debut(b);
     var lignes = this.filtrees().filter(function (r) { return r.t >= debut && r.t <= b.fin; });
-    var groupes = grouper(lignes, 'acheteur').sort(function (x, y) { return y[mesure.cle] - x[mesure.cle]; });
+    var champA = this.source.champAcheteur || 'acheteur';
+    var groupes = grouper(lignes, champA).sort(function (x, y) { return y[mesure.cle] - x[mesure.cle]; });
 
     var segFen = h('div.segment', { role: 'group', 'aria-label': 'Fenêtre' }, FENETRES_ACHETEURS.map(function (f) {
       return h('button' + (f.cle === self.fenetreAcheteurs ? '.actif' : ''), { type: 'button', text: f.libelle, onclick: function () { if (f.cle === self.fenetreAcheteurs) return; self.fenetreAcheteurs = f.cle; AMX.memo.ecrire(self.source.memo + '_acheteurs_fenetre', f.cle); self.acheteurActif = ''; self.rendreAcheteurs(); } });
@@ -856,7 +910,7 @@
     selMesure.addEventListener('change', function () { self.mesureAcheteurs = selMesure.value; AMX.memo.ecrire(self.source.memo + '_acheteurs_mesure', selMesure.value); self.rendreAcheteurs(); });
     var total = 0, nbVentes = 0; groupes.forEach(function (g) { total += g.profitTotal; nbVentes += g.nb; });
     this.elAcheteurs.appendChild(h('div.carte-entete', [
-      h('h2', [this.estCan() ? 'Par acheteur interne' : 'Par acheteur', h('span.sous', { text: fen.libelle.toLowerCase() + ' · ' + pluriel(nbVentes, 'vente') + ' · ' + AMX.fmtArgent(total) + this.suffixe() })]),
+      h('h2', [this.source.titreAcheteurs || 'Par acheteur', h('span.sous', { text: fen.libelle.toLowerCase() + ' · ' + pluriel(nbVentes, 'vente') + ' · ' + AMX.fmtArgent(total) + this.suffixe() })]),
       h('div.resultat-actions', [segFen, selMesure])
     ]));
     var corps = h('div.carte-corps');
@@ -867,10 +921,10 @@
     var actifIdx = -1;
     var items = groupes.map(function (g, i) {
       if (g.cle === self.acheteurActif) actifIdx = i;
-      return { nom: g.cle, valeur: g[mesure.cle], sous: mesure.cle === 'nb' ? AMX.fmtArgent(g.profitTotal, 0) : (pluriel(g.nb, 'vente') + ' · marge ' + (g.coutTotal > 0 ? fmtPct(g.marge) : '—')), couleur: AMX.graph.couleurs[i % AMX.graph.couleurs.length] };
+      return { nom: g.cle, valeur: g[mesure.cle], sous: mesure.cle === 'nb' ? AMX.fmtArgent(g.profitTotal, 0) : (pluriel(g.nb, 'vente') + (self.estNeuf() ? ' · moy. ' + AMX.fmtArgent(g.profitMoyen, 0) : ' · marge ' + (g.coutTotal > 0 ? fmtPct(g.marge) : '—'))), couleur: AMX.graph.couleurs[i % AMX.graph.couleurs.length] };
     });
     corps.appendChild(h('div.resultat-graph-acheteurs', [AMX.graph.horizontal(items, {
-      libelle: mesure.libelle, format: mesure.format, actif: actifIdx, aria: mesure.libelle + ' par acheteur',
+      libelle: mesure.libelle, format: mesure.format, actif: actifIdx, aria: mesure.libelle + ' ' + (this.source.titreAcheteurs || 'par acheteur').toLowerCase(),
       surClic: function (i) {
         var g = groupes[i];
         if (self.acheteurActif === g.cle) { self.acheteurActif = ''; self.periode = null; self.fenetrePerso = null; self.rendreKpis(); self.rendreEvolution(); self.rendreAcheteurs(); self.rendreDetail(); return; }
@@ -901,13 +955,28 @@
   // Tableau des véhicules ; `surTri` facultatif (sans lui, en-tête non cliquable). opts.sansTotal : pas de pied.
   Resultat.prototype.tableVehicules = function (liste, tri, surTri, opts) {
     opts = opts || {};
-    var COLS = colonnesDe(this.source), can = this.estCan();
+    var COLS = colonnesDe(this.source), can = this.estCan(), neuf = this.estNeuf();
     var lignes = trierPar(liste, COLS, tri);
     var tbody = h('tbody');
     lignes.forEach(function (v) {
       var complet = vinLong(v);
       var tdVin = h('td.mono' + (complet ? '.resultat-vin' : ''), { title: complet ? 'NIV ' + complet + ' — cliquer pour copier' : null, text: vinCourt(v) || '—' });
       if (complet) tdVin.addEventListener('click', function () { AMX.copier(complet, 'NIV copié'); });
+      if (neuf) {
+        var ajTitreN = v.ajustements.length ? v.ajustements.map(function (a) { return (a.libelle || a.statut) + ' : ' + AMX.fmtArgent(a.montant); }).join('\n') : '';
+        tbody.appendChild(h('tr' + (v.ajust ? '.resultat-ligne-ajust' : ''), [
+          h('td.num', { text: v.date ? AMX.fmtDate(v.date) : '—' }),
+          h('td', [h('div', { text: v.ajust ? 'Ajustement — ' + (v.venduA || v.statut) : nomVehicule(v) }), v.ajust ? h('div.mini', { text: v.statut }) : (v.directeur ? h('div.mini', { text: 'dir. ' + v.directeur }) : null)]),
+          h('td', [h('span.puce.type-' + (v.ajust ? 'ajust' : (v.type || 'ajust')), { text: v.ajust ? 'Ajust.' : v.typeLibelle })]),
+          h('td.mono', { text: v.stock || '—' }),
+          tdVin,
+          h('td', { text: v.vendeur || '—' }),
+          h('td', { text: v.venduA || '—' }),
+          h('td.num', { text: v.ajust ? '—' : AMX.fmtArgent(v.prixVenteUS) }),
+          h('td.num.' + signeClasse(v.profit), { title: v.profitSource === 'prevu' ? 'Profit prévu (front + F&I) : le réel n\'est pas encore inscrit par la comptabilité' : null }, [AMX.fmtArgent(v.profit), v.profitSource === 'prevu' ? h('span.resultat-approx', { text: ' prévu' }) : null, v.ajustements.length ? h('div.resultat-ajust', { title: ajTitreN, text: v.ajustements.length + ' ajust. (' + AMX.fmtArgent(v.ajustements.reduce(function (s, a) { return s + num(a.montant); }, 0)) + ')' }) : null])
+        ]));
+        return;
+      }
       if (can) {
         var ajTitre = v.ajustements.length ? v.ajustements.map(function (a) { return (a.libelle || a.statut) + ' : ' + AMX.fmtArgent(a.montant); }).join('\n') : '';
         tbody.appendChild(h('tr' + (v.ajust ? '.resultat-ligne-ajust' : ''), [
@@ -920,7 +989,7 @@
           h('td', { text: v.venduA || '—' }),
           h('td.num', { text: v.ajust ? '—' : (v.coutEstime ? '≈ ' : '') + AMX.fmtArgent(v.coutTotal), title: v.coutEstime ? 'Coût estimé : prix de vente − profit réel (le livre n\'a pas le coût)' : null }),
           h('td.num', { text: v.ajust ? '—' : AMX.fmtArgent(v.prixVenteUS) }),
-          h('td.num.' + signeClasse(v.profit), [AMX.fmtArgent(v.profit), v.ajustements.length ? h('div.resultat-ajust', { title: 'Profit réel inscrit ' + AMX.fmtArgent(v.profitReel !== undefined && v.profitReel !== null ? v.profitReel : v.profit) + '\n' + ajTitre, text: v.ajustements.length + ' ajust. (' + AMX.fmtArgent(v.ajustements.reduce(function (s, a) { return s + num(a.montant); }, 0)) + ')' }) : null]),
+          h('td.num.' + signeClasse(v.profit), { title: v.profitSource === 'prevu' ? 'Profit prévu (front + F&I) : le réel n\'est pas encore inscrit par la comptabilité' : null }, [AMX.fmtArgent(v.profit), v.profitSource === 'prevu' ? h('span.resultat-approx', { text: ' prévu' }) : null, v.ajustements.length ? h('div.resultat-ajust', { title: 'Profit réel inscrit ' + AMX.fmtArgent(v.profitReel !== undefined && v.profitReel !== null ? v.profitReel : v.profit) + '\n' + ajTitre, text: v.ajustements.length + ' ajust. (' + AMX.fmtArgent(v.ajustements.reduce(function (s, a) { return s + num(a.montant); }, 0)) + ')' }) : null]),
           h('td.num', { text: v.ajust ? '—' : fmtPct(marge(v)) })
         ]));
         return;
@@ -959,9 +1028,9 @@
       { cle: 'cle', libelle: reg.colonne },
       { cle: 'nb', libelle: 'Ventes', num: true },
       { cle: 'profitTotal', libelle: 'Profit total', num: true },
-      { cle: 'marge', libelle: 'Marge moyenne', num: true },
+      this.estNeuf() ? null : { cle: 'marge', libelle: 'Marge moyenne', num: true },
       { cle: 'profitMoyen', libelle: 'Profit moyen', num: true }
-    ];
+    ].filter(Boolean);
     var lignes = trierPar(groupes, colonnes, this.triGroupes);
     var tbody = h('tbody');
     lignes.forEach(function (g) {
@@ -970,9 +1039,9 @@
         h('td', [h('span.resultat-chevron', { html: I.chevron }), h('b', { text: g.cle })]),
         h('td.num', { text: String(g.nb) }),
         h('td.num.' + signeClasse(g.profitTotal), { text: AMX.fmtArgent(g.profitTotal) }),
-        h('td.num', { text: g.coutTotal > 0 ? fmtPct(g.marge) : '—' }),
+        self.estNeuf() ? null : h('td.num', { text: g.coutTotal > 0 ? fmtPct(g.marge) : '—' }),
         h('td.num', { text: AMX.fmtArgent(g.profitMoyen) })
-      ]);
+      ].filter(Boolean));
       var basculer = function () {
         if (self.groupesOuverts[g.cle]) delete self.groupesOuverts[g.cle]; else self.groupesOuverts[g.cle] = true;
         self.rendreVentilation();
@@ -1000,9 +1069,21 @@
     var liste = f ? trierPar(f.vehicules, colonnesDe(this.source), this.triVehicules) : [];
     if (!liste.length) { AMX.toast('Aucune vente à exporter.', 'attention'); return; }
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
-    var can = this.estCan();
+    var can = this.estCan(), neuf = this.estNeuf();
     var rows = liste.map(function (v) {
       var m = marge(v);
+      if (neuf) {
+        return {
+          'Date de vente': v.date ? AMX.fmtDate(v.date) : '', 'Type': v.ajust ? 'Ajustement' : v.typeLibelle, 'Statut du livre': v.statut,
+          'Marque': v.marque, 'Modèle': v.modele, 'Année': v.annee, 'Stock #': v.stock, 'NIV': vinLong(v),
+          'Client': v.venduA, 'Conseiller': v.vendeur, 'Directeur commercial': v.directeur, 'Compagnie': v.compagnie,
+          'Prix de vente ($ CA)': v.ajust ? '' : v.prixVenteUS,
+          'Source du profit': v.profitSource === 'prevu' ? 'prévu (front + F&I)' : 'réel (front + F&I)',
+          'Ajustements': v.ajustements.length ? v.ajustements.map(function (a) { return (a.libelle || a.statut) + ' ' + AMX.fmtArgent(a.montant); }).join(' ; ') : '',
+          'Profit (front + F&I)': v.profit,
+          'Comptabilisé le': v.dateCompta ? AMX.fmtDate(v.dateCompta) : ''
+        };
+      }
       if (can) {
         return {
           'Date de vente': v.date ? AMX.fmtDate(v.date) : '', 'Type': v.ajust ? 'Ajustement ' + v.typeLibelle.toLowerCase() : v.typeLibelle, 'Statut du livre': v.statut,
@@ -1010,6 +1091,7 @@
           'Acheté de': v.provenance, 'Vendu à': v.venduA, 'Acheteur': v.acheteur, 'Vendeur': v.vendeur,
           'Coût total': v.ajust ? '' : v.coutTotal, 'Prix de vente ($ CA)': v.ajust ? '' : v.prixVenteUS,
           'Profit réel inscrit': (v.profitReel === null || v.profitReel === undefined) ? v.profit : v.profitReel,
+          'Source du profit': v.profitSource === 'prevu' ? 'prévu (front + F&I)' : 'réel',
           'Ajustements': v.ajustements.length ? v.ajustements.map(function (a) { return (a.libelle || a.statut) + ' ' + AMX.fmtArgent(a.montant); }).join(' ; ') : '',
           'Profit': v.profit, 'Marge (%)': v.ajust || isNaN(m) ? '' : Math.round(m * 1000) / 10,
           'Comptabilisé le': v.dateCompta ? AMX.fmtDate(v.dateCompta) : ''
@@ -1029,7 +1111,7 @@
       : [{ wch: 11 }, { wch: 9 }, { wch: 12 }, { wch: 18 }, { wch: 7 }, { wch: 10 }, { wch: 19 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, can ? 'Wholesale Canada' : 'Résultat');
-    XLSX.writeFile(wb, (can ? 'wholesale-canada-' : 'resultat-') + p.cle + '-' + (can ? this.type : this.compagnie.toLowerCase()) + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    XLSX.writeFile(wb, (neuf ? 'vehicules-neufs-' : (can ? 'wholesale-canada-' : 'resultat-')) + p.cle + '-' + (can ? this.type : this.compagnie.toLowerCase()) + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
     AMX.toast('Export Excel — ' + pluriel(liste.length, 'ligne') + ' (' + p.libelle + ')', 'ok');
   };
 })();

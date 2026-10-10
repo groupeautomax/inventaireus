@@ -323,9 +323,9 @@
     AMX.vider(this.elOnglets);
     if (!d) return;
     var enStock = this.visibles().filter(function (v) { return v.enStock; }).length;
-    var c = this.compagnie, p = this.portail || {};
-    var commandes = (p.commandes || []).filter(function (x) { return !c || x.compagnie === c; }).reduce(function (s, x) { return s + (x.n || 0); }, 0);
-    var depuis12 = debut12Mois(), ventes = (p.ventes || []).filter(function (x) { return (!c || x.compagnie === c) && String(x.dateVente) >= depuis12; }).length;
+    var c = this.compagnie, pv = this.portailVisible();   /* concession ET mode détail / flotte */
+    var commandes = pv.commandes.reduce(function (s, x) { return s + (x.n || 0); }, 0);
+    var depuis12 = debut12Mois(), ventes = pv.ventes.filter(function (x) { return String(x.dateVente) >= depuis12; }).length;
     var portail = !c || !!PORTAILS[c];
     var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['analyse', 'Analyse', null]];
     onglets.forEach(function (o) {

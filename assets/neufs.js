@@ -43,9 +43,12 @@
   // (10 oct.) Portails des constructeurs : le signet « Automax ← Hyundai » (chargeur généré par mock/signet-build.py — ne jamais
   // éditer la constante à la main) lit le pipeline, les ventes déclarées (RDR) et les factures du portail des ventes Hyundai, et
   // le CSI sur BoostCX. Le stock atterrit ici (feuille Neufs, source portail-hyundai) ; ventes et commandes via ?constructeur=1.
-  var CODE_SIGNET_HYUNDAI = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-hyundai.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
+  var CODE_SIGNET_CONSTRUCTEUR = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-constructeur.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
+  // Un seul favori « Automax ← Constructeur » pour tous les portails (reconnu à l'adresse de la page).
   var PORTAILS = {
-    HYUNDAI: { nom: 'Portail Hyundai', source: 'hyundai', url: 'https://salesportal-hacc.am.hyundai-corp.io/salesportal/index.html#/dealerstocklist', csi: 'https://hacc.boostcx.com/bcx/dashboard/combined', signet: function () { return CODE_SIGNET_HYUNDAI; } }
+    HYUNDAI: { nom: 'Portail Hyundai', source: 'hyundai', url: 'https://salesportal-hacc.am.hyundai-corp.io/salesportal/index.html#/dealerstocklist', nomCsi: 'CSI (BoostCX)', csi: 'https://hacc.boostcx.com/bcx/dashboard/combined', liste: 'Stock › Dealer Stock List', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },
+    STM: { nom: 'Portail GM (utilitaire des commandes)', source: 'gm', url: 'https://owb.vsp.autopartners.net/ui/manage-inventory/view-inventory/preliminary', nomCsi: 'ISC (InMoment)', csi: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', liste: 'Gestion des stocks › Afficher l\'inventaire et les commandes', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },
+    HAWKS: { nom: 'Portail GM (utilitaire des commandes)', source: 'gm', url: 'https://owb.vsp.autopartners.net/ui/manage-inventory/view-inventory/preliminary', nomCsi: 'ISC (InMoment)', csi: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', liste: 'Gestion des stocks › Afficher l\'inventaire et les commandes', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } }
   };
   function peutImporterPortail() { return !!(AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.perm('gererUtilisateurs') || AMX.estAdmin()); }
   function libelleTypeVente(t) { var x = String(t || ''); if (/demo|slc|loan|courtoisie/i.test(x)) return 'Démo / courtoisie'; if (/fleet|flotte/i.test(x)) return 'Flotte'; if (/lease|location|bail/i.test(x)) return 'Location'; if (/retail|detail|détail/i.test(x)) return 'Détail'; return x || '—'; }
@@ -237,7 +240,7 @@
     this.elEtat = h('p', { text: 'Chargement des neufs…' });
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
-    this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail Hyundai</span>', title: 'Lire le pipeline, les ventes déclarées et les factures depuis le portail des ventes Hyundai (favori à cliquer sur le portail)', onclick: function () { self.ouvrirSignet('HYUNDAI'); } });
+    this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail du constructeur</span>', title: 'Lire l\'inventaire, les commandes et les ventes déclarées depuis le portail du constructeur (favori à cliquer sur le portail, connecté)', onclick: function () { self.ouvrirSignet(self.compagnie || 'HYUNDAI'); } });
     var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Véhicules neufs'), this.elEtat]), h('div.actions', [this.btnPortail, this.btnRafraichir, this.btnExport])]);
     this.elChoix = h('div');
     this.elPortail = h('div.carte.neufs-portail');
@@ -418,14 +421,14 @@
   /* Fenêtre du signet : le favori à glisser, le mode d'emploi, les liens vers le portail et le CSI. */
   VueNeufs.prototype.ouvrirSignet = function (cie) {
     var p = PORTAILS[cie] || PORTAILS.HYUNDAI, code = p.signet();
-    var signet = h('a.btn.primaire', { href: code, text: 'Automax ← ' + nomCie(cie), title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
+    var signet = h('a.btn.primaire', { href: code, text: 'Automax ← Constructeur', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
     signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis le portail, connecté.', 'attention', 8000); });
     var corps = h('div', [
-      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' } }, 'Un seul favori pour deux sites. Cliqué sur le portail des ventes, il lit le pipeline complet (en stock, démos et courtoisie, en transit, commandes en attente), les ventes déclarées des 12 derniers mois et les factures du constructeur (coût de chaque NIV), puis les envoie ici : le suivi des neufs se remplit comme avec un feed du DMS. Cliqué sur BoostCX, il lit les scores NPS et les sondages (onglet CSI). Rien n\'est modifié sur les portails.'),
+      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' } }, 'Un seul favori pour tous les portails des constructeurs (Hyundai, GM…), reconnu à l\'adresse de la page. Cliqué sur le portail des ventes, il lit l\'inventaire complet (en stock, démos et courtoisie, en transit, commandes en cours), les ventes déclarées des 12 derniers mois et, quand le portail les donne, les factures du constructeur (coût de chaque NIV), puis les envoie ici : le suivi des neufs se remplit comme avec un feed du DMS. Cliqué sur le site CSI du constructeur (BoostCX, ISC InMoment), il lit les scores, le composite de la marque et les sondages (onglet CSI). Rien n\'est modifié sur les portails.'),
       h('div.neufs-signet', [
         h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
-        h('div', [h('div.section-titre', '2. Ouvrir le portail'), h('p', 'Connecté avec votre compte du constructeur, sur n\'importe quelle liste (Stock › Dealer Stock List).'), h('a.btn', { href: p.url, target: '_blank', rel: 'noopener', html: I.externe + '<span>' + p.nom + '</span>' }), p.csi ? h('a.btn', { href: p.csi, target: '_blank', rel: 'noopener', style: { marginLeft: '6px' }, html: I.externe + '<span>CSI (BoostCX)</span>' }) : null]),
-        h('div', [h('div.section-titre', '3. Cliquer le favori'), h('p', 'Une bande verte suit la progression en bas de la page (environ 20 secondes). À la fin, revenez ici : « Rafraîchir ». Une fois par jour suffit ; un passage par semaine pour le CSI.')])
+        h('div', [h('div.section-titre', '2. Ouvrir le portail'), h('p', { text: 'Connecté avec votre compte du constructeur, sur la liste de l\'inventaire (' + (p.liste || 'n\'importe quelle liste') + ').' }), h('a.btn', { href: p.url, target: '_blank', rel: 'noopener', html: I.externe + '<span>' + p.nom + '</span>' }), p.csi ? h('a.btn', { href: p.csi, target: '_blank', rel: 'noopener', style: { marginLeft: '6px' }, html: I.externe + '<span>' + (p.nomCsi || 'CSI') + '</span>' }) : null]),
+        h('div', [h('div.section-titre', '3. Cliquer le favori'), h('p', 'Une bande verte suit la progression en bas de la page (de 30 secondes à 3 minutes selon le portail). À la fin, revenez ici : « Rafraîchir ». Une fois par jour suffit ; un passage par semaine pour le CSI.')])
       ])
     ]);
     AMX.modale({ titre: p.nom + ' → ScanAutomax', corps: corps, large: true, boutons: [{ texte: 'Fermer', action: function (fermer) { fermer(); } }] });

@@ -358,8 +358,9 @@
   }
   // Plage de dates : « 1 oct. – 10 oct. » (même année) ou « 1 oct. 2025 – 10 oct. 2026 ».
   function fmtPlage(debut, fin) {
-    var d = new Date(debut), f = new Date(fin);
-    return d.getFullYear() === f.getFullYear() ? fmtJourMois(d) + ' – ' + fmtJourMois(f) : fmtJourMois(d) + ' ' + d.getFullYear() + ' – ' + fmtJourMois(f) + ' ' + f.getFullYear();
+    var d = new Date(debut), f = new Date(fin), an = new Date().getFullYear();
+    if (d.getFullYear() === f.getFullYear()) return fmtJourMois(d) + ' – ' + fmtJourMois(f) + (f.getFullYear() !== an ? ' ' + f.getFullYear() : '');
+    return fmtJourMois(d) + ' ' + d.getFullYear() + ' – ' + fmtJourMois(f) + ' ' + f.getFullYear();
   }
   function joursTexte(n) { return n + ' jour' + (n > 1 ? 's' : '') + ' ouvrable' + (n > 1 ? 's' : ''); }
   function pctEntier(x) { return (x === null || x === undefined || isNaN(x) || !isFinite(x)) ? '—' : Math.round(x * 100) + ' %'; }
@@ -973,12 +974,16 @@
     var nd = 'Pas inscrit dans ' + (this.compagnie === 'TOUT' ? 'ces livres' : 'ce livre');
     // Rangée 1 : le profit.
     var vProfit = variation(i.profit, ip.profit), vNb = variation(i.nb, ip.nb), vMoy = variation(i.profitMoyen, ip.profitMoyen);
+    // Comparaison partielle : seul le livre BMW couvre plusieurs années ; on le dit quand la période précédente n'a pas toutes les concessions.
+    var cies = function (l) { var o = {}; l.forEach(function (r) { if (!r.ajust) o[r.compagnie] = 1; }); return Object.keys(o).sort(); };
+    var ciesAvant = cies(avant), ciesDans = cies(dans), partiel = ip.nb && ciesAvant.length < ciesDans.length;
+    var sousComp = ip.nb ? 'ventes ' + ip.nb + ' → ' + i.nb + ' (' + fmtSigne(vNb) + ') · profit / véh. ' + AMX.fmtArgent(ip.profitMoyen, 0) + ' → ' + AMX.fmtArgent(i.profitMoyen, 0) + ' (' + fmtSigne(vMoy) + ')' + (partiel ? ' · ' + ciesAvant.join(', ') + ' seulement dans la période précédente' : '') : 'aucune vente du ' + libPrec;
     var r1 = h('div.kpis', [
       tuile(AMX.fmtArgent(i.profitMoyen, 0), 'Profit / véhicule', 'total ' + AMX.fmtArgent(i.profit, 0) + (i.nbPrevu ? ' · ' + i.nbPrevu + ' au prévu' : ''), 'Profit (front + F&I) divisé par le nombre de ventes de la fenêtre' + (i.nbPrevu ? '. ' + i.nbPrevu + ' vente' + (i.nbPrevu > 1 ? 's' : '') + ' au profit prévu (réel pas encore inscrit).' : '.'), signeClasse(i.profitMoyen)),
       tuile(AMX.fmtArgent(i.frontMoyen, 0), 'Front / véhicule', 'total ' + AMX.fmtArgent(i.front, 0) + ' · ' + pctEntier(i.profit ? i.front / i.profit : NaN) + ' du profit', 'Profit front (vente du véhicule) par véhicule vendu.'),
       tuile(AMX.fmtArgent(i.fiMoyen, 0), 'F&I / véhicule', 'F&I vendu sur ' + pctEntier(i.fiPct) + ' des ventes (' + i.nbFI + ' sur ' + i.nb + ')', 'Profit F&I (financement, garanties, protections) par véhicule vendu. Pénétration = part des ventes avec un profit F&I supérieur à 0.'),
       tuile(i.nbPrix ? AMX.fmtArgent(i.prixMoyen, 0) : '—', 'Prix de vente moyen', i.nbPrix ? pluriel(i.nbPrix, 'prix inscrit') + (i.nbPrix < i.nb ? ' sur ' + i.nb : '') : nd + ' (VW, Hyundai)', 'Prix de vente moyen des ventes dont le livre donne le prix (Ste-Marie et BMW).'),
-      tuile(fmtSigne(vProfit), 'vs ' + libPrec, ip.nb ? 'ventes ' + ip.nb + ' → ' + i.nb + ' (' + fmtSigne(vNb) + ') · profit / véh. ' + AMX.fmtArgent(ip.profitMoyen, 0) + ' → ' + AMX.fmtArgent(i.profitMoyen, 0) + ' (' + fmtSigne(vMoy) + ')' : 'aucune vente du ' + libPrec, 'Profit total de la fenêtre comparé à la période précédente (' + libPrec + (w.enCours ? ', même portion' : '') + ') : ' + AMX.fmtArgent(ip.profit, 0) + ' → ' + AMX.fmtArgent(i.profit, 0) + '.', isNaN(vProfit) ? '' : signeClasse(vProfit))
+      tuile(fmtSigne(vProfit), 'vs ' + libPrec, sousComp, 'Profit total de la fenêtre comparé à la période précédente (' + libPrec + (w.enCours ? ', même portion' : '') + ') : ' + AMX.fmtArgent(ip.profit, 0) + ' → ' + AMX.fmtArgent(i.profit, 0) + '.' + (partiel ? ' Seuls les livres de ' + ciesAvant.join(', ') + ' couvrent la période précédente (les autres classeurs sont ceux de l\'année en cours) : comparaison partielle.' : ''), isNaN(vProfit) ? '' : (partiel ? '' : signeClasse(vProfit)))
     ]);
     // Rangée 2 : le processus de vente.
     var pm = i.paiement, pOrdre = ['financement', 'location', 'comptant', 'autre'].filter(function (k) { return pm[k] > 0; }).sort(function (a, b) { return pm[b] - pm[a]; });

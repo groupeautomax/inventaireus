@@ -195,7 +195,8 @@
   };
 
   Csi.prototype.scoreDe = function (type, periode) {
-    var liste = this.scoresVisibles().filter(function (s) { return s.type === type && s.periode === periode; });
+    // Une ligne sans score ni sondage est un rapport que le constructeur n'a pas produit (ex. InMoment resté en file) : on la traite comme non lue.
+    var liste = this.scoresVisibles().filter(function (s) { return s.type === type && s.periode === periode && !((s.score === null || s.score === undefined) && !s.sondages); });
     if (liste.length <= 1) return liste[0] || null;
     // Plusieurs concessions : on garde la plus récente par concession, puis la moyenne pondérée par le nombre de sondages.
     var tot = 0, poids = 0; liste.forEach(function (s) { if (s.score !== null) { var w = s.sondages || 1; tot += s.score * w; poids += w; } });
@@ -262,7 +263,7 @@
     this.elScores.appendChild(h('div', { style: { gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' } }, [h('span.doux.petit', { text: 'Scores ' + (premier && premier.mixte ? 'de plusieurs constructeurs' : eGlobal.long) + ' — ' + (PERIODES.filter(function (p) { return p[0] === self.periode; })[0] || [])[1].toLowerCase() }), seg]));
     var cartes = [['ventes', 'ventes'], ['service', 'service'], ['combine', 'combiné']];
     cartes.forEach(function (c) {
-      var s = self.scoreDe(c[0], self.periode), e = echelleDe(s);
+      var s = self.scoreDe(c[0], self.periode), e = echelleDe(s || premier);   /* carte vide : on garde l'échelle de la concession, pas « NPS » par défaut */
       if (!s || s.mixte) { if (c[0] === 'combine' && premier && premier.echelle === 'index') return; self.elScores.appendChild(h('div.csi-score.gris', [h('div.nom', { text: e.nom + ' ' + c[1] }), h('div.val', { text: '—' }), h('div.rangs', { text: s && s.mixte ? 'échelles différentes (NPS Hyundai, index GM) : choisissez une concession' : 'pas lu pour cette période' })])); return; }
       var ecart = s.cibleEcart, cls = ecart === null || ecart === undefined ? 'gris' : (ecart >= 0 ? 'vert' : 'rouge');
       var tot = (s.promoteurs || 0) + (s.passifs || 0) + (s.detracteurs || 0);

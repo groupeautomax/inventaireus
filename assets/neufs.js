@@ -62,6 +62,7 @@
   function fmtJours(j) { return j === null || j === undefined || isNaN(j) ? '—' : AMX.fmtNombre(j) + ' j'; }
   function moyenne(l) { return l.length ? Math.round(l.reduce(function (a, b) { return a + b; }, 0) / l.length) : null; }
   function isoJoursAvant(n) { var d = new Date(Date.now() - n * 86400000); return d.toISOString().slice(0, 10); }
+  function debut12Mois() { var n = new Date(), d = new Date(n.getFullYear(), n.getMonth() - 11, 1); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-01'; }
   function nomCie(c) { return AMX.COMPAGNIES_TOUTES[c] || c || ''; }
 
   function injecterCss() {
@@ -69,12 +70,25 @@
     var s = document.createElement('style'); s.id = 'css-neufs';
     s.textContent = [
       '.neufs-page .carte { margin-bottom: 12px; }',
-      '.neufs-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }',
-      '.neufs-carte { text-align: left; background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 10px 12px 9px; display: flex; flex-direction: column; gap: 4px; box-shadow: var(--ombre); position: relative; overflow: hidden; cursor: pointer; }',
+      /* Concessions en pastilles sur une ligne (la liste verticale commune prend 300 px : trop long ici) */
+      '.neufs-concessions { margin-bottom: 12px; } .neufs-concessions .choix-cie { flex-direction: row; flex-wrap: wrap; gap: 6px; } .neufs-concessions .choix-cie .choix { width: auto; border-color: var(--bordure); background: var(--carte); border-radius: 999px; padding: 5px 11px 5px 9px; } .neufs-concessions .choix-cie .choix .n { margin-left: 2px; }',
+      /* Pipeline : commandées → transit → stock → démos → vendues */
+      '.neufs-pipeline .neufs-etapes { display: flex; align-items: stretch; gap: 4px; padding: 10px 12px; overflow-x: auto; } .neufs-etapes .fleche { align-self: center; color: var(--encre-4); font-size: 18px; padding: 0 2px; flex: none; }',
+      '.neufs-etape { flex: 1 1 140px; min-width: 130px; text-align: left; background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 12px; cursor: pointer; font: inherit; color: var(--encre); position: relative; overflow: hidden; } .neufs-etape:hover { border-color: var(--encre-3); }',
+      '.neufs-etape::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ligne-forte); } .neufs-etape.vert::before { background: var(--vert); } .neufs-etape.bleu::before { background: var(--bleu); } .neufs-etape.violet::before { background: var(--violet); } .neufs-etape.sombre::before { background: var(--noir-2); }',
+      '@media (max-width: 640px) { .neufs-pipeline .neufs-etapes { flex-wrap: wrap; overflow: visible; } .neufs-etapes .fleche { display: none; } .neufs-etape { flex: 1 1 calc(50% - 4px); min-width: 0; } }',
+      '.neufs-etape .n { font-size: 24px; font-weight: 700; line-height: 1.1; } .neufs-etape .nom { font-size: 12px; font-weight: 600; margin-top: 2px; } .neufs-etape .sous { font-size: 11px; color: var(--encre-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+      /* Onglets de la page */
+      '.neufs-onglets { display: flex; gap: 4px; border-bottom: 1px solid var(--ligne); margin: 2px 0 12px; overflow-x: auto; } .neufs-onglets button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 8px 12px; font: inherit; font-size: 13.5px; color: var(--encre-3); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; margin-bottom: -1px; } .neufs-onglets button b { font-weight: 600; font-size: 12px; color: var(--encre-3); background: var(--gris-bg); border-radius: 999px; padding: 1px 7px; } .neufs-onglets button:hover { color: var(--encre); } .neufs-onglets button.actif { color: var(--vert); border-bottom-color: var(--vert); font-weight: 600; } .neufs-onglets button.actif b { color: var(--vert); background: var(--vert-clair); }',
+      '.neufs-panneau.cache { display: none; }',
+      '.neufs-cmd .tableau { min-width: 640px; } .neufs-cmd td.num, .neufs-cmd th.num { text-align: right; font-variant-numeric: tabular-nums; } .neufs-cmd tr.modele { cursor: pointer; } .neufs-cmd tr.modele:hover td { background: var(--carte-2); } .neufs-cmd tr.modele.ouvert td { background: var(--carte-2); } .neufs-cmd tr.version td:first-child { padding-left: 26px; color: var(--encre-2); } .neufs-cmd tr.version.cache { display: none; } .neufs-cmd tr.total td { font-weight: 700; border-top: 2px solid var(--ligne-forte); }',
+      '.neufs-panneau h3 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 0 0 6px; }',
+      '.neufs-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }',
+      '.neufs-carte { text-align: left; background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 8px 10px 7px 12px; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--ombre); position: relative; overflow: hidden; cursor: pointer; }',
       '.neufs-carte::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ligne-forte); }',
       '.neufs-carte.vert::before { background: var(--vert); } .neufs-carte.bleu::before { background: var(--bleu); } .neufs-carte.ambre::before { background: var(--ambre); } .neufs-carte.rouge::before { background: var(--rouge); } .neufs-carte.violet::before { background: var(--violet); } .neufs-carte.sombre::before { background: var(--noir-2); }',
       '.neufs-carte.actif { border-color: var(--encre); box-shadow: 0 0 0 2px rgba(0,0,0,.08); }',
-      '.neufs-carte .nom { font-size: 11.5px; color: var(--encre-3); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; } .neufs-carte .n { font-size: 22px; font-weight: 700; line-height: 1.1; } .neufs-carte .bas { font-size: 11.5px; color: var(--encre-3); }',
+      '.neufs-carte .nom { font-size: 10.5px; color: var(--encre-3); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; } .neufs-carte .n { font-size: 20px; font-weight: 700; line-height: 1.1; } .neufs-carte .bas { font-size: 11px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
       '.neufs-jauge { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--gris-bg); margin: 8px 0 6px; }',
       '.neufs-jauge i { display: block; height: 100%; } .neufs-jauge .vert { background: var(--vert); } .neufs-jauge .bleu { background: var(--bleu); } .neufs-jauge .ambre { background: var(--ambre); } .neufs-jauge .rouge { background: var(--rouge); } .neufs-jauge .sombre { background: var(--noir-2); }',
       '.neufs-legende { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; } .neufs-legende button { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; color: var(--encre-2); } .neufs-legende button.actif { font-weight: 700; color: var(--encre); } .neufs-legende i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }',
@@ -100,12 +114,11 @@
       '.neufs-prix { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; } .neufs-prix .tuile { background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 8px; padding: 8px 10px; } .neufs-prix .l { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); } .neufs-prix .v { font-size: 16px; font-weight: 700; }',
       '.neufs-options { display: flex; flex-wrap: wrap; gap: 4px; } .neufs-options span { background: var(--gris-bg); border-radius: 999px; padding: 2px 8px; font-size: 11.5px; }',
       '.neufs-vide { padding: 28px 12px; text-align: center; color: var(--encre-3); }',
-      '.neufs-portail .carte-entete { flex-wrap: wrap; } .neufs-portail .carte-entete h2 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; } .neufs-portail .carte-entete h2 .sous { font-weight: 400; font-size: 12px; color: var(--encre-3); }',
+      '.neufs-panneau .carte-entete { flex-wrap: wrap; } .neufs-panneau .carte-entete h2 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; } .neufs-panneau .carte-entete h2 .sous { font-weight: 400; font-size: 12px; color: var(--encre-3); }',
       '.neufs-portail-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }',
-      '.neufs-portail h3 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 0 0 6px; }',
-      '.neufs-portail .tableau { min-width: 0; } .neufs-portail td.num, .neufs-portail th.num { text-align: right; font-variant-numeric: tabular-nums; }',
-      '.neufs-portail .neufs-mois { display: flex; gap: 4px; align-items: flex-end; height: 64px; margin: 4px 0 2px; } .neufs-portail .neufs-mois i { flex: 1; background: var(--vert); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; } .neufs-portail .neufs-mois i.actuel { background: var(--bleu); }',
-      '.neufs-portail .neufs-mois-leg { display: flex; gap: 4px; font-size: 10px; color: var(--encre-3); } .neufs-portail .neufs-mois-leg span { flex: 1; text-align: center; }',
+      '.neufs-portail-grille .tableau { min-width: 0; } .neufs-portail-grille td.num, .neufs-portail-grille th.num { text-align: right; font-variant-numeric: tabular-nums; }',
+      '.neufs-mois { display: flex; gap: 4px; align-items: flex-end; height: 72px; margin: 4px 0 2px; } .neufs-mois i { flex: 1; background: var(--vert); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; } .neufs-mois i.actuel { background: var(--bleu); }',
+      '.neufs-mois-leg { display: flex; gap: 4px; font-size: 10px; color: var(--encre-3); } .neufs-mois-leg span { flex: 1; text-align: center; }',
       '.neufs-signet { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 4px; } .neufs-signet p { margin: 4px 0 8px; font-size: 12.5px; color: var(--encre-2); line-height: 1.5; }'
     ].join('\n');
     document.head.appendChild(s);
@@ -246,12 +259,17 @@
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
     this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail du constructeur</span>', title: 'Lire l\'inventaire, les commandes et les ventes déclarées depuis le portail du constructeur (favori à cliquer sur le portail, connecté)', onclick: function () { self.ouvrirSignet(self.compagnie || 'HYUNDAI'); } });
     var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Véhicules neufs'), this.elEtat]), h('div.actions', [this.btnPortail, this.btnRafraichir, this.btnExport])]);
-    this.elChoix = h('div');
-    this.elPortail = h('div.carte.neufs-portail');
+    this.elChoix = h('div.neufs-concessions');
+    this.elPipeline = h('div.carte.neufs-pipeline');
     this.elCartes = h('div.neufs-cartes');
+    this.elOnglets = h('div.neufs-onglets', { role: 'tablist' });
+    // Onglets : Liste · Commandes · Ventes déclarées · Analyse — un seul affiché à la fois (page courte, Maxime 10 oct.)
+    this.onglet = AMX.memo.lire('neufs_onglet', 'liste'); if (['liste', 'commandes', 'ventes', 'analyse'].indexOf(this.onglet) < 0) this.onglet = 'liste';
     this.elVieillissement = h('div.carte');
     this.elRevue = h('div.carte');
     this.elGroupes = h('div.carte');
+    this.elCommandes = h('div.neufs-panneau');
+    this.elVentes = h('div.neufs-panneau');
     this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, version, couleur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { self.filtres.modele = e.target.value; self.filtres.version = ''; self.rendreTable(); self.rendreSelects(); } });
     this.selVersion = h('select.saisie', { 'aria-label': 'Version', onchange: function (e) { self.filtres.version = e.target.value; self.rendreTable(); } });
@@ -259,7 +277,7 @@
     this.selAnnee = h('select.saisie', { 'aria-label': 'Année-modèle', onchange: function (e) { self.filtres.annee = e.target.value; self.rendreTable(); } });
     this.selEmplacement = h('select.saisie', { 'aria-label': 'Emplacement', onchange: function (e) { self.filtres.emplacement = e.target.value; self.rendreTable(); } });
     var caseSortis = h('input', { type: 'checkbox' });
-    caseSortis.addEventListener('change', function () { self.filtres.sortis = caseSortis.checked; self.rendreTable(); });
+    caseSortis.addEventListener('change', function () { self.filtres.sortis = caseSortis.checked; self.rendreSelects(); self.rendreTable(); });
     this.elCompte = h('span.compte.doux');
     var barre = h('div.carte', [h('div.carte-corps', [this.elStatuts, h('div.neufs-outils', [
       h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.selModele, this.selVersion, this.selAnnee, this.selEmplacement,
@@ -268,9 +286,34 @@
     this.elBarre = barre;
     this.elTable = h('div.neufs-table');
     this.elExclus = h('div.neufs-exclus');
-    // Ordre voulu par Maxime (10 oct.) : concessions → statuts + recherche → liste, puis les indicateurs et les analyses.
-    this.el = h('div.page.neufs-page', [entete, this.elChoix, barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])]), this.elCartes, this.elVieillissement, this.elPortail, this.elRevue, this.elGroupes]);
+    this.elListe = h('div.neufs-panneau', [barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])])]);
+    this.elAnalyse = h('div.neufs-panneau', [this.elVieillissement, this.elGroupes, this.elRevue]);
+    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elPipeline, this.elCartes, this.elOnglets, this.elListe, this.elCommandes, this.elVentes, this.elAnalyse]);
     this.conteneur.appendChild(this.el);
+  };
+  /* Onglet actif : un seul panneau visible ; mémorisé pour la prochaine visite. */
+  VueNeufs.prototype.montrer = function (onglet, options) {
+    this.onglet = onglet; AMX.memo.ecrire('neufs_onglet', onglet);
+    var self = this;
+    [['liste', this.elListe], ['commandes', this.elCommandes], ['ventes', this.elVentes], ['analyse', this.elAnalyse]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
+    this.rendreOnglets();
+    if (options && options.defiler) { var cible = { liste: this.elBarre, commandes: this.elCommandes, ventes: this.elVentes, analyse: this.elAnalyse }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  };
+  VueNeufs.prototype.rendreOnglets = function () {
+    var self = this, d = this.donnees;
+    AMX.vider(this.elOnglets);
+    if (!d) return;
+    var enStock = this.visibles().filter(function (v) { return v.enStock; }).length;
+    var c = this.compagnie, p = this.portail || {};
+    var commandes = (p.commandes || []).filter(function (x) { return !c || x.compagnie === c; }).reduce(function (s, x) { return s + (x.n || 0); }, 0);
+    var depuis12 = debut12Mois(), ventes = (p.ventes || []).filter(function (x) { return (!c || x.compagnie === c) && String(x.dateVente) >= depuis12; }).length;
+    var portail = !c || !!PORTAILS[c];
+    var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['analyse', 'Analyse', null]];
+    onglets.forEach(function (o) {
+      if (o[2] === null && (o[0] === 'commandes' || o[0] === 'ventes')) return;   /* concession sans portail : pas d'onglets vides */
+      self.elOnglets.appendChild(h('button' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', 'data-onglet': o[0], onclick: function () { self.montrer(o[0]); } }, [h('span', { text: o[1] }), o[2] !== null ? h('b', { text: AMX.fmtNombre(o[2]) }) : null]));
+    });
+    if (!this.elOnglets.querySelector('button.actif')) { this.onglet = 'liste'; this.montrer('liste'); }
   };
 
   VueNeufs.prototype.charger = function (force) {
@@ -278,7 +321,7 @@
     if (force) this.btnRafraichir.classList.add('occupe');
     if (!AMX.neufs.enCache()) this.elTable.appendChild(AMX.chargeur('Véhicules neufs'));
     this.portail = this.portail || null;
-    AMX.neufs.chargerPortail(force).then(function (p) { if (gen !== self.generation) return; self.portail = p; self.rendrePortail(); }, function () { if (gen !== self.generation) return; self.portail = null; self.rendrePortail(); });
+    AMX.neufs.chargerPortail(force).then(function (p) { if (gen !== self.generation) return; self.portail = p; self.rendrePortailOnglets(); }, function () { if (gen !== self.generation) return; self.portail = null; self.rendrePortailOnglets(); });
     return AMX.neufs.charger(force).then(function (d) {
       if (gen !== self.generation) return;
       self.donnees = d; self.erreur = '';
@@ -309,23 +352,27 @@
     var self = this;
     AMX.vider(this.elChoix);
     var tous = this.donnees ? this.donnees.vehicules : [];
-    var choix = AMX.choixCompagnie({ domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return tous.filter(function (v) { return v.enStock && (!c || v.compagnie === c); }).length; }, onchange: function (c) { self.compagnie = c; self.filtres.modele = ''; self.filtres.version = ''; self.rendre(); } });
-    if (choix) this.elChoix.appendChild(h('div.carte', [h('div.carte-corps', [h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Concession' }), choix])]));
+    var choix = AMX.choixCompagnie({ domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return tous.filter(function (v) { return v.enStock && (!c || v.compagnie === c); }).length; }, onchange: function (c) { self.compagnie = c; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); } });
+    if (choix) this.elChoix.appendChild(choix);
     if (this.erreur && !this.donnees) { this.elEtat.textContent = this.erreur; AMX.vider(this.elTable); this.elTable.appendChild(h('div.neufs-vide', { text: 'Impossible de charger les neufs : ' + this.erreur })); return; }
     if (!this.donnees) return;
     var liste = this.visibles(), enStock = liste.filter(function (v) { return v.enStock; });
     var feeds = this.donnees.feeds || {}, cies = this.compagnie ? [this.compagnie] : Object.keys(AMX.COMPAGNIES);
     var derniers = cies.map(function (c) { return feeds[c] ? nomCie(c) + ' ' + AMX.fmtDate(feeds[c].le, true) + (/portail/.test(String(feeds[c].source || '')) ? ' (portail)' : '') : null; }).filter(Boolean);
-    this.elEtat.textContent = enStock.length + ' neuf' + (enStock.length > 1 ? 's' : '') + ' en stock' + (this.compagnie ? ' — ' + nomCie(this.compagnie) : ' — tout le groupe') + (derniers.length ? ' · dernière lecture : ' + derniers.join(' · ') : ' · aucun feed reçu encore');
+    var nTerrain = enStock.filter(function (v) { return String(v.statutLibelle || '').toUpperCase() === 'EN-INVENT.'; }).length, nTransit = enStock.filter(function (v) { return /TRANSIT/.test(String(v.statutLibelle || '').toUpperCase()); }).length, nDemos = enStock.filter(estDemo).length;
+    this.elEtat.textContent = enStock.length + ' neuf' + (enStock.length > 1 ? 's' : '') + (this.compagnie ? ' — ' + nomCie(this.compagnie) : ' — tout le groupe') + (enStock.length ? ' (' + nTerrain + ' en stock' + (nDemos ? ', ' + nDemos + ' démo' + (nDemos > 1 ? 's' : '') : '') + (nTransit ? ', ' + nTransit + ' en transit' : '') + ')' : '') + (derniers.length ? ' · dernière lecture : ' + derniers.join(' · ') : ' · aucun feed reçu encore');
     this.btnPortail.classList.toggle('cache', !(peutImporterPortail() && (!this.compagnie || PORTAILS[this.compagnie])));
+    this.rendrePipeline(enStock);
     this.rendreCartes(enStock);
     this.rendreVieillissement(enStock);
-    this.rendrePortail();
+    this.rendreCommandes();
+    this.rendreVentes();
     this.rendreRevue(liste);
     this.rendreGroupes(liste);
     this.rendreSelects();
     this.rendreTable();
     this.rendreExclus();
+    this.montrer(this.onglet);
   };
 
   /* Exclusions permanentes (Maxime, 7 oct. : « enlever de manière permanente les 4 unités de VW vieilles »).
@@ -377,52 +424,138 @@
     this.elExclus.appendChild(det);
   };
 
-  /* Carte « Portail du constructeur » : ventes déclarées au constructeur (RDR) par mois et par modèle, commandes en attente,
-     factures — ce que le signet a lu sur le portail (Hyundai pour l'instant). */
-  VueNeufs.prototype.rendrePortail = function () {
-    var self = this, p = this.portail, c = this.compagnie;
-    AMX.vider(this.elPortail);
-    var cies = c ? [c] : Object.keys(PORTAILS);
-    var etats = (p && p.etats) || {};
-    var ventes = ((p && p.ventes) || []).filter(function (v) { return !c || v.compagnie === c; });
-    var commandes = ((p && p.commandes) || []).filter(function (v) { return !c || v.compagnie === c; });
+  /* Données du portail du constructeur (?constructeur=1) pour la concession choisie : ventes déclarées (RDR), commandes, états. */
+  VueNeufs.prototype.portailVisible = function () {
+    var p = this.portail || {}, c = this.compagnie;
+    var filtre = function (l) { return (l || []).filter(function (x) { return !c || x.compagnie === c; }); };
+    var cies = c ? [c] : Object.keys(PORTAILS), etats = p.etats || {};
     var lus = cies.filter(function (x) { return etats[x] && etats[x].le; });
-    var cache = !lus.length && !ventes.length;
-    this.elPortail.classList.toggle('cache', cache);
-    if (cache) return;
-    var etat = lus.length ? etats[lus[0]] : null;
-    var sous = lus.map(function (x) { return nomCie(x) + ' lu le ' + AMX.fmtDate(etats[x].le, true) + (etats[x].par ? ' par ' + String(etats[x].par).split('@')[0] : ''); }).join(' · ');
-    this.elPortail.appendChild(h('div.carte-entete', [h('h2', ['Portail du constructeur', h('span.sous', { text: sous })]), peutImporterPortail() ? h('button.btn.petit', { type: 'button', html: I.externe + '<span>Relire le portail</span>', onclick: function () { self.ouvrirSignet(lus[0] || cies[0]); } }) : null]));
-    // Ventes déclarées par mois (12 derniers mois) + par type ; par modèle (12 mois)
+    return { ventes: filtre(p.ventes), commandes: filtre(p.commandes), etats: etats, lus: lus, cies: cies, montants: !!p.montants, factures: p.factures || {} };
+  };
+  VueNeufs.prototype.rendrePortailOnglets = function () {
+    if (!this.donnees) return;
+    var enStock = this.visibles().filter(function (v) { return v.enStock; });
+    this.rendrePipeline(enStock); this.rendreCommandes(); this.rendreVentes(); this.rendreOnglets();
+  };
+  /* Bande « pipeline » : commandées → en transit → en stock → démos / courtoisie → vendues (RDR). Chaque étape mène au détail. */
+  VueNeufs.prototype.rendrePipeline = function (enStock) {
+    var self = this, pv = this.portailVisible();
+    AMX.vider(this.elPipeline);
+    var statut = function (cle) { return enStock.filter(function (v) { return String(v.statutLibelle || '').toUpperCase() === cle; }).length; };
+    var transit = enStock.filter(function (v) { return /TRANSIT/.test(String(v.statutLibelle || '').toUpperCase()); }).length;
+    var demos = enStock.filter(estDemo).length, echanges = enStock.filter(estEchange).length;
+    var terrain = statut('EN-INVENT.');
+    var commandes = pv.commandes.reduce(function (s, x) { return s + (x.n || 0); }, 0);
+    var mois = new Date().toISOString().slice(0, 7), depuis12 = debut12Mois();
+    var ventes12 = pv.ventes.filter(function (v) { return String(v.dateVente) >= depuis12; }), ceMois = ventes12.filter(function (v) { return String(v.dateVente).slice(0, 7) === mois; }).length;
+    var sorties90 = this.mouvements().filter(function (m) { return m.type === 'sortie' && String(m.date) >= isoJoursAvant(90); }).length;
+    var portail = pv.lus.length > 0;
+    var etape = function (cls, nom, n, sous, action) {
+      var b = h('button.neufs-etape.' + cls, { type: 'button', title: sous || '' }, [h('div.n', { text: n === null ? '—' : AMX.fmtNombre(n) }), h('div.nom', { text: nom }), sous ? h('div.sous', { text: sous }) : null]);
+      b.addEventListener('click', action);
+      return b;
+    };
+    var versListe = function (cle) { return function () { self.filtres.statut = cle; self.filtres.tranche = ''; self.filtres.sortis = false; self.rendreSelects(); self.rendreTable(); self.montrer('liste', { defiler: true }); }; };
+    var etapes = [];
+    if (portail || commandes) etapes.push(etape('bleu', 'Commandées', commandes, portail ? 'en cours chez le constructeur' : 'pas de lecture du portail', function () { self.montrer('commandes', { defiler: true }); }));
+    etapes.push(etape('bleu', 'En transit', transit, 'en route vers la concession', versListe('TRANSIT')));
+    etapes.push(etape('vert', 'En stock', terrain, 'sur le terrain, à vendre', versListe('EN-INVENT.')));
+    etapes.push(etape('violet', 'Démos / courtoisie', demos, echanges ? '+ ' + echanges + ' échange' + (echanges > 1 ? 's' : '') + ' concessionnaire' : 'en service, à écouler', versListe('DEMO')));
+    if (portail) etapes.push(etape('sombre', 'Vendus (RDR)', ceMois, ventes12.length + ' sur 12 mois · déclarés au constructeur', function () { self.montrer('ventes', { defiler: true }); }));
+    else etapes.push(etape('sombre', 'Sorties 90 j', sorties90, 'déduites du feed du DMS', function () { self.montrer('analyse', { defiler: true }); }));
+    var corps = h('div.neufs-etapes');
+    etapes.forEach(function (e, i) { if (i) corps.appendChild(h('span.fleche', { 'aria-hidden': 'true', text: '→' })); corps.appendChild(e); });
+    this.elPipeline.appendChild(corps);
+  };
+  /* Onglet Commandes : ce qui est commandé chez le constructeur (par modèle › version · couleur), puis ce qui est en route. */
+  VueNeufs.prototype.rendreCommandes = function () {
+    var self = this, pv = this.portailVisible();
+    AMX.vider(this.elCommandes);
+    var etat = pv.lus.length ? pv.etats[pv.lus[0]] : null;
+    var lu = pv.lus.map(function (x) { return nomCie(x) + ' lu le ' + AMX.fmtDate(pv.etats[x].le, true) + (pv.etats[x].par ? ' par ' + String(pv.etats[x].par).split('@')[0] : ''); }).join(' · ');
+    var total = pv.commandes.reduce(function (s, x) { return s + (x.n || 0); }, 0);
+    var carte = h('div.carte');
+    carte.appendChild(h('div.carte-entete', [h('h2', ['Commandes en cours chez le constructeur', h('span.sous', { text: total ? total + ' unité' + (total > 1 ? 's' : '') + (lu ? ' · ' + lu : '') : (lu || '') })]), peutImporterPortail() ? h('button.btn.petit', { type: 'button', html: I.externe + '<span>Relire le portail</span>', onclick: function () { self.ouvrirSignet(pv.lus[0] || pv.cies[0]); } }) : null]));
+    if (!pv.commandes.length) {
+      carte.appendChild(h('div.carte-corps', [h('div.neufs-vide', { text: pv.lus.length ? 'Aucune commande en cours au dernier passage.' : 'Pas encore de lecture du portail : cliquez le favori « Automax ← Constructeur » sur le portail du constructeur, connecté.' })]));
+      this.elCommandes.appendChild(carte); return;
+    }
+    // Par modèle (regroupé), détail version · couleur · type en dessous
+    var parModele = {};
+    pv.commandes.forEach(function (x) { var k = x.modele || '—'; var m = parModele[k] || (parModele[k] = { modele: k, n: 0, lignes: [], annees: {}, cies: {} }); m.n += x.n || 0; m.lignes.push(x); if (x.annee) m.annees[x.annee] = (m.annees[x.annee] || 0) + (x.n || 0); if (!self.compagnie) m.cies[x.compagnie] = (m.cies[x.compagnie] || 0) + (x.n || 0); });
+    var modeles = Object.keys(parModele).map(function (k) { return parModele[k]; }).sort(function (a, b) { return b.n - a.n || a.modele.localeCompare(b.modele); });
+    var enStockPar = {}; this.visibles().forEach(function (v) { if (v.enStock && !/TRANSIT/.test(String(v.statutLibelle || '').toUpperCase())) enStockPar[v.modele || '—'] = (enStockPar[v.modele || '—'] || 0) + 1; });
+    var transitPar = {}; this.visibles().forEach(function (v) { if (v.enStock && /TRANSIT/.test(String(v.statutLibelle || '').toUpperCase())) transitPar[v.modele || '—'] = (transitPar[v.modele || '—'] || 0) + 1; });
+    var g = groupes(this.visibles(), this.mouvements()), sortiesPar = {}; g.modeles.forEach(function (m) { sortiesPar[m.modele] = m.sorties; });
+    var corps = h('tbody');
+    modeles.forEach(function (m) {
+      var annees = Object.keys(m.annees).sort().map(function (a) { return a + ' ×' + m.annees[a]; }).join(', ');
+      var tr = h('tr.modele', [h('td', [h('b', { text: m.modele }), self.compagnie ? null : h('span.doux.petit', { text: ' ' + Object.keys(m.cies).map(function (c) { return nomCie(c) + ' ' + m.cies[c]; }).join(' · ') })]), h('td', { text: annees }), h('td.num', [h('b', { text: String(m.n) })]), h('td.num', { text: transitPar[m.modele] ? String(transitPar[m.modele]) : '' }), h('td.num', { text: enStockPar[m.modele] ? String(enStockPar[m.modele]) : '' }), h('td.num', { text: sortiesPar[m.modele] ? String(sortiesPar[m.modele]) : '' })]);
+      var ouvert = false, details = [];
+      tr.addEventListener('click', function () { ouvert = !ouvert; details.forEach(function (d) { d.classList.toggle('cache', !ouvert); }); tr.classList.toggle('ouvert', ouvert); });
+      corps.appendChild(tr);
+      m.lignes.sort(function (a, b) { return (b.n || 0) - (a.n || 0); }).forEach(function (x) {
+        var d = h('tr.version.cache', [h('td', { text: [x.annee, x.version || '—', x.couleur].filter(Boolean).join(' · ') + (x.typeCommande ? ' — ' + x.typeCommande : '') }), h('td'), h('td.num', { text: String(x.n || 0) }), h('td'), h('td'), h('td')]);
+        details.push(d); corps.appendChild(d);
+      });
+    });
+    corps.appendChild(h('tr.total', [h('td', 'Total'), h('td'), h('td.num', [h('b', { text: String(total) })]), h('td.num', { text: String(Object.keys(transitPar).reduce(function (s, k) { return s + transitPar[k]; }, 0) || '') }), h('td.num', { text: String(Object.keys(enStockPar).reduce(function (s, k) { return s + enStockPar[k]; }, 0) || '') }), h('td.num', { text: String(g.total.sorties || '') })]));
+    carte.appendChild(h('div.carte-corps', [
+      h('div.neufs-cmd', { style: { overflowX: 'auto' } }, [h('table.tableau', [h('thead', [h('tr', [h('th', 'Modèle'), h('th', 'Années-modèle'), h('th.num', 'Commandées'), h('th.num', 'En transit'), h('th.num', 'En stock'), h('th.num', 'Sorties ' + g.fenetre + ' j')])]), corps])]),
+      h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Cliquez un modèle pour le détail par version et couleur. Les sorties sont celles des ' + g.fenetre + ' derniers jours : commandes + transit + stock très au-dessus des sorties = surapprovisionnement à venir.' + (etat && etat.stock ? ' Dernier passage : ' + (etat.stock.total || 0) + ' NIV (' + (etat.stock.enStock || 0) + ' en stock, ' + (etat.stock.demos || 0) + ' démos / courtoisie, ' + (etat.stock.transit || 0) + ' en transit)' + (etat.stock.initial ? ' — premier import' : ' · ' + (etat.stock.arrivees || 0) + ' arrivée' + (etat.stock.arrivees > 1 ? 's' : '') + ', ' + (etat.stock.sorties || 0) + ' sortie' + (etat.stock.sorties > 1 ? 's' : '')) + '.' : '') })
+    ]));
+    this.elCommandes.appendChild(carte);
+    // En route : les NIV en transit, avec l'étape et la date d'arrivée prévue quand le portail la donne
+    var transit = this.visibles().filter(function (v) { return v.enStock && /TRANSIT/.test(String(v.statutLibelle || '').toUpperCase()); });
+    if (transit.length) {
+      transit.sort(function (a, b) { return String((a.extra || {}).eta || '9999').localeCompare(String((b.extra || {}).eta || '9999')) || nomVehicule(a).localeCompare(nomVehicule(b)); });
+      var c2 = h('div.carte', [h('div.carte-entete', [h('h2', ['En route', h('span.sous', { text: transit.length + ' véhicule' + (transit.length > 1 ? 's' : '') + ' en transit' })]), h('button.btn.petit', { type: 'button', text: 'Voir dans la liste', onclick: function () { self.filtres.statut = 'TRANSIT'; self.rendreSelects(); self.rendreTable(); self.montrer('liste', { defiler: true }); } })])]);
+      var rows = transit.slice(0, 60).map(function (v) { var x = v.extra || {}; var tr = h('tr.rangee', [h('td.vehicule', [h('div.nom', { text: nomVehicule(v) }), h('div.vin', { text: v.vin + (x.commande ? ' · cmd ' + x.commande : '') })]), h('td', { text: v.couleur || '—' }), h('td', { text: v.emplacement || x.etape || '—' }), h('td', { text: x.eta ? AMX.fmtDate(x.eta) : '—' })]); tr.addEventListener('click', function () { self.ouvrir(v); }); return tr; });
+      c2.appendChild(h('div.carte-corps', [h('div.neufs-table', [h('table.tableau', [h('thead', [h('tr', [h('th', 'Véhicule'), h('th', 'Couleur'), h('th', 'Étape'), h('th', 'Arrivée prévue')])]), h('tbody', rows)])]), transit.length > 60 ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: '… et ' + (transit.length - 60) + ' autres — voir la liste, statut « En transit ».' }) : null]));
+      this.elCommandes.appendChild(c2);
+    }
+  };
+  /* Onglet Ventes déclarées : les RDR des 12 derniers mois (par mois, par type, par modèle) et les dernières livraisons. */
+  VueNeufs.prototype.rendreVentes = function () {
+    var self = this, pv = this.portailVisible();
+    AMX.vider(this.elVentes);
+    var lu = pv.lus.map(function (x) { return nomCie(x) + ' lu le ' + AMX.fmtDate(pv.etats[x].le, true); }).join(' · ');
+    var carte = h('div.carte');
+    if (!pv.ventes.length) {
+      carte.appendChild(h('div.carte-entete', [h('h2', 'Ventes déclarées au constructeur (RDR)')]));
+      carte.appendChild(h('div.carte-corps', [h('div.neufs-vide', { text: pv.lus.length ? 'Aucune vente déclarée lue au dernier passage.' : 'Pas encore de lecture du portail : cliquez le favori « Automax ← Constructeur » sur le portail du constructeur, connecté.' })]));
+      this.elVentes.appendChild(carte); return;
+    }
     var mois = [], now = new Date();
     for (var i = 11; i >= 0; i--) { var d = new Date(now.getFullYear(), now.getMonth() - i, 1); mois.push({ cle: d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2), libelle: ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][d.getMonth()], n: 0 }); }
     var parMois = {}; mois.forEach(function (m) { parMois[m.cle] = m; });
-    var parType = {}, parModele = {}, total12 = 0, ceMois = 0, cleMois = mois[11].cle;
-    ventes.forEach(function (v) { var k = String(v.dateVente).slice(0, 7); if (parMois[k]) { parMois[k].n++; total12++; } if (k === cleMois) ceMois++; var t = libelleTypeVente(v.typeVente); parType[t] = (parType[t] || 0) + 1; if (parMois[k]) { var m = v.modele || '—'; parModele[m] = parModele[m] || { n: 0, cout: 0, nCout: 0 }; parModele[m].n++; if (v.coutFacture) { parModele[m].cout += v.coutFacture; parModele[m].nCout++; } } });
+    var parType = {}, parModele = {}, total12 = 0, ceMois = 0, cleMois = mois[11].cle, moisPrec = mois[10].cle, nPrec = 0;
+    pv.ventes.forEach(function (v) { var k = String(v.dateVente).slice(0, 7); if (parMois[k]) { parMois[k].n++; total12++; var t = libelleTypeVente(v.typeVente); parType[t] = (parType[t] || 0) + 1; var m = v.modele || '—'; parModele[m] = parModele[m] || { n: 0, cout: 0, nCout: 0 }; parModele[m].n++; if (v.coutFacture) { parModele[m].cout += v.coutFacture; parModele[m].nCout++; } } if (k === cleMois) ceMois++; if (k === moisPrec) nPrec++; });
     var max = Math.max(1, Math.max.apply(null, mois.map(function (m) { return m.n; })));
-    var colVentes = h('div', [
-      h('h3', { text: 'Ventes déclarées (RDR) — ' + total12 + ' sur 12 mois · ' + ceMois + ' ce mois' }),
+    var jourMois = now.getDate(), rythme = ceMois / Math.max(1, jourMois), joursMois = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    carte.appendChild(h('div.carte-entete', [h('h2', ['Ventes déclarées au constructeur (RDR)', h('span.sous', { text: total12 + ' sur 12 mois · ' + ceMois + ' ce mois' + (lu ? ' · ' + lu : '') })]), h('span.doux.petit', { text: 'livraisons déclarées, pas les profits (voir Résultat › Véhicules neufs)' })]));
+    var colMois = h('div', [
+      h('h3', { text: 'Par mois' }),
       h('div.neufs-mois', mois.map(function (m, i) { return h('i' + (i === 11 ? '.actuel' : ''), { style: { height: Math.round(100 * m.n / max) + '%' }, title: m.cle + ' : ' + m.n + ' vente' + (m.n > 1 ? 's' : '') }); })),
       h('div.neufs-mois-leg', mois.map(function (m) { return h('span', { text: m.libelle }); })),
-      h('p.doux.petit', { style: { margin: '6px 0 0' }, text: Object.keys(parType).sort(function (a, b) { return parType[b] - parType[a]; }).map(function (t) { return t + ' ' + parType[t]; }).join(' · ') + ' — livraisons déclarées au constructeur, pas les profits (voir Résultat › Véhicules neufs).' })
+      h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Ce mois : ' + ceMois + ' en ' + jourMois + ' jour' + (jourMois > 1 ? 's' : '') + (ceMois ? ' (≈ ' + Math.round(rythme * joursMois) + ' au rythme actuel)' : '') + ' · mois précédent : ' + nPrec + '.' }),
+      h('p.doux.petit', { style: { margin: '4px 0 0' }, text: Object.keys(parType).sort(function (a, b) { return parType[b] - parType[a]; }).map(function (t) { return t + ' ' + parType[t]; }).join(' · ') })
     ]);
-    var modeles = Object.keys(parModele).sort(function (a, b) { return parModele[b].n - parModele[a].n; }).slice(0, 8);
-    var montants = !!(p && p.montants);
+    var modeles = Object.keys(parModele).sort(function (a, b) { return parModele[b].n - parModele[a].n; }).slice(0, 10);
     var colModeles = h('div', [
       h('h3', { text: 'Par modèle — 12 mois' }),
-      modeles.length ? h('table.tableau', [h('thead', [h('tr', [h('th', 'Modèle'), h('th.num', 'Ventes'), h('th.num', 'Part')].concat(montants ? [h('th.num', 'Coût facture moy.')] : []))]), h('tbody', modeles.map(function (m) { var x = parModele[m]; return h('tr', [h('td', { text: m }), h('td.num', { text: String(x.n) }), h('td.num', { text: Math.round(100 * x.n / Math.max(1, total12)) + ' %' })].concat(montants ? [h('td.num', { text: x.nCout ? AMX.fmtArgent(x.cout / x.nCout, 0) : '—' })] : [])); }))]) : h('p.doux.petit', 'aucune vente déclarée sur 12 mois')
+      h('table.tableau', [h('thead', [h('tr', [h('th', 'Modèle'), h('th.num', 'Ventes'), h('th.num', 'Part')].concat(pv.montants ? [h('th.num', 'Coût facture moy.')] : []))]), h('tbody', modeles.map(function (m) { var x = parModele[m]; return h('tr', [h('td', { text: m }), h('td.num', { text: String(x.n) }), h('td.num', { text: Math.round(100 * x.n / Math.max(1, total12)) + ' %' })].concat(pv.montants ? [h('td.num', { text: x.nCout ? AMX.fmtArgent(x.cout / x.nCout, 0) : '—' })] : [])); }))])
     ]);
-    var totalCmd = commandes.reduce(function (s, x) { return s + (x.n || 0); }, 0);
-    var parModeleCmd = {}; commandes.forEach(function (x) { var k = (x.annee ? x.annee + ' ' : '') + (x.modele || '—'); parModeleCmd[k] = (parModeleCmd[k] || 0) + (x.n || 0); });
-    var cmdModeles = Object.keys(parModeleCmd).sort(function (a, b) { return parModeleCmd[b] - parModeleCmd[a]; });
-    var factures = null;
-    if (p && p.factures) { cies.forEach(function (x) { var f = p.factures[x]; if (!f) return; factures = factures || { n: 0, net: 0 }; factures.n += f.n || 0; factures.net += f.net || 0; }); }
-    var colCmd = h('div', [
-      h('h3', { text: 'Commandes en attente (DVOS) — ' + totalCmd }),
-      cmdModeles.length ? h('table.tableau', [h('thead', [h('tr', [h('th', 'Année · modèle'), h('th.num', 'Unités')])]), h('tbody', cmdModeles.slice(0, 10).map(function (k) { return h('tr', [h('td', { text: k }), h('td.num', { text: String(parModeleCmd[k]) })]); }))]) : h('p.doux.petit', 'aucune commande en attente'),
-      etat && etat.stock ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Dernier passage : ' + (etat.stock.total || 0) + ' NIV (' + (etat.stock.enStock || 0) + ' en stock, ' + (etat.stock.demos || 0) + ' démos / courtoisie, ' + (etat.stock.transit || 0) + ' en transit)' + (etat.stock.initial ? ' — premier import' : ' · ' + (etat.stock.arrivees || 0) + ' arrivée' + (etat.stock.arrivees > 1 ? 's' : '') + ', ' + (etat.stock.sorties || 0) + ' sortie' + (etat.stock.sorties > 1 ? 's' : '')) + (factures ? ' · ' + factures.n + ' facture' + (factures.n > 1 ? 's' : '') + (montants && factures.net ? ' (' + AMX.fmtArgent(factures.net, 0) + ')' : '') : '') + '.' }) : null
-    ]);
-    this.elPortail.appendChild(h('div.carte-corps', [h('div.neufs-portail-grille', [colVentes, colModeles, colCmd])]));
+    carte.appendChild(h('div.carte-corps', [h('div.neufs-portail-grille', [colMois, colModeles])]));
+    this.elVentes.appendChild(carte);
+    // Dernières livraisons déclarées (60 jours, 100 au plus)
+    var depuis = isoJoursAvant(60), recentes = pv.ventes.filter(function (v) { return String(v.dateVente) >= depuis; }).sort(function (a, b) { return String(b.dateVente).localeCompare(String(a.dateVente)); });
+    if (recentes.length) {
+      var avecClient = recentes.some(function (v) { return v.client; }), avecPar = recentes.some(function (v) { return v.saisiPar; });
+      var rows = recentes.slice(0, 100).map(function (v) { return h('tr', [h('td', { text: AMX.fmtDate(v.dateVente) }), h('td.vehicule', [h('div.nom', { text: [v.annee, v.modele, v.version].filter(Boolean).join(' ') }), h('div.vin', { text: v.vin })]), h('td', { text: v.couleur || '—' }), h('td', { text: libelleTypeVente(v.typeVente) })].concat(avecClient ? [h('td', { text: v.client || '—' })] : []).concat(avecPar ? [h('td', { text: v.saisiPar || '—' })] : []).concat(pv.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' })] : [])); });
+      var c2 = h('div.carte', [h('div.carte-entete', [h('h2', ['Dernières livraisons déclarées', h('span.sous', { text: recentes.length + ' sur 60 jours' })])]), h('div.carte-corps', [h('div.neufs-table', [h('table.tableau', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Véhicule'), h('th', 'Couleur'), h('th', 'Type')].concat(avecClient ? [h('th', 'Client')] : []).concat(avecPar ? [h('th', 'Saisi par')] : []).concat(pv.montants ? [h('th.num', 'Coût facture')] : []))]), h('tbody', rows)])]), recentes.length > 100 ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: '… et ' + (recentes.length - 100) + ' autres (export Excel pour le tout).' }) : null])]);
+      this.elVentes.appendChild(c2);
+    }
   };
   /* Fenêtre du signet : le favori à glisser, le mode d'emploi, les liens vers le portail et le CSI. */
   VueNeufs.prototype.ouvrirSignet = function (cie) {
@@ -457,14 +590,13 @@
     var detentionJour = d.montants ? Math.round(enStock.reduce(function (s, v) { return s + ((v.coutFacture || 0) * (d.parametres.tauxPlan || 5) / 100 / 365); }, 0)) : null;
     var carte = function (couleur, nom, n, bas, filtre) {
       var c = h('button.neufs-carte.' + couleur, { type: 'button' }, [h('div.nom', { text: nom }), h('div.n', { text: n }), bas ? h('div.bas', { text: bas }) : null]);
-      c.addEventListener('click', function () { if (filtre) { filtre(); self.rendreSelects(); self.elBarre.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+      c.addEventListener('click', function () { if (filtre) { filtre(); self.rendreSelects(); self.montrer('liste', { defiler: true }); } });
       return c;
     };
-    this.elCartes.appendChild(carte('vert', 'En stock', AMX.fmtNombre(enStock.length), (g.total.sorties ? g.total.sorties + ' sortie' + (g.total.sorties > 1 ? 's' : '') + ' en 90 j' : 'aucune sortie en 90 j'), function () { self.filtres = Object.assign(self.filtres, { tranche: '', statut: '', sortis: false }); self.rendreTable(); }));
+    this.elCartes.appendChild(carte(g.total.sorties ? 'vert' : 'gris', 'Sorties 90 jours', AMX.fmtNombre(g.total.sorties), g.total.sorties ? (Math.round(g.total.parJour * 7 * 10) / 10) + ' par semaine' : 'déduites du feed, d\'un jour à l\'autre', function () { self.montrer('analyse', { defiler: true }); }));
     this.elCartes.appendChild(carte(g.total.appro === null ? 'gris' : (g.total.appro > 90 ? 'rouge' : (g.total.appro > 60 ? 'ambre' : 'vert')), 'Jours d\'approvisionnement', g.total.appro === null ? '—' : fmtJours(g.total.appro), 'stock ÷ ventes/jour (90 j) · norme ~75 j'));
     this.elCartes.appendChild(carte(ages.length ? (moyenne(ages) > 90 ? 'rouge' : (moyenne(ages) > 60 ? 'ambre' : 'vert')) : 'gris', 'Âge moyen', fmtJours(moyenne(ages)), 'cible < 45 j · hors échanges et fantômes'));
     this.elCartes.appendChild(carte(pct60 > 10 ? 'rouge' : 'vert', 'Plus de 60 jours', AMX.fmtNombre(plus60) + ' (' + pct60 + ' %)', 'cible < 10 % · hors échanges et fantômes', function () { self.filtres.tranche = 'plus60'; self.rendreTable(); }));
-    this.elCartes.appendChild(carte(demos ? 'violet' : 'gris', 'Démos', AMX.fmtNombre(demos), echanges ? echanges + ' échange' + (echanges > 1 ? 's' : '') + ' conc.' : '', function () { self.filtres.statut = 'DEMO'; self.rendreTable(); }));
     if (anneeMax) this.elCartes.appendChild(carte(ancienne ? 'ambre' : 'vert', 'Ancienne année-modèle', AMX.fmtNombre(ancienne), 'avant ' + anneeMax + ' — à écouler d\'abord', function () { self.filtres.annee = 'ancienne'; self.rendreTable(); }));
     if (detention !== null) this.elCartes.appendChild(carte('sombre', 'Coût de détention', AMX.fmtArgent(detention), AMX.fmtArgent(detentionJour) + ' / jour à ' + (d.parametres.tauxPlan || 5) + ' %'));
   };

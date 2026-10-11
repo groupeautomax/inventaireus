@@ -402,6 +402,7 @@
       self.donnees = d; self.erreur = ''; self.typeParVin = null;
       self.btnRafraichir.classList.remove('occupe');
       self.rendre();
+      if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre();   /* compteur « Neufs » de la sous-barre (11 oct.) */
       if (force) AMX.toast('Neufs mis à jour — ' + self.visibles().filter(function (v) { return v.enStock; }).length + ' en stock', 'ok');
     }).catch(function (e) {
       if (gen !== self.generation) return;
@@ -499,7 +500,7 @@
     AMX.vider(this.elChoix);
     var tous = this.donnees ? this.donnees.vehicules : [];
     var def = AMX.neufs.originesDefaut ? AMX.neufs.originesDefaut() : {}, oc = this.origineCourante();
-    var choix = AMX.choixCompagnie({ domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return tous.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === (c ? (self.origine && self.compagnie === c ? oc : def[c]) : def[v.compagnie]) && self.garde(estFlotte(v)); }).length; }, onchange: function (c) { self.compagnie = c; self.typeParVin = null; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); } });
+    var choix = AMX.choixCompagnie({ domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return tous.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === (c ? (self.origine && self.compagnie === c ? oc : def[c]) : def[v.compagnie]) && self.garde(estFlotte(v)); }).length; }, onchange: function (c) { self.compagnie = c; self.typeParVin = null; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre(); } });
     if (choix) this.elChoix.appendChild(choix);
     this.rendreOrigine();
     this.rendreFlotte();

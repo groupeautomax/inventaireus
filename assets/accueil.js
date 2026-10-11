@@ -21,8 +21,7 @@
   var CLE_DEPART = 'accueil_depart';
 
   var RESUMES = {
-    inventaire: 'Usagé : les registres É.-U., Canada et Detail.',
-    neufs: 'Neufs : stock, commandes, ventes déclarées et vieillissement par concession.',
+    inventaire: 'Neufs (stock, commandes, ventes déclarées, portails des constructeurs) et usagé (registres É.-U., Canada, Detail).',
     service: 'Reconditionnement au détail : autorisation, bons de travail, livraison.',
     offres: 'Véhicules en vente, offres reçues, acheteurs externes, leads.',
     achat: 'La fiche d\'achat d\'un véhicule : prix, km, dommages, rapports.',
@@ -133,7 +132,7 @@
     if (AMX.openlane && AMX.openlane.charger) AMX.openlane.charger().then(relancer, function () {});
     if (AMX.suggestions && AMX.suggestions.charger) AMX.suggestions.charger().then(relancer, function () {});
     // (11 oct.) RDR à compléter chez le constructeur (portail RDR BMW) : tuile rouge pour la direction.
-    if (AMX.neufs && AMX.neufs.chargerPortail && AMX.sections.neufs && (!AMX.sections.neufs.visible || AMX.sections.neufs.visible())) AMX.neufs.chargerPortail().then(relancer, function () {});
+    if (AMX.neufs && AMX.neufs.chargerPortail && AMX.sections.inventaire && (!AMX.sections.inventaire.visible || AMX.sections.inventaire.visible())) AMX.neufs.chargerPortail().then(relancer, function () {});
   }
   Accueil.prototype.demonter = function () { var self = this; EVENEMENTS.forEach(function (ev) { document.removeEventListener(ev, self.sur); }); };
   Accueil.prototype.naviguer = function () { this.rendre(); };
@@ -163,7 +162,7 @@
     }
     // RDR à compléter sur le portail du constructeur (BMW : nouveaux, soumis, à corriger — bloquent le crédit)
     var rdr = AMX.neufs && AMX.neufs.aFaireConstructeur ? AMX.neufs.aFaireConstructeur() : null;
-    if (rdr && rdr.length && AMX.sections.neufs) { var parCie = {}; rdr.forEach(function (x) { parCie[x.compagnie] = (parCie[x.compagnie] || 0) + 1; }); var corriger = rdr.filter(function (x) { return /corriger/.test(x.ligne.statut || ''); }).length; out.push({ cls: 'rouge', libelle: 'RDR à compléter', valeur: fmtN(rdr.length), detail: Object.keys(parCie).map(function (c) { return (AMX.COMPAGNIES_TOUTES[c] || c) + ' ' + parCie[c]; }).join(' · ') + (corriger ? ' · ' + corriger + ' à corriger' : ''), alerte: true, lien: AMX.lien('neufs', '', { onglet: 'ventes' }) }); }
+    if (rdr && rdr.length && AMX.sections.inventaire) { var parCie = {}; rdr.forEach(function (x) { parCie[x.compagnie] = (parCie[x.compagnie] || 0) + 1; }); var corriger = rdr.filter(function (x) { return /corriger/.test(x.ligne.statut || ''); }).length; out.push({ cls: 'rouge', libelle: 'RDR à compléter', valeur: fmtN(rdr.length), detail: Object.keys(parCie).map(function (c) { return (AMX.COMPAGNIES_TOUTES[c] || c) + ' ' + parCie[c]; }).join(' · ') + (corriger ? ' · ' + corriger + ' à corriger' : ''), alerte: true, lien: AMX.lien('inventaire', 'neufs', { onglet: 'ventes' }) }); }
     var ol = AMX.openlane && AMX.openlane.enCache ? AMX.openlane.enCache() : null;
     if (ol && AMX.sections.outils) { var vals = Object.keys(ol).map(function (k) { return ol[k]; }); var prev = vals.filter(function (r) { return r.luLe && typeof r.prevision === 'number'; }); var somme = prev.reduce(function (t, r) { return t + r.prevision; }, 0); if (vals.length) out.push({ cls: 'violet', libelle: 'Valeurs OpenLane', valeur: fmtN(prev.length), detail: prev.length ? AMX.fmtArgent(somme, 0) + ' de prévisions' : 'aucune prévision lue', lien: AMX.lien('outils', 'openlane') }); }
     if (AMX.suggestions && AMX.suggestions.aTraiter && AMX.estAdmin && AMX.estAdmin()) { var n = AMX.suggestions.aTraiter(); if (n) out.push({ cls: 'rouge', libelle: 'Suggestions à traiter', valeur: fmtN(n), detail: 'en rouge jusqu\'au traitement', alerte: true, lien: AMX.lien('aide', 'suggestions') }); }

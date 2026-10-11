@@ -165,6 +165,10 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .segment button.actif { background: #fff; color: var(--encre); box-shadow: var(--ombre); }
 .segment.bloc { display: flex; } .segment.bloc button { flex: 1; }
 .segment.petit button { padding: 3px 8px; font-size: 11.5px; }
+/* 11 oct. : pastilles É.-U. · Canada · Detail sous le titre d'Inventaire › Usagé */
+.choix-registre button { padding: 5px 12px; font-size: 12.5px; }
+.choix-registre button .compteur { color: var(--encre-3); font-weight: 600; }
+.choix-registre button.actif .compteur { color: var(--vert); }
 /* Registre d'immatriculation : une ligne compacte dans le bloc Statut du panneau (7 oct.) */
 .ligne-registre { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--ligne); }
 .ligne-registre .l { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }

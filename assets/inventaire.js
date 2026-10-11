@@ -130,18 +130,53 @@
     });
   };
 
-  // 11 oct. (Maxime : « sépare dans le menu usagé et neuf ») : la section s'appelle « Usagé » (registres É.-U., Canada,
-  // Detail) et les neufs ont leur propre section (assets/neufs.js) ; l'ancienne adresse #/inventaire/neufs y renvoie.
+  // 11 oct. (Maxime : « un onglet Inventaire, puis Neufs et Usagé ») : une seule section « Inventaire » avec deux onglets dans
+  // la sous-barre — Neufs (assets/neufs.js, VueNeufs) et Usagé (les trois registres É.-U. / Canada / Detail, choisis par des
+  // pastilles dans la page et mémorisés). Anciennes adresses : #/neufs → #/inventaire/neufs ; #/inventaire/us|can|detail →
+  // #/inventaire/usage?registre=… (app.js).
+  var REGISTRE_DEFAUT = 'us';
+  function registreDemande(ctx) {
+    var r = String((ctx && ctx.params && ctx.params.registre) || '').toLowerCase();
+    if (!FEUILLES[r]) r = String(AMX.memo.lire('inv_registre', REGISTRE_DEFAUT) || REGISTRE_DEFAUT).toLowerCase();
+    return FEUILLES[r] ? r : REGISTRE_DEFAUT;
+  }
+  AMX.inventaire.registres = FEUILLES;
+  AMX.inventaire.lien = function (registre, params) { var p = { registre: registre }; Object.keys(params || {}).forEach(function (k) { p[k] = params[k]; }); return AMX.lien('inventaire', 'usage', p); };
+  AMX.inventaire.aller = function (registre, params) { var p = { registre: registre }; Object.keys(params || {}).forEach(function (k) { p[k] = params[k]; }); AMX.aller('inventaire', 'usage', p); };
   AMX.section('inventaire', {
-    titre: 'Usagé', icone: 'inventaire', ordre: 10,
-    onglets: Object.keys(FEUILLES).map(function (id) {
-      return { id: id, titre: FEUILLES[id].titre, compteur: function () {
-        var l = AMX.inventaire.enCache(FEUILLES[id].feuille);
-        return l ? l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; }).length : '';
-      } };
-    }),
-    monter: function (conteneur, ctx) { return new Registre(conteneur, ctx); }
+    titre: 'Inventaire', icone: 'inventaire', ordre: 10,
+    onglets: [
+      { id: 'neufs', titre: 'Neufs', compteur: function () { return AMX.neufs && AMX.neufs.compteur ? AMX.neufs.compteur() : ''; } },
+      { id: 'usage', titre: 'Usagé', compteur: function () {
+        var n = 0, charge = false;
+        Object.keys(FEUILLES).forEach(function (id) { var l = AMX.inventaire.enCache(FEUILLES[id].feuille); if (l) { charge = true; n += l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; }).length; } });
+        return charge ? n : '';
+      } }
+    ],
+    monter: function (conteneur, ctx) { return new VueInventaire(conteneur, ctx); }
   });
+
+  /* Enveloppe : monte la bonne vue selon l'onglet (Neufs ou Usagé) et change de vue quand l'onglet change. */
+  function VueInventaire(conteneur, ctx) {
+    this.conteneur = conteneur; this.enfant = null; this.type = '';
+    this.monterEnfant(ctx);
+  }
+  VueInventaire.prototype.monterEnfant = function (ctx) {
+    if (this.enfant && this.enfant.demonter) { try { this.enfant.demonter(); } catch (e) {} }
+    AMX.vider(this.conteneur);
+    if (ctx.onglet === 'neufs' && AMX.neufs && AMX.neufs.monter) { this.type = 'neufs'; this.enfant = AMX.neufs.monter(this.conteneur, ctx); return; }
+    this.type = 'usage';
+    var reg = registreDemande(ctx);
+    AMX.memo.ecrire('inv_registre', reg);
+    this.enfant = new Registre(this.conteneur, { onglet: reg, params: ctx.params || {} });
+  };
+  VueInventaire.prototype.naviguer = function (ctx) {
+    var type = ctx.onglet === 'neufs' ? 'neufs' : 'usage';
+    if (type !== this.type) { this.monterEnfant(ctx); return; }
+    if (type === 'usage') { var reg = registreDemande(ctx); AMX.memo.ecrire('inv_registre', reg); if (this.enfant.naviguer) this.enfant.naviguer({ onglet: reg, params: ctx.params || {} }); return; }
+    if (this.enfant && this.enfant.naviguer) this.enfant.naviguer(ctx);
+  };
+  VueInventaire.prototype.demonter = function () { if (this.enfant && this.enfant.demonter) this.enfant.demonter(); this.enfant = null; };
 
   function Registre(conteneur, ctx) {
     var self = this;
@@ -211,7 +246,7 @@
     this.elAgencement = h('div.agencement', [this.elRail, h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
     var page = h('div.page', [
       h('div.entete-page', [
-        h('div', [h('h1', { text: 'Inventaire ' + this.cfg.titre }), h('p#inv-etat', { text: 'Chargement…' })]),
+        h('div', [h('h1', { text: 'Usagé — ' + this.cfg.titre }), h('p#inv-etat', { text: 'Chargement…' }), this.elRegistres = h('div.segment.choix-registre', { style: { marginTop: '8px' }, 'aria-label': 'Registre' })]),
         h('div.actions', [
           h('button.btn.fantome.icone#inv-filtres-btn', { title: 'Filtres', html: I.filtre, onclick: function () { self.elRail.classList.toggle('ouvert'); } }),
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
@@ -223,6 +258,7 @@
       this.elKpis, this.elValeur, this.elAgencement
     ]);
     this.conteneur.appendChild(page);
+    this.rendreRegistres();
     this.construireRail();
     // Les permissions (portée, compagnies visibles) arrivent souvent après le premier rendu : on refait le rail.
     // Profil (portée) arrivé après le montage : on revalide la concession choisie (un vieux choix hors portée est ignoré).
@@ -447,6 +483,16 @@
     this.rendreValeur();
   };
 
+  // Pastilles É.-U. · Canada · Detail sous le titre (11 oct.) : le registre courant, avec le nombre de véhicules actifs de la
+  // concession choisie ; cliquer change de registre (#/inventaire/usage?registre=…).
+  Registre.prototype.rendreRegistres = function () {
+    var self = this; if (!this.elRegistres) return;
+    AMX.vider(this.elRegistres);
+    var regs = AMX.inventaire.valeurRegistres(this.filtres.compagnie);
+    regs.forEach(function (r) {
+      self.elRegistres.appendChild(h('button' + (r.id === self.onglet ? '.actif' : ''), { type: 'button', 'data-registre': r.id, onclick: function () { if (r.id !== self.onglet) AMX.inventaire.aller(r.id); } }, [r.titre, r.charge ? h('span.compteur', { text: ' ' + r.n }) : null]));
+    });
+  };
   // Bande « Valeur des inventaires » : les trois registres côte à côte (véhicules actifs), registre courant en évidence.
   Registre.prototype.rendreValeur = function () {
     var self = this, f = this.filtres;
@@ -456,12 +502,13 @@
     var total = charges.reduce(function (t, r) { return t + r.total; }, 0), nTotal = charges.reduce(function (t, r) { return t + r.n; }, 0);
     this.elValeur.appendChild(h('span.l', { text: 'Valeur des inventaires' + (f.compagnie ? ' — ' + (AMX.COMPAGNIES[f.compagnie] || f.compagnie) : '') }));
     regs.forEach(function (r) {
-      var el = h('button.reg' + (r.id === self.onglet ? '.courant' : ''), { type: 'button', title: r.charge ? r.n + ' véhicule(s) actif(s)' + (r.sans ? ', ' + r.sans + ' sans coût' : '') : 'Pas encore chargé', onclick: function () { if (r.id !== self.onglet) AMX.aller('inventaire', r.id); } }, [
+      var el = h('button.reg' + (r.id === self.onglet ? '.courant' : ''), { type: 'button', title: r.charge ? r.n + ' véhicule(s) actif(s)' + (r.sans ? ', ' + r.sans + ' sans coût' : '') : 'Pas encore chargé', onclick: function () { if (r.id !== self.onglet) AMX.inventaire.aller(r.id); } }, [
         h('span.t', { text: r.titre }), h('span.v', { text: r.charge ? r.texte : '…' }), h('span.n', { text: r.charge ? r.n + ' véh.' : '' })
       ]);
       self.elValeur.appendChild(el);
     });
     this.elValeur.appendChild(h('span.total', [h('span.t', 'Total'), h('span.v', { text: AMX.fmtArgent(total, 0) }), h('span.n', { text: nTotal + ' véh.' + (charges.length < regs.length ? ' (partiel)' : '') })]));
+    this.rendreRegistres();
   };
 
   Registre.prototype.rendreOutils = function (liste) {
@@ -564,13 +611,13 @@
       h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' })]),
       h('button.plus', { type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
-    el.addEventListener('click', function () { if (autreRegistre) AMX.aller('inventaire', autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
+    el.addEventListener('click', function () { if (autreRegistre) AMX.inventaire.aller(autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
     return el;
   };
 
   Registre.prototype.selectionner = function (vin) {
     this.selection = vin;
-    var hsh = AMX.lien('inventaire', this.onglet, vin ? { vin: vin } : {});
+    var hsh = AMX.inventaire.lien(this.onglet, vin ? { vin: vin } : {});
     history.replaceState(null, '', hsh);
     this.elListe.querySelectorAll('.ligne').forEach(function (l) { l.classList.remove('actif'); });
     var v = this.vehicules.filter(function (x) { return String(x.vin).toUpperCase() === String(vin || '').toUpperCase(); })[0];

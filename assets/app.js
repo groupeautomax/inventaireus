@@ -659,8 +659,10 @@
     if (!r.section && AMX.accueil) { var dep = AMX.accueil.depart(); if (dep) { AMX.aller(dep.section, dep.onglet, r.params); return; } }
     // 9 oct. : Suggestions est devenu un onglet d'Aide ; l'ancienne adresse reste valable.
     if (r.section === 'suggestions' && !AMX.sections.suggestions && AMX.sections.aide) { AMX.aller('aide', 'suggestions', r.params); return; }
-    // 11 oct. : les neufs ont leur propre section (« Usagé » / « Neufs ») ; l'ancienne adresse #/inventaire/neufs reste valable.
-    if (r.section === 'inventaire' && r.onglet === 'neufs' && AMX.sections.neufs) { AMX.aller('neufs', '', r.params); return; }
+    // 11 oct. : une seule section Inventaire (Neufs · Usagé). Anciennes adresses : #/neufs → #/inventaire/neufs ;
+    // #/inventaire/us|can|detail → #/inventaire/usage?registre=… (les trois registres sont des pastilles dans la page Usagé).
+    if (r.section === 'neufs' && !AMX.sections.neufs && AMX.sections.inventaire) { AMX.aller('inventaire', 'neufs', r.params); return; }
+    if (r.section === 'inventaire' && /^(us|can|detail)$/.test(r.onglet) && AMX.inventaire && AMX.inventaire.registres) { var pr = { registre: r.onglet }; Object.keys(r.params || {}).forEach(function (k) { pr[k] = r.params[k]; }); AMX.aller('inventaire', 'usage', pr); return; }
     var secs = AMX.listeSections();
     var sec = AMX.sections[r.section];
     if (!sec || (sec.visible && !sec.visible())) {

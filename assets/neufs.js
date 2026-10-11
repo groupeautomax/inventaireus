@@ -593,11 +593,25 @@
     var d = this.donnees, parCie = {}, out = {};
     if (!d) return out;
     d.vehicules.forEach(function (v) { if (!v.enStock) return; var k = parCie[v.compagnie] || (parCie[v.compagnie] = { dms: {}, constructeur: [] }); if (origineDe(v) === 'dms') k.dms[v.vin] = true; else k.constructeur.push(v); });
-    Object.keys(parCie).forEach(function (cie) { var k = parCie[cie]; if (!Object.keys(k.dms).length) return; k.constructeur.forEach(function (v) { if (enStockPortail(v) && !k.dms[v.vin]) out[cie + '|' + v.vin] = true; }); });
+    Object.keys(parCie).forEach(function (cie) {
+      var k = parCie[cie];
+      // Pas de feed DMS pour la concession : le serveur a comparé avec la référence provisoire (feuille Google) → v.absentDms
+      // (Maxime, 12 oct. : « utilise les données que tu as jusqu'à ce que le feed soit ok »)
+      if (!Object.keys(k.dms).length) { if (d.referenceDms && d.referenceDms[cie]) k.constructeur.forEach(function (v) { if (v.absentDms === true) out[cie + '|' + v.vin] = true; }); return; }
+      k.constructeur.forEach(function (v) { if (enStockPortail(v) && !k.dms[v.vin]) out[cie + '|' + v.vin] = true; });
+    });
     return out;
   };
   VueNeufs.prototype.absentDms = function (v) { return !!(this.absents && this.absents[v.compagnie + '|' + v.vin]); };
-  function puceAbsentDms(grande) { return h('span.neufs-marq-chip.rouge' + (grande ? '.grande' : ''), { text: 'Absent du DMS', title: 'En stock au portail du manufacturier (livré au concessionnaire), mais pas dans l\'export du DMS : à vérifier au DMS' }); }
+  /* D'où vient la comparaison pour une concession : le vrai DMS, ou la feuille Google en attendant le feed. */
+  VueNeufs.prototype.referenceAbsents = function (cie) {
+    var d = this.donnees || {}, o = {}; (d.vehicules || []).forEach(function (v) { if (v.enStock && v.compagnie === cie && origineDe(v) === 'dms') o.dms = true; });
+    if (o.dms) return { type: 'dms', texte: 'l\'export du DMS' };
+    var r = d.referenceDms && d.referenceDms[cie];
+    if (r) return { type: 'feuille', texte: (r.source || 'la feuille Google') + (r.le ? ' du ' + AMX.fmtDateCourte(String(r.le).slice(0, 10)) : '') + ' (référence provisoire, en attendant le feed du DMS)', n: r.n, le: r.le, source: r.source || 'feuille Google' };
+    return null;
+  };
+  function puceAbsentDms(grande, ref) { var t = ref && ref.type === 'feuille' ? 'En stock au portail du manufacturier (livré au concessionnaire), mais pas sur ' + ref.texte + ' : à vérifier' : 'En stock au portail du manufacturier (livré au concessionnaire), mais pas dans l\'export du DMS : à vérifier au DMS'; return h('span.neufs-marq-chip.rouge' + (grande ? '.grande' : ''), { text: 'Absent du DMS', title: t }); }
   /* Sélecteur « DMS / fichier · Constructeur » (seulement quand la concession a les deux origines) ; sinon une mention de la source. */
   VueNeufs.prototype.rendreOrigine = function () {
     var self = this;
@@ -1050,7 +1064,10 @@
     if (o.constructeur) {
       this.absents = this.calculerAbsentsDms();
       var nAbs = d.vehicules.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && self.absentDms(v); }).length;
-      if (o.dms) this.elCartes.appendChild(carte(nAbs ? 'rouge' : 'vert', 'Absents du DMS', AMX.fmtNombre(nAbs), nAbs ? 'en stock chez le manufacturier, pas au DMS' : 'tout le stock du manufacturier est au DMS', function () { self.origine = 'constructeur'; AMX.memo.ecrire('neufs_origine', 'constructeur'); self.filtres.dispo = 'absentDms'; self.rendre(); }));
+      var ref = c ? this.referenceAbsents(c) : (o.dms ? { type: 'dms' } : (d.referenceDms && Object.keys(d.referenceDms).length ? { type: 'feuille', source: 'feuille Google' } : null));
+      var versListe = function () { self.origine = 'constructeur'; AMX.memo.ecrire('neufs_origine', 'constructeur'); self.filtres.dispo = 'absentDms'; self.rendre(); };
+      if (ref && ref.type === 'dms') this.elCartes.appendChild(carte(nAbs ? 'rouge' : 'vert', 'Absents du DMS', AMX.fmtNombre(nAbs), nAbs ? 'en stock chez le manufacturier, pas au DMS' : 'tout le stock du manufacturier est au DMS', versListe));
+      else if (ref && ref.type === 'feuille') this.elCartes.appendChild(carte(nAbs ? 'rouge' : 'vert', 'Absents du DMS', AMX.fmtNombre(nAbs), 'd\'après ' + (ref.source || 'la feuille Google') + (ref.le ? ' du ' + AMX.fmtDateCourte(String(ref.le).slice(0, 10)) : '') + ', en attendant le feed du DMS', versListe));
       else this.elCartes.appendChild(carte('gris', 'Absents du DMS', '—', 'aucun export du DMS à comparer'));
     }
   };
@@ -1147,7 +1164,8 @@
     if (nExp || f.dispo === 'exportable') this.elStatuts.appendChild(pastilleDispoF('exportable', 'Exportables', nExp, 'sarcelle', 'NIV marqués exportables'));
     this.absents = this.calculerAbsentsDms();
     var nAbs = enStockBase.filter(function (v) { return self.absentDms(v); }).length;
-    if (nAbs || f.dispo === 'absentDms') this.elStatuts.appendChild(pastilleDispoF('absentDms', 'Absents du DMS', nAbs, 'rouge', 'En stock au portail du manufacturier mais pas dans l\'export du DMS (rouge) — à vérifier au DMS'));
+    var refP = this.compagnie ? this.referenceAbsents(this.compagnie) : null;
+    if (nAbs || f.dispo === 'absentDms') this.elStatuts.appendChild(pastilleDispoF('absentDms', 'Absents du DMS', nAbs, 'rouge', refP && refP.type === 'feuille' ? 'En stock au portail du manufacturier mais pas sur ' + refP.texte + ' (rouge)' : 'En stock au portail du manufacturier mais pas dans l\'export du DMS (rouge) — à vérifier au DMS'));
     this.elStatuts.appendChild(h('span.sep'));
     this.elStatuts.appendChild(h('span.etiquette', { text: 'Statut' }));
     this.elStatuts.appendChild(pastille('', 'Tous', base.length, ''));
@@ -1268,7 +1286,7 @@
       var t = tranche(v.jours), s = statutDms(v), mq = marquageDe(v), cat = couleurRangee(v), absent = self.absentDms(v);
       var btnMarq = marquable && v.enStock ? h('button.btn.petit.fantome.neufs-marquer', { type: 'button', text: mq ? 'Modifier' : 'Marquer', title: 'Vendu, échangé, démo, livré, pré-enregistré, exportable, vendeur, client…', onclick: function (e) { e.stopPropagation(); self.marquer(v); } }) : null;
       var details = mq ? [resumeMarquage(mq), mq.note].filter(Boolean).join(' — ') : '';
-      var pe = pucesEtiquettes(v), pc = (absent ? [puceAbsentDms()] : []).concat(puceConstructeur(v, true));
+      var pe = pucesEtiquettes(v), pc = (absent ? [puceAbsentDms(false, self.referenceAbsents(v.compagnie))] : []).concat(puceConstructeur(v, true));
       var cellNote = h('td.marquage.note', [pucePunch(v), puceExportable(v)].concat(pe).concat([details ? h('div.details', { text: details }) : null, btnMarq]));
       var km = kmDe(v), pd = pdsfDe(v);
       var tr = h('tr.rangee' + (v.enStock ? '' : '.sorti') + (cat ? '.marq-' + cat : '') + (absent ? '.absent-dms' : ''), [
@@ -1308,8 +1326,9 @@
     var mq = marquageDe(v);
     var droite = h('div', [
       h('h4', 'Disponibilité'),
-      h('div.neufs-dispo-fiche', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' } }, [pastilleDispo(v, true), pucePunch(v), puceExportable(v)].concat(this.absentDms(v) ? [puceAbsentDms(true)] : []).concat(puceConstructeur(v)).concat(pucesEtiquettes(v))),
-      this.absentDms(v) ? h('p.neufs-absent-dms', { text: 'En stock au portail du manufacturier (livré au concessionnaire) mais absent de l\'export du DMS : à vérifier au DMS (réception non saisie, mauvais NIV, ou véhicule déjà vendu côté DMS).' }) : null,
+      h('div.neufs-dispo-fiche', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' } }, [pastilleDispo(v, true), pucePunch(v), puceExportable(v)].concat(this.absentDms(v) ? [puceAbsentDms(true, this.referenceAbsents(v.compagnie))] : []).concat(puceConstructeur(v)).concat(pucesEtiquettes(v))),
+      this.absentDms(v) ? h('p.neufs-absent-dms', { text: (function (ref) { return ref && ref.type === 'feuille' ? 'En stock au portail du manufacturier (livré au concessionnaire) mais absent de ' + ref.texte + ' : à vérifier (réception non saisie au DMS, mauvais NIV, ou véhicule déjà vendu).' : 'En stock au portail du manufacturier (livré au concessionnaire) mais absent de l\'export du DMS : à vérifier au DMS (réception non saisie, mauvais NIV, ou véhicule déjà vendu côté DMS).'; })(this.referenceAbsents(v.compagnie)) }) : null,
+      v.absentDmsNonCompare ? h('p.doux.petit', { style: { margin: '0 0 10px' }, text: v.absentDmsNonCompare === 'flotte' ? 'Unité de flotte : la feuille Google de référence ne liste que le détail, pas de comparaison au DMS pour l\'instant.' : 'Reçu après la dernière mise à jour de la feuille Google : pas encore comparé au DMS.' }) : null,
       mq ? dl([['Vendeur', mq.vendeur], ['Client', mq.client], ['Livraison', mq.livraison ? AMX.fmtDate(mq.livraison) : ''], ['Localisation', mq.localisation], ['Notes', etiquettesDe(v).map(function (k) { return ETIQUETTES[k]; }).join(', ')], ['Note', mq.note], ['Marqué', (mq.par ? 'par ' + mq.par : '') + (mq.le ? ' le ' + AMX.fmtDate(mq.le, true) : '')]]) : h('p.doux.petit', { style: { margin: '6px 0 0' }, text: v.enStock ? 'Aucun marquage interne : ce que le DMS / le portail dit fait foi.' : 'Sorti du feed.' }),
       (function () { var rd = rdrDe(v), cmd = commandeTexte(v), pdf = pdsfDe(v); return (cmd || rd || pdf.total) ? h('div', [h('h4', 'Chez le manufacturier'), dl([['Commande', cmd], ['Vendu chez le manufacturier', venduConstructeur(v) ? 'Oui' : 'Non'], ['RDR déclaré', rd ? AMX.fmtDate(rd.dateVente) + (rd.typeVente ? ' · ' + rd.typeVente : '') + (rd.client ? ' · ' + rd.client : '') : ''], ['PDSF', pdf.pdsf ? AMX.fmtArgent(pdf.pdsf) + (pdf.transport ? ' + transport ' + AMX.fmtArgent(pdf.transport) + ' = ' + AMX.fmtArgent(pdf.total) : '') : (pdf.total ? AMX.fmtArgent(pdf.total) : '')]])]) : null; })(),
       h('h4', 'Vieillissement'),

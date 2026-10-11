@@ -141,9 +141,16 @@
   };
   AMX.svg = function (nom, cls) { var s = document.createElement('span'); s.className = 'ico' + (cls ? ' ' + cls : ''); s.innerHTML = ICONES[nom] || ''; return s.firstChild; };
 
+  // Une date seule (« 2026-10-20 ») est lue comme une date locale : new Date('2026-10-20') la prend à minuit UTC,
+  // ce qui donnait la veille à Montréal (11 oct.).
+  AMX.dateDe = function (iso) {
+    if (iso instanceof Date) return iso;
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0) : new Date(iso);
+  };
   AMX.fmtDate = function (iso, avecHeure) {
     if (!iso) return '—';
-    var d = new Date(iso);
+    var d = AMX.dateDe(iso);
     if (isNaN(d.getTime())) return String(iso);
     var date = d.toLocaleDateString('fr-CA', { year: 'numeric', month: '2-digit', day: '2-digit' });
     if (!avecHeure) return date;
@@ -151,7 +158,7 @@
   };
   AMX.fmtDateCourte = function (iso) {
     if (!iso) return '—';
-    var d = new Date(iso);
+    var d = AMX.dateDe(iso);
     if (isNaN(d.getTime())) return String(iso);
     return d.toLocaleDateString('fr-CA', { month: 'short', day: 'numeric' }).replace('.', '');
   };

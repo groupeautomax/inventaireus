@@ -61,8 +61,8 @@
      que tu as avec des fichiers ou des Google Sheets — fais la distinction, on va vouloir les comparer et demander les
      différences ») : deux ORIGINES jamais mélangées — « dms » (export du DMS, fichier, feuille Google) et « constructeur »
      (portail lu par le favori). La page montre une origine à la fois (sélecteur) et l'onglet Écarts compare les deux. */
-  var ORIGINES = { dms: 'DMS / fichier', constructeur: 'Constructeur' };
-  var ORIGINES_LONG = { dms: 'l\'export du DMS (fichier ou feuille Google)', constructeur: 'le portail du constructeur (favori)' };
+  var ORIGINES = { dms: 'DMS / fichier', constructeur: 'Manufacturier' };   /* Maxime, 11 oct. : « le choix DMS et manufacturier » */
+  var ORIGINES_LONG = { dms: 'DMS / fichier', constructeur: 'manufacturier (portail)' };
   function origineDe(v) { if (v && v.origine) return v.origine; return /^portail-/i.test(String((v && v.source) || '')) ? 'constructeur' : 'dms'; }
   function statutNorme(v) { var s = String((v && v.statutLibelle) || (v && v.statut) || '').toUpperCase(); if (/TRANSIT/.test(s)) return 'En transit'; if (/DEMO|DÉMO|COURTOISIE/.test(s)) return 'Démo / courtoisie'; if (/ECH/.test(s)) return 'Échange concessionnaire'; return 'En stock'; }
   var ONGLETS_NEUFS = ['liste', 'commandes', 'ventes', 'ecarts', 'analyse'];
@@ -147,6 +147,8 @@
       '.neufs-options { display: flex; flex-wrap: wrap; gap: 4px; } .neufs-options span { background: var(--gris-bg); border-radius: 999px; padding: 2px 8px; font-size: 11.5px; }',
       '.neufs-vide { padding: 28px 12px; text-align: center; color: var(--encre-3); }',
       '.neufs-ecarts tr.ecart { cursor: pointer; } .neufs-ecarts tr.ecart:hover td { background: var(--gris-bg); }',
+      '.neufs-origine { margin: 6px 0 4px; } .neufs-origine button { display: inline-flex; gap: 6px; align-items: center; padding: 5px 12px; font-size: 12.5px; } .neufs-origine button b { font-weight: 600; font-size: 11.5px; color: var(--encre-3); background: var(--gris-bg); border-radius: 999px; padding: 0 7px; } .neufs-origine button.actif b { color: var(--vert); background: var(--vert-clair); } .neufs-origine button.vide:not(.actif) { color: var(--encre-3); opacity: .75; }',
+      '.neufs-filtres-ventes { margin-bottom: 10px; }',
       '.neufs-panneau .carte-entete { flex-wrap: wrap; } .neufs-panneau .carte-entete h2 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; } .neufs-panneau .carte-entete h2 .sous { font-weight: 400; font-size: 12px; color: var(--encre-3); }',
       '.neufs-portail-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }',
       '.neufs-portail-grille .tableau { min-width: 0; } .neufs-portail-grille td.num, .neufs-portail-grille th.num { text-align: right; font-variant-numeric: tabular-nums; }',
@@ -303,7 +305,8 @@
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
     this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail du constructeur</span>', title: 'Lire l\'inventaire, les commandes et les ventes déclarées depuis le portail du constructeur (favori à cliquer sur le portail, connecté)', onclick: function () { self.ouvrirSignet(self.compagnie || 'HYUNDAI'); } });
-    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Véhicules neufs'), this.elEtat]), h('div.actions', [this.btnPortail, this.btnRafraichir, this.btnExport])]);
+    this.elOrigine = h('div.segment.neufs-origine', { role: 'group', 'aria-label': 'Origine de l\'inventaire', title: 'Deux inventaires distincts, jamais mélangés : l\'export du DMS (fichier ou feuille Google) et le portail du manufacturier (favori) — l\'onglet Écarts les compare' });
+    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Véhicules neufs'), this.elOrigine, this.elEtat]), h('div.actions', [this.btnPortail, this.btnRafraichir, this.btnExport])]);
     this.elChoix = h('div.neufs-concessions');
     this.elMarques = h('div.neufs-marques');
     this.elPipeline = h('div.carte.neufs-pipeline');
@@ -383,7 +386,7 @@
     var depuis12 = debut12Mois(), ventes = pv.ventes.filter(function (x) { return String(x.dateVente) >= depuis12; }).length;
     var portail = !c || !!PORTAILS[c];
     var ec = this.deuxOrigines() ? this.ecarts() : null;
-    var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['ecarts', 'Écarts DMS / constructeur', ec ? ec.total : null], ['analyse', 'Analyse', null]];
+    var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['ecarts', 'Écarts DMS / manufacturier', ec ? ec.total : null], ['analyse', 'Analyse', null]];
     onglets.forEach(function (o) {
       if (o[2] === null && (o[0] === 'commandes' || o[0] === 'ventes' || o[0] === 'ecarts')) return;   /* concession sans portail (ou sans les deux origines) : pas d'onglets vides */
       self.elOnglets.appendChild(h('button' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', 'data-onglet': o[0], onclick: function () { self.montrer(o[0]); } }, [h('span', { text: o[1] }), o[2] !== null ? h('b', { text: AMX.fmtNombre(o[2]) }) : null]));
@@ -430,7 +433,7 @@
   /* Origine affichée : celle choisie si elle existe dans la portée, sinon le DMS / fichier s'il y en a un, sinon le constructeur. */
   VueNeufs.prototype.origineCourante = function () {
     var o = this.originesDispo();
-    if (this.origine && o[this.origine]) return this.origine;
+    if (this.origine) return this.origine;   /* choix explicite (mémorisé) : respecté même si cette origine est vide pour la concession */
     return o.dms || !o.constructeur ? 'dms' : 'constructeur';
   };
   /* Écarts entre les deux origines pour la concession choisie (véhicules en stock, par NIV). */
@@ -450,14 +453,12 @@
   };
   /* Sélecteur « DMS / fichier · Constructeur » (seulement quand la concession a les deux origines) ; sinon une mention de la source. */
   VueNeufs.prototype.rendreOrigine = function () {
-    var self = this, ancien = this.elChoix.querySelector('.neufs-origine');
-    if (ancien) ancien.remove();
+    var self = this;
+    AMX.vider(this.elOrigine);
     var o = this.originesDispo(), courante = this.origineCourante();
-    if (!o.dms || !o.constructeur) return;
-    var seg = h('div.segment.neufs-origine', { role: 'group', 'aria-label': 'Origine de l\'inventaire', title: 'Deux inventaires distincts : l\'export du DMS (fichier ou feuille) et le portail du constructeur — l\'onglet Écarts les compare' }, [['dms', ORIGINES.dms, o.dms], ['constructeur', ORIGINES.constructeur, o.constructeur]].map(function (x) {
-      return h('button' + (courante === x[0] ? '.actif' : ''), { type: 'button', 'data-origine': x[0], text: x[1] + ' ' + AMX.fmtNombre(x[2]), onclick: function () { if (courante === x[0]) return; self.origine = x[0]; AMX.memo.ecrire('neufs_origine', x[0]); self.typeParVin = null; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); } });
-    }));
-    this.elChoix.appendChild(seg);
+    [['dms', ORIGINES.dms, o.dms || 0], ['constructeur', ORIGINES.constructeur, o.constructeur || 0]].forEach(function (x) {
+      self.elOrigine.appendChild(h('button' + (courante === x[0] ? '.actif' : '') + (x[2] ? '' : '.vide'), { type: 'button', 'data-origine': x[0], title: x[0] === 'dms' ? 'L\'inventaire du DMS (export reçu par courriel, fichier ou feuille Google)' : 'L\'inventaire du manufacturier (portail lu par le favori)', onclick: function () { if (courante === x[0]) return; self.origine = x[0]; AMX.memo.ecrire('neufs_origine', x[0]); self.typeParVin = null; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); } }, [h('span', { text: x[1] }), h('b', { text: AMX.fmtNombre(x[2]) })]));
+    });
   };
   /** Y a-t-il des unités de flotte dans la portée (stock ou commandes GM) ? Sinon le sélecteur détail / flotte reste caché
       et tout s'affiche (Hyundai : ses RDR « Fleet » restent dans les ventes). */
@@ -514,7 +515,9 @@
     var mode = this.modeFlotte(), tousEnStock = this.visiblesTous().filter(function (v) { return v.enStock; }), nFlotte = tousEnStock.filter(estFlotte).length, nDetail = tousEnStock.length - nFlotte;
     var quoi = mode === 'detail' ? ' neuf' + (enStock.length > 1 ? 's' : '') + ' au détail' : (mode === 'flotte' ? ' neuf' + (enStock.length > 1 ? 's' : '') + ' en flotte' : ' neuf' + (enStock.length > 1 ? 's' : ''));
     var reste = mode === 'detail' && nFlotte ? ' · ' + nFlotte + ' en flotte' : (mode === 'flotte' ? ' · ' + nDetail + ' au détail' : (mode === 'tout' && this.aFlotte() ? ' · ' + nDetail + ' détail, ' + nFlotte + ' flotte' : ''));
-    this.elEtat.textContent = enStock.length + quoi + (this.compagnie ? ' — ' + nomCie(this.compagnie) : ' — tout le groupe') + (enStock.length ? ' (' + nTerrain + ' en stock' + (nDemos ? ', ' + nDemos + ' démo' + (nDemos > 1 ? 's' : '') : '') + (nTransit ? ', ' + nTransit + ' en transit' : '') + ')' : '') + reste + ' · source : ' + ORIGINES_LONG[origine] + (derniers.length ? ' — ' + derniers.join(' · ') : ' — rien reçu encore');
+    void quoi; void reste; void nTerrain; void nTransit; void nDemos;
+    var codesVis = AMX.codesPour ? AMX.codesPour('inventaire') : [];
+    this.elEtat.textContent = (this.compagnie ? nomCie(this.compagnie) : (codesVis.length === 1 ? nomCie(codesVis[0]) : 'Tout le groupe')) + ' · ' + enStock.length + ' neuf' + (enStock.length > 1 ? 's' : '') + (derniers.length ? ' · lu le ' + derniers.map(function (x) { return x.replace(/^.*? (\d{4}-\d{2}-\d{2}.*)$/, '$1'); }).join(' · ') : ' · rien reçu encore du ' + ORIGINES_LONG[origine]);   /* Maxime, 11 oct. : pas de longue phrase sous le titre */
     this.btnPortail.classList.toggle('cache', !(peutImporterPortail() && (!this.compagnie || PORTAILS[this.compagnie])));
     this.rendrePipeline(enStock);
     this.rendreCartes(enStock);
@@ -543,7 +546,7 @@
     var tuiles = h('div.neufs-cartes', { style: { marginBottom: '0' } }, [
       carte('vert', 'Dans les deux', e.communs, 'même NIV au DMS et chez le constructeur'),
       carte(e.dmsSeul.length ? 'ambre' : 'vert', 'DMS seulement', e.dmsSeul.length, 'au DMS / fichier, absent du portail'),
-      carte(e.constructeurSeul.length ? 'ambre' : 'vert', 'Constructeur seulement', e.constructeurSeul.length, 'sur le portail, absent du DMS'),
+      carte(e.constructeurSeul.length ? 'ambre' : 'vert', 'Manufacturier seulement', e.constructeurSeul.length, 'sur le portail, absent du DMS'),
       carte(e.statut.length ? 'rouge' : 'vert', 'Statut différent', e.statut.length, 'en stock d\'un côté, transit ou démo de l\'autre')
     ]);
     var ligneV = function (v, cols) { var tr = h('tr.ecart', [h('td.vehicule', [h('div.nom', { text: nomVehicule(v) }), h('div.vin', { text: v.vin + (v.stock ? ' · #' + v.stock : '') })]), h('td', { text: v.couleur || '—' })].concat(cols)); tr.addEventListener('click', function () { self.ouvrir(v); }); return tr; };
@@ -553,13 +556,13 @@
     };
     var tri = function (l) { return l.slice().sort(function (a, b) { return (b.jours || 0) - (a.jours || 0); }); };
     var corps = [tuiles,
-      h('p.doux.petit', { style: { margin: '10px 0 0' }, text: 'Véhicules en stock seulement. DMS / fichier : ' + (luDms || 'pas de lecture') + ' · constructeur : ' + (luCon || 'pas de lecture') + '. Un NIV « DMS seulement » est en général vendu ou transféré côté constructeur sans que le DMS le sache (ou un échange concessionnaire) ; un NIV « constructeur seulement » n\'est pas encore reçu au DMS (en transit, livré ce matin) ou a été oublié. Exportez la liste pour demander les différences.' }),
+      h('p.doux.petit', { style: { margin: '10px 0 0' }, text: 'Véhicules en stock seulement. DMS / fichier : ' + (luDms || 'pas de lecture') + ' · manufacturier : ' + (luCon || 'pas de lecture') + '. Un NIV « DMS seulement » est en général vendu ou transféré côté manufacturier sans que le DMS le sache (ou un échange concessionnaire) ; un NIV « manufacturier seulement » n\'est pas encore reçu au DMS (en transit, livré ce matin) ou a été oublié. Exportez la liste pour demander les différences.' }),
       table('DMS / fichier seulement', tri(e.dmsSeul), ['Statut DMS', 'Jours', 'Emplacement'], function (v) { return ligneV(v, [h('td', { text: statutNorme(v) }), h('td.num', { text: fmtJours(v.jours) }), h('td', { text: v.emplacement || '—' })]); }),
-      table('Constructeur seulement', tri(e.constructeurSeul), ['Statut au portail', 'Jours', 'Étape / emplacement'], function (v) { return ligneV(v, [h('td', { text: statutNorme(v) }), h('td.num', { text: fmtJours(v.jours) }), h('td', { text: v.emplacement || (v.extra || {}).etape || '—' })]); }),
-      table('Statut différent', e.statut.map(function (x) { return x.dms; }).sort(function (a, b) { return (b.jours || 0) - (a.jours || 0); }), ['Au DMS', 'Chez le constructeur'], function (v) { var x = e.statut.filter(function (y) { return y.dms === v; })[0]; return ligneV(v, [h('td', { text: statutNorme(x.dms) + (x.dms.emplacement ? ' · ' + x.dms.emplacement : '') }), h('td', { text: statutNorme(x.constructeur) + ((x.constructeur.extra || {}).etape ? ' · ' + x.constructeur.extra.etape : '') })]); })
+      table('Manufacturier seulement', tri(e.constructeurSeul), ['Statut au portail', 'Jours', 'Étape / emplacement'], function (v) { return ligneV(v, [h('td', { text: statutNorme(v) }), h('td.num', { text: fmtJours(v.jours) }), h('td', { text: v.emplacement || (v.extra || {}).etape || '—' })]); }),
+      table('Statut différent', e.statut.map(function (x) { return x.dms; }).sort(function (a, b) { return (b.jours || 0) - (a.jours || 0); }), ['Au DMS', 'Chez le manufacturier'], function (v) { var x = e.statut.filter(function (y) { return y.dms === v; })[0]; return ligneV(v, [h('td', { text: statutNorme(x.dms) + (x.dms.emplacement ? ' · ' + x.dms.emplacement : '') }), h('td', { text: statutNorme(x.constructeur) + ((x.constructeur.extra || {}).etape ? ' · ' + x.constructeur.extra.etape : '') })]); })
     ];
     this.elEcarts.appendChild(h('div.carte', [
-      h('div.carte-entete', [h('h2', ['Écarts entre le DMS / fichier et le constructeur', h('span.sous', { text: e.total ? e.total + ' écart' + (e.total > 1 ? 's' : '') + ' sur ' + (e.communs + e.dmsSeul.length + e.constructeurSeul.length) + ' NIV' : 'aucun écart : les deux inventaires concordent' })]), h('button.btn.petit', { type: 'button', html: I.telecharger + '<span>Exporter les écarts</span>', onclick: function () { self.exporterEcarts(); } })]),
+      h('div.carte-entete', [h('h2', ['Écarts entre le DMS / fichier et le manufacturier', h('span.sous', { text: e.total ? e.total + ' écart' + (e.total > 1 ? 's' : '') + ' sur ' + (e.communs + e.dmsSeul.length + e.constructeurSeul.length) + ' NIV' : 'aucun écart : les deux inventaires concordent' })]), h('button.btn.petit', { type: 'button', html: I.telecharger + '<span>Exporter les écarts</span>', onclick: function () { self.exporterEcarts(); } })]),
       h('div.carte-corps', corps)
     ]));
   };
@@ -568,7 +571,7 @@
     if (!e || !e.total) { AMX.toast('Aucun écart à exporter.', 'attention'); return; }
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
     var ligne = function (v, quoi, autre) { return { 'Écart': quoi, 'Concession': nomCie(v.compagnie), 'NIV': v.vin, '# Stock': v.stock || '', 'Année': v.annee, 'Marque': v.marque, 'Modèle': v.modele, 'Version': v.version, 'Couleur': v.couleur, 'Statut DMS': origineDe(v) === 'dms' ? statutNorme(v) : (autre ? statutNorme(autre) : ''), 'Statut constructeur': origineDe(v) === 'constructeur' ? statutNorme(v) : (autre ? statutNorme(autre) : ''), 'Jours': v.jours, 'Emplacement': v.emplacement || (v.extra || {}).etape || '' }; };
-    var rows = e.dmsSeul.map(function (v) { return ligne(v, 'DMS seulement'); }).concat(e.constructeurSeul.map(function (v) { return ligne(v, 'Constructeur seulement'); })).concat(e.statut.map(function (x) { return ligne(x.dms, 'Statut différent', x.constructeur); }));
+    var rows = e.dmsSeul.map(function (v) { return ligne(v, 'DMS seulement'); }).concat(e.constructeurSeul.map(function (v) { return ligne(v, 'Manufacturier seulement'); })).concat(e.statut.map(function (x) { return ligne(x.dms, 'Statut différent', x.constructeur); }));
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Écarts');
     XLSX.writeFile(wb, 'neufs-ecarts-' + (this.compagnie || 'groupe').toLowerCase() + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
@@ -794,12 +797,40 @@
     ]);
     carte.appendChild(h('div.carte-corps', [h('div.neufs-portail-grille', [colMois, colModeles])]));
     this.elVentes.appendChild(carte);
-    // Dernières livraisons déclarées (60 jours, 100 au plus)
-    var depuis = isoJoursAvant(60), recentes = pv.ventes.filter(function (v) { return String(v.dateVente) >= depuis; }).sort(function (a, b) { return String(b.dateVente).localeCompare(String(a.dateVente)); });
-    if (recentes.length) {
-      var avecClient = recentes.some(function (v) { return v.client; }), avecPar = recentes.some(function (v) { return v.saisiPar; }), avecConseiller = recentes.some(function (v) { return v.conseiller; });
-      var rows = recentes.slice(0, 100).map(function (v) { return h('tr', [h('td', { text: AMX.fmtDate(v.dateVente) }), h('td.vehicule', [h('div.nom', { text: [v.annee, v.modele, v.version].filter(Boolean).join(' ') }), h('div.vin', { text: v.vin + (v.statut && !/compl/.test(v.statut) ? ' · ' + v.statut : '') })]), h('td', { text: v.couleur || '—' }), h('td', { text: libelleTypeVente(v.typeVente) })].concat(avecClient ? [h('td', { text: v.client || '—' })] : []).concat(avecConseiller ? [h('td', { text: v.conseiller || '—' })] : []).concat(avecPar ? [h('td', { text: v.saisiPar || '—' })] : []).concat(pv.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' })] : [])); });
-      var c2 = h('div.carte', [h('div.carte-entete', [h('h2', ['Dernières livraisons déclarées', h('span.sous', { text: recentes.length + ' sur 60 jours' })])]), h('div.carte-corps', [h('div.neufs-table', [h('table.tableau', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Véhicule'), h('th', 'Couleur'), h('th', 'Type')].concat(avecClient ? [h('th', 'Client')] : []).concat(avecConseiller ? [h('th', 'Conseiller')] : []).concat(avecPar ? [h('th', 'Saisi par')] : []).concat(pv.montants ? [h('th.num', 'Coût facture')] : []))]), h('tbody', rows)])]), recentes.length > 100 ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: '… et ' + (recentes.length - 100) + ' autres (export Excel pour le tout).' }) : null])]);
+    // Livraisons déclarées avec filtres (Maxime, 11 oct. : « mettre un filtre aux livraisons déclarées ») : période, type, modèle,
+    // conseiller, recherche (NIV, client, modèle) ; 60 jours par défaut, 200 lignes au plus à l'écran (export pour le tout).
+    this.filtresVentes = this.filtresVentes || { q: '', type: '', modele: '', conseiller: '', periode: '60' };
+    var fv = this.filtresVentes, toutes = pv.ventes.slice().sort(function (a, b) { return String(b.dateVente).localeCompare(String(a.dateVente)); });
+    var depuis = fv.periode === '12m' ? debut12Mois() : isoJoursAvant(Number(fv.periode) || 60);
+    var recentes = toutes.filter(function (v) { return String(v.dateVente) >= depuis; });
+    if (recentes.length || toutes.length) {
+      var elLivr = h('div.neufs-table'), elCompteLivr = h('span.sous');
+      var options = function (sel, valeurs, libelleTous, courant) { AMX.vider(sel); sel.appendChild(h('option', { value: '', text: libelleTous })); valeurs.forEach(function (x) { sel.appendChild(h('option', { value: x[0], selected: courant === x[0], text: x[1] })); }); };
+      var comptes = function (liste, cle, fmt) { var n = {}; liste.forEach(function (v) { var k = cle(v); if (k) n[k] = (n[k] || 0) + 1; }); return Object.keys(n).sort(function (a, b) { return n[b] - n[a] || a.localeCompare(b); }).map(function (k) { return [k, (fmt ? fmt(k) : k) + ' (' + n[k] + ')']; }); };
+      var selPeriode = h('select.saisie', { 'aria-label': 'Période', onchange: function (e) { fv.periode = e.target.value; self.rendreVentes(); } });
+      [['30', '30 jours'], ['60', '60 jours'], ['90', '90 jours'], ['12m', '12 mois']].forEach(function (o) { selPeriode.appendChild(h('option', { value: o[0], selected: fv.periode === o[0], text: o[1] })); });
+      var selType = h('select.saisie', { 'aria-label': 'Type', onchange: function (e) { fv.type = e.target.value; dessiner(); } });
+      var selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { fv.modele = e.target.value; dessiner(); } });
+      var selConseiller = h('select.saisie', { 'aria-label': 'Conseiller', onchange: function (e) { fv.conseiller = e.target.value; dessiner(); } });
+      var inputQ = h('input.saisie', { type: 'search', placeholder: 'NIV, client, modèle…', value: fv.q, oninput: AMX.debounce(function (e) { fv.q = e.target.value; dessiner(); }, 120) });
+      options(selType, comptes(recentes, function (v) { return libelleTypeVente(v.typeVente); }), 'Tous les types', fv.type);
+      options(selModele, comptes(recentes, function (v) { return v.modele || '—'; }), 'Tous les modèles', fv.modele);
+      var conseillers = comptes(recentes, function (v) { return v.conseiller || ''; });
+      options(selConseiller, conseillers, 'Tous les conseillers', fv.conseiller);
+      selConseiller.classList.toggle('cache', !conseillers.length);
+      var dessiner = function () {
+        var q = fv.q.trim().toUpperCase();
+        var lignes = recentes.filter(function (v) { return (!fv.type || libelleTypeVente(v.typeVente) === fv.type) && (!fv.modele || (v.modele || '—') === fv.modele) && (!fv.conseiller || v.conseiller === fv.conseiller) && (!q || [v.vin, v.client, v.modele, v.version, v.couleur, v.annee, v.conseiller, v.saisiPar, v.reference].join(' ').toUpperCase().indexOf(q) >= 0); });
+        AMX.vider(elLivr);
+        elCompteLivr.textContent = lignes.length + (lignes.length !== recentes.length ? ' sur ' + recentes.length : '') + ' · ' + (fv.periode === '12m' ? '12 mois' : fv.periode + ' jours');
+        if (!lignes.length) { elLivr.appendChild(h('div.neufs-vide', { text: recentes.length ? 'Aucune livraison déclarée ne correspond aux filtres.' : 'Aucune livraison déclarée sur cette période.' })); return; }
+        var avecClient = lignes.some(function (v) { return v.client; }), avecPar = lignes.some(function (v) { return v.saisiPar; }), avecConseiller = lignes.some(function (v) { return v.conseiller; });
+        var rows = lignes.slice(0, 200).map(function (v) { return h('tr', [h('td', { text: AMX.fmtDate(v.dateVente) }), h('td.vehicule', [h('div.nom', { text: [v.annee, v.modele, v.version].filter(Boolean).join(' ') }), h('div.vin', { text: v.vin + (v.statut && !/compl/.test(v.statut) ? ' · ' + v.statut : '') })]), h('td', { text: v.couleur || '—' }), h('td', { text: libelleTypeVente(v.typeVente) })].concat(avecClient ? [h('td', { text: v.client || '—' })] : []).concat(avecConseiller ? [h('td', { text: v.conseiller || '—' })] : []).concat(avecPar ? [h('td', { text: v.saisiPar || '—' })] : []).concat(pv.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' })] : [])); });
+        elLivr.appendChild(h('table.tableau', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Véhicule'), h('th', 'Couleur'), h('th', 'Type')].concat(avecClient ? [h('th', 'Client')] : []).concat(avecConseiller ? [h('th', 'Conseiller')] : []).concat(avecPar ? [h('th', 'Saisi par')] : []).concat(pv.montants ? [h('th.num', 'Coût facture')] : []))]), h('tbody', rows)]));
+        if (lignes.length > 200) elLivr.appendChild(h('p.doux.petit', { style: { margin: '8px 0 0' }, text: '… et ' + (lignes.length - 200) + ' autres (export Excel pour le tout).' }));
+      };
+      dessiner();
+      var c2 = h('div.carte', [h('div.carte-entete', [h('h2', ['Livraisons déclarées', elCompteLivr])]), h('div.carte-corps', [h('div.neufs-outils.neufs-filtres-ventes', [h('div.recherche', [h('span', { html: I.recherche }), inputQ]), selPeriode, selType, selModele, selConseiller]), elLivr])]);
       this.elVentes.appendChild(c2);
     }
   };
@@ -971,6 +1002,13 @@
     });
   };
 
+  /* Origine choisie sans aucun véhicule pour la concession : on le dit au lieu d'une liste vide muette. */
+  VueNeufs.prototype.messageOrigineVide = function () {
+    var o = this.originesDispo(), c = this.origineCourante();
+    if (o[c]) return null;
+    var cie = this.compagnie ? nomCie(this.compagnie) : 'ce groupe';
+    return c === 'constructeur' ? 'Aucun inventaire du manufacturier pour ' + cie + ' : cliquez le favori « Automax ← Constructeur » sur le portail du manufacturier, connecté (bouton « Portail du constructeur »).' + (o.dms ? ' Le DMS / fichier, lui, a ' + o.dms + ' véhicule' + (o.dms > 1 ? 's' : '') + '.' : '') : 'Aucun inventaire DMS / fichier pour ' + cie + ' : il faut programmer l\'export quotidien du DMS (ou une feuille Google) vers le site.' + (o.constructeur ? ' Le manufacturier, lui, en a ' + o.constructeur + '.' : '');
+  };
   VueNeufs.prototype.rendreTable = function () {
     var self = this, d = this.donnees;
     AMX.vider(this.elTable);
@@ -1003,7 +1041,7 @@
     if (!lignes.length) {
       // Les mêmes filtres sur ce que le mode cache (flotte en mode détail, etc.) : on le dit et on propose de l'afficher
       var caches = this.filtreesSans();
-      var vide = h('div.neufs-vide', [h('div', { text: 'Aucun véhicule neuf ne correspond.' })]);
+      var vide = h('div.neufs-vide', [h('div', { text: this.messageOrigineVide() || 'Aucun véhicule neuf ne correspond.' })]);
       if (caches.length) {
         var nF = caches.filter(estFlotte).length;
         vide.appendChild(h('p', { style: { margin: '8px 0 0' } }, [h('span', { text: caches.length + ' véhicule' + (caches.length > 1 ? 's' : '') + ' correspond' + (caches.length > 1 ? 'ent' : '') + ' hors du filtre actuel' + (nF ? ' (' + nF + ' en flotte)' : '') + '. ' }), h('a', { text: 'Tout afficher', onclick: function () { self.flotte = 'tout'; AMX.memo.ecrire('neufs_flotte', 'tout'); self.marque = ''; AMX.memo.ecrire('neufs_marque', ''); self.rendre(); } })]));

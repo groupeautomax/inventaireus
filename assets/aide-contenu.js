@@ -20,7 +20,7 @@
   window.AMX = window.AMX || {};
 
   AMX.AIDE_CONTENU = {
-    version: '9 octobre 2026',
+    version: '11 octobre 2026',
 
     frequentes: ['inv-statut', 'inv-stock-km', 'achat-quand', 'svc-autoriser', 'eval-lancer', 'dem-connexion', 'app-installer', 'inv-recherche', 'svc-refus', 'offre-publier', 'offre-signer', 'dep-deconnecte', 'dep-lent'],
 
@@ -114,6 +114,9 @@
             r: '<ul><li><b>Cartes</b> : en stock, âge moyen, part au-delà de 60 jours (cible : moins de 10 %), jours d\'approvisionnement.</li><li><b>Jauge de vieillissement</b> : 0-30 / 31-60 / 61-90 / 91-180 / 180 + jours — un clic filtre le tableau.</li><li><b>Groupes</b> par modèle › version : en stock, sorties des 90 derniers jours, jours d\'approvisionnement (stock ÷ sorties par jour), mix par année-modèle.</li><li><b>Revue de la semaine</b> : arrivées, sorties, véhicules qui ont franchi 60 / 90 / 180 jours, démos à surveiller, « fantômes » (plus de deux ans).</li><li><b>Tableau</b> : un clic ouvre la fiche (coût facture, coût de détention à 5 %/an, options, mouvements).</li></ul><p>Les échanges concessionnaires et les fantômes sont exclus de l\'âge moyen.</p>' },
           { id: 'neufs-couts', q: 'Pourquoi je ne vois pas les coûts des neufs ?', mots: 'coût facture détention caché montants droit',
             r: '<p>Les montants (coût facture, coût de détention) ne sont montrés qu\'avec le droit « Modifier les coûts » (gestionnaire, administrateur, propriétaire).</p>' },
+          { id: 'neufs-portail', q: 'Comment lire les portails des constructeurs (Hyundai, GM, BMW) ?', mots: 'portail constructeur favori signet hyundai gm owb bmw rdr ventes déclarées commandes objectifs crédits csi',
+            r: '<p>Neufs → <b>Portail du constructeur</b> : glissez une fois le favori « Automax ← Constructeur » dans la barre de favoris de Chrome, puis cliquez-le, connecté, sur le portail : <b>Hyundai</b> (portail des ventes : stock, démos, transit, commandes, ventes déclarées, factures), <b>GM</b> (L\'utilitaire des commandes : stock et commandes par secteur, livraisons, détail / flotte), <b>BMW</b> (Retail Reporting : RDR des 12 mois, RDR à compléter, objectifs, crédits), et les sites CSI (BoostCX, ISC) pour l\'onglet CSI. Une bande verte suit la lecture ; revenez sur le site et rafraîchissez. Une fois par jour suffit.</p><p>Chez BMW, les RDR <b>usagés / certifiés</b>, <b>changements de propriétaire</b> et <b>wholesale</b> sont comptés à part (tuile « Usagés déclarés ») ; un usagé vendu à l\'encan doit être déclaré en « Wholesale Registration », sinon il reste « à corriger » et bloque le crédit.</p>',
+            liens: [{ t: 'Neufs › Ventes', s: 'neufs', o: '' }] },
           { id: 'neufs-exclure', q: 'Comment retirer définitivement un neuf du suivi ?', mots: 'retirer exclure supprimer réinclure vieille unité ne plus suivre',
             r: '<p>Administrateur : ouvrez la fiche du véhicule → <b>Retirer du suivi</b> → raison → confirmer. Le NIV est ignoré de tous les feeds suivants (ni arrivée, ni sortie). La liste repliée « n véhicule(s) retiré(s) du suivi » sous le tableau permet de <b>Réinclure</b> : le véhicule reviendra au prochain feed comme une arrivée.</p>', roles: 'admin' }
         ] },
@@ -347,6 +350,9 @@
     ],
 
     nouveautes: [
+      { date: '11 octobre 2026', titre: 'Neufs : portails des constructeurs (Hyundai, GM, BMW), détail / flotte, CSI',
+        texte: 'Le menu sépare « Usagé » et « Neufs ». Un seul favori « Automax ← Constructeur » (Neufs › Portail du constructeur) lit, selon la page où on le clique : le portail des ventes Hyundai (stock, commandes, ventes déclarées, factures), L\'utilitaire des commandes GM (stock par secteur, commandes en cours et en attente RFO, livraisons 12 mois, détail / flotte avec le NCP), le portail RDR BMW (RDR des 12 mois, RDR à compléter, objectifs du mois et de l\'année, crédits approuvés / en attente), et les sites CSI (BoostCX, ISC InMoment) pour l\'onglet CSI. Neufs › Ventes montre la carte « Objectifs et crédits BMW » ; l\'accueil affiche une tuile rouge « RDR à compléter » tant qu\'il en reste sur le portail (ils bloquent le crédit du constructeur).',
+        liens: [{ t: 'Neufs', s: 'neufs', o: '' }, { t: 'CSI', s: 'csi', o: '' }] },
       { date: '9 octobre 2026', titre: 'Page d\'accueil, valeurs OpenLane par NIV, Suggestions dans Aide',
         texte: 'Le site s\'ouvre maintenant sur une page d\'accueil (recherche, une tuile par section, nouveautés) et chacun choisit sa page de départ (étoile d\'une tuile ou liste au bas de l\'Accueil). Outils › Valeurs OpenLane : le favori « Automax ← OpenLane (valeurs) », cliqué dans Market guide, lit pour chaque véhicule en stock, chaque évaluation récente et chaque NIV demandé les ventes comparables OpenLane (min / moyenne / max sur 90 jours) et la prévision de prix à 30, 60 et 90 jours au km connu. Les valeurs apparaissent dans le panneau d\'inventaire, la fiche d\'achat, le suivi service et l\'évaluation, et une puce « OpenLane 23 055 $ » sur les lignes. L\'onglet Suggestions est maintenant dans Aide.',
         liens: [{ t: 'Accueil', s: 'accueil', o: '' }, { t: 'Valeurs OpenLane', s: 'outils', o: 'openlane' }, { t: 'Suggestions', s: 'aide', o: 'suggestions' }] },

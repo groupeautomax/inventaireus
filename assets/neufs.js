@@ -48,8 +48,18 @@
   var PORTAILS = {
     HYUNDAI: { nom: 'Portail Hyundai', source: 'hyundai', url: 'https://salesportal-hacc.am.hyundai-corp.io/salesportal/index.html#/dealerstocklist', nomCsi: 'CSI (BoostCX)', csi: 'https://hacc.boostcx.com/bcx/dashboard/combined', liste: 'Stock › Dealer Stock List', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },
     STM: { nom: 'Portail GM (utilitaire des commandes)', source: 'gm', url: 'https://owb.vsp.autopartners.net/ui/manage-inventory/view-inventory/preliminary', nomCsi: 'ISC (InMoment)', csi: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', liste: 'Gestion des stocks › Afficher l\'inventaire et les commandes', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },
-    HAWKS: { nom: 'Portail GM (utilitaire des commandes)', source: 'gm', url: 'https://owb.vsp.autopartners.net/ui/manage-inventory/view-inventory/preliminary', nomCsi: 'ISC (InMoment)', csi: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', liste: 'Gestion des stocks › Afficher l\'inventaire et les commandes', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } }
+    HAWKS: { nom: 'Portail GM (utilitaire des commandes)', source: 'gm', url: 'https://owb.vsp.autopartners.net/ui/manage-inventory/view-inventory/preliminary', nomCsi: 'ISC (InMoment)', csi: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', liste: 'Gestion des stocks › Afficher l\'inventaire et les commandes', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },
+    // (11 oct.) BMW : le portail RDR (S-Gate › Sales › Retail Reporting) — RDR 12 mois, RDR à compléter, objectifs, crédits. Le stock
+    // BMW est dans IVS-R Ordering (autre portail, profil de Maxime en erreur le 11 oct.) : à brancher quand il répondra.
+    BMW: { nom: 'Portail RDR BMW (Retail Reporting)', source: 'bmw', url: 'https://salesreporting.bmwgroup.ca/RDR', nomCsi: '', csi: '', liste: 'RDR › RDR List', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } }
   };
+  /* Ventes déclarées « neuves » : chez BMW, le portail RDR déclare aussi les usagés / certifiés (U), les changements de propriétaire (P)
+     et le wholesale (W) — ils comptent dans le tableau BMW, pas dans les ventes de neufs. */
+  function venteNeuve(v) { return !(String((v && v.source) || '') === 'bmw' && /^[UPW]$/.test(String((v && v.typeCode) || '').toUpperCase())); }
+  var RDR_TYPES_BMW = { N: 'Neuf', D: 'Démo', U: 'Usagé / certifié', P: 'Changement de propriétaire', W: 'Wholesale' };
+  var ONGLETS_NEUFS = ['liste', 'commandes', 'ventes', 'analyse'];
+  var MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  function libMois(p) { var m = /^(\d{4})-(\d{2})/.exec(String(p || '')); return m ? MOIS_FR[Number(m[2]) - 1] + ' ' + m[1] : String(p || '—'); }
   function peutImporterPortail() { return !!(AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.perm('gererUtilisateurs') || AMX.estAdmin()); }
   /* Détail ou flotte (Maxime, 10 oct. : « une unité FNR veut dire flotte, il faut les séparer en flotte et détail pour GM »).
      Stock GM : le type de commande du portail (extra.typeCommande) — TRE / SRE = détail, FNR / FCN… (F…) = flotte ; les
@@ -157,6 +167,9 @@
       return cache.promesse;
     },
     enCache: function () { return cache.donnees; },
+    portailEnCache: function () { return cachePortail.donnees; },
+    // RDR à compléter chez le constructeur (portail RDR BMW) pour les concessions visibles — tuile de l'accueil.
+    aFaireConstructeur: function () { var p = cachePortail.donnees; if (!p || !p.tableaux) return null; var out = []; Object.keys(p.tableaux).forEach(function (c) { var t = p.tableaux[c]; (t.aFaire || []).forEach(function (l) { out.push({ compagnie: c, ligne: l }); }); }); return out; },
     vider: function () { cache.donnees = null; cache.le = 0; cachePortail.donnees = null; },
     // Portails des constructeurs (?constructeur=1) : ventes déclarées, commandes en attente, factures, état des lectures.
     chargerPortail: function (force) {
@@ -261,6 +274,7 @@
     this.tri = AMX.memo.lire('neufs_tri', { cle: 'jours', desc: true });
     this.construire();
     if (ctx && ctx.params && ctx.params.vin) { this.filtres.recherche = String(ctx.params.vin).toUpperCase(); this.elRecherche.value = this.filtres.recherche; this.vinDemande = true; }
+    if (ctx && ctx.params && ONGLETS_NEUFS.indexOf(ctx.params.onglet) >= 0) this.onglet = ctx.params.onglet;   /* #/neufs?onglet=ventes (tuile de l'accueil) */
     this.charger();
     this.surProfil = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('inventaire'); self.rendre(); } };
     document.addEventListener('amx:profil', this.surProfil);
@@ -270,6 +284,7 @@
   // Même section, nouvelle adresse (ex. recherche globale avec un NIV).
   VueNeufs.prototype.naviguer = function (ctx) {
     if (ctx.params && ctx.params.vin) { this.filtres.recherche = String(ctx.params.vin).toUpperCase(); this.elRecherche.value = this.filtres.recherche; this.vinDemande = true; this.rendre(); }
+    if (ctx.params && ONGLETS_NEUFS.indexOf(ctx.params.onglet) >= 0) { if (this.donnees) this.montrer(ctx.params.onglet, { defiler: true }); else this.onglet = ctx.params.onglet; }
   };
 
   VueNeufs.prototype.construire = function () {
@@ -504,9 +519,49 @@
     var p = this.portail || {}, c = this.compagnie;
     var self = this;
     var filtre = function (l, flotte, marque) { return (l || []).filter(function (x) { return (!c || x.compagnie === c) && self.garde(flotte(x)) && (!self.marque || marque(x) === self.marque); }); };
-    var cies = c ? [c] : Object.keys(PORTAILS), etats = p.etats || {};
+    var cies = c ? [c] : Object.keys(PORTAILS), etats = p.etats || {}, tableaux = {};
     var lus = cies.filter(function (x) { return etats[x] && etats[x].le; });
-    return { ventes: filtre(p.ventes, venteFlotte, function (v) { return nomMarque(v.marque); }), commandes: filtre(p.commandes, commandeFlotte, marqueCommande), etats: etats, lus: lus, cies: cies, montants: !!p.montants, factures: p.factures || {} };
+    cies.forEach(function (x) { if (p.tableaux && p.tableaux[x]) tableaux[x] = p.tableaux[x]; });
+    var neuves = (p.ventes || []).filter(venteNeuve), usagees = (p.ventes || []).filter(function (v) { return !venteNeuve(v) && (!c || v.compagnie === c); });
+    return { ventes: filtre(neuves, venteFlotte, function (v) { return nomMarque(v.marque); }), ventesUsagees: usagees, commandes: filtre(p.commandes, commandeFlotte, marqueCommande), etats: etats, tableaux: tableaux, lus: lus, cies: cies, montants: !!p.montants, factures: p.factures || {} };
+  };
+  /* (11 oct.) Tableau du constructeur — portail RDR BMW : objectifs (mois et cumul), crédits, RDR à compléter, usagés déclarés. */
+  VueNeufs.prototype.rendreTableau = function (pv) {
+    var self = this, cies = Object.keys(pv.tableaux || {});
+    if (!cies.length) return null;
+    var cie = cies[0], t = pv.tableaux[cie], o = t.objectifs || {}, cr = t.credits || {}, aFaire = t.aFaire || [];
+    var fmtObj = function (x) { return x && x.objectif ? AMX.fmtNombre(x.reel || 0) + ' / ' + AMX.fmtNombre(x.objectif) : (x && x.reel !== null && x.reel !== undefined ? AMX.fmtNombre(x.reel) : '—'); };
+    var pct = function (x) { return x && x.objectif ? Math.round(100 * (x.reel || 0) / x.objectif) : null; };
+    var couleur = function (x) { var p = pct(x); return p === null ? 'gris' : (p >= 100 ? 'vert' : (p >= 85 ? 'ambre' : 'rouge')); };
+    var moisLib = o.periode ? libMois(o.periode) : 'mois en cours';
+    var carte = function (cls, nom, n, bas, action) { var b = h('button.neufs-carte.' + cls, { type: 'button' }, [h('div.nom', { text: nom }), h('div.n', { text: n }), bas ? h('div.bas', { text: bas }) : null]); if (action) b.addEventListener('click', action); return b; };
+    var tuiles = h('div.neufs-cartes', { style: { marginBottom: '0' } });
+    var m = o.mois || {}, cu = o.cumul || {};
+    if (m.neufs) tuiles.appendChild(carte(couleur(m.neufs), 'Neufs + démos — ' + moisLib, fmtObj(m.neufs), (pct(m.neufs) !== null ? pct(m.neufs) + ' % de l\'objectif' : 'pas d\'objectif') + (m.neufs.vsAnDernier !== null && m.neufs.vsAnDernier !== undefined ? ' · ' + m.neufs.vsAnDernier + ' % de l\'an dernier' : '')));
+    if (m.usages) tuiles.appendChild(carte(couleur(m.usages), 'Usagés — ' + moisLib, fmtObj(m.usages), (pct(m.usages) !== null ? pct(m.usages) + ' % de l\'objectif' : 'pas d\'objectif') + (m.usages.vsAnDernier ? ' · ' + m.usages.vsAnDernier + ' % de l\'an dernier' : '')));
+    if (cu.neufs) tuiles.appendChild(carte(couleur(cu.neufs), 'Neufs + démos — cumul ' + (o.annee || ''), fmtObj(cu.neufs), pct(cu.neufs) !== null ? pct(cu.neufs) + ' % de l\'objectif annuel' : 'pas d\'objectif'));
+    if (cu.usages) tuiles.appendChild(carte(couleur(cu.usages), 'Usagés — cumul ' + (o.annee || ''), fmtObj(cu.usages), pct(cu.usages) !== null ? pct(cu.usages) + ' % de l\'objectif annuel' : 'pas d\'objectif'));
+    var tot = cr.total || {};
+    if (cr.total) tuiles.appendChild(carte(tot.attente ? 'ambre' : 'vert', 'Crédits ' + nomMarque(cie) + ' approuvés', AMX.fmtArgent(tot.approuve || 0, 0), 'depuis ' + (cr.depuis || '—') + ' · en attente ' + AMX.fmtArgent(tot.attente || 0, 0) + (tot.refuse ? ' · refusés ' + AMX.fmtArgent(tot.refuse, 0) : '')));
+    var parType = {}; aFaire.forEach(function (l) { var k = RDR_TYPES_BMW[l.type] || l.type || '—'; parType[k] = (parType[k] || 0) + 1; });
+    tuiles.appendChild(carte(aFaire.length ? 'rouge' : 'vert', 'RDR à compléter', AMX.fmtNombre(aFaire.length), aFaire.length ? Object.keys(parType).map(function (k) { return k + ' ' + parType[k]; }).join(' · ') : 'rien en suspens sur le portail'));
+    var usag = pv.ventesUsagees.filter(function (v) { return String(v.dateVente) >= debut12Mois(); }), parU = {}; usag.forEach(function (v) { var k = RDR_TYPES_BMW[v.typeCode] || v.typeVente || '—'; parU[k] = (parU[k] || 0) + 1; });
+    if (usag.length) tuiles.appendChild(carte('sombre', 'Usagés déclarés — 12 mois', AMX.fmtNombre(usag.length), Object.keys(parU).map(function (k) { return k + ' ' + parU[k]; }).join(' · ')));
+    var corps = [tuiles];
+    if (aFaire.length) {
+      var rows = aFaire.slice(0, 80).map(function (l) { return h('tr', [h('td', { text: RDR_TYPES_BMW[l.type] || l.type || '—' }), h('td', { text: l.dateRdr ? AMX.fmtDate(l.dateRdr) : '—' }), h('td.vehicule', [h('div.nom', { text: l.vehicule || '—' }), h('div.vin', { text: l.vin || '' })]), h('td', { text: l.client || '—' }), h('td', { text: l.conseiller || '—' }), h('td', [h('span.badge.' + (/corriger/.test(l.statut || '') ? 'rouge' : 'ambre'), { text: l.statut || '—' })])]); });
+      corps.push(h('h3', { style: { margin: '14px 0 6px' }, text: 'RDR à compléter sur le portail (' + aFaire.length + ')' }));
+      corps.push(h('div.neufs-table', [h('table.tableau', [h('thead', [h('tr', [h('th', 'Type'), h('th', 'Date RDR'), h('th', 'Véhicule'), h('th', 'Client'), h('th', 'Conseiller'), h('th', 'Statut')])]), h('tbody', rows)])]));
+      corps.push(h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Les RDR « à corriger » bloquent le crédit du constructeur : à régler sur le portail (RDR › RDR List). Un usagé vendu en gros (encan) doit être déclaré en « Wholesale Registration ».' + (aFaire.length > 80 ? ' … ' + (aFaire.length - 80) + ' autres sur le portail.' : '') }));
+    }
+    if (cr.mois && cr.mois.length) {
+      corps.push(h('h3', { style: { margin: '14px 0 6px' }, text: 'Crédits ' + nomMarque(cie) + ' par mois' }));
+      corps.push(h('table.tableau', [h('thead', [h('tr', [h('th', 'Mois'), h('th.num', 'Approuvés'), h('th.num', 'En attente'), h('th.num', 'Refusés'), h('th.num', 'NIV')])]), h('tbody', cr.mois.slice(0, 13).map(function (x) { var n = (cr.lignes || []).filter(function (l) { return l.periode === x.periode; }).length; return h('tr', [h('td', { text: libMois(x.periode) }), h('td.num', { text: AMX.fmtArgent(x.approuve || 0, 0) }), h('td.num', { style: x.attente ? { color: 'var(--ambre)', fontWeight: '600' } : {}, text: x.attente ? AMX.fmtArgent(x.attente, 0) : '—' }), h('td.num', { text: x.refuse ? AMX.fmtArgent(x.refuse, 0) : '—' }), h('td.num', { text: n ? String(n) : '—' })]); }))]));
+    }
+    return h('div.carte', [
+      h('div.carte-entete', [h('h2', ['Objectifs et crédits ' + nomMarque(cie) + ' (portail RDR)', h('span.sous', { text: 'lu le ' + AMX.fmtDate(t.luLe, true) + (t.par ? ' par ' + String(t.par).split('@')[0] : '') })]), peutImporterPortail() ? h('button.btn.petit', { type: 'button', html: I.externe + '<span>Relire le portail</span>', onclick: function () { self.ouvrirSignet(cie); } }) : null]),
+      h('div.carte-corps', corps)
+    ]);
   };
   VueNeufs.prototype.rendrePortailOnglets = function () {
     if (!this.donnees) return;
@@ -599,6 +654,8 @@
     var self = this, pv = this.portailVisible();
     AMX.vider(this.elVentes);
     var lu = pv.lus.map(function (x) { return nomCie(x) + ' lu le ' + AMX.fmtDate(pv.etats[x].le, true); }).join(' · ');
+    var tableau = this.rendreTableau(pv);
+    if (tableau) this.elVentes.appendChild(tableau);
     var carte = h('div.carte');
     if (!pv.ventes.length) {
       carte.appendChild(h('div.carte-entete', [h('h2', 'Ventes déclarées au constructeur (RDR)')]));
@@ -630,9 +687,9 @@
     // Dernières livraisons déclarées (60 jours, 100 au plus)
     var depuis = isoJoursAvant(60), recentes = pv.ventes.filter(function (v) { return String(v.dateVente) >= depuis; }).sort(function (a, b) { return String(b.dateVente).localeCompare(String(a.dateVente)); });
     if (recentes.length) {
-      var avecClient = recentes.some(function (v) { return v.client; }), avecPar = recentes.some(function (v) { return v.saisiPar; });
-      var rows = recentes.slice(0, 100).map(function (v) { return h('tr', [h('td', { text: AMX.fmtDate(v.dateVente) }), h('td.vehicule', [h('div.nom', { text: [v.annee, v.modele, v.version].filter(Boolean).join(' ') }), h('div.vin', { text: v.vin })]), h('td', { text: v.couleur || '—' }), h('td', { text: libelleTypeVente(v.typeVente) })].concat(avecClient ? [h('td', { text: v.client || '—' })] : []).concat(avecPar ? [h('td', { text: v.saisiPar || '—' })] : []).concat(pv.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' })] : [])); });
-      var c2 = h('div.carte', [h('div.carte-entete', [h('h2', ['Dernières livraisons déclarées', h('span.sous', { text: recentes.length + ' sur 60 jours' })])]), h('div.carte-corps', [h('div.neufs-table', [h('table.tableau', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Véhicule'), h('th', 'Couleur'), h('th', 'Type')].concat(avecClient ? [h('th', 'Client')] : []).concat(avecPar ? [h('th', 'Saisi par')] : []).concat(pv.montants ? [h('th.num', 'Coût facture')] : []))]), h('tbody', rows)])]), recentes.length > 100 ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: '… et ' + (recentes.length - 100) + ' autres (export Excel pour le tout).' }) : null])]);
+      var avecClient = recentes.some(function (v) { return v.client; }), avecPar = recentes.some(function (v) { return v.saisiPar; }), avecConseiller = recentes.some(function (v) { return v.conseiller; });
+      var rows = recentes.slice(0, 100).map(function (v) { return h('tr', [h('td', { text: AMX.fmtDate(v.dateVente) }), h('td.vehicule', [h('div.nom', { text: [v.annee, v.modele, v.version].filter(Boolean).join(' ') }), h('div.vin', { text: v.vin + (v.statut && !/compl/.test(v.statut) ? ' · ' + v.statut : '') })]), h('td', { text: v.couleur || '—' }), h('td', { text: libelleTypeVente(v.typeVente) })].concat(avecClient ? [h('td', { text: v.client || '—' })] : []).concat(avecConseiller ? [h('td', { text: v.conseiller || '—' })] : []).concat(avecPar ? [h('td', { text: v.saisiPar || '—' })] : []).concat(pv.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' })] : [])); });
+      var c2 = h('div.carte', [h('div.carte-entete', [h('h2', ['Dernières livraisons déclarées', h('span.sous', { text: recentes.length + ' sur 60 jours' })])]), h('div.carte-corps', [h('div.neufs-table', [h('table.tableau', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Véhicule'), h('th', 'Couleur'), h('th', 'Type')].concat(avecClient ? [h('th', 'Client')] : []).concat(avecConseiller ? [h('th', 'Conseiller')] : []).concat(avecPar ? [h('th', 'Saisi par')] : []).concat(pv.montants ? [h('th.num', 'Coût facture')] : []))]), h('tbody', rows)])]), recentes.length > 100 ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: '… et ' + (recentes.length - 100) + ' autres (export Excel pour le tout).' }) : null])]);
       this.elVentes.appendChild(c2);
     }
   };
@@ -642,7 +699,7 @@
     var signet = h('a.btn.primaire', { href: code, text: 'Automax ← Constructeur', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
     signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis le portail, connecté.', 'attention', 8000); });
     var corps = h('div', [
-      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' } }, 'Un seul favori pour tous les portails des constructeurs (Hyundai, GM…), reconnu à l\'adresse de la page. Cliqué sur le portail des ventes, il lit l\'inventaire complet (en stock, démos et courtoisie, en transit, commandes en cours), les ventes déclarées des 12 derniers mois et, quand le portail les donne, les factures du constructeur (coût de chaque NIV), puis les envoie ici : le suivi des neufs se remplit comme avec un feed du DMS. Cliqué sur le site CSI du constructeur (BoostCX, ISC InMoment), il lit les scores, le composite de la marque et les sondages (onglet CSI). Rien n\'est modifié sur les portails.'),
+      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' } }, 'Un seul favori pour tous les portails des constructeurs (Hyundai, GM, BMW…), reconnu à l\'adresse de la page. Cliqué sur le portail des ventes, il lit l\'inventaire complet (en stock, démos et courtoisie, en transit, commandes en cours), les ventes déclarées des 12 derniers mois et, quand le portail les donne, les factures du constructeur (coût de chaque NIV), puis les envoie ici : le suivi des neufs se remplit comme avec un feed du DMS. Sur le portail RDR BMW (Retail Reporting), il lit les RDR des 12 mois, les RDR à compléter, les objectifs et les crédits. Cliqué sur le site CSI du constructeur (BoostCX, ISC InMoment), il lit les scores, le composite de la marque et les sondages (onglet CSI). Rien n\'est modifié sur les portails.'),
       h('div.neufs-signet', [
         h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
         h('div', [h('div.section-titre', '2. Ouvrir le portail'), h('p', { text: 'Connecté avec votre compte du constructeur, sur la liste de l\'inventaire (' + (p.liste || 'n\'importe quelle liste') + ').' }), h('a.btn', { href: p.url, target: '_blank', rel: 'noopener', html: I.externe + '<span>' + p.nom + '</span>' }), p.csi ? h('a.btn', { href: p.csi, target: '_blank', rel: 'noopener', style: { marginLeft: '6px' }, html: I.externe + '<span>' + (p.nomCsi || 'CSI') + '</span>' }) : null]),

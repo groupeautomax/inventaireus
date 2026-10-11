@@ -118,6 +118,9 @@
   function marquageDe(v) { var m = v && v.marquage; return (m && (m.statut || m.punch || m.exportable || m.vendeur || m.client || m.livraison || m.localisation || m.note)) ? m : null; }
   function estPunch(v) { var m = marquageDe(v); return !!(m && m.punch === 'oui'); }
   /* Couleur de la rangée : le statut marqué (jaune / orange / bleu / gris), sinon vert si pré-enregistré et pas vendu. */
+  /* Emplacement lisible (Maxime : « indique Stock plutôt que Livré au concessionnaire ») : les étapes du portail en court. */
+  var EMPLACEMENTS_COURTS = [[/livr[ée]e? au concessionnaire/i, 'Stock'], [/livr[ée]e? au client/i, 'Livré au client'], [/d[ée]chargement .* rampe ferroviaire|rampe ferroviaire/i, 'Rampe ferroviaire'], [/livraison interm[ée]diaire/i, 'Livraison interm.'], [/^produit$/i, 'Produit (usine)'], [/^exp[ée]di[ée]e?$/i, 'Expédié'], [/^au quai$/i, 'Au quai']];
+  function emplacementTexte(e) { e = String(e || '').trim(); if (!e) return ''; for (var i = 0; i < EMPLACEMENTS_COURTS.length; i++) if (EMPLACEMENTS_COURTS[i][0].test(e)) return EMPLACEMENTS_COURTS[i][1]; return e; }
   function couleurRangee(v) { if (!v.enStock) return ''; var m = marquageDe(v); if (m && MARQUES[m.statut]) return m.statut; var c = categorieIndispo(v); if (MARQUES[c]) return c; return m && m.punch === 'oui' ? 'punch' : ''; }
   /* Résumé d'une ligne de marquage : « Sam · Tremblay · livraison 18 oct. · Showroom » */
   function resumeMarquage(m) { if (!m) return ''; return [m.vendeur, m.client, m.livraison ? 'livraison ' + AMX.fmtDateCourte(m.livraison) : '', m.localisation].filter(Boolean).join(' · '); }
@@ -141,10 +144,10 @@
   function puceRaison(v) { var m = marquageDe(v); var out = []; if (m && MARQUES[m.statut]) out.push(h('span.neufs-marq-chip.' + MARQUES[m.statut][1], { text: MARQUES[m.statut][0] })); var pp = pucePunch(v); if (pp) out.push(pp); return out; }
   function pucesEtiquettes(v) { return etiquettesDe(v).map(function (k) { return h('span.neufs-etiq', { text: ETIQUETTES[k], 'data-etiquette': k }); }); }
   /* Puce « manufacturier » : commande vendue (SRE), étape Livré au client, RDR déclaré — le lien avec le système de commande. */
-  function puceConstructeur(v) {
+  function puceConstructeur(v, court) {
     var x = v.extra || {}, rd = rdrDe(v), out = [];
-    if (/^SRE$/i.test(String(x.typeCommande || ''))) out.push(h('span.neufs-marq-chip.jaune', { text: 'Commande vendue (SRE)', title: 'Commande client au portail du manufacturier' + (x.commande ? ' · # ' + x.commande : '') }));
-    if (/livr[ée]e? au client|retailed/i.test(String(x.etape || ''))) out.push(h('span.neufs-marq-chip.jaune', { text: x.etape, title: 'Étape au portail du manufacturier' }));
+    if (/^SRE$/i.test(String(x.typeCommande || ''))) out.push(h('span.neufs-marq-chip.jaune', { text: court ? 'Commande vendue' : 'Commande vendue (SRE)', title: 'Commande client (SRE) au portail du manufacturier' + (x.commande ? ' · # ' + x.commande : '') }));
+    if (!court && /livr[ée]e? au client|retailed/i.test(String(x.etape || ''))) out.push(h('span.neufs-marq-chip.jaune', { text: x.etape, title: 'Étape au portail du manufacturier' }));
     if (rd) out.push(h('span.neufs-marq-chip.' + (rdrDemo(rd) ? 'bleu' : 'jaune'), { text: 'RDR ' + AMX.fmtDateCourte(rd.dateVente) + (rdrDemo(rd) ? ' (démo)' : ''), title: 'Vente déclarée au manufacturier le ' + AMX.fmtDate(rd.dateVente) + (rd.typeVente ? ' · ' + rd.typeVente : '') + (rd.client ? ' · ' + rd.client : '') }));
     return out;
   }
@@ -227,8 +230,9 @@
       '.neufs-etiq { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; background: #EEF0F3; border: 1px solid #D5D9DF; color: var(--encre-2); margin-right: 4px; margin-top: 2px; }',
       '.neufs-table td.num { white-space: nowrap; } .neufs-table td.num .km-defaut { color: var(--encre-3); font-style: italic; }',
       '.neufs-marquage-form .etiquettes { display: flex; flex-wrap: wrap; gap: 6px; } .neufs-marquage-form .etiquettes button { font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bordure); background: #fff; cursor: pointer; } .neufs-marquage-form .etiquettes button.actif { background: var(--encre); color: #fff; border-color: var(--encre); }',
-      '.neufs-table { overflow-x: auto; } .neufs-table .tableau { min-width: 1120px; } .neufs-table td, .neufs-table th { padding: 7px 10px; } .neufs-table tr.rangee { cursor: pointer; } .neufs-table tr.rangee:hover td { background: var(--carte-2); }',
-      '.neufs-table td.vehicule .nom { font-weight: 600; } .neufs-table td.vehicule .vin { font-family: var(--mono); font-size: 11px; color: var(--encre-3); }',
+      '.neufs-table { overflow-x: auto; } .neufs-table .tableau { width: 100%; table-layout: auto; } .neufs-table td, .neufs-table th { padding: 6px 8px; vertical-align: top; } .neufs-table th { white-space: nowrap; } .neufs-table tr.rangee { cursor: pointer; } .neufs-table tr.rangee:hover td { background: var(--carte-2); }',
+      '.neufs-table td.dispo-cell { white-space: nowrap; } .neufs-table td.dispo-cell .sous { margin-top: 3px; } .neufs-table td.dispo-cell .sous .neufs-marq-chip { font-size: 10.5px; padding: 1px 6px; margin-right: 0; margin-top: 2px; } .neufs-table td.note { white-space: normal; min-width: 150px; max-width: 260px; } .neufs-table td.note .details { margin-top: 2px; } .neufs-table td.note .btn.petit { margin: 3px 0 0; display: inline-block; } .neufs-table td.note .badge { margin-right: 4px; }',
+      '.neufs-table td.vehicule { min-width: 150px; } .neufs-table td.vehicule .nom { font-weight: 600; } .neufs-table td.vehicule .vin { font-family: var(--mono); font-size: 11px; color: var(--encre-3); }',
       '.neufs-table th.tri { cursor: pointer; user-select: none; } .neufs-table th.tri.actif { color: var(--encre); }',
       '.neufs-table td.num, .neufs-table th.num { text-align: right; font-variant-numeric: tabular-nums; }',
       '.neufs-table tr.sorti td { color: var(--encre-3); }',
@@ -256,7 +260,7 @@
       '.neufs-table tr.rangee.marq-vendu:hover td { background: #FFEC8F; } .neufs-table tr.rangee.marq-echange:hover td { background: #FBDCC0; } .neufs-table tr.rangee.marq-demo:hover td { background: #CBE7F8; } .neufs-table tr.rangee.marq-livre:hover td { background: #E2E2E2; } .neufs-table tr.rangee.marq-punch:hover td { background: #CDF1C3; }',
       '.dispo { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 12px; line-height: 1; padding: 5px 10px 5px 8px; border-radius: 999px; border: 1.5px solid; white-space: nowrap; } .dispo i { font-style: normal; font-size: 11px; } .dispo.grande { font-size: 14px; padding: 8px 14px 8px 11px; }',
       '.dispo.oui { color: var(--vert-fonce); background: #fff; border-color: var(--vert); } .dispo.non { color: #fff; } .dispo.non.jaune { color: #3A2D00; background: #F6C700; border-color: #E0B300; } .dispo.non.orange { background: #E8761B; border-color: #E8761B; } .dispo.non.bleu { background: var(--bleu); border-color: var(--bleu); } .dispo.non.gris { background: var(--encre-3); border-color: var(--encre-3); }',
-      '.neufs-table td.marquage { white-space: nowrap; } .neufs-table td.marquage .btn.petit { margin-left: 4px; } .neufs-table td.marquage .details { font-size: 11.5px; color: var(--encre-2); margin-top: 3px; white-space: normal; max-width: 260px; } .neufs-marq-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid; margin-right: 4px; } .neufs-marq-chip.vert { color: var(--vert-fonce); background: #DDF7D6; border-color: #A9DE9C; } .neufs-marq-chip.jaune { color: #5C4600; background: #FFF3B0; border-color: #E8CF5A; } .neufs-marq-chip.orange { color: #9A4A0B; background: #FDE8D6; border-color: #F5C9A3; } .neufs-marq-chip.bleu { color: var(--bleu); background: var(--bleu-bg); border-color: var(--bleu-bord); } .neufs-marq-chip.gris { color: var(--encre-2); background: #ECECEC; border-color: #CFCFCF; }',
+      '.neufs-table td.marquage .btn.petit { margin-left: 4px; } .neufs-table td.marquage .details { font-size: 11.5px; color: var(--encre-2); margin-top: 3px; white-space: normal; max-width: 260px; } .neufs-marq-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid; margin-right: 4px; } .neufs-marq-chip.vert { color: var(--vert-fonce); background: #DDF7D6; border-color: #A9DE9C; } .neufs-marq-chip.jaune { color: #5C4600; background: #FFF3B0; border-color: #E8CF5A; } .neufs-marq-chip.orange { color: #9A4A0B; background: #FDE8D6; border-color: #F5C9A3; } .neufs-marq-chip.bleu { color: var(--bleu); background: var(--bleu-bg); border-color: var(--bleu-bord); } .neufs-marq-chip.gris { color: var(--encre-2); background: #ECECEC; border-color: #CFCFCF; }',
       '.neufs-statut.dispo-oui i { background: var(--vert-fonce); box-shadow: 0 0 0 2px #fff inset; } .neufs-statut.jaune i { background: #F6C700; } .neufs-statut.orange i { background: #E8761B; } .neufs-statut.sarcelle i { background: var(--sarcelle); }',
       '.neufs-marquage-form label { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 12px 0 6px; } .neufs-marquage-form label:first-child { margin-top: 0; } .neufs-marquage-form .segment button { padding: 8px 12px; font-size: 13px; font-weight: 600; } .neufs-marquage-form .segment button.actif.jaune { background: #F6C700; color: #3A2D00; } .neufs-marquage-form .segment button.actif.vert { background: var(--vert); color: #fff; } .neufs-marquage-form .segment button.actif.orange { background: #E8761B; color: #fff; } .neufs-marquage-form .segment button.actif.bleu { background: var(--bleu); color: #fff; } .neufs-marquage-form .segment button.actif.gris { background: var(--encre-3); color: #fff; } .neufs-marquage-form .segment button.actif.oui { background: var(--vert-fonce); color: #fff; } .neufs-marquage-form .segment button.actif.non { background: var(--encre-3); color: #fff; } .neufs-marquage-form .apercu { margin: 12px 0 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .neufs-marquage-form .saisie { width: 100%; } .neufs-marquage-form .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; } @media (max-width: 560px) { .neufs-marquage-form .grille { grid-template-columns: 1fr; } }',
       '.neufs-signet { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 4px; } .neufs-signet p { margin: 4px 0 8px; font-size: 12.5px; color: var(--encre-2); line-height: 1.5; }'
@@ -1096,7 +1100,7 @@
     }
     var annees = uniques(function (v) { return v.annee; }).reverse();
     remplir(this.selAnnee, [['ancienne', 'Ancienne année-modèle']].concat(annees), 'Toutes les années', f.annee);
-    remplir(this.selEmplacement, uniques(function (v) { return v.emplacement; }), 'Tous les emplacements', f.emplacement);
+    remplir(this.selEmplacement, uniques(function (v) { return v.emplacement; }).map(function (o) { return [o[0], o[1].replace(o[0], emplacementTexte(o[0]))]; }), 'Tous les emplacements', f.emplacement);
     remplir(this.selMoteur, uniques(function (v) { return (f.sortis || v.enStock) ? moteurDe(v) : ''; }), 'Tous les moteurs', f.moteur);
     var etiq = {}; liste.forEach(function (v) { if (f.sortis || v.enStock) etiquettesDe(v).forEach(function (k) { etiq[k] = (etiq[k] || 0) + 1; }); });
     remplir(this.selEtiquette, ETIQUETTES_ORDRE.map(function (k) { return [k, ETIQUETTES[k] + ' (' + (etiq[k] || 0) + ')']; }), 'Toutes les notes', f.etiquette);
@@ -1160,14 +1164,13 @@
         case 'jours': return v.jours === null || v.jours === undefined ? -1 : v.jours;
         case 'vehicule': return nomVehicule(v);
         case 'couleur': return v.couleur || '';
-        case 'emplacement': return v.emplacement || '';
+        case 'emplacement': return emplacementTexte(v.emplacement);
         case 'statut': return statutDms(v).libelle;
         case 'dispo': return estDisponible(v) ? 0 : (MARQUES_ORDRE.indexOf(categorieIndispo(v)) + 1 || 9);
         case 'moteur': return moteurDe(v);
         case 'km': return kmDe(v).km;
         case 'pdsf': return pdsfDe(v).total || 0;
-        case 'marquage': var mq = marquageDe(v); return mq ? (MARQUES[mq.statut] ? MARQUES[mq.statut][0] : (mq.punch === 'oui' ? 'Pré-enregistré' : '')) + ' ' + resumeMarquage(mq) + ' ' + (mq.exportable || '') + ' ' + (mq.note || '') : '';
-        case 'recuLe': return v.recuLe || '';
+        case 'note': var mq = marquageDe(v); return mq ? [etiquettesDe(v).map(function (k) { return ETIQUETTES[k]; }).join(' '), resumeMarquage(mq), mq.exportable || '', mq.note || ''].join(' ').trim() : '';
         case 'cout': return v.coutFacture || 0;
         case 'detention': return v.coutDetention || 0;
         case 'stock': return v.stock || '';
@@ -1182,7 +1185,8 @@
       return el;
     };
     var marquable = peutMarquer();
-    var entete = h('tr', [th('stock', '# Stock'), th('vehicule', 'Véhicule'), th('moteur', 'Moteur'), th('couleur', 'Couleur'), th('km', 'Km', true), th('pdsf', 'PDSF', true), th('dispo', 'Disponible'), th('marquage', 'Marquage'), th('emplacement', 'Emplacement'), th('statut', 'Statut DMS'), th('recuLe', 'Reçu le'), th('jours', 'Jours', true)].concat(d.montants ? [th('cout', 'Coût facture', true), th('detention', 'Détention', true)] : []));
+    /* Maxime (12 oct.) : « Marquage » devient « Note », à la fin ; « Reçu le » enlevé (on a les jours) ; le tableau tient dans la page. */
+    var entete = h('tr', [th('stock', '# Stock'), th('vehicule', 'Véhicule'), th('moteur', 'Moteur'), th('couleur', 'Couleur'), th('km', 'Km', true), th('pdsf', 'PDSF', true), th('dispo', 'Disponible'), th('emplacement', 'Emplacement'), th('statut', 'Statut DMS'), th('jours', 'Jours', true)].concat(d.montants ? [th('cout', 'Coût facture', true), th('detention', 'Détention', true)] : []).concat([th('note', 'Note')]));
     var corps = h('tbody');
     if (!lignes.length) {
       // Les mêmes filtres sur ce que le mode cache (flotte en mode détail, etc.) : on le dit et on propose de l'afficher
@@ -1192,14 +1196,14 @@
         var nF = caches.filter(estFlotte).length;
         vide.appendChild(h('p', { style: { margin: '8px 0 0' } }, [h('span', { text: caches.length + ' véhicule' + (caches.length > 1 ? 's' : '') + ' correspond' + (caches.length > 1 ? 'ent' : '') + ' hors du filtre actuel' + (nF ? ' (' + nF + ' en flotte)' : '') + '. ' }), h('a', { text: 'Tout afficher', onclick: function () { self.flotte = 'tout'; AMX.memo.ecrire('neufs_flotte', 'tout'); self.marque = ''; AMX.memo.ecrire('neufs_marque', ''); self.rendre(); } })]));
       }
-      corps.appendChild(h('tr', [h('td', { colspan: d.montants ? 14 : 12 }, [vide])]));
+      corps.appendChild(h('tr', [h('td', { colspan: d.montants ? 13 : 11 }, [vide])]));
     }
     lignes.forEach(function (v) {
       var t = tranche(v.jours), s = statutDms(v), mq = marquageDe(v), cat = couleurRangee(v);
       var btnMarq = marquable && v.enStock ? h('button.btn.petit.fantome.neufs-marquer', { type: 'button', text: mq ? 'Modifier' : 'Marquer', title: 'Vendu, échangé, démo, livré, pré-enregistré, exportable, vendeur, client…', onclick: function (e) { e.stopPropagation(); self.marquer(v); } }) : null;
       var details = mq ? [resumeMarquage(mq), mq.note].filter(Boolean).join(' — ') : '';
-      var pe = pucesEtiquettes(v), pc = puceConstructeur(v);
-      var cellMarq = h('td.marquage', puceRaison(v).concat(pc).concat([puceExportable(v), btnMarq, pe.length ? h('div', pe) : null, details ? h('div.details', { text: details }) : null]));
+      var pe = pucesEtiquettes(v), pc = puceConstructeur(v, true);
+      var cellNote = h('td.marquage.note', [pucePunch(v), puceExportable(v)].concat(pe).concat([details ? h('div.details', { text: details }) : null, btnMarq]));
       var km = kmDe(v), pd = pdsfDe(v);
       var tr = h('tr.rangee' + (v.enStock ? '' : '.sorti') + (cat ? '.marq-' + cat : ''), [
         h('td', { text: v.stock || '—' }),
@@ -1208,13 +1212,11 @@
         h('td', { text: v.couleur || '—' }),
         h('td.num', [h('span' + (km.source === 'defaut' ? '.km-defaut' : ''), { text: AMX.fmtNombre(km.km) + ' km', title: 'Km ' + KM_SOURCES[km.source] + (km.source === 'defaut' ? ' — cliquez Marquer pour l\'indiquer' : '') })]),
         h('td.num', { text: pd.total ? AMX.fmtArgent(pd.total) : '—', title: pd.pdsf ? 'PDSF ' + AMX.fmtArgent(pd.pdsf) + (pd.transport ? ' + transport ' + AMX.fmtArgent(pd.transport) : '') : 'PDSF (avec transport) lu au portail du manufacturier' }),
-        h('td.dispo-cell', [pastilleDispo(v)]),
-        cellMarq,
-        h('td', { text: v.emplacement || '—' }),
+        h('td.dispo-cell', [pastilleDispo(v)].concat(pc.length ? [h('div.sous', pc)] : [])),
+        h('td', { text: emplacementTexte(v.emplacement) || '—', title: v.emplacement || '' }),
         h('td', [v.enStock ? h('span.badge.' + s.couleur, { text: s.libelle }) : h('span.badge.gris', { text: 'Sorti le ' + AMX.fmtDateCourte(v.sortiLe) })]),
-        h('td', { text: v.recuLe ? AMX.fmtDate(v.recuLe) : '—' }),
-        h('td.num', [t ? h('span.badge.' + t.couleur + '.sans-point', { text: fmtJours(v.jours) }) : h('span', '—')])
-      ].concat(d.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' }), h('td.num', { text: v.coutDetention ? AMX.fmtArgent(v.coutDetention) : '—' })] : []));
+        h('td.num', [t ? h('span.badge.' + t.couleur + '.sans-point', { text: fmtJours(v.jours), title: v.recuLe ? 'Reçu le ' + AMX.fmtDate(v.recuLe) : '' }) : h('span', '—')])
+      ].concat(d.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' }), h('td.num', { text: v.coutDetention ? AMX.fmtArgent(v.coutDetention) : '—' })] : []).concat([cellNote]));
       tr.addEventListener('click', function () { self.ouvrir(v); });
       corps.appendChild(tr);
     });

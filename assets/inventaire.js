@@ -130,18 +130,17 @@
     });
   };
 
+  // 11 oct. (Maxime : « sépare dans le menu usagé et neuf ») : la section s'appelle « Usagé » (registres É.-U., Canada,
+  // Detail) et les neufs ont leur propre section (assets/neufs.js) ; l'ancienne adresse #/inventaire/neufs y renvoie.
   AMX.section('inventaire', {
-    titre: 'Inventaire', icone: 'inventaire', ordre: 10,
+    titre: 'Usagé', icone: 'inventaire', ordre: 10,
     onglets: Object.keys(FEUILLES).map(function (id) {
       return { id: id, titre: FEUILLES[id].titre, compteur: function () {
         var l = AMX.inventaire.enCache(FEUILLES[id].feuille);
         return l ? l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; }).length : '';
       } };
-    }).concat([
-      // Neufs (7 oct.) : suivi des véhicules neufs du DMS, par concession (assets/neufs.js, chargé après ce fichier).
-      { id: 'neufs', titre: 'Neufs', compteur: function () { return AMX.neufs ? AMX.neufs.compteur() : ''; } }
-    ]),
-    monter: function (conteneur, ctx) { return (ctx.onglet === 'neufs' && AMX.neufs) ? AMX.neufs.monter(conteneur, ctx) : new Registre(conteneur, ctx); }
+    }),
+    monter: function (conteneur, ctx) { return new Registre(conteneur, ctx); }
   });
 
   function Registre(conteneur, ctx) {
@@ -189,12 +188,6 @@
   };
 
   Registre.prototype.naviguer = function (ctx) {
-    // Onglet Neufs (7 oct.) : une autre vue (assets/neufs.js) remplace le registre dans la même section.
-    if (ctx.onglet === 'neufs' && AMX.neufs) {
-      this.demonter(); AMX.vider(this.conteneur);
-      AMX.courante.instance = AMX.neufs.monter(this.conteneur, ctx);
-      return;
-    }
     if (ctx.onglet !== this.onglet) {
       this.onglet = ctx.onglet; this.cfg = FEUILLES[ctx.onglet] || FEUILLES.us;
       this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || '';

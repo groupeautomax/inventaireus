@@ -56,7 +56,7 @@
         ] },
 
       /* ------------------------------------------------------------------ */
-      { id: 'inventaire', titre: 'Inventaire', intro: 'Les trois registres d\'usagés, les statuts, le panneau d\'un véhicule.',
+      { id: 'inventaire', titre: 'Usagé', intro: 'Les trois registres d\'usagés, les statuts, le panneau d\'un véhicule.',
         articles: [
           { id: 'inv-registres', q: 'Quelle est la différence entre É.-U., Canada et Detail ?', mots: 'registres onglets wholesale détail usagés us can detail destination',
             r: '<p>Trois registres selon la destination d\'un usagé :</p><ul><li><b>É.-U.</b> : véhicules destinés à l\'exportation (vente en gros aux États-Unis, importateur, Manheim PA).</li><li><b>Canada</b> : vente en gros au Canada.</li><li><b>Detail</b> : l\'inventaire de détail de la concession ; c\'est lui que suit le <b>Suivi service</b>.</li></ul><p>L\'onglet <b>Neufs</b> est à part : il vient du DMS (voir la section Neufs).</p>',
@@ -109,7 +109,7 @@
         articles: [
           { id: 'neufs-quoi', q: 'D\'où viennent les véhicules neufs ?', mots: 'dms feed import automatique quotidien export fichier',
             r: '<p>Du <b>DMS</b> de la concession : un export quotidien (fichier texte ou csv de l\'inventaire) est envoyé par courriel à l\'adresse de réception du système, lu chaque heure, et les neufs (N) comme les usagés (U) sont mis à jour. VW Brossard est branché ; pour les autres concessions, il faut programmer le même envoi dans le DMS — Maxime donne l\'adresse.</p><p>Rien n\'est jamais supprimé : un véhicule absent du feed est marqué <b>sorti</b> (vendu), et il revient comme « retour » s\'il réapparaît.</p>',
-            liens: [{ t: 'Ouvrir les neufs', s: 'inventaire', o: 'neufs' }] },
+            liens: [{ t: 'Ouvrir les neufs', s: 'neufs', o: '' }] },
           { id: 'neufs-lire', q: 'Comment lire la page des neufs ?', mots: 'vieillissement jauge jours stock âge moyen 60 jours approvisionnement mix',
             r: '<ul><li><b>Cartes</b> : en stock, âge moyen, part au-delà de 60 jours (cible : moins de 10 %), jours d\'approvisionnement.</li><li><b>Jauge de vieillissement</b> : 0-30 / 31-60 / 61-90 / 91-180 / 180 + jours — un clic filtre le tableau.</li><li><b>Groupes</b> par modèle › version : en stock, sorties des 90 derniers jours, jours d\'approvisionnement (stock ÷ sorties par jour), mix par année-modèle.</li><li><b>Revue de la semaine</b> : arrivées, sorties, véhicules qui ont franchi 60 / 90 / 180 jours, démos à surveiller, « fantômes » (plus de deux ans).</li><li><b>Tableau</b> : un clic ouvre la fiche (coût facture, coût de détention à 5 %/an, options, mouvements).</li></ul><p>Les échanges concessionnaires et les fantômes sont exclus de l\'âge moyen.</p>' },
           { id: 'neufs-couts', q: 'Pourquoi je ne vois pas les coûts des neufs ?', mots: 'coût facture détention caché montants droit',

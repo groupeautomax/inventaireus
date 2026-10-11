@@ -21,7 +21,8 @@
   var CLE_DEPART = 'accueil_depart';
 
   var RESUMES = {
-    inventaire: 'Les registres É.-U., Canada et Detail, et le suivi des neufs.',
+    inventaire: 'Usagé : les registres É.-U., Canada et Detail.',
+    neufs: 'Neufs : stock, commandes, ventes déclarées et vieillissement par concession.',
     service: 'Reconditionnement au détail : autorisation, bons de travail, livraison.',
     offres: 'Véhicules en vente, offres reçues, acheteurs externes, leads.',
     achat: 'La fiche d\'achat d\'un véhicule : prix, km, dommages, rapports.',
@@ -31,7 +32,7 @@
     admin: 'Comptes, droits, concessions et réglages du site.',
     aide: 'Guide de toutes les fonctions, nouveautés, suggestions.'
   };
-  var COULEURS = { inventaire: 'vert', service: 'sarcelle', offres: 'bleu', achat: 'violet', outils: 'gris', avis: 'ambre', resultat: 'prune', admin: 'noir', aide: 'bleu' };
+  var COULEURS = { inventaire: 'vert', neufs: 'vert', service: 'sarcelle', offres: 'bleu', achat: 'violet', outils: 'gris', avis: 'ambre', resultat: 'prune', admin: 'noir', aide: 'bleu' };
 
   function injecterCss() {
     if (document.getElementById('css-accueil')) return;

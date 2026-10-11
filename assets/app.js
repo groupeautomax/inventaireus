@@ -109,6 +109,7 @@
     accueil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5L12 4l9 7.5"/><path d="M5.5 10v9.5h5v-5.5h3v5.5h5V10"/></svg>',
     suggestions: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V17h5v-1.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>',
     inventaire: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l1.5-5A2 2 0 0 1 6.4 4.5h11.2a2 2 0 0 1 1.9 1.5L21 11"/><rect x="3" y="11" width="18" height="7" rx="1.5"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></svg>',
+    neufs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l1.5-5A2 2 0 0 1 6.4 5.5h7.1"/><rect x="3" y="12" width="18" height="6.5" rx="1.5"/><circle cx="7.5" cy="18.5" r="1.8"/><circle cx="16.5" cy="18.5" r="1.8"/><path d="M18 2.5l1 2.2 2.4.3-1.8 1.6.5 2.4L18 7.8l-2.1 1.2.5-2.4-1.8-1.6 2.4-.3z"/></svg>',
     offres: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 13.5l-7 7-10-10V3.5h7l10 10z"/><circle cx="8" cy="8" r="1.5"/></svg>',
     achat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>',
     service: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5a4.5 4.5 0 0 0-5.6 5.6L4 15v5h5l4.9-4.9a4.5 4.5 0 0 0 5.6-5.6l-2.6 2.6-2.6-.9-.9-2.6z"/></svg>',
@@ -658,6 +659,8 @@
     if (!r.section && AMX.accueil) { var dep = AMX.accueil.depart(); if (dep) { AMX.aller(dep.section, dep.onglet, r.params); return; } }
     // 9 oct. : Suggestions est devenu un onglet d'Aide ; l'ancienne adresse reste valable.
     if (r.section === 'suggestions' && !AMX.sections.suggestions && AMX.sections.aide) { AMX.aller('aide', 'suggestions', r.params); return; }
+    // 11 oct. : les neufs ont leur propre section (« Usagé » / « Neufs ») ; l'ancienne adresse #/inventaire/neufs reste valable.
+    if (r.section === 'inventaire' && r.onglet === 'neufs' && AMX.sections.neufs) { AMX.aller('neufs', '', r.params); return; }
     var secs = AMX.listeSections();
     var sec = AMX.sections[r.section];
     if (!sec || (sec.visible && !sec.visible())) {

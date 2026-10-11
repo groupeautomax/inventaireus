@@ -177,6 +177,24 @@
      marque, le code modèle GM la donne : 1 = Chevrolet (autos), C = Chevrolet (camions), T = GMC, 4 = Buick, 6 = Cadillac. */
   function nomMarque(m) { var x = String(m || '').trim(); if (!x) return ''; var u = x.toUpperCase(); if (u === 'GMC' || u === 'BMW' || u === 'VW') return u; if (u === 'VOLKSWAGEN') return 'Volkswagen'; return u.charAt(0) + u.slice(1).toLowerCase(); }
   function marqueCommande(c) { if (c && c.marque) return nomMarque(c.marque); var m = String((c && c.modelNum) || '').toUpperCase(); if (c && c.source === 'gm' && m) { return { '1': 'Chevrolet', 'C': 'Chevrolet', 'T': 'GMC', '4': 'Buick', '6': 'Cadillac' }[m.charAt(0)] || ''; } return c && c.source === 'hyundai' ? 'Hyundai' : ''; }
+  /* Maxime (12 oct.) : « dans Ventes déclarées, le tableau met le nombre par mois, et des détails plus clairs, structurés plus bas ».
+     Les types du portail (« Achat d'un particulier », « Loc. entreprise/organisme », « Courtesy Transportation Program »…) sont
+     regroupés en familles lisibles ; le type exact reste visible sous la famille dans la liste. */
+  var GROUPES_VENTE = ['Détail', 'Entreprise', 'Location', 'Flotte', 'Démo / courtoisie', 'Employé / fournisseur GM', 'Autre'];
+  function groupeTypeVente(t) {
+    var x = String(t || '');
+    if (!x) return '—';
+    if (/courtesy|courtoisie|demo|démo|slc|loan/i.test(x)) return 'Démo / courtoisie';
+    if (/fleet|flotte|parcs/i.test(x)) return 'Flotte';
+    if (/employ|fournisseur|supplier/i.test(x)) return 'Employé / fournisseur GM';
+    if (/lease|location|^loc\b|loc\./i.test(x)) return 'Location';
+    if (/entreprise|organisme|business|company|commercial/i.test(x)) return 'Entreprise';
+    if (/particulier|retail|detail|détail/i.test(x)) return 'Détail';
+    return 'Autre';
+  }
+  var MOIS_COURTS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  var MOIS_LONGS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  function libelleMois(cle, long) { var m = /^(\d{4})-(\d{2})/.exec(String(cle || '')); if (!m) return String(cle || ''); return (long ? MOIS_LONGS : MOIS_COURTS)[Number(m[2]) - 1] + ' ' + m[1]; }
   function libelleTypeVente(t) { var x = String(t || ''); if (/demo|slc|loan|courtoisie/i.test(x)) return 'Démo / courtoisie'; if (/fleet|flotte|parcs/i.test(x)) return 'Flotte'; if (/lease|location|bail/i.test(x)) return 'Location'; if (/retail|detail|détail/i.test(x)) return 'Détail'; return x || '—'; }
 
   function tranche(j) { if (j === null || j === undefined || isNaN(j)) return null; for (var i = 0; i < TRANCHES.length; i++) if (j >= TRANCHES[i].min && j <= TRANCHES[i].max) return TRANCHES[i]; return TRANCHES[TRANCHES.length - 1]; }
@@ -257,6 +275,7 @@
       '.neufs-mois-leg { display: flex; gap: 4px; font-size: 10px; color: var(--encre-3); } .neufs-mois-leg span { flex: 1; text-align: center; }',
       /* Marquage interne : rangées teintées aux couleurs de Maxime (vendu vert, échangé orange, démo bleu), pastille Disponible / Vendu… */
       '.neufs-table tr.marq-vendu td { background: #FFF3B0; } .neufs-table tr.marq-echange td { background: #FDE8D6; } .neufs-table tr.marq-demo td { background: #DDF0FB; } .neufs-table tr.marq-livre td { background: #ECECEC; color: var(--encre-2); } .neufs-table tr.marq-punch td { background: #DDF7D6; }',
+      '.neufs-ventes-mois td, .neufs-ventes-mois th { padding: 5px 8px; } .neufs-ventes-mois tr.actuel td { background: var(--vert-clair); font-weight: 600; } .neufs-ventes-mois tr.vide td { color: var(--encre-3); } .neufs-ventes-mois tr.total td { border-top: 2px solid var(--bordure); font-weight: 600; } .neufs-livraisons tr.groupe td { background: var(--gris-bg); font-size: 12.5px; padding: 7px 10px; border-top: 2px solid var(--bordure); } .neufs-livraisons td.type .petit { font-size: 11px; }',
       '.neufs-table tr.rangee.absent-dms td { background: #FDE2E2; } .neufs-table tr.rangee.absent-dms td:first-child { box-shadow: inset 4px 0 0 #C62828; } .neufs-marq-chip.rouge { color: #8E1B1B; background: #FDE2E2; border-color: #F3B4B4; } .neufs-marq-chip.rouge.grande { font-size: 12.5px; padding: 4px 10px; } .neufs-statut.rouge i { background: #C62828; } .neufs-absent-dms { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: #FDE2E2; color: #8E1B1B; font-size: 12.5px; }',
       '.neufs-table tr.rangee.marq-vendu:hover td { background: #FFEC8F; } .neufs-table tr.rangee.marq-echange:hover td { background: #FBDCC0; } .neufs-table tr.rangee.marq-demo:hover td { background: #CBE7F8; } .neufs-table tr.rangee.marq-livre:hover td { background: #E2E2E2; } .neufs-table tr.rangee.marq-punch:hover td { background: #CDF1C3; } .neufs-table tr.rangee.absent-dms:hover td { background: #FACACA; }',
       '.dispo { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 12px; line-height: 1; padding: 5px 10px 5px 8px; border-radius: 999px; border: 1.5px solid; white-space: nowrap; } .dispo i { font-style: normal; font-size: 11px; } .dispo.grande { font-size: 14px; padding: 8px 14px 8px 11px; }',
@@ -765,7 +784,11 @@
     var lus = cies.filter(function (x) { return etats[x] && etats[x].le; });
     cies.forEach(function (x) { if (p.tableaux && p.tableaux[x]) tableaux[x] = p.tableaux[x]; });
     var neuves = (p.ventes || []).filter(venteNeuve), usagees = (p.ventes || []).filter(function (v) { return !venteNeuve(v) && (!c || v.compagnie === c); });
-    return { ventes: filtre(neuves, venteFlotte, function (v) { return nomMarque(v.marque); }), ventesUsagees: usagees, commandes: filtre(p.commandes, commandeFlotte, marqueCommande), etats: etats, tableaux: tableaux, lus: lus, cies: cies, montants: !!p.montants, factures: p.factures || {} };
+    var commandes = filtre(p.commandes, commandeFlotte, marqueCommande), autresAnnees = {}, anneeMin = new Date().getFullYear();
+    // Maxime (12 oct.) : « je vois des commandes 2023 chez Hawks, faut enlever ça » : les années-modèle plus vieilles que l'année
+    // civile en cours (vieilles commandes jamais fermées dans le carnet du constructeur) sont masquées ; un clic les ramène.
+    if (!this.commandesToutesAnnees) commandes = commandes.filter(function (x) { var a = Number(x.annee) || 0; if (!a || a >= anneeMin) return true; var k = String(x.annee); autresAnnees[k] = (autresAnnees[k] || 0) + (x.n || 0); return false; });
+    return { ventes: filtre(neuves, venteFlotte, function (v) { return nomMarque(v.marque); }), ventesUsagees: usagees, commandes: commandes, autresAnnees: autresAnnees, anneeMin: anneeMin, etats: etats, tableaux: tableaux, lus: lus, cies: cies, montants: !!p.montants, factures: p.factures || {} };
   };
   /* (11 oct.) Tableau du constructeur — portail RDR BMW : objectifs (mois et cumul), crédits, RDR à compléter, usagés déclarés. */
   VueNeufs.prototype.rendreTableau = function (pv) {
@@ -878,6 +901,7 @@
     corps.appendChild(h('tr.total', [h('td', 'Total'), h('td')].concat(totalAttente ? [h('td.num.doux', { text: String(totalAttente) })] : []).concat([h('td.num', [h('b', { text: String(total) })]), h('td.num', { text: String(Object.keys(transitPar).reduce(function (s, k) { return s + transitPar[k]; }, 0) || '') }), h('td.num', { text: String(Object.keys(enStockPar).reduce(function (s, k) { return s + enStockPar[k]; }, 0) || '') }), h('td.num', { text: String(g.total.sorties || '') })])));
     carte.appendChild(h('div.carte-corps', [
       h('div.neufs-cmd', { style: { overflowX: 'auto' } }, [h('table.tableau', [h('thead', [h('tr', [h('th', 'Modèle'), h('th', 'Années-modèle')].concat(totalAttente ? [h('th.num', { text: 'En attente', title: 'RFO : demandes d\'allocation pas encore commandées, années-modèle à venir seulement' })] : []).concat([h('th.num', 'Commandées'), h('th.num', 'En transit'), h('th.num', 'En stock'), h('th.num', 'Sorties ' + g.fenetre + ' j')]))]), corps])]),
+      (function () { var a = Object.keys(pv.autresAnnees || {}).sort().reverse(); if (!a.length && !self.commandesToutesAnnees) return null; return h('p.doux.petit.neufs-cmd-annees', { style: { margin: '8px 0 0' } }, [h('span', { text: self.commandesToutesAnnees ? 'Toutes les années-modèle sont affichées, même les vieilles commandes jamais fermées. ' : 'Vieilles commandes masquées (année-modèle avant ' + pv.anneeMin + ', jamais fermées dans le carnet du constructeur) : ' + a.map(function (k) { return k + ' (' + pv.autresAnnees[k] + ')'; }).join(', ') + '. ' }), h('a', { text: self.commandesToutesAnnees ? 'Les masquer' : 'Les afficher', onclick: function () { self.commandesToutesAnnees = !self.commandesToutesAnnees; self.rendre(); } })]); })(),
       h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Cliquez un modèle pour le détail par version et couleur.' + (totalAttente ? ' « En attente » = demandes d\'allocation (RFO) des années-modèle à venir, pas encore commandées ; les RFO des années passées ne sont pas comptées.' : '') + ' Les sorties sont celles des ' + g.fenetre + ' derniers jours : commandes + transit + stock très au-dessus des sorties = surapprovisionnement à venir.' + (etat && etat.stock ? ' Dernier passage : ' + (etat.stock.total || 0) + ' NIV (' + (etat.stock.enStock || 0) + ' en stock, ' + (etat.stock.demos || 0) + ' démos / courtoisie, ' + (etat.stock.transit || 0) + ' en transit)' + (etat.stock.initial ? ' — premier import' : ' · ' + (etat.stock.arrivees || 0) + ' arrivée' + (etat.stock.arrivees > 1 ? 's' : '') + ', ' + (etat.stock.sorties || 0) + ' sortie' + (etat.stock.sorties > 1 ? 's' : '')) + '.' : '') })
     ]));
     this.elCommandes.appendChild(carte);
@@ -908,16 +932,21 @@
     for (var i = 11; i >= 0; i--) { var d = new Date(now.getFullYear(), now.getMonth() - i, 1); mois.push({ cle: d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2), libelle: ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][d.getMonth()], n: 0 }); }
     var parMois = {}; mois.forEach(function (m) { parMois[m.cle] = m; });
     var parType = {}, parModele = {}, total12 = 0, ceMois = 0, cleMois = mois[11].cle, moisPrec = mois[10].cle, nPrec = 0;
-    pv.ventes.forEach(function (v) { var k = String(v.dateVente).slice(0, 7); if (parMois[k]) { parMois[k].n++; total12++; var t = libelleTypeVente(v.typeVente); parType[t] = (parType[t] || 0) + 1; var m = v.modele || '—'; parModele[m] = parModele[m] || { n: 0, cout: 0, nCout: 0 }; parModele[m].n++; if (v.coutFacture) { parModele[m].cout += v.coutFacture; parModele[m].nCout++; } } if (k === cleMois) ceMois++; if (k === moisPrec) nPrec++; });
-    var max = Math.max(1, Math.max.apply(null, mois.map(function (m) { return m.n; })));
+    mois.forEach(function (m) { m.par = {}; });
+    pv.ventes.forEach(function (v) { var k = String(v.dateVente).slice(0, 7); if (parMois[k]) { parMois[k].n++; total12++; var t = groupeTypeVente(v.typeVente); parType[t] = (parType[t] || 0) + 1; parMois[k].par[t] = (parMois[k].par[t] || 0) + 1; var m = v.modele || '—'; parModele[m] = parModele[m] || { n: 0, cout: 0, nCout: 0 }; parModele[m].n++; if (v.coutFacture) { parModele[m].cout += v.coutFacture; parModele[m].nCout++; } } if (k === cleMois) ceMois++; if (k === moisPrec) nPrec++; });
     var jourMois = now.getDate(), rythme = ceMois / Math.max(1, jourMois), joursMois = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     carte.appendChild(h('div.carte-entete', [h('h2', ['Ventes déclarées au constructeur (RDR)', h('span.sous', { text: total12 + ' sur 12 mois · ' + ceMois + ' ce mois' + (lu ? ' · ' + lu : '') })]), h('span.doux.petit', { text: 'livraisons déclarées, pas les profits (voir Résultat › Véhicules neufs)' })]));
+    // Tableau par mois (Maxime, 12 oct. : « le tableau met le nombre par mois ») : une ligne par mois, le total et les familles de vente
+    var familles = GROUPES_VENTE.filter(function (g) { return parType[g]; }).concat(parType['—'] ? ['—'] : []);
     var colMois = h('div', [
-      h('h3', { text: 'Par mois' }),
-      h('div.neufs-mois', mois.map(function (m, i) { return h('i' + (i === 11 ? '.actuel' : ''), { style: { height: Math.round(100 * m.n / max) + '%' }, title: m.cle + ' : ' + m.n + ' vente' + (m.n > 1 ? 's' : '') }); })),
-      h('div.neufs-mois-leg', mois.map(function (m) { return h('span', { text: m.libelle }); })),
-      h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Ce mois : ' + ceMois + ' en ' + jourMois + ' jour' + (jourMois > 1 ? 's' : '') + (ceMois ? ' (≈ ' + Math.round(rythme * joursMois) + ' au rythme actuel)' : '') + ' · mois précédent : ' + nPrec + '.' }),
-      h('p.doux.petit', { style: { margin: '4px 0 0' }, text: Object.keys(parType).sort(function (a, b) { return parType[b] - parType[a]; }).map(function (t) { return t + ' ' + parType[t]; }).join(' · ') })
+      h('h3', { text: 'Par mois — 12 mois' }),
+      h('table.tableau.neufs-ventes-mois', [
+        h('thead', [h('tr', [h('th', 'Mois'), h('th.num', 'Ventes')].concat(familles.map(function (g) { return h('th.num', { text: g === '—' ? 'Sans type' : g }); })))]),
+        h('tbody', mois.map(function (m, i) {
+          return h('tr' + (i === 11 ? '.actuel' : '') + (m.n ? '' : '.vide'), [h('td', { text: libelleMois(m.cle) + (i === 11 ? ' (en cours)' : '') }), h('td.num', [h('b', { text: String(m.n) })])].concat(familles.map(function (g) { return h('td.num', { text: m.par[g] ? String(m.par[g]) : '' }); })));
+        }).concat([h('tr.total', [h('td', '12 mois'), h('td.num', [h('b', { text: String(total12) })])].concat(familles.map(function (g) { return h('td.num', { text: String(parType[g] || '') }); })))]))
+      ]),
+      h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Ce mois : ' + ceMois + ' en ' + jourMois + ' jour' + (jourMois > 1 ? 's' : '') + (ceMois ? ' (≈ ' + Math.round(rythme * joursMois) + ' au rythme actuel)' : '') + ' · mois précédent : ' + nPrec + '. Détail = particulier ; Entreprise = achat d\'une entreprise ou d\'un organisme ; Démo / courtoisie = CTP, démos et prêts.' })
     ]);
     var modeles = Object.keys(parModele).sort(function (a, b) { return parModele[b].n - parModele[a].n; }).slice(0, 10);
     var colModeles = h('div', [
@@ -942,20 +971,29 @@
       var selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { fv.modele = e.target.value; dessiner(); } });
       var selConseiller = h('select.saisie', { 'aria-label': 'Conseiller', onchange: function (e) { fv.conseiller = e.target.value; dessiner(); } });
       var inputQ = h('input.saisie', { type: 'search', placeholder: 'NIV, client, modèle…', value: fv.q, oninput: AMX.debounce(function (e) { fv.q = e.target.value; dessiner(); }, 120) });
-      options(selType, comptes(recentes, function (v) { return libelleTypeVente(v.typeVente); }), 'Tous les types', fv.type);
+      options(selType, comptes(recentes, function (v) { return groupeTypeVente(v.typeVente); }), 'Tous les types', fv.type);
       options(selModele, comptes(recentes, function (v) { return v.modele || '—'; }), 'Tous les modèles', fv.modele);
       var conseillers = comptes(recentes, function (v) { return v.conseiller || ''; });
       options(selConseiller, conseillers, 'Tous les conseillers', fv.conseiller);
       selConseiller.classList.toggle('cache', !conseillers.length);
       var dessiner = function () {
         var q = fv.q.trim().toUpperCase();
-        var lignes = recentes.filter(function (v) { return (!fv.type || libelleTypeVente(v.typeVente) === fv.type) && (!fv.modele || (v.modele || '—') === fv.modele) && (!fv.conseiller || v.conseiller === fv.conseiller) && (!q || [v.vin, v.client, v.modele, v.version, v.couleur, v.annee, v.conseiller, v.saisiPar, v.reference].join(' ').toUpperCase().indexOf(q) >= 0); });
+        var lignes = recentes.filter(function (v) { return (!fv.type || groupeTypeVente(v.typeVente) === fv.type) && (!fv.modele || (v.modele || '—') === fv.modele) && (!fv.conseiller || v.conseiller === fv.conseiller) && (!q || [v.vin, v.client, v.modele, v.version, v.couleur, v.annee, v.conseiller, v.saisiPar, v.reference].join(' ').toUpperCase().indexOf(q) >= 0); });
         AMX.vider(elLivr);
         elCompteLivr.textContent = lignes.length + (lignes.length !== recentes.length ? ' sur ' + recentes.length : '') + ' · ' + (fv.periode === '12m' ? '12 mois' : fv.periode + ' jours');
         if (!lignes.length) { elLivr.appendChild(h('div.neufs-vide', { text: recentes.length ? 'Aucune livraison déclarée ne correspond aux filtres.' : 'Aucune livraison déclarée sur cette période.' })); return; }
         var avecClient = lignes.some(function (v) { return v.client; }), avecPar = lignes.some(function (v) { return v.saisiPar; }), avecConseiller = lignes.some(function (v) { return v.conseiller; });
-        var rows = lignes.slice(0, 200).map(function (v) { return h('tr', [h('td', { text: AMX.fmtDate(v.dateVente) }), h('td.vehicule', [h('div.nom', { text: [v.annee, v.modele, v.version].filter(Boolean).join(' ') }), h('div.vin', { text: v.vin + (v.statut && !/compl/.test(v.statut) ? ' · ' + v.statut : '') })]), h('td', { text: v.couleur || '—' }), h('td', { text: libelleTypeVente(v.typeVente) })].concat(avecClient ? [h('td', { text: v.client || '—' })] : []).concat(avecConseiller ? [h('td', { text: v.conseiller || '—' })] : []).concat(avecPar ? [h('td', { text: v.saisiPar || '—' })] : []).concat(pv.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' })] : [])); });
-        elLivr.appendChild(h('table.tableau', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Véhicule'), h('th', 'Couleur'), h('th', 'Type')].concat(avecClient ? [h('th', 'Client')] : []).concat(avecConseiller ? [h('th', 'Conseiller')] : []).concat(avecPar ? [h('th', 'Saisi par')] : []).concat(pv.montants ? [h('th.num', 'Coût facture')] : []))]), h('tbody', rows)]));
+        var nCol = 4 + (avecClient ? 1 : 0) + (avecConseiller ? 1 : 0) + (avecPar ? 1 : 0) + (pv.montants ? 1 : 0);
+        // Structuré par mois (Maxime, 12 oct.) : une ligne d'en-tête par mois avec le total et les familles, puis les livraisons du mois
+        var rows = [], moisCourant = '', parMoisL = {};
+        lignes.forEach(function (v) { var k = String(v.dateVente).slice(0, 7); var m = parMoisL[k] || (parMoisL[k] = { n: 0, par: {} }); m.n++; var g = groupeTypeVente(v.typeVente); m.par[g] = (m.par[g] || 0) + 1; });
+        lignes.slice(0, 200).forEach(function (v) {
+          var k = String(v.dateVente).slice(0, 7);
+          if (k !== moisCourant) { moisCourant = k; var m = parMoisL[k]; rows.push(h('tr.groupe', [h('td', { colspan: nCol }, [h('b', { text: libelleMois(k, true) + ' — ' + m.n + ' livraison' + (m.n > 1 ? 's' : '') }), h('span.doux', { text: ' · ' + GROUPES_VENTE.concat(['—']).filter(function (g) { return m.par[g]; }).map(function (g) { return (g === '—' ? 'sans type' : g) + ' ' + m.par[g]; }).join(' · ') })])])); }
+          var g = groupeTypeVente(v.typeVente);
+          rows.push(h('tr', [h('td', { text: AMX.fmtDate(v.dateVente) }), h('td.vehicule', [h('div.nom', { text: [v.annee, v.modele, v.version].filter(Boolean).join(' ') }), h('div.vin', { text: v.vin + (v.statut && !/compl/.test(v.statut) ? ' · ' + v.statut : '') })]), h('td', { text: v.couleur || '—' }), h('td.type', [h('div', { text: g }), v.typeVente && String(v.typeVente) !== g ? h('div.doux.petit', { text: String(v.typeVente) }) : null])].concat(avecClient ? [h('td', { text: v.client || '—' })] : []).concat(avecConseiller ? [h('td', { text: v.conseiller || '—' })] : []).concat(avecPar ? [h('td', { text: v.saisiPar || '—' })] : []).concat(pv.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' })] : [])));
+        });
+        elLivr.appendChild(h('table.tableau.neufs-livraisons', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Véhicule'), h('th', 'Couleur'), h('th', 'Type')].concat(avecClient ? [h('th', 'Client')] : []).concat(avecConseiller ? [h('th', 'Conseiller')] : []).concat(avecPar ? [h('th', 'Saisi par')] : []).concat(pv.montants ? [h('th.num', 'Coût facture')] : []))]), h('tbody', rows)]));
         if (lignes.length > 200) elLivr.appendChild(h('p.doux.petit', { style: { margin: '8px 0 0' }, text: '… et ' + (lignes.length - 200) + ' autres (export Excel pour le tout).' }));
       };
       dessiner();
@@ -1007,6 +1045,14 @@
     this.elCartes.appendChild(carte(pct60 > 10 ? 'rouge' : 'vert', 'Plus de 60 jours', AMX.fmtNombre(plus60) + ' (' + pct60 + ' %)', 'cible < 10 % · hors échanges et fantômes', function () { self.filtres.tranche = 'plus60'; self.rendreTable(); }));
     if (anneeMax) this.elCartes.appendChild(carte(ancienne ? 'ambre' : 'vert', 'Ancienne année-modèle', AMX.fmtNombre(ancienne), 'avant ' + anneeMax + ' — à écouler d\'abord', function () { self.filtres.annee = 'ancienne'; self.rendreTable(); }));
     if (detention !== null) this.elCartes.appendChild(carte('sombre', 'Coût de détention', AMX.fmtArgent(detention), AMX.fmtArgent(detentionJour) + ' / jour à ' + (d.parametres.tauxPlan || 5) + ' %'));
+    // Maxime (12 oct.) : « les unités en stock chez le manufacturier [mais pas au DMS] : mettre le nombre dans un icône en haut, en rouge »
+    var o = this.originesDispo(), c = this.compagnie;
+    if (o.constructeur) {
+      this.absents = this.calculerAbsentsDms();
+      var nAbs = d.vehicules.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && self.absentDms(v); }).length;
+      if (o.dms) this.elCartes.appendChild(carte(nAbs ? 'rouge' : 'vert', 'Absents du DMS', AMX.fmtNombre(nAbs), nAbs ? 'en stock chez le manufacturier, pas au DMS' : 'tout le stock du manufacturier est au DMS', function () { self.origine = 'constructeur'; AMX.memo.ecrire('neufs_origine', 'constructeur'); self.filtres.dispo = 'absentDms'; self.rendre(); }));
+      else this.elCartes.appendChild(carte('gris', 'Absents du DMS', '—', 'aucun export du DMS à comparer'));
+    }
   };
 
   VueNeufs.prototype.rendreVieillissement = function (enStock) {

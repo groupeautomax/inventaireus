@@ -650,7 +650,7 @@
   };
   VueAdmin.prototype.chargerEchanges = function () {
     var self = this;
-    return AMX.get({ echanges: 1, mode: 'etat' }).then(function (d) { if (self.detruit) return; self.rendreEtatEchanges(d && d.ok ? d : null); }).catch(function () { if (!self.detruit) self.rendreEtatEchanges(null); });
+    return AMX.get({ echanges: 1, mode: 'etat' }).then(function (d) { if (self.detruit) return; self.rendreEtatEchanges(d && d.ok && d.lectureInstallee !== undefined ? d : null); }).catch(function () { if (!self.detruit) self.rendreEtatEchanges(null); });
   };
   VueAdmin.prototype.rendreEtatEchanges = function (d) {
     AMX.vider(this.elEtatEchanges); AMX.vider(this.elTextosRecus);

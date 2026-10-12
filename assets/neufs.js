@@ -842,7 +842,8 @@
     var self = this;
     return AMX.get({ echanges: 1 }).then(function (d) {
       if (self.detruit || (gen !== undefined && gen !== self.generation)) return;
-      self.echanges = (d && d.ok) ? d : { echanges: [], peutDemander: false, textosActifs: false, indisponible: (d && (d.erreur || d.message)) || 'route absente (redéployez le script)' };
+      /* L'ancien script répond à un GET inconnu par la liste de l'inventaire (ok + vehicules) : sans tableau echanges, la route n'est pas déployée. */
+      self.echanges = (d && d.ok && Array.isArray(d.echanges)) ? d : { echanges: [], peutDemander: false, textosActifs: false, indisponible: (d && (d.erreur || d.message)) || 'route absente — redéployez le script (Echange.gs)' };
       self.rendreEchanges(); self.rendreOnglets();
     }).catch(function (e) { if (self.detruit) return; self.echanges = { echanges: [], peutDemander: false, textosActifs: false, indisponible: AMX.erreurTexte(e) }; self.rendreEchanges(); self.rendreOnglets(); });
   };

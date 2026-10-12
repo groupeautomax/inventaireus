@@ -151,7 +151,9 @@
     if (rd) out.push(h('span.neufs-marq-chip.' + (rdrDemo(rd) ? 'bleu' : 'jaune'), { text: 'RDR ' + AMX.fmtDateCourte(rd.dateVente) + (rdrDemo(rd) ? ' (démo)' : ''), title: 'Vente déclarée au manufacturier le ' + AMX.fmtDate(rd.dateVente) + (rd.typeVente ? ' · ' + rd.typeVente : '') + (rd.client ? ' · ' + rd.client : '') }));
     return out;
   }
-  function peutMarquer() { var d = AMX.neufs.enCache(); if (d && d.marquage && d.marquage.peutMarquer === false) return false; return AMX.perm('consulter') || AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.estAdmin(); }
+  /* 12 oct. (Maxime) : le droit « Neufs — responsable de la feuille » (neufsFeuille : admin et gestionnaire d'office, à cocher pour un
+     utilisateur) décide qui peut marquer ; le serveur le dit aussi (marquage.peutMarquer). Session sans ce droit (ancien script) : comme avant. */
+  function peutMarquer() { var d = AMX.neufs.enCache(); if (d && d.marquage && d.marquage.peutMarquer === false) return false; var p = AMX.session && AMX.session.perms; if (p && p.neufsFeuille !== undefined) return !!p.neufsFeuille; return AMX.perm('consulter') || AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.estAdmin(); }
   /* Pastille « Disponible » / « Vendu » / « Échangé » / « Démo » / « Vendu au DMS »… : la réponse claire, en un coup d'œil. */
   function pastilleDispo(v, grande) {
     var r = raisonIndispo(v);

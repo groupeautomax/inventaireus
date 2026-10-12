@@ -163,7 +163,7 @@
     return h('span.dispo.non.' + couleurRaison(r) + (grande ? '.grande' : ''), { title: titre }, [h('i', { text: '✕' }), h('span', { text: RAISONS[r] || r })]);
   }
   function puceExportable(v) { var e = estExportable(v); return e ? h('span.badge.sans-point.' + (e === 'oui' ? 'sarcelle' : 'gris'), { text: EXPORTABLES[e], title: e === 'oui' ? 'Le NIV peut être exporté' : 'Le NIV ne doit pas être exporté' }) : null; }
-  var ONGLETS_NEUFS = ['liste', 'commandes', 'ventes', 'ecarts', 'absents', 'analyse'];   /* absents (12 oct.) : au DMS / sur la feuille, absents du manufacturier */
+  var ONGLETS_NEUFS = ['liste', 'commandes', 'ventes', 'ecarts', 'absents', 'echanges', 'analyse'];   /* absents (12 oct.) : au DMS / sur la feuille, absents du manufacturier ; echanges (12 oct.) : demandes d'échange entre concessions par texto */
   var MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   function libMois(p) { var m = /^(\d{4})-(\d{2})/.exec(String(p || '')); return m ? MOIS_FR[Number(m[2]) - 1] + ' ' + m[1] : String(p || '—'); }
   function peutImporterPortail() { return !!(AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.perm('gererUtilisateurs') || AMX.estAdmin()); }
@@ -285,7 +285,8 @@
       '.neufs-table td.marquage .btn.petit { margin-left: 4px; } .neufs-table td.marquage .details { font-size: 11.5px; color: var(--encre-2); margin-top: 3px; white-space: normal; max-width: 260px; } .neufs-marq-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid; margin-right: 4px; } .neufs-marq-chip.vert { color: var(--vert-fonce); background: #DDF7D6; border-color: #A9DE9C; } .neufs-marq-chip.jaune { color: #5C4600; background: #FFF3B0; border-color: #E8CF5A; } .neufs-marq-chip.orange { color: #9A4A0B; background: #FDE8D6; border-color: #F5C9A3; } .neufs-marq-chip.bleu { color: var(--bleu); background: var(--bleu-bg); border-color: var(--bleu-bord); } .neufs-marq-chip.gris { color: var(--encre-2); background: #ECECEC; border-color: #CFCFCF; }',
       '.neufs-statut.dispo-oui i { background: var(--vert-fonce); box-shadow: 0 0 0 2px #fff inset; } .neufs-statut.jaune i { background: #F6C700; } .neufs-statut.orange i { background: #E8761B; } .neufs-statut.sarcelle i { background: var(--sarcelle); }',
       '.neufs-marquage-form label { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 12px 0 6px; } .neufs-marquage-form label:first-child { margin-top: 0; } .neufs-marquage-form .segment button { padding: 8px 12px; font-size: 13px; font-weight: 600; } .neufs-marquage-form .segment button.actif.jaune { background: #F6C700; color: #3A2D00; } .neufs-marquage-form .segment button.actif.vert { background: var(--vert); color: #fff; } .neufs-marquage-form .segment button.actif.orange { background: #E8761B; color: #fff; } .neufs-marquage-form .segment button.actif.bleu { background: var(--bleu); color: #fff; } .neufs-marquage-form .segment button.actif.gris { background: var(--encre-3); color: #fff; } .neufs-marquage-form .segment button.actif.oui { background: var(--vert-fonce); color: #fff; } .neufs-marquage-form .segment button.actif.non { background: var(--encre-3); color: #fff; } .neufs-marquage-form .apercu { margin: 12px 0 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .neufs-marquage-form .saisie { width: 100%; } .neufs-marquage-form .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; } @media (max-width: 560px) { .neufs-marquage-form .grille { grid-template-columns: 1fr; } }',
-      '.neufs-signet { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 4px; } .neufs-signet p { margin: 4px 0 8px; font-size: 12.5px; color: var(--encre-2); line-height: 1.5; }'
+      '.neufs-signet { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 4px; } .neufs-signet p { margin: 4px 0 8px; font-size: 12.5px; color: var(--encre-2); line-height: 1.5; }',
+      '.neufs-echanges .neufs-ech-chip { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; } .neufs-ech-chip.en_attente { color: #7A4B00; background: #FFF1D6; border-color: #F2C879; } .neufs-ech-chip.accepte { color: var(--vert-fonce); background: #E3F4E6; border-color: var(--vert); } .neufs-ech-chip.refuse { color: #8E1B1B; background: #FDE2E2; border-color: #F3B4B4; } .neufs-ech-chip.annule { color: var(--encre-3); background: var(--gris-bg); border-color: var(--bordure); } .neufs-echanges td .btn.petit { margin: 2px 4px 2px 0; } .neufs-ech-texto { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--gris-bg); font-size: 12.5px; line-height: 1.5; color: var(--encre-2); white-space: pre-wrap; } .neufs-ech-form label { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 12px 0 6px; } .neufs-ech-form label:first-child { margin-top: 0; } .neufs-ech-form .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .neufs-ech-form .saisie, .neufs-ech-form select { width: 100%; } .neufs-ech-veh { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--bordure); font-size: 13px; } .neufs-echanges .neufs-ech-attente td { background: #FFF8E8; } .neufs-echanges td.msg { white-space: normal; max-width: 260px; font-size: 12.5px; color: var(--encre-2); }'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -455,6 +456,7 @@
     this.elVentes = h('div.neufs-panneau');
     this.elEcarts = h('div.neufs-panneau');   /* DMS vs constructeur (11 oct.) */
     this.elAbsents = h('div.neufs-panneau');   /* 12 oct. (Maxime : « absent de Global mais dans le DMS, comme onglet ») */
+    this.elEchanges = h('div.neufs-panneau');   /* 12 oct. : demandes d'échange entre concessions, par texto */
     this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, version, couleur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { self.filtres.modele = e.target.value; self.filtres.version = ''; self.rendreTable(); self.rendreSelects(); } });
     this.selVersion = h('select.saisie', { 'aria-label': 'Version', onchange: function (e) { self.filtres.version = e.target.value; self.rendreTable(); } });
@@ -476,7 +478,7 @@
     this.elExclus = h('div.neufs-exclus');
     this.elListe = h('div.neufs-panneau', [barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])])]);
     this.elAnalyse = h('div.neufs-panneau', [this.elVieillissement, this.elGroupes, this.elRevue]);
-    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elMarques, this.elPipeline, this.elCartes, this.elOnglets, this.elListe, this.elCommandes, this.elVentes, this.elEcarts, this.elAbsents, this.elAnalyse]);
+    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elMarques, this.elPipeline, this.elCartes, this.elOnglets, this.elListe, this.elCommandes, this.elVentes, this.elEcarts, this.elAbsents, this.elEchanges, this.elAnalyse]);
     this.conteneur.appendChild(this.el);
   };
   /* Sélecteur Détail · Flotte · Tout (GM seulement : les unités FNR / FCN du portail sont de la flotte). */
@@ -509,9 +511,9 @@
   VueNeufs.prototype.montrer = function (onglet, options) {
     this.onglet = onglet; AMX.memo.ecrire('neufs_onglet', onglet);
     var self = this;
-    [['liste', this.elListe], ['commandes', this.elCommandes], ['ventes', this.elVentes], ['ecarts', this.elEcarts], ['absents', this.elAbsents], ['analyse', this.elAnalyse]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
+    [['liste', this.elListe], ['commandes', this.elCommandes], ['ventes', this.elVentes], ['ecarts', this.elEcarts], ['absents', this.elAbsents], ['echanges', this.elEchanges], ['analyse', this.elAnalyse]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
     this.rendreOnglets();
-    if (options && options.defiler) { var cible = { liste: this.elBarre, commandes: this.elCommandes, ventes: this.elVentes, ecarts: this.elEcarts, absents: this.elAbsents, analyse: this.elAnalyse }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    if (options && options.defiler) { var cible = { liste: this.elBarre, commandes: this.elCommandes, ventes: this.elVentes, ecarts: this.elEcarts, absents: this.elAbsents, echanges: this.elEchanges, analyse: this.elAnalyse }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
   VueNeufs.prototype.rendreOnglets = function () {
     var self = this, d = this.donnees;
@@ -523,10 +525,11 @@
     var depuis12 = debut12Mois(), ventes = pv.ventes.filter(function (x) { return String(x.dateVente) >= depuis12; }).length;
     var portail = !c || !!PORTAILS[c];
     var ec = this.deuxOrigines() ? this.ecarts() : null, ab = this.absentsConstructeur();
-    var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['ecarts', 'Écarts DMS / manufacturier', ec ? ec.total : null], ['absents', 'Absents du manufacturier', ab ? ab.lignes.length : null], ['analyse', 'Analyse', null]];
+    var echA = this.echangesEnAttente(), echMoi = echA.filter(function (o) { return o.peutRepondre; }).length;
+    var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['ecarts', 'Écarts DMS / manufacturier', ec ? ec.total : null], ['absents', 'Absents du manufacturier', ab ? ab.lignes.length : null], ['echanges', 'Échanges', echA.length || null], ['analyse', 'Analyse', null]];
     onglets.forEach(function (o) {
       if (o[2] === null && (o[0] === 'commandes' || o[0] === 'ventes' || o[0] === 'ecarts' || o[0] === 'absents')) return;   /* concession sans portail (ou sans rien à comparer) : pas d'onglets vides */
-      self.elOnglets.appendChild(h('button' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', 'data-onglet': o[0], onclick: function () { self.montrer(o[0]); } }, [h('span', { text: o[1] }), o[2] !== null ? h('b' + (o[0] === 'absents' && o[2] ? '.rouge' : ''), { text: AMX.fmtNombre(o[2]) }) : null]));
+      self.elOnglets.appendChild(h('button' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', 'data-onglet': o[0], onclick: function () { self.montrer(o[0]); } }, [h('span', { text: o[1] }), o[2] !== null ? h('b' + ((o[0] === 'absents' && o[2]) || (o[0] === 'echanges' && echMoi) ? '.rouge' : ''), { text: AMX.fmtNombre(o[2]) }) : null]));
     });
     if (!this.elOnglets.querySelector('button.actif')) { this.onglet = 'liste'; this.montrer('liste'); }
   };
@@ -537,6 +540,7 @@
     if (!AMX.neufs.enCache()) this.elTable.appendChild(AMX.chargeur('Véhicules neufs'));
     this.portail = this.portail || null;
     AMX.neufs.chargerPortail(force).then(function (p) { if (gen !== self.generation) return; self.portail = p; indexerRdr(p); self.rendrePortailOnglets(); if (self.donnees) self.rendre(); }, function () { if (gen !== self.generation) return; self.portail = null; self.rendrePortailOnglets(); });
+    this.chargerEchanges(gen);
     return AMX.neufs.charger(force).then(function (d) {
       if (gen !== self.generation) return;
       self.donnees = d; self.erreur = ''; self.typeParVin = null;
@@ -696,6 +700,7 @@
     this.rendreExclus();
     this.rendreEcarts();
     this.rendreAbsents();
+    this.rendreEchanges();
     this.montrer(this.onglet);
   };
   /* Onglet Écarts : ce que le DMS / fichier a et pas le constructeur, l'inverse, et les NIV des deux côtés dont le statut diffère
@@ -824,6 +829,142 @@
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Absents du manufacturier');
     XLSX.writeFile(wb, 'neufs-absents-manufacturier-' + (this.compagnie || 'groupe').toLowerCase() + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
     AMX.toast('Export — ' + rows.length + ' NIV absents du manufacturier', 'ok');
+  };
+
+  /* ---------------- Échanges entre concessions, par texto (12 oct.) ----------------
+     Maxime : « je veux pouvoir générer un texto pour faire une demande d'échange entre Ste-Marie et Hawks, et que la réponse
+     puisse faire un update directement par les textos dans la base de données ». Le responsable de la feuille des neufs d'une
+     concession demande un véhicule (fiche d'un neuf d'une autre concession, ou modèle recherché en texte libre) ; le serveur
+     (Echange.gs) texte les responsables de l'autre concession (admins, gestionnaires, direction des ventes, droit « Neufs —
+     responsable de la feuille », avec un numéro) : « OUI E101 » marque le véhicule « Échangé » à la concession demandeuse et
+     prévient le demandeur ; « NON E101 » refuse. On peut aussi répondre ici. GET ?echanges=1, POST echangeCreer / echangeRepondre. */
+  VueNeufs.prototype.chargerEchanges = function (gen) {
+    var self = this;
+    return AMX.get({ echanges: 1 }).then(function (d) {
+      if (self.detruit || (gen !== undefined && gen !== self.generation)) return;
+      self.echanges = (d && d.ok) ? d : { echanges: [], peutDemander: false, textosActifs: false, indisponible: (d && (d.erreur || d.message)) || 'route absente (redéployez le script)' };
+      self.rendreEchanges(); self.rendreOnglets();
+    }).catch(function (e) { if (self.detruit) return; self.echanges = { echanges: [], peutDemander: false, textosActifs: false, indisponible: AMX.erreurTexte(e) }; self.rendreEchanges(); self.rendreOnglets(); });
+  };
+  VueNeufs.prototype.echangesEnAttente = function () {
+    var c = this.compagnie;
+    return ((this.echanges && this.echanges.echanges) || []).filter(function (o) { return o.statut === 'en_attente' && (!c || o.deCompagnie === c || o.aCompagnie === c); });
+  };
+  /* Les concessions au nom desquelles je peux demander (portée inventaire), sans celle qui a le véhicule. */
+  VueNeufs.prototype.concessionsDemandeuses = function (sauf) {
+    return (AMX.codesPour ? AMX.codesPour('inventaire') : Object.keys(AMX.COMPAGNIES)).filter(function (c) { return c !== sauf; });
+  };
+  VueNeufs.prototype.peutDemanderEchange = function (v) {
+    return !!(v && v.enStock && this.echanges && this.echanges.peutDemander && this.concessionsDemandeuses(v.compagnie).length);
+  };
+  function textoEchange(o) {
+    var veh = [o.modele, o.stock ? '# ' + o.stock : '', o.vin ? '(NIV …' + String(o.vin).slice(-8) + ')' : ''].filter(Boolean).join(' '), msg = String(o.message || '').trim();
+    return 'ScanAutomax — Échange ' + (o.id || 'E…') + ' : ' + nomCie(o.deCompagnie) + ' (' + (o.parNom || '') + ') demande ' + (veh || '…') + '.' + (msg ? ' ' + msg.slice(0, 160) + (msg.length > 160 ? '…' : '') + '.' : '') + ' Répondez OUI ' + (o.id || 'E…') + ' pour accepter ou NON ' + (o.id || 'E…') + ' pour refuser.';
+  }
+  VueNeufs.prototype.rendreEchanges = function () {
+    var self = this, e = this.echanges, c = this.compagnie;
+    AMX.vider(this.elEchanges);
+    if (!this.donnees) return;
+    var liste = ((e && e.echanges) || []).filter(function (o) { return !c || o.deCompagnie === c || o.aCompagnie === c; });
+    var attente = liste.filter(function (o) { return o.statut === 'en_attente'; }), aMoi = attente.filter(function (o) { return o.peutRepondre; });
+    var btnDemander = e && e.peutDemander ? h('button.btn.primaire.petit.neufs-echange-nouvelle', { type: 'button', html: I.texto + '<span>Demander un échange…</span>', onclick: function () { self.demanderEchange(null); } }) : null;
+    var btnRafraichir = h('button.btn.petit', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { btnRafraichir.classList.add('occupe'); self.chargerEchanges().then(function () { btnRafraichir.classList.remove('occupe'); }); } });
+    var rangee = function (o) {
+      var actions = [];
+      if (o.peutRepondre) { actions.push(h('button.btn.petit.primaire.neufs-ech-oui', { type: 'button', text: 'Accepter', onclick: function () { self.repondreEchange(o, 'oui'); } })); actions.push(h('button.btn.petit.neufs-ech-non', { type: 'button', text: 'Refuser', onclick: function () { self.repondreEchange(o, 'non'); } })); }
+      if (o.peutAnnuler) actions.push(h('button.btn.petit.fantome.neufs-ech-annuler', { type: 'button', text: 'Annuler', onclick: function () { self.repondreEchange(o, 'annuler'); } }));
+      var dest = (o.destinataires || []).map(function (d) { return d.nom + (d.ok ? '' : ' (texto non parti)'); }).join(', ');
+      var reponse = o.statut === 'en_attente' ? (dest ? 'Texto envoyé à ' + dest : '—') : ((o.reponduPar ? o.reponduPar : '') + (o.repondu ? ' · ' + AMX.fmtDate(o.repondu, true) : '') + (o.reponse ? ' — « ' + o.reponse + ' »' : '') + (o.note && o.statut === 'annule' ? ' — ' + o.note : ''));
+      var veh = this_veh(o);
+      var tr = h('tr' + (o.statut === 'en_attente' ? '.neufs-ech-attente' : ''), { 'data-id': o.id }, [
+        h('td', [h('b', { text: o.id }), h('div.doux.petit', { text: AMX.fmtDate(o.cree, true) })]),
+        h('td', [h('div', { text: o.deNom || nomCie(o.deCompagnie) }), h('div.doux.petit', { text: o.parNom || o.par })]),
+        h('td', { text: o.aNom || nomCie(o.aCompagnie) }),
+        h('td.vehicule', [h('div.nom', { text: o.modele || '—' }), h('div.vin', { text: (o.stock ? '# ' + o.stock : '') + (o.vin ? (o.stock ? ' · ' : '') + o.vin : '') })]),
+        h('td.msg', { text: o.message || '' }),
+        h('td', [h('span.neufs-ech-chip.' + o.statut, { text: o.statutLibelle || o.statut })]),
+        h('td.msg', { text: reponse }),
+        h('td', actions.length ? actions : [h('span.doux', '—')])
+      ]);
+      if (veh) { tr.querySelector('td.vehicule').style.cursor = 'pointer'; tr.querySelector('td.vehicule').title = 'Ouvrir la fiche'; tr.querySelector('td.vehicule').addEventListener('click', function () { self.ouvrir(veh); }); }
+      return tr;
+    };
+    function this_veh(o) { if (!o.vin) return null; return (self.donnees.vehicules || []).filter(function (v) { return v.compagnie === o.aCompagnie && v.vin === o.vin; })[0] || null; }
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Un responsable de la feuille des neufs demande un véhicule à une autre concession du groupe : le site envoie un texto aux responsables de cette concession (admins, gestionnaires, direction des ventes et comptes avec le droit « Neufs — responsable de la feuille », qui ont un numéro de cellulaire). Ils répondent « OUI E101 » ou « NON E101 » par texto — ou ici, Accepter / Refuser. Un OUI marque aussitôt le véhicule « Échangé » à la concession demandeuse (comme un marquage) et prévient le demandeur par texto et courriel.' }),
+      e && e.indisponible ? h('p.neufs-absent-dms', { text: 'Les échanges ne sont pas disponibles : ' + e.indisponible }) : null,
+      e && !e.indisponible && !e.textosActifs ? h('p.neufs-absent-dms', { text: 'Les textos ne sont pas activés (Admin › Alertes aux directeurs (textos) : compte Infobip) : les demandes seront enregistrées mais aucun texto ne partira.' }) : null,
+      e && !e.indisponible && e.textosActifs && e.lectureInstallee === false && AMX.estAdmin() ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Les réponses par texto ne sont pas encore lues automatiquement : Admin › Réponses par texto › Installer la lecture (toutes les minutes).' }) : null,
+      liste.length ? h('div.neufs-table.neufs-echanges', { style: { marginTop: '14px' } }, [h('table.tableau', [h('thead', [h('tr', ['#', 'Demandé par', 'À', 'Véhicule', 'Message', 'Statut', 'Réponse / textos', ''].map(function (x) { return h('th', x); }))]), h('tbody', liste.slice(0, 200).map(rangee))])]) : h('div.neufs-vide', { style: { marginTop: '14px' }, text: e && e.indisponible ? '' : 'Aucune demande d\'échange' + (c ? ' pour ' + nomCie(c) : '') + '.' })
+    ];
+    this.elEchanges.appendChild(h('div.carte', [
+      h('div.carte-entete', [h('h2', ['Demandes d\'échange entre concessions', h('span.sous', { text: attente.length ? attente.length + ' en attente' + (aMoi.length ? ' · ' + aMoi.length + ' à répondre' : '') : (liste.length ? 'aucune en attente' : 'par texto') })]), h('div.actions', [btnRafraichir, btnDemander])]),
+      h('div.carte-corps', corps)
+    ]));
+  };
+  /* Formulaire de demande : concession demandeuse, concession qui a le véhicule, véhicule (fiche) ou modèle recherché, message, aperçu du texto. */
+  VueNeufs.prototype.demanderEchange = function (v) {
+    var self = this, e = this.echanges || {};
+    var codesDe = this.concessionsDemandeuses(v ? v.compagnie : ''), tous = Object.keys(AMX.COMPAGNIES_TOUTES || AMX.COMPAGNIES);
+    if (!codesDe.length) { AMX.toast('Aucune concession au nom de laquelle demander.', 'attention'); return; }
+    var maCie = AMX.maConcession ? AMX.maConcession() : '';
+    var deDefaut = (maCie && codesDe.indexOf(maCie) >= 0) ? maCie : ((this.compagnie && codesDe.indexOf(this.compagnie) >= 0 && (!v || this.compagnie !== v.compagnie)) ? this.compagnie : codesDe[0]);
+    var aDefaut = v ? v.compagnie : (tous.filter(function (x) { return x !== deDefaut; })[0] || '');
+    var selDe = h('select.saisie.ech-de', { 'aria-label': 'Concession demandeuse' }, codesDe.map(function (x) { return h('option', { value: x, selected: x === deDefaut || null, text: nomCie(x) }); }));
+    var selA = h('select.saisie.ech-a', { 'aria-label': 'Concession qui a le véhicule', disabled: !!v || null }, tous.map(function (x) { return h('option', { value: x, selected: x === aDefaut || null, text: nomCie(x) }); }));
+    var modele = h('input.saisie.ech-modele', { type: 'text', maxlength: '80', placeholder: 'Ex. : Silverado 1500 LT 2026, noir, 5.3L', autocomplete: 'off' });
+    var vin = h('input.saisie.ech-vin', { type: 'text', maxlength: '17', placeholder: 'NIV (facultatif, 17 caractères)', autocomplete: 'off', style: { textTransform: 'uppercase' } });
+    var message = h('input.saisie.ech-message', { type: 'text', maxlength: '300', placeholder: 'Ex. : client prêt à signer, livraison vendredi (facultatif)', autocomplete: 'off' });
+    var apercu = h('div.neufs-ech-texto');
+    var lire = function () { return { compagnie: selDe.value, aCompagnie: selA.value, vin: v ? v.vin : vin.value.trim().toUpperCase(), modele: v ? '' : modele.value.trim(), message: message.value.trim() }; };
+    var rendre = function () {
+      var o = lire();
+      Array.prototype.forEach.call(selA.options, function (op) { op.disabled = op.value === o.compagnie; });
+      if (selA.value === o.compagnie) { var autre = tous.filter(function (x) { return x !== o.compagnie; })[0]; if (autre) selA.value = autre; o = lire(); }
+      apercu.textContent = 'Texto aux responsables de ' + nomCie(o.aCompagnie) + ' :\n' + textoEchange({ id: '', deCompagnie: o.compagnie, parNom: AMX.session.nom || AMX.session.courriel, modele: v ? nomVehicule(v) + (v.couleur ? ' ' + v.couleur : '') : o.modele, stock: v ? v.stock : '', vin: o.vin, message: o.message });
+    };
+    [selDe, selA, modele, vin, message].forEach(function (el) { el.addEventListener('input', rendre); el.addEventListener('change', rendre); });
+    var corps = h('div.neufs-ech-form', [
+      h('label', 'Concession qui demande'), selDe,
+      h('label', 'Concession qui a le véhicule'), selA,
+      h('label', 'Véhicule demandé'),
+      v ? h('div.neufs-ech-veh', [h('b', { text: nomVehicule(v) + (v.couleur ? ' · ' + v.couleur : '') }), h('div.doux.petit', { text: (v.stock ? '# ' + v.stock + ' · ' : '') + v.vin + ' · ' + nomCie(v.compagnie) })]) : h('div.grille', [modele, vin]),
+      h('label', 'Message (facultatif)'), message,
+      apercu,
+      e.textosActifs === false ? h('p.neufs-absent-dms', { style: { marginTop: '10px' }, text: 'Les textos ne sont pas activés : la demande sera enregistrée mais aucun texto ne partira.' }) : h('p.doux.petit', { style: { margin: '10px 0 0' }, text: 'Les responsables de la concession répondent OUI ou NON au texto (avec le numéro E…) : un OUI marque le véhicule « Échangé » à ' + nomCie(deDefaut) + ' et vous prévient par texto et courriel.' })
+    ]);
+    rendre();
+    AMX.modale({ titre: 'Demande d\'échange par texto', corps: corps, large: true, boutons: [
+      { texte: 'Annuler', action: function (fermer) { fermer(); } },
+      { texte: 'Envoyer le texto', classe: 'primaire neufs-ech-envoyer', action: function () {
+        var o = lire();
+        if (!v && !o.modele && !o.vin) { AMX.toast('Indiquez le véhicule demandé (modèle recherché ou NIV).', 'attention'); return false; }
+        if (o.vin && !/^[A-HJ-NPR-Z0-9]{17}$/.test(o.vin)) { AMX.toast('NIV invalide (17 caractères).', 'attention'); return false; }
+        return AMX.post(Object.assign({ action: 'echangeCreer' }, o)).then(function (r) {
+          if (r && r.refuse) throw new Error(r.erreur || 'Refusé.');
+          if (!r || (!r.ok && !r.echange)) throw new Error((r && r.erreur) || 'Réponse inattendue.');
+          AMX.toast(r.ok ? 'Demande ' + r.echange.id + ' envoyée par texto à ' + r.envoyes + ' responsable' + (r.envoyes > 1 ? 's' : '') + ' de ' + nomCie(o.aCompagnie) : 'Demande ' + r.echange.id + ' enregistrée — ' + (r.erreur || 'aucun texto parti'), r.ok ? 'ok' : 'attention');
+          return self.chargerEchanges().then(function () { self.montrer('echanges', { defiler: true }); return true; });
+        }).catch(function (err) { AMX.toast('Demande impossible — ' + AMX.erreurTexte(err), 'erreur'); return false; });
+      } }
+    ] });
+  };
+  /* Répondre depuis le site (oui / non) ou annuler sa demande. Un OUI recharge les neufs (le véhicule passe « Échangé »). */
+  VueNeufs.prototype.repondreEchange = function (o, reponse) {
+    var self = this;
+    var note = h('input.saisie.ech-note', { type: 'text', maxlength: '200', placeholder: reponse === 'oui' ? 'Ex. : transfert mardi (facultatif)' : (reponse === 'non' ? 'Ex. : déjà vendu (facultatif)' : 'Raison (facultatif)'), autocomplete: 'off' });
+    var titres = { oui: 'Accepter l\'échange ' + o.id + ' ?', non: 'Refuser l\'échange ' + o.id + ' ?', annuler: 'Annuler la demande ' + o.id + ' ?' };
+    var textes = { oui: (o.vin ? o.modele + (o.stock ? ' # ' + o.stock : '') + ' sera marqué « Échangé » à ' + (o.deNom || nomCie(o.deCompagnie)) + ' et ' : 'La demande sera acceptée et ') + (o.parNom || o.par) + ' sera prévenu par texto et courriel.', non: (o.parNom || o.par) + ' sera prévenu du refus par texto et courriel.', annuler: 'La demande ne pourra plus être acceptée ; les responsables de ' + (o.aNom || nomCie(o.aCompagnie)) + ' qui répondraient par texto seront avisés qu\'elle est annulée.' };
+    var corps = h('div', [h('p', { style: { margin: '0 0 10px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: textes[reponse] }), note]);
+    return AMX.confirmer(titres[reponse], corps, { ok: { oui: 'Accepter', non: 'Refuser', annuler: 'Annuler la demande' }[reponse], danger: reponse !== 'oui' }).then(function (ok) {
+      if (!ok) return;
+      return AMX.post({ action: 'echangeRepondre', id: o.id, reponse: reponse, note: note.value.trim() }).then(function (r) {
+        AMX.verifier(r, 'Réponse refusée.');
+        AMX.toast('Échange ' + o.id + ' ' + ({ oui: 'accepté', non: 'refusé', annuler: 'annulé' }[reponse]) + (r.marque ? ' — véhicule marqué « Échangé »' : ''), 'ok');
+        if (r.marque) { AMX.neufs.vider(); return self.charger(true); }
+        return self.chargerEchanges();
+      }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
+    });
   };
 
   /* Exclusions permanentes (Maxime, 7 oct. : « enlever de manière permanente les 4 unités de VW vieilles »).
@@ -1441,6 +1582,7 @@
     var self = this;
     var boutons = [];
     if (d.gererExclus) boutons.push({ texte: 'Retirer du suivi', classe: 'danger fantome', action: function (fermer) { fermer(); self.exclure(v); return false; } });
+    if (this.peutDemanderEchange(v)) boutons.push({ texte: 'Demander un échange…', classe: 'fantome neufs-demander-echange', action: function (fermer) { fermer(); self.demanderEchange(v); return false; } });
     if (peutMarquer() && v.enStock) boutons.push({ texte: mq ? 'Modifier le marquage' : 'Marquer (vendu, échangé, démo…)', classe: 'primaire', action: function (fermer) { fermer(); self.marquer(v); return false; } });
     boutons.push({ texte: 'Fermer', action: function (fermer) { fermer(); } });
     AMX.modale({ titre: nomVehicule(v) + (v.stock ? ' — # ' + v.stock : ''), corps: h('div.neufs-fiche', [gauche, droite]), large: true, boutons: boutons });

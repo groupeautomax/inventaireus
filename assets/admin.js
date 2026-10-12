@@ -505,7 +505,8 @@
     this.elJournal = this.construireJournal();
     this.elParametres = this.construireParametres();
     this.elAlertes = this.construireAlertes();
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elParametres]), this.elPanneau]);
+    this.elEchanges = this.construireEchanges();
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -623,6 +624,50 @@
         AMX.toast('Textos retirés.', 'ok');
       });
     }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
+  };
+  /* ------------------- Réponses par texto : échanges de neufs (12 oct.) -----------------
+     Maxime : « que la réponse puisse faire un update directement par les textos dans la base
+     de données ». Echange.gs lit la boîte de réception Infobip (GET /sms/1/inbox/reports) par
+     un déclencheur toutes les minutes : « OUI E101 » marque le véhicule « Échangé », « NON E101 »
+     refuse. Ici : état de la lecture, installer / retirer le déclencheur, lire maintenant,
+     derniers textos reçus. La clé API Infobip doit pouvoir lire la boîte (périmètre SMS
+     complet, pas seulement l'envoi) — Maxime la colle dans la carte ci-dessus. */
+  VueAdmin.prototype.construireEchanges = function () {
+    var self = this;
+    this.elEtatEchanges = h('div.compte-textos', [h('span.badge.gris.sans-point', { text: 'Vérification…' })]);
+    this.elTextosRecus = h('div');
+    var action = function (mode, btn) { btn.classList.add('occupe'); return AMX.get({ echanges: 1, mode: mode }).then(function (d) { AMX.verifier(d, 'Refusé.'); self.rendreEtatEchanges(d); if (mode === 'recevoir') AMX.toast(d.derniereLecture && d.derniereLecture.ok === false ? 'Lecture en erreur — ' + d.derniereLecture.erreur : 'Boîte lue — ' + ((d.derniereLecture && d.derniereLecture.lus) || 0) + ' texto(s)', d.derniereLecture && d.derniereLecture.ok === false ? 'erreur' : 'ok'); else AMX.toast(mode === 'installer' ? 'Lecture automatique installée (toutes les minutes).' : 'Lecture automatique retirée.', 'ok'); }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); }).then(function () { btn.classList.remove('occupe'); }); };
+    this.btnEchInstaller = h('button.btn.primaire.petit#adm-ech-installer', { type: 'button', html: I.ok + '<span>Installer la lecture automatique</span>', onclick: function () { action('installer', self.btnEchInstaller); } });
+    this.btnEchRetirer = h('button.btn.petit.cache#adm-ech-retirer', { type: 'button', text: 'Retirer la lecture automatique', onclick: function () { action('desinstaller', self.btnEchRetirer); } });
+    this.btnEchLire = h('button.btn.petit#adm-ech-lire', { type: 'button', html: I.rafraichir + '<span>Lire la boîte maintenant</span>', onclick: function () { action('recevoir', self.btnEchLire); } });
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Inventaire › Neufs › Échanges : une demande d\'échange entre deux concessions part par texto aux responsables de la concession qui a le véhicule. Leur réponse « OUI E101 » marque le véhicule « Échangé » à la concession demandeuse et prévient le demandeur ; « NON E101 » refuse. Pour cela, le script lit la boîte de réception du numéro Infobip toutes les minutes (déclencheur). La clé API Infobip collée ci-dessus doit avoir le périmètre SMS complet (envoi et lecture) et le numéro doit pouvoir recevoir des textos (numéro long canadien).' }),
+      h('div.ligne-cle', [this.btnEchInstaller, this.btnEchRetirer, this.btnEchLire]),
+      this.elEtatEchanges,
+      this.elTextosRecus
+    ];
+    return h('div.carte.admin-parametres.admin-echanges', [h('div.carte-entete', [h('h2', 'Réponses par texto (échanges de neufs)')]), h('div.carte-corps', corps)]);
+  };
+  VueAdmin.prototype.chargerEchanges = function () {
+    var self = this;
+    return AMX.get({ echanges: 1, mode: 'etat' }).then(function (d) { if (self.detruit) return; self.rendreEtatEchanges(d && d.ok ? d : null); }).catch(function () { if (!self.detruit) self.rendreEtatEchanges(null); });
+  };
+  VueAdmin.prototype.rendreEtatEchanges = function (d) {
+    AMX.vider(this.elEtatEchanges); AMX.vider(this.elTextosRecus);
+    if (!d) { this.elEtatEchanges.appendChild(h('span.badge.ambre.sans-point', { text: 'Route absente — redéployez le script (Echange.gs)' })); this.btnEchInstaller.disabled = true; this.btnEchLire.disabled = true; return; }
+    this.btnEchInstaller.disabled = false; this.btnEchLire.disabled = false;
+    this.btnEchInstaller.classList.toggle('cache', !!d.lectureInstallee);
+    this.btnEchRetirer.classList.toggle('cache', !d.lectureInstallee);
+    if (!d.fournisseur) this.elEtatEchanges.appendChild(h('span.badge.gris.sans-point', { text: 'Aucun fournisseur de textos — enregistrez Infobip ci-dessus' }));
+    else if (d.lectureInstallee) this.elEtatEchanges.appendChild(h('span.badge.vert', { text: 'Lecture automatique active (toutes les minutes)' }));
+    else this.elEtatEchanges.appendChild(h('span.badge.ambre.sans-point', { text: 'Lecture automatique pas installée — les réponses par texto ne sont pas lues' }));
+    if (d.enAttente) this.elEtatEchanges.appendChild(h('span.puce.texto', { text: pluriel(d.enAttente, 'demande') + ' en attente' }));
+    var dl = d.derniereLecture;
+    if (dl) this.elEtatEchanges.appendChild(h('span.doux.petit', { text: 'Dernière lecture ' + (dl.quand ? AMX.fmtDate(dl.quand, true) : '') + (dl.ok === false ? ' — erreur : ' + (dl.erreur || '') : ' — ' + (dl.lus || 0) + ' texto(s)') }));
+    var textos = d.textos || [];
+    if (textos.length) {
+      this.elTextosRecus.appendChild(h('details', { style: { marginTop: '8px' } }, [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Derniers textos reçus (' + textos.length + ')' }), h('ul.petit', { style: { margin: '6px 0 0', paddingLeft: '18px' } }, textos.slice().reverse().map(function (t) { return h('li', { text: (t.recu ? AMX.fmtDate(t.recu, true) + ' · ' : '') + String(t.de || '').replace(/\d(?=\d{4})/g, '•') + ' : « ' + (t.texte || '') + ' » → ' + (t.resultat || '') + (t.id ? ' ' + t.id : '') }); }))]));
+    }
   };
   VueAdmin.prototype.rendreEtatCle = function (p) {
     AMX.vider(this.elEtatCle);
@@ -851,6 +896,7 @@
     this.chargerParametres();
     this.chargerReglagesAvis();
     this.chargerJournal();
+    this.chargerEchanges();
     return AMX.get('utilisateurs=1').then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;

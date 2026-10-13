@@ -359,8 +359,18 @@
   // parallèle — la première réponse valable gagne, l'autre est annulée. Un GET
   // ne modifie rien : le doublon est sans danger.
   var GET_DELAI_MS = 25000, GET_SECOURS_MS = 6000;
+  // 13 oct. (vitesse) : `opts.gz` demande la réponse compressée (?gz=1 → { ok, gz } = JSON gzip + base64, CacheGz.gs :
+  // 1,4 Mo → 125 Ko pour les neufs) quand le navigateur sait la décompresser ; un script pas encore redéployé répond en
+  // clair et tout continue.
+  var GZ_POSSIBLE = (typeof DecompressionStream === 'function') && (typeof Response === 'function') && (typeof Blob === 'function');
+  function degonfler(b64) {
+    var bin = atob(b64), octets = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
+    return new Response(new Blob([octets]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  }
   AMX.get = function (params, opts) {
     opts = opts || {};
+    if (opts.gz && GZ_POSSIBLE && params && typeof params === 'object' && !params.gz) params = Object.assign({}, params, { gz: 1 });
     var q = typeof params === 'string' ? params : Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
     var base = URL_BACKEND + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton));
     enCours++; majEtat(false);
@@ -379,6 +389,7 @@
         fin();
         var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); }
         if (refusTemporaire(d)) throw new Error(d.erreur || 'Le serveur n\'a pas pu vérifier la session.');   // panne passagère côté Google : on réessaie, on ne déconnecte pas
+        if (d && d.ok === true && typeof d.gz === 'string' && GZ_POSSIBLE) return degonfler(d.gz).then(function (t2) { try { return JSON.parse(t2); } catch (e2) { throw new Error('Réponse compressée illisible'); } });
         return d;
       }, function (err) { fin(); throw (err && err.name === 'AbortError') ? new Error('Pas de réponse en ' + Math.round(delai / 1000) + ' s') : err; });
     };

@@ -303,7 +303,7 @@
     charger: function (force) {
       if (!force && cache.donnees && Date.now() - cache.le < DUREE_CACHE_MS) return Promise.resolve(cache.donnees);
       if (cache.promesse) return cache.promesse;
-      cache.promesse = AMX.get({ neufs: 1 }).then(function (d) {
+      cache.promesse = AMX.get({ neufs: 1 }, { gz: true }).then(function (d) {
         cache.promesse = null;
         if (!d || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Accès refusé.');
         if (!d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
@@ -322,7 +322,7 @@
     chargerPortail: function (force) {
       if (!force && cachePortail.donnees && Date.now() - cachePortail.le < DUREE_CACHE_MS) return Promise.resolve(cachePortail.donnees);
       if (cachePortail.promesse) return cachePortail.promesse;
-      cachePortail.promesse = AMX.get({ constructeur: 1 }).then(function (d) {
+      cachePortail.promesse = AMX.get({ constructeur: 1 }, { gz: true }).then(function (d) {
         cachePortail.promesse = null;
         if (!d || d.ok === false || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
         cachePortail.donnees = d; cachePortail.le = Date.now();

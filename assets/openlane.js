@@ -18,7 +18,13 @@
      concession, table, détail en modale, export Excel).
    - AMX.openlaneBloc(vin, conteneur, opts) : bloc compact pour un NIV.
    - AMX.openlaneOuvrir(vin, ligne) : la modale, d'où qu'on vienne.
-   - AMX.openlanePuce(vin) : puce pour une ligne (index par NIV en cache local). */
+   - AMX.openlanePuce(vin) : puce pour une ligne (index par NIV en cache local).
+
+   14 oct. — OPENLANE EN DIRECT (Maxime : « intégrer plus profondément leur outil d'évaluation ; la prévision de prix
+   aussi ; toujours le compte de Hawkesbury Chevrolet ») : quand le serveur tient la session OpenLane du groupe
+   (Openlane.gs, captée par le signet d'un admin avec Hawkesbury sélectionné, rafraîchie toutes les 6 h), le bloc d'un
+   NIV lit Market Guide tout de suite (POST openlaneDirect : décodage, ventes comparables, prévision aujourd'hui et
+   30-60-90 j) — plus de favori à cliquer dans l'évaluation. Le favori reste la lecture en masse et le secours. */
 (function () {
   'use strict';
   var h = AMX.h, esc = AMX.esc, I = AMX.icones;
@@ -328,7 +334,7 @@
   }
   function tuile(libelle, valeur, mini, cls) { return h('div.tuile' + (cls ? '.' + cls : ''), [h('div.l', { text: libelle }), h('div.v.num', { text: valeur }), mini ? h('div.m', { text: mini }) : null]); }
   /** Tuiles des valeurs (modale et bloc compact). */
-  function tuiles(r, km, compact) {
+  function tuiles(r, km, compact, previsionComplete) {
     var nv = nombre(r.nVentes) || 0, aj = ajuste(r, km), out = [];
     if (nv) {
       out.push(tuile('Ventes ' + (r.jours || 90) + ' j', String(nv), r.avecVersion ? 'même version' : 'toutes versions'));
@@ -338,7 +344,7 @@
     }
     if (nombre(r.prevision) !== null) {
       out.push(tuile('Prévision', fmt(r.prevision), (nombre(r.previsionBas) !== null && nombre(r.previsionBas) !== nombre(r.previsionHaut) ? fourchette(r.previsionBas, r.previsionHaut) + ' · ' : '') + fmtKm(r.previsionKm), 'prev'));
-      if (!compact) { out.push(tuile('Dans 30 j', fourchette(r.j30Min, r.j30Max))); out.push(tuile('Dans 60 j', fourchette(r.j60Min, r.j60Max))); }
+      if (!compact || previsionComplete) { out.push(tuile('Dans 30 j', fourchette(r.j30Min, r.j30Max))); out.push(tuile('Dans 60 j', fourchette(r.j60Min, r.j60Max))); }
       out.push(tuile('Dans 90 j', fourchette(r.j90Min, r.j90Max), nombre(r.prevision) && nombre(r.j90Min) !== null ? (Math.round((milieu(r.j90Min, r.j90Max) - nombre(r.prevision)) / nombre(r.prevision) * 100)) + ' %' : ''));
     }
     return h('div.ol-tuiles', out);
@@ -432,6 +438,7 @@
     AMX.vider(conteneur);
     vin = String(vin || '').trim().toUpperCase();
     if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return Promise.resolve(null);
+    var kmVoulu = opts.km !== undefined && nombre(opts.km) !== null ? nombre(opts.km) : null;
     var rendreDemande = function (r) {
       var zone = h('div.ol-bloc');
       var km = nombre(opts.km !== undefined ? opts.km : (r && r.km));
@@ -448,32 +455,69 @@
       else if (!peutDemander()) zone.appendChild(h('span.doux.petit', 'Valeurs non lues (favori OpenLane).'));
       return zone;
     };
-    return AMX.get({ openlaneVin: vin }, { essais: 1 }).then(function (d) {
-      var r = (d && d.ok && d.valeur) || null;
-      if (!r || !r.luLe) { conteneur.appendChild(rendreDemande(r)); return r; }
+    // 14 oct. : OpenLane en direct — bouton « Lire maintenant » (ou lecture automatique dans l'évaluation).
+    var rendreDirect = function (r, auto) {
+      var zone = h('div.ol-bloc.ol-direct');
+      var km = kmVoulu !== null ? kmVoulu : nombre(r && r.km);
+      var attente = h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } }, [h('span.badge.sans-point.bleu', { text: 'OpenLane' }), h('span.doux.petit', { text: 'Lecture de Market Guide en cours…' })]);
+      var lancer = function (btn) {
+        if (btn) btn.classList.add('occupe');
+        AMX.vider(zone); zone.appendChild(attente);
+        return AMX.openlane.direct(vin, km, { source: opts.source || 'direct', compagnie: opts.compagnie || '', forcer: !!(r && r.luLe) }).then(function (x) {
+          if (x && x.ok && x.valeur && x.valeur.luLe) { AMX.vider(conteneur); conteneur.appendChild(rendreValeur(x.valeur, x.erreurs || [])); return x.valeur; }
+          AMX.vider(zone);
+          if (x && x.nonConnecte) { zone.appendChild(h('div.doux.petit', { text: x.erreur || 'OpenLane n\'est pas connecté au site.' })); zone.appendChild(rendreDemande(r)); }
+          else zone.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' } }, [h('span.doux.petit', { text: 'OpenLane : ' + ((x && x.erreur) || 'pas de réponse') }), boutonDirect(r)]));
+          return r;
+        }, function (e) { AMX.vider(zone); zone.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' } }, [h('span.doux.petit', { text: 'OpenLane : ' + AMX.erreurTexte(e) }), boutonDirect(r)])); return r; });
+      };
+      var boutonDirect = function (r2) { var b = h('button.btn.petit' + (r2 && r2.luLe ? '' : '.primaire'), { type: 'button', html: I.externe + '<span>' + (r2 && r2.luLe ? 'Mettre à jour (OpenLane)' : 'Lire sur OpenLane maintenant') + '</span>', title: 'Le site interroge Market Guide (compte Hawkesbury Chevrolet) : décodage, ventes comparables, prévision aujourd\'hui et 30-60-90 jours.', onclick: function () { lancer(b); } }); return b; };
+      if (auto) { lancer(null); return zone; }
+      zone.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' } }, [boutonDirect(r), km === null ? h('span.doux.petit', opts.auto ? 'Entrez le km : la lecture (avec la prévision) se fera toute seule.' : 'Sans km, pas de prévision.') : null]));
+      return zone;
+    };
+    var rendreValeur = function (r, erreursLecture) {
       var bloc = h('div.ol-bloc');
-      var km = opts.km !== undefined && nombre(opts.km) !== null ? nombre(opts.km) : nombre(r.km);
+      var km = kmVoulu !== null ? kmVoulu : nombre(r.km);
       var nv = nombre(r.nVentes) || 0, prev = nombre(r.prevision);
       bloc.appendChild(h('div.ligne-badges', [
-        h('span.badge.sans-point.bleu', { text: 'OpenLane', title: 'Lu le ' + AMX.fmtDate(r.luLe, true) }),
+        h('span.badge.sans-point.bleu', { text: 'OpenLane', title: 'Lu le ' + AMX.fmtDate(r.luLe, true) + (r.source === 'direct' || (erreursLecture && erreursLecture.length !== undefined && r.luPar) ? ' (en direct, compte Hawkesbury)' : '') }),
         nv ? h('span.badge.sans-point.gris', { text: nv + ' vente' + (nv > 1 ? 's' : '') + ' · ' + (r.jours || 90) + ' j' }) : h('span.badge.sans-point.gris', { text: 'Aucune vente comparable' }),
         prev === null && r.erreur && /prévision/.test(r.erreur) ? h('span.badge.sans-point.ambre', { text: 'Pas de prévision (km)', title: r.erreur }) : null,
-        h('span.doux.petit', { text: AMX.fmtDate(r.luLe) })
+        h('span.doux.petit', { text: AMX.fmtDate(r.luLe, true) })
       ]));
-      if (nv || prev !== null) bloc.appendChild(tuiles(r, km, true));
-      bloc.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } }, [
-        h('button.btn.petit', { type: 'button', text: 'Détails OpenLane', onclick: function () { AMX.openlaneOuvrir(vin, r); } }),
-        h('a.btn.petit.fantome', { href: AMX.lien('outils', 'openlane', { vin: vin }), text: 'Valeurs OpenLane' })
-      ]));
-      // Km du moment différent de celui de la prévision : proposer la mise à jour.
-      if (km !== null && nombre(r.previsionKm) !== null && Math.abs(km - nombre(r.previsionKm)) > 2000 && peutDemander()) bloc.appendChild(rendreDemande(r));
-      conteneur.appendChild(bloc);
+      if (nv || prev !== null) bloc.appendChild(tuiles(r, km, true, opts.previsionComplete !== false));
+      var actions = [h('button.btn.petit', { type: 'button', text: 'Détails OpenLane', onclick: function () { AMX.openlaneOuvrir(vin, r); } }), h('a.btn.petit.fantome', { href: AMX.lien('outils', 'openlane', { vin: vin }), text: 'Valeurs OpenLane' })];
+      var kmBouge = km !== null && nombre(r.previsionKm) !== null && Math.abs(km - nombre(r.previsionKm)) > 2000;
+      var sansPrevision = km !== null && prev === null;
+      if (peutDemander() && AMX.openlane.enDirect() !== false) actions.push(h('button.btn.petit.fantome' + (kmBouge || sansPrevision ? '.primaire' : ''), { type: 'button', text: kmBouge ? 'Mettre à jour à ' + fmtKm(km) : 'Mettre à jour (OpenLane)', title: 'Relire Market Guide maintenant (compte Hawkesbury Chevrolet).', onclick: function () { var z = rendreDirect(r, false); bloc.replaceWith(z); z.querySelector('button').click(); } }));
+      bloc.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } }, actions));
+      // Km du moment différent de celui de la prévision, sans lecture directe possible : proposer le favori.
+      if (kmBouge && peutDemander() && AMX.openlane.enDirect() === false) bloc.appendChild(rendreDemande(r));
+      return bloc;
+    };
+    return AMX.get({ openlaneVin: vin }, { essais: 1 }).then(function (d) {
+      var r = (d && d.ok && d.valeur) || null;
+      if (d && d.ok && d.direct !== undefined) directConnu = !!d.direct;
+      var direct = directConnu === true && peutDemander();
+      // Lecture automatique (évaluation) seulement avec un km : sinon on lirait deux fois (sans, puis avec la prévision).
+      var auto = !!opts.auto && kmVoulu !== null;
+      var fraiche = !!(r && r.luLe && (Date.now() - new Date(r.luLe).getTime()) < 6 * 3600000);
+      var kmBouge = !!(r && kmVoulu !== null && nombre(r.previsionKm) !== null && Math.abs(kmVoulu - nombre(r.previsionKm)) > 2000);
+      var sansPrevision = !!(r && r.luLe && kmVoulu !== null && nombre(r.prevision) === null && !(r.erreur && /hors plage|plus de 20 ans/.test(r.erreur)));
+      if (!r || !r.luLe) {
+        if (direct) { conteneur.appendChild(rendreDirect(r, auto)); return r; }
+        conteneur.appendChild(rendreDemande(r)); return r;
+      }
+      // Valeur connue mais vieille, ou km qui a bougé, ou pas de prévision alors qu'on a un km : en direct, on relit tout seul (évaluation).
+      if (direct && auto && (!fraiche || kmBouge || sansPrevision)) { conteneur.appendChild(rendreDirect(r, true)); return r; }
+      conteneur.appendChild(rendreValeur(r, null));
       return r;
     }).catch(function () { return null; });
   };
 
   /* ---------------- Index par NIV (lignes d'inventaire et de service) ---------------- */
-  var olIndex = null, olPromesse = null, olQuand = 0;
+  var olIndex = null, olPromesse = null, olQuand = 0, directConnu = null;
   function indexer(liste) { var idx = {}; (liste || []).forEach(function (r) { if (r && r.vin) idx[String(r.vin).toUpperCase()] = r; }); return idx; }
   AMX.openlane = {
     charger: function (force) {
@@ -483,6 +527,7 @@
       olPromesse = AMX.get({ openlane: 1 }, { essais: 2 }).then(function (d) {
         olPromesse = null;
         if (!d || !d.ok) { if (!olIndex) olIndex = {}; return olIndex; }
+        if (d.direct !== undefined) directConnu = !!d.direct;
         AMX.openlane.poser(d.valeurs || []);
         return olIndex;
       }, function (e) { olPromesse = null; if (!olIndex) olIndex = {}; throw e; });
@@ -495,6 +540,20 @@
     lienMarche: lienMarche,
     /** Ouvre Market guide dans un autre onglet avec ce NIV (à appeler dans un clic, sinon Chrome bloque la fenêtre). */
     ouvrir: function (vin, km) { try { window.open(lienMarche(vin, km), '_blank', 'noopener'); } catch (e) {} },
+    /** OpenLane en direct (14 oct.) : le serveur lit Market Guide maintenant et renvoie la valeur ; `nonConnecte` si le site
+        n'a pas (ou plus) de session OpenLane. `opts.source` (evaluation | achat | inventaire | service | direct), `opts.compagnie`. */
+    direct: function (vin, km, opts) {
+      opts = opts || {};
+      var corps = { action: 'openlaneDirect', vin: String(vin || '').trim().toUpperCase(), km: km === undefined || km === null || km === '' ? '' : String(km), source: opts.source || 'direct', compagnie: opts.compagnie || '' };
+      if (opts.forcer) corps.forcer = true;
+      return AMX.post(corps, { delai: 90000 }).then(function (r) {
+        if (r && r.ok && r.valeur) { directConnu = true; if (olIndex) { r.valeur.aLire = false; olIndex[r.valeur.vin] = r.valeur; AMX.cacheLocal.ecrire('openlane', Object.keys(olIndex).map(function (k) { return olIndex[k]; })); } }
+        if (r && r.nonConnecte) directConnu = false;
+        return r;
+      });
+    },
+    /** Le site tient-il une session OpenLane (d'après la dernière réponse du serveur) ? null = pas encore su. */
+    enDirect: function () { return directConnu; },
     /** Demande (ou redemande) la lecture d'un NIV au prochain signet ; km facultatif. */
     demander: function (vin, km) {
       return AMX.post({ action: 'openlaneImporter', phase: 'demander', vin: String(vin || '').trim().toUpperCase(), km: km === undefined || km === null ? '' : String(km) }).then(function (r) {

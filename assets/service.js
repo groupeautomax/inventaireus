@@ -569,7 +569,7 @@
     var zoneDossier = h('div.chargement', [h('span.spin'), 'Chargement du dossier…']);
     blocDossier.appendChild(zoneDossier);
     // Valeurs OpenLane (9 oct.) : ce que vaut le véhicule au gros aujourd'hui et dans 90 jours, pour décider vite.
-    if (AMX.openlaneBloc) { var zoneOl = h('div.svc-openlane', { style: { marginTop: '10px' } }); blocDossier.appendChild(zoneOl); AMX.openlaneBloc(s.vin, zoneOl, {}).catch(function () {}); }
+    if (AMX.openlaneBloc) { var zoneOl = h('div.svc-openlane', { style: { marginTop: '10px' } }); blocDossier.appendChild(zoneOl); AMX.openlaneBloc(s.vin, zoneOl, { source: 'service', compagnie: String(s.compagnie || '').toUpperCase() }).catch(function () {}); }
     AMX.get({ serviceDossier: s.vin }).then(function (d) {
       if (!zoneDossier.isConnected) return;
       AMX.vider(zoneDossier); zoneDossier.className = 'svc-dossier';

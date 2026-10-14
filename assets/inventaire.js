@@ -748,7 +748,7 @@
       var zoneOl = h('div');
       blocOpenlane = h('div.bloc', [h('h3', ['Valeurs OpenLane']), zoneOl]);
       // Le km du moment vient de la fiche d'achat (comme la puce km de l'en-tête) : il sert à la prévision.
-      AMX.ficheDe(v.vin).then(function (f) { return f ? AMX.kmValide(f['f-km']) : null; }, function () { return null; }).then(function (km) { AMX.openlaneBloc(v.vin, zoneOl, { km: km || undefined }); }).catch(function () {});
+      AMX.ficheDe(v.vin).then(function (f) { return f ? AMX.kmValide(f['f-km']) : null; }, function () { return null; }).then(function (km) { AMX.openlaneBloc(v.vin, zoneOl, { km: km || undefined, source: 'inventaire', compagnie: String(v.compagnie || '').toUpperCase() }); }).catch(function () {});
     }
     // Dommages de la fiche d'achat (en français) — seulement s'il n'y a pas de fiche eBlock, sinon c'est en double.
     var blocEblock = null;

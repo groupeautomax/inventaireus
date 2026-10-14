@@ -506,7 +506,8 @@
     this.elParametres = this.construireParametres();
     this.elAlertes = this.construireAlertes();
     this.elEchanges = this.construireEchanges();
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elParametres]), this.elPanneau]);
+    this.elOpenlane = this.construireOpenlane();
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -647,6 +648,65 @@
       this.elTextosRecus
     ];
     return h('div.carte.admin-parametres.admin-echanges', [h('div.carte-entete', [h('h2', 'Réponses par texto (échanges de neufs)')]), h('div.carte-corps', corps)]);
+  };
+  /* --------------- Carte « OpenLane en direct » (14 oct.) ---------------
+     Maxime : « pour OpenLane, quand on fait les évaluations, ils doivent toujours utiliser le compte de Hawkesbury
+     Chevrolet ; intégrer plus profondément leur outil d'évaluation (Market guide) ; la prévision de prix aussi ».
+     Le site garde la session OpenLane du groupe (captée par le favori d'un admin avec Hawkesbury sélectionné,
+     rafraîchie toutes les 6 h par le script) et lit Market Guide lui-même dans l'évaluation, la fiche d'achat,
+     l'inventaire et le service. Routes : GET ?openlaneEtat=1 ; POST openlaneSessionTester / openlaneSessionRetirer /
+     openlaneOrg { orgId, orgNom }. Le site ne voit jamais le jeton : seulement « connecté jusqu'au… ». */
+  var OPENLANE_CONNEXION_URL = 'https://app.openlane.ca/marketguide#amx-connexion';
+  VueAdmin.prototype.construireOpenlane = function () {
+    var self = this;
+    this.elEtatOpenlane = h('div.compte-textos', [h('span.badge.gris.sans-point', { text: 'Vérification…' })]);
+    this.elOpenlaneDetail = h('div.petit.doux', { style: { marginTop: '6px' } });
+    this.elOpenlaneOrgId = h('input#adm-ol-org', { type: 'text', placeholder: 'Identifiant d\'organisation OpenLane (vide = celle de la session)', autocomplete: 'off', spellcheck: 'false', style: { minWidth: '280px' } });
+    this.elOpenlaneOrgNom = h('input#adm-ol-org-nom', { type: 'text', placeholder: 'Nom (ex. Hawkesbury Chevrolet)', autocomplete: 'off', style: { minWidth: '200px' } });
+    var poster = function (corps, btn, apres) { btn.classList.add('occupe'); return AMX.post(corps, { delai: 90000 }).then(function (d) { AMX.verifier(d, 'Refusé.'); apres(d); }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); }).then(function () { btn.classList.remove('occupe'); }); };
+    this.btnOlConnecter = h('a.btn.primaire.petit#adm-ol-connecter', { href: OPENLANE_CONNEXION_URL, target: '_blank', rel: 'noopener', html: I.externe + '<span>Connecter OpenLane au site</span>', title: 'Ouvre OpenLane › Market guide. Vérifiez que HAWKESBURY CHEVROLET est l\'organisation sélectionnée (en haut à droite), puis cliquez le favori « Automax ← OpenLane (valeurs) » : il transmet la session au site.' });
+    this.btnOlTester = h('button.btn.petit#adm-ol-tester', { type: 'button', html: I.rafraichir + '<span>Tester</span>', onclick: function () { poster({ action: 'openlaneSessionTester' }, self.btnOlTester, function (d) { self.rendreEtatOpenlane(d); AMX.toast(d.test ? 'OpenLane répond — ' + d.test : 'OpenLane ne répond pas', d.test ? 'ok' : 'erreur'); }); } });
+    this.btnOlRetirer = h('button.btn.petit.cache#adm-ol-retirer', { type: 'button', text: 'Retirer la session', onclick: function () {
+      AMX.confirmer('Retirer la session OpenLane du site ?', 'Les lectures en direct cesseront jusqu\'à ce qu\'un administrateur reconnecte OpenLane (favori avec Hawkesbury sélectionné). Les valeurs déjà lues restent.', { danger: true, ok: 'Retirer' }).then(function (oui) { if (oui) poster({ action: 'openlaneSessionRetirer' }, self.btnOlRetirer, function (d) { self.rendreEtatOpenlane(d); AMX.toast('Session OpenLane retirée.', 'ok'); }); });
+    } });
+    this.btnOlOrg = h('button.btn.petit#adm-ol-org-btn', { type: 'button', text: 'Enregistrer l\'organisation', onclick: function () { poster({ action: 'openlaneOrg', orgId: self.elOpenlaneOrgId.value.trim(), orgNom: self.elOpenlaneOrgNom.value.trim() }, self.btnOlOrg, function (d) { self.rendreEtatOpenlane(d); AMX.toast(d.orgId ? 'Organisation imposée : ' + (d.orgNom || d.orgId) : 'Organisation : celle de la session.', 'ok'); }); } });
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Le site lit Market guide (décodage, ventes comparables 90 j, prévision aujourd\'hui et 30-60-90 j) directement dans l\'évaluation, la fiche d\'achat, l\'inventaire et le service — toujours avec le compte de Hawkesbury Chevrolet. Pour cela, un administrateur connecte une fois la session OpenLane du groupe : ouvrez OpenLane, vérifiez que HAWKESBURY CHEVROLET est l\'organisation sélectionnée, puis cliquez le favori « Automax ← OpenLane (valeurs) ». Le script garde la session active (renouvelée toutes les 6 h) ; le site ne voit jamais le mot de passe. Si OpenLane vous déconnecte dans votre navigateur après la connexion au site, c\'est normal (renouvellement) : reconnectez-vous simplement.' }),
+      h('div.ligne-cle', [this.btnOlConnecter, this.btnOlTester, this.btnOlRetirer]),
+      h('div', [h('span.etiquette', { text: 'OpenLane : ' }), this.elEtatOpenlane]),
+      this.elOpenlaneDetail,
+      h('details', { style: { marginTop: '8px' } }, [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Organisation imposée (Hawkesbury Chevrolet)' }), h('p.doux.petit', { style: { margin: '6px 0' }, text: 'La première session captée fixe l\'organisation ; ensuite le site refuse une session prise avec une autre organisation (le favori prévient). Changez-la ici seulement si le compte Hawkesbury change.' }), h('div.ligne-cle', [this.elOpenlaneOrgId, this.elOpenlaneOrgNom, this.btnOlOrg])])
+    ];
+    return h('div.carte.admin-parametres.admin-openlane', [h('div.carte-entete', [h('h2', 'OpenLane en direct (Market guide)')]), h('div.carte-corps', corps)]);
+  };
+  VueAdmin.prototype.chargerOpenlane = function () {
+    var self = this;
+    return AMX.get({ openlaneEtat: 1 }).then(function (d) { if (self.detruit) return; self.rendreEtatOpenlane(d && d.ok && d.connecte !== undefined ? d : null); }).catch(function () { if (!self.detruit) self.rendreEtatOpenlane(null); });
+  };
+  VueAdmin.prototype.rendreEtatOpenlane = function (d) {
+    AMX.vider(this.elEtatOpenlane); AMX.vider(this.elOpenlaneDetail);
+    if (!d) { this.elEtatOpenlane.appendChild(h('span.badge.ambre.sans-point', { text: 'Route absente — redéployez le script (Openlane.gs)' })); this.btnOlTester.disabled = true; this.btnOlOrg.disabled = true; return; }
+    this.btnOlTester.disabled = !d.connecte; this.btnOlOrg.disabled = false;
+    this.btnOlRetirer.classList.toggle('cache', !d.connecte && !d.le);
+    if (d.connecte) {
+      this.elEtatOpenlane.appendChild(h('span.badge.vert', { text: 'Connecté' + (d.expireLe ? ' jusqu\'au ' + AMX.fmtDate(d.expireLe, true) : '') }));
+      if (d.sessionOrgNom || d.orgNom) this.elEtatOpenlane.appendChild(h('span.puce', { text: d.sessionOrgNom || d.orgNom }));
+      if (!d.declencheur) this.elEtatOpenlane.appendChild(h('span.badge.ambre.sans-point', { text: 'Renouvellement automatique absent — reconnectez (le favori l\'installe)' }));
+      else if (!d.peutRafraichir) this.elEtatOpenlane.appendChild(h('span.badge.ambre.sans-point', { text: 'Sans jeton de renouvellement : la session expirera' }));
+    } else {
+      this.elEtatOpenlane.appendChild(h('span.badge.rouge', { text: d.le ? 'Session expirée — reconnectez OpenLane' : 'Pas connecté — les valeurs passent par le favori' }));
+    }
+    var lignes = [];
+    if (d.par || d.le) lignes.push('Connecté ' + (d.le ? 'le ' + AMX.fmtDate(d.le, true) : '') + (d.par ? ' par ' + d.par : ''));
+    if (d.derniereMaj) lignes.push('Renouvelé ' + AMX.fmtDate(d.derniereMaj, true) + (d.refreshExpireLe ? ' · renouvelable jusqu\'au ' + AMX.fmtDate(d.refreshExpireLe) : ''));
+    if (d.lectures) lignes.push(pluriel(d.lectures, 'lecture') + ' en direct' + (d.derniereLecture ? ' · dernière ' + AMX.fmtDate(d.derniereLecture, true) : ''));
+    if (d.derniereErreur) lignes.push('Dernière erreur : ' + d.derniereErreur);
+    if (d.orgConfiguree) lignes.push('Organisation imposée : ' + (d.orgNom || d.orgId));
+    else if (d.orgId) lignes.push('Organisation : ' + (d.orgNom || d.orgId) + ' (de la session)');
+    if (d.test) lignes.push('Test : ' + d.test);
+    if (d.erreur && !d.test) lignes.push('Test : ' + d.erreur);
+    lignes.forEach(function (t) { this.elOpenlaneDetail.appendChild(h('div', { text: t })); }, this);
+    if (d.orgConfiguree && !this.elOpenlaneOrgId.value) { this.elOpenlaneOrgId.value = d.orgId || ''; this.elOpenlaneOrgNom.value = d.orgNom || ''; }
   };
   VueAdmin.prototype.chargerEchanges = function () {
     var self = this;
@@ -897,6 +957,7 @@
     this.chargerReglagesAvis();
     this.chargerJournal();
     this.chargerEchanges();
+    this.chargerOpenlane();
     return AMX.get('utilisateurs=1').then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;

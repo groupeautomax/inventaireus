@@ -1005,9 +1005,11 @@
     if (this.openlaneVin === cle) return;
     this.openlaneVin = cle;
     AMX.vider(el);
-    el.appendChild(h('div.eval-valeurs-entete', [h('div', [h('h3', 'Valeurs OpenLane'), h('span.mini.doux', { text: 'Market guide · ventes comparables 90 j, prévision 30-60-90 j au km du formulaire' })])]));
+    el.appendChild(h('div.eval-valeurs-entete', [h('div', [h('h3', 'Valeurs OpenLane'), h('span.mini.doux', { text: 'Market guide (compte Hawkesbury Chevrolet) · ventes comparables 90 j, prévision aujourd\'hui et 30-60-90 j au km du formulaire' })])]));
     var zone = h('div'); el.appendChild(zone); el.classList.remove('cache');
-    AMX.openlaneBloc(vin, zone, { km: km || undefined }).then(function (r) { if (self.openlaneVin !== cle) return; if (!r && !zone.childNodes.length) zone.appendChild(h('span.doux.petit', 'Rien de lu pour ce NIV.')); }).catch(function () {});
+    // 14 oct. : OpenLane en direct — le bloc lit Market Guide tout seul (auto) quand le site tient la session du groupe.
+    var cie = ''; Object.keys(AMX.COMPAGNIE_CONCESSION || {}).forEach(function (k) { if (AMX.COMPAGNIE_CONCESSION[k] === self.elConcession.value) cie = k; });
+    AMX.openlaneBloc(vin, zone, { km: km || undefined, auto: true, source: 'evaluation', compagnie: cie, previsionComplete: true }).then(function (r) { if (self.openlaneVin !== cle) return; if (!r && !zone.childNodes.length) zone.appendChild(h('span.doux.petit', 'Rien de lu pour ce NIV.')); }).catch(function () {});
   };
 
   Evaluation.prototype.rendreLiens = function () {

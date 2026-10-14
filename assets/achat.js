@@ -693,7 +693,7 @@
       self.rendreContexte();
       self.appliquerPrerempli();
       if (typeof AMX.eblockFiche === 'function') AMX.eblockFiche(vin, self.elFicheEblock);
-      if (typeof AMX.openlaneBloc === 'function') { AMX.vider(self.elOpenlane); var zoneOl = h('div'); self.elOpenlane.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Valeurs OpenLane')); self.elOpenlane.appendChild(zoneOl); AMX.openlaneBloc(vin, zoneOl, { km: AMX.kmValide(valeur('f-km')) || undefined }).catch(function () {}); }
+      if (typeof AMX.openlaneBloc === 'function') { AMX.vider(self.elOpenlane); var zoneOl = h('div'); self.elOpenlane.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Valeurs OpenLane')); self.elOpenlane.appendChild(zoneOl); AMX.openlaneBloc(vin, zoneOl, { km: AMX.kmValide(valeur('f-km')) || undefined, source: 'achat', compagnie: String(valeur('f-compagnie') || '').toUpperCase(), previsionComplete: true }).catch(function () {}); }
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];
       if (vin.length >= 11) taches.push(self.decoderVin(vin));

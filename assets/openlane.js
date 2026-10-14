@@ -481,7 +481,7 @@
       var km = kmVoulu !== null ? kmVoulu : nombre(r.km);
       var nv = nombre(r.nVentes) || 0, prev = nombre(r.prevision);
       bloc.appendChild(h('div.ligne-badges', [
-        h('span.badge.sans-point.bleu', { text: 'OpenLane', title: 'Lu le ' + AMX.fmtDate(r.luLe, true) + (r.source === 'direct' || (erreursLecture && erreursLecture.length !== undefined && r.luPar) ? ' (en direct, compte Hawkesbury)' : '') }),
+        h('span.badge.sans-point.bleu', { text: 'OpenLane', title: 'Lu le ' + AMX.fmtDate(r.luLe, true) + (erreursLecture ? ' — à l\'instant, en direct (compte Hawkesbury)' : '') }),
         nv ? h('span.badge.sans-point.gris', { text: nv + ' vente' + (nv > 1 ? 's' : '') + ' · ' + (r.jours || 90) + ' j' }) : h('span.badge.sans-point.gris', { text: 'Aucune vente comparable' }),
         prev === null && r.erreur && /prévision/.test(r.erreur) ? h('span.badge.sans-point.ambre', { text: 'Pas de prévision (km)', title: r.erreur }) : null,
         h('span.doux.petit', { text: AMX.fmtDate(r.luLe, true) })
@@ -490,10 +490,10 @@
       var actions = [h('button.btn.petit', { type: 'button', text: 'Détails OpenLane', onclick: function () { AMX.openlaneOuvrir(vin, r); } }), h('a.btn.petit.fantome', { href: AMX.lien('outils', 'openlane', { vin: vin }), text: 'Valeurs OpenLane' })];
       var kmBouge = km !== null && nombre(r.previsionKm) !== null && Math.abs(km - nombre(r.previsionKm)) > 2000;
       var sansPrevision = km !== null && prev === null;
-      if (peutDemander() && AMX.openlane.enDirect() !== false) actions.push(h('button.btn.petit.fantome' + (kmBouge || sansPrevision ? '.primaire' : ''), { type: 'button', text: kmBouge ? 'Mettre à jour à ' + fmtKm(km) : 'Mettre à jour (OpenLane)', title: 'Relire Market Guide maintenant (compte Hawkesbury Chevrolet).', onclick: function () { var z = rendreDirect(r, false); bloc.replaceWith(z); z.querySelector('button').click(); } }));
+      if (peutDemander() && AMX.openlane.enDirect() === true) actions.push(h('button.btn.petit.fantome' + (kmBouge || sansPrevision ? '.primaire' : ''), { type: 'button', text: kmBouge ? 'Mettre à jour à ' + fmtKm(km) : 'Mettre à jour (OpenLane)', title: 'Relire Market Guide maintenant (compte Hawkesbury Chevrolet).', onclick: function () { var z = rendreDirect(r, false); bloc.replaceWith(z); z.querySelector('button').click(); } }));
       bloc.appendChild(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } }, actions));
-      // Km du moment différent de celui de la prévision, sans lecture directe possible : proposer le favori.
-      if (kmBouge && peutDemander() && AMX.openlane.enDirect() === false) bloc.appendChild(rendreDemande(r));
+      // Km du moment différent de celui de la prévision, sans lecture directe (session absente ou script pas encore déployé) : proposer le favori, comme avant.
+      if (kmBouge && peutDemander() && AMX.openlane.enDirect() !== true) bloc.appendChild(rendreDemande(r));
       return bloc;
     };
     return AMX.get({ openlaneVin: vin }, { essais: 1 }).then(function (d) {

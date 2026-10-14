@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>Inscription acheteur</title>
+<!-- 14 oct. 2026 : pays en premier (Canada, États-Unis, France) et numéros selon le pays. -->
 <style>
   :root {
     --vert: #008a44;
@@ -110,16 +111,26 @@ const PROVINCES = [
   ["SK", "Saskatchewan", "Saskatchewan"], ["AB", "Alberta", "Alberta"], ["BC", "Colombie-Britannique", "British Columbia"],
   ["YT", "Yukon", "Yukon"], ["NT", "Territoires du Nord-Ouest", "Northwest Territories"], ["NU", "Nunavut", "Nunavut"]
 ];
+const ETATS = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+/* 14 oct. 2026 (Maxime) : le pays d'abord — Canada, États-Unis, France — puis les numéros que ce pays exige.
+   France : SIRET, TVA intracommunautaire, APE/NAF (4511Z obligatoire), EORI (importations), RCS, RNE. */
+const PAYS = ["CA", "US", "FR"];
 
 const T = {
   fr: {
     titre: "Inscrire ma concession",
     intro: n => "Vos coordonnées servent à pré-remplir vos offres et vos contrats de vente avec " + (n || "nous") + ". Deux minutes, une seule fois.",
-    entreprise: "Entreprise", nomLegal: "Nom légal de l'entreprise", nomCommercial: "Nom commercial (si différent)",
-    contact: "Personne-ressource", signataire: "Nom du signataire", telephone: "Téléphone", courriel: "Courriel",
-    adresseTitre: "Adresse d'affaires", adresse: "Adresse", ville: "Ville", province: "Province", etat: "État / région", codePostal: "Code postal", pays: "Pays",
-    canada: "Canada", usa: "États-Unis", autre: "Autre",
-    numerosTitre: "Numéros", noConcessionnaire: "No de concessionnaire (permis)", tps: "No TPS/TVH", tvq: "No TVQ (Québec)",
+    paysTitre: "Pays de votre entreprise", paysAide: "Choisissez d'abord le pays : les numéros demandés en dépendent.",
+    CA: "Canada", US: "États-Unis", FR: "France",
+    entreprise: "Entreprise", nomLegal: "Nom légal de l'entreprise", nomLegalFR: "Raison sociale", nomCommercial: "Nom commercial (si différent)", nomCommercialFR: "Enseigne (si différente)",
+    contact: "Personne-ressource", signataire: "Nom du signataire", telephone: "Téléphone", telephoneAide: { CA: "Ex. 514 555-0123", US: "Ex. (518) 555-0199", FR: "Ex. 06 12 34 56 78 ou +33 6 12 34 56 78" }, courriel: "Courriel",
+    adresseTitre: "Adresse d'affaires", adresse: "Adresse", ville: "Ville", province: "Province", etat: "État", codePostal: "Code postal", zip: "ZIP code",
+    numerosTitre: "Numéros d'entreprise",
+    noConcessionnaire: "Numéro de permis de commerçant (SAAQ, OMVIC, AMVIC…)", noEntreprise: "Numéro d'entreprise (NEQ ou BN)", tps: "No TPS/TVH", tvq: "No TVQ (Québec)",
+    ein: "EIN (Federal Tax ID)", einAide: "Format 12-3456789", licence: "Numéro de licence de concessionnaire (dealer license)", certificatRevente: "Certificat de revente / permis de taxe de vente",
+    siret: "SIRET", siretAide: "14 chiffres (SIREN + établissement)", tvaIntra: "TVA intracommunautaire", tvaAide: "FR + 2 caractères + SIREN (ex. FR12 732829320)",
+    ape: "Code APE / NAF", apeAide: "4511Z obligatoire — commerce de voitures et de véhicules automobiles légers", eori: "Numéro EORI", eoriAide: "FR + SIRET — indispensable pour les importations",
+    rcs: "RCS (greffe et numéro)", rcsAide: "Ex. RCS Lyon 732 829 320", rne: "RNE (Registre national des entreprises)", rneAide: "En général le SIREN",
     langueTitre: "Langue des communications", envoyer: "Enregistrer ma concession", envoiEnCours: "Enregistrement…",
     merciTitre: "Votre concession est inscrite",
     merci: n => "Merci ! Vos offres et contrats de vente avec " + (n || "nous") + " seront pré-remplis avec ces coordonnées. Un courriel de confirmation vient de partir. Pour modifier quelque chose, rouvrez simplement ce lien.",
@@ -134,16 +145,32 @@ const T = {
     SIGNATAIRE_REQUIS: "Indiquez le nom de la personne-ressource.",
     COURRIEL_INVALIDE: "Le courriel est invalide.",
     COURRIEL_PRIS: "Ce courriel est déjà associé à une autre fiche. Écrivez-nous pour la fusionner.",
+    PAYS_REQUIS: "Choisissez le pays de votre entreprise.",
+    PERMIS_REQUIS: "Indiquez votre numéro de permis de commerçant.",
+    PROVINCE_REQUISE: "Choisissez la province.",
+    EIN_REQUIS: "Indiquez votre EIN (Federal Tax ID).", EIN_INVALIDE: "L'EIN compte 9 chiffres (12-3456789).",
+    LICENCE_REQUISE: "Indiquez votre numéro de licence de concessionnaire.", ETAT_REQUIS: "Choisissez l'état.",
+    SIRET_REQUIS: "Indiquez votre SIRET.", SIRET_INVALIDE: "Le SIRET compte 14 chiffres.",
+    TVA_REQUISE: "Indiquez votre numéro de TVA intracommunautaire.", TVA_INVALIDE: "TVA intracommunautaire attendue : FR + 2 caractères + 9 chiffres.", TVA_SIREN: "Le SIREN du numéro de TVA ne correspond pas à celui du SIRET.",
+    APE_REQUIS: "Indiquez votre code APE / NAF.", APE_INVALIDE: "Le code APE / NAF doit être 4511Z (commerce de voitures et de véhicules automobiles légers) pour acheter des véhicules.",
+    EORI_REQUIS: "Indiquez votre numéro EORI (nécessaire pour les importations).", EORI_INVALIDE: "EORI attendu : FR suivi de votre SIRET (16 caractères).", EORI_SIRET: "L'EORI doit être FR suivi de votre SIRET.",
+    CODE_POSTAL_REQUIS: "Indiquez le code postal.",
     pied: n => (n || "Inscription") + " — réservé à nos acheteurs."
   },
   en: {
     titre: "Register my dealership",
     intro: n => "Your details pre-fill your offers and bills of sale with " + (n || "us") + ". Two minutes, once.",
-    entreprise: "Company", nomLegal: "Legal company name", nomCommercial: "Trade name (if different)",
-    contact: "Contact person", signataire: "Signatory name", telephone: "Phone", courriel: "Email",
-    adresseTitre: "Business address", adresse: "Address", ville: "City", province: "Province", etat: "State / region", codePostal: "Postal code", pays: "Country",
-    canada: "Canada", usa: "United States", autre: "Other",
-    numerosTitre: "Numbers", noConcessionnaire: "Dealer number (licence)", tps: "GST/HST no.", tvq: "QST no. (Quebec)",
+    paysTitre: "Country of your business", paysAide: "Choose the country first: the numbers we ask for depend on it.",
+    CA: "Canada", US: "United States", FR: "France",
+    entreprise: "Company", nomLegal: "Legal company name", nomLegalFR: "Legal name (raison sociale)", nomCommercial: "Trade name (if different)", nomCommercialFR: "Trade name (if different)",
+    contact: "Contact person", signataire: "Signatory name", telephone: "Phone", telephoneAide: { CA: "e.g. 514 555-0123", US: "e.g. (518) 555-0199", FR: "e.g. 06 12 34 56 78 or +33 6 12 34 56 78" }, courriel: "Email",
+    adresseTitre: "Business address", adresse: "Address", ville: "City", province: "Province", etat: "State", codePostal: "Postal code", zip: "ZIP code",
+    numerosTitre: "Business numbers",
+    noConcessionnaire: "Dealer licence number (SAAQ, OMVIC, AMVIC…)", noEntreprise: "Business number (NEQ or BN)", tps: "GST/HST no.", tvq: "QST no. (Quebec)",
+    ein: "EIN (Federal Tax ID)", einAide: "Format 12-3456789", licence: "Dealer license number", certificatRevente: "Resale certificate / sales tax permit",
+    siret: "SIRET", siretAide: "14 digits (SIREN + establishment)", tvaIntra: "Intra-community VAT number", tvaAide: "FR + 2 characters + SIREN (e.g. FR12 732829320)",
+    ape: "APE / NAF code", apeAide: "4511Z required — sale of cars and light motor vehicles", eori: "EORI number", eoriAide: "FR + SIRET — required for imports",
+    rcs: "RCS (registry and number)", rcsAide: "e.g. RCS Lyon 732 829 320", rne: "RNE (national business register)", rneAide: "Usually the SIREN",
     langueTitre: "Language for communications", envoyer: "Save my dealership", envoiEnCours: "Saving…",
     merciTitre: "Your dealership is registered",
     merci: n => "Thank you! Your offers and bills of sale with " + (n || "us") + " will be pre-filled with these details. A confirmation email is on its way. To change anything, simply reopen this link.",
@@ -158,6 +185,16 @@ const T = {
     SIGNATAIRE_REQUIS: "Enter the contact person's name.",
     COURRIEL_INVALIDE: "The email address is invalid.",
     COURRIEL_PRIS: "This email already belongs to another record. Write to us to merge them.",
+    PAYS_REQUIS: "Choose the country of your business.",
+    PERMIS_REQUIS: "Enter your dealer licence number.",
+    PROVINCE_REQUISE: "Choose the province.",
+    EIN_REQUIS: "Enter your EIN (Federal Tax ID).", EIN_INVALIDE: "The EIN has 9 digits (12-3456789).",
+    LICENCE_REQUISE: "Enter your dealer license number.", ETAT_REQUIS: "Choose the state.",
+    SIRET_REQUIS: "Enter your SIRET.", SIRET_INVALIDE: "The SIRET has 14 digits.",
+    TVA_REQUISE: "Enter your intra-community VAT number.", TVA_INVALIDE: "Expected VAT number: FR + 2 characters + 9 digits.", TVA_SIREN: "The SIREN in the VAT number does not match the SIRET.",
+    APE_REQUIS: "Enter your APE / NAF code.", APE_INVALIDE: "The APE / NAF code must be 4511Z (sale of cars and light motor vehicles) to buy vehicles.",
+    EORI_REQUIS: "Enter your EORI number (required for imports).", EORI_INVALIDE: "Expected EORI: FR followed by your SIRET (16 characters).", EORI_SIRET: "The EORI must be FR followed by your SIRET.",
+    CODE_POSTAL_REQUIS: "Enter the postal code.",
     pied: n => (n || "Registration") + " — reserved for our buyers."
   }
 };
@@ -211,78 +248,149 @@ function appliquerTextes() {
   if (fiche) dessiner();
 }
 
-function champ(id, libelle, defaut, attrs) {
-  return '<label for="' + id + '">' + echappe(libelle) + '</label><input id="' + id + '" value="' + echappe(valeur(id, defaut)) + '" ' + (attrs || "") + ">";
+function champ(id, libelle, defaut, attrs, aide) {
+  return '<label for="' + id + '">' + echappe(libelle) + '</label><input id="' + id + '" value="' + echappe(valeur(id, defaut)) + '" ' + (attrs || "") + ">" + (aide ? '<div class="aide" style="margin:4px 0 0;font-size:13px">' + echappe(aide) + "</div>" : "");
+}
+function paysDe(a) {
+  const brouillonPays = ("pays" in brouillon) ? brouillon.pays : "";
+  if (PAYS.indexOf(brouillonPays) >= 0) return brouillonPays;
+  if (a && PAYS.indexOf(String(a.paysCode || "").toUpperCase()) >= 0) return String(a.paysCode).toUpperCase();
+  const p = String((a && a.pays) || "").toLowerCase();
+  if (/états-unis|etats-unis|united states/.test(p)) return "US";
+  if (/france/.test(p)) return "FR";
+  if (/canada/.test(p)) return "CA";
+  return "";
 }
 
 function dessiner() {
   const a = fiche;
   const bloc = document.getElementById("blocForm");
   if (termine) {
-    bloc.innerHTML = "<h1>" + echappe(t().merciTitre) + "</h1><p class=\"aide\">" + echappe(t().merci(vendeurNom)) + "</p>" +
-      '<div class="recap">' +
-      '<span class="k">' + echappe(t().nomLegal) + "</span><span>" + echappe(a.nomLegal) + "</span>" +
+    const pays = paysDe(a);
+    let recap = '<span class="k">' + echappe(t().nomLegal) + "</span><span>" + echappe(a.nomLegal) + "</span>" +
       '<span class="k">' + echappe(t().signataire) + "</span><span>" + echappe(a.signataire) + "</span>" +
-      '<span class="k">' + echappe(t().adresse) + "</span><span>" + echappe([a.adresse, a.ville, a.province, a.codePostal].filter(Boolean).join(", ")) + "</span>" +
-      '<span class="k">' + echappe(t().noConcessionnaire) + "</span><span>" + echappe(a.noConcessionnaire || "—") + "</span>" +
-      "</div>";
+      '<span class="k">' + echappe(t().adresse) + "</span><span>" + echappe([a.adresse, a.ville, a.province, a.codePostal, t()[pays] || a.pays].filter(Boolean).join(", ")) + "</span>";
+    if (pays === "FR") recap += '<span class="k">SIRET</span><span>' + echappe(a.siret || "—") + "</span>" + '<span class="k">' + echappe(t().tvaIntra) + "</span><span>" + echappe(a.tvaIntra || "—") + "</span>" + '<span class="k">APE / NAF</span><span>' + echappe(a.ape || "—") + "</span>" + '<span class="k">EORI</span><span>' + echappe(a.eori || "—") + "</span>" + (a.rcs ? '<span class="k">RCS</span><span>' + echappe(a.rcs) + "</span>" : "") + (a.rne ? '<span class="k">RNE</span><span>' + echappe(a.rne) + "</span>" : "");
+    else if (pays === "US") recap += '<span class="k">EIN</span><span>' + echappe(a.ein || "—") + "</span>" + '<span class="k">' + echappe(t().licence) + "</span><span>" + echappe(a.noConcessionnaire || "—") + (a.licenceEtat ? " (" + echappe(a.licenceEtat) + ")" : "") + "</span>" + (a.certificatRevente ? '<span class="k">' + echappe(t().certificatRevente) + "</span><span>" + echappe(a.certificatRevente) + "</span>" : "");
+    else recap += '<span class="k">' + echappe(t().noConcessionnaire) + "</span><span>" + echappe(a.noConcessionnaire || "—") + "</span>" + (a.noEntreprise ? '<span class="k">' + echappe(t().noEntreprise) + "</span><span>" + echappe(a.noEntreprise) + "</span>" : "") + '<span class="k">' + echappe(t().tps) + "</span><span>" + echappe(a.tps || "—") + "</span>";
+    bloc.innerHTML = "<h1>" + echappe(t().merciTitre) + "</h1><p class=\"aide\">" + echappe(t().merci(vendeurNom)) + "</p>" + '<div class="recap">' + recap + "</div>";
     return;
   }
-  const pays = valeur("pays", a.pays === "États-Unis" || a.pays === "United States" ? "US" : (a.pays && a.pays !== "Canada" ? "XX" : "CA"));
+  const pays = paysDe(a);
   let h = "<h1>" + echappe(t().titre) + "</h1><p class=\"aide\">" + echappe(t().intro(vendeurNom)) + "</p>";
   if (a.statut === "inscrit") h += '<div class="alerte bon" style="margin:0 0 6px">' + echappe(t().dejaInscrit) + "</div>";
   h += '<form id="form" novalidate>';
-  h += "<h2>" + echappe(t().entreprise) + "</h2>";
-  h += '<div class="duo"><div>' + champ("nomLegal", t().nomLegal, a.nomLegal, 'autocomplete="organization" required') + "</div>";
-  h += "<div>" + champ("nomCommercial", t().nomCommercial, a.nomCommercial) + "</div></div>";
-  h += "<h2>" + echappe(t().contact) + "</h2>";
-  h += '<div class="duo"><div>' + champ("signataire", t().signataire, a.signataire, 'autocomplete="name" required') + "</div>";
-  h += "<div>" + champ("telephone", t().telephone, a.telephone, 'type="tel" autocomplete="tel" inputmode="tel" required') + "</div></div>";
-  h += champ("courriel", t().courriel, a.courriel, 'type="email" autocomplete="email" inputmode="email" required');
-  h += "<h2>" + echappe(t().adresseTitre) + "</h2>";
-  h += champ("adresse", t().adresse, a.adresse, 'autocomplete="street-address" required');
-  h += '<div class="trio"><div>' + champ("ville", t().ville, a.ville, 'autocomplete="address-level2" required') + "</div>";
-  h += '<div><label for="province">' + echappe(pays === "CA" ? t().province : t().etat) + "</label>";
-  if (pays === "CA") {
-    const choisi = valeur("province", a.province || "QC");
-    h += '<select id="province">' + PROVINCES.map(p => '<option value="' + p[0] + '"' + (p[0] === choisi ? " selected" : "") + ">" + echappe(langue === "en" ? p[2] : p[1]) + "</option>").join("") + "</select>";
-  } else {
-    h += '<input id="province" value="' + echappe(valeur("province", a.province)) + '" autocomplete="address-level1">';
+  // 1. Le pays d'abord.
+  h += "<h2>" + echappe(t().paysTitre) + "</h2><p class=\"aide\">" + echappe(t().paysAide) + "</p>";
+  h += '<select id="pays" required><option value=""' + (pays ? "" : " selected") + ">—</option>" + PAYS.map(p => '<option value="' + p + '"' + (p === pays ? " selected" : "") + ">" + echappe(t()[p]) + "</option>").join("") + "</select>";
+  if (pays) {
+    h += "<h2>" + echappe(t().entreprise) + "</h2>";
+    h += '<div class="duo"><div>' + champ("nomLegal", pays === "FR" ? t().nomLegalFR : t().nomLegal, a.nomLegal, 'autocomplete="organization" required') + "</div>";
+    h += "<div>" + champ("nomCommercial", pays === "FR" ? t().nomCommercialFR : t().nomCommercial, a.nomCommercial) + "</div></div>";
+    h += "<h2>" + echappe(t().contact) + "</h2>";
+    h += '<div class="duo"><div>' + champ("signataire", t().signataire, a.signataire, 'autocomplete="name" required') + "</div>";
+    h += "<div>" + champ("telephone", t().telephone, a.telephone, 'type="tel" autocomplete="tel" inputmode="tel" required placeholder="' + echappe(t().telephoneAide[pays]) + '"') + "</div></div>";
+    h += champ("courriel", t().courriel, a.courriel, 'type="email" autocomplete="email" inputmode="email" required');
+    h += "<h2>" + echappe(t().adresseTitre) + "</h2>";
+    h += champ("adresse", t().adresse, a.adresse, 'autocomplete="street-address" required');
+    if (pays === "FR") {
+      h += '<div class="duo"><div>' + champ("codePostal", t().codePostal, a.codePostal, 'autocomplete="postal-code" inputmode="numeric" required') + "</div><div>" + champ("ville", t().ville, a.ville, 'autocomplete="address-level2" required') + "</div></div>";
+    } else {
+      h += '<div class="trio"><div>' + champ("ville", t().ville, a.ville, 'autocomplete="address-level2" required') + "</div>";
+      h += '<div><label for="province">' + echappe(pays === "CA" ? t().province : t().etat) + "</label>";
+      if (pays === "CA") {
+        const choisi = valeur("province", a.province || "QC");
+        h += '<select id="province">' + PROVINCES.map(p => '<option value="' + p[0] + '"' + (p[0] === choisi ? " selected" : "") + ">" + echappe(langue === "en" ? p[2] : p[1]) + "</option>").join("") + "</select>";
+      } else {
+        const choisiE = String(valeur("province", a.province) || "").toUpperCase();
+        h += '<select id="province"><option value=""' + (choisiE ? "" : " selected") + ">—</option>" + ETATS.map(e => '<option value="' + e + '"' + (e === choisiE ? " selected" : "") + ">" + e + "</option>").join("") + "</select>";
+      }
+      h += "</div><div>" + champ("codePostal", pays === "US" ? t().zip : t().codePostal, a.codePostal, 'autocomplete="postal-code"') + "</div></div>";
+    }
+    h += "<h2>" + echappe(t().numerosTitre) + "</h2>";
+    if (pays === "FR") {
+      h += '<div class="duo"><div>' + champ("siret", t().siret, a.siret, 'inputmode="numeric" required placeholder="732 829 320 00074"', t().siretAide) + "</div><div>" + champ("tvaIntra", t().tvaIntra, a.tvaIntra, 'required placeholder="FR12 732829320"', t().tvaAide) + "</div></div>";
+      h += '<div class="duo"><div>' + champ("ape", t().ape, a.ape || "4511Z", 'required placeholder="4511Z"', t().apeAide) + "</div><div>" + champ("eori", t().eori, a.eori, 'required placeholder="FR73282932000074"', t().eoriAide) + "</div></div>";
+      h += '<div class="duo"><div>' + champ("rcs", t().rcs, a.rcs, 'placeholder="RCS Lyon 732 829 320"', t().rcsAide) + "</div><div>" + champ("rne", t().rne, a.rne, 'inputmode="numeric"', t().rneAide) + "</div></div>";
+    } else if (pays === "US") {
+      h += '<div class="duo"><div>' + champ("ein", t().ein, a.ein, 'required inputmode="numeric" placeholder="12-3456789"', t().einAide) + "</div><div>" + champ("noConcessionnaire", t().licence, a.noConcessionnaire, "required") + "</div></div>";
+      h += champ("certificatRevente", t().certificatRevente, a.certificatRevente);
+    } else {
+      h += champ("noConcessionnaire", t().noConcessionnaire, a.noConcessionnaire, "required");
+      h += '<div class="trio"><div>' + champ("noEntreprise", t().noEntreprise, a.noEntreprise) + "</div><div>" + champ("tps", t().tps, a.tps) + "</div><div>" + champ("tvq", t().tvq, a.tvq) + "</div></div>";
+    }
+    h += "<h2>" + echappe(t().langueTitre) + "</h2>";
+    const lg = valeur("langueCom", a.langue || langue);
+    h += '<select id="langueCom"><option value="fr"' + (lg === "fr" ? " selected" : "") + '>Français</option><option value="en"' + (lg === "en" ? " selected" : "") + ">English</option></select>";
+    h += '<div class="boutons"><button type="submit" class="principal" id="btnEnvoyer">' + echappe(t().envoyer) + "</button></div>";
   }
-  h += "</div><div>" + champ("codePostal", t().codePostal, a.codePostal, 'autocomplete="postal-code"') + "</div></div>";
-  h += '<label for="pays">' + echappe(t().pays) + '</label><select id="pays">' +
-    '<option value="CA"' + (pays === "CA" ? " selected" : "") + ">" + echappe(t().canada) + "</option>" +
-    '<option value="US"' + (pays === "US" ? " selected" : "") + ">" + echappe(t().usa) + "</option>" +
-    '<option value="XX"' + (pays === "XX" ? " selected" : "") + ">" + echappe(t().autre) + "</option></select>";
-  h += "<h2>" + echappe(t().numerosTitre) + "</h2>";
-  h += champ("noConcessionnaire", t().noConcessionnaire, a.noConcessionnaire);
-  h += '<div class="duo"><div>' + champ("tps", t().tps, a.tps) + "</div><div>" + champ("tvq", t().tvq, a.tvq) + "</div></div>";
-  h += "<h2>" + echappe(t().langueTitre) + "</h2>";
-  const lg = valeur("langueCom", a.langue || langue);
-  h += '<select id="langueCom"><option value="fr"' + (lg === "fr" ? " selected" : "") + '>Français</option><option value="en"' + (lg === "en" ? " selected" : "") + ">English</option></select>";
-  h += '<div class="boutons"><button type="submit" class="principal" id="btnEnvoyer">' + echappe(t().envoyer) + "</button></div>";
   h += '<div class="alerte mauvais" id="erreur" hidden></div>';
   h += "</form>";
   bloc.innerHTML = h;
   document.getElementById("form").addEventListener("submit", ev => { ev.preventDefault(); envoyer(); });
-  document.getElementById("pays").addEventListener("change", () => { memoriserSaisie(); if (valeur("pays") !== "CA") brouillon.province = ""; else brouillon.province = "QC"; dessiner(); });
+  document.getElementById("pays").addEventListener("change", () => {
+    memoriserSaisie();
+    const nouveau = valeur("pays");
+    brouillon.pays = nouveau;
+    brouillon.province = nouveau === "CA" ? "QC" : "";
+    dessiner();
+  });
+  // France : l'EORI et le RNE se déduisent du SIRET (modifiables).
+  const siretEl = document.getElementById("siret");
+  if (siretEl) siretEl.addEventListener("input", () => {
+    const chiffres = siretEl.value.replace(/\D/g, "");
+    const eori = document.getElementById("eori"), rne = document.getElementById("rne");
+    if (eori && (!eori.value || /^FR\d*$/.test(eori.value.replace(/\s/g, "").toUpperCase()))) eori.value = chiffres.length === 14 ? "FR" + chiffres : (chiffres ? "FR" + chiffres : "");
+    if (rne && (!rne.value || /^\d*$/.test(rne.value))) rne.value = chiffres.slice(0, 9);
+  });
 }
 
 async function envoyer() {
   memoriserSaisie();
-  const paysCode = valeur("pays", "CA");
+  const paysCode = valeur("pays", "");
+  if (!paysCode) { erreur("PAYS_REQUIS"); return; }
   const acheteur = {
+    paysCode: paysCode,
     nomLegal: valeur("nomLegal").trim(), nomCommercial: valeur("nomCommercial").trim(), signataire: valeur("signataire").trim(),
     telephone: valeur("telephone").trim(), courriel: valeur("courriel").trim(),
-    adresse: valeur("adresse").trim(), ville: valeur("ville").trim(), province: valeur("province").trim(), codePostal: valeur("codePostal").trim(),
-    pays: { CA: "Canada", US: langue === "en" ? "United States" : "États-Unis" }[paysCode] || (langue === "en" ? "Other" : "Autre"),
-    noConcessionnaire: valeur("noConcessionnaire").trim(), tps: valeur("tps").trim(), tvq: valeur("tvq").trim(), langue: valeur("langueCom", langue)
+    adresse: valeur("adresse").trim(), ville: valeur("ville").trim(), province: String(valeur("province") || "").trim(), codePostal: valeur("codePostal").trim(),
+    pays: t()[paysCode],
+    noConcessionnaire: valeur("noConcessionnaire").trim(), noEntreprise: valeur("noEntreprise").trim(), tps: valeur("tps").trim(), tvq: valeur("tvq").trim(),
+    ein: valeur("ein").trim(), certificatRevente: valeur("certificatRevente").trim(),
+    siret: valeur("siret").trim(), tvaIntra: valeur("tvaIntra").trim(), ape: valeur("ape").trim(), eori: valeur("eori").trim(), rcs: valeur("rcs").trim(), rne: valeur("rne").trim(),
+    langue: valeur("langueCom", langue)
   };
   if (acheteur.nomLegal.length < 2) { erreur("NOM_REQUIS"); return; }
   if (!acheteur.signataire) { erreur("SIGNATAIRE_REQUIS"); return; }
   if (!acheteur.telephone) { erreur("TELEPHONE_REQUIS"); return; }
   if (acheteur.courriel.indexOf("@") < 1) { erreur("COURRIEL_INVALIDE"); return; }
   if (!acheteur.adresse || !acheteur.ville) { erreur("ADRESSE_REQUISE"); return; }
+  if (paysCode === "FR") {
+    if (!acheteur.codePostal) { erreur("CODE_POSTAL_REQUIS"); return; }
+    const siret = acheteur.siret.replace(/\D/g, "");
+    if (!siret) { erreur("SIRET_REQUIS"); return; }
+    if (siret.length !== 14) { erreur("SIRET_INVALIDE"); return; }
+    const tva = acheteur.tvaIntra.replace(/[\s.-]/g, "").toUpperCase();
+    if (!tva) { erreur("TVA_REQUISE"); return; }
+    if (!/^FR[0-9A-Z]{2}\d{9}$/.test(tva)) { erreur("TVA_INVALIDE"); return; }
+    if (tva.slice(-9) !== siret.slice(0, 9)) { erreur("TVA_SIREN"); return; }
+    const ape = acheteur.ape.replace(/[\s.]/g, "").toUpperCase();
+    if (!ape) { erreur("APE_REQUIS"); return; }
+    if (ape !== "4511Z") { erreur("APE_INVALIDE"); return; }
+    const eori = acheteur.eori.replace(/[\s.-]/g, "").toUpperCase();
+    if (!eori) { erreur("EORI_REQUIS"); return; }
+    if (!/^FR\d{14}$/.test(eori)) { erreur("EORI_INVALIDE"); return; }
+    if (eori.slice(2) !== siret) { erreur("EORI_SIRET"); return; }
+  } else if (paysCode === "US") {
+    const ein = acheteur.ein.replace(/\D/g, "");
+    if (!ein) { erreur("EIN_REQUIS"); return; }
+    if (ein.length !== 9) { erreur("EIN_INVALIDE"); return; }
+    if (!acheteur.noConcessionnaire) { erreur("LICENCE_REQUISE"); return; }
+    if (!acheteur.province) { erreur("ETAT_REQUIS"); return; }
+  } else {
+    if (!acheteur.noConcessionnaire) { erreur("PERMIS_REQUIS"); return; }
+    if (!acheteur.province) { erreur("PROVINCE_REQUISE"); return; }
+  }
   const bouton = document.getElementById("btnEnvoyer");
   bouton.disabled = true; bouton.textContent = t().envoiEnCours;
   try {

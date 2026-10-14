@@ -842,7 +842,9 @@
           : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
         h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }),
         sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null,
-        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null
+        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
+        // 14 oct. (Maxime) : « un véhicule disponible à la vente doit pouvoir être envoyé à un acheteur inscrit, par texto et par courriel ».
+        (AMX.offres && AMX.offres.envoyerAcheteurs && (AMX.perm('changerStatut') || AMX.perm('voirResultats')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0) ? h('button.btn.primaire', { type: 'button', title: 'Envoyer la page publique de ce véhicule à des acheteurs inscrits, par courriel et par texto (publié dans la vitrine si besoin)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(v.vin, { concession: AMX.COMPAGNIE_CONCESSION[String(v.compagnie || '').toUpperCase()] || '' }); } }) : null
       ]),
       zoneCfx
     ]);

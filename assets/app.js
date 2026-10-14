@@ -226,16 +226,21 @@
     if (typeof o.corps === 'string') corps.innerHTML = o.corps; else if (o.corps) corps.appendChild(o.corps);
     var pied = h('div.modale-pied');
     var fermer = function () { voile.remove(); document.removeEventListener('keydown', surTouche); if (o.onFermer) o.onFermer(); };
-    (o.boutons || [{ texte: 'Fermer' }]).forEach(function (b) {
-      var btn = h('button.btn' + (b.classe ? '.' + b.classe.split(' ').join('.') : ''), { text: b.texte, type: 'button' });
-      btn.addEventListener('click', function () {
-        if (!b.action) { fermer(); return; }
-        var r = b.action(fermer, btn);
-        if (r && typeof r.then === 'function') { btn.classList.add('occupe'); r.then(function (res) { btn.classList.remove('occupe'); if (res !== false) fermer(); }, function () { btn.classList.remove('occupe'); }); }
-        else if (r !== false) fermer();
+    // 14 oct. : `boutons(liste)` sur l'objet renvoyé remplace les boutons (modale remplie après un chargement).
+    var poserBoutons = function (liste) {
+      AMX.vider(pied);
+      (liste || [{ texte: 'Fermer' }]).forEach(function (b) {
+        var btn = h('button.btn' + (b.classe ? '.' + b.classe.split(' ').join('.') : ''), { text: b.texte, type: 'button' });
+        btn.addEventListener('click', function () {
+          if (!b.action) { fermer(); return; }
+          var r = b.action(fermer, btn);
+          if (r && typeof r.then === 'function') { btn.classList.add('occupe'); r.then(function (res) { btn.classList.remove('occupe'); if (res !== false) fermer(); }, function () { btn.classList.remove('occupe'); }); }
+          else if (r !== false) fermer();
+        });
+        pied.appendChild(btn);
       });
-      pied.appendChild(btn);
-    });
+    };
+    poserBoutons(o.boutons);
     var modale = h('div.modale' + (o.large ? '.large' : ''), [
       h('div.modale-entete', [h('h2', { text: o.titre || '' }), h('button.fermer', { type: 'button', 'aria-label': 'Fermer', html: ICONES.fermer, onclick: fermer })]),
       corps,
@@ -248,7 +253,7 @@
     document.body.appendChild(voile);
     var premier = corps.querySelector('input, select, textarea, button');
     if (premier && !o.sansFocus) { try { premier.focus(); } catch (e) {} }
-    return { fermer: fermer, el: modale, corps: corps };
+    return { fermer: fermer, el: modale, corps: corps, boutons: poserBoutons };
   };
   AMX.confirmer = function (titre, message, opts) {
     opts = opts || {};

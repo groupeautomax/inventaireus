@@ -6,6 +6,13 @@
    regenererCleVitrine, acheteursExternes, acheteurExterneInviter, leadListe.
    Signature électronique (7 oct.) : l'acheteur signe sur sa page ; le
    directeur contresigne ici (« Signer le contrat », tablette AMX.tablette).
+   14 oct. (Maxime) : « un véhicule disponible à la vente doit pouvoir être
+   envoyé à un acheteur inscrit, par texto et par courriel » → AMX.offres
+   .envoyerAcheteurs(vin) (modale : acheteurs inscrits, courriel / texto,
+   message ; publie dans la vitrine si besoin ; action acheteurEnvoyerVehicule),
+   appelée depuis le panneau d'inventaire, « En vente » et la fiche d'un
+   acheteur. Inscription par pays (CA / US / FR) : l'invitation porte le pays,
+   la fiche montre les numéros du pays (SIRET, TVA, APE, EORI… / EIN, licence).
    ========================================================================= */
 (function () {
   'use strict';
@@ -58,6 +65,123 @@
   function marque(modele) { return String(modele || '').trim().split(' ')[0].toUpperCase(); }
   function lienPublic(cle, vin) { return AMX.SITE + 'vitrine/vehicle.html?k=' + encodeURIComponent(cle) + '&vin=' + encodeURIComponent(vin); }
   function nomConcession(id) { return AMX.CONCESSIONS[String(id || '').toLowerCase()] || id || '—'; }
+  var PAYS = { CA: 'Canada', US: 'États-Unis', FR: 'France' };
+  function paysDe(a) { var c = String((a && a.paysCode) || '').toUpperCase(); if (PAYS[c]) return c; var p = String((a && a.pays) || '').toLowerCase(); if (/états-unis|etats-unis|united states/.test(p)) return 'US'; if (/france/.test(p)) return 'FR'; if (/canada/.test(p)) return 'CA'; return ''; }
+  function paysNom(a) { var c = paysDe(a); return c ? PAYS[c] : (a && a.pays) || ''; }
+  function numerosDe(a) {
+    var c = paysDe(a), l = [];
+    if (c === 'FR') { l.push(['SIRET', a.siret], ['TVA intracommunautaire', a.tvaIntra], ['APE / NAF', a.ape], ['EORI', a.eori], ['RCS', a.rcs], ['RNE', a.rne]); }
+    else if (c === 'US') { l.push(['EIN', a.ein], ['Licence de concessionnaire', (a.noConcessionnaire || '') + (a.licenceEtat ? ' (' + a.licenceEtat + ')' : '')], ['Certificat de revente', a.certificatRevente]); }
+    else { l.push(['Permis de commerçant', a.noConcessionnaire], ['No entreprise / NEQ', a.noEntreprise], ['TPS / TVH', a.tps], ['TVQ', a.tvq]); }
+    return l;
+  }
+  function telephoneTexto(a) {
+    var s = String((a && a.telephone) || '').trim(); if (!s) return '';
+    var d = s.replace(/[^0-9]/g, ''), plus = s.charAt(0) === '+' || s.indexOf('00') === 0; if (s.indexOf('00') === 0) d = d.slice(2);
+    if (plus) return d.length >= 8 && d.length <= 15 ? '+' + d : '';
+    if (paysDe(a) === 'FR') return d.length === 10 && d.charAt(0) === '0' ? '+33' + d.slice(1) : (d.length === 11 && d.indexOf('33') === 0 ? '+' + d : '');
+    return d.length === 10 ? '+1' + d : (d.length === 11 && d.charAt(0) === '1' ? '+' + d : '');
+  }
+  function chargerAcheteurs(force) {
+    if (cache.acheteurs && !force) return Promise.resolve(cache.acheteurs);
+    return AMX.post({ action: 'acheteursExternes' }).then(function (d) { AMX.verifier(d, 'Impossible de lire les acheteurs'); cache.acheteurs = d.acheteurs || []; return cache.acheteurs; });
+  }
+  function chargerVente(force) {
+    if (cache.vente && !force) return Promise.resolve(cache.vente);
+    return AMX.post({ action: 'vitrineListe' }).then(function (d) { AMX.verifier(d, 'Impossible de lire la vitrine'); cache.vente = d.vehicules || []; cache.cle = d.cle || cache.cle; return cache.vente; });
+  }
+
+  /* ---------------- Envoyer un véhicule à des acheteurs inscrits (14 oct.) ----------------
+     Depuis le panneau d'inventaire, « En vente » ou la fiche d'un acheteur. Le serveur
+     (acheteurEnvoyerVehicule) publie le véhicule dans la vitrine s'il ne l'est pas (prix demandé),
+     puis envoie à chaque acheteur inscrit le lien de la page publique : courriel au nom de la
+     concession qui vend, texto (Infobip) au numéro de la fiche (+1 / +33). */
+  AMX.offres = AMX.offres || {};
+  AMX.offres.envoyerAcheteurs = function (vin, opts) {
+    opts = opts || {};
+    vin = String(vin || '').trim().toUpperCase();
+    if (!vin) { AMX.toast('Choisissez un véhicule.', 'attention'); return Promise.resolve(false); }
+    if (!(AMX.perm('changerStatut') || AMX.perm('voirResultats'))) { AMX.toast('Envoi aux acheteurs non autorisé pour ce compte.', 'attention'); return Promise.resolve(false); }
+    var v = vehiculeDe(vin);
+    var titre = v.modele || vin;
+    var corps = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, [AMX.chargeur('Acheteurs inscrits')]);
+    var modale = AMX.modale({ titre: 'Envoyer à un acheteur inscrit', corps: corps, boutons: [{ texte: 'Fermer' }] });
+    return Promise.all([chargerAcheteurs(), chargerVente(), AMX.inventaire.tout().catch(function () { return []; })]).then(function (r) {
+      var inscrits = (r[0] || []).filter(function (a) { return a.statut === 'inscrit'; });
+      var pub = (r[1] || []).filter(function (p) { return p.vin === vin; })[0] || null;
+      var choisis = {}; (opts.ids || []).forEach(function (id) { choisis[id] = true; });
+      var recherche = '', elListe = h('div.liste.compacte', { style: { maxHeight: '320px', overflow: 'auto' } });
+      var canalCourriel = h('input', { type: 'checkbox', checked: true }), canalTexto = h('input', { type: 'checkbox', checked: !!opts.texto });
+      var message = h('textarea.saisie', { rows: '3', placeholder: 'Message facultatif ajouté au courriel et au texto (ex. disponible dès maintenant, inspection possible…)' });
+      var prix = h('input.saisie', { type: 'number', step: '100', placeholder: 'Vide = prix sur demande', value: pub ? pub.prix : (v.prixVente || '') });
+      var compte = h('span.compte');
+      var rendreListe = function () {
+        AMX.vider(elListe);
+        var t = recherche.toLowerCase();
+        var l = inscrits.filter(function (a) { return !t || [a.nomLegal, a.nomCommercial, a.signataire, a.courriel, a.ville, paysNom(a)].join(' ').toLowerCase().indexOf(t) >= 0; });
+        if (!inscrits.length) elListe.appendChild(h('div.vide', [h('h3', 'Aucun acheteur inscrit'), h('div', 'Invitez d\'abord un acheteur (Offres & clients › Acheteurs) : il remplit sa fiche, puis vous pouvez lui envoyer des véhicules.')]));
+        else if (!l.length) elListe.appendChild(h('div.doux.petit', { style: { padding: '8px' }, text: 'Aucun acheteur ne correspond.' }));
+        l.forEach(function (a) {
+          var tel = telephoneTexto(a), c = paysDe(a);
+          var case_ = h('input', { type: 'checkbox', checked: !!choisis[a.id], onchange: function (e) { if (e.target.checked) choisis[a.id] = true; else delete choisis[a.id]; majCompte(); } });
+          elListe.appendChild(h('label.ligne', { style: { cursor: 'pointer', gap: '10px', alignItems: 'center' } }, [case_,
+            h('div', { style: { minWidth: 0, flex: '1' } }, [h('div.titre', { text: a.nomLegal || a.signataire || a.courriel }), h('div.sous', [h('span.doux', { text: (a.signataire ? a.signataire + ' · ' : '') + a.courriel }), tel ? h('span.puce.texto', { text: 'Texto ' + tel }) : h('span.puce.attention', { text: 'Pas de numéro de texto' }), c ? h('span.puce', { text: PAYS[c] }) : null, a.langue === 'en' ? h('span.puce', { text: 'EN' }) : null])]),
+            a.dernierEnvoiLe ? h('span.doux.petit', { text: 'Dernier envoi ' + AMX.fmtDate(a.dernierEnvoiLe) }) : null]));
+        });
+      };
+      var majCompte = function () { var n = Object.keys(choisis).length; compte.textContent = n ? n + ' acheteur' + (n > 1 ? 's' : '') + ' choisi' + (n > 1 ? 's' : '') : 'Aucun acheteur choisi'; };
+      var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'Nom, entreprise, courriel, ville, pays', oninput: AMX.debounce(function (e) { recherche = e.target.value; rendreListe(); }, 120) })]);
+      AMX.vider(corps);
+      corps.appendChild(h('div.alerte-bloc.info', [h('span', { html: I.voiture }), h('div', [h('b', { text: titre }), h('div.doux.petit', [h('span.vin', { text: vin }), v.stock ? ' · stock ' + v.stock : '', v.compagnie ? ' · ' + v.compagnie : '', pub ? ' · en vente' + (AMX.montant(pub.prix) > 0 ? ' à ' + AMX.fmtArgent(pub.prix) : ' (prix sur demande)') : ' · pas encore dans la vitrine'])])]));
+      if (!pub) corps.appendChild(h('div.champ', [h('label', 'Prix demandé ($) — le véhicule sera publié dans la vitrine avec sa page publique'), prix]));
+      corps.appendChild(h('div', [h('div.outils-liste', [rech, compte]), elListe]));
+      corps.appendChild(h('div.grille.c2', [h('label.case', [canalCourriel, h('span', 'Par courriel (au nom de la concession qui vend)')]), h('label.case', [canalTexto, h('span', 'Par texto (numéro de la fiche de l\'acheteur)')])]));
+      corps.appendChild(h('div.champ', [h('label', 'Message'), message]));
+      corps.appendChild(h('p.doux.petit', { style: { margin: 0 }, text: 'L\'acheteur reçoit le lien de la page publique du véhicule (photos, options, prix demandé) et peut y faire son offre ; son contrat sera pré-rempli avec sa fiche.' }));
+      rendreListe(); majCompte();
+      if (modale && modale.boutons) modale.boutons([{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
+        var ids = Object.keys(choisis);
+        if (!ids.length) { AMX.toast('Choisissez au moins un acheteur.', 'attention'); return false; }
+        if (!canalCourriel.checked && !canalTexto.checked) { AMX.toast('Choisissez courriel et / ou texto.', 'attention'); return false; }
+        var corpsReq = { action: 'acheteurEnvoyerVehicule', vin: vin, ids: ids, canaux: { courriel: canalCourriel.checked, texto: canalTexto.checked }, message: message.value.trim() };
+        if (!pub) corpsReq.prix = prix.value.trim();
+        if (opts.concession) corpsReq.concession = opts.concession;
+        return AMX.post(corpsReq, { delai: 90000 }).then(function (d) {
+          AMX.verifier(d, 'Envoi impossible');
+          if (d.publie) { cache.vente = null; if (d.lien && !cache.cle) cache.cle = ''; }
+          cache.acheteurs = null;
+          var texte = 'Envoyé à ' + ids.length + ' acheteur' + (ids.length > 1 ? 's' : '') + ' — ' + d.courriels + ' courriel' + (d.courriels > 1 ? 's' : '') + ', ' + d.textos + ' texto' + (d.textos > 1 ? 's' : '') + (d.publie ? ' · véhicule publié dans la vitrine' : '');
+          if (d.erreurs && d.erreurs.length) AMX.toast(texte + '. Problèmes : ' + d.erreurs.join(' ; '), 'attention', 12000);
+          else AMX.toast(texte, 'ok', 6000);
+          document.dispatchEvent(new CustomEvent('amx:acheteurs', { detail: { vin: vin, publie: !!d.publie } }));
+          return true;
+        }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+      } }]);
+      return true;
+    }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Acheteurs indisponibles'), h('div', { text: AMX.erreurTexte(e) })])); return false; });
+  };
+  /** Choisir d'abord le véhicule (depuis la fiche d'un acheteur), puis la modale d'envoi. */
+  AMX.offres.envoyerVehiculeA = function (acheteur) {
+    var champVin = h('input.saisie.mono', { type: 'text', placeholder: 'VIN, modèle ou # stock de l\'inventaire' });
+    var suggestions = h('div'), contexte = h('div.doux.petit', { style: { marginTop: '6px' } });
+    var majContexte = function () { var v = vehiculeDe(champVin.value); if (v && v.vin) { contexte.textContent = ''; contexte.appendChild(h('span', [h('b', { text: v.modele || '' }), ' · ' + AMX.inventaire.nomFeuille(v._feuille) + (v.stock ? ' · stock ' + v.stock : '') + ' · ', AMX.badgeStatut(v.statut, v._feuille)])); } else contexte.textContent = ''; };
+    champVin.addEventListener('input', AMX.debounce(function () {
+      var q = champVin.value.trim().toUpperCase(); AMX.vider(suggestions); majContexte();
+      if (q.length < 2) return;
+      AMX.inventaire.tout().then(function (tout) {
+        tout.filter(function (v) { return [v.vin, v.modele, v.stock].join(' ').toUpperCase().indexOf(q) >= 0 && ['arrive', 'comptabilise'].indexOf(v.statut) < 0; }).slice(0, 6).forEach(function (v) {
+          var b = h('button.btn.petit', { type: 'button', style: { marginRight: '6px', marginBottom: '6px' }, text: (v.modele || v.vin) + (v.stock ? ' · ' + v.stock : '') });
+          b.addEventListener('click', function () { champVin.value = v.vin; AMX.vider(suggestions); majContexte(); });
+          suggestions.appendChild(b);
+        });
+      });
+    }, 150));
+    AMX.modale({ titre: 'Envoyer un véhicule à ' + (acheteur.nomLegal || acheteur.courriel), corps: h('div', [h('div.champ', [h('label', 'Véhicule de l\'inventaire'), champVin, contexte, suggestions])]), boutons: [{ texte: 'Annuler' }, { texte: 'Continuer', classe: 'primaire', action: function (fermer) {
+      var v = champVin.value.trim().toUpperCase();
+      if (!/^[A-HJ-NPR-Z0-9]{11,17}$/.test(v)) { champVin.style.borderColor = 'var(--rouge)'; champVin.focus(); AMX.toast('Choisissez un véhicule (VIN).', 'attention'); return false; }
+      fermer(); AMX.offres.envoyerAcheteurs(v, { ids: [acheteur.id], texto: !!telephoneTexto(acheteur) }); return false;
+    } }] });
+  };
   function compagnieVersConcession(c) { return AMX.COMPAGNIE_CONCESSION[String(c || '').toUpperCase()] || ''; }
 
   /* Tablette de signature (7 oct.) — source : site/mock/tablette-signature.js
@@ -496,6 +620,7 @@
         h('div.cell.maj', [h('span.l', 'Publié'), h('span.v', { text: AMX.fmtDate(p.publieLe) }), h('span.v.doux', { text: p.publiePar || '' })]),
         h('div.cell.indic', [h('span.l', 'Lien'), h('div.indicateurs', [lien ? h('button.puce.info', { type: 'button', html: 'Copier le lien', onclick: function () { AMX.copier(lien, 'Lien de la page copié'); } }) : null, lien ? h('a.puce', { href: lien, target: '_blank', rel: 'noopener', text: 'Ouvrir' }) : null, p.video ? h('span.puce.ok', { text: 'Vidéo' }) : null])]),
         h('div.montant', [h('span.l', 'Prix'), h('span', { text: AMX.montant(p.prix) > 0 ? AMX.fmtArgent(p.prix) : 'Sur demande' })]),
+        h('button.btn.petit', { type: 'button', title: 'Envoyer la page de ce véhicule à des acheteurs inscrits (courriel, texto)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(p.vin, { concession: compagnieVersConcession(v.compagnie) }); } }),
         h('button.plus', { type: 'button', title: 'Modifier', html: I.points, onclick: function () { self.modalePublier(p.vin, p); } })
       ]);
       ul.appendChild(el);
@@ -625,7 +750,7 @@
     this.elKpis.appendChild(h('button.kpi' + (f.statut === 'inscrit' ? '.actif' : ''), { type: 'button', onclick: function () { f.statut = f.statut === 'inscrit' ? '' : 'inscrit'; self.construireRail(); self.rendre(); } }, [h('div.valeur', { text: inscrits }), h('div.libelle', 'Inscrits'), h('span.pastille', { style: { background: 'var(--vert)' } })]));
     this.elKpis.appendChild(h('button.kpi' + (f.statut === 'invite' ? '.actif' : ''), { type: 'button', onclick: function () { f.statut = f.statut === 'invite' ? '' : 'invite'; self.construireRail(); self.rendre(); } }, [h('div.valeur', { text: this.liste.length - inscrits }), h('div.libelle', 'Invités, en attente'), h('span.pastille', { style: { background: 'var(--ambre)' } })]));
     var l = this.liste.filter(function (a) { return !f.statut || a.statut === f.statut; });
-    if (f.recherche) { var t = f.recherche.toLowerCase(); l = l.filter(function (a) { return [a.nomLegal, a.nomCommercial, a.signataire, a.courriel, a.ville, a.telephone].join(' ').toLowerCase().indexOf(t) >= 0; }); }
+    if (f.recherche) { var t = f.recherche.toLowerCase(); l = l.filter(function (a) { return [a.nomLegal, a.nomCommercial, a.signataire, a.courriel, a.ville, a.telephone, paysNom(a), a.siret, a.ein].join(' ').toLowerCase().indexOf(t) >= 0; }); }
     AMX.vider(this.elOutils); this.elOutils.appendChild(h('span.compte', [h('b', { text: l.length }), ' acheteur' + (l.length > 1 ? 's' : '')]));
     AMX.vider(this.elListe);
     if (!l.length) this.elListe.appendChild(h('div.vide', [h('div', { html: I.admin }), h('h3', 'Aucun acheteur'), h('div', 'Invitez un concessionnaire : il recevra un courriel au nom de la concession choisie et remplira sa fiche.')]));
@@ -637,10 +762,10 @@
     var inscrit = a.statut === 'inscrit';
     var el = h('div.ligne' + (this.selection === a.id ? '.actif' : ''), { dataset: { id: a.id } }, [
       h('div.vignette', { text: AMX.initiales(a.nomLegal || a.signataire || a.courriel) }),
-      h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: a.nomLegal || a.signataire || a.courriel }), h('div.sous', [h('span.doux', { text: a.courriel }), a.langue === 'en' ? h('span.puce', { text: 'EN' }) : null])]),
+      h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: a.nomLegal || a.signataire || a.courriel }), h('div.sous', [h('span.doux', { text: a.courriel }), paysDe(a) ? h('span.puce', { text: PAYS[paysDe(a)] }) : null, a.langue === 'en' ? h('span.puce', { text: 'EN' }) : null])]),
       h('div.cell', [h('span.l', 'Contact'), h('span.v', { text: a.signataire || '—' }), h('span.v.doux', { text: a.telephone || '' })]),
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + (inscrit ? 'vert' : 'ambre'), { text: inscrit ? 'Inscrit' : 'Invité' })]), h('span.jours', { text: inscrit ? 'le ' + AMX.fmtDate(a.inscritLe) : 'le ' + AMX.fmtDate(a.inviteLe) })]),
-      h('div.cell.indic', [h('span.l', 'Lieu'), h('span.v', { text: [a.ville, a.province].filter(Boolean).join(', ') || '—' })]),
+      h('div.cell.indic', [h('span.l', 'Lieu'), h('span.v', { text: [a.ville, a.province].filter(Boolean).join(', ') || '—' }), a.dernierEnvoiLe ? h('span.v.doux', { text: 'Envoi ' + AMX.fmtDate(a.dernierEnvoiLe) }) : null]),
       h('div.montant', [h('span.l', 'Concession'), h('span', { style: { fontWeight: 500, fontSize: '12px' }, text: a.concession ? nomConcession(a.concession).split(' ')[0] : '—' })]),
       h('button.plus', { type: 'button', html: I.chevron })
     ]);
@@ -671,16 +796,17 @@
         h('dt', 'Signataire'), h('dd', { text: a.signataire || '—' }),
         h('dt', 'Courriel'), h('dd', [h('a', { href: 'mailto:' + a.courriel, text: a.courriel })]),
         h('dt', 'Téléphone'), h('dd', [a.telephone ? h('a', { href: 'tel:' + a.telephone, text: a.telephone }) : '—']),
-        h('dt', 'Adresse'), h('dd', { text: [a.adresse, [a.ville, a.province, a.codePostal].filter(Boolean).join(' '), a.pays].filter(Boolean).join(', ') || '—' }),
-        h('dt', 'No concessionnaire'), h('dd', { text: a.noConcessionnaire || '—' }),
-        h('dt', 'TPS / TVQ'), h('dd', { text: (a.tps || '—') + ' / ' + (a.tvq || '—') }),
+        h('dt', 'Adresse'), h('dd', { text: [a.adresse, [a.ville, a.province, a.codePostal].filter(Boolean).join(' '), paysNom(a)].filter(Boolean).join(', ') || '—' }),
+        h('dt', 'Pays'), h('dd', { text: paysNom(a) || '—' })].concat(numerosDe(a).reduce(function (acc, n) { acc.push(h('dt', n[0]), h('dd', { text: n[1] || '—' })); return acc; }, [])).concat([
         h('dt', 'Langue'), h('dd', { text: a.langue === 'en' ? 'Anglais' : 'Français' }),
+        a.dernierEnvoiLe ? h('dt', 'Dernier envoi') : null, a.dernierEnvoiLe ? h('dd', [h('span', { text: AMX.fmtDate(a.dernierEnvoiLe, true) + ' · ' }), h('a', { href: AMX.lien('offres', 'vente', { vin: a.dernierEnvoiVin }), text: (vehiculeDe(a.dernierEnvoiVin).modele || a.dernierEnvoiVin) })]) : null,
         h('dt', 'Invité par'), h('dd', { text: (a.invitePar || '—') + (a.concession ? ' · ' + nomConcession(a.concession) : '') + (a.inviteLe ? ' · ' + AMX.fmtDate(a.inviteLe) : '') }),
         inscrit ? h('dt', 'Inscrit le') : null, inscrit ? h('dd', { text: AMX.fmtDate(a.inscritLe, true) }) : null,
         a.source ? h('dt', 'Source') : null, a.source ? h('dd', { text: a.source === 'contrat' ? 'Créé à la signature d\'un contrat' : 'Invitation' }) : null,
         a.note ? h('dt', 'Note') : null, a.note ? h('dd', { text: a.note }) : null
-      ])]),
+      ]))]),
       h('div.bloc', [h('h3', 'Actions'), h('div.actions-ligne', [
+        inscrit ? h('button.btn.primaire', { html: I.voiture + '<span>Envoyer un véhicule</span>', title: 'Choisir un véhicule de l\'inventaire et lui envoyer sa page (courriel, texto)', onclick: function () { AMX.offres.envoyerVehiculeA(a); } }) : null,
         AMX.perm('changerStatut') ? h('button.btn' + (inscrit ? '' : '.primaire'), { html: I.courriel + '<span>' + (inscrit ? 'Renvoyer le lien de la fiche' : 'Renvoyer l\'invitation') + '</span>', onclick: function () { self.modaleInviter(a); } }) : null,
         h('a.btn', { href: 'mailto:' + a.courriel, html: I.externe + '<span>Écrire</span>' })
       ])]),
@@ -696,6 +822,8 @@
     (cache.concessions || Object.keys(AMX.CONCESSIONS).map(function (k) { return { id: k, nom: AMX.CONCESSIONS[k] }; })).forEach(function (c) { concession.appendChild(h('option', { value: c.id, text: c.nom })); });
     concession.value = (existant && existant.concession) || AMX.memo.lire('ach_concession', '') || concession.value;
     var langue = 'fr'; if (existant && existant.langue === 'en') langue = 'en';
+    var pays = h('select.saisie', [h('option', { value: '', text: 'L\'acheteur choisira' })].concat(Object.keys(PAYS).map(function (c) { return h('option', { value: c, text: PAYS[c] }); })));
+    pays.value = (existant && paysDe(existant)) || AMX.memo.lire('ach_pays', '') || '';
     var segLangue = h('div.segment');
     var majLangue = function () { AMX.vider(segLangue); [['fr', 'Français'], ['en', 'English']].forEach(function (l) { segLangue.appendChild(h('button' + (langue === l[0] ? '.actif' : ''), { type: 'button', text: l[1], onclick: function () { langue = l[0]; majLangue(); } })); }); };
     majLangue();
@@ -703,13 +831,14 @@
       h('p', { style: { margin: 0, color: 'var(--encre-2)' }, text: existant ? 'Un nouveau courriel part au nom de la concession choisie, avec le lien de sa fiche.' : 'L\'acheteur reçoit un courriel au nom de la concession choisie avec un lien pour inscrire sa concession (coordonnées, numéros de taxes). Ses offres et contrats seront ensuite pré-remplis.' }),
       h('div.champ', [h('label', 'Courriel'), courriel]),
       h('div.grille.c2', [h('div.champ', [h('label', 'Nom du contact'), nom]), h('div.champ', [h('label', 'Entreprise'), entreprise])]),
-      h('div.grille.c2', [h('div.champ', [h('label', 'Invitation au nom de'), concession]), h('div.champ', [h('label', 'Langue du courriel'), segLangue])])
+      h('div.grille.c2', [h('div.champ', [h('label', 'Invitation au nom de'), concession]), h('div.champ', [h('label', 'Langue du courriel'), segLangue])]),
+      h('div.grille.c2', [h('div.champ', [h('label', 'Pays de l\'acheteur'), pays]), h('div.doux.petit', { style: { alignSelf: 'end', paddingBottom: '8px' }, text: 'Sa fiche demandera les numéros de son pays : Canada (permis, NEQ, TPS/TVQ), États-Unis (EIN, licence), France (SIRET, TVA intra, APE 4511Z, EORI, RCS, RNE).' })])
     ]);
     AMX.modale({ titre: existant ? 'Renvoyer l\'invitation' : 'Inviter un acheteur', corps: corps, boutons: [{ texte: 'Annuler' }, { texte: existant ? 'Renvoyer' : 'Envoyer l\'invitation', classe: 'primaire', action: function (fermer) {
       var c = courriel.value.trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c)) { courriel.style.borderColor = 'var(--rouge)'; courriel.focus(); return false; }
-      AMX.memo.ecrire('ach_concession', concession.value);
-      return AMX.post({ action: 'acheteurExterneInviter', courriel: c, nom: nom.value.trim(), entreprise: entreprise.value.trim(), concession: concession.value, langue: langue, renvoyer: !!existant }).then(function (d) {
+      AMX.memo.ecrire('ach_concession', concession.value); AMX.memo.ecrire('ach_pays', pays.value);
+      return AMX.post({ action: 'acheteurExterneInviter', courriel: c, nom: nom.value.trim(), entreprise: entreprise.value.trim(), concession: concession.value, langue: langue, paysCode: pays.value, renvoyer: !!existant }).then(function (d) {
         AMX.verifier(d, 'Invitation impossible');
         if (d.deja && !existant) AMX.toast('Cet acheteur est déjà inscrit.', 'attention');
         else if (d.courrielEnvoye === false) AMX.toast('Fiche créée, mais le courriel n\'est pas parti : ' + (d.courrielErreur || 'raison inconnue'), 'attention', 9000);

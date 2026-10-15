@@ -103,6 +103,16 @@
       '.avis-carte .reponse-edit .actions-ligne { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }',
       '.avis-carte .reponse-edit .compte { margin-left: auto; font-size: 11px; color: var(--encre-4); }',
       '.avis-plus-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0 6px; }',
+      '.retrait-modale .avis-cite { padding: 10px 12px; border-left: 3px solid var(--ligne); background: var(--fond-2, #f6f7f9); border-radius: var(--rayon-s); font-size: 13px; }',
+      '.retrait-modale .champ { margin: 10px 0; } .retrait-modale textarea.saisie { width: 100%; box-sizing: border-box; font: inherit; }',
+      '.retrait-modale .retrait-texte { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.45; }',
+      '.retrait-dossier { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--ligne); }',
+      '.retrait-dossier .l { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-2); margin-bottom: 6px; }',
+      '.retrait-voie { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); }',
+      '.retrait-voie.recommande { border-color: var(--vert, #0a7f4a); background: var(--vert-bg, #ecf7f1); }',
+      '.retrait-voie .btn { white-space: nowrap; }',
+      '.retrait-suivi { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .retrait-suivi input.saisie { flex: 1; min-width: 200px; }',
+      '.avis-retrait.actif { border-color: var(--ambre, #b7791f); color: var(--ambre, #b7791f); }',
       '.avis-api-barre { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; padding: 8px 12px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte-2); font-size: 12.5px; color: var(--encre-2); }',
       '.avis-api-barre .pt { width: 8px; height: 8px; border-radius: 50%; background: var(--vert); box-shadow: 0 0 0 3px var(--vert-clair); }',
       '.avis-api-barre .btn { margin-left: auto; }',
@@ -441,7 +451,8 @@
         h('div.haut', [etoiles(a.etoiles, true), h('span.auteur', a.auteur || 'Anonyme'), badgeEtat(a.etat),
           h('span.meta', [a.fiche, date ? ' · ' + date : '', jours !== null && jours <= 30 ? ' · il y a ' + (jours === 0 ? 'moins d\'un jour' : jours + ' j') : '', a.source !== 'google' ? ' · ' + a.source : '']),
           !a.enLigne ? h('span.badge.gris', 'Disparu de Google') : null,
-          a.reponseEtat && a.reponseEtat !== 'APPROVED' ? h('span.badge.ambre', a.reponseEtat === 'PENDING' ? 'Réponse en modération' : 'Réponse refusée') : null]),
+          a.reponseEtat && a.reponseEtat !== 'APPROVED' ? h('span.badge.ambre', a.reponseEtat === 'PENDING' ? 'Réponse en modération' : 'Réponse refusée') : null,
+          badgeRetrait(a)]),
         h('div.texte' + (a.texte ? '' : '.vide-texte'), a.texte || 'Note sans commentaire.'),
         this.blocReponse(a, d)
       ]),
@@ -452,7 +463,8 @@
         h('div.actions-ligne', { style: { gap: '6px', flexWrap: 'wrap' } }, [
           moiCredite ? null : h('button.btn.petit', { type: 'button', title: 'M\'ajouter aux crédités', onclick: function () { self.ecrire({ action: 'avisEmployes', id: a.id, employes: a.employes.concat([moiC]) }, 'Avis crédité à vous'); } }, 'Me créditer'),
           a.assigneA === moiC ? null : h('button.btn.petit', { type: 'button', title: 'Devenir le responsable de cet avis', onclick: function () { self.ecrire({ action: 'avisAssigner', id: a.id, courriel: moiC }, 'Vous êtes responsable de cet avis'); } }, 'Je m\'en occupe'),
-          a.lien ? h('a.btn.petit', { href: a.lien, target: '_blank', rel: 'noopener' }, [AMX.svg('externe'), ' Google']) : null
+          a.lien ? h('a.btn.petit', { href: a.lien, target: '_blank', rel: 'noopener' }, [AMX.svg('externe'), ' Google']) : null,
+          peutRepondre(d) && a.source === 'google' ? h('button.btn.petit.avis-retrait' + (a.retrait && a.retrait.etat ? '.actif' : ''), { type: 'button', title: 'Demander à Google de retirer cet avis (faux avis, conflit d\'intérêts, harcèlement, diffamation…)', onclick: function () { self.modaleRetrait(a, d); } }, a.retrait && a.retrait.etat ? 'Retrait : ' + (RETRAIT_ETATS[a.retrait.etat] || a.retrait.etat) : 'Demander le retrait') : null
         ])
       ])
     ]);
@@ -460,6 +472,86 @@
 
   /* Rôles qui répondent aux avis (le serveur tranche de toute façon : modifierMontants, gererUtilisateurs, alertesAvis ou marketing). */
   var PAGE_AVIS = 50;   // cartes affichées d'un coup sur l'onglet Avis (v96 : 2 000 avis et plus avec l'API)
+
+  /* 15 oct. soir (v98) — Demander à Google le retrait d'un avis. Google n'a pas d'API pour ça : on prépare le dossier
+     (serveur, FR + EN) et on ouvre les voies où un humain regarde : l'outil de gestion des avis (signaler, puis faire
+     appel une fois), un agent du soutien Fiche d'établissement, le formulaire juridique. Le suivi est gardé dans
+     l'avis (retrait { etat, canal, motif, demandeLe, note }). */
+  var RETRAIT_MOTIFS = [
+    ['faux', 'Faux avis — cette personne n\'est pas un client'],
+    ['conflit', 'Conflit d\'intérêts — employé, ex-employé, concurrent ou proche'],
+    ['horsSujet', 'Hors sujet — ne décrit pas une expérience client'],
+    ['harcelement', 'Harcèlement, insultes, propos haineux ou menaces'],
+    ['perso', 'Renseignements personnels (nom complet, numéro, adresse)'],
+    ['spam', 'Spam, publicité, lien, doublon'],
+    ['diffamation', 'Propos faux et diffamatoires (voie juridique)'],
+    ['autre', 'Autre infraction aux règles de Google']
+  ];
+  var RETRAIT_ETATS = { demande: 'demandé', appel: 'en appel', refuse: 'refusé par Google', retire: 'retiré par Google' };
+  var RETRAIT_CANAUX = { outil: 'Outil de gestion des avis (signalement)', appel: 'Outil de gestion des avis — appel', support: 'Agent du soutien Fiche d\'établissement', juridique: 'Formulaire juridique (Google Maps)' };
+  function badgeRetrait(a) {
+    var e = a.retrait && a.retrait.etat;
+    if (!e) return null;
+    var c = e === 'retire' ? 'vert' : e === 'refuse' ? 'gris' : 'ambre';
+    return h('span.badge.' + c, { title: 'Demande de retrait à Google' + (a.retrait.demandeLe ? ' le ' + AMX.fmtDate(a.retrait.demandeLe) : '') + (a.retrait.canal ? ' — ' + (RETRAIT_CANAUX[a.retrait.canal] || a.retrait.canal) : '') }, 'Retrait ' + (RETRAIT_ETATS[e] || e));
+  }
+
+  Avis.prototype.modaleRetrait = function (a, d) {
+    var self = this;
+    var r = a.retrait || {};
+    var motifSel = h('select.saisie', RETRAIT_MOTIFS.map(function (m) { return h('option', { value: m[0], text: m[1], selected: (r.motif || 'faux') === m[0] }); }));
+    var preuves = h('textarea.saisie', { rows: 3, placeholder: 'Les faits qui appuient la demande : aucune vente ni rendez-vous à ce nom dans le DMS, ex-employé parti le…, le texte vise une autre entreprise, etc.' });
+    var zoneDossier = h('div.retrait-dossier', { style: { display: 'none' } });
+    var canalSel = h('select.saisie', Object.keys(RETRAIT_CANAUX).map(function (k) { return h('option', { value: k, text: RETRAIT_CANAUX[k], selected: (r.canal || 'outil') === k }); }));
+    var note = h('input.saisie', { type: 'text', placeholder: 'Note (facultatif) : numéro de dossier Google, date du courriel…' });
+    var etatBloc = r.etat ? h('div.alerte-bloc.' + (r.etat === 'retire' ? 'ok' : 'info'), { style: { marginBottom: '12px' } }, [AMX.svg(r.etat === 'retire' ? 'ok' : 'info'), h('div', [
+      h('b', 'Retrait ' + (RETRAIT_ETATS[r.etat] || r.etat) + (r.demandeLe ? ' — demandé le ' + AMX.fmtDate(r.demandeLe) : '') + (r.canal ? ' via ' + (RETRAIT_CANAUX[r.canal] || r.canal) : '') + '. '),
+      r.note ? h('div.doux.petit', { style: { marginTop: '4px', whiteSpace: 'pre-wrap' } }, r.note) : null])]) : null;
+    var preparer = h('button.btn.petit', { type: 'button', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true; b.textContent = 'Un instant…';
+      AMX.post({ action: 'avisDossierRetrait', id: a.id, motif: motifSel.value, preuves: preuves.value }).then(function (res) {
+        AMX.verifier(res, 'Dossier refusé');
+        AMX.vider(zoneDossier); zoneDossier.style.display = '';
+        var ta = h('textarea.saisie.retrait-texte', { rows: 12, readonly: 'readonly' }); ta.value = res.dossier || '';
+        var liens = res.liens || {};
+        var voie = function (cle, titre, quoi, recommande) {
+          return h('div.retrait-voie' + (recommande ? '.recommande' : ''), [
+            h('a.btn.petit' + (recommande ? '.primaire' : ''), { href: liens[cle] || '#', target: '_blank', rel: 'noopener' }, [AMX.svg('externe'), ' ' + titre]),
+            h('span.doux.petit', (recommande ? 'Recommandé pour ce motif. ' : '') + quoi)
+          ]);
+        };
+        zoneDossier.appendChild(h('div.l', 'Dossier prêt à coller (français, puis anglais pour les formulaires de Google)'));
+        zoneDossier.appendChild(ta);
+        zoneDossier.appendChild(h('div.actions-ligne', [h('button.btn.petit', { type: 'button', onclick: function () { AMX.copier(ta.value, 'Dossier copié'); } }, 'Copier le dossier')]));
+        zoneDossier.appendChild(h('div.l', { style: { marginTop: '12px' } }, 'Où le déposer — par ordre d\'efficacité'));
+        zoneDossier.appendChild(voie('outil', '1. Outil de gestion des avis', 'Choisissez la fiche, « Signaler un nouvel avis », puis suivez l\'état (Décision en attente / Aucune infraction / Transmis). Après un refus, revenez-y et « Faire appel » : un humain regarde, une fois, jusqu\'à 10 avis — c\'est là que le dossier compte.', res.voieRecommandee === 'outil'));
+        zoneDossier.appendChild(voie('support', '2. Parler à un agent', 'Formulaire de contact Fiche d\'établissement (clavardage ou courriel) : sujet « Avis », collez le dossier et les preuves. Utile quand l\'outil refuse ou pour un faux avis avec preuves.', false));
+        zoneDossier.appendChild(voie('juridique', '3. Demande juridique', 'Google Maps › Motif juridique › Diffamation (ou Renseignements personnels, Harcèlement). Collez la version anglaise. Traité à part du système automatique.', res.voieRecommandee === 'juridique'));
+        zoneDossier.appendChild(h('div.l', { style: { marginTop: '12px' } }, 'Puis notez ici ce que vous avez fait'));
+        zoneDossier.appendChild(h('div.retrait-suivi', [canalSel, note, h('button.btn.primaire.petit', { type: 'button', onclick: function (ev) {
+          var bb = ev.currentTarget; bb.disabled = true;
+          self.ecrire({ action: 'avisRetrait', id: a.id, etat: canalSel.value === 'appel' ? 'appel' : 'demande', canal: canalSel.value, motif: motifSel.value, note: note.value }, 'Demande de retrait notée').then(function (ok) { if (ok) modale.fermer(); else bb.disabled = false; });
+        } }, r.etat ? 'Mettre à jour' : 'Marquer la demande comme envoyée')]));
+      }).catch(function (e2) { AMX.toast(AMX.erreurTexte(e2), 'erreur'); }).then(function () { b.disabled = false; b.textContent = 'Préparer le dossier'; });
+    } }, 'Préparer le dossier');
+    var corps = h('div.retrait-modale', [
+      etatBloc,
+      h('div.avis-cite', [etoiles(a.etoiles, true), ' ', h('b', a.auteur || 'Anonyme'), h('span.doux', ' · ' + a.fiche + (a.creeLe ? ' · ' + AMX.fmtDate(a.creeLe) : '')), h('div.doux', { style: { marginTop: '4px', whiteSpace: 'pre-wrap' } }, a.texte || 'Note sans commentaire.')]),
+      h('p.doux.petit', { style: { margin: '10px 0' } }, 'Le drapeau « Signaler » de Google est un tri automatique qui refuse presque tout. Ce qui fonctionne : un dossier précis, déposé là où quelqu\'un le lit (appel dans l\'outil de gestion, agent du soutien, formulaire juridique). Google ne retire un avis que s\'il enfreint ses règles — jamais parce qu\'on le trouve injuste.'),
+      h('div.champ', [h('label', 'Motif'), motifSel]),
+      h('div.champ', [h('label', 'Éléments à l\'appui'), preuves]),
+      h('div.actions-ligne', [preparer]),
+      zoneDossier
+    ]);
+    var boutons = [{ texte: 'Fermer' }];
+    if (r.etat === 'demande') boutons.unshift({ texte: 'Appel fait', classe: 'fantome', action: function () { return self.ecrire({ action: 'avisRetrait', id: a.id, etat: 'appel', canal: 'appel', note: 'Appel déposé dans l\'outil de gestion' }, 'Appel noté'); } });
+    if (r.etat === 'demande' || r.etat === 'appel') {
+      boutons.unshift({ texte: 'Refusé par Google', classe: 'fantome', action: function () { return self.ecrire({ action: 'avisRetrait', id: a.id, etat: 'refuse' }, 'Refus noté'); } });
+      boutons.unshift({ texte: 'Retiré par Google', classe: 'fantome', action: function () { return self.ecrire({ action: 'avisRetrait', id: a.id, etat: 'retire' }, 'Retrait noté'); } });
+    }
+    if (r.etat) boutons.unshift({ texte: 'Annuler la demande', classe: 'fantome', action: function () { if (!window.confirm('Effacer le suivi de cette demande de retrait ?')) return false; return self.ecrire({ action: 'avisRetrait', id: a.id, etat: '' }, 'Suivi effacé'); } });
+    var modale = AMX.modale({ titre: 'Demander le retrait à Google — ' + (a.auteur || 'avis') + ' (' + a.etoiles + ' ★)', corps: corps, large: true, boutons: boutons });
+  };
 
   function peutRepondre(d) {
     var role = String((d && d.moi && d.moi.role) || '');

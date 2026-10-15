@@ -108,9 +108,11 @@
       '.retrait-modale .retrait-texte { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.45; }',
       '.retrait-dossier { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--ligne); }',
       '.retrait-dossier .l { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-2); margin-bottom: 6px; }',
-      '.retrait-voie { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); }',
+      '.retrait-voie { padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); }',
       '.retrait-voie.recommande { border-color: var(--vert, #0a7f4a); background: var(--vert-bg, #ecf7f1); }',
-      '.retrait-voie .btn { white-space: nowrap; }',
+      '.retrait-voie-tete { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .retrait-voie .btn { white-space: nowrap; }',
+      '.retrait-etapes { margin: 6px 0 0 0; padding-left: 20px; font-size: 12.5px; line-height: 1.45; color: var(--encre-2); } .retrait-etapes li { margin: 3px 0; } .retrait-etapes b { color: var(--encre); }',
+      '.retrait-mode { margin: 8px 0 10px; padding: 8px 10px; border-radius: var(--rayon-s); background: var(--fond-2, #f6f7f9); font-size: 12.5px; line-height: 1.45; color: var(--encre-2); }',
       '.retrait-suivi { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .retrait-suivi input.saisie { flex: 1; min-width: 200px; }',
       '.avis-retrait.actif { border-color: var(--ambre, #b7791f); color: var(--ambre, #b7791f); }',
       '.avis-api-barre { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; padding: 8px 12px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte-2); font-size: 12.5px; color: var(--encre-2); }',
@@ -514,19 +516,48 @@
         AMX.vider(zoneDossier); zoneDossier.style.display = '';
         var ta = h('textarea.saisie.retrait-texte', { rows: 12, readonly: 'readonly' }); ta.value = res.dossier || '';
         var liens = res.liens || {};
-        var voie = function (cle, titre, quoi, recommande) {
+        // 15 oct. soir (Maxime : « les liens 1-2-3 ne fonctionnent pas, je ne comprends pas coller le dossier ») : les pages de
+        // Google (outil de gestion, agent) exigent le compte Google qui gère les fiches — Chrome ouvrait le compte par défaut,
+        // souvent un autre, et la page restait vide ou demandait de se connecter. On passe par le sélecteur de compte de Google
+        // avec le courriel de la session, qui continue vers la page voulue. Et chaque voie dit, étape par étape, où coller.
+        var courriel = String((AMX.session && AMX.session.courriel) || '');
+        var avecCompte = function (url) { return courriel ? 'https://accounts.google.com/AccountChooser?Email=' + encodeURIComponent(courriel) + '&continue=' + encodeURIComponent(url) : url; };
+        var coller = h('b', 'collez le dossier (Cmd+V sur Mac, Ctrl+V sur PC, ou clic droit › Coller)');
+        var voie = function (cle, titre, etapes, recommande, compte) {
+          var url = liens[cle] || '#';
           return h('div.retrait-voie' + (recommande ? '.recommande' : ''), [
-            h('a.btn.petit' + (recommande ? '.primaire' : ''), { href: liens[cle] || '#', target: '_blank', rel: 'noopener' }, [AMX.svg('externe'), ' ' + titre]),
-            h('span.doux.petit', (recommande ? 'Recommandé pour ce motif. ' : '') + quoi)
+            h('div.retrait-voie-tete', [
+              h('a.btn.petit' + (recommande ? '.primaire' : ''), { href: compte ? avecCompte(url) : url, target: '_blank', rel: 'noopener', 'data-lien': url }, [AMX.svg('externe'), ' ' + titre]),
+              recommande ? h('span.badge.vert.sans-point', 'Recommandé pour ce motif') : null
+            ]),
+            h('ol.retrait-etapes', etapes.map(function (t) { return h('li', t); }))
           ]);
         };
-        zoneDossier.appendChild(h('div.l', 'Dossier prêt à coller (français, puis anglais pour les formulaires de Google)'));
+        var anglais = function () { var i = ta.value.indexOf('--- English version'); return i >= 0 ? ta.value.slice(i) : ta.value; };
+        zoneDossier.appendChild(h('div.l', 'Le dossier — le texte à donner à Google (français, puis anglais)'));
         zoneDossier.appendChild(ta);
-        zoneDossier.appendChild(h('div.actions-ligne', [h('button.btn.petit', { type: 'button', onclick: function () { AMX.copier(ta.value, 'Dossier copié'); } }, 'Copier le dossier')]));
+        zoneDossier.appendChild(h('div.actions-ligne', [
+          h('button.btn.primaire.petit', { type: 'button', onclick: function () { AMX.copier(ta.value, 'Dossier copié — collez-le dans le formulaire de Google (Cmd+V)'); } }, 'Copier le dossier'),
+          h('button.btn.petit', { type: 'button', onclick: function () { AMX.copier(anglais(), 'Version anglaise copiée — collez-la dans le formulaire de Google (Cmd+V)'); } }, 'Copier la version anglaise seulement')
+        ]));
+        zoneDossier.appendChild(h('div.retrait-mode', [h('b', 'Comment ça marche : '), '1) cliquez « Copier le dossier » (le texte est mis en mémoire) · 2) ouvrez la voie choisie ci-dessous, elle s\'ouvre dans un nouvel onglet' + (courriel ? ' avec le compte ' + courriel + ' (celui qui gère les fiches ; si Google en propose un autre, choisissez celui-là)' : '') + ' · 3) dans le formulaire de Google, cliquez dans la grande zone de texte et collez (Cmd+V). Chaque voie dit où, ci-dessous.']));
         zoneDossier.appendChild(h('div.l', { style: { marginTop: '12px' } }, 'Où le déposer — par ordre d\'efficacité'));
-        zoneDossier.appendChild(voie('outil', '1. Outil de gestion des avis', 'Choisissez la fiche, « Signaler un nouvel avis », puis suivez l\'état (Décision en attente / Aucune infraction / Transmis). Après un refus, revenez-y et « Faire appel » : un humain regarde, une fois, jusqu\'à 10 avis — c\'est là que le dossier compte.', res.voieRecommandee === 'outil'));
-        zoneDossier.appendChild(voie('support', '2. Parler à un agent', 'Formulaire de contact Fiche d\'établissement (clavardage ou courriel) : sujet « Avis », collez le dossier et les preuves. Utile quand l\'outil refuse ou pour un faux avis avec preuves.', false));
-        zoneDossier.appendChild(voie('juridique', '3. Demande juridique', 'Google Maps › Motif juridique › Diffamation (ou Renseignements personnels, Harcèlement). Collez la version anglaise. Traité à part du système automatique.', res.voieRecommandee === 'juridique'));
+        zoneDossier.appendChild(voie('outil', '1. Outil de gestion des avis', [
+          ['Choisissez la fiche (', h('b', a.fiche), ') › Continuer › « Signaler un nouvel avis pour suppression » › Continuer.'],
+          ['Trouvez l\'avis de ', h('b', a.auteur || 'l\'auteur'), ' › « Signaler » › choisissez le motif (', h('b', (RETRAIT_MOTIFS.filter(function (m) { return m[0] === motifSel.value; })[0] || ['', 'Spam'])[1].split(' — ')[0]), ') › Envoyer. ', h('b', 'À cette étape, il n\'y a rien à coller'), ' : Google ne demande qu\'un motif.'],
+          ['Google répond en quelques jours ; l\'état est dans l\'outil (Décision en attente / Aucune infraction / Transmis).'],
+          ['Si « Aucune infraction » : revenez dans l\'outil › « Vérifier l\'état d\'un avis signalé et options d\'appel » › « Faire appel » › cochez l\'avis › « Soumettre un appel » : dans la zone de texte du formulaire, ', coller, '. Un seul appel par avis (jusqu\'à 10 à la fois) ; un humain le lit et répond par courriel. Puis notez « Appel fait » ici.']
+        ], res.voieRecommandee === 'outil', true));
+        zoneDossier.appendChild(voie('support', '2. Parler à un agent du soutien', [
+          ['Sujet « Avis » › « Supprimer un avis » (ou le sujet le plus proche) › Étapes suivantes.'],
+          ['Dans la grande zone de texte « Décrivez votre problème », ', h('b', 'collez le dossier (Cmd+V)'), ', puis choisissez clavardage ou courriel.'],
+          ['Utile quand l\'outil a refusé, ou pour un faux avis avec des preuves (aucune transaction, ex-employé). Réponse par courriel : notez le numéro de dossier ci-dessous.']
+        ], false, true));
+        zoneDossier.appendChild(voie('juridique', '3. Demande juridique', [
+          ['Choisissez « Google Maps, Waze et produits associés » › motif juridique › « Diffamation » (ou Renseignements personnels, Harcèlement).'],
+          ['Remplissez le formulaire ; dans la zone de description, ', h('b', 'collez la version anglaise du dossier (Cmd+V)'), ' — bouton « Copier la version anglaise seulement » ci-dessus.'],
+          ['Traité par l\'équipe juridique, à part du tri automatique. Réponse par courriel, souvent en 1 à 2 semaines.']
+        ], res.voieRecommandee === 'juridique', false));
         zoneDossier.appendChild(h('div.l', { style: { marginTop: '12px' } }, 'Puis notez ici ce que vous avez fait'));
         zoneDossier.appendChild(h('div.retrait-suivi', [canalSel, note, h('button.btn.primaire.petit', { type: 'button', onclick: function (ev) {
           var bb = ev.currentTarget; bb.disabled = true;

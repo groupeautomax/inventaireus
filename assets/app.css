@@ -707,3 +707,10 @@ a.puce.dem-puce:hover { text-decoration: none; filter: brightness(.96); }
 .svc-etape-demande { margin-top: 4px; }
 .svc-verdict { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; }
 @media (max-width: 640px) { .svc-travaux { grid-template-columns: 1fr; } }
+
+/* 15 oct. — vente pour exportation (panneau d'une offre) */
+.export-bloc { border: 1px dashed var(--trait); border-radius: 10px; padding: 8px 10px; }
+.export-bloc.actif { border-style: solid; border-color: var(--vert); background: rgba(0, 136, 64, .07); }
+.export-bloc label.case { font-size: 13px; align-items: flex-start; }
+.export-bloc label.case input { margin-top: 2px; }
+.export-bloc select.saisie.petit { width: auto; min-width: 140px; padding: 4px 8px; font-size: 12.5px; }

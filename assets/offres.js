@@ -2,10 +2,15 @@
    Section « Offres & clients » : offres reçues (négociation, contrat),
    véhicules en vente (vitrine), acheteurs externes, leads.
    Routes serveur : offresRecues, offreAction (accepter | contre | refuser |
-   annuler | lien | km | signer), contratPdf, vitrineListe, publierVehicule,
+   annuler | lien | km | signer | exportation), contratPdf, vitrineListe, publierVehicule,
    regenererCleVitrine, acheteursExternes, acheteurExterneInviter, leadListe.
    Signature électronique (7 oct.) : l'acheteur signe sur sa page ; le
    directeur contresigne ici (« Signer le contrat », tablette AMX.tablette).
+   15 oct. (Maxime) : « une coche à cocher si la vente est pour exportation
+   US ou France, et éliminer la possibilité de facturer avec les taxes » →
+   bloc « Vente pour exportation » dans le panneau d'une offre (offreAction
+   op=exportation, colonne AC) ; un acheteur des États-Unis ou de France l'est
+   d'office. Le panneau montre les numéros de l'acheteur selon son pays.
    14 oct. (Maxime) : « un véhicule disponible à la vente doit pouvoir être
    envoyé à un acheteur inscrit, par texto et par courriel » → AMX.offres
    .envoyerAcheteurs(vin) (modale : acheteurs inscrits, courriel / texto,
@@ -66,6 +71,9 @@
   function lienPublic(cle, vin) { return AMX.SITE + 'vitrine/vehicle.html?k=' + encodeURIComponent(cle) + '&vin=' + encodeURIComponent(vin); }
   function nomConcession(id) { return AMX.CONCESSIONS[String(id || '').toLowerCase()] || id || '—'; }
   var PAYS = { CA: 'Canada', US: 'États-Unis', FR: 'France' };
+  /* 15 oct. : destinations d'exportation (colonne AC des offres) — sans taxes canadiennes. */
+  var EXPORTATIONS = { US: 'États-Unis', FR: 'France', XX: 'Autre pays' };
+  function exportationTexte(code) { return code ? 'Vente pour exportation — ' + (EXPORTATIONS[code] || code) + ' · sans taxes canadiennes' : ''; }
   function paysDe(a) { var c = String((a && a.paysCode) || '').toUpperCase(); if (PAYS[c]) return c; var p = String((a && a.pays) || '').toLowerCase(); if (/états-unis|etats-unis|united states/.test(p)) return 'US'; if (/france/.test(p)) return 'FR'; if (/canada/.test(p)) return 'CA'; return ''; }
   function paysNom(a) { var c = paysDe(a); return c ? PAYS[c] : (a && a.pays) || ''; }
   function numerosDe(a) {
@@ -388,7 +396,7 @@
       h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: o.modele || v.modele || o.vin }), h('div.sous', [h('span.vin', { text: o.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, v.compagnie ? h('span.puce', { text: v.compagnie }) : null])]),
       h('div.cell', [h('span.l', 'Acheteur'), h('span.v', { text: o.nom || o.courriel || '—' }), h('span.v.doux', { text: o.entreprise || o.courriel || '' })]),
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle })]), h('span.jours', { text: AMX.fmtDate(o.date, true) })]),
-      h('div.cell.indic', [h('span.l', 'Négociation'), h('div.indicateurs', [h('span.puce', { text: 'Offert ' + AMX.fmtArgent(o.prix) }), o.contre ? h('span.puce.info', { text: 'Contre ' + AMX.fmtArgent(o.contre) }) : null, o.noContrat ? h('span.puce.ok', { text: o.noContrat }) : null, o.statut === 'contrat' ? h('span.puce' + (o.contresigne ? '.ok' : '.attention'), { text: o.contresigne ? 'Signé ×2' : 'À contresigner' }) : null])]),
+      h('div.cell.indic', [h('span.l', 'Négociation'), h('div.indicateurs', [h('span.puce', { text: 'Offert ' + AMX.fmtArgent(o.prix) }), o.contre ? h('span.puce.info', { text: 'Contre ' + AMX.fmtArgent(o.contre) }) : null, o.exportation ? h('span.puce.info', { text: 'Export ' + (EXPORTATIONS[o.exportation] || o.exportation), title: exportationTexte(o.exportation) }) : null, o.noContrat ? h('span.puce.ok', { text: o.noContrat }) : null, o.statut === 'contrat' ? h('span.puce' + (o.contresigne ? '.ok' : '.attention'), { text: o.contresigne ? 'Signé ×2' : 'À contresigner' }) : null])]),
       h('div.montant', [h('span.l', o.statut === 'contrat' || o.statut === 'acceptee' ? 'Prix convenu' : (o.statut === 'contre' ? 'Contre-offre' : 'Offert')), h('span', { text: AMX.fmtArgent(montant) })]),
       h('button.plus', { type: 'button', html: I.chevron })
     ]);
@@ -430,6 +438,29 @@
       o.traitePar ? h('dt', 'Traitée par') : null, o.traitePar ? h('dd', { text: o.traitePar }) : null
     ]);
     blocNego.appendChild(dl);
+    // 15 oct. : vente pour exportation (sans taxes canadiennes). Un acheteur des
+    // États-Unis ou de France l'est d'office ; sinon l'équipe coche la case.
+    var paysO = o.paysAcheteur || paysDe(o.acheteur || {});
+    var imposee = paysO === 'US' || paysO === 'FR';
+    var figee = o.statut === 'contrat' || !peut;
+    var cbExport = h('input', { type: 'checkbox' });
+    cbExport.checked = !!o.exportation || imposee;
+    cbExport.disabled = figee || imposee;
+    var selExport = h('select.saisie.petit', Object.keys(EXPORTATIONS).map(function (k) { return h('option', { value: k, text: EXPORTATIONS[k] }); }));
+    selExport.value = o.exportation || paysO || 'US';
+    selExport.disabled = figee || imposee;
+    selExport.style.display = cbExport.checked ? '' : 'none';
+    var poserExport = function () {
+      var code = cbExport.checked ? selExport.value : '';
+      agir('exportation', { exportation: code }, code ? 'Vente pour exportation — ' + EXPORTATIONS[code] + ' : le contrat sortira sans taxes canadiennes' : 'Vente au Canada : taxes selon le lieu de livraison').catch(function () {});
+    };
+    cbExport.addEventListener('change', function () { selExport.style.display = cbExport.checked ? '' : 'none'; poserExport(); });
+    selExport.addEventListener('change', poserExport);
+    blocNego.appendChild(h('div.export-bloc' + (o.exportation || imposee ? '.actif' : ''), { style: { marginTop: '10px' } }, [
+      h('label.case', [cbExport, h('span', [h('b', 'Vente pour exportation'), ' — sans taxes canadiennes (TPS/TVQ/TVH à 0 %)'])]),
+      h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '6px' } }, [h('span.doux.petit', 'Destination'), selExport]),
+      imposee ? h('div.doux.petit', { style: { marginTop: '4px' }, text: 'Acheteur ' + (paysO === 'FR' ? 'de France' : 'des États-Unis') + ' : la vente est pour exportation, il n\'y a pas moyen de facturer les taxes.' }) : (o.statut === 'contrat' ? h('div.doux.petit', { style: { marginTop: '4px' }, text: o.exportation ? exportationTexte(o.exportation) : 'Contrat généré avec les taxes du lieu de livraison.' }) : h('div.doux.petit', { style: { marginTop: '4px' }, text: 'Une fois cochée, le contrat ne peut plus être facturé avec les taxes, quel que soit le lieu de livraison.' }))
+    ]));
     var actions = h('div.actions-ligne', { style: { marginTop: '12px' } });
     if (peut && o.statut === 'nouvelle') {
       actions.appendChild(h('button.btn.primaire', { html: I.ok + '<span>Accepter ' + esc(AMX.fmtArgent(o.prix)) + '</span>', onclick: function () { AMX.confirmer('Accepter l\'offre', 'Accepter ' + AMX.fmtArgent(o.prix) + ' pour ' + (o.modele || o.vin) + ' ? L\'acheteur reçoit le lien pour finaliser et signer.').then(function (ok) { if (ok) agir('accepter', {}, 'Offre acceptée — lien envoyé à l\'acheteur'); }); } }));
@@ -443,9 +474,9 @@
       var sg = o.signatures || {}, sA = sg.acheteur, sV = sg.vendeur;
       var ligneA = 'Signé par l\'acheteur' + (sA && sA.nom ? ' (' + sA.nom + ')' : '') + ' le ' + AMX.fmtDate((sA && sA.quand) || o.contratLe, true) + (sA && sA.tracee === false ? ' — nom tapé' : '');
       if (o.contresigne) {
-        blocNego.appendChild(h('div.alerte-bloc.ok', { style: { marginTop: '10px' } }, [h('span', { html: I.ok }), h('div', [h('div', ['Contrat ', h('b', { text: o.noContrat || '' }), ' signé par les deux parties' + (o.livraison ? ' · livraison ' + o.livraison : '')]), h('div.petit', { text: ligneA }), h('div.petit', { text: 'Contresigné pour le vendeur' + (sV && sV.nom ? ' par ' + sV.nom : '') + ' le ' + AMX.fmtDate(sV && sV.quand, true) + ' — version finale envoyée aux deux parties' })])]));
+        blocNego.appendChild(h('div.alerte-bloc.ok', { style: { marginTop: '10px' } }, [h('span', { html: I.ok }), h('div', [h('div', ['Contrat ', h('b', { text: o.noContrat || '' }), ' signé par les deux parties' + (o.livraison ? ' · livraison ' + o.livraison : '') + (o.exportation ? ' · exportation ' + (EXPORTATIONS[o.exportation] || o.exportation) + ' (sans taxes)' : '')]), h('div.petit', { text: ligneA }), h('div.petit', { text: 'Contresigné pour le vendeur' + (sV && sV.nom ? ' par ' + sV.nom : '') + ' le ' + AMX.fmtDate(sV && sV.quand, true) + ' — version finale envoyée aux deux parties' })])]));
       } else {
-        blocNego.appendChild(h('div.alerte-bloc.attention', { style: { marginTop: '10px' } }, [h('span', { html: I.alerte }), h('div', [h('div', ['Contrat ', h('b', { text: o.noContrat || '' }), ' — à contresigner' + (o.livraison ? ' · livraison ' + o.livraison : '')]), h('div.petit', { text: ligneA + '. Il reste la signature du vendeur : les deux PDF seront refaits et renvoyés à l\'acheteur.' })])]));
+        blocNego.appendChild(h('div.alerte-bloc.attention', { style: { marginTop: '10px' } }, [h('span', { html: I.alerte }), h('div', [h('div', ['Contrat ', h('b', { text: o.noContrat || '' }), ' — à contresigner' + (o.livraison ? ' · livraison ' + o.livraison : '') + (o.exportation ? ' · exportation ' + (EXPORTATIONS[o.exportation] || o.exportation) + ' (sans taxes)' : '')]), h('div.petit', { text: ligneA + '. Il reste la signature du vendeur : les deux PDF seront refaits et renvoyés à l\'acheteur.' })])]));
         if (peut) actions.appendChild(h('button.btn.primaire', { html: I.ok + '<span>Signer le contrat</span>', onclick: function () { self.modaleSigner(o, agir); } }));
       }
       ['vendeur', 'acheteur'].forEach(function (copie) {
@@ -476,13 +507,12 @@
       h('dt', 'Téléphone'), h('dd', [o.telephone ? h('a', { href: 'tel:' + o.telephone, text: o.telephone }) : '—']),
       h('dt', 'Langue'), h('dd', { text: o.langue === 'en' ? 'Anglais' : 'Français' }),
       a.adresse ? h('dt', 'Adresse') : null, a.adresse ? h('dd', { text: [a.adresse, [a.ville, a.province, a.codePostal].filter(Boolean).join(' '), a.pays].filter(Boolean).join(', ') }) : null,
-      a.noConcessionnaire ? h('dt', 'No concessionnaire') : null, a.noConcessionnaire ? h('dd', { text: a.noConcessionnaire }) : null,
-      a.tps ? h('dt', 'TPS / TVQ') : null, a.tps ? h('dd', { text: a.tps + (a.tvq ? ' · ' + a.tvq : '') }) : null
-    ])]);
+      (paysO || a.pays) ? h('dt', 'Pays') : null, (paysO || a.pays) ? h('dd', { text: (PAYS[paysO] || a.pays || '') + (o.exportation ? ' · exportation ' + (EXPORTATIONS[o.exportation] || o.exportation) : '') }) : null
+    ].concat(numerosDe(a).filter(function (n) { return n[1]; }).map(function (n) { return [h('dt', n[0]), h('dd', { text: n[1] })]; }).reduce(function (acc, x) { return acc.concat(x); }, [])))]);
 
     // Historique
     var hist = (o.historique || []).slice().reverse();
-    var LIB = { offre: 'Offre de l\'acheteur', contre: 'Contre-offre', acceptee: 'Acceptée', refusee: 'Refusée', annulee: 'Annulée', lien: 'Lien renvoyé', signature: 'Signature de l\'acheteur', signatureVendeur: 'Signature du vendeur', signe: 'Contrat signé par les deux parties', contrat: 'Contrat généré', courrielEchec: 'Courriel à l\'acheteur non parti', km: 'Kilométrage', note: 'Note' };
+    var LIB = { offre: 'Offre de l\'acheteur', contre: 'Contre-offre', acceptee: 'Acceptée', refusee: 'Refusée', annulee: 'Annulée', lien: 'Lien renvoyé', signature: 'Signature de l\'acheteur', signatureVendeur: 'Signature du vendeur', signe: 'Contrat signé par les deux parties', contrat: 'Contrat généré', courrielEchec: 'Courriel à l\'acheteur non parti', km: 'Kilométrage', note: 'Note', exportation: 'Exportation' };
     var blocHist = h('div.bloc', [h('h3', 'Historique'), hist.length ? h('ul.chrono', hist.map(function (e) {
       return h('li' + (e.par === 'systeme' ? '.systeme' : '') + (e.type === 'courrielEchec' ? '.alerte' : ''), [
         h('div', [h('b', { text: LIB[e.type] || e.type }), e.montant ? ' · ' + AMX.fmtArgent(e.montant) : '', e.qui ? h('span.doux', { text: ' · ' + e.qui }) : null]),

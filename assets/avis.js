@@ -26,6 +26,15 @@
 
    Routes serveur (AvisSuivi.gs) :
      GET  ?avis=1     POST avisEtat, avisAssigner, avisEmployes, sondageCreer
+
+   Avis Google en direct (15 oct. 2026, AvisApi.gs — API Business Profile
+   approuvée par Google) : tous les avis des 8 fiches arrivent par l'API
+   (relevé horaire), et la RÉPONSE se fait d'ici — brouillon gardé, texte
+   proposé selon la note et la langue (« Suggérer »), « Publier sur Google »,
+   « Retirer ». Réservé aux gestionnaires, directions, admins et marketing
+   (le serveur tranche). Un admin peut lancer « Relever maintenant ».
+     POST avisBrouillon { id, brouillon | suggerer }, avisRepondre { id, texte },
+          avisRetirerReponse { id }, avisRelever { mode }
    ========================================================================= */
 (function () {
   'use strict';
@@ -87,6 +96,15 @@
       '.avis-carte .texte.vide-texte { color: var(--encre-4); font-style: italic; }',
       '.avis-carte .reponse { margin-top: 10px; padding: 10px 12px; background: var(--carte-2); border-radius: var(--rayon-s); font-size: 12.5px; line-height: 1.5; border-left: 3px solid var(--vert); }',
       '.avis-carte .reponse .l { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin-bottom: 4px; }',
+      '.avis-carte .reponse .l .ed { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11px; }',
+      '.avis-carte .reponse-edit { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--ligne-forte); border-radius: var(--rayon-s); background: var(--carte-2); }',
+      '.avis-carte .reponse-edit .l { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin-bottom: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
+      '.avis-carte .reponse-edit textarea { width: 100%; min-height: 88px; font: inherit; font-size: 13px; line-height: 1.45; padding: 8px 10px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte); color: var(--encre); resize: vertical; box-sizing: border-box; }',
+      '.avis-carte .reponse-edit .actions-ligne { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }',
+      '.avis-carte .reponse-edit .compte { margin-left: auto; font-size: 11px; color: var(--encre-4); }',
+      '.avis-api-barre { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; padding: 8px 12px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte-2); font-size: 12.5px; color: var(--encre-2); }',
+      '.avis-api-barre .pt { width: 8px; height: 8px; border-radius: 50%; background: var(--vert); box-shadow: 0 0 0 3px var(--vert-clair); }',
+      '.avis-api-barre .btn { margin-left: auto; }',
       '.avis-carte .cote { display: flex; flex-direction: column; gap: 8px; border-left: 1px solid var(--ligne); padding-left: 14px; }',
       '.avis-carte .cote .champ > label { font-size: 10.5px; }',
       '.avis-carte .cote select { height: 30px; font-size: 12.5px; }',
@@ -220,9 +238,25 @@
         h('div', [h('b', 'En attente de l\'approbation de Google (API Business Profile). '),
           'D\'ici là, les notes et le nombre d\'avis sont exacts (relevé quotidien), mais la liste ne montre que les 5 avis « les plus pertinents » de chaque fiche. Dès l\'approbation : tous les avis, les nouveaux en temps réel et la réponse directement d\'ici.'])]));
     }
+    if (d.api && d.api.approuve && (this.onglet === 'avis' || this.onglet === 'apercu' || !this.onglet)) this.elCorps.appendChild(this.barreApi(d));
     if (this.onglet === 'avis') this.rendreAvis(d);
     else if (this.onglet === 'sondages') this.rendreSondages(d);
     else this.rendreApercu(d);
+  };
+
+  /* Avis Google en direct : dernier relevé, et « Relever maintenant » pour les admins. */
+  Avis.prototype.barreApi = function (d) {
+    var self = this;
+    var quand = d.api.dernierReleve ? AMX.fmtDate(d.api.dernierReleve, true) : 'pas encore';
+    var btn = AMX.estAdmin() ? h('button.btn.petit', { type: 'button', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true; b.textContent = 'Relevé en cours…';
+      AMX.post({ action: 'avisRelever', mode: 'recent' }).then(function (r) {
+        AMX.verifier(r, 'Relevé refusé');
+        AMX.toast((r.nouveaux ? r.nouveaux + ' nouvel' + (r.nouveaux > 1 ? 's' : '') + ' avis' : 'Aucun nouvel avis') + (r.modifies ? ', ' + r.modifies + ' mis à jour' : '') + (r.disparus ? ', ' + r.disparus + ' disparu' + (r.disparus > 1 ? 's' : '') : '') + (r.alertes ? ' · ' + r.alertes + ' alerte' + (r.alertes > 1 ? 's' : '') + ' envoyée' + (r.alertes > 1 ? 's' : '') : ''), 'ok');
+        return self.charger(true);
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }).then(function () { b.disabled = false; b.textContent = 'Relever maintenant'; });
+    } }, 'Relever maintenant') : null;
+    return h('div.avis-api-barre', [h('span.pt'), h('span', [h('b', 'Avis Google en direct'), ' — tous les avis des fiches, relevés chaque heure par l\'API Business Profile. Dernier relevé : ' + quand + '.']), btn]);
   };
 
   /* --------------------------------- Aperçu --------------------------------- */
@@ -389,14 +423,14 @@
     var moiCredite = a.employes.indexOf(moiC) >= 0;
     var date = a.creeLe ? AMX.fmtDate(a.creeLe) : '';
     var jours = AMX.joursDepuis(a.creeLe);
-    return h('div.avis-carte' + (estNegatif(a) ? '.negatif' : ''), [
+    return h('div.avis-carte' + (estNegatif(a) ? '.negatif' : ''), { 'data-avis': a.id }, [
       h('div', [
         h('div.haut', [etoiles(a.etoiles, true), h('span.auteur', a.auteur || 'Anonyme'), badgeEtat(a.etat),
           h('span.meta', [a.fiche, date ? ' · ' + date : '', jours !== null && jours <= 30 ? ' · il y a ' + (jours === 0 ? 'moins d\'un jour' : jours + ' j') : '', a.source !== 'google' ? ' · ' + a.source : '']),
           !a.enLigne ? h('span.badge.gris', 'Disparu de Google') : null,
           a.reponseEtat && a.reponseEtat !== 'APPROVED' ? h('span.badge.ambre', a.reponseEtat === 'PENDING' ? 'Réponse en modération' : 'Réponse refusée') : null]),
         h('div.texte' + (a.texte ? '' : '.vide-texte'), a.texte || 'Note sans commentaire.'),
-        a.reponse ? h('div.reponse', [h('div.l', 'Réponse de la concession' + (a.reponseLe ? ' · ' + AMX.fmtDate(a.reponseLe) : '')), a.reponse]) : null
+        this.blocReponse(a, d)
       ]),
       h('div.cote', [
         h('div.champ', [h('label', 'État'), selEtat]),
@@ -408,6 +442,74 @@
           a.lien ? h('a.btn.petit', { href: a.lien, target: '_blank', rel: 'noopener' }, [AMX.svg('externe'), ' Google']) : null
         ])
       ])
+    ]);
+  };
+
+  /* Rôles qui répondent aux avis (le serveur tranche de toute façon : modifierMontants, gererUtilisateurs, alertesAvis ou marketing). */
+  function peutRepondre(d) {
+    var role = String((d && d.moi && d.moi.role) || '');
+    return AMX.estAdmin() || ['gestionnaire', 'direction_ventes', 'direction_service', 'marketing', 'proprietaire', 'admin'].indexOf(role) >= 0;
+  }
+
+  /* La réponse publiée, et l'éditeur (brouillon · suggestion · publier · retirer) quand l'API est active et que l'avis vient de Google. */
+  Avis.prototype.blocReponse = function (a, d) {
+    var self = this;
+    var enDirect = !!(d.api && d.api.approuve) && a.repondable && a.enLigne;
+    var droit = peutRepondre(d);
+    var publiee = a.reponse ? h('div.reponse', [h('div.l', ['Réponse de la concession' + (a.reponseLe ? ' · ' + AMX.fmtDate(a.reponseLe) : ''),
+      enDirect && droit ? h('button.btn.fantome.petit.ed', { type: 'button', onclick: function () { self.ouvrirEditeur(a, d, a.reponse); } }, 'Modifier') : null,
+      enDirect && droit ? h('button.btn.fantome.petit.ed', { type: 'button', onclick: function () {
+        if (!window.confirm('Retirer la réponse publiée sur Google ?')) return;
+        self.ecrire({ action: 'avisRetirerReponse', id: a.id }, 'Réponse retirée de Google');
+      } }, 'Retirer') : null]), a.reponse]) : null;
+    if (a.reponse || !droit) return publiee;
+    if (!enDirect) {
+      if (a.brouillon) return h('div.reponse-edit', [h('div.l', 'Brouillon (réponse à publier sur Google quand l\'API sera active)'), h('div', { style: { whiteSpace: 'pre-wrap', fontSize: '12.5px' } }, a.brouillon)]);
+      return null;
+    }
+    return this.editeurReponse(a, d, a.brouillon || '');
+  };
+
+  Avis.prototype.ouvrirEditeur = function (a, d, texte) {
+    var carte = this.elCorps.querySelector('[data-avis="' + a.id + '"]');
+    if (!carte) return;
+    var ancien = carte.querySelector('.reponse-edit'); if (ancien) ancien.remove();
+    var bloc = carte.querySelector('.reponse');
+    var ed = this.editeurReponse(a, d, texte || '');
+    if (bloc) bloc.parentNode.insertBefore(ed, bloc.nextSibling); else carte.firstChild.appendChild(ed);
+    ed.querySelector('textarea').focus();
+  };
+
+  Avis.prototype.editeurReponse = function (a, d, texte) {
+    var self = this;
+    var ta = h('textarea', { placeholder: 'Votre réponse publique, au nom de ' + (a.fiche || 'la concession') + '…' });
+    ta.value = texte || '';
+    var compte = h('span.compte');
+    var majCompte = function () { compte.textContent = ta.value.length ? ta.value.length + ' / 4000' : ''; };
+    ta.addEventListener('input', majCompte); majCompte();
+    var occupe = function (b, oui, texteAttente) { b.disabled = oui; if (oui) { b.dataset.t = b.textContent; b.textContent = texteAttente; } else if (b.dataset.t) b.textContent = b.dataset.t; };
+    var bSuggerer = h('button.btn.petit', { type: 'button', title: 'Un texte proposé selon la note, la langue de l\'avis et la fiche — à relire avant de publier', onclick: function (e) {
+      var b = e.currentTarget; occupe(b, true, 'Un instant…');
+      AMX.post({ action: 'avisBrouillon', id: a.id, suggerer: true }).then(function (r) {
+        AMX.verifier(r, 'Suggestion refusée');
+        ta.value = r.suggestion || ''; majCompte(); ta.focus();
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }).then(function () { occupe(b, false); });
+    } }, 'Suggérer un texte');
+    var bBrouillon = h('button.btn.petit', { type: 'button', onclick: function (e) {
+      var b = e.currentTarget; occupe(b, true, 'Enregistrement…');
+      self.ecrire({ action: 'avisBrouillon', id: a.id, brouillon: ta.value }, ta.value.trim() ? 'Brouillon enregistré' : 'Brouillon effacé').then(function () { occupe(b, false); });
+    } }, 'Enregistrer le brouillon');
+    var bPublier = h('button.btn.primaire.petit', { type: 'button', onclick: function (e) {
+      var t = ta.value.trim();
+      if (t.length < 2) { AMX.toast('Écrivez une réponse d\'abord.', 'erreur'); ta.focus(); return; }
+      if (!window.confirm((a.reponse ? 'Remplacer la réponse publiée sur Google' : 'Publier cette réponse sur Google') + ', au nom de ' + (a.fiche || 'la concession') + ' ? Elle sera visible par tout le monde.')) return;
+      var b = e.currentTarget; occupe(b, true, 'Publication…');
+      self.ecrire({ action: 'avisRepondre', id: a.id, texte: t }, 'Réponse publiée sur Google').then(function (ok) { if (!ok) occupe(b, false); });
+    } }, a.reponse ? 'Remplacer sur Google' : 'Publier sur Google');
+    return h('div.reponse-edit', [
+      h('div.l', [a.reponse ? 'Modifier la réponse' : (a.brouillon ? 'Brouillon' : 'Répondre'), h('span.doux', { style: { fontWeight: 400, letterSpacing: 0, textTransform: 'none' } }, '— publiée sur la fiche Google « ' + a.fiche + ' »')]),
+      ta,
+      h('div.actions-ligne', [bSuggerer, bBrouillon, bPublier, compte])
     ]);
   };
 
@@ -461,7 +563,7 @@
       AMX.toast(message || 'Enregistré', 'ok');
       self.charger(true);
       return true;
-    }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+    }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });   // 15 oct. : .catch (un refus du serveur, p. ex. « Google a refusé la réponse », était une erreur non attrapée)
   };
 
   /* -------------------------------- Sondages -------------------------------- */

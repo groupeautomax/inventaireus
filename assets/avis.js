@@ -102,6 +102,7 @@
       '.avis-carte .reponse-edit textarea { width: 100%; min-height: 88px; font: inherit; font-size: 13px; line-height: 1.45; padding: 8px 10px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte); color: var(--encre); resize: vertical; box-sizing: border-box; }',
       '.avis-carte .reponse-edit .actions-ligne { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }',
       '.avis-carte .reponse-edit .compte { margin-left: auto; font-size: 11px; color: var(--encre-4); }',
+      '.avis-plus-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0 6px; }',
       '.avis-api-barre { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; padding: 8px 12px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte-2); font-size: 12.5px; color: var(--encre-2); }',
       '.avis-api-barre .pt { width: 8px; height: 8px; border-radius: 50%; background: var(--vert); box-shadow: 0 0 0 3px var(--vert-clair); }',
       '.avis-api-barre .btn { margin-left: auto; }',
@@ -387,7 +388,19 @@
     ]);
     this.elCorps.appendChild(filtres);
     if (!liste.length) { this.elCorps.appendChild(h('div.vide', [AMX.svg('avis'), h('h3', 'Aucun avis'), h('p', 'Rien ne correspond à ces filtres.')])); return; }
-    this.elCorps.appendChild(h('div.avis-liste', liste.map(function (a) { return self.carteAvis(a, d); })));
+    // 15 oct. (v96) : avec l'API, 2 000 avis et plus — on affiche par tranches de PAGE_AVIS (chaque carte a deux listes de personnes).
+    var elListe = h('div.avis-liste');
+    var montres = 0;
+    var plus = liste.length > PAGE_AVIS ? h('button.btn.petit.avis-plus', { type: 'button', onclick: function () { ajouter(); } }) : null;
+    var ajouter = function () {
+      var fin = Math.min(liste.length, montres + PAGE_AVIS);
+      for (var i = montres; i < fin; i++) elListe.appendChild(self.carteAvis(liste[i], d));
+      montres = fin;
+      if (plus) { plus.textContent = 'Afficher ' + Math.min(PAGE_AVIS, liste.length - montres) + ' avis de plus (' + (liste.length - montres) + ' restants)'; plus.style.display = montres < liste.length ? '' : 'none'; }
+    };
+    ajouter();
+    this.elCorps.appendChild(elListe);
+    if (plus) this.elCorps.appendChild(h('div.avis-plus-ligne', [plus, h('span.doux.petit', 'Affinez avec les filtres (concession, note, état, personne) pour aller droit au but.')]));
   };
 
   // Les comptes qui voient cette concession (principale, accès supplémentaire ou groupe), triés : son département d'abord.
@@ -446,6 +459,8 @@
   };
 
   /* Rôles qui répondent aux avis (le serveur tranche de toute façon : modifierMontants, gererUtilisateurs, alertesAvis ou marketing). */
+  var PAGE_AVIS = 50;   // cartes affichées d'un coup sur l'onglet Avis (v96 : 2 000 avis et plus avec l'API)
+
   function peutRepondre(d) {
     var role = String((d && d.moi && d.moi.role) || '');
     return AMX.estAdmin() || ['gestionnaire', 'direction_ventes', 'direction_service', 'marketing', 'proprietaire', 'admin'].indexOf(role) >= 0;

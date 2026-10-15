@@ -157,7 +157,9 @@
     enCache: function () { return cache.reponse; },
     charger: function (force) {
       if (!force && cache.reponse && Date.now() - cache.quand < 60000) return Promise.resolve(cache.reponse);
-      if (promesse) return promesse;
+      // v100 : un rechargement forcé après une écriture ne se contente pas d'un chargement déjà en vol (parti AVANT l'écriture,
+      // il ramènerait la liste d'avant — p. ex. un avis sans sa réponse fraîchement publiée) : il en relance un après.
+      if (promesse) return force ? promesse.then(function () { return AMX.avis.charger(true); }, function () { return AMX.avis.charger(true); }) : promesse;
       promesse = AMX.get({ avis: 1 }).then(function (d) {
         AMX.verifier(d, 'Suivi des avis indisponible');
         if (d.seuilNegatif >= 1 && d.seuilNegatif <= 4) SEUIL = Number(d.seuilNegatif);
@@ -491,6 +493,9 @@
   ];
   var RETRAIT_ETATS = { demande: 'demandé', appel: 'en appel', refuse: 'refusé par Google', retire: 'retiré par Google' };
   var RETRAIT_CANAUX = { outil: 'Outil de gestion des avis (signalement)', appel: 'Outil de gestion des avis — appel', support: 'Agent du soutien Fiche d\'établissement', juridique: 'Formulaire juridique (Google Maps)' };
+  // v100 : les pages de Google, connues du site (le serveur peut les remplacer) — plus de lien « # » si le script déployé est en retard.
+  var RETRAIT_LIENS = { outil: 'https://support.google.com/business/workflow/9945796', support: 'https://support.google.com/business/gethelp', juridique: 'https://support.google.com/legal/troubleshooter/1114905', profil: 'https://business.google.com/' };
+  var SCRIPT_PAS_A_JOUR = 'Le script du serveur n\'est pas à jour : la version déployée ne connaît pas encore le module de retrait. Dans l\'éditeur Apps Script : Déployer › Gérer les déploiements › crayon › Nouvelle version › Déployer, puis réessayez.';
   function badgeRetrait(a) {
     var e = a.retrait && a.retrait.etat;
     if (!e) return null;
@@ -513,9 +518,13 @@
       var b = e.currentTarget; b.disabled = true; b.textContent = 'Un instant…';
       AMX.post({ action: 'avisDossierRetrait', id: a.id, motif: motifSel.value, preuves: preuves.value }).then(function (res) {
         AMX.verifier(res, 'Dossier refusé');
+        // 15 oct. soir (v100) : tant que la version DÉPLOYÉE du script n'a pas le module de retrait, une action inconnue tombe dans
+        // l'ancien traitement POST (mise à jour d'inventaire) qui répond { ok: true, vehicules } — la fenêtre montrait un dossier vide
+        // et des liens « # » qui rouvraient le site. On le dit clairement, et les liens vers Google ne dépendent plus du serveur.
+        if (!res.dossier) throw new Error(SCRIPT_PAS_A_JOUR);
         AMX.vider(zoneDossier); zoneDossier.style.display = '';
         var ta = h('textarea.saisie.retrait-texte', { rows: 12, readonly: 'readonly' }); ta.value = res.dossier || '';
-        var liens = res.liens || {};
+        var liens = Object.assign({}, RETRAIT_LIENS, res.liens || {});
         // 15 oct. soir (Maxime : « les liens 1-2-3 ne fonctionnent pas, je ne comprends pas coller le dossier ») : les pages de
         // Google (outil de gestion, agent) exigent le compte Google qui gère les fiches — Chrome ouvrait le compte par défaut,
         // souvent un autre, et la page restait vide ou demandait de se connecter. On passe par le sélecteur de compte de Google
@@ -620,7 +629,8 @@
 
   Avis.prototype.editeurReponse = function (a, d, texte) {
     var self = this;
-    var ta = h('textarea', { placeholder: 'Votre réponse publique, au nom de ' + (a.fiche || 'la concession') + '…' });
+    var nomRep = a.nomReponse || a.fiche || 'la concession';   // v100 : Ste-Marie répond « Ste-Marie Automobiles Ltée », pas « Ste-Marie Chevrolet »
+    var ta = h('textarea', { placeholder: 'Votre réponse publique, au nom de ' + nomRep + '…' });
     ta.value = texte || '';
     var compte = h('span.compte');
     var majCompte = function () { compte.textContent = ta.value.length ? ta.value.length + ' / 4000' : ''; };
@@ -640,12 +650,14 @@
     var bPublier = h('button.btn.primaire.petit', { type: 'button', onclick: function (e) {
       var t = ta.value.trim();
       if (t.length < 2) { AMX.toast('Écrivez une réponse d\'abord.', 'erreur'); ta.focus(); return; }
-      if (!window.confirm((a.reponse ? 'Remplacer la réponse publiée sur Google' : 'Publier cette réponse sur Google') + ', au nom de ' + (a.fiche || 'la concession') + ' ? Elle sera visible par tout le monde.')) return;
+      if (!window.confirm((a.reponse ? 'Remplacer la réponse publiée sur Google' : 'Publier cette réponse sur Google') + ', au nom de ' + nomRep + ' ? Elle sera visible par tout le monde.')) return;
       var b = e.currentTarget; occupe(b, true, 'Publication…');
-      self.ecrire({ action: 'avisRepondre', id: a.id, texte: t }, 'Réponse publiée sur Google').then(function (ok) { if (!ok) occupe(b, false); });
+      // v100 : `remplacer` seulement quand l'écran montre déjà une réponse (« Remplacer sur Google ») — sinon le serveur refuse de
+      // publier par-dessus une réponse qu'il trouve déjà en ligne (faite d'ici ou dans Google) : jamais en double.
+      self.ecrire({ action: 'avisRepondre', id: a.id, texte: t, remplacer: !!a.reponse }, a.reponse ? 'Réponse remplacée sur Google' : 'Réponse publiée sur Google').then(function (ok) { if (!ok) occupe(b, false); });
     } }, a.reponse ? 'Remplacer sur Google' : 'Publier sur Google');
     return h('div.reponse-edit', [
-      h('div.l', [a.reponse ? 'Modifier la réponse' : (a.brouillon ? 'Brouillon' : 'Répondre'), h('span.doux', { style: { fontWeight: 400, letterSpacing: 0, textTransform: 'none' } }, '— publiée sur la fiche Google « ' + a.fiche + ' »')]),
+      h('div.l', [a.reponse ? 'Modifier la réponse' : (a.brouillon ? 'Brouillon' : 'Répondre'), h('span.doux', { style: { fontWeight: 400, letterSpacing: 0, textTransform: 'none' } }, '— publiée sur la fiche Google « ' + a.fiche + ' »' + (nomRep !== a.fiche ? ', signée ' + nomRep : ''))]),
       ta,
       h('div.actions-ligne', [bSuggerer, bBrouillon, bPublier, compte])
     ]);
@@ -694,11 +706,15 @@
   Avis.prototype.ecrire = function (corps, message) {
     var self = this;
     return AMX.post(corps).then(function (r) {
-      AMX.verifier(r, 'Écriture refusée');
-      if (r.avis && cache.reponse) {
+      // v100 : la ligne renvoyée est la bonne même sur un refus (DEJA_REPONDU : la réponse existante, « plus sur Google » : disparu)
+      // → on l'affiche TOUT DE SUITE, sans attendre le rechargement (qui pouvait ramener une liste encore vieille).
+      if (r && r.avis && cache.reponse) {
         cache.reponse.avis = cache.reponse.avis.map(function (x) { return x.id === r.avis.id ? r.avis : x; });
+        self.rendre();
       }
-      AMX.toast(message || 'Enregistré', 'ok');
+      AMX.verifier(r, 'Écriture refusée');
+      if (!r.avis && r.vehicules) throw new Error(SCRIPT_PAS_A_JOUR);   // v100 : action inconnue du script déployé → ancien traitement d'inventaire
+      AMX.toast(r.dejaPubliee ? 'Cette réponse était déjà publiée sur Google — rien en double.' : (message || 'Enregistré'), 'ok');
       self.charger(true);
       return true;
     }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });   // 15 oct. : .catch (un refus du serveur, p. ex. « Google a refusé la réponse », était une erreur non attrapée)

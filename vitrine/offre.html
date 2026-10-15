@@ -252,7 +252,12 @@ const PROVINCES = [
   ["SK", "Saskatchewan", "Saskatchewan"], ["AB", "Alberta", "Alberta"], ["BC", "Colombie-Britannique", "British Columbia"],
   ["YT", "Yukon", "Yukon"], ["NT", "Territoires du Nord-Ouest", "Northwest Territories"], ["NU", "Nunavut", "Nunavut"]
 ];
-const HORS_CANADA = [["US", "États-Unis", "United States"], ["XX", "Autre pays", "Other country"]];
+const HORS_CANADA = [["US", "États-Unis", "United States"], ["FR", "France", "France"], ["XX", "Autre pays", "Other country"]];
+/* 15 oct. : le pays de l'acheteur (Canada, États-Unis, France) décide des
+   numéros demandés et de l'exportation (sans taxes canadiennes). */
+const PAYS = [["CA", "Canada", "Canada"], ["US", "États-Unis", "United States"], ["FR", "France", "France"], ["XX", "Autre pays", "Other country"]];
+const EXPORTATIONS = [["US", "États-Unis", "United States"], ["FR", "France", "France"], ["XX", "Autre pays", "Other country"]];
+const ETATS_US = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
 const CLAUSES = {
   fr: [
@@ -332,14 +337,37 @@ const T = {
     province: "Province / État",
     codePostal: "Code postal",
     pays: "Pays",
+    paysAide: "Choisissez votre pays en premier : les numéros demandés et les taxes en dépendent.",
+    etat: "État",
+    raisonSociale: "Raison sociale",
     noConcessionnaire: "No de concessionnaire (facultatif)",
+    permis: "Permis de commerçant",
+    noEntreprise: "No d'entreprise (NEQ / BN) (facultatif)",
     tps: "No TPS/TVH (facultatif)",
     tvq: "No TVQ (facultatif)",
+    siret: "SIRET (14 chiffres)",
+    tvaIntra: "TVA intracommunautaire (FR + 11 caractères)",
+    ape: "Code APE / NAF",
+    apeAide: "4511Z obligatoire — commerce de voitures et de véhicules automobiles légers.",
+    eori: "Numéro EORI (importations)",
+    eoriAide: "Proposé d'après le SIRET : FR + SIRET.",
+    rcs: "RCS (facultatif)",
+    rne: "RNE (SIREN)",
+    ein: "EIN (no fiscal fédéral, 9 chiffres)",
+    licence: "Licence de concessionnaire (dealer license)",
+    certificatRevente: "Certificat de revente (facultatif)",
+    exportationTitre: "Exportation",
+    exportationCase: "Vente pour exportation hors du Canada (États-Unis, France…) — sans taxes canadiennes",
+    exportationImposee: "Votre concession est à l'étranger : la vente est pour exportation, sans TPS/TVQ/TVH. Les taxes et droits de votre pays sont à votre charge.",
+    exportationPosee: "Le vendeur a inscrit cette vente comme une vente pour exportation : aucune taxe canadienne ne sera facturée.",
+    exportationVers: "Pays de destination",
     telephone: "Téléphone",
     courriel: "Courriel (le contrat y sera envoyé)",
     livraisonTitre: "Livraison et taxes",
     livraison: "Lieu de livraison du véhicule",
     livraisonAide: "Les taxes dépendent de la province de livraison. Elles s'appliquent sur le prix convenu.",
+    livraisonAideExport: "Vente pour exportation : aucune taxe canadienne, quel que soit le lieu où vous prenez le véhicule.",
+    taxesExport: "Taxes — vente pour exportation (0 %)",
     prixVente: "Prix de vente",
     sousTotal: "Sous-total",
     frais: "Frais",
@@ -377,6 +405,15 @@ const T = {
     ADRESSE_REQUISE: "L'adresse et la ville sont requises.",
     COURRIEL_INVALIDE: "Veuillez entrer une adresse courriel valide.",
     LIVRAISON_REQUISE: "Choisissez le lieu de livraison.",
+    PAYS_REQUIS: "Choisissez votre pays.",
+    CODE_POSTAL_REQUIS: "Le code postal est requis.",
+    SIRET_REQUIS: "Le SIRET est requis.", SIRET_INVALIDE: "Le SIRET doit avoir 14 chiffres.",
+    TVA_REQUISE: "Le numéro de TVA intracommunautaire est requis.", TVA_INVALIDE: "Le numéro de TVA doit être FR + 2 caractères + les 9 chiffres du SIREN.", TVA_SIREN: "Le SIREN du numéro de TVA ne correspond pas au SIRET.",
+    APE_REQUIS: "Le code APE / NAF est requis.", APE_INVALIDE: "Seul le code APE 4511Z (commerce de voitures) est accepté.",
+    EORI_REQUIS: "Le numéro EORI est requis pour l'importation.", EORI_INVALIDE: "L'EORI doit être FR + 14 chiffres.", EORI_SIRET: "L'EORI doit être FR suivi de votre SIRET.",
+    EIN_REQUIS: "L'EIN est requis.", EIN_INVALIDE: "L'EIN doit avoir 9 chiffres.",
+    LICENCE_REQUISE: "La licence de concessionnaire est requise.", ETAT_REQUIS: "Choisissez l'état.",
+    PERMIS_REQUIS: "Le permis de commerçant est requis.", PROVINCE_REQUISE: "Choisissez la province.",
     SIGNATURE_REQUISE: "Tapez votre nom complet et cochez la case d'acceptation.",
     SIGNATURE_TRACEE_REQUISE: "Tracez votre signature dans le cadre.",
     SIGNATURE_INVALIDE: "La signature n'a pas pu être lue : effacez et recommencez.",
@@ -441,14 +478,37 @@ const T = {
     province: "Province / State",
     codePostal: "Postal / ZIP code",
     pays: "Country",
+    paysAide: "Choose your country first: the numbers we ask for and the taxes depend on it.",
+    etat: "State",
+    raisonSociale: "Company legal name (raison sociale)",
     noConcessionnaire: "Dealer number (optional)",
+    permis: "Dealer permit",
+    noEntreprise: "Business number (NEQ / BN) (optional)",
     tps: "GST/HST number (optional)",
     tvq: "QST number (optional)",
+    siret: "SIRET (14 digits)",
+    tvaIntra: "EU VAT number (FR + 11 characters)",
+    ape: "APE / NAF code",
+    apeAide: "4511Z required — sale of cars and light motor vehicles.",
+    eori: "EORI number (imports)",
+    eoriAide: "Suggested from the SIRET: FR + SIRET.",
+    rcs: "RCS (optional)",
+    rne: "RNE (SIREN)",
+    ein: "EIN (federal tax ID, 9 digits)",
+    licence: "Dealer license number",
+    certificatRevente: "Resale certificate (optional)",
+    exportationTitre: "Export",
+    exportationCase: "Export sale outside Canada (United States, France…) — no Canadian taxes",
+    exportationImposee: "Your dealership is abroad: this is an export sale, with no GST/QST/HST. Taxes and duties in your country are your responsibility.",
+    exportationPosee: "The seller recorded this sale as an export sale: no Canadian tax will be charged.",
+    exportationVers: "Destination country",
     telephone: "Phone",
     courriel: "Email (the contract is sent there)",
     livraisonTitre: "Delivery and taxes",
     livraison: "Vehicle delivery location",
     livraisonAide: "Taxes depend on the delivery province. They apply to the agreed price.",
+    livraisonAideExport: "Export sale: no Canadian tax, wherever you pick up the vehicle.",
+    taxesExport: "Taxes — export sale (0%)",
     prixVente: "Purchase price",
     sousTotal: "Subtotal",
     frais: "Fees",
@@ -486,6 +546,15 @@ const T = {
     ADRESSE_REQUISE: "Address and city are required.",
     COURRIEL_INVALIDE: "Please enter a valid email address.",
     LIVRAISON_REQUISE: "Choose the delivery location.",
+    PAYS_REQUIS: "Choose your country.",
+    CODE_POSTAL_REQUIS: "The postal code is required.",
+    SIRET_REQUIS: "The SIRET is required.", SIRET_INVALIDE: "The SIRET must have 14 digits.",
+    TVA_REQUISE: "The EU VAT number is required.", TVA_INVALIDE: "The VAT number must be FR + 2 characters + the 9 digits of the SIREN.", TVA_SIREN: "The SIREN in the VAT number does not match the SIRET.",
+    APE_REQUIS: "The APE / NAF code is required.", APE_INVALIDE: "Only APE code 4511Z (car dealers) is accepted.",
+    EORI_REQUIS: "The EORI number is required for imports.", EORI_INVALIDE: "The EORI must be FR + 14 digits.", EORI_SIRET: "The EORI must be FR followed by your SIRET.",
+    EIN_REQUIS: "The EIN is required.", EIN_INVALIDE: "The EIN must have 9 digits.",
+    LICENCE_REQUISE: "The dealer license number is required.", ETAT_REQUIS: "Choose the state.",
+    PERMIS_REQUIS: "The dealer permit is required.", PROVINCE_REQUISE: "Choose the province.",
     SIGNATURE_REQUISE: "Type your full name and tick the acceptance box.",
     SIGNATURE_TRACEE_REQUISE: "Draw your signature in the box.",
     SIGNATURE_INVALIDE: "The signature could not be read: clear it and try again.",
@@ -760,8 +829,13 @@ function afficherMessage(titre, detail) {
 
 /* ------------------------------ TAXES (aperçu) ------------------------- */
 
-function calculer(prix, code) {
-  const regle = (offre.taxes || {})[code] || (offre.taxes || {}).QC || { lignes: [], nom: code };
+function calculer(prix, code, exportation) {
+  let regle = (offre.taxes || {})[code] || (offre.taxes || {}).QC || { lignes: [], nom: code };
+  /* 15 oct. : vente pour exportation — 0 % quel que soit le lieu de livraison. */
+  if (exportation) {
+    const r = (offre.taxes || {})[exportation] || (offre.taxes || {}).XX || { note: "" };
+    regle = { lignes: [], nom: regle.nom || code, note: r.note || "" };
+  }
   prix = Math.round(prix * 100) / 100;
   const arr = x => Math.round(x * 100) / 100;
   const taxesPrix = (regle.lignes || []).map(l => ({ code: l.code, taux: l.taux, montant: arr(prix * l.taux) }));
@@ -770,7 +844,28 @@ function calculer(prix, code) {
   const baseTaxable = frais.filter(f => f.taxable).reduce((s, f) => s + Number(f.montant), 0);
   const taxesFrais = (regle.lignes || []).map(l => ({ code: l.code, taux: l.taux, montant: arr(baseTaxable * l.taux) })).filter(l => l.montant);
   const totalFrais = arr(frais.reduce((s, f) => s + Number(f.montant), 0) + taxesFrais.reduce((s, l) => s + l.montant, 0));
-  return { prix, taxesPrix, sousTotal, frais, taxesFrais, totalFrais, total: arr(sousTotal + totalFrais), note: regle.note || "", nom: regle.nom || code };
+  return { prix, taxesPrix, sousTotal, frais, taxesFrais, totalFrais, total: arr(sousTotal + totalFrais), note: regle.note || "", nom: regle.nom || code, exportation: exportation || "" };
+}
+
+/* Nom d'une destination d'exportation (US, FR, XX) dans la langue de la page. */
+function nomExportation(code) {
+  for (const e of EXPORTATIONS) if (e[0] === code) return langue === "en" ? e[2] : e[1];
+  return code || "";
+}
+function nomPays(code) {
+  for (const e of PAYS) if (e[0] === code) return langue === "en" ? e[2] : e[1];
+  return code || "";
+}
+/* Le pays de l'acheteur d'après sa fiche (paysCode, sinon le nom du pays). */
+function paysDe(a) {
+  a = a || {};
+  const c = String(a.paysCode || "").toUpperCase();
+  if (c === "CA" || c === "US" || c === "FR") return c;
+  const p = String(a.pays || "").toLowerCase();
+  if (/^(canada)$/.test(p)) return "CA";
+  if (/^(états-unis|etats-unis|united states|usa?)$/.test(p)) return "US";
+  if (/^(france)$/.test(p)) return "FR";
+  return "";
 }
 
 function codeTaxe(code) {
@@ -778,11 +873,11 @@ function codeTaxe(code) {
   return { TPS: "GST", TVQ: "QST", TVH: "HST" }[code] || code;
 }
 
-function tableauTaxes(prix, code) {
-  const c = calculer(prix, code);
+function tableauTaxes(prix, code, exportation) {
+  const c = calculer(prix, code, exportation);
   let h = '<table class="taxes">';
   h += "<tr><td>" + echappe(t().prixVente) + '</td><td class="m">' + echappe(argent(c.prix)) + "</td></tr>";
-  if (c.taxesPrix.length === 0) h += "<tr><td>" + echappe(langue === "en" ? "Taxes" : "Taxes") + '</td><td class="m">' + echappe(argent(0)) + "</td></tr>";
+  if (c.taxesPrix.length === 0) h += "<tr><td>" + echappe(c.exportation ? t().taxesExport : "Taxes") + '</td><td class="m">' + echappe(argent(0)) + "</td></tr>";
   c.taxesPrix.forEach(x => {
     h += "<tr><td>" + echappe(codeTaxe(x.code) + " " + pourcent(x.taux)) + '</td><td class="m">' + echappe(argent(x.montant)) + "</td></tr>";
   });
@@ -792,6 +887,7 @@ function tableauTaxes(prix, code) {
     c.taxesFrais.forEach(x => { h += "<tr><td>" + echappe(t().taxesFrais + " — " + codeTaxe(x.code) + " " + pourcent(x.taux)) + '</td><td class="m">' + echappe(argent(x.montant)) + "</td></tr>"; });
   }
   h += '<tr class="total"><td>' + echappe(t().total) + '</td><td class="m">' + echappe(argent(c.total)) + "</td></tr></table>";
+  if (c.exportation) h += '<div class="note"><b>' + echappe((langue === "en" ? "Export sale — " : "Vente pour exportation — ") + nomExportation(c.exportation)) + "</b></div>";
   if (c.note) h += '<div class="note">' + echappe(c.note) + "</div>";
   return h;
 }
@@ -861,7 +957,7 @@ function dessiner() {
     h += '<li class="fait"><span class="pastilleSig"></span><div><div class="qui">' + echappe(t().sigAcheteur(sA && sA.nom)) + '</div><div class="quand">' + echappe(t().sigFaite(dateLisible((sA && sA.quand) || o.contratLe))) + "</div></div></li>";
     h += '<li class="' + (sV ? "fait" : "") + '"><span class="pastilleSig"></span><div><div class="qui">' + echappe(t().sigVendeur((o.vendeur && o.vendeur.nom) || "", sV && sV.nom)) + '</div><div class="quand">' + echappe(sV ? t().sigFaite(dateLisible(sV.quand)) : t().sigAttente) + "</div></div></li>";
     h += "</ul>";
-    if (o.livraison) h += tableauTaxes(o.prixFinal, o.livraison);
+    if (o.livraison || o.exportation) h += tableauTaxes(o.prixFinal, o.livraison || o.exportation, o.exportation);
   } else if (o.statut === "annulee") {
     h += '<p class="aide">' + echappe(t().annuleeDetail) + "</p>";
   } else {
@@ -914,38 +1010,81 @@ function optionsRegion(choisi, avecHorsCanada) {
 function formulaireFinalisation() {
   const o = offre;
   const a = o.acheteur || {};
-  const champ = (id, libelle, defaut, attrs) =>
-    '<label for="' + id + '">' + echappe(libelle) + '</label><input id="' + id + '" value="' + echappe(valeur(id, defaut)) + '" ' + (attrs || "") + ">";
-  const pays = valeur("pays", a.pays === "États-Unis" || a.pays === "United States" ? "US" : "CA");
-  const provinceDefaut = valeur("province", a.province || "QC");
-  const livraisonDefaut = valeur("livraison", o.livraison || (pays === "CA" ? provinceDefaut : "US"));
+  const champ = (id, libelle, defaut, attrs, aide) =>
+    '<label for="' + id + '">' + echappe(libelle) + '</label><input id="' + id + '" value="' + echappe(valeur(id, defaut)) + '" ' + (attrs || "") + ">" +
+    (aide ? '<div class="aide" style="margin:-4px 0 8px">' + echappe(aide) + "</div>" : "");
+  /* 15 oct. : le pays d'abord. Un acheteur des États-Unis ou de France est en
+     exportation d'office (le serveur l'impose aussi) ; un acheteur canadien
+     peut cocher la case. Si le vendeur a déjà posé l'exportation, elle reste. */
+  const paysFiche = paysDe(a) || (o.exportation === "US" || o.exportation === "FR" ? o.exportation : "");
+  const pays = valeur("pays", paysFiche || "CA");
+  const etranger = pays === "US" || pays === "FR" || pays === "XX";
+  const exportPosee = o.exportation || "";
+  const exportCochee = etranger || !!exportPosee || !!valeur("exportation", false);
+  const exportVers = etranger ? pays : valeur("exportVers", exportPosee || "US");
+  const exportation = exportCochee ? exportVers : "";
+  const provinceDefaut = valeur("province", a.province || (pays === "CA" ? "QC" : ""));
+  const livraisonDefaut = valeur("livraison", o.livraison || (pays === "CA" ? provinceDefaut : pays));
   let h = '<form id="formFinal" novalidate>';
   h += "<h2>" + echappe(t().acheteurTitre) + "</h2>";
-  h += '<div class="duo"><div>' + champ("nomLegal", t().nomLegal, a.nomLegal || o.entreprise || o.nom, 'autocomplete="organization" required') + "</div>";
+  h += '<label for="pays">' + echappe(t().pays) + '</label><select id="pays">' +
+    PAYS.map(r => '<option value="' + r[0] + '"' + (r[0] === pays ? " selected" : "") + ">" + echappe(langue === "en" ? r[2] : r[1]) + "</option>").join("") + "</select>";
+  h += '<p class="aide" style="margin-top:-4px">' + echappe(t().paysAide) + "</p>";
+  h += '<div class="duo"><div>' + champ("nomLegal", pays === "FR" ? t().raisonSociale : t().nomLegal, a.nomLegal || o.entreprise || o.nom, 'autocomplete="organization" required') + "</div>";
   h += "<div>" + champ("signataire", t().signataire, a.signataire || o.nom, 'autocomplete="name"') + "</div></div>";
   h += champ("adresse", t().adresse, a.adresse, 'autocomplete="street-address" required');
-  h += '<div class="trio"><div>' + champ("ville", t().ville, a.ville, 'autocomplete="address-level2" required') + "</div>";
-  h += '<div><label for="province">' + echappe(t().province) + "</label>";
-  if (pays === "CA") {
-    h += '<select id="province">' + optionsRegion(provinceDefaut, false) + "</select>";
+  if (pays === "FR") {
+    h += '<div class="duo"><div>' + champ("codePostal", t().codePostal, a.codePostal, 'autocomplete="postal-code" inputmode="numeric" required') + "</div>";
+    h += "<div>" + champ("ville", t().ville, a.ville, 'autocomplete="address-level2" required') + "</div></div>";
   } else {
-    h += '<input id="province" value="' + echappe(valeur("province", a.province)) + '" autocomplete="address-level1">';
+    h += '<div class="trio"><div>' + champ("ville", t().ville, a.ville, 'autocomplete="address-level2" required') + "</div>";
+    h += '<div><label for="province">' + echappe(pays === "US" ? t().etat : t().province) + "</label>";
+    if (pays === "CA") {
+      h += '<select id="province">' + optionsRegion(provinceDefaut, false) + "</select>";
+    } else if (pays === "US") {
+      h += '<select id="province"><option value="">—</option>' + ETATS_US.map(e => '<option value="' + e + '"' + (e === String(provinceDefaut).toUpperCase() ? " selected" : "") + ">" + e + "</option>").join("") + "</select>";
+    } else {
+      h += '<input id="province" value="' + echappe(valeur("province", a.province)) + '" autocomplete="address-level1">';
+    }
+    h += "</div><div>" + champ("codePostal", t().codePostal, a.codePostal, 'autocomplete="postal-code"') + "</div></div>";
   }
-  h += "</div><div>" + champ("codePostal", t().codePostal, a.codePostal, 'autocomplete="postal-code"') + "</div></div>";
-  h += '<label for="pays">' + echappe(t().pays) + '</label><select id="pays">' +
-    '<option value="CA"' + (pays === "CA" ? " selected" : "") + ">Canada</option>" +
-    '<option value="US"' + (pays === "US" ? " selected" : "") + ">" + echappe(nomRegion("US")) + "</option>" +
-    '<option value="XX"' + (pays === "XX" ? " selected" : "") + ">" + echappe(nomRegion("XX")) + "</option></select>";
-  h += '<div class="duo"><div>' + champ("noConcessionnaire", t().noConcessionnaire, a.noConcessionnaire) + "</div>";
-  h += "<div>" + champ("tps", t().tps, a.tps) + "</div></div>";
-  h += '<div class="duo"><div>' + champ("tvq", t().tvq, a.tvq) + "</div>";
-  h += "<div>" + champ("telephone", t().telephone, a.telephone || o.telephone, 'type="tel" autocomplete="tel" inputmode="tel"') + "</div></div>";
-  h += champ("courriel", t().courriel, a.courriel || o.courriel, 'type="email" autocomplete="email" inputmode="email" required');
+  if (pays === "FR") {
+    h += '<div class="duo"><div>' + champ("siret", t().siret, a.siret, 'inputmode="numeric" autocomplete="off" required') + "</div>";
+    h += "<div>" + champ("tvaIntra", t().tvaIntra, a.tvaIntra, 'autocomplete="off" required') + "</div></div>";
+    h += '<div class="duo"><div>' + champ("ape", t().ape, a.ape || "4511Z", 'autocomplete="off" required', t().apeAide) + "</div>";
+    h += "<div>" + champ("eori", t().eori, a.eori, 'autocomplete="off" required', t().eoriAide) + "</div></div>";
+    h += '<div class="duo"><div>' + champ("rcs", t().rcs, a.rcs, 'autocomplete="off"') + "</div>";
+    h += "<div>" + champ("rne", t().rne, a.rne, 'inputmode="numeric" autocomplete="off"') + "</div></div>";
+  } else if (pays === "US") {
+    h += '<div class="duo"><div>' + champ("ein", t().ein, a.ein, 'inputmode="numeric" autocomplete="off" required') + "</div>";
+    h += "<div>" + champ("noConcessionnaire", t().licence, a.noConcessionnaire, 'autocomplete="off" required') + "</div></div>";
+    h += champ("certificatRevente", t().certificatRevente, a.certificatRevente, 'autocomplete="off"');
+  } else {
+    h += '<div class="duo"><div>' + champ("noConcessionnaire", pays === "CA" ? t().permis : t().noConcessionnaire, a.noConcessionnaire) + "</div>";
+    h += "<div>" + champ("noEntreprise", t().noEntreprise, a.noEntreprise) + "</div></div>";
+    h += '<div class="duo"><div>' + champ("tps", t().tps, a.tps) + "</div>";
+    h += "<div>" + champ("tvq", t().tvq, a.tvq) + "</div></div>";
+  }
+  h += '<div class="duo"><div>' + champ("telephone", t().telephone, a.telephone || o.telephone, 'type="tel" autocomplete="tel" inputmode="tel"') + "</div>";
+  h += "<div>" + champ("courriel", t().courriel, a.courriel || o.courriel, 'type="email" autocomplete="email" inputmode="email" required') + "</div></div>";
+
+  h += '<h2 style="margin-top:22px">' + echappe(t().exportationTitre) + "</h2>";
+  if (etranger) {
+    h += '<label class="case"><input type="checkbox" id="exportation" checked disabled><span>' + echappe(t().exportationCase) + "</span></label>";
+    h += '<p class="aide">' + echappe(t().exportationImposee) + "</p>";
+  } else {
+    h += '<label class="case"><input type="checkbox" id="exportation"' + (exportCochee ? " checked" : "") + (exportPosee ? " disabled" : "") + "><span>" + echappe(t().exportationCase) + "</span></label>";
+    if (exportPosee) h += '<p class="aide">' + echappe(t().exportationPosee) + "</p>";
+    if (exportCochee) {
+      h += '<label for="exportVers">' + echappe(t().exportationVers) + '</label><select id="exportVers"' + (exportPosee ? " disabled" : "") + ">" +
+        EXPORTATIONS.map(r => '<option value="' + r[0] + '"' + (r[0] === exportVers ? " selected" : "") + ">" + echappe(langue === "en" ? r[2] : r[1]) + "</option>").join("") + "</select>";
+    }
+  }
 
   h += '<h2 style="margin-top:22px">' + echappe(t().livraisonTitre) + "</h2>";
-  h += '<p class="aide">' + echappe(t().livraisonAide) + "</p>";
+  h += '<p class="aide">' + echappe(exportation ? t().livraisonAideExport : t().livraisonAide) + "</p>";
   h += '<label for="livraison">' + echappe(t().livraison) + '</label><select id="livraison">' + optionsRegion(livraisonDefaut, true) + "</select>";
-  h += '<div id="apercuTaxes">' + tableauTaxes(o.prixFinal, livraisonDefaut) + "</div>";
+  h += '<div id="apercuTaxes">' + tableauTaxes(o.prixFinal, livraisonDefaut, exportation) + "</div>";
 
   h += '<h2 style="margin-top:22px">' + echappe(t().conditionsTitre) + "</h2>";
   h += '<ol class="conditions">' + CLAUSES[langue].map(c => "<li>" + echappe(c) + "</li>").join("") + "</ol>";
@@ -961,6 +1100,21 @@ function formulaireFinalisation() {
   return h;
 }
 
+/* L'exportation telle que le formulaire la montre (code US/FR/XX ou ''). */
+function exportationChoisie() {
+  const lire = (id, defaut) => { const el = document.getElementById(id); if (!el) return valeur(id, defaut); return el.type === "checkbox" ? el.checked : el.value; };
+  const pays = lire("pays", "CA");
+  if (pays === "US" || pays === "FR" || pays === "XX") return pays;
+  if (offre && offre.exportation) return offre.exportation;
+  return lire("exportation", false) ? (lire("exportVers", "US") || "US") : "";
+}
+
+function rafraichirTaxes() {
+  const el = document.getElementById("apercuTaxes");
+  const liv = document.getElementById("livraison");
+  if (el && liv) el.innerHTML = tableauTaxes(offre.prixFinal, liv.value, exportationChoisie());
+}
+
 /* ------------------------------- ACTIONS -------------------------------- */
 
 function brancher() {
@@ -972,15 +1126,14 @@ function brancher() {
   on("btnRefuser", "click", () => {
     if (confirm(langue === "en" ? "Withdraw from this negotiation?" : "Vous retirer de cette négociation ?")) repondre("refuser");
   });
-  on("livraison", "change", () => {
-    memoriserSaisie();
-    document.getElementById("apercuTaxes").innerHTML = tableauTaxes(offre.prixFinal, document.getElementById("livraison").value);
-  });
+  on("livraison", "change", () => { memoriserSaisie(); rafraichirTaxes(); });
   on("pays", "change", () => {
     memoriserSaisie();
     const pays = document.getElementById("pays").value;
-    if (pays !== "CA") { brouillon.province = ""; brouillon.livraison = pays; }
-    else { brouillon.province = "QC"; brouillon.livraison = "QC"; }
+    /* Changer de pays efface ce qui n'a plus de sens (province, numéros de l'autre pays). */
+    ["province", "siret", "tvaIntra", "ape", "eori", "rcs", "rne", "ein", "certificatRevente", "noConcessionnaire", "noEntreprise", "tps", "tvq"].forEach(k => { delete brouillon[k]; });
+    delete brouillon.exportation; delete brouillon.exportVers;
+    brouillon.livraison = pays === "CA" ? "QC" : pays;
     dessiner();
   });
   on("province", "change", () => {
@@ -989,6 +1142,18 @@ function brancher() {
       brouillon.livraison = document.getElementById("province").value;
       dessiner();
     }
+  });
+  on("exportation", "change", () => { memoriserSaisie(); dessiner(); });
+  on("exportVers", "change", () => { memoriserSaisie(); rafraichirTaxes(); });
+  /* France : l'EORI (FR + SIRET) et le RNE (SIREN) se proposent dès que le SIRET est tapé. */
+  on("siret", "input", () => {
+    const chiffres = document.getElementById("siret").value.replace(/\D/g, "");
+    const eori = document.getElementById("eori"), rne = document.getElementById("rne");
+    if (chiffres.length === 14) {
+      if (eori && (!eori.value || eori.dataset.auto === "1")) { eori.value = "FR" + chiffres; eori.dataset.auto = "1"; }
+      if (rne && (!rne.value || rne.dataset.auto === "1")) { rne.value = chiffres.slice(0, 9); rne.dataset.auto = "1"; }
+    }
+    memoriserSaisie();
   });
   on("formFinal", "submit", ev => { ev.preventDefault(); finaliser(); });
 
@@ -1059,17 +1224,47 @@ function cacherErreur() {
 async function finaliser() {
   memoriserSaisie();
   cacherErreur();
+  const selPays = document.getElementById("pays");
+  const paysCode = selPays ? selPays.value : valeur("pays", "CA");
+  const exportation = exportationChoisie();
   const acheteur = {
     nomLegal: valeur("nomLegal"), signataire: valeur("signataire"), adresse: valeur("adresse"), ville: valeur("ville"),
     province: valeur("province"), codePostal: valeur("codePostal"),
-    pays: { CA: "Canada", US: langue === "en" ? "United States" : "États-Unis" }[valeur("pays", "CA")] || valeur("pays"),
-    noConcessionnaire: valeur("noConcessionnaire"), tps: valeur("tps"), tvq: valeur("tvq"),
+    paysCode: paysCode, pays: nomPays(paysCode) || valeur("pays"),
+    noConcessionnaire: valeur("noConcessionnaire"), noEntreprise: valeur("noEntreprise"), tps: valeur("tps"), tvq: valeur("tvq"),
+    siret: valeur("siret"), tvaIntra: valeur("tvaIntra"), ape: valeur("ape"), eori: valeur("eori"), rcs: valeur("rcs"), rne: valeur("rne"),
+    ein: valeur("ein"), licenceEtat: paysCode === "US" ? valeur("province") : "", certificatRevente: valeur("certificatRevente"),
     telephone: valeur("telephone"), courriel: valeur("courriel")
   };
+  if (!paysCode) { erreur("PAYS_REQUIS"); return; }
   if (!acheteur.nomLegal || acheteur.nomLegal.length < 2) { erreur("NOM_REQUIS"); return; }
   if (!acheteur.adresse || !acheteur.ville) { erreur("ADRESSE_REQUISE"); return; }
   if (acheteur.courriel.indexOf("@") < 0) { erreur("COURRIEL_INVALIDE"); return; }
-  if (!valeur("livraison")) { erreur("LIVRAISON_REQUISE"); return; }
+  /* Les mêmes vérifications que le script, avant l'envoi (France, États-Unis). */
+  if (paysCode === "FR") {
+    if (!acheteur.codePostal) { erreur("CODE_POSTAL_REQUIS"); return; }
+    const siret = acheteur.siret.replace(/\D/g, "");
+    if (!siret) { erreur("SIRET_REQUIS"); return; }
+    if (siret.length !== 14) { erreur("SIRET_INVALIDE"); return; }
+    const tva = acheteur.tvaIntra.replace(/[\s.-]/g, "").toUpperCase();
+    if (!tva) { erreur("TVA_REQUISE"); return; }
+    if (!/^FR[0-9A-Z]{2}[0-9]{9}$/.test(tva)) { erreur("TVA_INVALIDE"); return; }
+    if (tva.slice(-9) !== siret.slice(0, 9)) { erreur("TVA_SIREN"); return; }
+    const ape = acheteur.ape.replace(/[\s.]/g, "").toUpperCase();
+    if (!ape) { erreur("APE_REQUIS"); return; }
+    if (ape !== "4511Z") { erreur("APE_INVALIDE"); return; }
+    const eori = acheteur.eori.replace(/[\s.-]/g, "").toUpperCase();
+    if (!eori) { erreur("EORI_REQUIS"); return; }
+    if (!/^FR[0-9]{14}$/.test(eori)) { erreur("EORI_INVALIDE"); return; }
+    if (eori.slice(2) !== siret) { erreur("EORI_SIRET"); return; }
+  } else if (paysCode === "US") {
+    const ein = acheteur.ein.replace(/\D/g, "");
+    if (!ein) { erreur("EIN_REQUIS"); return; }
+    if (ein.length !== 9) { erreur("EIN_INVALIDE"); return; }
+    if (!acheteur.noConcessionnaire) { erreur("LICENCE_REQUISE"); return; }
+    if (!acheteur.province) { erreur("ETAT_REQUIS"); return; }
+  }
+  if (!valeur("livraison") && !exportation) { erreur("LIVRAISON_REQUISE"); return; }
   if (!valeur("accepte", false) || String(valeur("signature")).trim().length < 3) { erreur("SIGNATURE_REQUISE"); return; }
   const signatureImage = tablette ? tablette.image() : "";
   if (!signatureImage) { erreur("SIGNATURE_TRACEE_REQUISE"); return; }
@@ -1079,7 +1274,7 @@ async function finaliser() {
   bouton.textContent = t().signatureEnCours;
   try {
     const j = await poster({
-      action: "offreFinaliser", o: idOffre, acheteur: acheteur, livraison: valeur("livraison"),
+      action: "offreFinaliser", o: idOffre, acheteur: acheteur, livraison: valeur("livraison") || exportation, exportation: exportation,
       langue: langue, signature: String(valeur("signature")).trim(), signatureImage: signatureImage, accepte: true,
       agent: navigator.userAgent
     });

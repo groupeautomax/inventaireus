@@ -121,12 +121,13 @@
   .video-lien { display: inline-block; margin-top: 10px; font-size: 14px; color: var(--vert); font-weight: 600; text-decoration: none; }
 
   label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
-  input, textarea {
+  input, textarea, select {
     width: 100%; padding: 12px 13px; font: inherit; font-size: 16px;
     border: 1px solid var(--trait); border-radius: 10px;
     background: var(--fond); color: var(--texte);
   }
-  input:focus, textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  #aidePays { margin: 6px 0 0; }
   textarea { min-height: 84px; resize: vertical; }
   .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 520px) { .duo { grid-template-columns: 1fr; gap: 0; } }
@@ -185,12 +186,6 @@
       <p class="note" id="noteSticker"></p>
     </div>
 
-    <div class="bloc" id="blocCarfax" hidden>
-      <h2 id="titreCarfax"></h2>
-      <p class="aide" id="aideCarfax" style="margin-bottom:0"></p>
-      <a class="bouton-pdf" id="carfaxLien" href="#" target="_blank" rel="noopener"></a>
-    </div>
-
     <div class="bloc" id="blocOptions" hidden>
       <h2 id="titreOptions"></h2>
       <div class="options" id="options"></div>
@@ -222,6 +217,13 @@
       <h2 id="titreOffre"></h2>
       <p class="aide" id="aideOffre"></p>
       <form id="formulaire" novalidate>
+        <label for="pays"></label>
+        <select id="pays" name="pays">
+          <option value="CA">Canada</option>
+          <option value="US">États-Unis / United States</option>
+          <option value="FR">France</option>
+        </select>
+        <p class="aide" id="aidePays"></p>
         <div class="duo">
           <div><label for="nom"></label><input id="nom" name="nom" autocomplete="name" required></div>
           <div><label for="entreprise"></label><input id="entreprise" name="entreprise" autocomplete="organization"></div>
@@ -268,9 +270,6 @@ const T = {
     sticker: "Window sticker",
     aideSticker: "L'étiquette d'origine du fabricant : équipement de série, options installées à l'usine, prix de détail suggéré et cotes de consommation.",
     ouvrirSticker: "Ouvrir le window sticker (PDF)",
-    carfax: "Rapport d'historique CARFAX",
-    aideCarfax: "Le rapport CARFAX Canada du véhicule, fourni par le vendeur : accidents déclarés, immatriculations, entretiens, droits de rétention.",
-    ouvrirCarfax: "Voir le rapport CARFAX",
     sourceSticker: n => n === "Concessionnaire" ? "Document fourni par le vendeur." : "Document officiel publié par " + n + " pour ce NIV.",
     annee: "Année", marque: "Marque", modele: "Modèle", version: "Version", vin: "NIV",
     portes: "Portes", places: "Places", carrosserie: "Carrosserie", couleurExt: "Couleur extérieure",
@@ -281,6 +280,8 @@ const T = {
     vendeurTitre: "Vendeur",
     titreOffre: "Faire une offre",
     aideOffre: "Laissez-nous votre prix et vos conditions. Nous vous répondons rapidement.",
+    pays: "Pays de votre concession",
+    aidePays: { CA: "", US: "Vente pour exportation : sans taxes canadiennes. Votre EIN et votre licence de concessionnaire seront demandés au contrat.", FR: "Vente pour exportation : sans taxes canadiennes. Votre SIRET, votre TVA intracommunautaire et votre numéro EORI seront demandés au contrat." },
     nom: "Votre nom",
     entreprise: "Entreprise",
     courriel: "Courriel",
@@ -335,9 +336,6 @@ const T = {
     sticker: "Window sticker",
     aideSticker: "The manufacturer's original label: standard equipment, factory-installed options, MSRP and fuel economy ratings.",
     ouvrirSticker: "Open the window sticker (PDF)",
-    carfax: "CARFAX vehicle history report",
-    aideCarfax: "The vehicle's CARFAX Canada report, provided by the seller: reported accidents, registrations, service records, liens.",
-    ouvrirCarfax: "View the CARFAX report",
     sourceSticker: n => n === "Concessionnaire" ? "Document provided by the seller." : "Official document published by " + n + " for this VIN.",
     annee: "Year", marque: "Make", modele: "Model", version: "Trim", vin: "VIN",
     portes: "Doors", places: "Passengers", carrosserie: "Body type", couleurExt: "Exterior colour",
@@ -348,6 +346,8 @@ const T = {
     vendeurTitre: "Seller",
     titreOffre: "Make an offer",
     aideOffre: "Send us your price and your terms. We get back to you quickly.",
+    pays: "Country of your dealership",
+    aidePays: { CA: "", US: "Export sale: no Canadian taxes. Your EIN and dealer license will be required for the contract.", FR: "Export sale: no Canadian taxes. Your SIRET, EU VAT number and EORI number will be required for the contract." },
     nom: "Your name",
     entreprise: "Company",
     courriel: "Email",
@@ -451,6 +451,8 @@ function appliquerTextes() {
   document.getElementById("pied").textContent = t().pied(vehicule && vehicule.vendeur ? vehicule.vendeur.nom : "");
   document.getElementById("titreOffre").textContent = t().titreOffre;
   document.getElementById("aideOffre").textContent = t().aideOffre;
+  document.querySelector('label[for="pays"]').textContent = t().pays;
+  aidePays();
   document.querySelector('label[for="nom"]').textContent = t().nom;
   document.querySelector('label[for="entreprise"]').textContent = t().entreprise;
   document.querySelector('label[for="courriel"]').textContent = t().courriel;
@@ -569,21 +571,6 @@ function dessiner() {
     blocSticker.hidden = true;
   }
 
-  // Rapport CARFAX (2 oct.) : lien public du compte concessionnaire, déjà
-  // validé côté script (vhr.carfax.ca seulement).
-  const blocCarfax = document.getElementById("blocCarfax");
-  if (v.carfax && /^https:\/\/vhr\.carfax\.ca\//i.test(v.carfax)) {
-    blocCarfax.hidden = false;
-    document.getElementById("titreCarfax").textContent = t().carfax;
-    document.getElementById("aideCarfax").textContent = t().aideCarfax;
-    const lc = document.getElementById("carfaxLien");
-    lc.href = v.carfax;
-    lc.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:#1d4ed8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l4-5 3 3 5-7"/></svg>' +
-      "<span>" + echappe(t().ouvrirCarfax) + '</span><span class="fleche">&rarr;</span>';
-  } else {
-    blocCarfax.hidden = true;
-  }
-
   // Vidéo (facultative) : hébergée sur Drive, lue dans son lecteur intégré.
   const blocVideo = document.getElementById("blocVideo");
   const idVideo = idDrive(v.video || "");
@@ -635,6 +622,26 @@ async function charger() {
   }
 }
 
+/* 15 oct. : le pays de l'acheteur dès l'offre (Canada, États-Unis, France).
+   États-Unis ou France = vente pour exportation, sans taxes canadiennes ; le
+   choix est mémorisé pour les prochaines offres. */
+function aidePays() {
+  const sel = document.getElementById("pays");
+  const el = document.getElementById("aidePays");
+  if (!sel || !el) return;
+  const texte = (t().aidePays || {})[sel.value] || "";
+  el.textContent = texte;
+  el.hidden = !texte;
+}
+(function () {
+  const sel = document.getElementById("pays");
+  if (!sel) return;
+  let memo = "";
+  try { memo = localStorage.getItem("automaxPays") || ""; } catch (e) {}
+  if (memo === "CA" || memo === "US" || memo === "FR") sel.value = memo;
+  sel.addEventListener("change", () => { try { localStorage.setItem("automaxPays", sel.value); } catch (e) {} aidePays(); });
+})();
+
 document.getElementById("formulaire").addEventListener("submit", async ev => {
   ev.preventDefault();
   const bouton = document.getElementById("envoyer");
@@ -647,6 +654,7 @@ document.getElementById("formulaire").addEventListener("submit", async ev => {
     action: "offre",
     k: cle,
     vin: vin,
+    pays: document.getElementById("pays").value,
     name: document.getElementById("nom").value,
     company: document.getElementById("entreprise").value,
     email: document.getElementById("courriel").value,

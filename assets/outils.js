@@ -112,7 +112,8 @@
       { id: 'eblock', titre: 'Fiches eBlock' },
       { id: 'openlane', titre: 'Valeurs OpenLane' },
       { id: 'verification', titre: 'Vérification Excel' },
-      { id: 'carfax', titre: 'Import CARFAX' }
+      { id: 'carfax', titre: 'Import CARFAX' },
+      { id: 'd2c', titre: 'Import D2C' }
     ],
     monter: function (conteneur, ctx) { return new Outils(conteneur, ctx); }
   });
@@ -127,9 +128,10 @@
     this.naviguer(ctx || {});
   }
   Outils.prototype.naviguer = function (ctx) {
-    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax' || ctx.onglet === 'evaluations' || ctx.onglet === 'torque' || ctx.onglet === 'eblock' || ctx.onglet === 'openlane')) ? ctx.onglet : 'evaluation';
+    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax' || ctx.onglet === 'evaluations' || ctx.onglet === 'torque' || ctx.onglet === 'eblock' || ctx.onglet === 'openlane' || ctx.onglet === 'd2c')) ? ctx.onglet : 'evaluation';
     if (!this.vues[id]) {
-      this.vues[id] = id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : (id === 'torque' ? new AMX.vues.ArchiveTorque(ctx) : (id === 'eblock' ? new AMX.vues.FichesEblock(ctx) : (id === 'openlane' ? new AMX.vues.ValeursOpenlane(ctx) : new AMX.vues.Evaluation(ctx))))));
+      // 16 oct. : « Import D2C » (assets/d2c.js, AMX.vues.ImportD2c) — l'inventaire que D2C Media reçoit du DMS.
+      this.vues[id] = id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : (id === 'd2c' ? new AMX.vues.ImportD2c(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : (id === 'torque' ? new AMX.vues.ArchiveTorque(ctx) : (id === 'eblock' ? new AMX.vues.FichesEblock(ctx) : (id === 'openlane' ? new AMX.vues.ValeursOpenlane(ctx) : new AMX.vues.Evaluation(ctx)))))));
       this.conteneur.appendChild(this.vues[id].el);
     } else if (this.vues[id].naviguer) {
       this.vues[id].naviguer(ctx);

@@ -159,12 +159,13 @@
     });
     recu.par = par; recu.ordre = ordre; recu.source = source || 'signet';
     this.recu = recu; this.simulations = {}; this.imports = {}; this.enCours = {};
-    if (recu.auto) this.auto = true;
     this.marquer('recu');
     AMX.toast(pl(recu.total, 'véhicule') + ' reçu' + (recu.total > 1 ? 's' : '') + ' de D2C Media' + (recu.niveau ? ' (' + recu.niveau + ')' : '') + ' — simulation en cours…', 'ok', 6000);
     this.rendreRecu();
     if (this.elCarteRecu.scrollIntoView) this.elCarteRecu.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    this.simulerTout();
+    // Import automatique seulement à l'arrivée d'une liste (tâche planifiée : `auto` dans le message, ou ?auto=1) — jamais
+    // sur une nouvelle simulation déclenchée par un changement d'option.
+    this.simulerTout(!!recu.auto || this.auto);
   };
 
   /* ------------------------------ Serveur ------------------------------ */
@@ -192,7 +193,7 @@
     }).then(function (d) {
       delete self.enCours[cie];
       if (mode === 'importer') { self.imports[cie] = d; delete self.simulations[cie]; }
-      else self.simulations[cie] = d;
+      else { self.simulations[cie] = d; delete self.imports[cie]; }   // une nouvelle simulation remplace l'affichage de l'import précédent (et permet de réimporter)
       self.rendreRecu();
       return d;
     }, function (e) {
@@ -204,7 +205,7 @@
     });
   };
   ImportD2c.prototype.ciesActives = function () { var self = this; return (this.recu ? this.recu.ordre : []).filter(function (c) { return self.actives().indexOf(c) >= 0; }); };
-  ImportD2c.prototype.simulerTout = function () {
+  ImportD2c.prototype.simulerTout = function (puisImporter) {
     var self = this;
     this.marquer('simulation');
     var suite = this.chargerEtat().then(function () {
@@ -213,7 +214,7 @@
     });
     return suite.then(function () {
       self.marquer('simule');
-      if (self.auto && self.recu) return self.importerTout();
+      if (puisImporter && self.recu) return self.importerTout();
     });
   };
   ImportD2c.prototype.importer = function (cie) {
@@ -276,7 +277,7 @@
       return;
     }
     var recu = this.recu, actives = this.actives();
-    this.elRecu.appendChild(h('p.doux.petit', { style: { margin: '0 0 10px' } }, pl(recu.total, 'véhicule') + ' lu' + (recu.total > 1 ? 's' : '') + ' dans D2C le ' + quand(recu.lu) + (recu.niveau ? ' (' + recu.niveau + ')' : '') + (recu.attendu && recu.attendu !== recu.total ? ' — ' + recu.attendu + ' attendus' : '') + (recu.sansVin ? ' · ' + recu.sansVin + ' sans NIV' : '') + (this.auto ? ' · mode automatique' : '')));
+    this.elRecu.appendChild(h('p.doux.petit', { style: { margin: '0 0 10px' } }, pl(recu.total, 'véhicule') + ' lu' + (recu.total > 1 ? 's' : '') + ' dans D2C le ' + quand(recu.lu) + (recu.niveau ? ' (' + recu.niveau + ')' : '') + (recu.attendu && recu.attendu !== recu.total ? ' — ' + recu.attendu + ' attendus' : '') + (recu.sansVin ? ' · ' + recu.sansVin + ' sans NIV' : '') + ((recu.auto || this.auto) ? ' · mode automatique' : '')));
     var grille = h('div.d2c-cies');
     recu.ordre.forEach(function (c) {
       var liste = recu.par[c], active = actives.indexOf(c) >= 0;

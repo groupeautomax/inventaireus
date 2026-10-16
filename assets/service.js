@@ -209,10 +209,25 @@
     onglets: [
       { id: 'encours', titre: 'En cours', compteur: function () { var l = AMX.service.enCache(); return l ? l.filter(function (s) { return s.statut === 'encours'; }).length : ''; } },
       { id: 'autoriser', titre: 'Direction', compteur: function () { var l = AMX.service.enCache(); return l ? l.filter(attendDirecteur).length : ''; } },
-      { id: 'termines', titre: 'Terminés' }
+      { id: 'termines', titre: 'Terminés' },
+      /* 16 oct. : carnet de rendez-vous du service (assets/rdv.js, pilote VW Brossard) */
+      { id: 'rendezvous', titre: 'Rendez-vous', compteur: function () { return (AMX.rdv && AMX.rdv.compteur) ? AMX.rdv.compteur() : ''; } }
     ],
-    monter: function (conteneur, ctx) { return new Suivi(conteneur, ctx); }
+    monter: function (conteneur, ctx) { return new SectionService(conteneur, ctx); }
   });
+
+  /* La section Service a deux sous-modules : le suivi (reconditionnement) et le carnet de rendez-vous (rdv.js). */
+  function SectionService(conteneur, ctx) { this.conteneur = conteneur; this.groupe = ''; this.sous = null; this.naviguer(ctx); }
+  SectionService.prototype.naviguer = function (ctx) {
+    var groupe = ctx.onglet === 'rendezvous' ? 'rdv' : 'suivi';
+    if (groupe !== this.groupe) {
+      if (this.sous && this.sous.demonter) { try { this.sous.demonter(); } catch (e) {} }
+      AMX.vider(this.conteneur);
+      this.groupe = groupe;
+      this.sous = groupe === 'rdv' ? ((AMX.rdv && AMX.rdv.monter) ? AMX.rdv.monter(this.conteneur, ctx) : (this.conteneur.appendChild(h('div.page', [h('div.vide', 'Module des rendez-vous introuvable (assets/rdv.js).')])), {})) : new Suivi(this.conteneur, ctx);
+    } else if (this.sous && this.sous.naviguer) this.sous.naviguer(ctx);
+  };
+  SectionService.prototype.demonter = function () { if (this.sous && this.sous.demonter) this.sous.demonter(); };
 
   function Suivi(conteneur, ctx) {
     var self = this;

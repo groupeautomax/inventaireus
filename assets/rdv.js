@@ -143,6 +143,11 @@
     '.rdv-grille .creneau.libre:hover::after { content: "+ " attr(data-heure); position: absolute; right: 6px; top: 2px; font-size: 11px; color: var(--vert); font-weight: 600; font-family: var(--mono); }',
     '.rdv-grille .maintenant { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--rouge); z-index: 2; pointer-events: none; }',
     '.rdv-grille .maintenant::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--rouge); }',
+    '.rdv-carte.posee.deplacable { cursor: grab; } .rdv-carte.posee.en-deplacement { opacity: .35; }',
+    '.rdv-fantome { position: fixed; z-index: 60; pointer-events: none; opacity: .94; box-shadow: 0 14px 30px rgba(0, 0, 0, .28) !important; transform: rotate(-1.5deg); margin: 0 !important; }',
+    '.rdv-grille .cible { position: absolute; left: 2px; right: 3px; box-sizing: border-box; border: 2px dashed var(--vert); border-radius: 8px; background: rgba(0, 136, 64, .09); z-index: 1; pointer-events: none; font: 700 11px var(--mono); color: var(--vert); padding: 2px 6px; }',
+    '.rdv-grille .cible.refus { border-color: var(--rouge); color: var(--rouge); background: var(--rouge-bg); }',
+    'body.rdv-glisse, body.rdv-glisse * { user-select: none !important; cursor: grabbing !important; }',
     '.rdv-grille .ferme-msg { position: absolute; left: 0; right: 0; top: 40%; text-align: center; color: var(--encre-4); font-size: 12.5px; pointer-events: none; }',
     '.rdv-carte.posee { position: absolute; z-index: 1; margin: 1px 3px 1px 2px; padding: 3px 7px; display: block; overflow: hidden; box-shadow: var(--ombre); line-height: 1.25; }',
     '.rdv-carte.posee .ligne1 { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }',
@@ -462,8 +467,10 @@
     for (var m = deb; m < fin; m += pas) if (m % 60 === 0) axe.appendChild(h('span.h', { text: heureJolie(hhmm(m)), style: { top: ((m - deb) / pas * rangH) + 'px' } }));
     grille.appendChild(axe);
     var peut = this.peutEcrire(), nowM = minutes(maintenant()), auj = aujourdhui();
+    var ctx = { grille: grille, cadre: null, colonnes: colonnes, piles: [], deb: deb, fin: fin, pas: pas, rangH: rangH, nRangs: nRangs };
     colonnes.forEach(function (col) {
       var pile = h('div.pile', { style: { height: haut + 'px' } });
+      ctx.piles.push(pile);
       var dateCol = col.date || o.date || auj;
       var passe = function (m) { return dateCol < auj || (dateCol === auj && m + (o.parHeure ? 60 : pas) <= nowM); };
       if (o.parHeure) {
@@ -501,6 +508,7 @@
           var top = Math.max(0, (e.d0 - deb) / pas * rangH), bas = Math.min(haut, (e.d1 - deb) / pas * rangH), ht = Math.max(rangH - 2, bas - top - 2);
           var carte = self.carte(e.r, { posee: true, rangs: Math.round(ht / rangH) });
           carte.style.top = top + 'px'; carte.style.height = ht + 'px'; carte.style.left = (e.voie * 100 / nV) + '%'; carte.style.width = 'calc(' + (100 / nV) + '% - 5px)';
+          if (peut && col.deposer && e.r.peutEcrire !== false && ETATS_ACTIFS.indexOf(e.r.etat) >= 0) self.rendreDeplacable(carte, e.r, ctx);
           pile.appendChild(carte);
         });
         grappe = []; finsVoies = [];
@@ -516,9 +524,100 @@
       grille.appendChild(pile);
     });
     var cadre = h('div.rdv-grille-cadre', [grille]);
+    ctx.cadre = cadre;
     /* on ouvre la grille sur l'heure courante (ou la première heure ouverte) */
     setTimeout(function () { var cible = (o.auj && !o.parHeure && nowM >= deb && nowM < fin) ? Math.max(0, (nowM - deb) / pas * rangH - 120) : 0; cadre.scrollTop = cible; }, 0);
     return cadre;
+  };
+  /* Glisser-déposer d'une carte dans la grille : souris (5 px) ou doigt (appui long 350 ms) ; la cible se dessine dans la
+     colonne visée au créneau le plus proche ; au relâchement, deplacer() envoie date / heure / conseiller au serveur. */
+  VueRdv.prototype.rendreDeplacable = function (carte, r, ctx) {
+    var self = this, actif = null, bouge = false;
+    carte.classList.add('deplacable');
+    carte.addEventListener('click', function (e) { if (bouge) { e.stopPropagation(); e.preventDefault(); } }, true);
+    carte.addEventListener('touchmove', function (e) { if (actif && actif.parti) e.preventDefault(); }, { passive: false });
+    var viser = function (ev) {
+      var fant = actif.fantome, rect = fant.getBoundingClientRect();
+      var el = document.elementFromPoint(ev.clientX, Math.max(rect.top + 1, Math.min(rect.bottom - 1, ev.clientY)));
+      var pile = el && el.closest ? el.closest('.pile') : null;
+      if (!pile || ctx.piles.indexOf(pile) < 0) return null;
+      var col = ctx.colonnes[ctx.piles.indexOf(pile)], pr = pile.getBoundingClientRect();
+      var rang = Math.max(0, Math.min(ctx.nRangs - 1, Math.round((rect.top - pr.top) / ctx.rangH)));
+      var heure = hhmm(ctx.deb + rang * ctx.pas);
+      return { pile: pile, col: col, rang: rang, heure: heure, patch: col.deposer ? col.deposer(r, heure) : null };
+    };
+    var partir = function (ev) {
+      var rect = carte.getBoundingClientRect();
+      actif.parti = true; bouge = true;
+      actif.fantome = carte.cloneNode(true); actif.fantome.className = carte.className.replace('deplacable', '') + ' rdv-fantome';
+      Object.assign(actif.fantome.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px', right: 'auto' });
+      document.body.appendChild(actif.fantome);
+      actif.cible = h('div.cible'); actif.cible.style.height = rect.height + 'px';
+      carte.classList.add('en-deplacement'); document.body.classList.add('rdv-glisse');
+      try { carte.setPointerCapture(ev.pointerId); } catch (e) {}
+    };
+    var bougerA = function (ev) {
+      actif.fantome.style.left = (ev.clientX - actif.dx) + 'px'; actif.fantome.style.top = (ev.clientY - actif.dy) + 'px';
+      var cr = ctx.cadre.getBoundingClientRect();
+      if (ev.clientY < cr.top + 36) ctx.cadre.scrollTop -= 12; else if (ev.clientY > cr.bottom - 36) ctx.cadre.scrollTop += 12;
+      var v = viser(ev); actif.vise = v;
+      if (!v) { if (actif.cible.parentNode) actif.cible.parentNode.removeChild(actif.cible); return; }
+      actif.cible.classList.toggle('refus', !v.patch);
+      actif.cible.textContent = v.patch ? heureJolie(v.heure) + (v.col.id !== undefined && v.col.titre && v.patch.conseiller !== undefined ? ' · ' + v.col.titre : '') : 'Autre concession';
+      actif.cible.style.top = (v.rang * ctx.rangH) + 'px';
+      if (actif.cible.parentNode !== v.pile) v.pile.appendChild(actif.cible);
+    };
+    var finir = function (ev) {
+      carte.removeEventListener('pointermove', surMove); carte.removeEventListener('pointerup', surUp); carte.removeEventListener('pointercancel', surCancel);
+      if (!actif) return;
+      clearTimeout(actif.minuterie);
+      if (actif.parti) {
+        if (actif.fantome.parentNode) actif.fantome.parentNode.removeChild(actif.fantome);
+        if (actif.cible.parentNode) actif.cible.parentNode.removeChild(actif.cible);
+        carte.classList.remove('en-deplacement'); document.body.classList.remove('rdv-glisse');
+        try { carte.releasePointerCapture(ev.pointerId); } catch (e) {}
+        var v = actif.vise;
+        if (!ev.annule && v && v.patch) self.deplacer(r, v.patch);
+        setTimeout(function () { bouge = false; }, 80);
+      }
+      actif = null;
+    };
+    var surMove = function (ev) {
+      if (!actif) return;
+      if (!actif.parti) {
+        var dist = Math.abs(ev.clientX - actif.x0) + Math.abs(ev.clientY - actif.y0);
+        if (ev.pointerType === 'touch') { if (dist > 8) { clearTimeout(actif.minuterie); finir({ annule: true, pointerId: ev.pointerId }); } return; }
+        if (dist < 5) return;
+        partir(ev);
+      }
+      bougerA(ev);
+    };
+    var surUp = function (ev) { finir(ev); };
+    var surCancel = function (ev) { finir({ annule: true, pointerId: ev.pointerId }); };
+    carte.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0 || actif) return;
+      var rect = carte.getBoundingClientRect();
+      actif = { x0: ev.clientX, y0: ev.clientY, dx: ev.clientX - rect.left, dy: ev.clientY - rect.top, parti: false, vise: null, pointerId: ev.pointerId };
+      if (ev.pointerType === 'touch') actif.minuterie = setTimeout(function () { if (actif && !actif.parti) { partir(ev); bougerA(ev); } }, 350);
+      carte.addEventListener('pointermove', surMove); carte.addEventListener('pointerup', surUp); carte.addEventListener('pointercancel', surCancel);
+    });
+  };
+  /* Déplacement d'un rendez-vous (heure, conseiller, date) : mise à jour optimiste, puis rdvEnregistrer avec les seuls champs changés. */
+  VueRdv.prototype.deplacer = function (r, patch) {
+    var self = this, cfg = this.config(r.compagnie);
+    var apres = { date: patch.date || r.date, heure: patch.heure || r.heure, conseiller: patch.conseiller !== undefined ? patch.conseiller : r.conseiller };
+    if (apres.date === r.date && apres.heure === r.heure && apres.conseiller === r.conseiller) return Promise.resolve();
+    var avant = { date: r.date, heure: r.heure, conseiller: r.conseiller };
+    Object.assign(r, apres); this.rendre(); this.enEcriture = true;
+    var nomCons = function (id) { var c = cfg && cfg.conseillers.filter(function (x) { return x.id === id; })[0]; return c ? c.nom : (id || 'non attribué'); };
+    return AMX.post({ action: 'rdvEnregistrer', rdv: { id: r.id, compagnie: r.compagnie, date: apres.date, heure: apres.heure, conseiller: apres.conseiller } }, { secours: true, delai: 60000 }).then(function (d) {
+      self.enEcriture = false;
+      if (!d || d.ok === false || d.refuse) { Object.assign(r, avant); self.rendre(); AMX.toast((d && (d.erreur || d.message)) || 'Déplacement refusé', 'erreur'); return; }
+      Object.assign(r, d.rdv || {}); self.rendre(); AMX.rdv.invalider();
+      var ou = (apres.date !== avant.date ? dateCourte(r.date) + ' ' : '') + heureJolie(r.heure) + (apres.conseiller !== avant.conseiller ? ' · ' + nomCons(r.conseiller) : '');
+      if (d.avertissements && d.avertissements.length) AMX.toast((r.client || r.id) + ' → ' + ou + ' — ' + d.avertissements.join(' '), 'attention', 8000);
+      else AMX.toast((r.client || r.id) + ' → ' + ou, 'ok');
+    }, function (e) { self.enEcriture = false; Object.assign(r, avant); self.rendre(); AMX.toast('Déplacement non enregistré — ' + AMX.erreurTexte(e), 'erreur'); });
   };
   VueRdv.prototype.rendreClasseur = function (l, cfg) {
     var self = this, d = this.donnees, date = this.date, auj = date === aujourdhui(), colonnes = [], pas = (cfg && cfg.pas) || 15, deb = 7 * 60, fin = 17 * 60;
@@ -530,16 +629,16 @@
       if (bornes) { deb = bornes[0]; fin = bornes[1]; }
       cies.forEach(function (c) {
         var rdv = l.filter(function (r) { return r.compagnie === c; });
-        colonnes.push({ id: c, titre: nomCie(c), sous: sousDe(rdv), rdv: rdv, heures: heuresDe(d.configs[c], date), auj: auj, onCreneau: prefill({ compagnie: c }) });
+        colonnes.push({ id: c, titre: nomCie(c), sous: sousDe(rdv), rdv: rdv, heures: heuresDe(d.configs[c], date), auj: auj, onCreneau: prefill({ compagnie: c }), deposer: function (r, heure) { return r.compagnie === c ? { heure: heure } : null; } });
       });
     } else {
       var hj = heuresDe(cfg, date); if (hj) { deb = hj[0]; fin = hj[1]; }
       var actifs = (cfg ? cfg.conseillers : []).filter(function (c) { return c.actif; });
       var sans = l.filter(function (r) { return !r.conseiller || !actifs.some(function (c) { return c.id === r.conseiller; }); });
-      if (!actifs.length) colonnes.push({ id: '', titre: 'Rendez-vous', sous: sousDe(l), rdv: l, heures: hj, auj: auj, onCreneau: prefill() });
+      if (!actifs.length) colonnes.push({ id: '', titre: 'Rendez-vous', sous: sousDe(l), rdv: l, heures: hj, auj: auj, onCreneau: prefill(), deposer: function (r, heure) { return { heure: heure }; } });
       else {
-        if (sans.length) colonnes.push({ id: '', titre: 'Non attribué', sous: sousDe(sans), rdv: sans, heures: hj, auj: auj, onCreneau: prefill() });
-        actifs.forEach(function (c) { var rdv = l.filter(function (r) { return r.conseiller === c.id; }); colonnes.push({ id: c.id, titre: c.nom, sous: sousDe(rdv), rdv: rdv, heures: hj, auj: auj, onCreneau: prefill({ conseiller: c.id }) }); });
+        if (sans.length) colonnes.push({ id: '', titre: 'Non attribué', sous: sousDe(sans), rdv: sans, heures: hj, auj: auj, onCreneau: prefill(), deposer: function (r, heure) { return { heure: heure, conseiller: '' }; } });
+        actifs.forEach(function (c) { var rdv = l.filter(function (r) { return r.conseiller === c.id; }); colonnes.push({ id: c.id, titre: c.nom, sous: sousDe(rdv), rdv: rdv, heures: hj, auj: auj, onCreneau: prefill({ conseiller: c.id }), deposer: function (r, heure) { return { heure: heure, conseiller: c.id }; } }); });
       }
     }
     /* la grille s'étire pour montrer un rendez-vous pris hors des heures (dépôt tôt le matin, par exemple) */

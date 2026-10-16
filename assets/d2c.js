@@ -226,8 +226,9 @@
       try { if (AMX.inventaire && AMX.inventaire.tout) AMX.inventaire.tout(true).catch(function () {}); } catch (e) {}
       try { if (AMX.carfax && AMX.carfax.charger) AMX.carfax.charger(true).catch(function () {}); } catch (e2) {}
       self.chargerEtat(true);
+      if (!Object.keys(self.enCours).length) self.marquer('termine');
       return d;
-    }).catch(function (e) { AMX.toast(nomCie(cie) + ' : ' + AMX.erreurTexte(e), 'erreur', 9000); throw e; });
+    }).catch(function (e) { AMX.toast(nomCie(cie) + ' : ' + AMX.erreurTexte(e), 'erreur', 9000); if (!Object.keys(self.enCours).length) self.marquer('erreur'); throw e; });
   };
   ImportD2c.prototype.importerTout = function () {
     var self = this, cies = this.ciesActives().filter(function (c) { return !self.imports[c] || !self.imports[c].ok; });

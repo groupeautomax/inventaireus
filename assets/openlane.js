@@ -296,9 +296,9 @@
     visibles.forEach(function (r) {
       var lue = !!r.luLe, nv = nombre(r.nVentes) || 0, aj = ajuste(r);
       var tr = h('tr.cliquable' + (lue ? '' : '.sans-valeur'), { tabindex: '0', 'data-vin': r.vin }, [
-        h('td.date', [h('div', { text: lue ? AMX.fmtDate(r.luLe) : '—' }), h('div.mini', { text: lue ? libelleSource(r.source) : (r.aLire ? 'À lire (signet)' : libelleSource(r.source)) })]),
+        h('td.date', [h('div', { text: lue ? AMX.fmtDate(r.luLe) : '—' }), h('div.mini', { text: lue ? libelleSource(r.source) + (r.aLire ? ' · à relire' : '') : (r.aLire ? 'À lire (signet)' : libelleSource(r.source)) })]),
         h('td.vehicule', [AMX.logoMarque(r.marque, 'petit'), h('div', [h('div.nom', { text: vehiculeTexte(r) }), h('div.mini', { text: [r.style && r.style !== r.version ? r.style : '', r.stock ? '# ' + r.stock : ''].filter(Boolean).join(' · ') }), h('div.vin', { text: r.vin || '' })])]),
-        h('td.num', { text: fmtKm(r.km) }),
+        h('td.num', r.kmFiche ? [h('div', { text: fmtKm(r.km) }), h('div.mini', { text: 'fiche d\'achat', title: 'km de la fiche d\'achat (D2C, feed ou saisie), pas encore lu sur OpenLane' })] : { text: fmtKm(r.km) }),
         h('td.badges', r.compagnie ? [h('span.badge.sans-point.' + couleurCie(r.compagnie), { text: nomCie(r.compagnie) })] : [h('span.doux', '—')]),
         h('td.badges', [badgeInventaire(r)]),
         h('td.num', lue ? [h('div', { text: nv ? String(nv) : '0' }), nv ? h('div.mini', { text: (r.jours || 90) + ' j' + (r.avecVersion ? ' · version' : '') }) : null] : [h('span.doux', '—')]),
@@ -306,7 +306,7 @@
         h('td.num.fort', { text: nv ? fmt(r.prixMoy) : '—' }),
         h('td.num', { text: nv ? fmt(r.prixMax) : '—' }),
         h('td.num', aj !== null ? [h('div', { text: fmt(aj) }), h('div.mini', { text: 'km moy. ' + fmtKm(r.kmMoy) })] : [h('span.doux', '—')]),
-        h('td.num.fort', nombre(r.prevision) !== null ? [h('div', { text: fmt(r.prevision) }), nombre(r.previsionBas) !== null && nombre(r.previsionBas) !== nombre(r.previsionHaut) ? h('div.mini', { text: fourchette(r.previsionBas, r.previsionHaut) }) : null] : [h('span.doux', { text: lue && r.erreur && /prévision/.test(r.erreur) ? 'km ?' : '—', title: r.erreur || '' })]),
+        h('td.num.fort', nombre(r.prevision) !== null ? [h('div', { text: fmt(r.prevision) }), nombre(r.previsionBas) !== null && nombre(r.previsionBas) !== nombre(r.previsionHaut) ? h('div.mini', { text: fourchette(r.previsionBas, r.previsionHaut) }) : null] : [h('span.doux', { text: r.kmFiche && lue ? 'à relire' : (lue && r.erreur && /prévision/.test(r.erreur) ? 'km ?' : '—'), title: r.kmFiche && lue ? 'km reçu depuis la lecture : recliquez le signet dans OpenLane pour la prévision' : (r.erreur || '') })]),
         h('td.num', { text: nombre(r.j90Min) !== null ? fmt(milieu(r.j90Min, r.j90Max)) : '—', title: nombre(r.j90Min) !== null ? fourchette(r.j90Min, r.j90Max) : '' })
       ]);
       var ouvrir = function () { AMX.openlaneOuvrir(r.vin, r); };

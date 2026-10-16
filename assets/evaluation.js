@@ -179,9 +179,6 @@
       '.registre-table tr.registre-auto .registre-date, .registre-table tr.registre-auto .registre-vin { color: var(--encre-3); }',
       '.registre-table tr.registre-enregistree td:first-child { box-shadow: inset 3px 0 0 var(--vert); }',
       '.registre-table .badge.gris { background: var(--gris-bg); color: var(--encre-2); }',
-      '.registre-cartes .registre-carte .bas .statuts { display: inline-flex; gap: 6px; align-items: center; }',
-      '.registre-cartes .registre-carte .bas .statuts i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }',
-      '.registre-cartes .registre-carte .bas .statuts i.ok { background: var(--vert); } .registre-cartes .registre-carte .bas .statuts i.auto { background: var(--ligne-forte); }',
       '.eval-page .champ > label { font-size: 10px; }',
       '.eval-page .champ input, .eval-page .champ select { height: 32px; font-size: 13px; }',
       '.eval-sommaire { position: sticky; top: calc(var(--barre-h) + var(--sous-h) + 6px); z-index: 20; display: flex; align-items: center; gap: 14px; background: var(--noir-2); color: #fff; border-radius: var(--rayon); padding: 8px 14px; margin-bottom: 12px; overflow-x: auto; scrollbar-width: none; box-shadow: 0 6px 16px rgba(0,0,0,.18); }',
@@ -339,17 +336,6 @@
       '.eval-pied { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: 11.5px; color: var(--encre-3); }',
       '.eval-attente { padding: 26px 16px; text-align: center; color: var(--encre-3); font-size: 13px; border: 1px dashed var(--ligne-forte); border-radius: var(--rayon-s); }',
       '.eval-attente .btn { margin-top: 10px; }',
-      '.registre-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 12px; }',
-      '.registre-carte { text-align: left; background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 10px 12px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--ombre); transition: border-color .12s, transform .12s; position: relative; overflow: hidden; }',
-      '.registre-carte::before { content: \'\'; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gris); }',
-      '.registre-carte.vert::before { background: var(--vert); } .registre-carte.bleu::before { background: var(--bleu); } .registre-carte.violet::before { background: var(--violet); } .registre-carte.sombre::before { background: var(--noir-2); } .registre-carte.ambre::before { background: var(--ambre); } .registre-carte.toutes::before { background: linear-gradient(var(--vert), var(--noir-2)); }',
-      '.registre-carte:hover { border-color: var(--ligne-forte); transform: translateY(-1px); }',
-      '.registre-carte.actif { border-color: var(--vert); box-shadow: 0 0 0 2px rgba(0,136,64,.16); background: var(--vert-clair); }',
-      '.registre-carte .haut { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }',
-      '.registre-carte .nom { font-weight: 700; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
-      '.registre-carte .n { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }',
-      '.registre-carte .bas { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--encre-3); }',
-      '.registre-carte .bas b { color: var(--encre); font-weight: 600; } .registre-carte .bas .pos b { color: var(--vert); } .registre-carte .bas .neg b { color: var(--rouge); }',
       '.registre-barre { margin-bottom: 12px; } .registre-barre .carte-corps { padding: 10px 14px; }',
       '.registre-outils { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }',
       '.registre-outils .recherche { flex: 1 1 240px; position: relative; display: flex; align-items: center; } .registre-outils .recherche > span { position: absolute; left: 10px; width: 14px; height: 14px; color: var(--encre-4); display: flex; } .registre-outils .recherche > span svg { width: 14px; height: 14px; } .registre-outils .recherche input { padding-left: 30px; height: 32px; width: 100%; }',
@@ -1895,7 +1881,7 @@
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Registre des évaluations'), this.elEtat]),
       h('div.actions', [this.btnRafraichir, this.btnExport, this.btnNouvelle])
     ]);
-    this.elCartes = h('div.registre-cartes#registre-kpis');
+    this.elCartes = h('div.barre-cies#registre-kpis');   /* 16 oct. : même rangée de concessions que partout, avec une ligne de chiffres */
     this.elVeille = h('div#registre-veille');
     this.elRecherche = h('input.saisie#registre-recherche', { type: 'search', placeholder: 'NIV, modèle, version, acheteur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Période' });
@@ -1984,22 +1970,12 @@
     Object.keys(acheteurs).sort().forEach(function (a) { self.elAcheteur.appendChild(h('option', { value: a, selected: a === self.acheteur ? true : undefined, text: a.split('@')[0] + ' (' + acheteurs[a] + ')' })); });
     // Cartes par concession (sur la période / l'évaluateur)
     var base = this.base();
-    var carte = function (cle, libelle, lignes) {
-      var ag = agregerRegistre(lignes), actif = self.concession === cle;
-      var k = h('button.registre-carte' + (actif ? '.actif' : '') + (cle ? '.' + (COULEUR_CONCESSION[cle] || 'gris') : '.toutes'), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.concession = cle; AMX.choisirCompagnie(AMX.CONCESSION_COMPAGNIE[cle] || ''); self.rendre(); } }, [
-        h('div.haut', [h('div.nom', { text: libelle }), h('div.n.num', { text: String(ag.n) })]),
-        h('div.bas', ag.n ? [
-          h('span', [h('b', { text: fmt(ag.detail) }), ' détail']),
-          h('span.' + (ag.margeMoy !== null && ag.margeMoy >= 0 ? 'pos' : 'neg'), [h('b', { text: ag.margeMoy !== null ? fmt(ag.margeMoy) : '—' }), ' marge moy.']),
-          h('span', [h('b', { text: ag.pctMoy !== null ? pct(ag.pctMoy) : '—' }), ' marché']),
-          h('span.statuts', { title: ag.nEnr + ' enregistrée(s), ' + ag.nAuto + ' analyse(s) automatique(s)' }, [h('i.ok'), h('b', { text: String(ag.nEnr) }), h('i.auto'), h('b', { text: String(ag.nAuto) })])
-        ] : [h('span.doux', { text: 'aucune évaluation' })])
-      ]);
-      return k;
-    };
-    this.elCartes.appendChild(carte('', 'Toutes les concessions', base));
-    // Une carte par concession, toujours les cinq ; une évaluation sans concession (anciennes fiches) compte pour Ste-Marie.
-    Object.keys(AMX.concessionsPour('evaluations')).forEach(function (c) { self.elCartes.appendChild(carte(c, nomCourt(c), base.filter(function (r) { return concessionDe(r) === c; }))); });
+    // Une pastille par concession, toujours les cinq ; une évaluation sans concession (anciennes fiches) compte pour Ste-Marie.
+    var parCie = function (code) { var cle = AMX.COMPAGNIE_CONCESSION[code] || ''; return cle ? base.filter(function (r) { return concessionDe(r) === cle; }) : base; };
+    AMX.barreConcessions(this.elCartes, { domaine: 'evaluations', valeur: AMX.CONCESSION_COMPAGNIE[this.concession] || '',
+      compte: function (c) { return String(agregerRegistre(parCie(c)).n); },
+      sous: function (c) { var ag = agregerRegistre(parCie(c)); return ag.n ? fmt(ag.detail) + ' détail · marge moy. ' + (ag.margeMoy !== null ? fmt(ag.margeMoy) : '—') + ' · ' + (ag.pctMoy !== null ? pct(ag.pctMoy) : '—') + ' marché · ' + ag.nEnr + ' enregistrée' + (ag.nEnr > 1 ? 's' : '') + ', ' + ag.nAuto + ' auto' : 'aucune évaluation'; },
+      onchange: function (c) { self.concession = AMX.COMPAGNIE_CONCESSION[c] || ''; self.rendre(); } });
     this.rendreTable();
   };
 

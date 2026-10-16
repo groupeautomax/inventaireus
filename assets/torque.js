@@ -57,13 +57,6 @@
     s.id = 'css-torque';
     s.textContent = [
       '.torque-page .carte { margin-bottom: 12px; }',
-      '.torque-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 12px; }',
-      '.torque-carte { text-align: left; background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 10px 12px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--ombre); position: relative; overflow: hidden; }',
-      '.torque-carte::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ligne-forte); }',
-      '.torque-carte.vert::before { background: var(--vert); } .torque-carte.bleu::before { background: var(--bleu); } .torque-carte.violet::before { background: var(--violet); } .torque-carte.sombre::before { background: var(--noir-2); } .torque-carte.ambre::before { background: var(--ambre); }',
-      '.torque-carte.actif { border-color: var(--encre); box-shadow: 0 0 0 2px rgba(0,0,0,.08); }',
-      '.torque-carte .haut { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .torque-carte .nom { font-weight: 600; font-size: 13px; } .torque-carte .n { font-size: 20px; font-weight: 700; }',
-      '.torque-carte .bas { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11.5px; color: var(--encre-3); } .torque-carte .bas b { color: var(--encre); font-weight: 600; }',
       '.torque-outils { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .torque-outils .recherche { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; } .torque-outils .recherche svg { width: 16px; height: 16px; color: var(--encre-3); } .torque-outils .recherche input { flex: 1; height: 32px; }',
       '.torque-outils .compte { margin-left: auto; font-size: 12px; }',
       '.torque-table { overflow-x: auto; } .torque-table .tableau { min-width: 980px; } .torque-table td, .torque-table th { padding: 7px 10px; }',
@@ -119,7 +112,7 @@
       h('div.actions', [this.btnRafraichir, this.btnExport, this.btnImport])
     ]);
     this.elImport = this.construireImport();
-    this.elCartes = h('div.torque-cartes');
+    this.elCartes = h('div.barre-cies');   /* 16 oct. : même rangée de concessions que partout, avec une ligne de chiffres */
     this.elRecherche = h('input.saisie#torque-recherche', { type: 'search', placeholder: 'Client, téléphone, NIV, modèle, conseiller…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Période' });
     this.elStatut = h('select.saisie#torque-statut', { 'aria-label': 'Statut', style: { height: '32px', width: 'auto' } });
@@ -282,15 +275,11 @@
     Object.keys(statuts).sort().forEach(function (s) { self.elStatut.appendChild(h('option', { value: s, selected: s === self.statut ? true : undefined, text: statut(s).libelle + ' (' + statuts[s] + ')' })); });
     // Cartes
     var base = this.base();
-    var carte = function (cle, libelle, lignes) {
-      var ag = agreger(lignes), actif = self.concession === cle;
-      return h('button.torque-carte' + (actif ? '.actif' : '') + (cle ? '.' + (COULEUR_CONCESSION[cle] || 'gris') : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.concession = cle; AMX.choisirCompagnie(AMX.CONCESSION_COMPAGNIE[cle] || ''); self.rendre(); } }, [
-        h('div.haut', [h('div.nom', { text: libelle }), h('div.n.num', { text: AMX.fmtNombre(ag.n) })]),
-        h('div.bas', ag.n ? [h('span', [h('b', { text: String(ag.nRepris) }), ' repris']), h('span', [h('b', { text: String(ag.nPerdu) }), ' perdus']), h('span', [h('b', { text: fmt(ag.interneMoy) }), ' interne moy.']), h('span', [h('b', { text: fmt(ag.venteMoy) }), ' vente moy.'])] : [h('span.doux', 'aucune évaluation')])
-      ]);
-    };
-    this.elCartes.appendChild(carte('', 'Toutes les concessions', base));
-    Object.keys(AMX.CONCESSIONS).forEach(function (c) { self.elCartes.appendChild(carte(c, nomCourt(c), base.filter(function (r) { return r.concession === c; }))); });
+    var parCie = function (code) { var cle = AMX.COMPAGNIE_CONCESSION[code] || ''; return cle ? base.filter(function (r) { return r.concession === cle; }) : base; };
+    AMX.barreConcessions(this.elCartes, { domaine: 'evaluations', valeur: AMX.CONCESSION_COMPAGNIE[this.concession] || '',
+      compte: function (c) { return AMX.fmtNombre(agreger(parCie(c)).n); },
+      sous: function (c) { var ag = agreger(parCie(c)); return ag.n ? ag.nRepris + ' repris · ' + ag.nPerdu + ' perdus · interne moy. ' + fmt(ag.interneMoy) + ' · vente moy. ' + fmt(ag.venteMoy) : 'aucune évaluation'; },
+      onchange: function (c) { self.concession = AMX.COMPAGNIE_CONCESSION[c] || ''; self.rendre(); } });
     this.rendreTable();
   };
 

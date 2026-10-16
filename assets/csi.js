@@ -121,7 +121,7 @@
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.elSites = h('span', { style: { display: 'inline-flex', gap: '6px', flexWrap: 'wrap' } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
-    this.elChoix = h('div');
+    this.elChoix = h('div.barre-cies');   /* 16 oct. : même rangée de concessions que partout */
     this.elComparaison = h('div.carte');
     this.elScores = h('div.csi-scores');
     this.elKpis = h('div.carte');
@@ -170,8 +170,7 @@
       // Pas de sondages détaillés (GM) : le nombre de sondages des scores sur 12 mois
       return ((d && d.scores) || []).filter(function (s) { return (!c || s.compagnie === c) && s.periode === '12M' && (s.type === 'ventes' || s.type === 'service'); }).reduce(function (a, s) { return a + (s.sondages || 0); }, 0);
     };
-    var choix = AMX.choixCompagnie({ domaine: 'resultats', valeur: this.compagnie, compte: compte, onchange: function (c) { self.compagnie = c; self.rendre(); } });
-    if (choix) this.elChoix.appendChild(h('div.carte', [h('div.carte-corps', [h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Concession' }), choix])]));
+    AMX.barreConcessions(this.elChoix, { domaine: 'resultats', valeur: this.compagnie, compte: compte, onchange: function (c) { self.compagnie = c; self.rendre(); } });
     if (this.erreur && !d) { this.elEtat.textContent = 'Serveur injoignable.'; this.elVide.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Serveur injoignable'), h('div', { text: this.erreur })])); [this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elSondages].forEach(function (el) { AMX.vider(el); el.classList.add('cache'); }); return; }
     if (!d) return;
     var lues = this.compagniesLues().filter(function (c) { return !self.compagnie || c === self.compagnie; });

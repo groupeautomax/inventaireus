@@ -183,13 +183,6 @@
     s.id = 'css-eblock';
     s.textContent = [
       '.eb-page .carte { margin-bottom: 12px; }',
-      '.eb-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }',
-      '.eb-carte { text-align: left; background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 10px 12px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--ombre); position: relative; overflow: hidden; }',
-      '.eb-carte::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ligne-forte); }',
-      '.eb-carte.vert::before { background: var(--vert); } .eb-carte.bleu::before { background: var(--bleu); } .eb-carte.violet::before { background: var(--violet); } .eb-carte.sombre::before { background: var(--noir-2); } .eb-carte.ambre::before { background: var(--ambre); } .eb-carte.toutes::before { background: linear-gradient(var(--vert), var(--noir-2)); }',
-      '.eb-carte.actif { border-color: var(--encre); box-shadow: 0 0 0 2px rgba(0,0,0,.08); }',
-      '.eb-carte .haut { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .eb-carte .nom { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .eb-carte .n { font-size: 20px; font-weight: 700; }',
-      '.eb-carte .bas { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11.5px; color: var(--encre-3); } .eb-carte .bas b { color: var(--encre); font-weight: 600; }',
       '.eb-outils { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .eb-outils .recherche { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; } .eb-outils .recherche svg { width: 16px; height: 16px; color: var(--encre-3); } .eb-outils .recherche input { flex: 1; }',
       '.eb-outils .compte { margin-left: auto; font-size: 12px; }',
       '.eb-table { overflow-x: auto; } .eb-table .tableau { min-width: 1040px; } .eb-table td, .eb-table th { padding: 7px 10px; vertical-align: middle; }',
@@ -261,7 +254,7 @@
       h('div.actions', [this.btnRafraichir, this.btnExport, this.btnImport])
     ]);
     this.elImport = this.construireImport();
-    this.elCartes = h('div.eb-cartes');
+    this.elCartes = h('div.barre-cies');   /* 16 oct. : même rangée de concessions que partout, avec une ligne de chiffres */
     this.elRecherche = h('input.saisie#eblock-recherche', { type: 'search', placeholder: 'NIV, # stock, modèle, vendeur, pièce endommagée…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Portée' });
     this.elCompte = h('span.compte.doux');
@@ -352,17 +345,17 @@
       self.elSegment.appendChild(h('button' + (p[0] === self.portee ? '.actif' : ''), { type: 'button', text: p[1], onclick: function () { self.portee = p[0]; AMX.memo.ecrire('eblock_portee', p[0]); self.rendre(); } }));
     });
     var base = this.base();
-    var carte = function (code, libelle, lignes) {
-      var actif = self.compagnie === code, n = lignes.length, nf = lignes.filter(function (r) { return r.fiche; }).length, nd = lignes.filter(function (r) { return nombre(r.nDommages) > 0; }).length;
-      var cotes = lignes.map(function (r) { return nombre(r.cote); }).filter(function (c) { return c !== null; });
-      var moy = cotes.length ? Math.round(cotes.reduce(function (a, b) { return a + b; }, 0) / cotes.length) : null;
-      return h('button.eb-carte' + (actif ? '.actif' : '') + (code ? '.' + couleurCie(code) : '.toutes'), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', 'data-compagnie': code, onclick: function () { self.compagnie = code; AMX.choisirCompagnie(code); self.rendre(); } }, [
-        h('div.haut', [h('div.nom', { text: libelle }), h('div.n.num', { text: AMX.fmtNombre(n) })]),
-        h('div.bas', n ? [h('span', [h('b', { text: String(nf) }), ' fiche' + (nf > 1 ? 's' : '')]), h('span', [h('b', { text: String(nd) }), ' avec dommages']), moy !== null ? h('span', [h('b', { text: String(moy) }), ' état moy.']) : null] : [h('span.doux', 'aucun achat')])
-      ]);
-    };
-    this.elCartes.appendChild(carte('', 'Toutes les concessions', base));
-    AMX.codesPour('inventaire').forEach(function (c) { self.elCartes.appendChild(carte(c, nomCie(c), base.filter(function (r) { return String(r.compagnie || '').toUpperCase() === c; }))); });
+    var parCie = function (code) { return code ? base.filter(function (r) { return String(r.compagnie || '').toUpperCase() === code; }) : base; };
+    AMX.barreConcessions(this.elCartes, { domaine: 'inventaire', valeur: this.compagnie,
+      compte: function (c) { return AMX.fmtNombre(parCie(c).length); },
+      sous: function (c) {
+        var lignes = parCie(c); if (!lignes.length) return 'aucun achat';
+        var nf = lignes.filter(function (r) { return r.fiche; }).length, nd = lignes.filter(function (r) { return nombre(r.nDommages) > 0; }).length;
+        var cotes = lignes.map(function (r) { return nombre(r.cote); }).filter(function (x) { return x !== null; });
+        var moy = cotes.length ? Math.round(cotes.reduce(function (a, b) { return a + b; }, 0) / cotes.length) : null;
+        return nf + ' fiche' + (nf > 1 ? 's' : '') + ' · ' + nd + ' avec dommages' + (moy !== null ? ' · état moy. ' + moy : '');
+      },
+      onchange: function (c) { self.compagnie = c; self.rendre(); } });
     if (this.compagnie && AMX.codesPour('inventaire').indexOf(this.compagnie) < 0) this.compagnie = '';
     this.rendreTable();
   };

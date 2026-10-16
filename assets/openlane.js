@@ -67,13 +67,6 @@
     s.id = 'css-openlane';
     s.textContent = [
       '.ol-page .carte { margin-bottom: 12px; }',
-      '.ol-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }',
-      '.ol-carte { text-align: left; background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 10px 12px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--ombre); position: relative; overflow: hidden; }',
-      '.ol-carte::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ligne-forte); }',
-      '.ol-carte.vert::before { background: var(--vert); } .ol-carte.bleu::before { background: var(--bleu); } .ol-carte.violet::before { background: var(--violet); } .ol-carte.sombre::before { background: var(--noir-2); } .ol-carte.ambre::before { background: var(--ambre); } .ol-carte.toutes::before { background: linear-gradient(var(--bleu), var(--noir-2)); }',
-      '.ol-carte.actif { border-color: var(--encre); box-shadow: 0 0 0 2px rgba(0,0,0,.08); }',
-      '.ol-carte .haut { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .ol-carte .nom { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ol-carte .n { font-size: 20px; font-weight: 700; }',
-      '.ol-carte .bas { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11.5px; color: var(--encre-3); } .ol-carte .bas b { color: var(--encre); font-weight: 600; }',
       '.ol-outils { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .ol-outils .recherche { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; } .ol-outils .recherche svg { width: 16px; height: 16px; color: var(--encre-3); } .ol-outils .recherche input { flex: 1; }',
       '.ol-outils .compte { margin-left: auto; font-size: 12px; }',
       '.ol-table { overflow-x: auto; } .ol-table .tableau { min-width: 980px; } .ol-table td, .ol-table th { padding: 7px 10px; vertical-align: middle; }',
@@ -137,7 +130,7 @@
       h('div.actions', [this.btnRafraichir, this.btnExport, this.btnRelire, this.btnImport])
     ]);
     this.elImport = this.construireImport();
-    this.elCartes = h('div.ol-cartes');
+    this.elCartes = h('div.barre-cies');   /* 16 oct. : même rangée de concessions que partout, avec une ligne de chiffres */
     this.elRecherche = h('input.saisie#openlane-recherche', { type: 'search', placeholder: 'NIV, # stock, modèle, version…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Portée' });
     this.elCompte = h('span.compte.doux');
@@ -274,18 +267,16 @@
       self.elSegment.appendChild(h('button' + (p[0] === self.portee ? '.actif' : ''), { type: 'button', text: p[1], onclick: function () { self.portee = p[0]; AMX.memo.ecrire('openlane_portee', p[0]); self.rendre(); } }));
     });
     var base = this.base();
-    var carte = function (code, libelle, lignes) {
-      var actif = self.compagnie === code, n = lignes.length;
-      var prevs = lignes.map(function (r) { return nombre(r.prevision); }).filter(function (x) { return x !== null; });
-      var ventes = lignes.filter(function (r) { return nombre(r.nVentes) > 0; }).length;
-      var total = prevs.reduce(function (a, b) { return a + b; }, 0);
-      return h('button.ol-carte' + (actif ? '.actif' : '') + (code ? '.' + couleurCie(code) : '.toutes'), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', 'data-compagnie': code, onclick: function () { self.compagnie = code; AMX.choisirCompagnie(code); self.rendre(); } }, [
-        h('div.haut', [h('div.nom', { text: libelle }), h('div.n.num', { text: AMX.fmtNombre(n) })]),
-        h('div.bas', n ? [h('span', [h('b', { text: String(prevs.length) }), ' prévision' + (prevs.length > 1 ? 's' : '')]), h('span', [h('b', { text: String(ventes) }), ' avec ventes']), prevs.length ? h('span', [h('b', { text: fmt(total) }), ' prévu']) : null] : [h('span.doux', 'aucun NIV')])
-      ]);
-    };
-    this.elCartes.appendChild(carte('', 'Toutes les concessions', base));
-    AMX.codesPour('inventaire').forEach(function (c) { self.elCartes.appendChild(carte(c, nomCie(c), base.filter(function (r) { return String(r.compagnie || '').toUpperCase() === c; }))); });
+    var parCie = function (code) { return code ? base.filter(function (r) { return String(r.compagnie || '').toUpperCase() === code; }) : base; };
+    AMX.barreConcessions(this.elCartes, { domaine: 'inventaire', valeur: this.compagnie,
+      compte: function (c) { return AMX.fmtNombre(parCie(c).length); },
+      sous: function (c) {
+        var lignes = parCie(c); if (!lignes.length) return 'aucun NIV';
+        var prevs = lignes.map(function (r) { return nombre(r.prevision); }).filter(function (x) { return x !== null; });
+        var ventes = lignes.filter(function (r) { return nombre(r.nVentes) > 0; }).length, total = prevs.reduce(function (a, b) { return a + b; }, 0);
+        return prevs.length + ' prévision' + (prevs.length > 1 ? 's' : '') + ' · ' + ventes + ' avec ventes' + (prevs.length ? ' · ' + fmt(total) + ' prévu' : '');
+      },
+      onchange: function (c) { self.compagnie = c; self.rendre(); } });
     if (this.compagnie && AMX.codesPour('inventaire').indexOf(this.compagnie) < 0) this.compagnie = '';
     this.rendreTable();
   };

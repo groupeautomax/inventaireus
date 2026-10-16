@@ -244,6 +244,7 @@
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
     this.elAgencement = h('div.agencement', [this.elRail, h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
+    this.elCies = h('div.barre-cies');   /* 16 oct. : rangée de concessions sous l'en-tête, comme partout */
     var page = h('div.page', [
       h('div.entete-page', [
         h('div', [h('h1', { text: 'Usagé — ' + this.cfg.titre }), h('p#inv-etat', { text: 'Chargement…' }), this.elRegistres = h('div.segment.choix-registre', { style: { marginTop: '8px' }, 'aria-label': 'Registre' })]),
@@ -255,7 +256,7 @@
           AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null
         ])
       ]),
-      this.elKpis, this.elValeur, this.elAgencement
+      this.elCies, this.elKpis, this.elValeur, this.elAgencement
     ]);
     this.conteneur.appendChild(page);
     this.rendreRegistres();
@@ -270,10 +271,10 @@
     var self = this, f = this.filtres, cfg = this.cfg;
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock — tous statuts, tous registres', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; f.alerte = ''; self.rendre(); }, 120) })]);
-    // Concession : liste verticale (les 5 toujours visibles), compte des véhicules actifs du
-    // registre par concession, choix gardé pour tout le site (AMX.choisirCompagnie).
+    // Concession : rangée de pastilles sous l'en-tête (16 oct., même présentation que Neufs et partout), compte des
+    // véhicules actifs du registre par concession, choix gardé pour tout le site (AMX.choisirCompagnie).
     var actifsCie = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; }), vehicules = this.vehicules;
-    var choix = AMX.choixCompagnie({ domaine: 'inventaire', valeur: f.compagnie,
+    AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: f.compagnie,
       compte: function (c) { return vehicules.filter(function (v) { return actifsCie.indexOf(v.statut) >= 0 && (!c || v.compagnie === c); }).length; },
       onchange: function (c) { f.compagnie = c; f.alerte = ''; self.construireRail(); self.rendre(); } });
     // Statuts
@@ -305,7 +306,7 @@
       ])
     ]);
     this.elBandeau = AMX.bandeauPortee('inventaire', f.compagnie, !!f.recherche);
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech, choix ? h('div', { style: { height: '10px' } }) : null, choix ? h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Concession' }) : null, choix]));
+    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech]));
     this.elRail.appendChild(grpStatut);
     this.elRail.appendChild(grpAutres);
   };

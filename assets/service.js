@@ -257,6 +257,7 @@
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
     this.elAgencement = h('div.agencement', [this.elRail, h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
+    this.elCies = h('div.barre-cies');   /* 16 oct. : rangée de concessions sous l'en-tête, comme partout */
     this.conteneur.appendChild(h('div.page', [
       h('div.entete-page', [
         h('div', [h('h1', 'Suivi service'), h('p#svc-etat', { text: 'Chargement…' })]),
@@ -268,7 +269,7 @@
           AMX.estAdmin() ? h('button.btn', { title: 'Recopie les suivis dans l\'onglet « Service » des feuilles de concession (BMW)', html: I.externe + '<span>Feuilles</span>', onclick: function () { self.miroir(); } }) : null
         ])
       ]),
-      this.elKpis, this.elAgencement
+      this.elCies, this.elKpis, this.elAgencement
     ]));
     this.construireRail();
     // Les permissions (portée, compagnies visibles) arrivent souvent après le premier rendu : on refait le rail.
@@ -282,15 +283,15 @@
     var self = this, f = this.filtres, etapes = AMX.service.etapes();
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock, BT — tous les suivis', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendre(); }, 120) })]);
-    // Concession : liste verticale (les 5 toujours visibles), compte des suivis de l'onglet par
-    // concession, choix gardé pour tout le site (AMX.choisirCompagnie) jusqu'au prochain clic.
+    // Concession : rangée de pastilles sous l'en-tête (16 oct., même présentation partout), compte des suivis de
+    // l'onglet par concession, choix gardé pour tout le site (AMX.choisirCompagnie) jusqu'au prochain clic.
     var o = this.onglet, suivis = this.suivis;
     var parOnglet = function (s) { return o === 'termines' ? s.statut !== 'encours' : o === 'autoriser' ? attendDirecteur(s) : s.statut === 'encours'; };
-    var choix = AMX.choixCompagnie({ domaine: 'service', valeur: f.compagnie,
+    AMX.barreConcessions(this.elCies, { domaine: 'service', valeur: f.compagnie,
       compte: function (c) { return suivis.filter(function (s) { return parOnglet(s) && (!c || String(s.compagnie || '').toUpperCase() === c); }).length; },
       onchange: function (c) { f.compagnie = c; self.construireRail(); self.rendre(); } });
     this.elBandeau = AMX.bandeauPortee('service', f.compagnie, !!f.recherche);
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech, choix ? h('div', { style: { height: '10px' } }) : null, choix ? h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Concession' }) : null, choix]));
+    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech]));
     if (this.onglet !== 'termines') {
       var grp = h('div.groupe', [h('h3', ['Étape courante', h('button', { type: 'button', text: f.etapes ? 'Toutes' : '', onclick: function () { f.etapes = null; self.construireRail(); self.rendre(); } })])]);
       var base = this.base();

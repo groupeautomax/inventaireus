@@ -208,7 +208,7 @@
     this.conteneur = conteneur;
     this.onglet = ctx.onglet || 'apercu';
     this.params = ctx.params || {};
-    this.filtres = { recherche: '', concession: AMX.maConcession(), etoiles: '', etat: '', personne: (ctx.params && ctx.params.personne) || '' };
+    this.filtres = { recherche: '', concession: AMX.compagnieChoisie('inventaire') || AMX.maConcession(), etoiles: '', etat: '', personne: (ctx.params && ctx.params.personne) || '' };   /* 16 oct. : même concession que le reste du site */
     this.filtrePersonnes = '';   // Aperçu › tableau par personne : '', 'ventes', 'service', 'direction', 'autres'
     this.construire();
     this.charger();
@@ -378,6 +378,22 @@
   Avis.prototype.rendreAvis = function (d) {
     var self = this, f = this.filtres;
     var moiC = AMX.session.courriel;
+    // 16 oct. : la concession se choisit dans la rangée sous l'en-tête, comme partout (compte des avis par concession, mêmes autres filtres)
+    var passe = function (a, sansCie) {
+      if (!sansCie && f.concession && a.concession !== f.concession) return false;
+      if (f.personne) { var qui = f.personne === 'moi' ? moiC : f.personne; if (a.assigneA !== qui && a.employes.indexOf(qui) < 0) return false; }
+      if (f.etoiles === 'neg' && !estNegatif(a)) return false;
+      if (f.etoiles && f.etoiles !== 'neg' && a.etoiles !== Number(f.etoiles)) return false;
+      if (f.etat === 'traiter' && !A_TRAITER[a.etat]) return false;
+      if (f.etat && f.etat !== 'traiter' && a.etat !== f.etat) return false;
+      if (f.recherche) { var q = f.recherche.toLowerCase(); if ((a.auteur + ' ' + a.texte + ' ' + a.fiche + ' ' + a.reponse).toLowerCase().indexOf(q) < 0) return false; }
+      return true;
+    };
+    var elCies = h('div.barre-cies');
+    AMX.barreConcessions(elCies, { domaine: 'inventaire', valeur: f.concession,
+      compte: function (c) { return d.avis.filter(function (a) { return passe(a, true) && (!c || a.concession === c); }).length; },
+      onchange: function (c) { f.concession = c; self.rendre(); } });
+    this.elCorps.appendChild(elCies);
     var liste = d.avis.filter(function (a) {
       if (f.concession && a.concession !== f.concession) return false;
       if (f.personne) { var qui = f.personne === 'moi' ? moiC : f.personne; if (a.assigneA !== qui && a.employes.indexOf(qui) < 0) return false; }
@@ -391,7 +407,7 @@
     var concessions = Object.keys(AMX.COMPAGNIES);
     var filtres = h('div.avis-filtres', [
       h('input.saisie', { type: 'search', placeholder: 'Rechercher un avis…', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value.trim(); self.rendre(); }, 200) }),
-      concessions.length > 1 ? h('select.saisie', { onchange: function (e) { f.concession = e.target.value; self.rendre(); } }, [h('option', { value: '', text: 'Toutes les concessions', selected: !f.concession })].concat(concessions.map(function (c) { return h('option', { value: c, text: AMX.COMPAGNIES[c], selected: f.concession === c }); }))) : null,
+      null,
       h('select.saisie', { onchange: function (e) { f.etoiles = e.target.value; self.rendre(); } }, [
         h('option', { value: '', text: 'Toutes les notes', selected: !f.etoiles }), h('option', { value: 'neg', text: 'Négatifs (≤ ' + SEUIL + ' ★)', selected: f.etoiles === 'neg' }),
         h('option', { value: '5', text: '5 ★', selected: f.etoiles === '5' }), h('option', { value: '4', text: '4 ★', selected: f.etoiles === '4' }), h('option', { value: '3', text: '3 ★', selected: f.etoiles === '3' }), h('option', { value: '2', text: '2 ★', selected: f.etoiles === '2' }), h('option', { value: '1', text: '1 ★', selected: f.etoiles === '1' })]),

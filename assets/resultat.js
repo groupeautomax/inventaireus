@@ -576,13 +576,8 @@
     AMX.vider(this.conteneur);
 
     this.elEtat = h('p', { text: this.source.chargement });
-    this.btnsCie = {}; this.btnsType = {};
-    this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Compagnie' });
-    COMPAGNIES_().forEach(function (c) {
-      var b = h('button', { type: 'button', text: c[1], onclick: function () { self.changerCompagnie(c[0]); } });
-      self.btnsCie[c[0]] = b;
-      self.elSegment.appendChild(b);
-    });
+    this.btnsType = {};
+    this.elCies = h('div.barre-cies');   /* 16 oct. : même rangée de concessions que partout (sous l'en-tête), à la place du segment STM / HAWKS / … */
     this.elSegmentType = null;
     if (this.source.types) {
       // Wholesale Canada : achats et échanges séparés (Maxime, 9 oct.)
@@ -594,7 +589,7 @@
       });
     }
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
-    this.elActions = h('div.actions', [this.elSegment, this.elSegmentType, this.btnRafraichir]);
+    this.elActions = h('div.actions', [this.elSegmentType, this.btnRafraichir]);
 
     this.elVide = h('div');
     this.elKpis = h('div.kpis');
@@ -608,7 +603,7 @@
 
     this.elPage = h('div.page.etroite.resultat-page', [
       h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', [this.source.titre, this.source.sous ? h('span.resultat-h1-sous', { text: this.source.sous }) : null]), this.elEtat]), this.elActions]),
-      this.elVide, this.elKpis, this.elNote, this.elAttente, this.elIndicateurs, this.elEvolution, this.elAcheteurs, this.elDetail, this.elVentilation
+      this.elCies, this.elVide, this.elKpis, this.elNote, this.elAttente, this.elIndicateurs, this.elEvolution, this.elAcheteurs, this.elDetail, this.elVentilation
     ]);
     this.conteneur.appendChild(this.elPage);
   };
@@ -689,8 +684,11 @@
   };
 
   Resultat.prototype.rendreEntete = function () {
-    var self = this;
-    Object.keys(this.btnsCie).forEach(function (k) { self.btnsCie[k].classList.toggle('actif', k === self.compagnie); });
+    var self = this, lignes = this.lignes || [];
+    AMX.barreConcessions(this.elCies, { domaine: 'resultats', valeur: this.compagnie === 'TOUT' ? '' : this.compagnie,
+      compte: function (c) { return this.lignes ? AMX.fmtNombre(lignes.filter(function (r) { return !c || r.compagnie === c; }).length) : null; }.bind(this),
+      onchange: function (c) { self.changerCompagnie(c || 'TOUT'); } });
+    if (this.refus) this.elCies.classList.add('sans-choix');
     Object.keys(this.btnsType).forEach(function (k) { self.btnsType[k].classList.toggle('actif', k === self.type); });
     AMX.vider(this.elEtat);
     if (this.refus) { this.elEtat.textContent = 'Accès réservé aux administrateurs.'; this.elActions.classList.add('cache'); return; }

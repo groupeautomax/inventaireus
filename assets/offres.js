@@ -306,18 +306,19 @@
     this.conteneur = conteneur;
     this.offres = cache.offres || [];
     this.selection = ctx.params.o || '';
-    this.filtres = { recherche: '', statuts: ['nouvelle', 'contre', 'acceptee', 'contrat'], compagnie: '' };
+    this.filtres = { recherche: '', statuts: ['nouvelle', 'contre', 'acceptee', 'contrat'], compagnie: AMX.compagnieChoisie('inventaire') };   /* 16 oct. : même concession que le reste du site */
     this.construire();
     this.charger();
     this.minuterie = setInterval(function () { if (!document.hidden && !self.ecriture) self.charger(true); }, 90000);
   }
-  Recues.prototype.demonter = function () { clearInterval(this.minuterie); };
+  Recues.prototype.demonter = function () { clearInterval(this.minuterie); this.detruit = true; if (this.surProfil) document.removeEventListener('amx:profil', this.surProfil); };
   Recues.prototype.naviguer = function (ctx) { if (ctx.params.o !== this.selection) { this.selection = ctx.params.o || ''; this.rendre(); } };
 
   Recues.prototype.construire = function () {
     var self = this;
     this.elKpis = h('div.kpis'); this.elRail = h('aside.rail'); this.elListe = h('div'); this.elOutils = h('div.outils-liste'); this.elPanneau = h('aside.panneau');
     this.elAgencement = h('div.agencement', [this.elRail, h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
+    this.elCies = h('div.barre-cies');   /* 16 oct. : rangée de concessions sous l'en-tête, comme partout */
     this.conteneur.appendChild(h('div.page', [
       h('div.entete-page', [
         h('div', [h('h1', 'Offres reçues'), h('p#off-etat', 'Les offres faites par les acheteurs sur les véhicules en vente.')]),
@@ -326,9 +327,11 @@
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } })
         ])
       ]),
-      this.elKpis, this.elAgencement
+      this.elCies, this.elKpis, this.elAgencement
     ]));
     this.construireRail();
+    this.surProfil = function () { if (!self.detruit) { self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); } };
+    document.addEventListener('amx:profil', this.surProfil);
   };
   Recues.prototype.construireRail = function () {
     var self = this, f = this.filtres;
@@ -342,9 +345,12 @@
       cb.addEventListener('change', function () { if (cb.checked) f.statuts.push(s); else f.statuts = f.statuts.filter(function (x) { return x !== s; }); self.rendre(); });
       grp.appendChild(h('label.case', [cb, h('span.pastille', { style: { background: 'var(--' + st.couleur + ')' } }), h('span', { text: st.libelle }), h('span.compte', { text: n })]));
     });
-    var seg = h('div.segment.bloc');
-    [['', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })).forEach(function (c) { seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } })); });
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie du véhicule' }), seg]));
+    // 16 oct. : la concession se choisit dans la rangée sous l'en-tête (compte des offres visibles par concession du véhicule)
+    var offres = this.offres;
+    AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: f.compagnie,
+      compte: function (c) { return offres.filter(function (o) { return f.statuts.indexOf(o.statut) >= 0 && (!c || (vehiculeDe(o.vin).compagnie || '') === c); }).length; },
+      onchange: function (c) { f.compagnie = c; self.construireRail(); self.rendre(); } });
+    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech]));
     this.elRail.appendChild(grp);
   };
   Recues.prototype.charger = function (force) {

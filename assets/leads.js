@@ -205,7 +205,7 @@
     document.addEventListener('visibilitychange', this.surVisible);
   }
 
-  VueLeads.prototype.filtresDefaut = function () { return { recherche: '', statut: '', concession: '', miens: false, offre: '' }; };
+  VueLeads.prototype.filtresDefaut = function () { return { recherche: '', statut: '', concession: AMX.COMPAGNIE_CONCESSION[AMX.compagnieChoisie('inventaire')] || '', miens: false, offre: '' }; };   /* 16 oct. : même concession que le reste du site */
 
   VueLeads.prototype.demonter = function () {
     this.detruit = true;
@@ -228,6 +228,7 @@
     this.elListe = h('div');
     this.elPanneau = h('aside.panneau');
     this.elAgencement = h('div.agencement', [this.elRail, h('div', [this.elOutils, this.elListe]), this.elPanneau]);
+    this.elCies = h('div.barre-cies');   /* 16 oct. : rangée de concessions sous l'en-tête, comme partout */
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.conteneur.appendChild(h('div.page.leads-page', [
       h('div.entete-page', [
@@ -241,7 +242,7 @@
           h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Nouveau lien d\'évaluation</span>', onclick: function () { self.modaleCreer(); } })
         ])
       ]),
-      this.elKpis, this.elAgencement
+      this.elCies, this.elKpis, this.elAgencement
     ]));
     this.construireRail();
     this.rendre();
@@ -269,8 +270,11 @@
     [['', 'Tous'], ['envoye', 'Envoyés'], ['recu', 'Reçus']].forEach(function (s) {
       seg.appendChild(h('button' + (f.statut === s[0] ? '.actif' : ''), { type: 'button', text: s[1], onclick: function () { f.statut = s[0]; if (s[0]) f.offre = ''; self.construireRail(); self.rendre(); } }));
     });
-    var selConc = h('select.saisie', { onchange: function (e) { f.concession = e.target.value; self.rendre(); } }, [h('option', { value: '', text: 'Toutes les concessions' })]);
-    this.concessions().forEach(function (c) { selConc.appendChild(h('option', { value: c.id, text: c.nom, selected: f.concession === c.id })); });
+    // 16 oct. : la concession se choisit dans la rangée sous l'en-tête (codes du site ↔ identifiants de concession des leads)
+    var leads = this.leads;
+    AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: AMX.CONCESSION_COMPAGNIE[f.concession] || '',
+      compte: function (c) { var id = AMX.COMPAGNIE_CONCESSION[c] || ''; return leads.filter(function (x) { return !id || x.concession === id; }).length; },
+      onchange: function (c) { f.concession = AMX.COMPAGNIE_CONCESSION[c] || ''; self.rendre(); } });
     var cbMiens = h('input', { type: 'checkbox', checked: f.miens, onchange: function (e) { f.miens = e.target.checked; self.rendre(); } });
     var nMiens = this.leads.filter(estMoi).length;
     this.elRail.appendChild(h('div.groupe', [
@@ -278,7 +282,6 @@
       rech
     ]));
     this.elRail.appendChild(h('div.groupe', [h('h3', 'Statut'), seg]));
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Concession'), selConc]));
     this.elRail.appendChild(h('div.groupe', [h('h3', 'Affichage'), h('label.case', [cbMiens, h('span', 'Seulement les miens'), h('span.compte', { text: nMiens })])]));
   };
 

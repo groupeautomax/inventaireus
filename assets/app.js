@@ -1122,18 +1122,33 @@
   // Liste verticale dans le rail (une ligne par concession : pastille, nom complet,
   // compte). Remplace le segment horizontal où 2 concessions sur 5 débordaient du
   // rail (248 px) et restaient cachées. null quand le compte n'a qu'une concession.
+  // 16 oct. (Maxime : « le choix des concessions pour le neuf et l'usagé est différent — rends le site uniforme ») :
+  // UNE présentation partout, la rangée de pastilles (.barre) sous l'en-tête de la page ; opts.vertical garde la
+  // liste du rail ; opts.sous(code) ajoute une petite ligne de chiffres sous le nom (Torque, eBlock, OpenLane, Registre) ;
+  // opts.garder === false : le clic ne change pas la concession du site (filtre local).
   AMX.choixCompagnie = function (opts) {
     var codes = AMX.codesPour(opts.domaine), valeur = opts.valeur || '';
     if (codes.length < 2) return null;
-    var liste = h('div.choix-cie', { role: 'radiogroup', 'aria-label': 'Concession' });
+    var liste = h('div.choix-cie' + (opts.vertical ? '' : '.barre'), { role: 'radiogroup', 'aria-label': 'Concession' });
     [['', 'Toutes les concessions']].concat(codes.map(function (c) { return [c, AMX.COMPAGNIES_TOUTES[c] || c]; })).forEach(function (l) {
-      var actif = valeur === l[0], n = opts.compte ? opts.compte(l[0]) : null;
-      liste.appendChild(h('button.choix' + (actif ? '.actif' : '') + (l[0] ? '.' + (AMX.COULEUR_COMPAGNIE[l[0]] || 'gris') : '.toutes'), {
-        type: 'button', role: 'radio', 'aria-checked': actif ? 'true' : 'false', 'data-compagnie': l[0], title: l[1],
-        onclick: function () { if (!actif) { AMX.choisirCompagnie(l[0]); opts.onchange(l[0]); } }
-      }, [h('i.pastille'), h('span.nom', { text: l[1] }), (n === null || n === undefined) ? null : h('span.n', { text: n })]));
+      var actif = valeur === l[0], n = opts.compte ? opts.compte(l[0]) : null, sous = opts.sous ? opts.sous(l[0]) : null;
+      liste.appendChild(h('button.choix' + (actif ? '.actif' : '') + (l[0] ? '.' + (AMX.COULEUR_COMPAGNIE[l[0]] || 'gris') : '.toutes') + (sous ? '.avec-sous' : ''), {
+        type: 'button', role: 'radio', 'aria-checked': actif ? 'true' : 'false', 'aria-pressed': actif ? 'true' : 'false', 'data-compagnie': l[0], title: l[1],
+        onclick: function () { if (!actif) { if (opts.garder !== false) AMX.choisirCompagnie(l[0]); opts.onchange(l[0]); } }
+      }, [h('i.pastille'), h('span.nom', { text: l[1] }), (n === null || n === undefined) ? null : h('span.n', { text: n }), sous ? h('span.sous', { text: sous }) : null]));
     });
     return liste;
+  };
+  /** Pose la rangée de concessions dans `conteneur` (div.barre-cies, vidé d'abord) ; opts.extra = éléments à droite. */
+  AMX.barreConcessions = function (conteneur, opts) {
+    AMX.vider(conteneur);
+    conteneur.classList.add('barre-cies');
+    var choix = AMX.choixCompagnie(opts);
+    if (choix) conteneur.appendChild(choix);
+    var extra = opts.extra ? [].concat(opts.extra).filter(Boolean) : [];
+    if (extra.length) conteneur.appendChild(h('div.extra', extra));
+    conteneur.classList.toggle('sans-choix', !choix && !extra.length);
+    return choix;
   };
   AMX.STATUTS_OFFRE = {
     nouvelle: { libelle: 'À traiter', couleur: 'ambre' }, contre: { libelle: 'Contre-offre', couleur: 'violet' },

@@ -221,7 +221,7 @@
     s.textContent = [
       '.neufs-page .carte { margin-bottom: 12px; }',
       /* Concessions en pastilles sur une ligne (la liste verticale commune prend 300 px : trop long ici) */
-      '.neufs-concessions { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .neufs-concessions .neufs-flotte { margin-left: auto; } .neufs-flotte-badge { margin-left: 6px; font-size: 10.5px; vertical-align: 1px; } .neufs-concessions .choix-cie { flex-direction: row; flex-wrap: wrap; gap: 6px; } .neufs-concessions .choix-cie .choix { width: auto; border-color: var(--bordure); background: var(--carte); border-radius: 999px; padding: 5px 11px 5px 9px; } .neufs-concessions .choix-cie .choix .n { margin-left: 2px; }',
+      '.neufs-flotte-badge { margin-left: 6px; font-size: 10.5px; vertical-align: 1px; }',
       /* Pipeline : commandées → transit → stock → démos → vendues */
       '.neufs-pipeline .neufs-etapes { display: flex; align-items: stretch; gap: 4px; padding: 10px 12px; overflow-x: auto; } .neufs-etapes .fleche { align-self: center; color: var(--encre-4); font-size: 18px; padding: 0 2px; flex: none; }',
       '.neufs-etape { flex: 1 1 140px; min-width: 130px; text-align: left; background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 12px; cursor: pointer; font: inherit; color: var(--encre); position: relative; overflow: hidden; } .neufs-etape:hover { border-color: var(--encre-3); }',
@@ -446,7 +446,7 @@
     this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail du constructeur</span>', title: 'Lire l\'inventaire, les commandes et les ventes déclarées depuis le portail du constructeur (favori à cliquer sur le portail, connecté)', onclick: function () { self.ouvrirSignet(self.compagnie || 'HYUNDAI'); } });
     this.elOrigine = h('div.segment.neufs-origine', { role: 'group', 'aria-label': 'Origine de l\'inventaire', title: 'Deux inventaires distincts, jamais mélangés : l\'export du DMS (fichier ou feuille Google) et le portail du manufacturier (favori) — l\'onglet Écarts les compare' });
     var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Véhicules neufs'), this.elOrigine, this.elEtat]), h('div.actions', [this.btnPortail, this.btnRafraichir, this.btnExport])]);
-    this.elChoix = h('div.neufs-concessions');
+    this.elChoix = h('div.barre-cies.neufs-concessions');   /* 16 oct. : même rangée de concessions que partout (AMX.barreConcessions) */
     this.elMarques = h('div.neufs-marques');
     this.elPipeline = h('div.carte.neufs-pipeline');
     this.elCartes = h('div.neufs-cartes');
@@ -487,14 +487,15 @@
   };
   /* Sélecteur Détail · Flotte · Tout (GM seulement : les unités FNR / FCN du portail sont de la flotte). */
   VueNeufs.prototype.rendreFlotte = function () {
-    var self = this, ancien = this.elChoix.querySelector('.neufs-flotte');
+    var self = this, ancien = this.elChoix.querySelector('.extra');
     if (ancien) ancien.remove();
-    if (!this.aFlotte()) return;
+    if (!this.aFlotte()) { this.elChoix.classList.toggle('sans-choix', !this.elChoix.querySelector('.choix-cie')); return; }
     var tous = this.visiblesTous().filter(function (v) { return v.enStock; }), nF = tous.filter(estFlotte).length, nD = tous.length - nF;
     var seg = h('div.segment.neufs-flotte', { role: 'group', 'aria-label': 'Détail ou flotte', title: 'GM : les unités commandées en FNR / FCN sont de la flotte (parcs) ; TRE / SRE, le détail' }, [['detail', 'Détail', nD], ['flotte', 'Flotte', nF], ['tout', 'Tout', tous.length]].map(function (o) {
       return h('button' + (self.flotte === o[0] ? '.actif' : ''), { type: 'button', text: o[1] + ' ' + AMX.fmtNombre(o[2]), onclick: function () { if (self.flotte === o[0]) return; self.flotte = o[0]; AMX.memo.ecrire('neufs_flotte', o[0]); self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); } });
     }));
-    this.elChoix.appendChild(seg);
+    this.elChoix.appendChild(h('div.extra', [seg]));
+    this.elChoix.classList.remove('sans-choix');
   };
   /* Filtre de marque (Maxime, 11 oct.) : pastilles sous les concessions quand la concession vend plusieurs marques (GM). */
   VueNeufs.prototype.rendreMarques = function () {
@@ -670,11 +671,9 @@
         if (!this.filtrees().length && this.filtreesSans().length) { this.flotte = 'tout'; this.marque = ''; }
       }
     }   /* NIV demandé (recherche globale) caché par l'origine, le mode ou la marque : on bascule */
-    AMX.vider(this.elChoix);
     var tous = this.donnees ? this.donnees.vehicules : [];
     var def = AMX.neufs.originesDefaut ? AMX.neufs.originesDefaut() : {}, oc = this.origineCourante();
-    var choix = AMX.choixCompagnie({ domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return tous.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === (c ? (self.origine && self.compagnie === c ? oc : def[c]) : def[v.compagnie]) && self.garde(estFlotte(v)); }).length; }, onchange: function (c) { self.compagnie = c; self.typeParVin = null; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre(); } });
-    if (choix) this.elChoix.appendChild(choix);
+    AMX.barreConcessions(this.elChoix, { domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return tous.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === (c ? (self.origine && self.compagnie === c ? oc : def[c]) : def[v.compagnie]) && self.garde(estFlotte(v)); }).length; }, onchange: function (c) { self.compagnie = c; self.typeParVin = null; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre(); } });
     this.rendreOrigine();
     this.rendreFlotte();
     this.rendreMarques();

@@ -330,6 +330,7 @@
     if (!r.ok) return h('div.d2c-resultat.erreur', [h('b', { text: importe ? 'Import refusé : ' : 'Simulation impossible : ' }), r.erreur || 'erreur inconnue']);
     var bloc = h('div.d2c-resultat' + (importe ? '.ok' : ''), { dataset: { mode: importe ? 'import' : 'simulation' } });
     bloc.appendChild(h('div', [h('b', { text: importe ? 'Importé — ' : 'Simulation — ' }), r.resume || '']));
+    if (r.regle) bloc.appendChild(h('p.doux.petit', { style: { margin: '6px 0 0' } }, 'Règle : ' + r.regle));
     var n = r.neufs, u = r.usages, cf = r.carfax, listes = h('div.d2c-listes');
     function liste(titre, lignes, colonnes) {
       if (!lignes || !lignes.length) return;

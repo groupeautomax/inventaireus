@@ -283,9 +283,9 @@
       var corps = { neuf: 0, usage: 0, demo: 0, transit: 0, vendus: 0, cout: 0, km: 0, carfax: 0 }, fournisseurs = {};
       liste.forEach(function (v) {
         var b = String(v.corps || '').toLowerCase();
-        if (/demo/.test(b)) corps.demo++; else if (/used|usag/.test(b)) corps.usage++; else corps.neuf++;
+        if (/demo/.test(b)) corps.demo++; else if (/used|usag|sold/.test(b)) corps.usage++; else corps.neuf++;   // body D2C : new | used | demo | sold
         if (/transit/i.test(String(v.livraison || ''))) corps.transit++;
-        if (v.vendu) corps.vendus++;
+        if (v.vendu || /sold/.test(b)) corps.vendus++;
         if (v.cout) corps.cout++;
         if (v.km && v.km > 50) corps.km++;
         if (v.carfax) corps.carfax++;

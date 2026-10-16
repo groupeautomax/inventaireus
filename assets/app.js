@@ -1129,7 +1129,7 @@
   AMX.choixCompagnie = function (opts) {
     var codes = AMX.codesPour(opts.domaine), valeur = opts.valeur || '';
     if (codes.length < 2) return null;
-    var liste = h('div.choix-cie' + (opts.vertical ? '' : '.barre'), { role: 'radiogroup', 'aria-label': 'Concession' });
+    var liste = h('div.choix-cie' + (opts.vertical ? '' : '.rangee'), { role: 'radiogroup', 'aria-label': 'Concession' });
     [['', 'Toutes les concessions']].concat(codes.map(function (c) { return [c, AMX.COMPAGNIES_TOUTES[c] || c]; })).forEach(function (l) {
       var actif = valeur === l[0], n = opts.compte ? opts.compte(l[0]) : null, sous = opts.sous ? opts.sous(l[0]) : null;
       liste.appendChild(h('button.choix' + (actif ? '.actif' : '') + (l[0] ? '.' + (AMX.COULEUR_COMPAGNIE[l[0]] || 'gris') : '.toutes') + (sous ? '.avec-sous' : ''), {

@@ -186,19 +186,19 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .choix-cie .choix.actif .n { color: var(--vert); }
 /* 16 oct. (Maxime : « rends le site uniforme ») : UNE présentation du choix de concession sur toutes les pages —
    la rangée de pastilles de la page Neufs, sous l'en-tête, avant les indicateurs. AMX.choixCompagnie la rend
-   par défaut (.barre) ; AMX.barreConcessions(conteneur, opts) la pose dans un div.barre-cies (extra à droite). */
+   par défaut (.rangee) ; AMX.barreConcessions(conteneur, opts) la pose dans un div.barre-cies (extra à droite). */
 .barre-cies { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
 .barre-cies.sans-choix { display: none; }
 .barre-cies .extra { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.choix-cie.barre { flex-direction: row; flex-wrap: wrap; gap: 6px; }
-.choix-cie.barre .choix { width: auto; border-color: var(--bordure); background: var(--carte); border-radius: 999px; padding: 5px 11px 5px 9px; }
-.choix-cie.barre .choix .nom { flex: none; overflow: visible; }
-.choix-cie.barre .choix .n { margin-left: 2px; }
-.choix-cie.barre .choix.avec-sous { display: grid; grid-template-columns: auto auto auto; align-items: center; column-gap: 8px; border-radius: 12px; padding: 7px 12px 6px 10px; }
-.choix-cie.barre .choix.avec-sous .n { font-size: 12.5px; justify-self: end; }
-.choix-cie.barre .choix .sous { grid-column: 1 / -1; font-size: 11px; font-weight: 400; color: var(--encre-3); margin-top: 2px; white-space: nowrap; }
-.choix-cie.barre .choix.actif .sous { color: var(--encre-2); }
-@media (max-width: 720px) { .choix-cie.barre .choix .sous { white-space: normal; } }
+.choix-cie.rangee { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.choix-cie.rangee .choix { width: auto; border-color: var(--bordure); background: var(--carte); border-radius: 999px; padding: 5px 11px 5px 9px; }
+.choix-cie.rangee .choix .nom { flex: none; overflow: visible; }
+.choix-cie.rangee .choix .n { margin-left: 2px; }
+.choix-cie.rangee .choix.avec-sous { display: grid; grid-template-columns: auto auto auto; align-items: center; column-gap: 8px; border-radius: 12px; padding: 7px 12px 6px 10px; }
+.choix-cie.rangee .choix.avec-sous .n { font-size: 12.5px; justify-self: end; }
+.choix-cie.rangee .choix .sous { grid-column: 1 / -1; font-size: 11px; font-weight: 400; color: var(--encre-3); margin-top: 2px; white-space: nowrap; }
+.choix-cie.rangee .choix.actif .sous { color: var(--encre-2); }
+@media (max-width: 720px) { .choix-cie.rangee .choix .sous { white-space: normal; } }
 
 /* ----------------------------- Badges ---------------------------------- */
 .badge {

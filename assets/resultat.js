@@ -616,25 +616,34 @@
     if (!this.lignes) this.rendre();   // squelettes
     // Wholesale Canada : relire les Livres des ventes prend 15 à 30 s côté serveur (Rafraîchir, ou cache
     // expiré) — une seule requête, patiente, plutôt que la requête de secours à 6 s et la coupure à 25 s.
-    var opts = this.estCan() ? { delai: 60000, secours: 45000 } : undefined;
+    var opts = this.estCan() ? { delai: 60000, secours: 45000 } : { secours: false };   // 16 oct. : une requête patiente, pas de doublon (?resultatRaw=1 = 330 Ko)
+    opts.copie = 'resultat_' + this.source.cle;
+    var appliquer = function (d, copieLe) {
+      var n = normaliser(d.rows || [], self.source.seuil);
+      self.lignes = n.lignes; self.exclues = n.exclues;
+      var lu = self.estCan() && d.genereLe ? new Date(d.genereLe) : null;   // heure de lecture des livres (cache serveur)
+      self.quand = copieLe ? new Date(copieLe) : (lu && !isNaN(lu.getTime()) ? lu : new Date());
+      self.copieLe = copieLe || 0;
+      self.enAttente = normaliser(d.enAttente || [], Infinity).lignes;
+      self.exclus = d.exclus || null; self.horsPortee = !!d.horsPortee; self.livres = d.livres || []; self.livreErreurs = d.erreurs || [];
+      self.erreur = ''; self.refus = '';
+      self.rendre();
+    };
+    if (!this.lignes) {   /* 16 oct. (Google lent) : la dernière copie du navigateur s'affiche tout de suite, le serveur corrige ensuite */
+      AMX.cacheLocal.lireGz(opts.copie, 7 * 86400000).then(function (o) { if (self.detruit || gen !== self.generation || self.lignes || !o || !o.donnees || !Array.isArray(o.donnees.rows)) return; appliquer(o.donnees, o.quand); }).catch(function () {});
+    }
     return AMX.get(this.source.route + (manuel && this.estCan() ? '&force=1' : ''), opts).then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;
       self.btnRafraichir.classList.remove('occupe');
       if (d && d.refuse) {
         self.refus = d.erreur || d.message || 'Les résultats sont réservés aux administrateurs.';
+        self.lignes = null; self.copieLe = 0;
         self.rendre();
         return;
       }
       if (!d || d.ok === false) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
-      var n = normaliser(d.rows || [], self.source.seuil);
-      self.lignes = n.lignes; self.exclues = n.exclues;
-      var lu = self.estCan() && d.genereLe ? new Date(d.genereLe) : null;   // heure de lecture des livres (cache serveur)
-      self.quand = lu && !isNaN(lu.getTime()) ? lu : new Date();
-      self.enAttente = normaliser(d.enAttente || [], Infinity).lignes;
-      self.exclus = d.exclus || null; self.horsPortee = !!d.horsPortee; self.livres = d.livres || []; self.livreErreurs = d.erreurs || [];
-      self.erreur = ''; self.refus = '';
-      self.rendre();
+      appliquer(d, 0);
       if (manuel) AMX.toast('Résultats mis à jour — ' + pluriel(self.lignes.length, 'vente'), 'ok');
     }, function (e) {
       if (self.detruit || gen !== self.generation) return;
@@ -642,7 +651,7 @@
       self.btnRafraichir.classList.remove('occupe');
       self.erreur = AMX.erreurTexte(e);
       self.rendre();
-      AMX.toast('Impossible de charger les résultats — ' + self.erreur, 'erreur');
+      AMX.toast((self.lignes ? 'Résultats : mise à jour impossible (copie du navigateur affichée) — ' : 'Impossible de charger les résultats — ') + self.erreur, 'erreur');
     });
   };
 
@@ -706,7 +715,7 @@
         ? tout.nb + ' vente' + (tout.nb > 1 ? 's' : '') + ' neuve' + (tout.nb > 1 ? 's' : '')
         : tout.nb + ' vente' + (tout.nb > 1 ? 's' : '') + ' comptabilisée' + (tout.nb > 1 ? 's' : '');
       this.elEtat.appendChild(document.createTextNode(
-        tete + ' (' + p1 + ' ' + AMX.fmtArgent(g1.profitTotal, 0) + ' · ' + p2 + ' ' + AMX.fmtArgent(g2.profitTotal, 0) + ')' + (c !== 'TOUT' ? ' · ' + c : '') + ' · livres lus à ' + heure(this.quand)
+        tete + ' (' + p1 + ' ' + AMX.fmtArgent(g1.profitTotal, 0) + ' · ' + p2 + ' ' + AMX.fmtArgent(g2.profitTotal, 0) + ')' + (c !== 'TOUT' ? ' · ' + c : '') + (this.copieLe ? ' · copie du ' + AMX.copieTexte(this.copieLe) + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : ' — mise à jour en cours…') : ' · livres lus à ' + heure(this.quand))
       ));
       var nPrevu = parCie.filter(function (r) { return r.profitSource === 'prevu' && !r.ajust; }).length;
       if (nPrevu) this.elEtat.appendChild(h('span.puce.gris', { title: 'Ventes dont la comptabilité n\'a pas encore inscrit le profit réel : le profit prévu (front + F&I) est pris en attendant.', text: nPrevu + ' au prévu' }));
@@ -718,7 +727,7 @@
       });
     } else {
       this.elEtat.appendChild(document.createTextNode(
-        pluriel(n, 'vente') + (this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '') + ' · mis à jour à ' + heure(this.quand)
+        pluriel(n, 'vente') + (this.compagnie !== 'TOUT' ? ' · ' + this.compagnie : '') + (this.copieLe ? ' · copie du ' + AMX.copieTexte(this.copieLe) + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : ' — mise à jour en cours…') : ' · mis à jour à ' + heure(this.quand))
       ));
     }
     if (this.exclues) {

@@ -160,16 +160,26 @@
       // v100 : un rechargement forcé après une écriture ne se contente pas d'un chargement déjà en vol (parti AVANT l'écriture,
       // il ramènerait la liste d'avant — p. ex. un avis sans sa réponse fraîchement publiée) : il en relance un après.
       if (promesse) return force ? promesse.then(function () { return AMX.avis.charger(true); }, function () { return AMX.avis.charger(true); }) : promesse;
-      promesse = AMX.get({ avis: 1 }).then(function (d) {
+      promesse = AMX.get({ avis: 1 }, { copie: 'avis', secours: false }).then(function (d) {
         AMX.verifier(d, 'Suivi des avis indisponible');
         if (d.seuilNegatif >= 1 && d.seuilNegatif <= 4) SEUIL = Number(d.seuilNegatif);
-        cache.reponse = d; cache.quand = Date.now(); promesse = null;
+        cache.reponse = d; cache.quand = Date.now(); cache.copieLe = 0; promesse = null;
         document.dispatchEvent(new CustomEvent('amx:avis'));
         return d;
       }, function (e) { promesse = null; throw e; });
       return promesse;
     },
-    invalider: function () { cache.quand = 0; }
+    invalider: function () { cache.quand = 0; },
+    // 16 oct. (Google lent) : la dernière réponse gardée dans le navigateur (gzip), affichée en attendant le serveur.
+    copie: function () {
+      if (cache.reponse) return Promise.resolve({ donnees: cache.reponse, quand: cache.copieLe || 0 });
+      return AMX.cacheLocal.lireGz('avis', 7 * 86400000).then(function (o) {
+        if (!o || !o.donnees || !o.donnees.stats || cache.reponse) return null;
+        cache.reponse = o.donnees; cache.quand = 0; cache.copieLe = o.quand;
+        return { donnees: o.donnees, quand: o.quand };
+      });
+    },
+    copieLe: function () { return cache.copieLe || 0; }
   };
 
   function etoiles(n, grand) {
@@ -235,8 +245,12 @@
   };
   Avis.prototype.charger = function (force) {
     var self = this;
-    if (!cache.reponse) { AMX.vider(this.elCorps); this.elCorps.appendChild(h('div.chargement', [h('span.spin'), 'Chargement des avis…'])); }
+    if (!cache.reponse) {
+      AMX.vider(this.elCorps); this.elCorps.appendChild(h('div.chargement', [h('span.spin'), 'Chargement des avis…']));
+      AMX.avis.copie().then(function (c) { if (c && c.quand && !self.detruit) { self.rendre(); AMX.rafraichirSousBarre(); } }).catch(function () {});   /* 16 oct. : la copie d'abord */
+    }
     AMX.avis.charger(force).then(function () { self.rendre(); AMX.rafraichirSousBarre(); }, function (e) {
+      if (cache.reponse) { self.rendre(); AMX.toast('Avis : mise à jour impossible (copie du navigateur affichée) — ' + AMX.erreurTexte(e), 'erreur'); return; }
       AMX.vider(self.elCorps);
       self.elCorps.appendChild(h('div.alerte-bloc.erreur', [AMX.svg('alerte'), h('div', { text: AMX.erreurTexte(e) })]));
     });
@@ -245,7 +259,7 @@
   Avis.prototype.rendre = function () {
     var d = cache.reponse; if (!d) return;
     var g = d.stats.groupe;
-    this.elSous.textContent = (g.note !== null ? 'Note du groupe ' + fmtNote(g.note) + ' / 5 sur ' + AMX.fmtNombre(g.nombre) + ' avis' : 'Aucune mesure encore') +
+    this.elSous.textContent = (cache.copieLe ? 'Copie du ' + AMX.copieTexte(cache.copieLe) + ' — mise à jour en cours… · ' : '') + (g.note !== null ? 'Note du groupe ' + fmtNote(g.note) + ' / 5 sur ' + AMX.fmtNombre(g.nombre) + ' avis' : 'Aucune mesure encore') +
       (g.nouveaux30 ? ' · ' + g.nouveaux30 + ' nouveaux en 30 jours' : '') + (g.negatifs30 ? ' · ' + g.negatifs30 + ' négatif' + (g.negatifs30 > 1 ? 's' : '') : '');
     AMX.vider(this.elCorps);
     if (d.api && !d.api.approuve) {

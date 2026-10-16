@@ -1902,20 +1902,26 @@
     if (manuel) this.btnRafraichir.classList.add('occupe');
     // Les verdicts Canada / É.-U. (8 oct.) arrivent par une seconde route, sans bloquer le registre.
     AMX.get({ evaluationsUs: 1 }).then(function (u) { if (gen !== self.generation || !u || !u.ok) return; self.us = u.parVin || {}; if (self.liste) { self.liste.forEach(function (r) { r.us = self.us[r.vin] || null; }); self.rendreTable(); } }).catch(function () {});
-    return AMX.get({ evaluations: 1 }).then(function (d) {
-      if (gen !== self.generation) return;
-      self.btnRafraichir.classList.remove('occupe');
-      if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.rendre(); return; }
-      if (!d || !d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
-      self.liste = d.evaluations || []; self.parConcession = d.parConcession || {}; self.erreur = ''; self.refus = '';
+    var appliquer = function (d, copieLe) {
+      self.liste = d.evaluations || []; self.parConcession = d.parConcession || {}; self.erreur = ''; self.refus = ''; self.copieLe = copieLe || 0;
       if (self.us) self.liste.forEach(function (r) { r.us = self.us[r.vin] || null; });
       self.rendre();
+    };
+    if (!this.liste) {   /* 16 oct. (Google lent) : la dernière copie du navigateur s'affiche tout de suite, le serveur corrige ensuite */
+      AMX.cacheLocal.lireGz('evaluations', 7 * 86400000).then(function (o) { if (gen !== self.generation || self.liste || !o || !o.donnees || !Array.isArray(o.donnees.evaluations)) return; appliquer(o.donnees, o.quand); }).catch(function () {});
+    }
+    return AMX.get({ evaluations: 1 }, { copie: 'evaluations', secours: false }).then(function (d) {
+      if (gen !== self.generation) return;
+      self.btnRafraichir.classList.remove('occupe');
+      if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.liste = null; self.copieLe = 0; self.rendre(); return; }
+      if (!d || !d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
+      appliquer(d, 0);
       if (manuel) AMX.toast('Registre mis à jour — ' + self.liste.length + ' évaluation' + (self.liste.length > 1 ? 's' : ''), 'ok');
     }).catch(function (e) {
       if (gen !== self.generation) return;
       self.btnRafraichir.classList.remove('occupe');
       self.erreur = AMX.erreurTexte(e); self.rendre();
-      AMX.toast('Impossible de charger le registre — ' + self.erreur, 'erreur');
+      AMX.toast((self.liste ? 'Registre : mise à jour impossible (copie du navigateur affichée) — ' : 'Impossible de charger le registre — ') + self.erreur, 'erreur');
     });
   };
 
@@ -1953,7 +1959,7 @@
     var total = this.liste.length;
     var nEnr = this.liste.filter(function (r) { return r.statut !== 'auto'; }).length, nAuto = total - nEnr;
     this.rendreVeille();
-    this.elEtat.textContent = total + ' évaluation' + (total > 1 ? 's' : '') + ' — ' + nEnr + ' enregistrée' + (nEnr > 1 ? 's' : '') + ' (vert) et ' + nAuto + ' analyse' + (nAuto > 1 ? 's' : '') + ' conservée' + (nAuto > 1 ? 's' : '') + ' automatiquement (gris), une par véhicule, par évaluateur et par concession. Cliquez une concession pour filtrer, une ligne pour ouvrir.';
+    this.elEtat.textContent = (this.copieLe ? 'Copie du ' + AMX.copieTexte(this.copieLe) + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : ' — mise à jour en cours…') + ' · ' : '') + total + ' évaluation' + (total > 1 ? 's' : '') + ' — ' + nEnr + ' enregistrée' + (nEnr > 1 ? 's' : '') + ' (vert) et ' + nAuto + ' analyse' + (nAuto > 1 ? 's' : '') + ' conservée' + (nAuto > 1 ? 's' : '') + ' automatiquement (gris), une par véhicule, par évaluateur et par concession. Cliquez une concession pour filtrer, une ligne pour ouvrir.';
     // Période
     PERIODES_REGISTRE.forEach(function (p) {
       self.elSegment.appendChild(h('button' + (p[0] === self.periode ? '.actif' : ''), { type: 'button', text: p[1], onclick: function () { self.periode = p[0]; AMX.memo.ecrire('registre_eval_periode', p[0]); self.rendre(); } }));

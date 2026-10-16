@@ -299,7 +299,7 @@
     var self = this, gen = ++this.generation;
     tentative = tentative || 1;
     if (manuel) this.btnRafraichir.classList.add('occupe');
-    return AMX.get({ eblock: 1 }).then(function (d) {
+    return AMX.get({ eblock: 1 }, { secours: false }).then(function (d) {
       if (gen !== self.generation) return;
       self.btnRafraichir.classList.remove('occupe');
       if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.rendre(); return; }
@@ -313,7 +313,7 @@
     }).catch(function (e) {
       if (gen !== self.generation) return;
       // Délai dépassé (Google qui traîne) : on réessaie tout seul deux fois, sans bruit.
-      if (tentative < 3 && /Pas de réponse|réseau|HTTP 5|illisible/i.test(String(e && e.message || e))) { self.generation--; setTimeout(function () { if (gen === self.generation) self.charger(manuel, tentative + 1); }, 2500); return; }
+      if (tentative < 2 && /Pas de réponse|réseau|HTTP 5|illisible/i.test(String(e && e.message || e))) { self.generation--; setTimeout(function () { if (gen === self.generation) self.charger(manuel, tentative + 1); }, 2500); return; }
       self.btnRafraichir.classList.remove('occupe');
       self.erreur = AMX.erreurTexte(e); self.rendre();
       AMX.toast('Impossible de charger les fiches eBlock — ' + self.erreur, 'erreur');

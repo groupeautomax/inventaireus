@@ -303,10 +303,11 @@
     charger: function (force) {
       if (!force && cache.donnees && Date.now() - cache.le < DUREE_CACHE_MS) return Promise.resolve(cache.donnees);
       if (cache.promesse) return cache.promesse;
-      cache.promesse = AMX.get({ neufs: 1 }, { gz: true }).then(function (d) {
+      cache.promesse = AMX.get({ neufs: 1 }, { gz: true, copie: 'neufs' }).then(function (d) {
         cache.promesse = null;
         if (!d || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Accès refusé.');
         if (!d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
+        cache.copieLe = 0;
         cache.donnees = d; cache.le = Date.now();
         try { document.dispatchEvent(new CustomEvent('amx:neufs')); } catch (e) {}
         return d;
@@ -315,16 +316,36 @@
     },
     enCache: function () { return cache.donnees; },
     portailEnCache: function () { return cachePortail.donnees; },
+    // 16 oct. (Google lent) : la dernière réponse gardée dans le navigateur (gzip), pour s'afficher d'un coup pendant
+    // que la vraie requête attend. Ne remplace jamais des données déjà reçues du serveur.
+    copie: function () {
+      if (cache.donnees) return Promise.resolve({ donnees: cache.donnees, quand: cache.copieLe || 0 });
+      return AMX.cacheLocal.lireGz('neufs', 7 * 86400000).then(function (o) {
+        if (!o || !o.donnees || !Array.isArray(o.donnees.vehicules) || cache.donnees) return cache.donnees ? { donnees: cache.donnees, quand: cache.copieLe || 0 } : null;
+        cache.donnees = o.donnees; cache.le = 0; cache.copieLe = o.quand;   // le = 0 : la prochaine lecture redemande au serveur
+        return { donnees: o.donnees, quand: o.quand };
+      });
+    },
+    copieLe: function () { return cache.copieLe || 0; },
+    copiePortail: function () {
+      if (cachePortail.donnees) return Promise.resolve({ donnees: cachePortail.donnees, quand: cachePortail.copieLe || 0 });
+      return AMX.cacheLocal.lireGz('constructeur', 7 * 86400000).then(function (o) {
+        if (!o || !o.donnees || cachePortail.donnees) return cachePortail.donnees ? { donnees: cachePortail.donnees, quand: cachePortail.copieLe || 0 } : null;
+        cachePortail.donnees = o.donnees; cachePortail.le = 0; cachePortail.copieLe = o.quand; indexerRdr(o.donnees);
+        return { donnees: o.donnees, quand: o.quand };
+      });
+    },
     // RDR à compléter chez le constructeur (portail RDR BMW) pour les concessions visibles — tuile de l'accueil.
     aFaireConstructeur: function () { var p = cachePortail.donnees; if (!p || !p.tableaux) return null; var out = []; Object.keys(p.tableaux).forEach(function (c) { var t = p.tableaux[c]; (t.aFaire || []).forEach(function (l) { out.push({ compagnie: c, ligne: l }); }); }); return out; },
-    vider: function () { cache.donnees = null; cache.le = 0; cachePortail.donnees = null; },
+    vider: function () { cache.donnees = null; cache.le = 0; cache.copieLe = 0; cachePortail.donnees = null; cachePortail.copieLe = 0; AMX.cacheLocal.oublier('neufs'); AMX.cacheLocal.oublier('constructeur'); },
     // Portails des constructeurs (?constructeur=1) : ventes déclarées, commandes en attente, factures, état des lectures.
     chargerPortail: function (force) {
       if (!force && cachePortail.donnees && Date.now() - cachePortail.le < DUREE_CACHE_MS) return Promise.resolve(cachePortail.donnees);
       if (cachePortail.promesse) return cachePortail.promesse;
-      cachePortail.promesse = AMX.get({ constructeur: 1 }, { gz: true }).then(function (d) {
+      cachePortail.promesse = AMX.get({ constructeur: 1 }, { gz: true, copie: 'constructeur' }).then(function (d) {
         cachePortail.promesse = null;
         if (!d || d.ok === false || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
+        cachePortail.copieLe = 0;
         cachePortail.donnees = d; cachePortail.le = Date.now();
         indexerRdr(d);
         return d;
@@ -544,11 +565,15 @@
     if (force) this.btnRafraichir.classList.add('occupe');
     if (!AMX.neufs.enCache()) this.elTable.appendChild(AMX.chargeur('Véhicules neufs'));
     this.portail = this.portail || null;
+    if (!this.donnees) {   /* 16 oct. : la dernière copie s'affiche tout de suite, le serveur corrige ensuite */
+      AMX.neufs.copie().then(function (c) { if (gen !== self.generation || self.donnees || !c || !c.quand) return; self.donnees = c.donnees; self.copieLe = c.quand; self.erreur = ''; self.rendre(); }).catch(function () {});
+      AMX.neufs.copiePortail().then(function (c) { if (gen !== self.generation || self.portail || !c || !c.quand) return; self.portail = c.donnees; self.rendrePortailOnglets(); if (self.donnees) self.rendre(); }).catch(function () {});
+    }
     AMX.neufs.chargerPortail(force).then(function (p) { if (gen !== self.generation) return; self.portail = p; indexerRdr(p); self.rendrePortailOnglets(); if (self.donnees) self.rendre(); }, function () { if (gen !== self.generation) return; self.portail = null; self.rendrePortailOnglets(); });
     this.chargerEchanges(gen);
     return AMX.neufs.charger(force).then(function (d) {
       if (gen !== self.generation) return;
-      self.donnees = d; self.erreur = ''; self.typeParVin = null;
+      self.donnees = d; self.erreur = ''; self.typeParVin = null; self.copieLe = 0;
       self.btnRafraichir.classList.remove('occupe');
       self.rendre();
       if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre();   /* compteur « Neufs » de la sous-barre (11 oct.) */
@@ -557,7 +582,7 @@
       if (gen !== self.generation) return;
       self.btnRafraichir.classList.remove('occupe');
       self.erreur = AMX.erreurTexte(e); self.rendre();
-      AMX.toast('Impossible de charger les neufs — ' + self.erreur, 'erreur');
+      AMX.toast((self.donnees ? 'Neufs : mise à jour impossible (copie du navigateur affichée) — ' : 'Impossible de charger les neufs — ') + self.erreur, 'erreur');
     });
   };
 
@@ -689,7 +714,7 @@
     void quoi; void reste; void nTerrain; void nTransit; void nDemos;
     var codesVis = AMX.codesPour ? AMX.codesPour('inventaire') : [];
     var nDispoE = enStock.filter(estDisponible).length;
-    this.elEtat.textContent = (this.compagnie ? nomCie(this.compagnie) : (codesVis.length === 1 ? nomCie(codesVis[0]) : 'Tout le groupe')) + ' · ' + enStock.length + ' neuf' + (enStock.length > 1 ? 's' : '') + ' · ' + nDispoE + ' disponible' + (nDispoE > 1 ? 's' : '') + (derniers.length ? ' · lu le ' + derniers.map(function (x) { return x.replace(/^.*? (\d{4}-\d{2}-\d{2}.*)$/, '$1'); }).join(' · ') : ' · rien reçu encore du ' + ORIGINES_LONG[origine]);   /* Maxime, 11 oct. : pas de longue phrase sous le titre */
+    this.elEtat.textContent = (this.copieLe ? 'Copie du ' + AMX.copieTexte(this.copieLe) + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : ' — mise à jour en cours…') + ' · ' : '') + (this.compagnie ? nomCie(this.compagnie) : (codesVis.length === 1 ? nomCie(codesVis[0]) : 'Tout le groupe')) + ' · ' + enStock.length + ' neuf' + (enStock.length > 1 ? 's' : '') + ' · ' + nDispoE + ' disponible' + (nDispoE > 1 ? 's' : '') + (derniers.length ? ' · lu le ' + derniers.map(function (x) { return x.replace(/^.*? (\d{4}-\d{2}-\d{2}.*)$/, '$1'); }).join(' · ') : ' · rien reçu encore du ' + ORIGINES_LONG[origine]);   /* Maxime, 11 oct. : pas de longue phrase sous le titre */
     this.btnPortail.classList.toggle('cache', !(peutImporterPortail() && (!this.compagnie || PORTAILS[this.compagnie])));
     this.rendrePipeline(enStock);
     this.rendreCartes(enStock);

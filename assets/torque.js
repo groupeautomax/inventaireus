@@ -195,15 +195,22 @@
   ArchiveTorque.prototype.charger = function (manuel) {
     var self = this, gen = ++this.generation;
     if (manuel) this.btnRafraichir.classList.add('occupe');
-    return Promise.all([AMX.get({ torque: 1 }), AMX.get({ torqueEtat: 1 }).catch(function () { return null; })]).then(function (res) {
+    var appliquer = function (d, etat, copieLe) {
+      self.liste = d.evaluations || []; self.parStatut = d.parStatut || {}; self.etat = etat && etat.ok ? etat : { parConcession: {}, photos: d.photos || {}, analyses: d.analyses || 0 };
+      self.copieLe = copieLe || 0;
+      self.erreur = ''; self.refus = '';
+      self.rendre();
+    };
+    if (!this.liste) {   /* 16 oct. (Google lent) : la dernière copie du navigateur s'affiche tout de suite, le serveur corrige ensuite */
+      AMX.cacheLocal.lireGz('torque', 7 * 86400000).then(function (o) { if (gen !== self.generation || self.liste || !o || !o.donnees || !Array.isArray(o.donnees.evaluations)) return; appliquer(o.donnees, null, o.quand); }).catch(function () {});
+    }
+    return Promise.all([AMX.get({ torque: 1 }, { copie: 'torque', secours: false }), AMX.get({ torqueEtat: 1 }).catch(function () { return null; })]).then(function (res) {
       if (gen !== self.generation) return;
       var d = res[0];
       self.btnRafraichir.classList.remove('occupe');
-      if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.rendre(); return; }
+      if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.liste = null; self.copieLe = 0; self.rendre(); return; }
       if (!d || !d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
-      self.liste = d.evaluations || []; self.parStatut = d.parStatut || {}; self.etat = res[1] && res[1].ok ? res[1] : { parConcession: {}, photos: d.photos || {}, analyses: d.analyses || 0 };
-      self.erreur = ''; self.refus = '';
-      self.rendre();
+      appliquer(d, res[1], 0);
       if (!self.liste.length) self.elImport.open = true;
       if (self.ouvrirId) { var id = self.ouvrirId; self.ouvrirId = null; self.ouvrir(id); }
       if (manuel) AMX.toast('Archive mise à jour — ' + self.liste.length + ' évaluation' + (self.liste.length > 1 ? 's' : ''), 'ok');
@@ -211,7 +218,7 @@
       if (gen !== self.generation) return;
       self.btnRafraichir.classList.remove('occupe');
       self.erreur = AMX.erreurTexte(e); self.rendre();
-      AMX.toast('Impossible de charger l\'archive Torque — ' + self.erreur, 'erreur');
+      AMX.toast((self.liste ? 'Archive Torque : mise à jour impossible (copie du navigateur affichée) — ' : 'Impossible de charger l\'archive Torque — ') + self.erreur, 'erreur');
     });
   };
 
@@ -264,7 +271,7 @@
     if (this.refus) { this.elEtat.textContent = this.refus; this.elVide.appendChild(h('div.vide', [h('div', { html: I.cadenas }), h('h3', 'Accès non autorisé'), h('div', { text: this.refus })])); this.elTable.textContent = ''; return; }
     if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement de l\'archive…'; if (!this.erreur) this.elVide.appendChild(AMX.chargeur('Archive Torque')); return; }
     var total = this.liste.length, nArch = this.liste.filter(function (r) { return r.archivee; }).length;
-    this.elEtat.textContent = total ? (total + ' évaluation' + (total > 1 ? 's' : '') + ' importée' + (total > 1 ? 's' : '') + ' de Torque' + (nArch ? ' (dont ' + nArch + ' archivée' + (nArch > 1 ? 's' : '') + ')' : '') + ' — véhicule, client, conseiller, valeurs, état, photos. Cliquez une concession pour filtrer, une ligne pour tout voir.') : 'Rien d\'importé encore : ouvrez « Importer depuis Torque » ci-dessous.';
+    this.elEtat.textContent = (this.copieLe ? 'Copie du ' + AMX.copieTexte(this.copieLe) + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : ' — mise à jour en cours…') + ' · ' : '') + (total ? (total + ' évaluation' + (total > 1 ? 's' : '') + ' importée' + (total > 1 ? 's' : '') + ' de Torque' + (nArch ? ' (dont ' + nArch + ' archivée' + (nArch > 1 ? 's' : '') + ')' : '') + ' — véhicule, client, conseiller, valeurs, état, photos. Cliquez une concession pour filtrer, une ligne pour tout voir.') : 'Rien d\'importé encore : ouvrez « Importer depuis Torque » ci-dessous.');
     PERIODES.forEach(function (p) {
       self.elSegment.appendChild(h('button' + (p[0] === self.periode ? '.actif' : ''), { type: 'button', text: p[1], onclick: function () { self.periode = p[0]; AMX.memo.ecrire('torque_periode', p[0]); self.rendre(); } }));
     });

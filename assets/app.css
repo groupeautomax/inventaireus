@@ -289,6 +289,7 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 .barre .etat-sync { width: 8px; height: 8px; border-radius: 50%; background: var(--vert); flex: none; }
 .barre .etat-sync.occupe { background: var(--ambre); animation: pulser 1s infinite; }
 .barre .etat-sync.erreur { background: var(--rouge); }
+.barre .etat-sync.lent { box-shadow: 0 0 0 3px #FFE3B3; }   /* 16 oct. : Google répond lentement (patience adaptative) */
 @keyframes pulser { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
 /* ----------------------------- Sous-onglets ---------------------------- */

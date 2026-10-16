@@ -311,8 +311,9 @@
   var enCours = 0;
   function majEtat(err) {
     var e = document.getElementById('etat-sync'); if (!e) return;
-    e.className = 'etat-sync' + (err ? ' erreur' : (enCours > 0 ? ' occupe' : ''));
-    e.title = err ? 'Dernière requête en erreur' : (enCours > 0 ? 'Synchronisation…' : 'Connecté au serveur');
+    var lent = AMX.reseau && AMX.reseau.lent;
+    e.className = 'etat-sync' + (err ? ' erreur' : (enCours > 0 ? ' occupe' : '')) + (lent ? ' lent' : '');
+    e.title = (err ? 'Dernière requête en erreur' : (enCours > 0 ? 'Synchronisation…' : 'Connecté au serveur')) + (lent ? ' — Google répond lentement : les pages attendent plus longtemps et montrent leur dernière copie' : '');
   }
   function attendre(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -363,7 +364,30 @@
   // rien n'est arrivé après GET_SECOURS_MS une deuxième tentative part en
   // parallèle — la première réponse valable gagne, l'autre est annulée. Un GET
   // ne modifie rien : le doublon est sans danger.
-  var GET_DELAI_MS = 25000, GET_SECOURS_MS = 6000;
+  var GET_SECOURS_MS = 6000;   // (GET_DELAI_MS = 25 s jusqu'au 16 oct. → AMX.reseau.delais.premier = 30 s)
+  // 16 oct. (Maxime, matin où Google retenait tout : « Pas de réponse en 25 s » sur Neufs, Résultat, CSI alors que chaque
+  // exécution durait 2-4 s côté Google ; ?resultatRaw=1 revenu en 96 s puis en 2 s) : PATIENCE ADAPTATIVE.
+  //   - AMX.reseau suit la lenteur observée (réponses > LENT_SEUIL_MS ou délais dépassés). Tant que Google est lent :
+  //     une seule requête patiente (GET_DELAI_LENT_MS), PAS de requête de secours (elle ne gagnait plus rien, elle
+  //     doublait la charge), une seule relance (GET_DELAI_RELANCE_MS) ; l'état revient à « rapide » après
+  //     LENT_OUBLI_MS sans lenteur ou trois réponses vives d'affilée.
+  //   - Au calme : première tentative 30 s, secours à 6 s, une seule relance patiente (au lieu de 4 tentatives de 25 s).
+  //   - Les pages lourdes montrent d'abord leur dernière copie (AMX.cacheLocal.lireGz / ecrireGz) et attendent.
+  var LENT_SEUIL_MS = 10000, LENT_OUBLI_MS = 180000, VIF_MS = 6000;
+  AMX.reseau = { lent: false, depuis: 0, dernierLent: 0, vives: 0, mesures: [],
+    delais: Object.assign({ premier: 30000, lent: 90000, relance: 60000, secours: GET_SECOURS_MS }, window.__amxDelais || {}) };   // réglables (tests : window.__amxDelais)
+  function noterReponse(ms, echec) {
+    var r = AMX.reseau;
+    r.mesures.push({ ms: ms, le: Date.now(), echec: !!echec }); if (r.mesures.length > 12) r.mesures.shift();
+    if (echec || ms > LENT_SEUIL_MS) {
+      r.dernierLent = Date.now(); r.vives = 0;
+      if (!r.lent) { r.lent = true; r.depuis = Date.now(); majEtat(false); }
+    } else if (ms < VIF_MS) {
+      r.vives++;
+      if (r.lent && (r.vives >= 3 || Date.now() - r.dernierLent > LENT_OUBLI_MS)) { r.lent = false; r.depuis = 0; majEtat(false); }
+    }
+  }
+  AMX.reseau.estLent = function () { var r = AMX.reseau; if (r.lent && Date.now() - r.dernierLent > LENT_OUBLI_MS) { r.lent = false; r.depuis = 0; } return r.lent; };
   // 13 oct. (vitesse) : `opts.gz` demande la réponse compressée (?gz=1 → { ok, gz } = JSON gzip + base64, CacheGz.gs :
   // 1,4 Mo → 125 Ko pour les neufs) quand le navigateur sait la décompresser ; un script pas encore redéployé répond en
   // clair et tout continue.
@@ -379,31 +403,41 @@
     var q = typeof params === 'string' ? params : Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
     var base = URL_BACKEND + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton));
     enCours++; majEtat(false);
-    var essais = opts.essais === undefined ? 4 : opts.essais;
-    var delai = opts.delai || GET_DELAI_MS;
-    var aborts = [];
-    var unAppel = function () {
+    var lent = AMX.reseau.estLent(), courrielReq = AMX.session.courriel;
+    // Nombre de requêtes HTTP au plus : au calme 3 (première, secours, une relance) ; Google lent : 2 (patiente + une relance).
+    var essais = opts.essais === undefined ? (lent ? 2 : 3) : opts.essais;
+    var D = AMX.reseau.delais;
+    var delaiPremier = opts.delai || (lent ? D.lent : D.premier);
+    var delaiRelance = opts.delaiRelance || (opts.delai ? opts.delai : D.relance);
+    var aborts = [], attenteTotale = 0, debutTout = Date.now();
+    var unAppel = function (delai) {
       var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       if (ctrl) aborts.push(ctrl);
+      var t0 = Date.now();
       var minuterie = ctrl ? setTimeout(function () { ctrl.abort(); }, delai) : null;
       var fin = function () { if (minuterie) clearTimeout(minuterie); };
       return _fetch(base + '&_=' + Date.now() + Math.floor(Math.random() * 1000), { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
       }).then(function (t) {
-        fin();
+        fin(); noterReponse(Date.now() - t0, false);
         var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); }
         if (refusTemporaire(d)) throw new Error(d.erreur || 'Le serveur n\'a pas pu vérifier la session.');   // panne passagère côté Google : on réessaie, on ne déconnecte pas
         if (d && d.ok === true && typeof d.gz === 'string' && GZ_POSSIBLE) return degonfler(d.gz).then(function (t2) { try { return JSON.parse(t2); } catch (e2) { throw new Error('Réponse compressée illisible'); } });
         return d;
-      }, function (err) { fin(); throw (err && err.name === 'AbortError') ? new Error('Pas de réponse en ' + Math.round(delai / 1000) + ' s') : err; });
+      }, function (err) {
+        fin();
+        if (err && err.name === 'AbortError') { attenteTotale += delai; noterReponse(delai, true); throw new Error('Pas de réponse en ' + Math.round(Math.max(attenteTotale, Date.now() - debutTout) / 1000) + ' s'); }
+        throw err;
+      });
     };
     var course = new Promise(function (resolve, reject) {
-      var restants = essais, enVol = 0, fini = false, derniere = null, secours = null;
+      var restants = essais, enVol = 0, fini = false, derniere = null, secours = null, premiere = true;
       var lancer = function () {
         if (fini || restants <= 0) return;
         restants--; enVol++;
-        unAppel().then(function (d) {
+        var delai = premiere ? delaiPremier : delaiRelance; premiere = false;
+        unAppel(delai).then(function (d) {
           if (fini) return;
           fini = true; if (secours) clearTimeout(secours);
           aborts.forEach(function (c) { try { c.abort(); } catch (e) {} });
@@ -417,11 +451,14 @@
         });
       };
       lancer();
-      secours = setTimeout(function () { if (!fini) lancer(); }, opts.secours || GET_SECOURS_MS);
+      // Requête de secours (course) seulement quand Google est vif : quand il est lent, elle ne gagnait plus rien
+      // (mesuré le 16 oct. : les deux restaient 90 s) et doublait la charge.
+      if (!lent && opts.secours !== false) secours = setTimeout(function () { if (!fini && !AMX.reseau.estLent()) lancer(); }, opts.secours || D.secours);
     });
     return course.then(function (d) {
       enCours--; majEtat(false);
       if (refusJeton(d)) return surRefusJeton(function () { return AMX.get(params, Object.assign({}, opts, { rejoue: true })); }, opts.rejoue);
+      if (opts.copie && d && !d.refuse && d.ok !== false && courrielReq && AMX.session.courriel === courrielReq && lire(CLE.jeton)) AMX.cacheLocal.ecrireGz(opts.copie, d);   // dernière bonne réponse, pour s'afficher d'un coup la prochaine fois — jamais après une déconnexion
       return d;
     }, function (err) { enCours--; majEtat(true); throw err; });
   };
@@ -524,6 +561,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
+    try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
     porte(message || '');
@@ -847,7 +885,44 @@
     ecrire: function (cle, donnees) {
       try { localStorage.setItem('amx_cache_' + cle, JSON.stringify({ quand: Date.now(), donnees: donnees })); } catch (e) { /* quota : tant pis */ }
     },
-    oublier: function (cle) { try { localStorage.removeItem('amx_cache_' + cle); } catch (e) {} }
+    oublier: function (cle) { try { localStorage.removeItem('amx_cache_' + cle); localStorage.removeItem('amx_cache_' + cle + '_gz'); } catch (e) {} },
+    // 16 oct. : copies COMPRESSÉES (gzip + base64) pour les grosses réponses (neufs 1,4 Mo → ~125 Ko, portail, résultats,
+    // OpenLane…) — localStorage n'a que ~5 Mo. Asynchrones ; sans CompressionStream (vieux Safari) on ne garde rien.
+    ecrireGz: function (cle, donnees) {
+      if (!GZ_ECRIRE_POSSIBLE) return Promise.resolve(false);
+      var quand = Date.now();
+      return gonfler(JSON.stringify(donnees)).then(function (b64) {
+        if (b64.length > CACHE_GZ_MAX) return false;
+        try { localStorage.setItem('amx_cache_' + cle + '_gz', JSON.stringify({ quand: quand, gz: b64 })); return true; } catch (e) { return false; }
+      }).catch(function () { return false; });
+    },
+    lireGz: function (cle, maxAge) {
+      if (!GZ_POSSIBLE) return Promise.resolve(null);
+      var o; try { var t = localStorage.getItem('amx_cache_' + cle + '_gz'); o = t ? JSON.parse(t) : null; } catch (e) { o = null; }
+      if (!o || !o.quand || !o.gz || (maxAge && Date.now() - o.quand > maxAge)) return Promise.resolve(null);
+      return degonfler(o.gz).then(function (t2) { return { quand: o.quand, donnees: JSON.parse(t2) }; }).catch(function () { return null; });
+    }
+  };
+  var CACHE_GZ_MAX = 900000;   // ~900 Ko de base64 par copie, au-delà on n'encombre pas le navigateur
+  var GZ_ECRIRE_POSSIBLE = GZ_POSSIBLE && (typeof CompressionStream === 'function');
+  function gonfler(texte) {
+    return new Response(new Blob([texte]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer().then(function (buf) {
+      var octets = new Uint8Array(buf), s = '', PAS = 8192;
+      for (var i = 0; i < octets.length; i += PAS) s += String.fromCharCode.apply(null, octets.subarray(i, i + PAS));
+      return btoa(s);
+    });
+  }
+  // Heure d'une copie locale, en clair (« hier 16 h 02 », « il y a 12 min »).
+  AMX.copieTexte = function (quand) {
+    if (!quand) return '';
+    var d = Date.now() - quand, m = Math.round(d / 60000);
+    if (m < 1) return 'à l\'instant';
+    if (m < 60) return 'il y a ' + m + ' min';
+    var dt = new Date(quand), hh = dt.getHours() + ' h ' + String(dt.getMinutes()).padStart(2, '0');
+    var auj = new Date(); auj.setHours(0, 0, 0, 0);
+    if (quand >= auj.getTime()) return 'aujourd\'hui ' + hh;
+    if (quand >= auj.getTime() - 86400000) return 'hier ' + hh;
+    return AMX.fmtDate ? AMX.fmtDate(dt) + ' ' + hh : dt.toLocaleDateString('fr-CA') + ' ' + hh;
   };
   var CACHE_LOCAL_MAX = 7 * 86400000;   // au-delà d'une semaine on ne s'en sert plus
 

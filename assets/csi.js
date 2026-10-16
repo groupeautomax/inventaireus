@@ -139,20 +139,24 @@
     var self = this, gen = ++this.generation;
     this.enChargement = true;
     if (manuel) this.btnRafraichir.classList.add('occupe');
-    if (!this.donnees) { AMX.vider(this.elScores); this.elScores.appendChild(AMX.chargeur('CSI')); }
-    return AMX.get({ csi: 1 }).then(function (d) {
+    if (!this.donnees) {
+      AMX.vider(this.elScores); this.elScores.appendChild(AMX.chargeur('CSI'));
+      /* 16 oct. (Google lent) : la dernière copie du navigateur s'affiche tout de suite, le serveur corrige ensuite */
+      AMX.cacheLocal.lireGz('csi', 7 * 86400000).then(function (o) { if (self.detruit || gen !== self.generation || self.donnees || !o || !o.donnees || !o.donnees.scores) return; self.donnees = o.donnees; self.copieLe = o.quand; self.erreur = ''; self.rendre(); }).catch(function () {});
+    }
+    return AMX.get({ csi: 1 }, { copie: 'csi', secours: false }).then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false; self.btnRafraichir.classList.remove('occupe');
       if (!d || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Accès refusé.');
       if (d.ok === false) throw new Error(d.erreur || 'Réponse inattendue du serveur');
-      self.donnees = d; self.erreur = '';
+      self.donnees = d; self.erreur = ''; self.copieLe = 0;
       self.rendre();
       if (manuel) AMX.toast('CSI mis à jour — ' + self.sondagesVisibles().length + ' sondage' + (self.sondagesVisibles().length > 1 ? 's' : ''), 'ok');
     }, function (e) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false; self.btnRafraichir.classList.remove('occupe');
       self.erreur = AMX.erreurTexte(e); self.rendre();
-      AMX.toast('Impossible de charger le CSI — ' + self.erreur, 'erreur');
+      AMX.toast((self.donnees ? 'CSI : mise à jour impossible (copie du navigateur affichée) — ' : 'Impossible de charger le CSI — ') + self.erreur, 'erreur');
     });
   };
 
@@ -182,7 +186,7 @@
     }
     var etats = d.etats || {};
     var nS = this.sondagesVisibles().length;
-    this.elEtat.textContent = lues.map(function (c) { return nomCie(c) + ' — lu le ' + AMX.fmtDate(etats[c].csiLe, true) + (etats[c].csiPar ? ' par ' + String(etats[c].csiPar).split('@')[0] : ''); }).join(' · ') + (nS ? ' · ' + nS + ' sondages sur 12 mois' : '');
+    this.elEtat.textContent = (this.copieLe ? 'Copie du ' + AMX.copieTexte(this.copieLe) + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : ' — mise à jour en cours…') + ' · ' : '') + lues.map(function (c) { return nomCie(c) + ' — lu le ' + AMX.fmtDate(etats[c].csiLe, true) + (etats[c].csiPar ? ' par ' + String(etats[c].csiPar).split('@')[0] : ''); }).join(' · ') + (nS ? ' · ' + nS + ' sondages sur 12 mois' : '');
     this.rendreSites();
     [this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elSondages].forEach(function (el) { el.classList.remove('cache'); });
     this.rendreComparaison();

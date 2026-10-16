@@ -137,7 +137,8 @@
         if (cache.promesse === promesse) cache.promesse = null;
         if (!d || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Accès refusé.');
         if (d.ok === false) throw new Error(d.erreur || 'Réponse inattendue du serveur');
-        if (d.ok === undefined && !d.rdv) throw new Error('Carnet de rendez-vous indisponible — redéployez le script (Rdv.gs).');
+        /* script pas encore redéployé : la route inconnue renvoie l'inventaire ({ ok, vehicules }) */
+        if (!Array.isArray(d.rdv) || !d.configs) throw new Error('Carnet de rendez-vous indisponible — redéployez le script (Rdv.gs).');
         cache.reponse = d; cache.cle = cle; cache.quand = Date.now();
         try { document.dispatchEvent(new CustomEvent('amx:rdv')); } catch (e) {}
         return d;

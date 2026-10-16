@@ -261,7 +261,7 @@
     var barre = h('div.carte', [h('div.carte-corps', [h('div.eb-outils', [h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elSegment, this.elCompte])])]);
     this.elTable = h('div.eb-table');
     this.elVide = h('div');
-    this.el = h('div.page.eb-page', [entete, this.elImport, this.elCartes, barre, this.elVide, h('div.carte', [h('div.carte-corps', [this.elTable])])]);
+    this.el = h('div.page.eb-page', [entete, this.elCartes, this.elImport, barre, this.elVide, h('div.carte', [h('div.carte-corps', [this.elTable])])]);
   };
 
   /* --------------------------- Carte d'import --------------------------- */

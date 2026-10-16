@@ -1894,7 +1894,7 @@
     ])])]);
     this.elTable = h('div.eval-table.registre-table');
     this.elVide = h('div');
-    this.el = h('div.page.eval-page.registre-page', [entete, this.elVeille, this.elCartes, barre, this.elVide, h('div.carte', [h('div.carte-corps.registre-corps', [this.elTable])])]);
+    this.el = h('div.page.eval-page.registre-page', [entete, this.elCartes, this.elVeille, barre, this.elVide, h('div.carte', [h('div.carte-corps.registre-corps', [this.elTable])])]);
   };
 
   Registre.prototype.charger = function (manuel) {

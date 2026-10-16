@@ -132,7 +132,7 @@
     ])])]);
     this.elTable = h('div.torque-table');
     this.elVide = h('div');
-    this.el = h('div.page.torque-page', [entete, this.elImport, this.elCartes, barre, this.elVide, h('div.carte', [h('div.carte-corps', [this.elTable])])]);
+    this.el = h('div.page.torque-page', [entete, this.elCartes, this.elImport, barre, this.elVide, h('div.carte', [h('div.carte-corps', [this.elTable])])]);
   };
 
   /* --------------------------- Carte d'import --------------------------- */

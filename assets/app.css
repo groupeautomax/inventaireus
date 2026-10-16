@@ -194,7 +194,8 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .choix-cie.rangee .choix { width: auto; border-color: var(--bordure); background: var(--carte); border-radius: 999px; padding: 5px 11px 5px 9px; }
 .choix-cie.rangee .choix .nom { flex: none; overflow: visible; }
 .choix-cie.rangee .choix .n { margin-left: 2px; }
-.choix-cie.rangee .choix.avec-sous { display: grid; grid-template-columns: auto auto auto; align-items: center; column-gap: 8px; border-radius: 12px; padding: 7px 12px 6px 10px; }
+.choix-cie.rangee .choix.avec-sous { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; border-radius: 12px; padding: 7px 12px 6px 10px; }
+.choix-cie.rangee .choix.avec-sous .nom { justify-self: start; }
 .choix-cie.rangee .choix.avec-sous .n { font-size: 12.5px; justify-self: end; }
 .choix-cie.rangee .choix .sous { grid-column: 1 / -1; font-size: 11px; font-weight: 400; color: var(--encre-3); margin-top: 2px; white-space: nowrap; }
 .choix-cie.rangee .choix.actif .sous { color: var(--encre-2); }
@@ -315,6 +316,7 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 .entete-page h1 { font-size: 20px; }
 .entete-page p { margin: 3px 0 0; color: var(--encre-3); }
 .entete-page .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.entete-page > :first-child { flex: 1 1 360px; min-width: 0; }   /* 16 oct. : un sous-titre long passe à la ligne au lieu de pousser les boutons sous le titre */
 
 .carte { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); box-shadow: var(--ombre); }
 .carte .carte-entete { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--ligne); }

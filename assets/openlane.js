@@ -50,6 +50,10 @@
     if (km === null || moy === null || kmMoy === null) return null;
     return Math.round(moy + (kmMoy - km) * TAUX_KM);
   }
+  /** Écart entre la valeur ajustée au km et le coût du registre (16 oct.) : + = OpenLane vaut plus que ce qu'on a payé ; null sans coût ou sans ajusté. */
+  function ecart(r, km) { var aj = ajuste(r, km), c = nombre(r.cout); if (aj === null || c === null || c <= 0) return null; return aj - c; }
+  function ecartTexte(e) { return e === null ? '—' : (e < 0 ? '−' : '+') + fmt(Math.abs(e)); }
+  function ecartPct(r, e) { var c = nombre(r.cout); return e === null || !c ? '' : (e < 0 ? '−' : '+') + Math.round(Math.abs(e) / c * 100) + ' %'; }
   function badgeInventaire(r) {
     if (!r.registre) return h('span.badge.sans-point.gris', { text: r.source === 'evaluation' ? 'Évaluation' : (r.source === 'manuel' ? 'Demandé' : 'Plus à l\'inventaire') });
     var s = AMX.statut(r.statutInventaire, r.registre);
@@ -77,6 +81,7 @@
       '.ol-table td.vehicule .logo-marque { width: 34px; height: 34px; flex: none; border: 1px solid var(--ligne); border-radius: 8px; display: grid; place-items: center; background: #fff; font-size: 11px; font-weight: 700; color: var(--encre-4); overflow: hidden; } .ol-table td.vehicule .logo-marque img { width: 24px; height: 24px; object-fit: contain; }',
       '.ol-table td.num, .ol-table td.date, .ol-table td.badges { white-space: nowrap; } .ol-table td.num .mini { color: var(--encre-3); }',
       '.ol-table tr.sans-valeur td { color: var(--encre-3); } .ol-table td.fort { font-weight: 700; }',
+      '.ol-table td.ecart.plus, .ol-tuiles .tuile.plus .v { color: var(--vert); } .ol-table td.ecart.moins, .ol-tuiles .tuile.moins .v { color: var(--rouge); } .ol-tuiles .tuile.plus { border-color: #B6E0C6; } .ol-tuiles .tuile.moins { border-color: var(--rouge-bord); }',
       '.ol-etapes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; } .ol-etapes .section-titre { margin-bottom: 4px; } .ol-etapes p { margin: 0 0 8px; color: var(--encre-2); font-size: 12.5px; }',
       '.ol-import-etat { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; } .ol-import-etat .case { background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 8px; padding: 8px 10px; } .ol-import-etat .case b { display: block; font-size: 18px; } .ol-import-etat .mini { font-size: 11px; color: var(--encre-3); }',
       '.ol-demande { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ligne); } .ol-demande input { font-family: var(--mono); } .ol-demande .niv { width: 200px; text-transform: uppercase; } .ol-demande .km { width: 120px; }',
@@ -125,9 +130,11 @@
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
     this.btnImport = h('button.btn.primaire', { type: 'button', text: 'Lire depuis OpenLane', onclick: function () { self.elImport.open = !self.elImport.open; if (self.elImport.open) self.elImport.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+    // 16 oct. : relecture en direct des NIV à relire (km reçu après la lecture — import D2C —, demandes) quand OpenLane est connecté au site.
+    this.btnRelire = h('button.btn.primaire#openlane-relire', { type: 'button', text: 'Relire maintenant', title: 'Lire Market guide en direct pour les NIV à relire (session du site, compte Hawkesbury), par lots de 12', style: { display: 'none' }, onclick: function () { self.relire(); } });
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Valeurs OpenLane'), this.elEtat]),
-      h('div.actions', [this.btnRafraichir, this.btnExport, this.btnImport])
+      h('div.actions', [this.btnRafraichir, this.btnExport, this.btnRelire, this.btnImport])
     ]);
     this.elImport = this.construireImport();
     this.elCartes = h('div.ol-cartes');
@@ -176,8 +183,30 @@
     this.elImportEtat.appendChild(h('div.case', [h('div', 'NIV avec valeurs'), h('b', { text: AMX.fmtNombre(lues.length) }), h('div.mini', { text: dernier ? 'dernière lecture ' + AMX.fmtDate(dernier, true) : 'pas encore lu' })]));
     this.elImportEtat.appendChild(h('div.case', [h('div', 'Encore à l\'inventaire'), h('b', { text: AMX.fmtNombre(enStock.length) }), h('div.mini', 'achetés, pas vendus ni comptabilisés')]));
     this.elImportEtat.appendChild(h('div.case', [h('div', 'Avec prévision'), h('b', { text: AMX.fmtNombre(prev) }), h('div.mini', { text: (lues.length - prev) ? (lues.length - prev) + ' sans prévision (km inconnu ou NIV hors plage)' : 'prévision 30-60-90 j pour chacun' })]));
-    this.elImportEtat.appendChild(h('div.case', [h('div', 'Demandés, à lire'), h('b', { text: AMX.fmtNombre(aLire.length) }), h('div.mini', { text: aLire.length ? 'recliquez le signet dans OpenLane' : 'rien en attente' })]));
+    var relire = !!(aLire.length && this.direct && peutDemander());
+    this.btnRelire.style.display = relire ? '' : 'none';
+    this.btnRelire.textContent = 'Relire maintenant (' + aLire.length + ')';
+    this.elImportEtat.appendChild(h('div.case', [h('div', 'Demandés, à lire'), h('b', { text: AMX.fmtNombre(aLire.length) }), h('div.mini', { text: aLire.length ? (relire ? 'km reçu, demande ou jamais lu — bouton « Relire maintenant »' : 'recliquez le signet dans OpenLane') : 'rien en attente' })]));
     this.btnDemander.disabled = !peutDemander();
+  };
+  /** 16 oct. : relit en direct (openlaneRelire, lots de 12) les NIV à relire — km de la fiche d'achat posé après la lecture (import D2C), demandes — puis recharge. */
+  ValeursOpenlane.prototype.relire = function () {
+    var self = this, btn = this.btnRelire, total = 0, prev = 0, tours = 0;
+    if (this.relecture) return; this.relecture = true;
+    if (btn) { btn.classList.add('occupe'); btn.disabled = true; }
+    var fin = function (msg, type) { self.relecture = false; if (btn) { btn.classList.remove('occupe'); btn.disabled = false; } AMX.toast(msg, type || 'ok', 7000); self.charger(true); };
+    var tour = function () {
+      tours++;
+      return AMX.post({ action: 'openlaneRelire', max: 12 }, { delai: 150000 }).then(function (r) {
+        if (!r || r.refuse || (r.ok === false && !r.nonConnecte && !total)) { fin((r && r.erreur) || 'Relecture refusée', 'erreur'); return; }
+        total += (r && r.lus) || 0; prev += (r && r.avecPrevision) || 0;
+        if (r && r.nonConnecte) { fin((total ? total + ' NIV relus, puis ' : '') + (r.erreur || 'OpenLane n\'est plus connecté au site.'), 'attention'); return; }
+        if (btn) btn.textContent = 'Relecture… ' + total + ' lu' + (total > 1 ? 's' : '') + (r.restants ? ', ' + r.restants + ' restant' + (r.restants > 1 ? 's' : '') : '');
+        if (r && r.ok && r.restants > 0 && r.lus > 0 && tours < 15) return tour();
+        fin(total ? total + ' NIV relu' + (total > 1 ? 's' : '') + ' sur OpenLane — ' + prev + ' avec prévision' + (r && r.restants ? ' (' + r.restants + ' restant' + (r.restants > 1 ? 's' : '') + ')' : '') : 'Rien à relire.', total ? 'ok' : 'attention');
+      }, function (e) { fin('Relecture interrompue — ' + AMX.erreurTexte(e) + (total ? ' (' + total + ' NIV relus)' : ''), 'erreur'); });
+    };
+    tour();
   };
   ValeursOpenlane.prototype.demander = function () {
     var self = this, vin = String(this.elNiv.value || '').trim().toUpperCase(), km = String(this.elKm.value || '').trim();
@@ -203,6 +232,7 @@
       if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.rendre(); return; }
       if (!d || !d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
       self.liste = d.valeurs || []; self.duCache = false; self.erreur = ''; self.refus = '';
+      if (d.direct !== undefined) { self.direct = !!d.direct; directConnu = !!d.direct; }
       AMX.openlane.poser(self.liste);
       self.rendre();
       if (!self.liste.length) self.elImport.open = true;
@@ -268,6 +298,8 @@
     { cle: 'prixMoy', libelle: 'Moyenne', num: true, valeur: function (r) { return nombre(r.prixMoy); } },
     { cle: 'prixMax', libelle: 'Max', num: true, valeur: function (r) { return nombre(r.prixMax); } },
     { cle: 'ajuste', libelle: 'Ajusté km', num: true, valeur: function (r) { return ajuste(r); } },
+    { cle: 'cout', libelle: 'Coût', num: true, valeur: function (r) { return nombre(r.cout); } },
+    { cle: 'ecart', libelle: 'Écart', num: true, valeur: function (r) { return ecart(r); } },
     { cle: 'prevision', libelle: 'Prévision', num: true, valeur: function (r) { return nombre(r.prevision); } },
     { cle: 'j90', libelle: '90 j', num: true, valeur: function (r) { return milieu(r.j90Min, r.j90Max); } }
   ];
@@ -294,7 +326,7 @@
     var tbody = h('tbody');
     var LIMITE = this.limite || 300, visibles = lignes.slice(0, LIMITE);
     visibles.forEach(function (r) {
-      var lue = !!r.luLe, nv = nombre(r.nVentes) || 0, aj = ajuste(r);
+      var lue = !!r.luLe, nv = nombre(r.nVentes) || 0, aj = ajuste(r), ec = ecart(r);
       var tr = h('tr.cliquable' + (lue ? '' : '.sans-valeur'), { tabindex: '0', 'data-vin': r.vin }, [
         h('td.date', [h('div', { text: lue ? AMX.fmtDate(r.luLe) : '—' }), h('div.mini', { text: lue ? libelleSource(r.source) + (r.aLire ? ' · à relire' : '') : (r.aLire ? 'À lire (signet)' : libelleSource(r.source)) })]),
         h('td.vehicule', [AMX.logoMarque(r.marque, 'petit'), h('div', [h('div.nom', { text: vehiculeTexte(r) }), h('div.mini', { text: [r.style && r.style !== r.version ? r.style : '', r.stock ? '# ' + r.stock : ''].filter(Boolean).join(' · ') }), h('div.vin', { text: r.vin || '' })])]),
@@ -306,6 +338,8 @@
         h('td.num.fort', { text: nv ? fmt(r.prixMoy) : '—' }),
         h('td.num', { text: nv ? fmt(r.prixMax) : '—' }),
         h('td.num', aj !== null ? [h('div', { text: fmt(aj) }), h('div.mini', { text: 'km moy. ' + fmtKm(r.kmMoy) })] : [h('span.doux', '—')]),
+        h('td.num', { text: nombre(r.cout) !== null && nombre(r.cout) > 0 ? fmt(r.cout) : '—', title: nombre(r.cout) !== null && nombre(r.cout) > 0 ? 'Coût du registre' : '' }),
+        h('td.num.fort.ecart' + (ec === null ? '' : (ec < 0 ? '.moins' : '.plus')), ec !== null ? [h('div', { text: ecartTexte(ec) }), h('div.mini', { text: ecartPct(r, ec) })] : [h('span.doux', { text: '—', title: nombre(r.cout) > 0 ? 'Pas de valeur ajustée au km (ventes ou km manquants)' : 'Pas de coût au registre' })]),
         h('td.num.fort', nombre(r.prevision) !== null ? [h('div', { text: fmt(r.prevision) }), nombre(r.previsionBas) !== null && nombre(r.previsionBas) !== nombre(r.previsionHaut) ? h('div.mini', { text: fourchette(r.previsionBas, r.previsionHaut) }) : null] : [h('span.doux', { text: r.kmFiche && lue ? 'à relire' : (lue && r.erreur && /prévision/.test(r.erreur) ? 'km ?' : '—'), title: r.kmFiche && lue ? 'km reçu depuis la lecture : recliquez le signet dans OpenLane pour la prévision' : (r.erreur || '') })]),
         h('td.num', { text: nombre(r.j90Min) !== null ? fmt(milieu(r.j90Min, r.j90Max)) : '—', title: nombre(r.j90Min) !== null ? fourchette(r.j90Min, r.j90Max) : '' })
       ]);
@@ -342,6 +376,8 @@
       if (!compact) out.push(tuile('Km moyen', fmtKm(r.kmMoy), fmtKm(r.kmMin) + ' – ' + fmtKm(r.kmMax)));
       if (aj !== null) out.push(tuile('Ajusté à ' + fmtKm(km === undefined ? r.km : km), fmt(aj), TAUX_KM.toFixed(2).replace('.', ',') + ' $ / km'));
     }
+    var ec = ecart(r, km);
+    if (ec !== null) out.push(tuile('Écart vs coût', ecartTexte(ec), 'coût ' + fmt(r.cout) + ' · ' + ecartPct(r, ec), ec < 0 ? 'moins' : 'plus'));
     if (nombre(r.prevision) !== null) {
       out.push(tuile('Prévision', fmt(r.prevision), (nombre(r.previsionBas) !== null && nombre(r.previsionBas) !== nombre(r.previsionHaut) ? fourchette(r.previsionBas, r.previsionHaut) + ' · ' : '') + fmtKm(r.previsionKm), 'prev'));
       if (!compact || previsionComplete) { out.push(tuile('Dans 30 j', fourchette(r.j30Min, r.j30Max))); out.push(tuile('Dans 60 j', fourchette(r.j60Min, r.j60Max))); }
@@ -418,7 +454,7 @@
     var rows = lignes.map(function (r) {
       return { 'Lu le': r.luLe ? AMX.fmtDate(r.luLe, true) : '', 'Source': libelleSource(r.source), 'Concession': nomCie(r.compagnie), 'Registre': r.registre, '# stock': r.stock, 'Statut inventaire': r.registre ? AMX.statut(r.statutInventaire, r.registre).libelle : '',
         'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Version': r.version, 'Style': r.style, 'Km': nombre(r.km),
-        'Ventes': nombre(r.nVentes), 'Jours': nombre(r.jours), 'Même version': r.avecVersion ? 'oui' : 'non', 'Prix min': nombre(r.prixMin), 'Prix moyen': nombre(r.prixMoy), 'Prix max': nombre(r.prixMax), 'Km min': nombre(r.kmMin), 'Km moyen': nombre(r.kmMoy), 'Km max': nombre(r.kmMax), 'Ajusté au km': ajuste(r), 'Dernière vente': r.derniereVente ? AMX.fmtDate(r.derniereVente) : '',
+        'Ventes': nombre(r.nVentes), 'Jours': nombre(r.jours), 'Même version': r.avecVersion ? 'oui' : 'non', 'Prix min': nombre(r.prixMin), 'Prix moyen': nombre(r.prixMoy), 'Prix max': nombre(r.prixMax), 'Km min': nombre(r.kmMin), 'Km moyen': nombre(r.kmMoy), 'Km max': nombre(r.kmMax), 'Ajusté au km': ajuste(r), 'Coût': nombre(r.cout), 'Écart (ajusté − coût)': ecart(r), 'Dernière vente': r.derniereVente ? AMX.fmtDate(r.derniereVente) : '',
         'Prévision': nombre(r.prevision), 'Prévision bas': nombre(r.previsionBas), 'Prévision haut': nombre(r.previsionHaut), '30 j min': nombre(r.j30Min), '30 j max': nombre(r.j30Max), '60 j min': nombre(r.j60Min), '60 j max': nombre(r.j60Max), '90 j min': nombre(r.j90Min), '90 j max': nombre(r.j90Max), 'Prévision km': nombre(r.previsionKm), 'PDSF': nombre(r.pdsf), 'Notes': r.erreur };
     });
     var ws = XLSX.utils.json_to_sheet(rows);

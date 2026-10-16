@@ -183,10 +183,12 @@
     this.elImportEtat.appendChild(h('div.case', [h('div', 'NIV avec valeurs'), h('b', { text: AMX.fmtNombre(lues.length) }), h('div.mini', { text: dernier ? 'dernière lecture ' + AMX.fmtDate(dernier, true) : 'pas encore lu' })]));
     this.elImportEtat.appendChild(h('div.case', [h('div', 'Encore à l\'inventaire'), h('b', { text: AMX.fmtNombre(enStock.length) }), h('div.mini', 'achetés, pas vendus ni comptabilisés')]));
     this.elImportEtat.appendChild(h('div.case', [h('div', 'Avec prévision'), h('b', { text: AMX.fmtNombre(prev) }), h('div.mini', { text: (lues.length - prev) ? (lues.length - prev) + ' sans prévision (km inconnu ou NIV hors plage)' : 'prévision 30-60-90 j pour chacun' })]));
-    var relire = !!(aLire.length && this.direct && peutDemander());
+    // 16 oct. : à relire = lignes à lire (km reçu, demande) + véhicules en stock que la feuille ne connaît pas encore (jamaisLus, compte du serveur)
+    var jamais = this.jamaisLus || 0, aRelire = aLire.length + jamais;
+    var relire = !!(aRelire && this.direct && peutDemander());
     this.btnRelire.style.display = relire ? '' : 'none';
-    this.btnRelire.textContent = 'Relire maintenant (' + aLire.length + ')';
-    this.elImportEtat.appendChild(h('div.case', [h('div', 'Demandés, à lire'), h('b', { text: AMX.fmtNombre(aLire.length) }), h('div.mini', { text: aLire.length ? (relire ? 'km reçu, demande ou jamais lu — bouton « Relire maintenant »' : 'recliquez le signet dans OpenLane') : 'rien en attente' })]));
+    this.btnRelire.textContent = 'Relire maintenant (' + aRelire + ')';
+    this.elImportEtat.appendChild(h('div.case', [h('div', 'Demandés, à lire'), h('b', { text: AMX.fmtNombre(aRelire) }), h('div.mini', { text: aRelire ? ((jamais ? jamais + ' jamais lu' + (jamais > 1 ? 's' : '') + ' · ' : '') + (relire ? 'km reçu, demande ou jamais lu — bouton « Relire maintenant »' : 'recliquez le signet dans OpenLane')) : 'rien en attente' })]));
     this.btnDemander.disabled = !peutDemander();
   };
   /** 16 oct. : relit en direct (openlaneRelire, lots de 12) les NIV à relire — km de la fiche d'achat posé après la lecture (import D2C), demandes — puis recharge. */
@@ -233,6 +235,7 @@
       if (!d || !d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
       self.liste = d.valeurs || []; self.duCache = false; self.erreur = ''; self.refus = '';
       if (d.direct !== undefined) { self.direct = !!d.direct; directConnu = !!d.direct; }
+      self.jamaisLus = d.jamaisLus || 0;
       AMX.openlane.poser(self.liste);
       self.rendre();
       if (!self.liste.length) self.elImport.open = true;

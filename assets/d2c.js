@@ -24,6 +24,8 @@
   var ORIGINE_D2C = 'https://admin.d2cmedia.ca';
   var NOM_FENETRE_D2C = 'amx_d2c';
   var DELAI_POST_MS = 180000;   // un passage lit les registres, les fiches, les neufs et Vitrine : jusqu'à 2-3 minutes
+  // Script déployé en retard (leçon v100) : une action inconnue tombe dans l'ancien traitement d'inventaire et répond { ok, vehicules }.
+  var SCRIPT_PAS_A_JOUR = 'Le script du serveur n\'est pas à jour (D2c.gs, RoutesAjout.gs) : dans l\'éditeur Apps Script, Déployer › Gérer les déploiements › crayon › Nouvelle version › Déployer.';
   // Chargeur du signet (généré par mock/signet-build.py) — ne jamais éditer la constante à la main.
   var CODE_SIGNET_D2C = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-d2c.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
 
@@ -172,6 +174,7 @@
     if (!force && this.etatPromesse) return this.etatPromesse;
     this.etatPromesse = AMX.get({ d2c: 1 }).then(function (d) {
       AMX.verifier(d, 'Lecture de l\'état impossible');
+      if (!d.noms || !d.actives) throw new Error(SCRIPT_PAS_A_JOUR);
       self.etat = d; self.rendreEtat(); self.rendreRecu();
       return d;
     }).catch(function (e) { self.etatErreur = AMX.erreurTexte(e); self.rendreEtat(); });
@@ -184,6 +187,7 @@
     this.rendreRecu();
     return AMX.post(corps, { delai: DELAI_POST_MS }).then(function (d) {
       AMX.verifier(d, mode === 'importer' ? 'Import impossible' : 'Simulation impossible');
+      if (!d.compagnie && d.vehicules) throw new Error(SCRIPT_PAS_A_JOUR);
       return d;
     }).then(function (d) {
       delete self.enCours[cie];
@@ -238,7 +242,7 @@
   ImportD2c.prototype.rendreEtat = function () {
     var self = this;
     AMX.vider(this.elEtat);
-    if (this.etatErreur && !this.etat) { this.elEtat.appendChild(h('div.alerte-bloc.erreur', { text: this.etatErreur })); return; }
+    if (this.etatErreur && !this.etat) { this.elEtat.appendChild(h('div.alerte-bloc.erreur', { text: this.etatErreur })); this.elEtat.appendChild(h('p.doux.petit', { style: { margin: '10px 0 0' } }, 'Concessions actives (par défaut) : ' + this.actives().map(nomCie).join(', ') + '.')); return; }
     if (!this.etat) { this.elEtat.appendChild(h('div.doux.petit', 'Chargement…')); return; }
     var etat = this.etat.etat || {}, actives = this.actives(), noms = this.etat.noms || {};
     var cies = Object.keys(AMX.COMPAGNIES_TOUTES);

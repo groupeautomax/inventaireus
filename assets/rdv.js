@@ -118,7 +118,61 @@
     '.rdv-form .creneaux button.plein { color: var(--ambre); } .rdv-form .creneaux button.trop { color: var(--rouge); }',
     '.rdv-form .avert-liste { background: var(--ambre-bg); color: var(--ambre); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }',
     '.rdv-reglages table input { height: 28px; font-size: 12.5px; } .rdv-reglages .heures-jour { display: grid; grid-template-columns: 76px 118px 20px 118px auto; gap: 6px; align-items: center; margin-bottom: 4px; font-size: 12.5px; }',
-    '@media (max-width: 900px) { .rdv-semaine { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rdv-fiche dl { grid-template-columns: 1fr; } }'
+    '@media (max-width: 900px) { .rdv-semaine { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rdv-fiche dl { grid-template-columns: 1fr; } }',
+    /* classeur : grille horaire (lignes = créneaux, colonnes = conseillers / jours / concessions) + résumé à droite */
+    '.rdv-classeur { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 14px; align-items: start; }',
+    '.rdv-classeur.sans-resume { grid-template-columns: minmax(0, 1fr); }',
+    '@media (max-width: 1100px) { .rdv-classeur { grid-template-columns: minmax(0, 1fr); } }',
+    '.rdv-grille-cadre { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); overflow: auto; max-height: calc(100vh - 300px); min-height: 420px; position: relative; }',
+    '.rdv-grille { display: grid; min-width: 100%; position: relative; }',
+    '.rdv-grille .coin, .rdv-grille .tete-col { position: sticky; top: 0; z-index: 3; background: var(--carte); border-bottom: 1px solid var(--ligne-forte); min-height: 44px; }',
+    '.rdv-grille .coin { left: 0; z-index: 4; border-right: 1px solid var(--ligne); }',
+    '.rdv-grille .tete-col { padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; gap: 1px; border-left: 1px solid var(--ligne); min-width: 0; }',
+    '.rdv-grille .tete-col .t { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+    '.rdv-grille .tete-col .s { font-size: 11px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }',
+    '.rdv-grille .tete-col.cliquable { cursor: pointer; } .rdv-grille .tete-col.cliquable:hover { background: var(--carte-2); }',
+    '.rdv-grille .tete-col.auj .t { color: var(--vert); } .rdv-grille .tete-col.ferme .t, .rdv-grille .tete-col.ferme .s { color: var(--encre-4); }',
+    '.rdv-grille .axe { position: sticky; left: 0; z-index: 2; background: var(--carte); border-right: 1px solid var(--ligne); }',
+    '.rdv-grille .axe .h { position: absolute; right: 8px; margin-top: 3px; font-size: 11px; font-weight: 600; color: var(--encre-3); font-family: var(--mono); white-space: nowrap; }',
+    '.rdv-grille .pile { position: relative; border-left: 1px solid var(--ligne); min-width: 0; }',
+    '.rdv-grille .creneau { position: absolute; left: 0; right: 0; box-sizing: border-box; border-top: 1px dashed var(--ligne); }',
+    '.rdv-grille .creneau.heure { border-top: 1px solid var(--ligne-forte); }',
+    '.rdv-grille .creneau.hors { background: repeating-linear-gradient(135deg, var(--carte-2) 0 6px, transparent 6px 12px); }',
+    '.rdv-grille .creneau.libre { cursor: pointer; } .rdv-grille .creneau.libre:hover { background: var(--vert-clair); }',
+    '.rdv-grille .creneau.passe, .rdv-grille .case.passe { background: var(--carte-2); opacity: .7; }',
+    '.rdv-grille .creneau.libre:hover::after { content: "+ " attr(data-heure); position: absolute; right: 6px; top: 2px; font-size: 11px; color: var(--vert); font-weight: 600; font-family: var(--mono); }',
+    '.rdv-grille .maintenant { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--rouge); z-index: 2; pointer-events: none; }',
+    '.rdv-grille .maintenant::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--rouge); }',
+    '.rdv-grille .ferme-msg { position: absolute; left: 0; right: 0; top: 40%; text-align: center; color: var(--encre-4); font-size: 12.5px; pointer-events: none; }',
+    '.rdv-carte.posee { position: absolute; z-index: 1; margin: 1px 3px 1px 2px; padding: 3px 7px; display: block; overflow: hidden; box-shadow: var(--ombre); line-height: 1.25; }',
+    '.rdv-carte.posee .ligne1 { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }',
+    '.rdv-carte.posee .client { font-size: 12.5px; flex: 1 1 auto; min-width: 0; } .rdv-carte.posee .quand { font-size: 11px; flex: none; white-space: nowrap; }',
+    '.rdv-carte.posee { container-type: inline-size; }',
+    '@container (max-width: 170px) { .rdv-carte.posee .quand .dur { display: none; } } @container (max-width: 105px) { .rdv-carte.posee .quand { display: none; } }',
+    '.rdv-grille .case { position: absolute; left: 0; right: 0; box-sizing: border-box; border-top: 1px solid var(--ligne-forte); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; cursor: pointer; }',
+    '.rdv-grille .case.hors { background: repeating-linear-gradient(135deg, var(--carte-2) 0 6px, transparent 6px 12px); cursor: default; }',
+    '.rdv-grille .case.libre:hover { background: var(--vert-clair); } .rdv-grille .case.libre:hover::after { content: "+"; color: var(--vert); font-weight: 700; }',
+    '.rdv-grille .case.c1 { background: #EAF6EE; } .rdv-grille .case.c2 { background: #CDEBD7; } .rdv-grille .case.presque { background: var(--ambre-bg); } .rdv-grille .case.trop { background: var(--rouge-bg); }',
+    '.rdv-grille .case b { font-size: 14px; font-variant-numeric: tabular-nums; } .rdv-grille .case .s { color: var(--encre-3); font-size: 11px; }',
+    '.rdv-carte.posee .veh, .rdv-carte.posee .trav { display: block; font-size: 11.5px; }',
+    '.rdv-carte.posee .puces { margin-top: 3px; } .rdv-carte.posee .puces .puce { font-size: 10px; padding: 0 6px; }',
+    '.rdv-carte.posee.h1 .veh, .rdv-carte.posee.h1 .trav, .rdv-carte.posee.h1 .puces, .rdv-carte.posee.h2 .trav, .rdv-carte.posee.h2 .puces, .rdv-carte.posee.h3 .puces { display: none; }',
+    '.rdv-carte.posee.h1 { padding-top: 1px; padding-bottom: 1px; } .rdv-carte.posee.h1 .client { font-size: 11.5px; }',
+    '.rdv-carte.posee:hover { z-index: 2; }',
+    '.rdv-resume { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 12px 14px; font-size: 12.5px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 70px; }',
+    '.rdv-resume h4 { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
+    '.rdv-resume .item { display: grid; grid-template-columns: 62px 1fr 60px; gap: 8px; align-items: center; padding: 2px 0; }',
+    '.rdv-resume .item.large { grid-template-columns: 1fr 60px; }',
+    '.rdv-resume .item .lib { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--encre-2); }',
+    '.rdv-resume .item .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; font-size: 12px; }',
+    '.rdv-resume .item .val.presque { color: var(--ambre); } .rdv-resume .item .val.trop { color: var(--rouge); }',
+    '.rdv-resume .jauge { height: 8px; background: var(--gris-bg); border-radius: 4px; overflow: hidden; }',
+    '.rdv-resume .jauge i { display: block; height: 100%; background: var(--vert); border-radius: 4px; } .rdv-resume .jauge i.presque { background: var(--ambre); } .rdv-resume .jauge i.trop { background: var(--rouge); }',
+    '.rdv-resume .jauge i.nl { background: var(--bleu); }',
+    '.rdv-resume .puces-cie { display: flex; flex-wrap: wrap; gap: 4px; }',
+    '.rdv-semaine-tetes { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }',
+    '.rdv-semaine-tetes .rdv-jour { min-height: 0; padding: 8px 10px; gap: 4px; } .rdv-semaine-tetes .rdv-jour .n { font-size: 18px; }',
+    '@media (max-width: 900px) { .rdv-semaine-tetes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }'
   ].join('\n');
   if (!document.getElementById('rdv-style')) { var st = document.createElement('style'); st.id = 'rdv-style'; st.textContent = STYLE; document.head.appendChild(st); }
 
@@ -167,7 +221,8 @@
     this.compagnie = AMX.compagnieChoisie('service') || (AMX.codesPour('service').length === 1 ? AMX.codesPour('service')[0] : '');
     this.date = (ctx && ctx.params && /^\d{4}-\d{2}-\d{2}$/.test(ctx.params.date || '')) ? ctx.params.date : aujourdhui();
     this.vue = AMX.memo.lire('rdv_vue', 'jour'); if (['jour', 'semaine'].indexOf(this.vue) < 0) this.vue = 'jour';
-    this.parConseiller = AMX.memo.lire('rdv_par_conseiller', true);
+    this.mode = AMX.memo.lire('rdv_mode', ''); if (['classeur', 'conseiller', 'heure'].indexOf(this.mode) < 0) this.mode = AMX.memo.lire('rdv_par_conseiller', true) === false ? 'heure' : 'classeur';
+    this.resume = AMX.memo.lire('rdv_resume', true) !== false;
     this.filtreEtat = ''; this.recherche = '';
     this.donnees = null; this.erreur = ''; this.copieLe = 0; this.generation = 0; this.detruit = false;
     this.construire();
@@ -209,12 +264,15 @@
     this.elKpis = h('div.kpis');
     this.elCap = h('div.rdv-cap');
     this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'Client, téléphone, NIV, plaque, véhicule…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreCorps(); }, 120) });
+    var choisirMode = function (m) { self.mode = m; AMX.memo.ecrire('rdv_mode', m); self.rendre(); };
     this.elSegMode = h('div.segment.petit', [
-      h('button', { type: 'button', text: 'Par conseiller', onclick: function () { self.parConseiller = true; AMX.memo.ecrire('rdv_par_conseiller', true); self.rendreCorps(); } }),
-      h('button', { type: 'button', text: 'Par heure', onclick: function () { self.parConseiller = false; AMX.memo.ecrire('rdv_par_conseiller', false); self.rendreCorps(); } })
+      h('button', { type: 'button', text: 'Classeur', title: 'Grille horaire, comme un carnet de rendez-vous', onclick: function () { choisirMode('classeur'); } }),
+      h('button', { type: 'button', text: 'Par conseiller', title: 'Cartes groupées par conseiller', onclick: function () { choisirMode('conseiller'); } }),
+      h('button', { type: 'button', text: 'Par heure', title: 'Cartes groupées par heure', onclick: function () { choisirMode('heure'); } })
     ]);
+    this.btnResume = h('button.btn.petit', { type: 'button', text: 'Résumé', title: 'Afficher ou cacher le résumé de la journée (capacité, canaux, travaux)', onclick: function () { self.resume = !self.resume; AMX.memo.ecrire('rdv_resume', self.resume); self.rendre(); } });
     this.elCompte = h('span.compte');
-    this.elOutils = h('div.rdv-outils', [h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elSegMode, this.elCompte]);
+    this.elOutils = h('div.rdv-outils', [h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elSegMode, this.btnResume, this.elCompte]);
     this.elCorps = h('div');
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Rendez-vous service'), this.elEtat]),
@@ -270,7 +328,8 @@
     this.elDate.textContent = this.vue === 'semaine' ? 'Semaine du ' + dateCourte(lundiDe(this.date)) : dateLongue(this.date);
     this.btnPrec.title = this.vue === 'semaine' ? 'Semaine précédente' : 'Jour précédent'; this.btnSuiv.title = this.vue === 'semaine' ? 'Semaine suivante' : 'Jour suivant';
     [].slice.call(this.elSegVue.children).forEach(function (b, i) { b.classList.toggle('actif', (i === 0) === (self.vue === 'jour')); });
-    [].slice.call(this.elSegMode.children).forEach(function (b, i) { b.classList.toggle('actif', (i === 0) === !!self.parConseiller); });
+    [].slice.call(this.elSegMode.children).forEach(function (b, i) { b.classList.toggle('actif', ['classeur', 'conseiller', 'heure'][i] === self.mode); });
+    this.btnResume.classList.toggle('actif', this.resume); this.btnResume.classList.toggle('cache', this.mode !== 'classeur');
     this.btnReglages.classList.toggle('cache', !(d && d.peutConfigurer && this.compagnie));
     this.btnNouveau.disabled = this.btnSans.disabled = !(d && d.peutEcrire);
     if (this.erreur && !d) { this.elEtat.textContent = 'Serveur injoignable : ' + this.erreur; AMX.vider(this.elCorps); this.elCorps.appendChild(h('div.vide', [h('h3', 'Carnet indisponible'), h('div', { text: this.erreur })])); return; }
@@ -305,7 +364,7 @@
   VueRdv.prototype.rendreCapacite = function () {
     var self = this, d = this.donnees, cfg = this.config(), cap = this.compagnie && d.capacite && d.capacite[this.compagnie] && d.capacite[this.compagnie][this.date];
     AMX.vider(this.elCap);
-    if (!this.compagnie || !cfg || this.vue === 'semaine') { this.elCap.classList.add('cache'); return; }
+    if (!this.compagnie || !cfg || this.vue === 'semaine' || (this.mode === 'classeur' && this.resume)) { this.elCap.classList.add('cache'); return; }
     this.elCap.classList.remove('cache');
     var hv = cap ? cap.heures : 0, ha = cfg.heuresAtelier || 0, att = cap ? cap.attente : 0, pr = cap ? cap.pret : 0;
     /* la limite de salle d'attente est par heure : on affiche l'heure la plus chargée de la journée */
@@ -327,13 +386,13 @@
     this.elOutils.classList.remove('cache');
     var l = this.liste(this.date), cfg = this.config();
     this.elCompte.textContent = l.length + ' rendez-vous' + (this.recherche ? ' trouvés' : '');
-    this.elSegMode.classList.toggle('cache', !(this.compagnie && cfg && cfg.conseillers.length));
+    if (this.mode === 'classeur') { this.rendreClasseur(l, cfg); return; }
     if (!l.length) { this.elCorps.appendChild(h('div.vide', [h('h3', this.recherche || this.filtreEtat ? 'Aucun rendez-vous pour ce filtre' : 'Aucun rendez-vous ce jour-là'), h('div.doux', { text: this.peutEcrire() ? 'Cliquez « Nouveau rendez-vous » pour en prendre un.' : '' })])); return; }
-    var colonnes = [];
+    var colonnes = [], parConseiller = this.mode !== 'heure';
     if (!this.compagnie) {
       var parCie = {}; l.forEach(function (r) { (parCie[r.compagnie] = parCie[r.compagnie] || []).push(r); });
       Object.keys(parCie).forEach(function (c) { colonnes.push({ titre: nomCie(c), rdv: parCie[c] }); });
-    } else if (this.parConseiller && cfg && cfg.conseillers.length) {
+    } else if (parConseiller && cfg && cfg.conseillers.length) {
       var parCons = { '': [] }; cfg.conseillers.forEach(function (c) { if (c.actif) parCons[c.id] = []; });
       l.forEach(function (r) { (parCons[r.conseiller] || (parCons[r.conseiller] = [])).push(r); });
       if (parCons[''].length) colonnes.push({ titre: 'Non attribué', rdv: parCons[''] });
@@ -347,47 +406,216 @@
     colonnes.forEach(function (col) {
       var corps = h('div.corps'), derniere = '';
       col.rdv.forEach(function (r) {
-        if (self.parConseiller || !self.compagnie) { var bloc = String(r.heure || '').slice(0, 2) + ' h'; if (bloc !== derniere) { corps.appendChild(h('div.heure-sep', { text: bloc })); derniere = bloc; } }
+        if (parConseiller || !self.compagnie) { var bloc = String(r.heure || '').slice(0, 2) + ' h'; if (bloc !== derniere) { corps.appendChild(h('div.heure-sep', { text: bloc })); derniere = bloc; } }
         corps.appendChild(self.carte(r));
       });
       grille.appendChild(h('div.rdv-col', [h('div.tete', [h('span', { text: col.titre }), h('span.n', { text: col.rdv.filter(function (r) { return ETATS_ACTIFS.indexOf(r.etat) >= 0; }).length + ' / ' + col.rdv.length })]), corps]));
     });
     this.elCorps.appendChild(grille);
   };
-  VueRdv.prototype.carte = function (r) {
-    var self = this;
+  /* Carte d'un rendez-vous ; opts.rangs = hauteur en créneaux quand elle est posée dans la grille. */
+  VueRdv.prototype.carte = function (r, opts) {
+    var self = this, posee = !!(opts && opts.posee);
     var trav = (r.travaux || []).map(function (t) { return t.libelle; }).join(' · ');
+    var puces = h('span.puces', [
+      h('span.puce' + (({ arrive: '.info', encours: '.ok', pieces: '.attention', approbation: '.attention', termine: '.mono', absent: '.alerte', annule: '.alerte' })[r.etat] || ''), { text: ETATS[r.etat] || r.etat }),
+      r.transport && r.transport !== 'depot' ? h('span.puce', { text: TRANSPORTS[r.transport] || r.transport }) : null,
+      r.canal === 'sansrdv' ? h('span.puce.attention', { text: 'Sans RDV' }) : (r.canal === 'web' ? h('span.puce.info', { text: 'Web' }) : null),
+      r.btNo ? h('span.puce.mono', { text: 'BT ' + r.btNo }) : null,
+      !self.compagnie && !posee ? h('span.puce', { text: nomCie(r.compagnie) }) : null
+    ]);
+    var veh = [r.vehicule, r.plaque, r.km ? AMX.fmtNombre(Number(r.km)) + ' km' : ''].filter(Boolean).join(' · ') || (r.vin || 'Véhicule non précisé');
+    var titre = (r.client || r.telephoneJoli || '—') + ' · ' + r.heure + (r.heures ? ' · ' + heures(r.heures) : '') + '\n' + veh + (trav ? '\n' + trav : '') + '\n' + (ETATS[r.etat] || r.etat) + (r.transport ? ' · ' + (TRANSPORTS[r.transport] || r.transport) : '') + (r.conseiller && posee ? '' : '');
+    if (posee) {
+      var rangs = Math.max(1, opts.rangs || 1);
+      return h('div.rdv-carte.posee.h' + Math.min(4, rangs) + '.e-' + (r.etat || 'prevu'), { title: titre, onclick: function (e) { e.stopPropagation(); self.ouvrirFiche(r); } }, [
+        h('span.ligne1', [h('span.client', { text: r.client || r.telephoneJoli || '—' }), h('span.quand', [r.heure, r.heures ? h('span.dur', { text: ' · ' + heures(r.heures) }) : null])]),
+        h('span.veh', { text: veh }),
+        trav ? h('span.trav', { text: trav }) : null,
+        puces
+      ]);
+    }
     return h('div.rdv-carte.e-' + (r.etat || 'prevu'), { title: 'Ouvrir le rendez-vous', onclick: function () { self.ouvrirFiche(r); } }, [
       h('span.client', { text: r.client || r.telephoneJoli || '—' }),
       h('span.quand', { text: r.heure }),
-      h('span.veh', { text: [r.vehicule, r.plaque, r.km ? AMX.fmtNombre(Number(r.km)) + ' km' : ''].filter(Boolean).join(' · ') || (r.vin || 'Véhicule non précisé') }),
+      h('span.veh', { text: veh }),
       trav ? h('span.trav', { text: trav + (r.heures ? ' (' + heures(r.heures) + ')' : '') }) : null,
-      h('span.puces', [
-        h('span.puce' + (({ arrive: '.info', encours: '.ok', pieces: '.attention', approbation: '.attention', termine: '.mono', absent: '.alerte', annule: '.alerte' })[r.etat] || ''), { text: ETATS[r.etat] || r.etat }),
-        r.transport && r.transport !== 'depot' ? h('span.puce', { text: TRANSPORTS[r.transport] || r.transport }) : null,
-        r.canal === 'sansrdv' ? h('span.puce.attention', { text: 'Sans RDV' }) : (r.canal === 'web' ? h('span.puce.info', { text: 'Web' }) : null),
-        r.btNo ? h('span.puce.mono', { text: 'BT ' + r.btNo }) : null,
-        !self.compagnie ? h('span.puce', { text: nomCie(r.compagnie) }) : null
-      ])
+      puces
     ]);
+  };
+
+  /* ---------------------------------------------------------------- classeur (grille horaire) */
+  function hhmm(m) { return p2(Math.floor(m / 60)) + ':' + p2(m % 60); }
+  function dureeDe(r, pas) { var d = Number(r.duree) || Math.round((r.heures || 0) * 60) || 30; return Math.max(pas, d); }
+  /* Heures d'ouverture [deb, fin] en minutes d'une concession pour une date ; null si fermé. */
+  function heuresDe(cfg, date) { var hj = cfg && cfg.heures && cfg.heures[JOURS[dateDe(date).getDay()]]; return hj ? [minutes(hj[0]), minutes(hj[1])] : null; }
+  /* Grille : colonnes = [{ id, titre, sous, rdv[], heures: [deb, fin] | null (fermé), auj, onEntete, onCreneau(heure) }],
+     o = { deb, fin (minutes), pas, auj (ligne « maintenant ») }. Les cartes qui se chevauchent se partagent la largeur. */
+  VueRdv.prototype.construireGrille = function (colonnes, o) {
+    var self = this, pas = o.parHeure ? 60 : (o.pas || 15), deb = o.deb, fin = o.fin, rangH = o.parHeure ? 44 : (pas >= 30 ? 36 : (pas >= 20 ? 30 : 24)), nRangs = Math.max(1, Math.ceil((fin - deb) / pas)), haut = nRangs * rangH;
+    var grille = h('div.rdv-grille', { style: { gridTemplateColumns: '56px repeat(' + colonnes.length + ', minmax(' + (colonnes.length > 5 ? 140 : 170) + 'px, 1fr))' } });
+    grille.appendChild(h('div.coin'));
+    colonnes.forEach(function (col) {
+      grille.appendChild(h('div.tete-col' + (col.heures ? '' : '.ferme') + (col.auj && col.onEntete ? '.auj' : '') + (col.onEntete ? '.cliquable' : ''), { onclick: col.onEntete || undefined, title: col.onEntete ? 'Ouvrir cette journée' : undefined }, [h('span.t', { text: col.titre }), h('span.s', { text: col.sous || '' })]));
+    });
+    var axe = h('div.axe', { style: { height: haut + 'px' } });
+    for (var m = deb; m < fin; m += pas) if (m % 60 === 0) axe.appendChild(h('span.h', { text: heureJolie(hhmm(m)), style: { top: ((m - deb) / pas * rangH) + 'px' } }));
+    grille.appendChild(axe);
+    var peut = this.peutEcrire(), nowM = minutes(maintenant()), auj = aujourdhui();
+    colonnes.forEach(function (col) {
+      var pile = h('div.pile', { style: { height: haut + 'px' } });
+      var dateCol = col.date || o.date || auj;
+      var passe = function (m) { return dateCol < auj || (dateCol === auj && m + (o.parHeure ? 60 : pas) <= nowM); };
+      if (o.parHeure) {
+        /* semaine : une case par heure — n rendez-vous · heures vendues, colorée selon la charge (plafond par heure) */
+        for (var mh = deb; mh < fin; mh += 60) (function (mh) {
+          var ouvert = !!col.heures && mh >= col.heures[0] && mh < col.heures[1];
+          var dans = col.rdv.filter(function (r) { var m0 = minutes(r.heure); return m0 >= mh && m0 < mh + 60 && (ETATS_ACTIFS.indexOf(r.etat) >= 0 || r.etat === 'termine'); });
+          var hv = dans.reduce(function (a, r) { return a + (r.heures || 0); }, 0), plaf = o.plafond || 0;
+          var charge = !dans.length ? '' : (plaf && dans.length > plaf ? '.trop' : (plaf && dans.length >= plaf ? '.presque' : (dans.length >= 3 ? '.c2' : '.c1')));
+          var cell = h('div.case' + (ouvert ? '' : '.hors') + charge, { style: { top: ((mh - deb) / pas * rangH) + 'px', height: (60 / pas * rangH) + 'px' } }, dans.length ? [h('b', { text: String(dans.length) }), h('span.s', { text: heures(hv) })] : null);
+          if (dans.length && col.onEntete) { cell.title = dans.length + ' rendez-vous à ' + heureJolie(hhmm(mh)) + ' — ouvrir la journée'; cell.addEventListener('click', col.onEntete); }
+          else if (ouvert && peut && col.onCreneau && !passe(mh)) { cell.classList.add('libre'); cell.title = 'Prendre un rendez-vous ' + col.titre + ' à ' + heureJolie(hhmm(mh)); cell.addEventListener('click', function () { col.onCreneau(hhmm(mh)); }); }
+          else if (passe(mh)) cell.classList.add('passe');
+          pile.appendChild(cell);
+        })(mh);
+        if (!col.heures && !col.rdv.length) pile.appendChild(h('div.ferme-msg', { text: 'Fermé' }));
+        if (col.auj && nowM >= deb && nowM < fin) pile.appendChild(h('div.maintenant', { style: { top: ((nowM - deb) / pas * rangH) + 'px' } }));
+        grille.appendChild(pile);
+        return;
+      }
+      for (var m = deb; m < fin; m += pas) (function (m) {
+        var ouvert = !!col.heures && m >= col.heures[0] && m < col.heures[1];
+        var cell = h('div.creneau' + (m % 60 === 0 ? '.heure' : '') + (ouvert ? '' : '.hors'), { style: { top: ((m - deb) / pas * rangH) + 'px', height: rangH + 'px' } });
+        if (ouvert && peut && col.onCreneau && !passe(m)) { cell.classList.add('libre'); cell.dataset.heure = hhmm(m); cell.title = 'Prendre un rendez-vous à ' + heureJolie(hhmm(m)); cell.addEventListener('click', function () { col.onCreneau(hhmm(m)); }); }
+        else if (ouvert && passe(m)) cell.classList.add('passe');
+        pile.appendChild(cell);
+      })(m);
+      if (!col.heures && !col.rdv.length) pile.appendChild(h('div.ferme-msg', { text: 'Fermé' }));
+      /* voies : les rendez-vous qui se chevauchent dans la colonne se partagent la largeur */
+      var evts = col.rdv.map(function (r) { var d0 = minutes(r.heure); return { r: r, d0: d0, d1: d0 + dureeDe(r, pas) }; }).filter(function (e) { return e.d0 >= 0; }).sort(function (a, b) { return a.d0 - b.d0 || a.d1 - b.d1; });
+      var grappe = [], finsVoies = [];
+      var poser = function () {
+        var nV = finsVoies.length;
+        grappe.forEach(function (e) {
+          var top = Math.max(0, (e.d0 - deb) / pas * rangH), bas = Math.min(haut, (e.d1 - deb) / pas * rangH), ht = Math.max(rangH - 2, bas - top - 2);
+          var carte = self.carte(e.r, { posee: true, rangs: Math.round(ht / rangH) });
+          carte.style.top = top + 'px'; carte.style.height = ht + 'px'; carte.style.left = (e.voie * 100 / nV) + '%'; carte.style.width = 'calc(' + (100 / nV) + '% - 5px)';
+          pile.appendChild(carte);
+        });
+        grappe = []; finsVoies = [];
+      };
+      evts.forEach(function (e) {
+        if (grappe.length && finsVoies.every(function (f) { return f <= e.d0; })) poser();
+        var v = -1; for (var i = 0; i < finsVoies.length; i++) if (finsVoies[i] <= e.d0) { v = i; break; }
+        if (v < 0) { v = finsVoies.length; finsVoies.push(e.d1); } else finsVoies[v] = e.d1;
+        e.voie = v; grappe.push(e);
+      });
+      if (grappe.length) poser();
+      if (col.auj && nowM >= deb && nowM < fin) pile.appendChild(h('div.maintenant', { style: { top: ((nowM - deb) / pas * rangH) + 'px' }, title: 'Maintenant · ' + heureJolie(maintenant()) }));
+      grille.appendChild(pile);
+    });
+    var cadre = h('div.rdv-grille-cadre', [grille]);
+    /* on ouvre la grille sur l'heure courante (ou la première heure ouverte) */
+    setTimeout(function () { var cible = (o.auj && !o.parHeure && nowM >= deb && nowM < fin) ? Math.max(0, (nowM - deb) / pas * rangH - 120) : 0; cadre.scrollTop = cible; }, 0);
+    return cadre;
+  };
+  VueRdv.prototype.rendreClasseur = function (l, cfg) {
+    var self = this, d = this.donnees, date = this.date, auj = date === aujourdhui(), colonnes = [], pas = (cfg && cfg.pas) || 15, deb = 7 * 60, fin = 17 * 60;
+    var prefill = function (extra) { return function (heure) { self.ouvrirFormulaire(null, false, Object.assign({ date: date, heure: heure }, extra || {})); }; };
+    var sousDe = function (rdv) { var a = rdv.filter(function (r) { return ETATS_ACTIFS.indexOf(r.etat) >= 0; }); var hv = a.reduce(function (x, r) { return x + (r.heures || 0); }, 0); return a.length + ' rendez-vous' + (hv ? ' · ' + heures(hv) : ''); };
+    if (!this.compagnie) {
+      var cies = Object.keys(d.configs || {}), bornes = null;
+      cies.forEach(function (c) { var hc = heuresDe(d.configs[c], date); if (hc) bornes = bornes ? [Math.min(bornes[0], hc[0]), Math.max(bornes[1], hc[1])] : hc.slice(); });
+      if (bornes) { deb = bornes[0]; fin = bornes[1]; }
+      cies.forEach(function (c) {
+        var rdv = l.filter(function (r) { return r.compagnie === c; });
+        colonnes.push({ id: c, titre: nomCie(c), sous: sousDe(rdv), rdv: rdv, heures: heuresDe(d.configs[c], date), auj: auj, onCreneau: prefill({ compagnie: c }) });
+      });
+    } else {
+      var hj = heuresDe(cfg, date); if (hj) { deb = hj[0]; fin = hj[1]; }
+      var actifs = (cfg ? cfg.conseillers : []).filter(function (c) { return c.actif; });
+      var sans = l.filter(function (r) { return !r.conseiller || !actifs.some(function (c) { return c.id === r.conseiller; }); });
+      if (!actifs.length) colonnes.push({ id: '', titre: 'Rendez-vous', sous: sousDe(l), rdv: l, heures: hj, auj: auj, onCreneau: prefill() });
+      else {
+        if (sans.length) colonnes.push({ id: '', titre: 'Non attribué', sous: sousDe(sans), rdv: sans, heures: hj, auj: auj, onCreneau: prefill() });
+        actifs.forEach(function (c) { var rdv = l.filter(function (r) { return r.conseiller === c.id; }); colonnes.push({ id: c.id, titre: c.nom, sous: sousDe(rdv), rdv: rdv, heures: hj, auj: auj, onCreneau: prefill({ conseiller: c.id }) }); });
+      }
+    }
+    /* la grille s'étire pour montrer un rendez-vous pris hors des heures (dépôt tôt le matin, par exemple) */
+    l.forEach(function (r) { var m0 = minutes(r.heure); if (m0 >= 0) { deb = Math.min(deb, Math.floor(m0 / 60) * 60); fin = Math.max(fin, Math.ceil((m0 + dureeDe(r, pas)) / 60) * 60); } });
+    var cadre = this.construireGrille(colonnes, { deb: deb, fin: fin, pas: pas, auj: auj, date: date });
+    var bloc = h('div.rdv-classeur' + (this.resume ? '' : '.sans-resume'), [cadre, this.resume ? this.rendreResume(l, cfg, deb, fin) : null]);
+    this.elCorps.appendChild(bloc);
+  };
+  /* Résumé de la journée (à droite du classeur) : rendez-vous par heure, capacité, canaux, transport, travaux par catégorie. */
+  VueRdv.prototype.rendreResume = function (l, cfg, deb, fin) {
+    var self = this, d = this.donnees, tout = this.filtreEtatSauf(), actifs = tout.filter(function (r) { return ETATS_ACTIFS.indexOf(r.etat) >= 0 || r.etat === 'termine'; });
+    var cls = function (v, max) { return !max ? '' : (v > max ? 'trop' : (v >= max ? 'presque' : '')); };
+    var barre = function (v, max, nl) { var pct = max ? Math.min(100, Math.round(v / max * 100)) : (nl ? Math.min(100, v * 12) : 0); return h('div.jauge', [h('i' + (nl ? '.nl' : (cls(v, max) ? '.' + cls(v, max) : '')), { style: { width: pct + '%' } })]); };
+    var ligne = function (lib, v, max, texte, nl) { return h('div.item', [h('span.lib', { text: lib }), barre(v, max, nl), h('span.val' + (cls(v, max) ? '.' + cls(v, max) : ''), { text: texte })]); };
+    var sections = [];
+    /* rendez-vous par heure vs plafond */
+    var parH = {}; actifs.forEach(function (r) { var k = Math.floor(minutes(r.heure) / 60); parH[k] = (parH[k] || 0) + 1; });
+    var plafond = cfg ? cfg.plafondHeure : 0, secH = h('div', [h('h4', 'Rendez-vous par heure' + (plafond ? ' · plafond ' + plafond : ' · sans limite'))]);
+    for (var hh = Math.floor(deb / 60); hh < Math.ceil(fin / 60); hh++) secH.appendChild(ligne(hh + ' h', parH[hh] || 0, plafond, (parH[hh] || 0) + (plafond ? ' / ' + plafond : ''), !plafond));
+    sections.push(secH);
+    if (this.compagnie && cfg) {
+      var cap = d.capacite && d.capacite[this.compagnie] && d.capacite[this.compagnie][this.date];
+      var hv = actifs.reduce(function (a, r) { return a + (r.heures || 0); }, 0), ha = cfg.heuresAtelier || 0;
+      var attH = {}, attMax = 0; actifs.forEach(function (r) { if (r.transport === 'attente' && r.etat !== 'termine') { var k = Math.floor(minutes(r.heure) / 60); attH[k] = (attH[k] || 0) + 1; attMax = Math.max(attMax, attH[k]); } });
+      var prets = actifs.filter(function (r) { return r.transport === 'pret'; }).length, imprevus = actifs.filter(function (r) { return r.canal === 'sansrdv'; }).length;
+      var secC = h('div', [h('h4', 'Capacité')]);
+      secC.appendChild(ligne('Atelier', hv, ha, heures(hv) + (ha ? ' / ' + heures(ha) : ''), !ha));
+      secC.appendChild(ligne('Attente', attMax, cfg.attente, attMax + (cfg.attente ? ' / ' + cfg.attente + ' par h' : ''), !cfg.attente));
+      secC.appendChild(ligne('Prêts', prets, cfg.pret, prets + (cfg.pret ? ' / ' + cfg.pret : ''), !cfg.pret));
+      secC.appendChild(h('div.item.large', [h('span.lib', { text: 'Sans rendez-vous' }), h('span.val', { text: String(imprevus) })]));
+      secC.appendChild(h('div.item.large', [h('span.lib', { text: 'Terminés' }), h('span.val', { text: String(actifs.filter(function (r) { return r.etat === 'termine'; }).length) })]));
+      sections.push(secC);
+    } else {
+      var secG = h('div', [h('h4', 'Par concession')]);
+      Object.keys(d.configs || {}).forEach(function (c) { var n = actifs.filter(function (r) { return r.compagnie === c; }), hv2 = n.reduce(function (a, r) { return a + (r.heures || 0); }, 0), ha2 = d.configs[c].heuresAtelier || 0; secG.appendChild(ligne(nomCie(c), hv2, ha2, n.length + ' · ' + heures(hv2), !ha2)); });
+      sections.push(secG);
+    }
+    /* canaux et transport */
+    var nCanal = {}, nTrans = {}; actifs.forEach(function (r) { nCanal[r.canal || 'telephone'] = (nCanal[r.canal || 'telephone'] || 0) + 1; nTrans[r.transport || 'depot'] = (nTrans[r.transport || 'depot'] || 0) + 1; });
+    var maxC = Math.max.apply(null, [1].concat(Object.keys(nCanal).map(function (k) { return nCanal[k]; })));
+    var secCa = h('div', [h('h4', 'Canaux')]); Object.keys(CANAUX).forEach(function (k) { if (nCanal[k]) secCa.appendChild(ligne(CANAUX[k], nCanal[k], 0, String(nCanal[k]), true)); });
+    if (!Object.keys(nCanal).length) secCa.appendChild(h('div.doux', { text: 'Aucun rendez-vous' }));
+    sections.push(secCa);
+    var secT = h('div', [h('h4', 'Transport')]); Object.keys(TRANSPORTS).forEach(function (k) { if (nTrans[k]) secT.appendChild(ligne(TRANSPORTS[k], nTrans[k], 0, String(nTrans[k]), true)); });
+    if (Object.keys(nTrans).length) sections.push(secT);
+    /* heures d'atelier par catégorie de travaux */
+    var catDe = {}; ((cfg && cfg.travaux) || []).forEach(function (t) { catDe[t.code] = t.categorie || 'Autre'; });
+    var parCat = {}, totalCat = 0; actifs.forEach(function (r) { (r.travaux || []).forEach(function (t) { var c = catDe[t.code] || 'Autre', hh2 = Number(t.heures) || 0; parCat[c] = (parCat[c] || 0) + hh2; totalCat += hh2; }); });
+    if (totalCat) { var secW = h('div', [h('h4', 'Travaux (heures)')]); Object.keys(parCat).sort(function (a, b) { return parCat[b] - parCat[a]; }).forEach(function (c) { secW.appendChild(ligne(c, parCat[c], totalCat, heures(parCat[c]), false)); }); sections.push(secW); }
+    void maxC;
+    return h('div.rdv-resume', sections);
   };
   VueRdv.prototype.rendreSemaine = function () {
     var self = this, lundi = lundiDe(this.date), auj = aujourdhui(), cfg = this.config(), d = this.donnees;
-    var sem = h('div.rdv-semaine');
+    var tetes = h('div.rdv-semaine-tetes'), colonnes = [], deb = 7 * 60, fin = 17 * 60, bornes = null, pas = (cfg && cfg.pas) || 15;
     for (var i = 0; i < 7; i++) (function (i) {
       var date = ajouterJours(lundi, i), l = self.liste(date), actifs = l.filter(function (r) { return ETATS_ACTIFS.indexOf(r.etat) >= 0 || r.etat === 'termine'; });
       var cap = self.compagnie && d.capacite && d.capacite[self.compagnie] && d.capacite[self.compagnie][date];
-      var ouvert = !cfg || creneaux(cfg, date).length > 0;
+      var hj = self.compagnie ? heuresDe(cfg, date) : (function () { var b = null; Object.keys(d.configs || {}).forEach(function (c) { var hc = heuresDe(d.configs[c], date); if (hc) b = b ? [Math.min(b[0], hc[0]), Math.max(b[1], hc[1])] : hc.slice(); }); return b; })();
+      if (hj) bornes = bornes ? [Math.min(bornes[0], hj[0]), Math.max(bornes[1], hj[1])] : hj.slice();
+      var ouvert = !!hj || !cfg;
       var hv = cap ? cap.heures : actifs.reduce(function (a, r) { return a + (r.heures || 0); }, 0), ha = cfg ? cfg.heuresAtelier : 0;
       var pct = ha ? Math.min(100, Math.round(hv / ha * 100)) : 0;
-      sem.appendChild(h('div.rdv-jour' + (ouvert ? '' : '.ferme') + (date === auj ? '.auj' : ''), { onclick: function () { if (!ouvert && !l.length) return; self.date = date; self.vue = 'jour'; AMX.memo.ecrire('rdv_vue', 'jour'); self.charger(); } }, [
+      var allerAuJour = function () { if (!ouvert && !l.length) return; self.date = date; self.vue = 'jour'; AMX.memo.ecrire('rdv_vue', 'jour'); self.charger(); };
+      tetes.appendChild(h('div.rdv-jour' + (ouvert ? '' : '.ferme') + (date === auj ? '.auj' : ''), { onclick: allerAuJour }, [
         h('span.j', { text: dateCourte(date) }),
         h('span.n', { text: ouvert || l.length ? String(actifs.length) : '—' }),
         ha && ouvert ? h('div.barre-charge', [h('i' + (hv > ha ? '.trop' : (pct >= 90 ? '.plein' : '')), { style: { width: pct + '%' } })]) : null,
         h('span.sous', { text: !ouvert ? 'Fermé' : (ha ? heures(hv) + ' sur ' + heures(ha) : heures(hv) + ' d\'atelier') + (cap && cap.imprevus ? ' · ' + cap.imprevus + ' sans RDV' : '') })
       ]));
+      colonnes.push({ id: date, date: date, titre: dateCourte(date), sous: ouvert ? actifs.length + ' rendez-vous' + (hv ? ' · ' + heures(hv) : '') : 'Fermé', rdv: l, heures: hj, auj: date === auj, onEntete: allerAuJour, onCreneau: function (heure) { self.ouvrirFormulaire(null, false, { date: date, heure: heure }); } });
     })(i);
-    this.elCorps.appendChild(sem);
+    if (bornes) { deb = bornes[0]; fin = bornes[1]; }
+    colonnes.forEach(function (col) { col.rdv.forEach(function (r) { var m0 = minutes(r.heure); if (m0 >= 0) { deb = Math.min(deb, Math.floor(m0 / 60) * 60); fin = Math.max(fin, Math.ceil((m0 + dureeDe(r, pas)) / 60) * 60); } }); });
+    this.elCorps.appendChild(tetes);
+    if (this.mode === 'classeur') this.elCorps.appendChild(this.construireGrille(colonnes, { deb: deb, fin: fin, pas: pas, parHeure: true, plafond: cfg ? cfg.plafondHeure : 0, auj: lundi <= auj && auj <= ajouterJours(lundi, 6) }));
   };
 
   /* ------------------------------------------------------------------ fiche d'un rendez-vous */
@@ -439,12 +667,14 @@
   };
 
   /* ------------------------------------------------------------------ formulaire (nouveau / modifier / sans rendez-vous) */
-  VueRdv.prototype.ouvrirFormulaire = function (r, sansRdv) {
-    var self = this, cie = (r && r.compagnie) || this.compagnie;
+  /* r = rendez-vous à modifier (null = nouveau) ; sansRdv = client arrivé sans rendez-vous ; prefill = { date, heure, conseiller, compagnie } (clic dans la grille). */
+  VueRdv.prototype.ouvrirFormulaire = function (r, sansRdv, prefill) {
+    var self = this, cie = (r && r.compagnie) || (prefill && prefill.compagnie) || this.compagnie;
     if (!cie) { AMX.toast('Choisissez d\'abord une concession.', 'erreur'); return; }
     var cfg = this.config(cie); if (!cfg) { AMX.toast('Réglages de la concession introuvables — rafraîchissez.', 'erreur'); return; }
     var neuf = !r;
     var v = Object.assign({ compagnie: cie, date: this.date, heure: '', client: '', telephone: '', courriel: '', vin: '', vehicule: '', plaque: '', km: '', travaux: [], transport: 'depot', conseiller: '', canal: sansRdv ? 'sansrdv' : 'telephone', notes: '', noteInterne: '', clientId: '' }, r ? JSON.parse(JSON.stringify(r)) : {});
+    if (prefill && neuf) Object.assign(v, prefill);
     if (sansRdv) { v.date = aujourdhui(); v.heure = maintenant(); v.transport = 'attente'; }
     if (neuf && !sansRdv && v.date < aujourdhui()) v.date = aujourdhui();
     var choisis = {}; (v.travaux || []).forEach(function (t) { choisis[t.code] = t; });

@@ -17,13 +17,15 @@
   'use strict';
   var h = AMX.h, I = AMX.icones;
 
-  var ETATS = { prevu: 'Prévu', arrive: 'Arrivé', encours: 'En cours', pieces: 'Attend les pièces', approbation: 'Attend l\'approbation', termine: 'Terminé', absent: 'Client absent', annule: 'Annulé' };
+  var ETATS = { prevu: 'Prévu', arrive: 'Arrivé', encours: 'En cours', pieces: 'Attend les pièces', approbation: 'Attend l\'approbation', termine: 'Terminé', remis: 'Véhicule remis', absent: 'Client absent', annule: 'Annulé' };
   var ETATS_ACTIFS = ['prevu', 'arrive', 'encours', 'pieces', 'approbation'];
   var TRANSPORTS = { depot: 'Déposer le véhicule', attente: 'Salle d\'attente', pret: 'Véhicule de prêt', navette: 'Navette', valet: 'Valet' };
   var CANAUX = { telephone: 'Téléphone', comptoir: 'Au comptoir', web: 'Web', texto: 'Texto', sansrdv: 'Sans rendez-vous', dms: 'DMS' };
   var JOURS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'], JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   var MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juill.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-  var COULEUR_ETAT = { prevu: 'gris', arrive: 'bleu', encours: 'vert', pieces: 'ambre', approbation: 'ambre', termine: 'sombre', absent: 'rouge', annule: 'rouge' };
+  var COULEUR_ETAT = { prevu: 'gris', arrive: 'bleu', encours: 'vert', pieces: 'ambre', approbation: 'ambre', termine: 'sombre', remis: 'sombre', absent: 'rouge', annule: 'rouge' };
+  var TEXTE_CONSENT_RAPPELS = 'J\'accepte de recevoir les rappels et confirmations de mes rendez-vous au service par texto ou courriel.';
+  var TEXTE_CONSENT_OFFRES = 'J\'accepte de recevoir les rappels d\'entretien et les offres du service par texto ou courriel (retrait en tout temps : STOP).';
 
   /* ------------------------------------------------------------------ utilitaires */
   var p2 = function (n) { return String(n).padStart(2, '0'); };
@@ -80,7 +82,7 @@
     '.rdv-carte { border: 1px solid var(--ligne); border-left: 4px solid var(--gris); border-radius: 8px; padding: 7px 9px; cursor: pointer; background: #fff; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }',
     '.rdv-carte:hover { background: var(--carte-2); }',
     '.rdv-carte.e-arrive { border-left-color: var(--bleu); } .rdv-carte.e-encours { border-left-color: var(--vert); } .rdv-carte.e-pieces, .rdv-carte.e-approbation { border-left-color: var(--ambre); }',
-    '.rdv-carte.e-termine { border-left-color: var(--noir-2); opacity: .75; } .rdv-carte.e-absent, .rdv-carte.e-annule { border-left-color: var(--rouge); opacity: .6; }',
+    '.rdv-carte.e-termine { border-left-color: var(--noir-2); opacity: .75; } .rdv-carte.e-remis { border-left-color: var(--noir-2); opacity: .5; } .rdv-carte.e-absent, .rdv-carte.e-annule { border-left-color: var(--rouge); opacity: .6; }',
     '.rdv-carte .client { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
     '.rdv-carte .quand { font-family: var(--mono); font-size: 12px; font-weight: 600; text-align: right; }',
     '.rdv-carte .veh { grid-column: 1 / -1; font-size: 12px; color: var(--encre-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
@@ -102,6 +104,25 @@
     '.rdv-fiche dt { color: var(--encre-3); } .rdv-fiche dd { margin: 0; }',
     '.rdv-fiche .actions-etat { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; }',
     '.rdv-fiche .avert { background: var(--ambre-bg); color: var(--ambre); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; margin: 10px 0 0; }',
+    '.rdv-fiche .chronos { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--encre-3); margin-top: 8px; } .rdv-fiche .chronos b { color: var(--encre); font-variant-numeric: tabular-nums; }',
+    '.rdv-insp { margin-top: 16px; border-top: 1px solid var(--ligne); padding-top: 12px; }',
+    '.rdv-insp h4 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; } .rdv-insp h4 .puce { font-weight: 600; }',
+    '.rdv-insp .medias { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }',
+    '.rdv-insp .media { position: relative; width: 112px; height: 84px; border-radius: 8px; overflow: hidden; border: 1px solid var(--ligne); background: var(--carte-2); cursor: pointer; }',
+    '.rdv-insp .media img { width: 100%; height: 100%; object-fit: cover; display: block; }',
+    '.rdv-insp .media .lecture { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 26px; text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none; }',
+    '.rdv-insp .media .type { position: absolute; left: 4px; bottom: 4px; font-size: 10px; background: rgba(0,0,0,.6); color: #fff; padding: 1px 6px; border-radius: 999px; }',
+    '.rdv-insp .media .retirer { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; line-height: 20px; cursor: pointer; padding: 0; }',
+    '.rdv-insp .media.envoi { display: grid; place-items: center; font-size: 11px; color: var(--encre-3); text-align: center; padding: 6px; cursor: default; }',
+    '.rdv-insp .outils { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }',
+    '.rdv-insp table.tableau input.saisie, .rdv-insp table.tableau select.saisie { height: 30px; font-size: 12.5px; }',
+    '.rdv-insp .etat-ligne { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--gris-bg); color: var(--encre-3); white-space: nowrap; }',
+    '.rdv-insp .etat-ligne.approuve { background: var(--vert-clair); color: var(--vert); } .rdv-insp .etat-ligne.refuse { background: var(--rouge-bg); color: var(--rouge); }',
+    '.rdv-insp .suivi { font-size: 12.5px; color: var(--encre-2); background: var(--carte-2); border-radius: 8px; padding: 8px 10px; margin: 10px 0; }',
+    '.rdv-insp .suivi .note-client { margin-top: 6px; border-left: 3px solid var(--vert); padding-left: 8px; white-space: pre-wrap; }',
+    '.rdv-enregistreur video { width: 100%; max-height: 50vh; background: #000; border-radius: 10px; }',
+    '.rdv-enregistreur .chrono { font-family: var(--mono); font-size: 22px; font-weight: 700; text-align: center; margin: 8px 0; } .rdv-enregistreur .chrono.rec { color: var(--rouge); }',
+    '.rdv-enregistreur .boutons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }',
     '.rdv-form .resultats-clients { border: 1px solid var(--ligne); border-radius: 8px; max-height: 180px; overflow: auto; margin-top: 4px; }',
     '.rdv-form .resultats-clients button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 10px; border-bottom: 1px solid var(--ligne); cursor: pointer; font-size: 12.5px; }',
     '.rdv-form .resultats-clients button:hover { background: var(--carte-2); } .rdv-form .resultats-clients button .d { color: var(--encre-3); }',
@@ -110,7 +131,7 @@
     '.rdv-form .travaux { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 12px; }',
     '.rdv-form .travaux label { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 3px 0; cursor: pointer; min-width: 0; }',
     '.rdv-form .travaux label > span:first-of-type { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
-    '.rdv-form input[type="checkbox"], .rdv-reglages input[type="checkbox"] { width: 16px; height: 16px; flex: none; margin: 0; padding: 0; accent-color: var(--vert); }',
+    '.rdv-form input[type="checkbox"], .rdv-reglages input[type="checkbox"], .rdv-envoi input[type="checkbox"] { width: 16px; height: 16px; flex: none; margin: 0; padding: 0; accent-color: var(--vert); }',
     '.rdv-form .travaux label .d { color: var(--encre-4); font-size: 11px; margin-left: auto; white-space: nowrap; }',
     '.rdv-form .creneaux { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 4px; max-height: 150px; overflow: auto; padding: 2px; }',
     '.rdv-form .creneaux button { border: 1px solid var(--ligne); background: #fff; border-radius: 6px; padding: 4px 0; font-size: 12px; cursor: pointer; font-family: var(--mono); }',
@@ -166,9 +187,9 @@
     '.rdv-carte.posee:hover { z-index: 2; }',
     '.rdv-resume { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 12px 14px; font-size: 12.5px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 70px; }',
     '.rdv-resume h4 { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
-    '.rdv-resume .item { display: grid; grid-template-columns: 62px 1fr 60px; gap: 8px; align-items: center; padding: 2px 0; }',
+    '.rdv-resume .item { display: grid; grid-template-columns: 78px 1fr 64px; gap: 8px; align-items: center; padding: 2px 0; }',
     '.rdv-resume .item.large { grid-template-columns: 1fr 60px; }',
-    '.rdv-resume .item .lib { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--encre-2); }',
+    '.rdv-resume .item .lib { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--encre-2); font-size: 12px; }',
     '.rdv-resume .item .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; font-size: 12px; }',
     '.rdv-resume .item .val.presque { color: var(--ambre); } .rdv-resume .item .val.trop { color: var(--rouge); }',
     '.rdv-resume .jauge { height: 8px; background: var(--gris-bg); border-radius: 4px; overflow: hidden; }',
@@ -177,6 +198,7 @@
     '.rdv-resume .puces-cie { display: flex; flex-wrap: wrap; gap: 4px; }',
     '.rdv-semaine-tetes { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }',
     '.rdv-semaine-tetes .rdv-jour { min-height: 0; padding: 8px 10px; gap: 4px; } .rdv-semaine-tetes .rdv-jour .n { font-size: 18px; }',
+    '.rdv-kpis-sem { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--encre-2); margin: 0 0 10px; } .rdv-kpis-sem b { font-variant-numeric: tabular-nums; }',
     '@media (max-width: 900px) { .rdv-semaine-tetes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }'
   ].join('\n');
   if (!document.getElementById('rdv-style')) { var st = document.createElement('style'); st.id = 'rdv-style'; st.textContent = STYLE; document.head.appendChild(st); }
@@ -301,6 +323,7 @@
       self.donnees = d; self.erreur = ''; self.copieLe = 0;
       self.btnRafraichir.classList.remove('occupe');
       self.rendre();
+      if (self.ficheOuverte && document.body.contains(self.ficheOuverte.el)) { var fo = self.ficheOuverte, maj = (d.rdv || []).filter(function (x) { return x.id === fo.r.id; })[0]; if (maj && maj.maj !== fo.r.maj) { Object.assign(fo.r, maj); fo.rafraichir(); } }
       if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre();
       if (annoncer) AMX.toast('Carnet mis à jour', 'ok');
     }).catch(function (e) {
@@ -318,7 +341,7 @@
     return (d.rdv || []).filter(function (r) {
       if (date && r.date !== date) return false;
       if (self.compagnie && r.compagnie !== self.compagnie) return false;
-      if (self.filtreEtat === 'attend' ? !(r.etat === 'pieces' || r.etat === 'approbation') : (self.filtreEtat === 'hors' ? !(r.etat === 'absent' || r.etat === 'annule') : (self.filtreEtat && r.etat !== self.filtreEtat))) return false;
+      if (self.filtreEtat === 'attend' ? !(r.etat === 'pieces' || r.etat === 'approbation') : (self.filtreEtat === 'hors' ? !(r.etat === 'absent' || r.etat === 'annule') : (self.filtreEtat === 'termine' ? !(r.etat === 'termine' || r.etat === 'remis') : (self.filtreEtat && r.etat !== self.filtreEtat)))) return false;
       if (q) {
         if (qTel.length >= 4 && telChiffres(r.telephone).indexOf(qTel) >= 0) return true;
         return [r.client, r.vehicule, r.vin, r.plaque, r.conseiller, (r.travaux || []).map(function (t) { return t.libelle; }).join(' ')].join(' ').toUpperCase().indexOf(q) >= 0;
@@ -355,7 +378,7 @@
       ['arrive', 'Arrivés', n(function (r) { return r.etat === 'arrive'; }), 'au comptoir'],
       ['encours', 'En cours', n(function (r) { return r.etat === 'encours'; }), 'dans l\'atelier'],
       ['attend', 'En attente', n(function (r) { return r.etat === 'pieces' || r.etat === 'approbation'; }), 'pièces ou approbation'],
-      ['termine', 'Terminés', n(function (r) { return r.etat === 'termine'; }), 'prêts à partir'],
+      ['termine', 'Terminés', n(function (r) { return r.etat === 'termine' || r.etat === 'remis'; }), (function () { var rm = n(function (r) { return r.etat === 'remis'; }); return rm ? rm + ' remis au client' : 'prêts à partir'; })()],
       ['hors', 'Absents / annulés', n(function (r) { return r.etat === 'absent' || r.etat === 'annule'; }), '']
     ];
     AMX.vider(this.elKpis);
@@ -423,7 +446,8 @@
     var self = this, posee = !!(opts && opts.posee);
     var trav = (r.travaux || []).map(function (t) { return t.libelle; }).join(' · ');
     var puces = h('span.puces', [
-      h('span.puce' + (({ arrive: '.info', encours: '.ok', pieces: '.attention', approbation: '.attention', termine: '.mono', absent: '.alerte', annule: '.alerte' })[r.etat] || ''), { text: ETATS[r.etat] || r.etat }),
+      h('span.puce' + (({ arrive: '.info', encours: '.ok', pieces: '.attention', approbation: '.attention', termine: '.mono', remis: '.mono', absent: '.alerte', annule: '.alerte' })[r.etat] || ''), { text: ETATS[r.etat] || r.etat }),
+      r.inspection && r.inspection.envoyeLe ? h('span.puce' + (r.inspection.reponduLe ? '.ok' : '.info'), { text: r.inspection.reponduLe ? (r.inspection.nApprouve + ' approuvé' + (r.inspection.nApprouve > 1 ? 's' : '')) : (r.inspection.vuLe ? 'Inspection vue' : 'Inspection envoyée'), title: 'Inspection vidéo envoyée au client' }) : (r.inspection && r.inspection.medias && r.inspection.medias.length ? h('span.puce', { text: r.inspection.medias.length + ' média' + (r.inspection.medias.length > 1 ? 's' : '') }) : null),
       r.transport && r.transport !== 'depot' ? h('span.puce', { text: TRANSPORTS[r.transport] || r.transport }) : null,
       r.canal === 'sansrdv' ? h('span.puce.attention', { text: 'Sans RDV' }) : (r.canal === 'web' ? h('span.puce.info', { text: 'Web' }) : null),
       r.btNo ? h('span.puce.mono', { text: 'BT ' + r.btNo }) : null,
@@ -665,12 +689,26 @@
       var attH = {}, attMax = 0; actifs.forEach(function (r) { if (r.transport === 'attente' && r.etat !== 'termine') { var k = Math.floor(minutes(r.heure) / 60); attH[k] = (attH[k] || 0) + 1; attMax = Math.max(attMax, attH[k]); } });
       var prets = actifs.filter(function (r) { return r.transport === 'pret'; }).length, imprevus = actifs.filter(function (r) { return r.canal === 'sansrdv'; }).length;
       var secC = h('div', [h('h4', 'Capacité')]);
-      secC.appendChild(ligne('Atelier', hv, ha, heures(hv) + (ha ? ' / ' + heures(ha) : ''), !ha));
+      var hDispo = cfg.heuresDisponibles !== undefined ? cfg.heuresDisponibles : ha, hTampon = cfg.heuresTampon || 0, hInt = cfg.heuresInternes || 0;
+      var hvRdv = actifs.filter(function (r) { return r.canal !== 'sansrdv'; }).reduce(function (a, r) { return a + (r.heures || 0); }, 0), hvSans = hv - hvRdv;
+      secC.appendChild(ligne('Sur RDV', hvRdv, hDispo, heures(hvRdv) + (hDispo ? ' / ' + heures(hDispo) : ''), !hDispo));
+      if (hTampon) secC.appendChild(ligne('Sans RDV', hvSans, hTampon, heures(hvSans) + ' / ' + heures(hTampon), false));
+      secC.appendChild(ligne('Atelier total', hv, ha, heures(hv) + (ha ? ' / ' + heures(ha) : ''), !ha));
+      if (hInt) secC.appendChild(h('div.item.large', [h('span.lib', { text: 'Réservé à l\'interne (recon.)' }), h('span.val', { text: heures(hInt) })]));
       secC.appendChild(ligne('Attente', attMax, cfg.attente, attMax + (cfg.attente ? ' / ' + cfg.attente + ' par h' : ''), !cfg.attente));
       secC.appendChild(ligne('Prêts', prets, cfg.pret, prets + (cfg.pret ? ' / ' + cfg.pret : ''), !cfg.pret));
       secC.appendChild(h('div.item.large', [h('span.lib', { text: 'Sans rendez-vous' }), h('span.val', { text: String(imprevus) })]));
-      secC.appendChild(h('div.item.large', [h('span.lib', { text: 'Terminés' }), h('span.val', { text: String(actifs.filter(function (r) { return r.etat === 'termine'; }).length) })]));
+      secC.appendChild(h('div.item.large', [h('span.lib', { text: 'Terminés / remis' }), h('span.val', { text: actifs.filter(function (r) { return r.etat === 'termine' || r.etat === 'remis'; }).length + ' / ' + actifs.filter(function (r) { return r.etat === 'remis'; }).length })]));
       sections.push(secC);
+      /* heures par groupe de compétence (express / atelier / diagnostic / haute tension) — la planification « en heures de technicien » */
+      if (cfg.groupes && cfg.groupes.length) {
+        var parGr = {}; actifs.forEach(function (r) { (r.travaux || []).forEach(function (t) { var g = t.groupe || ((cfg.travaux || []).filter(function (x) { return x.code === t.code; })[0] || {}).groupe || cfg.groupes[0].id; parGr[g] = (parGr[g] || 0) + (Number(t.heures) || 0); }); });
+        var secG2 = h('div', [h('h4', 'Par groupe de compétence')]);
+        cfg.groupes.forEach(function (g) { var v = Math.round((parGr[g.id] || 0) * 100) / 100; secG2.appendChild(ligne(g.nom.replace(/\s*\(.*\)$/, ''), v, g.heures, heures(v) + (g.heures ? ' / ' + heures(g.heures) : ''), !g.heures)); });
+        sections.push(secG2);
+      }
+      /* indicateurs du jour (présence, en ligne, reports, accueil, reprise) */
+      var secI = self.rendreIndicateurs(tout); if (secI) sections.push(secI);
     } else {
       var secG = h('div', [h('h4', 'Par concession')]);
       Object.keys(d.configs || {}).forEach(function (c) { var n = actifs.filter(function (r) { return r.compagnie === c; }), hv2 = n.reduce(function (a, r) { return a + (r.heures || 0); }, 0), ha2 = d.configs[c].heuresAtelier || 0; secG.appendChild(ligne(nomCie(c), hv2, ha2, n.length + ' · ' + heures(hv2), !ha2)); });
@@ -690,6 +728,34 @@
     if (totalCat) { var secW = h('div', [h('h4', 'Travaux (heures)')]); Object.keys(parCat).sort(function (a, b) { return parCat[b] - parCat[a]; }).forEach(function (c) { secW.appendChild(ligne(c, parCat[c], totalCat, heures(parCat[c]), false)); }); sections.push(secW); }
     void maxC;
     return h('div.rdv-resume', sections);
+  };
+  /* Indicateurs calculés sur une liste de rendez-vous (jour ou semaine) : taux de présence (jours passés), part en ligne,
+     reports, délai moyen pour obtenir le rendez-vous, accueil (arrivée → accueilli) et reprise (terminé → remis). */
+  VueRdv.prototype.indicateurs = function (liste) {
+    var auj = aujourdhui(), nowM = minutes(maintenant());
+    var echus = liste.filter(function (r) { return r.etat !== 'annule' && (r.date < auj || (r.date === auj && (minutes(r.heure) + 30 <= nowM || r.etat !== 'prevu'))); });
+    var presents = echus.filter(function (r) { return r.etat !== 'absent' && r.etat !== 'prevu'; }).length;
+    var nonAnnules = liste.filter(function (r) { return r.etat !== 'annule'; });
+    var enLigne = nonAnnules.filter(function (r) { return r.canal === 'web'; }).length, reportes = nonAnnules.filter(function (r) { return (r.reports || 0) > 0; }).length;
+    var delais = nonAnnules.filter(function (r) { return r.creeLe && r.canal !== 'sansrdv'; }).map(function (r) { var d = (new Date(r.date + 'T12:00:00') - new Date(r.creeLe)) / 86400000; return Math.max(0, d); });
+    var moy = function (l) { return l.length ? l.reduce(function (a, b) { return a + b; }, 0) / l.length : null; };
+    var accueils = liste.filter(function (r) { return r.arriveLe && r.accueilliLe; }).map(function (r) { return Math.max(0, (new Date(r.accueilliLe) - new Date(r.arriveLe)) / 60000); });
+    var reprises = liste.filter(function (r) { return r.termineLe && r.remisLe; }).map(function (r) { return Math.max(0, (new Date(r.remisLe) - new Date(r.termineLe)) / 60000); });
+    return { echus: echus.length, presence: echus.length ? Math.round(presents / echus.length * 100) : null, enLigne: nonAnnules.length ? Math.round(enLigne / nonAnnules.length * 100) : null, reports: nonAnnules.length ? Math.round(reportes / nonAnnules.length * 100) : null, delai: moy(delais), accueil: moy(accueils), reprise: moy(reprises), nAccueil: accueils.length, nReprise: reprises.length, n: nonAnnules.length };
+  };
+  VueRdv.prototype.rendreIndicateurs = function (liste) {
+    var k = this.indicateurs(liste);
+    if (!k.n) return null;
+    var minutesTexte = function (m) { return m === null ? '—' : (m < 60 ? Math.round(m) + ' min' : Math.round(m / 60 * 10) / 10 + ' h'); };
+    var item = function (lib, val, titre) { return h('div.item.large', { title: titre || '' }, [h('span.lib', { text: lib }), h('span.val', { text: val })]); };
+    var sec = h('div', [h('h4', 'Indicateurs')]);
+    sec.appendChild(item('Présence', k.presence === null ? '—' : k.presence + ' %' + (k.echus ? ' (' + k.echus + ')' : ''), 'Rendez-vous échus honorés (cible ≥ 88 %)'));
+    sec.appendChild(item('Pris en ligne', k.enLigne === null ? '—' : k.enLigne + ' %', 'Part des rendez-vous pris par le web'));
+    sec.appendChild(item('Reportés', k.reports === null ? '—' : k.reports + ' %', 'Rendez-vous déplacés au moins une fois (sain : 5–15 %)'));
+    sec.appendChild(item('Délai moyen', k.delai === null ? '—' : Math.round(k.delai * 10) / 10 + ' j', 'Jours entre la prise et la date du rendez-vous'));
+    sec.appendChild(item('Accueil', minutesTexte(k.accueil) + (k.nAccueil ? ' (' + k.nAccueil + ')' : ''), 'Arrivée → accueilli par un conseiller'));
+    sec.appendChild(item('Reprise', minutesTexte(k.reprise) + (k.nReprise ? ' (' + k.nReprise + ')' : ''), 'Terminé → véhicule remis (20 % du CSI au Canada)'));
+    return sec;
   };
   VueRdv.prototype.rendreSemaine = function () {
     var self = this, lundi = lundiDe(this.date), auj = aujourdhui(), cfg = this.config(), d = this.donnees;
@@ -714,10 +780,27 @@
     if (bornes) { deb = bornes[0]; fin = bornes[1]; }
     colonnes.forEach(function (col) { col.rdv.forEach(function (r) { var m0 = minutes(r.heure); if (m0 >= 0) { deb = Math.min(deb, Math.floor(m0 / 60) * 60); fin = Math.max(fin, Math.ceil((m0 + dureeDe(r, pas)) / 60) * 60); } }); });
     this.elCorps.appendChild(tetes);
+    var kS = this.indicateurs(this.filtreEtatSauf());
+    if (kS.n) this.elCorps.appendChild(h('div.rdv-kpis-sem', [
+      h('span', ['Présence ', h('b', { text: kS.presence === null ? '—' : kS.presence + ' %' })]), h('span', ['Pris en ligne ', h('b', { text: kS.enLigne === null ? '—' : kS.enLigne + ' %' })]), h('span', ['Reportés ', h('b', { text: kS.reports === null ? '—' : kS.reports + ' %' })]),
+      h('span', ['Délai moyen ', h('b', { text: kS.delai === null ? '—' : Math.round(kS.delai * 10) / 10 + ' j' })]), h('span', ['Accueil ', h('b', { text: kS.accueil === null ? '—' : Math.round(kS.accueil) + ' min' })]), h('span', ['Reprise ', h('b', { text: kS.reprise === null ? '—' : Math.round(kS.reprise) + ' min' })]),
+      h('span.doux', { text: kS.n + ' rendez-vous cette semaine' })
+    ]));
     if (this.mode === 'classeur') this.elCorps.appendChild(this.construireGrille(colonnes, { deb: deb, fin: fin, pas: pas, parHeure: true, plafond: cfg ? cfg.plafondHeure : 0, auj: lundi <= auj && auj <= ajouterJours(lundi, 6) }));
   };
 
   /* ------------------------------------------------------------------ fiche d'un rendez-vous */
+  /* Chronos de la visite : arrivée → accueil (J.D. Power : fait la moitié du temps), terminé → véhicule remis (20 % du CSI au Canada). */
+  function chronosDe(r) {
+    var mins = function (a, b) { if (!a || !b) return null; return Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000)); };
+    var acc = mins(r.arriveLe, r.accueilliLe), rep = mins(r.termineLe, r.remisLe), el = h('div.chronos');
+    if (r.arriveLe) el.appendChild(h('span', ['Arrivé ', h('b', { text: AMX.fmtDate(r.arriveLe, true) })]));
+    if (r.accueilliLe) el.appendChild(h('span', ['Accueilli ', h('b', { text: acc === null ? AMX.fmtDate(r.accueilliLe, true) : 'après ' + acc + ' min' })]));
+    if (r.termineLe) el.appendChild(h('span', ['Terminé ', h('b', { text: AMX.fmtDate(r.termineLe, true) })]));
+    if (r.remisLe) el.appendChild(h('span', ['Remis ', h('b', { text: rep === null ? AMX.fmtDate(r.remisLe, true) : 'après ' + rep + ' min' })]));
+    if (r.reports) el.appendChild(h('span', { text: 'Reporté ' + r.reports + ' fois' }));
+    return el.childNodes.length ? el : null;
+  }
   VueRdv.prototype.ouvrirFiche = function (r) {
     var self = this, cfg = this.config(r.compagnie), peut = r.peutEcrire && this.peutEcrire();
     var cons = cfg && cfg.conseillers.filter(function (c) { return c.id === r.conseiller; })[0];
@@ -732,7 +815,7 @@
         h('dt', 'Canal'), h('dd', { text: CANAUX[r.canal] || r.canal || '—' }),
         r.notes ? h('dt', 'Notes du client') : null, r.notes ? h('dd', { text: r.notes }) : null,
         r.noteInterne ? h('dt', 'Note interne') : null, r.noteInterne ? h('dd', { text: r.noteInterne }) : null,
-        h('dt', 'État'), h('dd', [h('span.puce', { text: ETATS[r.etat] || r.etat }), r.btNo ? h('span.puce.mono', { text: 'BT ' + r.btNo }) : null, r.arriveLe ? h('span.doux', { text: ' · arrivé ' + AMX.fmtDate(r.arriveLe, true) }) : null, r.termineLe ? h('span.doux', { text: ' · terminé ' + AMX.fmtDate(r.termineLe, true) }) : null, r.annuleRaison ? h('span.doux', { text: ' · ' + r.annuleRaison }) : null]),
+        h('dt', 'État'), h('dd', [h('span.puce', { text: ETATS[r.etat] || r.etat }), r.btNo ? h('span.puce.mono', { text: 'BT ' + r.btNo }) : null, r.annuleRaison ? h('span.doux', { text: ' · ' + r.annuleRaison }) : null, chronosDe(r)]),
         h('dt', 'Référence'), h('dd.doux', { text: r.id + (r.code ? ' · code ' + r.code : '') + (r.creePar ? ' · pris par ' + String(r.creePar).split('@')[0] : '') + (r.creeLe ? ' le ' + AMX.fmtDate(r.creeLe, true) : '') })
       ])
     ]);
@@ -748,10 +831,188 @@
           else fin({});
         } });
       };
-      [['arrive', 'Arrivé', 'info'], ['encours', 'En cours', 'primaire'], ['pieces', 'Attend les pièces'], ['approbation', 'Attend l\'approbation'], ['termine', 'Terminé', 'sombre'], ['absent', 'Absent', 'danger'], ['annule', 'Annuler', 'danger'], ['prevu', 'Remettre « prévu »']].forEach(function (b) { var el = bouton(b[0], b[1], b[2]); if (el) actions.appendChild(el); });
+      if (!r.accueilliLe && ['prevu', 'arrive'].indexOf(r.etat) >= 0) actions.appendChild(h('button.btn.petit.info', { type: 'button', text: 'Accueilli', title: 'Le conseiller prend le client en charge (chrono arrivée → accueil)', onclick: function () {
+        self.enEcriture = true;
+        AMX.post({ action: 'rdvAccueilli', id: r.id }, { secours: true }).then(function (d) { self.enEcriture = false; if (!d || d.ok === false || d.refuse) { AMX.toast((d && (d.erreur || d.message)) || 'Refusé', 'erreur'); return; } Object.assign(r, d.rdv || {}); AMX.rdv.invalider(); self.rendre(); modale.fermer(); AMX.toast('Client accueilli — ' + (r.client || r.id), 'ok'); }, function (e) { self.enEcriture = false; AMX.toast('Non enregistré — ' + AMX.erreurTexte(e), 'erreur'); });
+      } }));
+      [['arrive', 'Arrivé', 'info'], ['encours', 'En cours', 'primaire'], ['pieces', 'Attend les pièces'], ['approbation', 'Attend l\'approbation'], ['termine', 'Terminé', 'sombre'], ['remis', 'Véhicule remis', 'sombre'], ['absent', 'Absent', 'danger'], ['annule', 'Annuler', 'danger'], ['prevu', 'Remettre « prévu »']].forEach(function (b) { if (b[0] === 'remis' && ['termine', 'remis'].indexOf(r.etat) < 0) return; var el = bouton(b[0], b[1], b[2]); if (el) actions.appendChild(el); });
       actions.appendChild(h('button.btn.petit', { type: 'button', text: 'Modifier', onclick: function () { modale.fermer(); self.ouvrirFormulaire(r, false); } }));
       corps.appendChild(actions);
     }
+    /* inspection vidéo et travaux proposés (comme Kimoby, intégrée) */
+    var inspEl = h('div.rdv-insp'); corps.appendChild(inspEl);
+    var fiche = { r: r, el: inspEl, rafraichir: function () { self.rendreInspection(inspEl, r, peut, cfg); } };
+    fiche.rafraichir();
+    this.ficheOuverte = fiche;
+  };
+  /* ---------------------------------------------------------------- inspection vidéo (fiche) */
+  var LIEN_INSPECTION = 'https://groupeautomax.github.io/inventaireus/service/inspection.html';
+  function lienInspection(r) { return LIEN_INSPECTION + '?r=' + encodeURIComponent(r.id) + '&c=' + encodeURIComponent(r.code || ''); }
+  /* Photo : réduite à 1600 px et recompressée (JPEG 0,82) avant l'envoi — un cliché de téléphone fait 3 à 8 Mo, on en envoie ~300 Ko. */
+  function reduireImage(fichier) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(fichier), img = new Image();
+      img.onload = function () {
+        try {
+          var max = 1600, k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+          c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          res({ base64: c.toDataURL('image/jpeg', 0.82), mime: 'image/jpeg' });
+        } catch (e) { rej(e); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('Image illisible')); };
+      img.src = url;
+    });
+  }
+  function lireBase64(blob) { return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(String(fr.result)); }; fr.onerror = function () { rej(new Error('Lecture impossible')); }; fr.readAsDataURL(blob); }); }
+  VueRdv.prototype.televerserMedia = function (r, blob, nom, mime, surEtat) {
+    var self = this;
+    var prep = /^image\//.test(mime) ? reduireImage(blob) : lireBase64(blob).then(function (b64) { return { base64: b64, mime: mime }; });
+    return prep.then(function (p) {
+      var octets = Math.round(p.base64.length * 0.75);
+      if (octets > 35 * 1024 * 1024) throw new Error('Fichier trop lourd (' + Math.round(octets / 1048576) + ' Mo) — filmez avec le bouton « Filmer » (640 × 360) ou moins de 90 secondes.');
+      if (surEtat) surEtat('Envoi de ' + (/^video/.test(mime) ? 'la vidéo' : 'la photo') + ' (' + Math.round(octets / 1024) + ' Ko)…');
+      self.enEcriture = true;
+      return AMX.post({ action: 'rdvMedia', id: r.id, nom: nom || '', mime: p.mime, base64: p.base64 }, { delai: 240000 }).then(function (d) {
+        self.enEcriture = false;
+        if (!d || d.ok === false || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Envoi refusé');
+        r.inspection = d.inspection; AMX.rdv.invalider();
+        return d.media;
+      }, function (e) { self.enEcriture = false; throw e; });
+    });
+  };
+  /* Enregistreur vidéo dans la page : caméra arrière, 640 × 360, ~1 Mbit/s, 90 s au plus — un clip de 60 s pèse ~7 Mo. */
+  VueRdv.prototype.ouvrirEnregistreur = function (r, surFini) {
+    var self = this, flux = null, rec = null, morceaux = [], debut = 0, minuterie = null, blob = null, mimeSortie = '';
+    var apercu = h('video', { autoplay: true, muted: true, playsinline: true }), lecture = h('video', { controls: true, playsinline: true, style: { display: 'none' } });
+    var chrono = h('div.chrono', { text: '00:00' }), etat = h('div.doux', { text: 'Pointez la caméra sur ce que vous voulez montrer au client.' });
+    var btnRec = h('button.btn.primaire', { type: 'button', text: '● Filmer' }), btnStop = h('button.btn.danger', { type: 'button', text: '■ Arrêter', disabled: true }), btnRefaire = h('button.btn', { type: 'button', text: 'Refaire', style: { display: 'none' } });
+    var corps = h('div.rdv-enregistreur', [apercu, lecture, chrono, etat, h('div.boutons', [btnRec, btnStop, btnRefaire])]);
+    var arreterFlux = function () { if (flux) { flux.getTracks().forEach(function (t) { t.stop(); }); flux = null; } };
+    var modale = AMX.modale({ titre: 'Vidéo pour ' + (r.client || r.vehicule || r.id), corps: corps, bloquante: true, boutons: [{ texte: 'Annuler', action: function () { arreterFlux(); return true; } }, { texte: 'Envoyer au dossier', classe: 'primaire', action: function (fermer, btn) {
+      if (!blob) { AMX.toast('Filmez d\'abord', 'erreur'); return false; }
+      arreterFlux();
+      return self.televerserMedia(r, blob, 'video-' + r.id + '-' + Date.now() + (/mp4/.test(mimeSortie) ? '.mp4' : '.webm'), mimeSortie || 'video/webm', function (t) { etat.textContent = t; }).then(function () { AMX.toast('Vidéo ajoutée au dossier', 'ok'); if (surFini) surFini(); return true; }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+    } }] });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') { etat.textContent = 'Ce navigateur ne permet pas de filmer ici — utilisez « Photo / vidéo » pour choisir un fichier.'; btnRec.disabled = true; return; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } }, audio: true }).then(function (f) {
+      flux = f; apercu.srcObject = f;
+      ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'].forEach(function (m) { if (!mimeSortie && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) mimeSortie = m; });
+    }).catch(function () { etat.textContent = 'Caméra refusée ou absente — utilisez « Photo / vidéo » pour choisir un fichier.'; btnRec.disabled = true; });
+    var tic = function () { var s = Math.floor((Date.now() - debut) / 1000); chrono.textContent = p2(Math.floor(s / 60)) + ':' + p2(s % 60); if (s >= 90) btnStop.click(); };
+    btnRec.addEventListener('click', function () {
+      if (!flux) return;
+      morceaux = []; blob = null;
+      try { rec = new MediaRecorder(flux, Object.assign({ videoBitsPerSecond: 1000000, audioBitsPerSecond: 48000 }, mimeSortie ? { mimeType: mimeSortie } : {})); } catch (e) { etat.textContent = 'Enregistrement impossible : ' + e.message; return; }
+      mimeSortie = rec.mimeType || mimeSortie;
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) morceaux.push(e.data); };
+      rec.onstop = function () {
+        clearInterval(minuterie); chrono.classList.remove('rec');
+        blob = new Blob(morceaux, { type: mimeSortie || 'video/webm' });
+        apercu.style.display = 'none'; lecture.style.display = ''; lecture.src = URL.createObjectURL(blob);
+        etat.textContent = 'Vidéo de ' + chrono.textContent + ' · ' + Math.round(blob.size / 1024) + ' Ko — vérifiez, puis « Envoyer au dossier ».';
+        btnRec.style.display = 'none'; btnStop.style.display = 'none'; btnRefaire.style.display = '';
+      };
+      rec.start(1000); debut = Date.now(); chrono.classList.add('rec'); minuterie = setInterval(tic, 250);
+      btnRec.disabled = true; btnStop.disabled = false; etat.textContent = 'Enregistrement… (90 s au plus)';
+    });
+    btnStop.addEventListener('click', function () { if (rec && rec.state !== 'inactive') rec.stop(); btnStop.disabled = true; });
+    btnRefaire.addEventListener('click', function () { blob = null; lecture.style.display = 'none'; apercu.style.display = ''; btnRec.style.display = ''; btnStop.style.display = ''; btnRec.disabled = false; btnRefaire.style.display = 'none'; chrono.textContent = '00:00'; etat.textContent = 'Prêt à refilmer.'; });
+  };
+  /* La section « Inspection » de la fiche : médias, travaux proposés avec prix, message, envoi au client, réponses. */
+  VueRdv.prototype.rendreInspection = function (conteneur, r, peut, cfg) {
+    var self = this, i = r.inspection || { medias: [], propositions: [], note: '', journal: [] };
+    AMX.vider(conteneur);
+    var titre = h('h4', ['Inspection et travaux proposés', i.envoyeLe ? h('span.puce' + (i.reponduLe ? '.ok' : '.info'), { text: i.reponduLe ? 'Réponse reçue' : (i.vuLe ? 'Vue par le client' : 'Envoyée') }) : null]);
+    conteneur.appendChild(titre);
+    /* médias */
+    var medias = h('div.medias');
+    (i.medias || []).forEach(function (m) {
+      var el = h('div.media', { title: m.nom + (m.le ? ' · ' + AMX.fmtDate(m.le, true) : ''), onclick: function () { window.open(m.type === 'video' ? m.lecture : m.url, '_blank', 'noopener'); } }, [
+        h('img', { src: m.apercu, alt: m.nom, loading: 'lazy', onerror: function () { this.style.display = 'none'; } }),
+        m.type === 'video' ? h('span.lecture', { html: '&#9654;' }) : null,
+        h('span.type', { text: m.type === 'video' ? 'vidéo' : 'photo' }),
+        peut ? h('button.retirer', { type: 'button', title: 'Retirer', text: '×', onclick: function (e) { e.stopPropagation(); if (!confirm('Retirer ce média du dossier ?')) return; AMX.post({ action: 'rdvMediaRetirer', id: r.id, mediaId: m.id }).then(function (d) { if (!d || d.ok === false) { AMX.toast((d && d.erreur) || 'Refusé', 'erreur'); return; } r.inspection = d.inspection; AMX.rdv.invalider(); self.rendreInspection(conteneur, r, peut, cfg); }); } }) : null
+      ]);
+      medias.appendChild(el);
+    });
+    if (!(i.medias || []).length) medias.appendChild(h('div.doux', { text: peut ? 'Aucune photo ni vidéo pour l\'instant.' : 'Aucune photo ni vidéo.' }));
+    conteneur.appendChild(medias);
+    if (peut) {
+      var inFichier = h('input', { type: 'file', accept: 'image/*,video/*', multiple: true, style: { display: 'none' } });
+      var etatEnvoi = h('span.doux');
+      inFichier.addEventListener('change', function () {
+        var fichiers = [].slice.call(inFichier.files || []); inFichier.value = '';
+        var suite = Promise.resolve();
+        fichiers.forEach(function (f) { suite = suite.then(function () { return self.televerserMedia(r, f, f.name, f.type || 'application/octet-stream', function (t) { etatEnvoi.textContent = t; }).then(function () { self.rendreInspection(conteneur, r, peut, cfg); }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }); }); });
+        suite.then(function () { etatEnvoi.textContent = ''; });
+      });
+      conteneur.appendChild(h('div.outils', [
+        h('button.btn.petit', { type: 'button', text: '📷 Photo / vidéo', title: 'Prendre une photo ou choisir un fichier', onclick: function () { inFichier.click(); } }),
+        h('button.btn.petit', { type: 'button', text: '🎥 Filmer', title: 'Filmer avec la caméra (640 × 360, 90 s max)', onclick: function () { self.ouvrirEnregistreur(r, function () { self.rendreInspection(conteneur, r, peut, cfg); }); } }),
+        inFichier, etatEnvoi
+      ]));
+    }
+    /* propositions */
+    var tbody = h('tbody'), lignes = [];
+    var ligne = function (p) {
+      var selMenu = h('select.saisie', { style: { width: '150px' } }, [h('option', { value: '', text: '— libre —' })].concat(((cfg && cfg.travaux) || []).map(function (t) { return h('option', { value: t.code, selected: t.code === p.code ? true : undefined, text: t.libelle }); })));
+      var inLib = h('input.saisie', { type: 'text', value: p.libelle || '', placeholder: 'Travail proposé' }), inPrix = h('input.saisie', { type: 'number', step: 0.01, min: 0, value: p.prix === undefined ? '' : p.prix, placeholder: '0,00', style: { width: '92px' } });
+      var selUrg = h('select.saisie', { style: { width: '120px' } }, [['urgent', 'Urgent'], ['recommande', 'Recommandé'], ['suggere', 'Suggéré']].map(function (u) { return h('option', { value: u[0], selected: (p.urgence || 'recommande') === u[0] ? true : undefined, text: u[1] }); }));
+      selMenu.addEventListener('change', function () { var t = ((cfg && cfg.travaux) || []).filter(function (x) { return x.code === selMenu.value; })[0]; if (t) { inLib.value = t.libelle; if (t.prix) inPrix.value = t.prix; } });
+      var etatTxt = p.etat === 'approuve' ? 'Approuvé' : (p.etat === 'refuse' ? 'Refusé' : 'Proposé');
+      var tr = h('tr', [h('td', [selMenu]), h('td', [inLib]), h('td', [inPrix]), h('td', [selUrg]), h('td', [h('span.etat-ligne' + (p.etat && p.etat !== 'propose' ? '.' + p.etat : ''), { text: etatTxt, title: p.reponduLe ? 'Réponse du client ' + AMX.fmtDate(p.reponduLe, true) : '' })]), h('td', [peut ? h('button.btn.petit.fantome', { type: 'button', text: '×', onclick: function () { tr.remove(); lignes = lignes.filter(function (l) { return l.tr !== tr; }); } }) : null])]);
+      lignes.push({ tr: tr, selMenu: selMenu, inLib: inLib, inPrix: inPrix, selUrg: selUrg, code: p.code });
+      tbody.appendChild(tr);
+      if (!peut) [selMenu, inLib, inPrix, selUrg].forEach(function (x) { x.disabled = true; });
+    };
+    (i.propositions || []).forEach(ligne);
+    conteneur.appendChild(h('table.tableau', [h('thead', [h('tr', [h('th', 'Menu'), h('th', 'Travail proposé'), h('th', 'Prix'), h('th', 'Priorité'), h('th', 'Client'), h('th', '')])]), tbody]));
+    var inNote = zoneTexte({ placeholder: 'Message au client (ce que vous avez vu, ce que vous recommandez)…', style: { marginTop: '8px' } }, i.note);
+    if (!peut) inNote.disabled = true;
+    if (peut) conteneur.appendChild(h('button.btn.petit', { type: 'button', text: '+ Ajouter un travail proposé', style: { marginTop: '6px' }, onclick: function () { ligne({ code: '', libelle: '', prix: '', urgence: 'recommande', etat: 'propose' }); } }));
+    conteneur.appendChild(inNote);
+    /* suivi : envoyé / vu / répondu */
+    if (i.envoyeLe || i.reponduLe) {
+      var suivi = h('div.suivi');
+      suivi.appendChild(h('div', { text: 'Envoyée ' + AMX.fmtDate(i.envoyeLe, true) + (i.canal ? ' par ' + i.canal.replace('+', ' et ') : '') + (i.envoyePar ? ' (' + String(i.envoyePar).split('@')[0] + ')' : '') + (i.vuLe ? ' · ouverte par le client ' + AMX.fmtDate(i.vuLe, true) : ' · pas encore ouverte') }));
+      if (i.reponduLe) suivi.appendChild(h('div', [h('b', { text: 'Réponse ' + AMX.fmtDate(i.reponduLe, true) + ' : ' + i.nApprouve + ' approuvé' + (i.nApprouve > 1 ? 's' : '') + (i.totalApprouve ? ' (' + AMX.fmtArgent(i.totalApprouve, 2) + ')' : '') + ', ' + i.nRefuse + ' refusé' + (i.nRefuse > 1 ? 's' : '') + (i.nPropose ? ', ' + i.nPropose + ' sans réponse' : '') })]));
+      if (i.noteClient) suivi.appendChild(h('div.note-client', { text: i.noteClient }));
+      conteneur.appendChild(suivi);
+    }
+    if (!peut) return;
+    var lire = function () { return lignes.filter(function (l) { return document.body.contains(l.tr); }).map(function (l) { return { code: l.selMenu.value || l.code || '', libelle: l.inLib.value.trim(), prix: l.inPrix.value, urgence: l.selUrg.value }; }).filter(function (p) { return p.libelle; }); };
+    var enregistrer = function (envoyer) {
+      self.enEcriture = true;
+      return AMX.post({ action: 'rdvInspection', id: r.id, propositions: lire(), note: inNote.value, envoyer: envoyer || null }, { delai: 60000 }).then(function (d) {
+        self.enEcriture = false;
+        if (!d || d.ok === false || d.refuse) { AMX.toast((d && (d.erreur || d.message)) || 'Refusé', 'erreur'); return false; }
+        r.inspection = d.inspection; if (d.rdv) Object.assign(r, d.rdv); AMX.rdv.invalider(); self.rendre();
+        if (envoyer) { if (d.envoye && d.envoye.length) AMX.toast('Inspection envoyée au client par ' + d.envoye.join(' et '), 'ok'); (d.erreurs || []).forEach(function (e) { AMX.toast(e, 'attention', 7000); }); if (!(d.envoye && d.envoye.length)) AMX.toast('Rien n\'a été envoyé — copiez le lien et donnez-le au client.', 'attention', 7000); }
+        else AMX.toast('Inspection enregistrée', 'ok');
+        self.rendreInspection(conteneur, r, peut, cfg);
+        return true;
+      }, function (e) { self.enEcriture = false; AMX.toast('Non enregistré — ' + AMX.erreurTexte(e), 'erreur'); return false; });
+    };
+    var btnEnvoyer = h('button.btn.petit.primaire', { type: 'button', text: i.envoyeLe ? 'Renvoyer au client' : 'Envoyer au client', onclick: function () {
+      var cbC = h('input', { type: 'checkbox', checked: /@/.test(r.courriel || '') ? true : undefined, disabled: /@/.test(r.courriel || '') ? undefined : true });
+      var textoPossible = !!(cfg && cfg.textos && cfg.textos.inspection) && !!telChiffres(r.telephone);
+      var cbT = h('input', { type: 'checkbox', disabled: textoPossible ? undefined : true });
+      var lien = lienInspection(r);
+      var corps2 = h('div.rdv-envoi', [
+        h('p', { text: 'Le client reçoit un lien vers une page sans compte : les photos et vidéos, les travaux proposés avec leur prix, et deux boutons par ligne (approuver / refuser).' }),
+        h('label.champ.inline', [cbC, h('span', { text: 'Courriel' + (r.courriel ? ' à ' + r.courriel : ' — aucune adresse dans la fiche') })]),
+        h('label.champ.inline', [cbT, h('span', { text: 'Texto' + (r.telephoneJoli ? ' au ' + r.telephoneJoli : '') + (textoPossible ? '' : (cfg && cfg.textos && cfg.textos.inspection ? ' — pas de téléphone' : ' — désactivé dans les réglages (aucun texto sans accord de la direction)')) })]),
+        h('div.champ', { style: { marginTop: '10px' } }, [h('label', 'Lien de la page (à copier dans un texto manuel ou à montrer au comptoir)'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: lien, readonly: true, style: { fontSize: '11.5px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(lien, 'Lien copié'); } })])])
+      ]);
+      AMX.modale({ titre: 'Envoyer l\'inspection — ' + (r.client || r.id), corps: corps2, boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () { return enregistrer({ courriel: cbC.checked, texto: cbT.checked }); } }] });
+    } });
+    conteneur.appendChild(h('div.outils', { style: { marginTop: '10px' } }, [
+      h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function () { enregistrer(null); } }),
+      btnEnvoyer,
+      h('button.btn.petit.fantome', { type: 'button', text: 'Ouvrir la page client', onclick: function () { window.open(lienInspection(r), '_blank', 'noopener'); } })
+    ]));
   };
   VueRdv.prototype.changerEtat = function (r, etat, extra) {
     var self = this, corps = Object.assign({ action: 'rdvEtat', id: r.id, etat: etat }, extra || {});
@@ -791,6 +1052,8 @@
         d.clients.forEach(function (c) {
           resultats.appendChild(h('button', { type: 'button', onclick: function () {
             v.clientId = c.id; inClient.value = c.affichage; inTel.value = c.telephoneJoli || c.telephone; inCourriel.value = c.courriel || '';
+            cbCRappels.checked = c.consentRappels === 'oui' || (c.consentRappels !== 'non' && c.textos === true && !!c.consentRappels); cbCOffres.checked = c.consentOffres === 'oui'; consentTouche.rappels = consentTouche.offres = false;
+            var ce = elConsent.querySelector('.consent-etat'); if (ce) ce.textContent = (c.consentRappels || c.consentOffres) ? 'Fiche : rappels ' + (c.consentRappels || 'non précisé') + ' · offres ' + (c.consentOffres || 'non précisé') + ' — cochez pour mettre à jour.' : 'Aucun consentement dans la fiche : lisez les phrases au client et cochez ce qu\'il accepte.';
             var veh = (c.vehicules || [])[0]; if (veh && !inVin.value) { inVin.value = veh.vin || ''; inVeh.value = veh.texte || ''; inPlaque.value = veh.plaque || ''; inKm.value = veh.km || ''; }
             resultats.classList.add('cache');
           } }, [h('b', { text: c.affichage }), h('span.d', { text: ' · ' + (c.telephoneJoli || '') + ((c.vehicules || []).length ? ' · ' + (c.vehicules || []).map(function (x) { return x.texte || x.vin; }).join(', ') : '') })]));
@@ -850,12 +1113,17 @@
     var inNotes = zoneTexte({ placeholder: 'Ce que le client a dit (bruit, témoin, demande particulière)…' }, v.notes);
     var inNoteInt = zoneTexte({ placeholder: 'Pour l\'équipe seulement' }, v.noteInterne);
     var elAvert = h('div.avert-liste.cache');
+    /* consentements Loi 25 / LCAP : deux finalités distinctes, texte montré au client, journalisés côté serveur */
+    var cbCRappels = h('input', { type: 'checkbox' }), cbCOffres = h('input', { type: 'checkbox' }), consentTouche = { rappels: false, offres: false };
+    cbCRappels.addEventListener('change', function () { consentTouche.rappels = true; }); cbCOffres.addEventListener('change', function () { consentTouche.offres = true; });
+    var elConsent = h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Consentements du client (Loi 25 / LCAP)'), h('label.champ.inline', [cbCRappels, h('span', { text: TEXTE_CONSENT_RAPPELS })]), h('label.champ.inline', [cbCOffres, h('span', { text: TEXTE_CONSENT_OFFRES })]), h('span.aide.consent-etat', { text: 'Lisez la phrase au client et cochez ce qu\'il accepte ; chaque réponse est datée et signée dans sa fiche.' })]);
     var corps = h('div.rdv-form', [
       sansRdv ? h('div.puce.attention', { text: 'Client sans rendez-vous — arrivé maintenant', style: { marginBottom: '10px' } }) : null,
       h('div.grille.c3', [champ('Client', inClient, neuf ? 'Tapez 3 lettres ou 4 chiffres : nos fiches apparaissent' : null), champ('Téléphone', inTel), champ('Courriel', inCourriel)]),
       resultats,
       h('div.grille.c4.rdv-vehicule', { style: { marginTop: '12px' } }, [champ('NIV', h('div', { style: { display: 'flex', gap: '6px' } }, [inVin, btnDecoder])), champ('Véhicule', inVeh), champ('Plaque', inPlaque), champ('Kilométrage', inKm)]),
       h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Travaux demandés'), elTravaux, elTotal]),
+      elConsent,
       h('div.grille.c2', { style: { marginTop: '12px' } }, [champ('Date', inDate), champ('Heure', inHeure, cfg.pas + ' min entre les créneaux · dépôt accepté dès ' + heureJolie(cfg.depotTot))]),
       h('div.champ', [h('label', 'Créneaux du jour'), elCreneaux]),
       h('div.grille.c3', { style: { marginTop: '12px' } }, [champ('Transport', selTransport), champ('Conseiller', selCons), champ('Canal', selCanal)]),
@@ -867,6 +1135,7 @@
       if (!rdv.client && !telChiffres(rdv.telephone)) { AMX.toast('Nom ou téléphone du client requis', 'erreur'); inClient.focus(); return false; }
       if (!rdv.date || !rdv.heure) { AMX.toast('Date et heure requises', 'erreur'); return false; }
       if (sansRdv && neuf) rdv.etat = 'arrive';
+      if (consentTouche.rappels || consentTouche.offres) rdv.consentements = { rappels: consentTouche.rappels ? (cbCRappels.checked ? 'oui' : 'non') : '', offres: consentTouche.offres ? (cbCOffres.checked ? 'oui' : 'non') : '', canal: rdv.canal === 'sansrdv' || rdv.canal === 'comptoir' ? 'comptoir' : rdv.canal, texte: (consentTouche.rappels ? TEXTE_CONSENT_RAPPELS : '') + (consentTouche.offres ? ' ' + TEXTE_CONSENT_OFFRES : '') };
       self.enEcriture = true;
       return AMX.post({ action: 'rdvEnregistrer', rdv: rdv }, { delai: 60000 }).then(function (d) {
         self.enEcriture = false;
@@ -890,6 +1159,13 @@
     var num = function (val, opts) { return h('input.saisie', Object.assign({ type: 'number', value: val, min: 0, step: 1 }, opts || {})); };
     var inPas = h('select.saisie', [10, 15, 20, 30, 60].map(function (p) { return h('option', { value: p, selected: c.pas === p ? true : undefined, text: p + ' min' }); }));
     var inPlafond = num(c.plafondHeure), inAttente = num(c.attente), inPret = num(c.pret), inAtelier = num(c.heuresAtelier, { step: 0.5 }), inDepot = h('input.saisie', { type: 'time', value: c.depotTot || '06:30' });
+    var inInternes = num(c.heuresInternes || 0, { step: 0.5 }), inTampon = num(c.tamponPct === undefined ? 15 : c.tamponPct, { max: 80 });
+    var groupes = (c.groupes || []).map(function (g) { return { id: g.id, nom: g.nom, heures: g.heures }; });
+    var tbodyG = h('tbody');
+    var ligneGroupe = function (g) { var tr = h('tr', [h('td', [h('input.saisie', { type: 'text', value: g.id, placeholder: 'id', style: { width: '110px' } })]), h('td', [h('input.saisie', { type: 'text', value: g.nom, placeholder: 'Nom du groupe' })]), h('td', [h('input.saisie', { type: 'number', value: g.heures, step: 0.5, min: 0, style: { width: '80px' } })]), h('td', [h('button.btn.petit.fantome', { type: 'button', text: '×', title: 'Retirer', onclick: function () { tr.remove(); } })])]); tbodyG.appendChild(tr); };
+    groupes.forEach(ligneGroupe);
+    var tableG = h('table.tableau', [h('thead', [h('tr', [h('th', 'Id'), h('th', 'Groupe de compétence (voie)'), h('th', 'Heures / jour'), h('th', '')])]), tbodyG]);
+    var optionsGroupe = function (val) { return groupes.map(function (g) { return h('option', { value: g.id, selected: g.id === val ? true : undefined, text: g.nom.replace(/\s*\(.*\)$/, '') }); }); };
     var heuresEl = h('div'), heuresIn = {};
     JOURS.slice(1).concat(['dim']).forEach(function (j) {
       var ouv = c.heures[j]; var cb = h('input', { type: 'checkbox', checked: ouv ? true : undefined }), d1 = h('input.saisie', { type: 'time', value: ouv ? ouv[0] : '07:00', disabled: ouv ? undefined : true }), d2 = h('input.saisie', { type: 'time', value: ouv ? ouv[1] : '17:00', disabled: ouv ? undefined : true });
@@ -904,6 +1180,7 @@
         h('td', [h('input.saisie', { type: 'text', value: t.code, placeholder: 'CODE', style: { width: '90px', textTransform: 'uppercase' } })]),
         h('td', [h('input.saisie', { type: 'text', value: t.libelle, placeholder: 'Libellé' })]),
         h('td', [h('input.saisie', { type: 'text', value: t.categorie, placeholder: 'Catégorie', style: { width: '120px' } })]),
+        h('td', [h('select.saisie', { style: { width: '130px' } }, optionsGroupe(t.groupe || (groupes[0] || {}).id))]),
         h('td', [h('input.saisie', { type: 'number', value: t.heures, step: 0.25, min: 0, style: { width: '70px' } })]),
         h('td', [h('input.saisie', { type: 'number', value: t.prix, step: 0.01, min: 0, style: { width: '90px' } })]),
         h('td', [h('button.btn.petit.fantome', { type: 'button', text: '×', title: 'Retirer', onclick: function () { tr.remove(); } })])
@@ -911,21 +1188,26 @@
       tbody.appendChild(tr);
     };
     c.travaux.forEach(ligneTravail);
-    var table = h('table.tableau', [h('thead', [h('tr', [h('th', 'Code'), h('th', 'Travail'), h('th', 'Catégorie'), h('th', 'Heures'), h('th', 'Prix'), h('th', '')])]), tbody]);
-    var cbConf = h('input', { type: 'checkbox', checked: c.textos.confirmation ? true : undefined }), cbRap = h('input', { type: 'checkbox', checked: c.textos.rappel ? true : undefined });
+    var table = h('table.tableau', [h('thead', [h('tr', [h('th', 'Code'), h('th', 'Travail'), h('th', 'Catégorie'), h('th', 'Groupe'), h('th', 'Heures'), h('th', 'Prix'), h('th', '')])]), tbody]);
+    var cbConf = h('input', { type: 'checkbox', checked: c.textos.confirmation ? true : undefined }), cbRap = h('input', { type: 'checkbox', checked: c.textos.rappel ? true : undefined }), cbInsp = h('input', { type: 'checkbox', checked: c.textos.inspection ? true : undefined });
     var corps = h('div.rdv-reglages', [
       h('div.grille.c3', [champ('Créneaux', inPas), champ('Rendez-vous max. par heure', inPlafond, '0 = sans limite'), champ('Dépôt accepté dès', inDepot)]),
       h('div.grille.c3', { style: { marginTop: '10px' } }, [champ('Places en salle d\'attente (par heure)', inAttente), champ('Véhicules de prêt (par jour)', inPret), champ('Heures d\'atelier vendables par jour', inAtelier, 'techniciens × heures')]),
+      h('div.grille.c3', { style: { marginTop: '10px' } }, [champ('Heures réservées à l\'interne / jour', inInternes, 'reconditionnement des usagés, véhicules du commerce'), champ('Tampon sans rendez-vous (%)', inTampon, '15 % en temps normal, 35–40 % en semaines de pneus'), h('div.champ', [h('label', 'Heures disponibles aux rendez-vous'), h('div.doux', { id: 'rdv-dispo', style: { fontSize: '13px', padding: '8px 0' } })])]),
+      h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Groupes de compétence (capacité en heures de technicien)'), tableG, h('button.btn.petit', { type: 'button', text: '+ Ajouter un groupe', style: { alignSelf: 'flex-start', marginTop: '6px' }, onclick: function () { ligneGroupe({ id: '', nom: '', heures: 0 }); } }), h('span.aide', '0 h = pas de limite propre au groupe. Chaque travail au menu est rattaché à un groupe ; les avertissements se font par groupe.')]),
       h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Heures d\'ouverture'), heuresEl]),
       h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Conseillers'), consEl, h('span.aide', 'Un nom par ligne ; ajoutez « (inactif) » pour garder l\'historique sans l\'afficher.')]),
       h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Travaux au menu'), table, h('button.btn.petit', { type: 'button', text: '+ Ajouter un travail', style: { alignSelf: 'flex-start', marginTop: '6px' }, onclick: function () { ligneTravail({ code: '', libelle: '', categorie: '', heures: 1, prix: 0 }); } })]),
-      h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Textos au client'), h('label.champ.inline', [cbConf, h('span', 'Confirmation à la prise du rendez-vous')]), h('label.champ.inline', [cbRap, h('span', 'Rappel la veille')]), h('span.aide', 'Décochés par défaut : aucun texto automatique sans l\'accord de la direction (Infobip, numéro du groupe).')])
+      h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Textos au client'), h('label.champ.inline', [cbConf, h('span', 'Confirmation à la prise du rendez-vous')]), h('label.champ.inline', [cbRap, h('span', 'Rappel la veille')]), h('label.champ.inline', [cbInsp, h('span', 'Lien de l\'inspection vidéo (sur action du conseiller, clients consentants)')]), h('span.aide', 'Décochés par défaut : aucun texto automatique sans l\'accord de la direction (Infobip, numéro du groupe).')])
     ]);
+    var majDispo = function () { var at = Number(inAtelier.value) || 0, it = Number(inInternes.value) || 0, tp = Math.round(at * (Number(inTampon.value) || 0) / 100 * 100) / 100; var el = corps.querySelector('#rdv-dispo'); if (el) el.textContent = heures(Math.max(0, at - it - tp)) + ' pour les rendez-vous · ' + heures(tp) + ' gardées pour les sans-rendez-vous'; };
+    [inAtelier, inInternes, inTampon].forEach(function (i) { i.addEventListener('input', majDispo); }); setTimeout(majDispo, 0);
     AMX.modale({ titre: 'Réglages du carnet — ' + nomCie(cie), corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
       var heures = {}; Object.keys(heuresIn).forEach(function (j) { var x = heuresIn[j]; heures[j] = x.cb.checked ? [x.d1.value, x.d2.value] : null; });
       var conseillers = consEl.value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) { var inactif = /\(inactif\)/i.test(l); var nom = l.replace(/\(inactif\)/i, '').trim(); return { id: nom.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40), nom: nom, actif: !inactif }; });
-      var travaux = [].slice.call(tbody.querySelectorAll('tr')).map(function (tr) { var i = tr.querySelectorAll('input'); return { code: i[0].value, libelle: i[1].value, categorie: i[2].value, heures: i[3].value, prix: i[4].value }; }).filter(function (t) { return t.code && t.libelle; });
-      var config = { pas: Number(inPas.value), heures: heures, depotTot: inDepot.value, conseillers: conseillers, plafondHeure: Number(inPlafond.value), attente: Number(inAttente.value), pret: Number(inPret.value), heuresAtelier: Number(inAtelier.value), travaux: travaux, textos: { confirmation: cbConf.checked, rappel: cbRap.checked } };
+      var travaux = [].slice.call(tbody.querySelectorAll('tr')).map(function (tr) { var i = tr.querySelectorAll('input'), sel = tr.querySelector('select'); return { code: i[0].value, libelle: i[1].value, categorie: i[2].value, groupe: sel ? sel.value : '', heures: i[3].value, prix: i[4].value }; }).filter(function (t) { return t.code && t.libelle; });
+      var groupesOut = [].slice.call(tbodyG.querySelectorAll('tr')).map(function (tr) { var i = tr.querySelectorAll('input'); return { id: i[0].value, nom: i[1].value, heures: i[2].value }; }).filter(function (g) { return g.nom; });
+      var config = { pas: Number(inPas.value), heures: heures, depotTot: inDepot.value, conseillers: conseillers, plafondHeure: Number(inPlafond.value), attente: Number(inAttente.value), pret: Number(inPret.value), heuresAtelier: Number(inAtelier.value), heuresInternes: Number(inInternes.value), tamponPct: Number(inTampon.value), groupes: groupesOut, travaux: travaux, textos: { confirmation: cbConf.checked, rappel: cbRap.checked, inspection: cbInsp.checked } };
       return AMX.post({ action: 'rdvConfig', compagnie: cie, config: config }).then(function (d) {
         if (!d || d.ok === false || d.refuse) { AMX.toast((d && (d.erreur || d.message)) || 'Réglages refusés', 'erreur'); return false; }
         if (self.donnees && self.donnees.configs) self.donnees.configs[cie] = d.config;

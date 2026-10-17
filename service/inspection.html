@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Inspection de votre véhicule</title>
+<style>
+  :root { --vert: #008a44; --texte: #16181c; --doux: #6b7280; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px; --ambre: #b45309; --rouge: #b42318; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 720px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; }
+  .pousse { margin-left: auto; color: var(--doux); font-size: 13px; }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  h1 { font-size: 20px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.3px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .sous { color: var(--doux); font-size: 14px; }
+  .etat { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-top: 8px; }
+  .etat.attente { background: #fff4d6; color: #8a5a00; } .etat.ok { background: #e7f5ed; color: #0a6136; }
+  .medias { display: grid; gap: 12px; }
+  .media { border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--trait); }
+  .media iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; }
+  .media img { width: 100%; display: block; background: #fff; }
+  .media .legende { background: var(--carte); color: var(--doux); font-size: 12.5px; padding: 6px 10px; }
+  .message { border-left: 3px solid var(--vert); padding: 4px 12px; margin: 10px 0 0; font-size: 15px; white-space: pre-wrap; }
+  .travail { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 12px 0; border-bottom: 1px solid var(--trait); align-items: start; }
+  .travail:last-of-type { border-bottom: 0; }
+  .travail .lib { font-size: 15px; font-weight: 600; }
+  .travail .prix { font-size: 15px; font-weight: 700; white-space: nowrap; text-align: right; }
+  .travail .note { grid-column: 1 / -1; font-size: 13.5px; color: var(--doux); }
+  .prio { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-left: 6px; vertical-align: middle; }
+  .prio.urgent { background: #fdecec; color: #8a1d1d; } .prio.recommande { background: #fff4d6; color: #8a5a00; } .prio.suggere { background: #eef4ff; color: #1e3a8a; }
+  .choix { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .choix button { flex: 1 1 auto; padding: 10px 12px; font: inherit; font-size: 15px; font-weight: 650; border-radius: 10px; cursor: pointer; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); }
+  .choix button.oui.actif { background: var(--vert); color: #fff; border-color: var(--vert); }
+  .choix button.non.actif { background: #fdecec; color: #8a1d1d; border-color: #f3c2c2; }
+  .total { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; padding: 12px 0 0; }
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  textarea { width: 100%; padding: 12px 13px; font: inherit; font-size: 16px; border: 1px solid var(--trait); border-radius: 10px; background: var(--fond); color: var(--texte); min-height: 72px; resize: vertical; }
+  textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  .boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.principal { padding: 14px 18px; font: inherit; font-size: 16px; font-weight: 650; border-radius: 12px; cursor: pointer; border: 0; flex: 1 1 auto; background: var(--vert); color: #fff; }
+  button:disabled { opacity: .55; cursor: default; }
+  .erreur { color: var(--rouge); font-size: 14px; margin-top: 10px; min-height: 1.2em; }
+  .cache { display: none !important; }
+  .merci { text-align: center; padding: 10px 0 4px; }
+  .merci .gros { width: 64px; height: 64px; border-radius: 50%; background: #e7f5ed; color: #0a6136; display: inline-grid; place-items: center; font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+  .pied { color: var(--doux); font-size: 12.5px; text-align: center; margin: 18px 0 8px; }
+  .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
+</style>
+</head>
+<body>
+<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse">Inspection de votre véhicule</span></div></header>
+<main>
+  <div class="chargement" id="chargement">Chargement de votre inspection…</div>
+  <div class="bloc cache" id="invalide"><h1>Lien invalide</h1><p class="sous">Ce lien n'est plus valide. Appelez votre concessionnaire pour en recevoir un nouveau.</p></div>
+  <div id="contenu" class="cache">
+    <div class="bloc">
+      <h1 id="titre">Votre véhicule</h1>
+      <div class="sous" id="sous"></div>
+      <span class="etat" id="etat"></span>
+    </div>
+    <div class="bloc" id="bloc-medias"><h2>Ce que nous avons vu</h2><div class="medias" id="medias"></div><div class="message cache" id="message"></div></div>
+    <div class="bloc" id="bloc-travaux">
+      <h2>Travaux proposés</h2>
+      <p class="sous">Approuvez ou refusez chaque ligne. Nous ne faisons que ce que vous approuvez. Prix avant taxes, estimés — le montant final est sur votre facture.</p>
+      <div id="travaux"></div>
+      <div class="total"><span>Total approuvé</span><span id="total">0,00 $</span></div>
+      <label for="note">Un mot pour votre conseiller (facultatif)</label>
+      <textarea id="note" placeholder="Une question, une précision…"></textarea>
+      <div class="boutons"><button class="principal" id="btn-envoyer" type="button">Envoyer ma réponse</button></div>
+      <div class="erreur" id="erreur"></div>
+    </div>
+    <div class="bloc cache" id="merci"><div class="merci"><div class="gros">✓</div><h1>Merci !</h1><p class="sous" id="merci-texte"></p></div></div>
+    <p class="pied" id="pied"></p>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+  var q = new URLSearchParams(location.search), r = q.get('r') || '', c = (q.get('c') || '').toUpperCase();
+  var $ = function (s) { return document.getElementById(s); };
+  var PRIO = { urgent: 'Urgent', recommande: 'Recommandé', suggere: 'Suggéré' };
+  var donnees = null, reponses = {};
+  function montrer(el, oui) { el.classList.toggle('cache', !oui); }
+  function argent(n) { n = Number(n) || 0; return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
+  function dateLisible(iso) { var d = new Date(iso); if (isNaN(d)) return ''; return d.toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long' }) + ' à ' + d.toLocaleTimeString('fr-CA', { hour: 'numeric', minute: '2-digit' }); }
+  function el(tag, cls, texte) { var e = document.createElement(tag); if (cls) e.className = cls; if (texte !== undefined) e.textContent = texte; return e; }
+
+  function total() { var t = 0; (donnees.inspection.propositions || []).forEach(function (p) { if (reponses[p.code] === 'approuve') t += Number(p.prix) || 0; }); $('total').textContent = argent(t); }
+
+  function rendre(d) {
+    donnees = d;
+    var rdv = d.rdv, i = d.inspection;
+    $('marque').textContent = d.concession.nom || 'ScanAutomax';
+    $('titre').textContent = (rdv.prenom ? rdv.prenom + ', voici l\'inspection de votre ' : 'Inspection de votre ') + (rdv.vehicule || 'véhicule');
+    $('sous').textContent = [rdv.plaque ? 'Plaque ' + rdv.plaque : '', rdv.km ? String(rdv.km).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' km' : '', rdv.conseiller ? 'Conseiller : ' + rdv.conseiller : '', rdv.date ? 'Visite du ' + new Date(rdv.date + 'T12:00:00').toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long' }) : ''].filter(Boolean).join(' · ');
+    var repondu = !!i.reponduLe;
+    $('etat').className = 'etat ' + (repondu ? 'ok' : 'attente'); $('etat').textContent = repondu ? 'Réponse reçue' : 'En attente de votre réponse';
+    var medias = $('medias'); medias.innerHTML = '';
+    (i.medias || []).forEach(function (m, k) {
+      var boite = el('div', 'media');
+      if (m.type === 'video') { var f = document.createElement('iframe'); f.src = m.lecture; f.allow = 'autoplay; fullscreen'; f.setAttribute('allowfullscreen', ''); boite.appendChild(f); boite.appendChild(el('div', 'legende', 'Vidéo ' + (k + 1) + (m.le ? ' · ' + dateLisible(m.le) : ''))); }
+      else { var img = document.createElement('img'); img.src = m.lecture; img.alt = 'Photo ' + (k + 1); img.loading = 'lazy'; boite.appendChild(img); boite.appendChild(el('div', 'legende', 'Photo ' + (k + 1) + (m.le ? ' · ' + dateLisible(m.le) : ''))); }
+      medias.appendChild(boite);
+    });
+    montrer($('bloc-medias'), !!((i.medias || []).length || i.note));
+    if (!(i.medias || []).length) medias.innerHTML = '';
+    montrer($('message'), !!i.note); $('message').textContent = i.note || '';
+    var zone = $('travaux'); zone.innerHTML = ''; reponses = {};
+    (i.propositions || []).forEach(function (p) {
+      if (p.etat === 'approuve' || p.etat === 'refuse') reponses[p.code] = p.etat;
+      var t = el('div', 'travail');
+      var lib = el('div', 'lib', p.libelle); var prio = el('span', 'prio ' + (p.urgence || 'recommande'), PRIO[p.urgence] || PRIO.recommande); lib.appendChild(prio);
+      t.appendChild(lib); t.appendChild(el('div', 'prix', p.prix ? argent(p.prix) : 'Sur devis'));
+      if (p.note) t.appendChild(el('div', 'note', p.note));
+      var choix = el('div', 'choix'), bOui = el('button', 'oui', 'Approuver'), bNon = el('button', 'non', 'Refuser');
+      bOui.type = bNon.type = 'button';
+      var maj = function () { bOui.classList.toggle('actif', reponses[p.code] === 'approuve'); bNon.classList.toggle('actif', reponses[p.code] === 'refuse'); total(); };
+      bOui.addEventListener('click', function () { reponses[p.code] = 'approuve'; maj(); });
+      bNon.addEventListener('click', function () { reponses[p.code] = 'refuse'; maj(); });
+      choix.appendChild(bOui); choix.appendChild(bNon); t.appendChild(choix); maj();
+      zone.appendChild(t);
+    });
+    montrer($('bloc-travaux'), !!(i.propositions || []).length);
+    if (i.noteClient) $('note').value = i.noteClient;
+    $('btn-envoyer').textContent = repondu ? 'Modifier ma réponse' : 'Envoyer ma réponse';
+    $('pied').textContent = (d.concession.nom || '') + ' · Référence ' + rdv.id;
+    montrer($('chargement'), false); montrer($('contenu'), true);
+  }
+
+  function charger() {
+    fetch(SCRIPT_URL + '?rdvInspection=1&r=' + encodeURIComponent(r) + '&c=' + encodeURIComponent(c) + '&_=' + Date.now())
+      .then(function (x) { return x.json(); })
+      .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
+      .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
+  }
+
+  $('btn-envoyer').addEventListener('click', function () {
+    var n = Object.keys(reponses).length;
+    if (!n && !$('note').value.trim()) { $('erreur').textContent = 'Choisissez « Approuver » ou « Refuser » pour au moins un travail.'; return; }
+    $('erreur').textContent = ''; $('btn-envoyer').disabled = true;
+    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'rdvInspectionReponse', r: r, c: c, reponses: reponses, note: $('note').value.trim() }) })
+      .then(function (x) { return x.json(); })
+      .then(function (d) {
+        $('btn-envoyer').disabled = false;
+        if (!d || !d.ok) { $('erreur').textContent = d && d.code === 'LIEN_INVALIDE' ? 'Ce lien n\'est plus valide.' : 'Réponse non envoyée. Réessayez ou appelez votre conseiller.'; return; }
+        $('merci-texte').textContent = 'Votre réponse est transmise à votre conseiller : ' + d.approuves + ' travail' + (d.approuves > 1 ? 'x' : '') + ' approuvé' + (d.approuves > 1 ? 's' : '') + ', ' + d.refuses + ' refusé' + (d.refuses > 1 ? 's' : '') + '. Vous pouvez la modifier tant que les travaux ne sont pas commencés.';
+        montrer($('merci'), true); $('etat').className = 'etat ok'; $('etat').textContent = 'Réponse reçue'; $('btn-envoyer').textContent = 'Modifier ma réponse';
+        window.scrollTo({ top: $('merci').offsetTop - 80, behavior: 'smooth' });
+      })
+      .catch(function () { $('btn-envoyer').disabled = false; $('erreur').textContent = 'Réponse non envoyée (réseau). Réessayez.'; });
+  });
+
+  if (!r || !c) { montrer($('chargement'), false); montrer($('invalide'), true); } else charger();
+})();
+</script>
+</body>
+</html>

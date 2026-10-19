@@ -49,9 +49,10 @@
     HYUNDAI: { nom: 'Portail Hyundai', source: 'hyundai', url: 'https://salesportal-hacc.am.hyundai-corp.io/salesportal/index.html#/dealerstocklist', nomCsi: 'CSI (BoostCX)', csi: 'https://hacc.boostcx.com/bcx/dashboard/combined', liste: 'Stock › Dealer Stock List', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },
     STM: { nom: 'Portail GM (utilitaire des commandes)', source: 'gm', url: 'https://owb.vsp.autopartners.net/ui/manage-inventory/view-inventory/preliminary', nomCsi: 'ISC (InMoment)', csi: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', liste: 'Gestion des stocks › Afficher l\'inventaire et les commandes', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },
     HAWKS: { nom: 'Portail GM (utilitaire des commandes)', source: 'gm', url: 'https://owb.vsp.autopartners.net/ui/manage-inventory/view-inventory/preliminary', nomCsi: 'ISC (InMoment)', csi: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', liste: 'Gestion des stocks › Afficher l\'inventaire et les commandes', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },
-    // (11 oct.) BMW : le portail RDR (S-Gate › Sales › Retail Reporting) — RDR 12 mois, RDR à compléter, objectifs, crédits. Le stock
-    // BMW est dans IVS-R Ordering (autre portail, profil de Maxime en erreur le 11 oct.) : à brancher quand il répondra.
-    BMW: { nom: 'Portail RDR BMW (Retail Reporting)', source: 'bmw', url: 'https://salesreporting.bmwgroup.ca/RDR', nomCsi: '', csi: '', liste: 'RDR › RDR List', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } }
+    // (11 oct.) BMW : le portail RDR (S-Gate › Sales › Retail Reporting) — RDR 12 mois, RDR à compléter, objectifs, crédits.
+    // (19 oct.) Le stock et les commandes BMW viennent d'IVS-R Ordering (S-Gate › Sales › IVS-R, Order Tracking › Order Locator Dealer) :
+    // même favori, cliqué sur la page Order Locator. Deux portails, deux clics.
+    BMW: { nom: 'IVS-R Ordering (stock et commandes)', source: 'bmw', url: 'https://ivsrfe.bmwgroup.com/ooo/userMenu.do?language=en', nomCsi: 'Portail RDR (ventes déclarées)', csi: 'https://salesreporting.bmwgroup.ca/RDR', liste: 'Order Tracking › Order Locator Dealer', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } }
   };
   /* Ventes déclarées « neuves » : chez BMW, le portail RDR déclare aussi les usagés / certifiés (U), les changements de propriétaire (P)
      et le wholesale (W) — ils comptent dans le tableau BMW, pas dans les ventes de neufs. */

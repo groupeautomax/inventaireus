@@ -211,20 +211,24 @@
       { id: 'autoriser', titre: 'Direction', compteur: function () { var l = AMX.service.enCache(); return l ? l.filter(attendDirecteur).length : ''; } },
       { id: 'termines', titre: 'Terminés' },
       /* 16 oct. : carnet de rendez-vous du service (assets/rdv.js, pilote VW Brossard) */
-      { id: 'rendezvous', titre: 'Rendez-vous', compteur: function () { return (AMX.rdv && AMX.rdv.compteur) ? AMX.rdv.compteur() : ''; } }
+      { id: 'rendezvous', titre: 'Rendez-vous', compteur: function () { return (AMX.rdv && AMX.rdv.compteur) ? AMX.rdv.compteur() : ''; } },
+      /* 20 oct. : Texto — estimés par texto, conversations, paiements, suivi de courtoisie (assets/texto.js, Texto.gs) */
+      { id: 'texto', titre: 'Texto', compteur: function () { return (AMX.texto && AMX.texto.compteur) ? AMX.texto.compteur() : ''; } }
     ],
     monter: function (conteneur, ctx) { return new SectionService(conteneur, ctx); }
   });
 
-  /* La section Service a deux sous-modules : le suivi (reconditionnement) et le carnet de rendez-vous (rdv.js). */
+  /* La section Service a trois sous-modules : le suivi (reconditionnement), le carnet de rendez-vous (rdv.js) et Texto (texto.js). */
   function SectionService(conteneur, ctx) { this.conteneur = conteneur; this.groupe = ''; this.sous = null; this.naviguer(ctx); }
   SectionService.prototype.naviguer = function (ctx) {
-    var groupe = ctx.onglet === 'rendezvous' ? 'rdv' : 'suivi';
+    var groupe = ctx.onglet === 'rendezvous' ? 'rdv' : (ctx.onglet === 'texto' ? 'texto' : 'suivi');
     if (groupe !== this.groupe) {
       if (this.sous && this.sous.demonter) { try { this.sous.demonter(); } catch (e) {} }
       AMX.vider(this.conteneur);
       this.groupe = groupe;
-      this.sous = groupe === 'rdv' ? ((AMX.rdv && AMX.rdv.monter) ? AMX.rdv.monter(this.conteneur, ctx) : (this.conteneur.appendChild(h('div.page', [h('div.vide', 'Module des rendez-vous introuvable (assets/rdv.js).')])), {})) : new Suivi(this.conteneur, ctx);
+      var absent = function (nom) { this.conteneur.appendChild(h('div.page', [h('div.vide', 'Module introuvable (' + nom + ').')])); return {}; }.bind(this);
+      this.sous = groupe === 'rdv' ? ((AMX.rdv && AMX.rdv.monter) ? AMX.rdv.monter(this.conteneur, ctx) : absent('assets/rdv.js'))
+        : (groupe === 'texto' ? ((AMX.texto && AMX.texto.monter) ? AMX.texto.monter(this.conteneur, ctx) : absent('assets/texto.js')) : new Suivi(this.conteneur, ctx));
     } else if (this.sous && this.sous.naviguer) this.sous.naviguer(ctx);
   };
   SectionService.prototype.demonter = function () { if (this.sous && this.sous.demonter) this.sous.demonter(); };

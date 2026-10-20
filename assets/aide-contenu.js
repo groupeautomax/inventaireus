@@ -2,7 +2,7 @@
    C'est la référence de toutes les fonctions du site et de l'app, lue par assets/aide.js
    (onglet « Aide » du site, menu du compte « Guide et aide », Réglages de l'app).
 
-   Structure : AMX.AIDE_CONTENU = { version, sections: [...], nouveautes: [...], frequentes: [...] }
+   Structure : AMX.AIDE_CONTENU = { version, sections: [...], nouveautes: [...], frequentes: [..., 'svc-texto-estime'] }
    - section  : { id, titre, intro, roles?, articles: [...] }
    - article  : { id, q (la question), mots (synonymes pour la recherche), r (réponse en HTML :
                   <p>, <ol>, <ul>, <b>), roles?, liens?: [{ t, s (section du site), o (onglet), p (params) }] }
@@ -20,7 +20,7 @@
   window.AMX = window.AMX || {};
 
   AMX.AIDE_CONTENU = {
-    version: '19 octobre 2026',
+    version: '20 octobre 2026',
 
     frequentes: ['inv-statut', 'inv-stock-km', 'achat-quand', 'svc-autoriser', 'svc-rdv-prendre', 'avis-repondre', 'eval-lancer', 'dem-connexion', 'app-installer', 'inv-recherche', 'svc-refus', 'offre-publier', 'offre-signer', 'dep-deconnecte', 'dep-lent'],
 
@@ -149,7 +149,7 @@
         ] },
 
       /* ------------------------------------------------------------------ */
-      { id: 'service', titre: 'Service', intro: 'Le reconditionnement des véhicules de détail, de l\'arrivée à la ligne de vente — et le carnet de rendez-vous de l\'atelier.',
+      { id: 'service', titre: 'Service', intro: 'Le reconditionnement des véhicules de détail, de l\'arrivée à la ligne de vente — le carnet de rendez-vous de l\'atelier — et Texto : estimés, conversations, paiements et suivi de courtoisie par texto.',
         articles: [
           { id: 'svc-quoi', q: 'Quels véhicules sont au Suivi service ?', mots: 'quels véhicules detail acheté en stock implicite liste',
             r: '<p>Tous les véhicules du registre <b>Detail</b> aux statuts Acheté, Transit QC et En stock. Un véhicule qui arrive au Detail (par la fiche d\'achat, un transfert ou le DMS) a un suivi d\'office, créé à la première action. Le chiffre clé « Au détail » doit donc correspondre à l\'inventaire Detail de la concession.</p>',
@@ -198,7 +198,25 @@
             liens: [{ t: 'Rendez-vous', s: 'service', o: 'rendezvous' }] },
           { id: 'svc-rdv-reglages', q: 'Comment régler le carnet (créneaux, heures, conseillers, travaux, capacité) ?', mots: 'réglages configuration créneaux pas heures ouverture conseillers travaux menu groupes compétence plafond tampon textos',
             r: '<p>Service › Rendez-vous › <b>Réglages</b> (direction) : le pas des créneaux (10 à 60 minutes), les heures d\'ouverture par jour (vide = fermé) et l\'heure du premier dépôt, les <b>conseillers</b> (un par ligne, « (inactif) » pour en retirer un sans l\'effacer), le menu des <b>travaux</b> (code, libellé, catégorie, heures, prix, groupe), les <b>groupes de compétence</b> (express, atelier, diagnostic… avec leurs heures par jour ; 0 = sans limite), les plafonds (rendez-vous par heure, clients en salle d\'attente par heure, véhicules de courtoisie par jour), les heures d\'atelier, les heures internes et le <b>tampon</b> (%) réservé aux clients sans rendez-vous ; « Heures disponibles » se recalcule en direct. Les cases <b>textos</b> (confirmation, rappel, lien de l\'inspection) sont décochées : rien ne part par texto sans la décision de la direction.</p>', roles: 'directeur',
-            liens: [{ t: 'Rendez-vous', s: 'service', o: 'rendezvous' }] }
+            liens: [{ t: 'Rendez-vous', s: 'service', o: 'rendezvous' }] },
+          { id: 'svc-texto-quoi', q: 'Qu\'est-ce que Service › Texto (estimés par texto, conversations) ?', mots: 'texto sms kimoby estimé estimés devis conversation client approuver paiement courtoisie',
+            r: '<p>Service › <b>Texto</b> remplace Kimoby : les <b>estimés</b> envoyés au client par texto (il approuve ou refuse chaque travail sur une page sans compte, ou répond OUI / NON par texto), les <b>conversations</b> par texto avec les clients (entrants et sortants, non lus), les <b>demandes de paiement</b>, les <b>travaux refusés</b> à reproposer, les <b>statistiques</b> par conseiller. Rien ne part sans un clic.</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },
+          { id: 'svc-texto-estime', q: 'Comment faire un estimé et l\'envoyer au client ?', mots: 'estimé nouvel estimé lignes main-d\'œuvre pièces frais photos vidéo envoyer texto courriel lien approuver refuser relancer',
+            r: '<p>Service › Texto › <b>+ Nouvel estimé</b> : client (recherché dans les clients du service), cellulaire, véhicule (NIV décodé), puis une ligne par travail : menu du carnet ou libellé libre, priorité (urgent / recommandé / suggéré), main-d\'œuvre (prix fixe ou taux × heures), pièces, frais, note au client, <b>photos et vidéos</b> (visibles du client). Les totaux (TPS / TVQ) se calculent tout seuls. <b>Envoyer au client</b> : texto (lien vers sa page) et / ou courriel ; <b>Relancer</b> envoie un rappel ; <b>Copier le lien</b> pour un texto manuel ou le comptoir. Sur sa page, le client approuve ou refuse chaque ligne (ou tout) ; il peut aussi répondre « OUI ES-101 » par texto. Les vues et le délai de réponse sont comptés. Réponse donnée au comptoir ou au téléphone : ✓ / ✗ sur la ligne.</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },
+          { id: 'svc-texto-conv', q: 'Comment texter un client et lire ses réponses ?', mots: 'conversation texto message client répondre non lu modèles STOP',
+            r: '<p>Service › Texto › <b>Conversations</b> : un fil par client (ses textos et les nôtres, y compris les estimés et paiements envoyés). Écrivez en bas (Entrée = envoyer), ou partez d\'un <b>modèle</b> (véhicule prêt, pièces arrivées, délai…). <b>+ Texto</b> pour écrire à un nouveau numéro. Les réponses des clients arrivent chaque minute ; les non lus sont comptés dans l\'onglet. Un client qui répond <b>STOP</b> ne reçoit plus rien (le site refuse d\'envoyer) ; un numéro inconnu apparaît dans « Toutes les concessions », à attribuer.</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },
+          { id: 'svc-texto-paiement', q: 'Comment envoyer une demande de paiement (et encaisser en ligne) ?', mots: 'paiement payer carte stripe facture comptoir téléphone interac',
+            r: '<p>Depuis un estimé approuvé (<b>Demande de paiement</b> : montant = lignes approuvées + taxes, ajustable) ou <b>+ Paiement</b> pour un montant libre. Le client reçoit un lien par texto / courriel avec le montant. Si <b>Stripe</b> est configuré pour la concession (Réglages, administrateur), la page offre « Payer par carte en ligne » et le paiement se marque tout seul ; sinon le client paie au comptoir ou par téléphone et vous cliquez <b>Marquer payé</b> (moyen, référence). Le paiement reçu se voit sur l\'estimé.</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },
+          { id: 'svc-texto-courtoisie', q: 'Le suivi de courtoisie après le service, comment ça marche ?', mots: 'courtoisie suivi satisfaction note sondage avis google automatique',
+            r: '<p>Sur un estimé approuvé : <b>✓ Travaux terminés</b> (avec le texto « véhicule prêt » proposé), puis <b>★ Suivi de courtoisie</b> : le client reçoit la demande d\'avis du module Avis (note sur 5, lien Google, alerte au directeur si ≤ 3) ou, sans ce module, un texto « note de 1 à 5 » dont la réponse s\'inscrit sur l\'estimé (4-5 → lien Google ; 3 ou moins → directeurs prévenus). La direction peut l\'automatiser par concession dans <b>Réglages</b> (n jours après les travaux terminés ou le paiement) ; un administrateur installe le déclencheur quotidien. OFF par défaut.</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }], roles: 'directeur' },
+          { id: 'svc-texto-reglages', q: 'Réglages de Texto (taux, taxes, validité, modèles, Stripe) ?', mots: 'réglages taux horaire taxes regrouper validité modèles textos signature pied stripe clé',
+            r: '<p>Service › Texto › <b>Réglages</b> (direction) : taux horaire de la main-d\'œuvre, affichage des taxes, un seul prix par ligne (masque le détail), validité de l\'estimé, téléphone du service (bouton Appeler du client), signature des textos, pied de page légal, suivi de courtoisie, <b>modèles</b> de textos ({prenom}, {vehicule}, {ref}, {total}, {lien}…). Administrateur : clé <b>Stripe</b> (sk_live_…) par concession ou pour le groupe, testée avant d\'être gardée. Le menu des travaux reste celui du carnet de rendez-vous.</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }], roles: 'directeur' }
         ] },
 
       /* ------------------------------------------------------------------ */
@@ -406,6 +424,9 @@
     ],
 
     nouveautes: [
+      { date: '20 octobre 2026', titre: 'Service › Texto : estimés par texto (approbation par ligne), conversations avec les clients, demandes de paiement (Stripe), suivi de courtoisie',
+        texte: 'Le nouvel onglet Texto du service remplace Kimoby : estimés avec lignes de travaux (main-d\'œuvre, pièces, frais, priorité, photos / vidéos), envoyés par texto et courriel, que le client approuve ou refuse ligne par ligne sur une page sans compte (ou par texto « OUI ES-101 ») — vues, délai de réponse et relances comptés ; conversations par texto avec chaque client (entrants lus chaque minute, modèles, STOP respecté) ; demandes de paiement par lien (en ligne par carte avec Stripe, sinon au comptoir) ; travaux refusés à reproposer ; suivi de courtoisie après les travaux (note sur 5, lien Google, alerte au directeur) ; statistiques par conseiller et par mois. Rien ne part sans un clic.',
+        liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },
       { date: '19 octobre 2026', titre: 'Carnet de rendez-vous du service (classeur, glisser-déposer, inspection vidéo) ; avis Google : répondre et demander un retrait depuis le site ; Import D2C ; mêmes pastilles de concession partout',
         texte: 'Service › Rendez-vous (pilote VW Brossard) : le carnet de l\'atelier avec le classeur horaire par conseiller, la semaine par heure, le glisser-déposer d\'un rendez-vous, les clients sans rendez-vous, les états du jour (arrivé, accueilli, en cours avec bon de travail, terminé, véhicule remis), la capacité par groupe de compétence, les consentements du client et l\'inspection vidéo : photos et vidéo filmées sur place, travaux proposés, page du client pour approuver ou refuser. Avis : tous les avis Google sont lus directement chez Google ; on y répond depuis le site (texte suggéré, brouillon, publication signée au nom de la concession, jamais en double), on prépare un dossier de retrait avec les trois voies de Google, et un nouvel avis négatif alerte les responsables. Outils › Import D2C ramène chaque matin l\'inventaire du DMS de Hyundai, Sainte-Marie et Hawkesbury (km et CARFAX pour VW et BMW) ; Valeurs OpenLane : « Relire maintenant », colonnes Coût et Écart. Partout, la concession se choisit avec la même rangée de pastilles en haut de la page, et les pages lourdes s\'ouvrent sur leur copie du navigateur le temps que Google réponde.',
         liens: [{ t: 'Rendez-vous', s: 'service', o: 'rendezvous' }, { t: 'Avis', s: 'avis', o: 'avis' }, { t: 'Import D2C', s: 'outils', o: 'd2c' }] },

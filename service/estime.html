@@ -91,7 +91,7 @@
 (function () {
   'use strict';
   var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
-  var q = new URLSearchParams(location.search), e = q.get('e') || '', c = (q.get('c') || '').toUpperCase(), apercu = q.get('apercu') === '1';
+  var q = new URLSearchParams(location.search), e = q.get('e') || '', c = (q.get('k') || q.get('c') || '').toUpperCase(), apercu = q.get('apercu') === '1';
   var $ = function (s) { return document.getElementById(s); };
   var PRIO = { urgent: 'Urgent', recommande: 'Recommandé', suggere: 'Suggéré' };
   var donnees = null, reponses = {}, fini = false;
@@ -172,7 +172,7 @@
     montrer($('chargement'), false); montrer($('contenu'), true);
   }
   function charger() {
-    fetch(SCRIPT_URL + '?estimeLien=' + encodeURIComponent(e) + '&c=' + encodeURIComponent(c) + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
+    fetch(SCRIPT_URL + '?estimeLien=' + encodeURIComponent(e) + '&k=' + encodeURIComponent(c) + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
       .then(function (x) { return x.json(); })
       .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); if (d && d.code === 'ANNULE') $('invalide-texte').textContent = 'Cet estimé a été annulé par votre concessionnaire.'; montrer($('invalide'), true); return; } rendre(d); })
       .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
@@ -184,7 +184,7 @@
     var n = Object.keys(reponses).length;
     if (!n && !$('note').value.trim()) { $('erreur').textContent = 'Choisissez « Approuver » ou « Refuser » pour au moins un travail.'; return; }
     $('erreur').textContent = ''; $('btn-envoyer').disabled = true;
-    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'estimeReponse', e: e, c: c, reponses: reponses, note: $('note').value.trim() }) })
+    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'estimeReponse', e: e, k: c, reponses: reponses, note: $('note').value.trim() }) })
       .then(function (x) { return x.json(); })
       .then(function (d) {
         $('btn-envoyer').disabled = false;

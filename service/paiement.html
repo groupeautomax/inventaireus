@@ -55,7 +55,7 @@
 (function () {
   'use strict';
   var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
-  var q = new URLSearchParams(location.search), p = q.get('p') || '', c = (q.get('c') || '').toUpperCase(), retour = q.get('retour') === '1', apercu = q.get('apercu') === '1';
+  var q = new URLSearchParams(location.search), p = q.get('p') || '', c = (q.get('k') || q.get('c') || '').toUpperCase(), retour = q.get('retour') === '1', apercu = q.get('apercu') === '1';
   var $ = function (s) { return document.getElementById(s); };
   function montrer(el, oui) { el.classList.toggle('cache', !oui); }
   function argent(n) { n = Number(n) || 0; return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
@@ -88,7 +88,7 @@
     if (retour && !paye && !annule) { $('etat').textContent = 'Vérification du paiement…'; setTimeout(charger, 4000); }
   }
   function charger() {
-    fetch(SCRIPT_URL + '?paiementLien=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c) + (retour ? '&retour=1' : '') + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
+    fetch(SCRIPT_URL + '?paiementLien=' + encodeURIComponent(p) + '&k=' + encodeURIComponent(c) + (retour ? '&retour=1' : '') + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
       .then(function (x) { return x.json(); })
       .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
       .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });

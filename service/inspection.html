@@ -82,7 +82,7 @@
 (function () {
   'use strict';
   var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
-  var q = new URLSearchParams(location.search), r = q.get('r') || '', c = (q.get('c') || '').toUpperCase();
+  var q = new URLSearchParams(location.search), r = q.get('r') || '', c = (q.get('k') || q.get('c') || '').toUpperCase();
   var $ = function (s) { return document.getElementById(s); };
   var PRIO = { urgent: 'Urgent', recommande: 'Recommandé', suggere: 'Suggéré' };
   var donnees = null, reponses = {};
@@ -134,7 +134,7 @@
   }
 
   function charger() {
-    fetch(SCRIPT_URL + '?rdvInspection=1&r=' + encodeURIComponent(r) + '&c=' + encodeURIComponent(c) + '&_=' + Date.now())
+    fetch(SCRIPT_URL + '?rdvInspection=1&r=' + encodeURIComponent(r) + '&k=' + encodeURIComponent(c) + '&_=' + Date.now())
       .then(function (x) { return x.json(); })
       .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
       .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
@@ -144,7 +144,7 @@
     var n = Object.keys(reponses).length;
     if (!n && !$('note').value.trim()) { $('erreur').textContent = 'Choisissez « Approuver » ou « Refuser » pour au moins un travail.'; return; }
     $('erreur').textContent = ''; $('btn-envoyer').disabled = true;
-    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'rdvInspectionReponse', r: r, c: c, reponses: reponses, note: $('note').value.trim() }) })
+    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'rdvInspectionReponse', r: r, k: c, reponses: reponses, note: $('note').value.trim() }) })
       .then(function (x) { return x.json(); })
       .then(function (d) {
         $('btn-envoyer').disabled = false;

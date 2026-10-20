@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Paiement</title>
+<style>
+  :root { --vert: #008840; --texte: #16181c; --doux: #6b7280; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px; --rouge: #b42318; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 640px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; } .pousse { margin-left: auto; color: var(--doux); font-size: 13px; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  h1 { font-size: 20px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.3px; } h2 { font-size: 16px; margin: 0 0 10px; }
+  .sous { color: var(--doux); font-size: 14px; }
+  .montant { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; margin: 12px 0 2px; } .montant small { font-size: 13px; font-weight: 500; color: var(--doux); letter-spacing: 0; }
+  .etat { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-top: 8px; }
+  .etat.attente { background: #fff4d6; color: #8a5a00; } .etat.ok { background: #e7f5ed; color: #0a6136; } .etat.non { background: #fdecec; color: #8a1d1d; }
+  dl { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; margin: 12px 0 0; font-size: 14px; } dt { color: var(--doux); } dd { margin: 0; }
+  .boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  a.principal, button.principal { padding: 15px 18px; font: inherit; font-size: 17px; font-weight: 700; border-radius: 12px; cursor: pointer; border: 0; flex: 1 1 auto; background: var(--vert); color: #fff; text-align: center; text-decoration: none; display: block; }
+  .securite { font-size: 12.5px; color: var(--doux); text-align: center; margin-top: 10px; }
+  .moyens { font-size: 14.5px; } .moyens li { margin: 4px 0; }
+  .contact { background: #e8f6ee; border: 1px solid #bfe3cd; border-radius: var(--rayon); padding: 14px 16px; text-align: center; margin-bottom: 14px; } .contact .q { font-weight: 700; color: #0a6136; } .contact .c { color: #0a6136; font-size: 14px; margin: 2px 0 10px; }
+  .contact .liens { display: flex; gap: 10px; } .contact a { flex: 1; display: block; padding: 11px; background: #fff; border: 1px solid #bfe3cd; border-radius: 10px; color: var(--texte); font-weight: 650; text-decoration: none; }
+  .merci { text-align: center; padding: 10px 0 4px; } .merci .gros { width: 64px; height: 64px; border-radius: 50%; background: #e7f5ed; color: #0a6136; display: inline-grid; place-items: center; font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+  .cache { display: none !important; } .pied { color: var(--doux); font-size: 12.5px; text-align: center; margin: 18px 0 8px; } .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
+</style>
+</head>
+<body>
+<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse">Paiement</span></div></header>
+<main>
+  <div class="chargement" id="chargement">Chargement…</div>
+  <div class="bloc cache" id="invalide"><h1>Lien invalide</h1><p class="sous">Ce lien n'est plus valide. Appelez votre concessionnaire.</p></div>
+  <div id="contenu" class="cache">
+    <div class="bloc cache" id="merci"><div class="merci"><div class="gros">✓</div><h1>Paiement reçu, merci !</h1><p class="sous" id="merci-texte"></p></div></div>
+    <div class="bloc">
+      <h1 id="titre">Votre facture</h1>
+      <div class="sous" id="desc"></div>
+      <div class="montant" id="montant"></div>
+      <span class="etat" id="etat"></span>
+      <dl id="details"></dl>
+      <div class="boutons" id="boutons"><a class="principal cache" id="btn-payer" href="#">Payer par carte en ligne</a></div>
+      <div class="securite cache" id="securite">Paiement sécurisé par Stripe — vos informations de carte ne passent jamais par le concessionnaire.</div>
+    </div>
+    <div class="bloc cache" id="bloc-moyens"><h2>Comment payer</h2><ul class="moyens" id="moyens"></ul></div>
+    <div class="contact" id="contact"><div class="q">Une question sur cette facture ?</div><div class="c" id="contact-c"></div><div class="liens"><a id="lien-texto" href="#">💬 Texto</a><a id="lien-appel" href="#">📞 Appeler</a></div></div>
+    <p class="pied" id="pied"></p>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+  var q = new URLSearchParams(location.search), p = q.get('p') || '', c = (q.get('c') || '').toUpperCase(), retour = q.get('retour') === '1', apercu = q.get('apercu') === '1';
+  var $ = function (s) { return document.getElementById(s); };
+  function montrer(el, oui) { el.classList.toggle('cache', !oui); }
+  function argent(n) { n = Number(n) || 0; return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
+  function dateLisible(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' }) + ' à ' + d.toLocaleTimeString('fr-CA', { hour: 'numeric', minute: '2-digit' }); }
+  function rendre(d) {
+    var pa = d.paiement, conc = d.concession;
+    $('marque').textContent = conc.nom || 'ScanAutomax';
+    $('titre').textContent = (pa.prenom ? pa.prenom + ', voici votre facture' : 'Votre facture') + (pa.vehicule ? ' — ' + pa.vehicule : '');
+    $('desc').textContent = pa.description || '';
+    $('montant').innerHTML = argent(pa.montant) + ' <small>taxes incluses</small>';
+    var paye = pa.statut === 'paye', annule = pa.statut === 'annule' || pa.statut === 'rembourse';
+    $('etat').className = 'etat ' + (paye ? 'ok' : (annule ? 'non' : 'attente')); $('etat').textContent = pa.statutLibelle;
+    var dl = $('details'); dl.innerHTML = '';
+    var ajouter = function (a, b) { if (!b) return; var dt = document.createElement('dt'); dt.textContent = a; var dd = document.createElement('dd'); dd.textContent = b; dl.appendChild(dt); dl.appendChild(dd); };
+    ajouter('Référence', pa.id); ajouter('Bon de travail', pa.btNo); ajouter('Estimé', pa.estimeId);
+    if (paye) { ajouter('Payé le', dateLisible(pa.payeLe)); ajouter('Moyen', pa.moyen); ajouter('Confirmation', pa.reference ? '…' + pa.reference : ''); montrer($('merci'), true); $('merci-texte').textContent = argent(pa.montant) + ' reçu' + (pa.payeLe ? ' le ' + dateLisible(pa.payeLe) : '') + '. ' + (conc.nom || '') + ' vous remercie.'; }
+    montrer($('btn-payer'), !paye && !annule && pa.enLigne); if (pa.enLigne) $('btn-payer').href = pa.lienPaiement;
+    montrer($('securite'), !paye && !annule && pa.enLigne);
+    montrer($('bloc-moyens'), !paye && !annule);
+    var ul = $('moyens'); ul.innerHTML = '';
+    var li = function (t) { var x = document.createElement('li'); x.textContent = t; ul.appendChild(x); };
+    if (pa.enLigne) li('En ligne, par carte de crédit ou débit, avec le bouton ci-dessus (reçu par courriel).');
+    li('Au comptoir du service, à la remise du véhicule (carte, Interac ou comptant).');
+    if (conc.telephone) li('Par carte au téléphone, au ' + conc.telephone + '.');
+    $('contact-c').textContent = (conc.nom || '') + (conc.telephone ? ' · ' + conc.telephone : '');
+    montrer($('lien-texto'), !!conc.texto); if (conc.texto) $('lien-texto').href = 'sms:' + conc.texto + '?&body=' + encodeURIComponent('Bonjour, au sujet de ma facture ' + pa.id + ' : ');
+    montrer($('lien-appel'), !!conc.telephoneBrut); if (conc.telephoneBrut) $('lien-appel').href = 'tel:' + conc.telephoneBrut;
+    $('pied').textContent = (conc.nom || '') + ' · Référence ' + pa.id;
+    montrer($('chargement'), false); montrer($('contenu'), true);
+    if (retour && !paye && !annule) { $('etat').textContent = 'Vérification du paiement…'; setTimeout(charger, 4000); }
+  }
+  function charger() {
+    fetch(SCRIPT_URL + '?paiementLien=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c) + (retour ? '&retour=1' : '') + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
+      .then(function (x) { return x.json(); })
+      .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
+      .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
+  }
+  if (!p || !c) { montrer($('chargement'), false); montrer($('invalide'), true); } else charger();
+})();
+</script>
+</body>
+</html>

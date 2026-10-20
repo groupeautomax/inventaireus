@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Votre estimé de service</title>
+<style>
+  :root { --vert: #008840; --texte: #16181c; --doux: #6b7280; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px; --ambre: #b45309; --rouge: #b42318; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 720px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; }
+  .pousse { margin-left: auto; color: var(--doux); font-size: 13px; }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  h1 { font-size: 20px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.3px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .sous { color: var(--doux); font-size: 14px; }
+  .etat { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-top: 8px; }
+  .etat.attente { background: #fff4d6; color: #8a5a00; } .etat.ok { background: #e7f5ed; color: #0a6136; } .etat.non { background: #fdecec; color: #8a1d1d; }
+  .message { border-left: 3px solid var(--vert); padding: 4px 12px; margin: 10px 0 0; font-size: 15px; white-space: pre-wrap; }
+  .travail { padding: 14px 0; border-bottom: 1px solid var(--trait); }
+  .travail:last-of-type { border-bottom: 0; }
+  .travail .haut { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; }
+  .travail .lib { font-size: 16px; font-weight: 650; }
+  .travail .prix { font-size: 16px; font-weight: 700; white-space: nowrap; text-align: right; }
+  .travail .desc { font-size: 14px; color: var(--doux); margin-top: 4px; white-space: pre-wrap; }
+  .prio { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-left: 6px; vertical-align: middle; }
+  .prio.urgent { background: #fdecec; color: #8a1d1d; } .prio.recommande { background: #fff4d6; color: #8a5a00; } .prio.suggere { background: #eef4ff; color: #1e3a8a; }
+  details.detail { margin-top: 6px; font-size: 13.5px; } details.detail summary { cursor: pointer; color: var(--vert); font-weight: 600; font-size: 13px; }
+  details.detail table { width: 100%; border-collapse: collapse; margin-top: 6px; } details.detail td { padding: 3px 0; border-bottom: 1px dashed var(--trait); vertical-align: top; } details.detail td.n { text-align: right; white-space: nowrap; } details.detail td.t { color: var(--doux); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding-top: 8px; border: 0; }
+  .medias { display: grid; gap: 10px; margin-top: 10px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .media { border-radius: 10px; overflow: hidden; background: #000; border: 1px solid var(--trait); position: relative; }
+  .media.video { grid-column: 1 / -1; } .media iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; }
+  .media img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #fff; cursor: zoom-in; }
+  .choix { display: flex; gap: 8px; margin-top: 10px; }
+  .choix button { flex: 1 1 auto; padding: 12px; font: inherit; font-size: 15px; font-weight: 650; border-radius: 10px; cursor: pointer; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); }
+  .choix button.oui.actif { background: var(--vert); color: #fff; border-color: var(--vert); }
+  .choix button.non.actif { background: #fdecec; color: #8a1d1d; border-color: #f3c2c2; }
+  .tout { display: flex; gap: 8px; margin: 4px 0 12px; } .tout button { flex: 1; padding: 9px; font: inherit; font-size: 13.5px; font-weight: 600; border-radius: 10px; border: 1px solid var(--trait); background: #fff; color: var(--texte); cursor: pointer; }
+  .totaux { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 14px; padding: 12px 0 0; border-top: 1px solid var(--trait); margin-top: 6px; } .totaux .t { font-size: 17px; font-weight: 700; padding-top: 6px; } .totaux span:nth-child(even) { text-align: right; white-space: nowrap; }
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  textarea { width: 100%; padding: 12px 13px; font: inherit; font-size: 16px; border: 1px solid var(--trait); border-radius: 10px; background: var(--fond); color: var(--texte); min-height: 72px; resize: vertical; }
+  textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  .boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.principal, a.principal { padding: 14px 18px; font: inherit; font-size: 16px; font-weight: 650; border-radius: 12px; cursor: pointer; border: 0; flex: 1 1 auto; background: var(--vert); color: #fff; text-align: center; text-decoration: none; display: block; }
+  button:disabled { opacity: .55; cursor: default; }
+  .contact { background: #e8f6ee; border: 1px solid #bfe3cd; border-radius: var(--rayon); padding: 14px 16px; text-align: center; margin-bottom: 14px; } .contact .q { font-weight: 700; color: #0a6136; } .contact .c { color: #0a6136; font-size: 14px; margin: 2px 0 10px; }
+  .contact .liens { display: flex; gap: 10px; } .contact a { flex: 1; display: block; padding: 11px; background: #fff; border: 1px solid #bfe3cd; border-radius: 10px; color: var(--texte); font-weight: 650; text-decoration: none; }
+  .erreur { color: var(--rouge); font-size: 14px; margin-top: 10px; min-height: 1.2em; }
+  .cache { display: none !important; }
+  .merci { text-align: center; padding: 10px 0 4px; }
+  .merci .gros { width: 64px; height: 64px; border-radius: 50%; background: #e7f5ed; color: #0a6136; display: inline-grid; place-items: center; font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+  .pied { color: var(--doux); font-size: 12.5px; text-align: center; margin: 18px 0 8px; white-space: pre-wrap; }
+  .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
+  .voile { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: grid; place-items: center; z-index: 50; cursor: zoom-out; } .voile img { max-width: 96vw; max-height: 92vh; object-fit: contain; }
+</style>
+</head>
+<body>
+<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse">Votre estimé de service</span></div></header>
+<main>
+  <div class="chargement" id="chargement">Chargement de votre estimé…</div>
+  <div class="bloc cache" id="invalide"><h1>Lien invalide</h1><p class="sous" id="invalide-texte">Ce lien n'est plus valide. Appelez votre concessionnaire pour en recevoir un nouveau.</p></div>
+  <div id="contenu" class="cache">
+    <div class="bloc">
+      <h1 id="titre">Votre estimé</h1>
+      <div class="sous" id="sous"></div>
+      <span class="etat" id="etat"></span>
+      <div class="message cache" id="message"></div>
+    </div>
+    <div class="bloc" id="bloc-travaux">
+      <h2>Travaux proposés</h2>
+      <p class="sous" id="consigne">Approuvez ou refusez chaque travail. Nous ne faisons que ce que vous approuvez.</p>
+      <div class="tout" id="tout"><button type="button" id="btn-tout-oui">✓ Tout approuver</button><button type="button" id="btn-tout-non">✗ Tout refuser</button></div>
+      <div id="travaux"></div>
+      <div class="totaux" id="totaux"></div>
+      <label for="note">Un mot pour votre conseiller (facultatif)</label>
+      <textarea id="note" placeholder="Une question, une précision…"></textarea>
+      <div class="boutons"><button class="principal" id="btn-envoyer" type="button">Envoyer ma réponse</button></div>
+      <div class="erreur" id="erreur"></div>
+    </div>
+    <div class="bloc cache" id="merci"><div class="merci"><div class="gros">✓</div><h1>Merci !</h1><p class="sous" id="merci-texte"></p></div></div>
+    <div class="bloc cache" id="bloc-paiement"><h2>Paiement</h2><p class="sous" id="paiement-texte"></p><div class="boutons"><a class="principal" id="btn-payer" href="#">Payer en ligne</a></div></div>
+    <div class="contact" id="contact"><div class="q">Vous avez des questions ?</div><div class="c" id="contact-c"></div><div class="liens"><a id="lien-texto" href="#">💬 Texto</a><a id="lien-appel" href="#">📞 Appeler</a></div></div>
+    <p class="pied" id="pied"></p>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+  var q = new URLSearchParams(location.search), e = q.get('e') || '', c = (q.get('c') || '').toUpperCase(), apercu = q.get('apercu') === '1';
+  var $ = function (s) { return document.getElementById(s); };
+  var PRIO = { urgent: 'Urgent', recommande: 'Recommandé', suggere: 'Suggéré' };
+  var donnees = null, reponses = {}, fini = false;
+  function montrer(el, oui) { el.classList.toggle('cache', !oui); }
+  function argent(n) { n = Number(n) || 0; return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
+  function el(tag, cls, texte) { var x = document.createElement(tag); if (cls) x.className = cls; if (texte !== undefined) x.textContent = texte; return x; }
+  function dateLisible(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' }); }
+
+  function totaux() {
+    var est = donnees.estime, sous = 0;
+    est.lignes.forEach(function (l) { if (reponses[l.code] === 'approuve') sous += Number(l.total) || 0; });
+    var z = $('totaux'); z.innerHTML = '';
+    var ligne = function (a, b, cls) { var s1 = el('span', cls, a), s2 = el('span', cls, b); z.appendChild(s1); z.appendChild(s2); };
+    ligne('Travaux approuvés', argent(sous));
+    if (est.taxes) { var tps = Math.round(sous * 5) / 100, tvq = Math.round(sous * 9.975) / 100; ligne('TPS (5 %)', argent(tps)); ligne('TVQ (9,975 %)', argent(tvq)); ligne('Total approuvé', argent(sous + tps + tvq), 't'); }
+    else ligne('Total approuvé (avant taxes)', argent(sous), 't');
+  }
+  function rendre(d) {
+    donnees = d;
+    var est = d.estime, conc = d.concession;
+    $('marque').textContent = conc.nom || 'ScanAutomax';
+    $('titre').textContent = (est.prenom ? est.prenom + ', voici l\'estimé de votre ' : 'Estimé de votre ') + (est.vehicule || 'véhicule');
+    $('sous').textContent = ['Estimé ' + est.id, est.plaque ? 'Plaque ' + est.plaque : '', est.km ? String(est.km).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' km' : '', est.btNo ? 'Bon de travail ' + est.btNo : '', est.conseiller ? 'Conseiller : ' + est.conseiller : '', est.expireLe && !est.reponduLe ? 'Valide jusqu\'au ' + dateLisible(est.expireLe) : ''].filter(Boolean).join(' · ');
+    var repondu = !!est.reponduLe, ferme = est.statut === 'expire' || est.statut === 'annule';
+    fini = ferme;
+    $('etat').className = 'etat ' + (ferme ? 'non' : (repondu ? 'ok' : 'attente'));
+    $('etat').textContent = ferme ? est.statutLibelle : (repondu ? est.statutLibelle : 'En attente de votre réponse');
+    montrer($('message'), !!est.note); $('message').textContent = est.note || '';
+    var zone = $('travaux'); zone.innerHTML = ''; reponses = {};
+    est.lignes.forEach(function (l, k) {
+      if (l.etat === 'approuve' || l.etat === 'refuse') reponses[l.code] = l.etat;
+      var t = el('div', 'travail'), haut = el('div', 'haut');
+      var lib = el('div', 'lib', (k + 1) + '. ' + l.libelle); var prio = el('span', 'prio ' + (l.urgence || 'recommande'), l.urgenceLibelle || PRIO[l.urgence] || PRIO.recommande); lib.appendChild(prio);
+      haut.appendChild(lib); haut.appendChild(el('div', 'prix', l.total ? argent(l.total) : 'Sur devis')); t.appendChild(haut);
+      if (l.description) t.appendChild(el('div', 'desc', l.description));
+      var hasDetail = (l.mo && (l.mo.montant || l.mo.heures)) || (l.pieces && l.pieces.length) || (l.frais && l.frais.length);
+      if (hasDetail && !est.regrouper) {
+        var det = document.createElement('details'); det.className = 'detail'; var sum = el('summary', '', 'Voir le détail du prix'); det.appendChild(sum);
+        var tab = document.createElement('table');
+        var tr = function (a, b, cls) { var r = document.createElement('tr'); var c1 = el('td', cls || '', a), c2 = el('td', 'n' + (cls ? ' ' + cls : ''), b); r.appendChild(c1); r.appendChild(c2); tab.appendChild(r); };
+        if (l.mo && (l.mo.montant || l.mo.heures)) tr('Main-d\'œuvre' + (l.mo.type === 'taux' && l.mo.heures ? ' — ' + String(l.mo.heures).replace('.', ',') + ' h × ' + argent(l.mo.taux) : ''), argent(l.mo.montant));
+        if (l.pieces && l.pieces.length) { tr('Pièces', '', 't'); l.pieces.forEach(function (p) { tr((p.qte > 1 ? p.qte + ' × ' : '') + (p.nom || p.no) + (p.no && p.nom ? ' (' + p.no + ')' : ''), argent((Number(p.qte) || 1) * Number(p.prix))); }); }
+        if (l.frais && l.frais.length) { tr('Frais', '', 't'); l.frais.forEach(function (f) { tr((f.qte > 1 ? f.qte + ' × ' : '') + f.nom, argent((Number(f.qte) || 1) * Number(f.prix))); }); }
+        det.appendChild(tab); t.appendChild(det);
+      }
+      if (l.medias && l.medias.length) {
+        var med = el('div', 'medias');
+        l.medias.forEach(function (m, i) {
+          var boite = el('div', 'media' + (m.type === 'video' ? ' video' : ''));
+          if (m.type === 'video') { var f = document.createElement('iframe'); f.src = m.lecture; f.allow = 'autoplay; fullscreen'; f.setAttribute('allowfullscreen', ''); boite.appendChild(f); }
+          else { var img = document.createElement('img'); img.src = m.apercu || m.lecture; img.alt = 'Photo ' + (i + 1); img.loading = 'lazy'; img.addEventListener('click', function () { var v = el('div', 'voile'); var g = document.createElement('img'); g.src = m.lecture; v.appendChild(g); v.addEventListener('click', function () { v.remove(); }); document.body.appendChild(v); }); boite.appendChild(img); }
+          med.appendChild(boite);
+        });
+        t.appendChild(med);
+      }
+      if (!ferme) {
+        var choix = el('div', 'choix'), bOui = el('button', 'oui', 'Approuver'), bNon = el('button', 'non', 'Refuser');
+        bOui.type = bNon.type = 'button';
+        var maj = function () { bOui.classList.toggle('actif', reponses[l.code] === 'approuve'); bNon.classList.toggle('actif', reponses[l.code] === 'refuse'); totaux(); };
+        bOui.addEventListener('click', function () { reponses[l.code] = 'approuve'; maj(); });
+        bNon.addEventListener('click', function () { reponses[l.code] = 'refuse'; maj(); });
+        l._maj = maj;
+        choix.appendChild(bOui); choix.appendChild(bNon); t.appendChild(choix); maj();
+      } else { var st = el('div', 'sous', l.etat === 'approuve' ? '✓ Approuvé' : (l.etat === 'refuse' ? '✗ Refusé' : '')); t.appendChild(st); }
+      zone.appendChild(t);
+    });
+    totaux();
+    montrer($('tout'), !ferme); montrer($('note'), !ferme); montrer($('btn-envoyer'), !ferme);
+    document.querySelector('label[for="note"]').classList.toggle('cache', ferme);
+    $('consigne').textContent = ferme ? (est.statut === 'expire' ? 'Cet estimé n\'est plus valide : demandez à votre conseiller de vous en renvoyer un.' : 'Cet estimé a été annulé.') : 'Approuvez ou refusez chaque travail. Nous ne faisons que ce que vous approuvez.' + (est.taxes ? ' Prix avant taxes, estimés.' : ' Prix estimés.');
+    if (est.noteClient) $('note').value = est.noteClient;
+    $('btn-envoyer').textContent = repondu ? 'Modifier ma réponse' : 'Envoyer ma réponse';
+    if (d.paiement) { montrer($('bloc-paiement'), true); $('paiement-texte').textContent = d.paiement.statut === 'paye' ? 'Paiement de ' + argent(d.paiement.montant) + ' reçu' + (d.paiement.payeLe ? ' le ' + dateLisible(d.paiement.payeLe) : '') + '. Merci !' : (d.paiement.statut === 'en_attente' ? 'Montant à payer : ' + argent(d.paiement.montant) + ' (taxes incluses).' : ''); montrer($('btn-payer'), d.paiement.statut === 'en_attente'); $('btn-payer').href = d.paiement.lien; }
+    $('contact-c').textContent = 'Contactez votre conseiller' + (est.conseiller ? ' ' + est.conseiller : '') + (conc.telephone ? ' · ' + conc.telephone : '');
+    montrer($('lien-texto'), !!conc.texto); if (conc.texto) $('lien-texto').href = 'sms:' + conc.texto + '?&body=' + encodeURIComponent('Bonjour, au sujet de mon estimé ' + est.id + ' : ');
+    montrer($('lien-appel'), !!conc.telephoneBrut); if (conc.telephoneBrut) $('lien-appel').href = 'tel:' + conc.telephoneBrut;
+    $('pied').textContent = (est.pied ? est.pied + '\n' : '') + (conc.nom || '') + ' · Référence ' + est.id;
+    montrer($('chargement'), false); montrer($('contenu'), true);
+  }
+  function charger() {
+    fetch(SCRIPT_URL + '?estimeLien=' + encodeURIComponent(e) + '&c=' + encodeURIComponent(c) + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
+      .then(function (x) { return x.json(); })
+      .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); if (d && d.code === 'ANNULE') $('invalide-texte').textContent = 'Cet estimé a été annulé par votre concessionnaire.'; montrer($('invalide'), true); return; } rendre(d); })
+      .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
+  }
+  $('btn-tout-oui').addEventListener('click', function () { donnees.estime.lignes.forEach(function (l) { reponses[l.code] = 'approuve'; if (l._maj) l._maj(); }); });
+  $('btn-tout-non').addEventListener('click', function () { donnees.estime.lignes.forEach(function (l) { reponses[l.code] = 'refuse'; if (l._maj) l._maj(); }); });
+  $('btn-envoyer').addEventListener('click', function () {
+    if (fini) return;
+    var n = Object.keys(reponses).length;
+    if (!n && !$('note').value.trim()) { $('erreur').textContent = 'Choisissez « Approuver » ou « Refuser » pour au moins un travail.'; return; }
+    $('erreur').textContent = ''; $('btn-envoyer').disabled = true;
+    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'estimeReponse', e: e, c: c, reponses: reponses, note: $('note').value.trim() }) })
+      .then(function (x) { return x.json(); })
+      .then(function (d) {
+        $('btn-envoyer').disabled = false;
+        if (!d || !d.ok) { $('erreur').textContent = d && d.code === 'LIEN_INVALIDE' ? 'Ce lien n\'est plus valide.' : (d && d.code === 'EXPIRE' ? 'Cet estimé n\'est plus valide : demandez-en un nouveau à votre conseiller.' : 'Réponse non envoyée. Réessayez ou appelez votre conseiller.'); return; }
+        $('merci-texte').textContent = 'Votre réponse est transmise à votre conseiller : ' + d.approuves + ' travail' + (d.approuves > 1 ? 'x' : '') + ' approuvé' + (d.approuves > 1 ? 's' : '') + (d.totalApprouveTaxes ? ' (' + argent(d.totalApprouveTaxes) + ' taxes incluses)' : '') + ', ' + d.refuses + ' refusé' + (d.refuses > 1 ? 's' : '') + '. Vous pouvez la modifier tant que les travaux ne sont pas commencés.';
+        montrer($('merci'), true); $('etat').className = 'etat ok'; $('etat').textContent = d.statutLibelle || 'Réponse reçue'; $('btn-envoyer').textContent = 'Modifier ma réponse';
+        window.scrollTo({ top: $('merci').offsetTop - 80, behavior: 'smooth' });
+      })
+      .catch(function () { $('btn-envoyer').disabled = false; $('erreur').textContent = 'Réponse non envoyée (réseau). Réessayez.'; });
+  });
+  if (!e || !c) { montrer($('chargement'), false); montrer($('invalide'), true); } else charger();
+})();
+</script>
+</body>
+</html>

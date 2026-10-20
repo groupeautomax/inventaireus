@@ -847,7 +847,8 @@
   };
   /* ---------------------------------------------------------------- inspection vidéo (fiche) */
   var LIEN_INSPECTION = 'https://groupeautomax.github.io/inventaireus/service/inspection.html';
-  function lienInspection(r) { return LIEN_INSPECTION + '?r=' + encodeURIComponent(r.id) + '&c=' + encodeURIComponent(r.code || ''); }
+  /* 20 oct. : « k » et non « c » — un paramètre « c » non numérique est rejeté par l'infrastructure Apps Script (Failed to fetch). */
+  function lienInspection(r) { return LIEN_INSPECTION + '?r=' + encodeURIComponent(r.id) + '&k=' + encodeURIComponent(r.code || ''); }
   /* Photo : réduite à 1600 px et recompressée (JPEG 0,82) avant l'envoi — un cliché de téléphone fait 3 à 8 Mo, on en envoie ~300 Ko. */
   function reduireImage(fichier) {
     return new Promise(function (res, rej) {

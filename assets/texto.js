@@ -39,7 +39,7 @@
   function duree(min) { if (min === null || min === undefined) return '—'; min = Math.round(min); if (min < 60) return min + ' min'; if (min < 48 * 60) return Math.floor(min / 60) + ' h ' + String(min % 60).padStart(2, '0'); return Math.round(min / 1440) + ' j'; }
   function nomCourt(courriel) { var s = String(courriel || ''); if (!s) return ''; if (s.indexOf('@') < 0) return s; return s.split('@')[0].split(/[._]/).map(function (x) { return x.charAt(0).toUpperCase() + x.slice(1); }).join(' '); }
   function zoneTexte(attrs, valeur) { var t = h('textarea.saisie', attrs); t.value = valeur || ''; return t; }
-  function lienEstime(e) { return e.lien || (LIEN_ESTIME + '?e=' + encodeURIComponent(e.id) + '&c=' + encodeURIComponent(e.code || '')); }
+  function lienEstime(e) { return e.lien || (LIEN_ESTIME + '?e=' + encodeURIComponent(e.id) + '&k=' + encodeURIComponent(e.code || '')); }
   function joursDepuis(iso) { return iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null; }
   function gabarit(texte, v) { return String(texte || '').replace(/\{(\w+)\}/g, function (m, k) { return v[k] !== undefined && v[k] !== null && v[k] !== '' ? String(v[k]) : m; }).replace(/\s{2,}/g, ' ').trim(); }
   /* Photo : réduite à 1600 px, JPEG 0,82 (comme l'inspection du carnet). */

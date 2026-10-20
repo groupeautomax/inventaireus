@@ -20,7 +20,7 @@
   window.AMX = window.AMX || {};
 
   AMX.AIDE_CONTENU = {
-    version: '20 octobre 2026',
+    version: '20 octobre 2026 (soir)',
 
     frequentes: ['inv-statut', 'inv-stock-km', 'achat-quand', 'svc-autoriser', 'svc-rdv-prendre', 'avis-repondre', 'eval-lancer', 'dem-connexion', 'app-installer', 'inv-recherche', 'svc-refus', 'offre-publier', 'offre-signer', 'dep-deconnecte', 'dep-lent'],
 
@@ -216,6 +216,18 @@
             liens: [{ t: 'Texto', s: 'service', o: 'texto' }], roles: 'directeur' },
           { id: 'svc-texto-reglages', q: 'Réglages de Texto (taux, taxes, validité, modèles, Stripe) ?', mots: 'réglages taux horaire taxes regrouper validité modèles textos signature pied stripe clé',
             r: '<p>Service › Texto › <b>Réglages</b> (direction) : taux horaire de la main-d\'œuvre, affichage des taxes, un seul prix par ligne (masque le détail), validité de l\'estimé, téléphone du service (bouton Appeler du client), signature des textos, pied de page légal, suivi de courtoisie, <b>modèles</b> de textos ({prenom}, {vehicule}, {ref}, {total}, {lien}…). Administrateur : clé <b>Stripe</b> (sk_live_…) par concession ou pour le groupe, testée avant d\'être gardée. Le menu des travaux reste celui du carnet de rendez-vous.</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }], roles: 'directeur' },
+          { id: 'svc-texto-medias', q: 'Envoyer une photo ou une vidéo du véhicule au client par texto ?', mots: 'photo vidéo média caméra technicien inspection texto lien',
+            r: '<p>Dans la <b>conversation</b> du client, le bouton <b>📷</b> du composer (ou la caméra de l\'app iPhone) : choisissez ou filmez la photo / vidéo, ajoutez un mot si vous voulez, et elle part <b>par texto avec un lien</b> vers une page sans compte où le client la voit en grand. Le fichier est gardé dans Drive (ScanAutomax — Estimés / concession / conversation). C\'est la vidéo du technicien de Kimoby : filmer la pièce usée fait approuver les travaux. Les photos d\'une <b>ligne d\'estimé</b> se mettent plutôt dans l\'estimé (le client les voit à côté du prix).</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },
+          { id: 'svc-texto-clients', q: 'L\'annuaire des clients du service (import du DMS, export, fiche) ?', mots: 'clients annuaire import csv excel dms export fiche désabonné stop consentement',
+            r: '<p>Service › Texto › <b>Clients</b> : tous les clients de la concession (ceux des rendez-vous et des estimés, plus ceux importés), avec cellulaire, véhicule, dernière visite, dernier texto, estimés. <b>Importer (DMS)</b> accepte un export CSV ou Excel du DMS (colonnes reconnues par leur titre : nom, prénom, cellulaire, courriel, véhicule, NIV, plaque, km, # client, dernière visite) ; un client existant est complété, jamais dédoublé. <b>Exporter</b> donne un CSV. La <b>fiche</b> montre ses conversations, estimés, paiements, rendez-vous et textos automatiques ; on peut le retirer des textos (ou le réaccepter) — un STOP reçu par texto est toujours respecté.</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },
+          { id: 'svc-texto-autos', q: 'Les textos automatiques (rappel de rendez-vous, suivi de satisfaction, rappel d\'entretien, relances) ?', mots: 'automatisation automatique rappel rendez-vous veille confirmation accueil manqué satisfaction csi entretien relance estimé paiement impayé',
+            r: '<p>Service › Texto › <b>Automatisations</b> (direction, par concession) : huit règles, <b>toutes désactivées par défaut</b> — message après la prise d\'un rendez-vous, rappel la veille (le vendredi pour le lundi ; le client répond OUI pour confirmer), présentation du conseiller à l\'accueil, rendez-vous manqué, suivi de satisfaction après la visite (note de 1 à 5 lue, directeur prévenu sous 4), rappel d\'entretien (n mois sans visite, consentement « offres »), relance d\'un estimé sans réponse, rappel d\'un paiement impayé. Chaque texte se modifie ; envois entre 9 h et 20 h seulement, jamais deux fois pour le même événement, jamais après un STOP. Le journal montre chaque envoi. Administrateurs : « Passer maintenant » lance le passage tout de suite (sinon toutes les 5 minutes).</p>',
+            liens: [{ t: 'Texto', s: 'service', o: 'texto' }], roles: 'directeur' },
+          { id: 'svc-texto-campagnes', q: 'Envoyer une campagne de textos (pneus d\'hiver, promotion, clients perdus) ?', mots: 'campagne masse promotion pneus hiver clients perdus audience planifier lot',
+            r: '<p>Service › Texto › <b>Campagnes</b> (direction) : <b>+ Campagne</b> → nom, message ({prenom}, {vehicule}, {concession} remplacés ; « Répondez STOP » ajouté), audience = clients de la concession filtrés (véhicule contient, sans visite depuis n mois, dernière visite avant / après, année, langue) ou liste de numéros collée ; <b>Compter</b> montre combien recevront le message et pourquoi les autres sont exclus (sans cellulaire, STOP, consentement « offres » non). Testez sur votre cellulaire, puis <b>Lancer</b> ou <b>Planifier</b> : les textos partent par lots (25 par minute) entre 9 h et 20 h, les réponses arrivent dans Conversations et sont comptées sur la campagne.</p>',
             liens: [{ t: 'Texto', s: 'service', o: 'texto' }], roles: 'directeur' }
         ] },
 
@@ -424,6 +436,9 @@
     ],
 
     nouveautes: [
+      { date: '20 octobre 2026 (soir)', titre: 'Texto, suite : photos et vidéos dans les conversations, annuaire Clients (import DMS), textos automatiques (rappels de rendez-vous, satisfaction, entretien), campagnes, rappel de paiement, métriques par employé',
+        texte: 'Tout ce que Kimoby fait de plus, maintenant dans Texto : le bouton 📷 d\'une conversation envoie une photo ou une vidéo du véhicule au client (page sans compte) ; l\'onglet Clients tient l\'annuaire du service (import CSV / Excel du DMS, export, fiche complète) ; l\'onglet Automatisations (direction, par concession, tout OFF par défaut) : message après la prise d\'un rendez-vous, rappel la veille avec OUI pour confirmer, présentation du conseiller, rendez-vous manqué, suivi de satisfaction, rappel d\'entretien, relance d\'estimé, rappel de paiement impayé ; l\'onglet Campagnes envoie des textos de masse par lots (audience filtrée, test, planification, réponses comptées) ; bouton Rappeler sur un paiement impayé ; type de paiement par ligne d\'estimé (client / garantie / interne) ; statistiques par employé (textos, photos, vidéos, estimés, paiements, temps de réponse médian).',
+        liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },
       { date: '20 octobre 2026', titre: 'Service › Texto : estimés par texto (approbation par ligne), conversations avec les clients, demandes de paiement (Stripe), suivi de courtoisie',
         texte: 'Le nouvel onglet Texto du service remplace Kimoby : estimés avec lignes de travaux (main-d\'œuvre, pièces, frais, priorité, photos / vidéos), envoyés par texto et courriel, que le client approuve ou refuse ligne par ligne sur une page sans compte (ou par texto « OUI ES-101 ») — vues, délai de réponse et relances comptés ; conversations par texto avec chaque client (entrants lus chaque minute, modèles, STOP respecté) ; demandes de paiement par lien (en ligne par carte avec Stripe, sinon au comptoir) ; travaux refusés à reproposer ; suivi de courtoisie après les travaux (note sur 5, lien Google, alerte au directeur) ; statistiques par conseiller et par mois. Rien ne part sans un clic.',
         liens: [{ t: 'Texto', s: 'service', o: 'texto' }] },

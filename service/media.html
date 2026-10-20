@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Photos et vidéos</title>
+<style>
+  :root { --vert: #008840; --texte: #16181c; --doux: #6b7280; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 760px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; } .pousse { margin-left: auto; color: var(--doux); font-size: 13px; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  h1 { font-size: 20px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.3px; } .sous { color: var(--doux); font-size: 14px; }
+  .message { font-size: 15.5px; margin: 10px 0 0; white-space: pre-wrap; }
+  .medias { display: grid; gap: 12px; margin-top: 14px; }
+  .media { background: #000; border-radius: 12px; overflow: hidden; position: relative; }
+  .media img { width: 100%; display: block; max-height: 80vh; object-fit: contain; background: #111; }
+  .media iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; background: #000; }
+  .media .ouvrir { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.65); color: #fff; font-size: 12px; padding: 5px 9px; border-radius: 8px; text-decoration: none; }
+  .contact { background: #e8f6ee; border: 1px solid #bfe3cd; border-radius: var(--rayon); padding: 14px 16px; text-align: center; margin-bottom: 14px; } .contact .q { font-weight: 700; color: #0a6136; } .contact .c { color: #0a6136; font-size: 14px; margin: 2px 0 10px; }
+  .contact .liens { display: flex; gap: 10px; } .contact a { flex: 1; display: block; padding: 11px; background: #fff; border: 1px solid #bfe3cd; border-radius: 10px; color: var(--texte); font-weight: 650; text-decoration: none; }
+  .cache { display: none !important; } .pied { color: var(--doux); font-size: 12.5px; text-align: center; margin: 18px 0 8px; } .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
+</style>
+</head>
+<body>
+<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse">Votre véhicule</span></div></header>
+<main>
+  <div class="chargement" id="chargement">Chargement…</div>
+  <div class="bloc cache" id="invalide"><h1>Lien invalide</h1><p class="sous">Ce lien n'est plus valide. Appelez votre concessionnaire.</p></div>
+  <div id="contenu" class="cache">
+    <div class="bloc">
+      <h1 id="titre">Photos et vidéos de votre véhicule</h1>
+      <div class="sous" id="sous"></div>
+      <div class="message" id="message"></div>
+      <div class="medias" id="medias"></div>
+    </div>
+    <div class="contact" id="contact"><div class="q">Une question ? Répondez simplement au texto.</div><div class="c" id="contact-c"></div><div class="liens"><a id="lien-texto" href="#">💬 Texto</a><a id="lien-appel" href="#">📞 Appeler</a></div></div>
+    <p class="pied" id="pied"></p>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+  var q = new URLSearchParams(location.search), m = q.get('m') || '', c = (q.get('k') || '').toUpperCase();
+  var $ = function (s) { return document.getElementById(s); };
+  function montrer(el, oui) { el.classList.toggle('cache', !oui); }
+  function dateLisible(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' }) + ' à ' + d.toLocaleTimeString('fr-CA', { hour: 'numeric', minute: '2-digit' }); }
+  function rendre(d) {
+    var conc = d.concession, msg = d.message;
+    $('marque').textContent = conc.nom || 'ScanAutomax';
+    $('titre').textContent = (msg.prenom ? msg.prenom + ', ' : '') + (d.medias.length > 1 ? 'voici les photos et vidéos' : (d.medias[0].type === 'video' ? 'voici la vidéo' : 'voici la photo')) + (msg.vehicule ? ' de votre ' + msg.vehicule : ' de votre véhicule');
+    $('sous').textContent = (msg.par ? 'De ' + msg.par + ', ' : '') + (conc.nom || '') + (msg.le ? ' · ' + dateLisible(msg.le) : '');
+    $('message').textContent = msg.texte || '';
+    var zone = $('medias'); zone.innerHTML = '';
+    d.medias.forEach(function (x) {
+      var div = document.createElement('div'); div.className = 'media';
+      if (x.type === 'video') { var f = document.createElement('iframe'); f.src = x.lecture; f.allow = 'autoplay; fullscreen; picture-in-picture'; f.allowFullscreen = true; div.appendChild(f); }
+      else { var img = document.createElement('img'); img.src = x.lecture; img.alt = x.nom || 'photo'; img.loading = 'lazy'; div.appendChild(img); }
+      var a = document.createElement('a'); a.className = 'ouvrir'; a.href = x.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = x.type === 'video' ? 'Ouvrir la vidéo' : 'Plein écran'; div.appendChild(a);
+      zone.appendChild(div);
+    });
+    $('contact-c').textContent = (conc.nom || '') + (conc.telephone ? ' · ' + conc.telephone : '');
+    montrer($('lien-texto'), !!conc.texto); if (conc.texto) $('lien-texto').href = 'sms:' + conc.texto;
+    montrer($('lien-appel'), !!conc.telephoneBrut); if (conc.telephoneBrut) $('lien-appel').href = 'tel:' + conc.telephoneBrut;
+    $('pied').textContent = conc.nom || '';
+    montrer($('chargement'), false); montrer($('contenu'), true);
+  }
+  function charger() {
+    fetch(SCRIPT_URL + '?mediaLien=' + encodeURIComponent(m) + '&k=' + encodeURIComponent(c) + '&_=' + Date.now())
+      .then(function (x) { return x.json(); })
+      .then(function (d) { if (!d || !d.ok || !(d.medias || []).length) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
+      .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
+  }
+  if (!m || !c) { montrer($('chargement'), false); montrer($('invalide'), true); } else charger();
+})();
+</script>
+</body>
+</html>

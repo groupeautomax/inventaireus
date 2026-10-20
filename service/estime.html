@@ -28,6 +28,7 @@
   .travail .prix { font-size: 16px; font-weight: 700; white-space: nowrap; text-align: right; }
   .travail .desc { font-size: 14px; color: var(--doux); margin-top: 4px; white-space: pre-wrap; }
   .prio { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: #eef0f3; color: var(--doux); margin-left: 6px; vertical-align: middle; }
+  .prio.couvert { background: #e7f5ed; color: #0a6136; } .prix.couvert { color: var(--doux); text-decoration: none; font-weight: 600; }
   .prio.urgent { background: #fdecec; color: #8a1d1d; } .prio.recommande { background: #fff4d6; color: #8a5a00; } .prio.suggere { background: #eef4ff; color: #1e3a8a; }
   details.detail { margin-top: 6px; font-size: 13.5px; } details.detail summary { cursor: pointer; color: var(--vert); font-weight: 600; font-size: 13px; }
   details.detail table { width: 100%; border-collapse: collapse; margin-top: 6px; } details.detail td { padding: 3px 0; border-bottom: 1px dashed var(--trait); vertical-align: top; } details.detail td.n { text-align: right; white-space: nowrap; } details.detail td.t { color: var(--doux); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding-top: 8px; border: 0; }
@@ -102,7 +103,7 @@
 
   function totaux() {
     var est = donnees.estime, sous = 0;
-    est.lignes.forEach(function (l) { if (reponses[l.code] === 'approuve') sous += Number(l.total) || 0; });
+    est.lignes.forEach(function (l) { if (reponses[l.code] === 'approuve' && (l.paiement || 'client') === 'client') sous += Number(l.total) || 0; });
     var z = $('totaux'); z.innerHTML = '';
     var ligne = function (a, b, cls) { var s1 = el('span', cls, a), s2 = el('span', cls, b); z.appendChild(s1); z.appendChild(s2); };
     ligne('Travaux approuvés', argent(sous));
@@ -125,7 +126,9 @@
       if (l.etat === 'approuve' || l.etat === 'refuse') reponses[l.code] = l.etat;
       var t = el('div', 'travail'), haut = el('div', 'haut');
       var lib = el('div', 'lib', (k + 1) + '. ' + l.libelle); var prio = el('span', 'prio ' + (l.urgence || 'recommande'), l.urgenceLibelle || PRIO[l.urgence] || PRIO.recommande); lib.appendChild(prio);
-      haut.appendChild(lib); haut.appendChild(el('div', 'prix', l.total ? argent(l.total) : 'Sur devis')); t.appendChild(haut);
+      var couvert = (l.paiement === 'garantie' || l.paiement === 'interne');
+      if (couvert) lib.appendChild(el('span', 'prio couvert', l.paiementLibelle || (l.paiement === 'garantie' ? 'Couvert par la garantie' : 'Sans frais')));
+      haut.appendChild(lib); haut.appendChild(el('div', 'prix' + (couvert ? ' couvert' : ''), couvert ? '0,00 $' : (l.total ? argent(l.total) : 'Sur devis'))); t.appendChild(haut);
       if (l.description) t.appendChild(el('div', 'desc', l.description));
       var hasDetail = (l.mo && (l.mo.montant || l.mo.heures)) || (l.pieces && l.pieces.length) || (l.frais && l.frais.length);
       if (hasDetail && !est.regrouper) {

@@ -98,6 +98,10 @@
   /* ------------------------------ Données ------------------------------ */
   var cache = { liste: null, le: 0, promesse: null, fiches: {} };
   var DUREE_CACHE_MS = 3 * 60000;
+  // Un script déployé sans les routes des soumissions répond comme l'ancien traitement d'inventaire ({ ok, vehicules }) :
+  // on le dit clairement plutôt que d'afficher « Aucune soumission » (leçon du 21 oct. : RoutesAjout.gs écrasé par un onglet périmé).
+  var SCRIPT_PAS_A_JOUR = 'Le script n\'est pas à jour : redéployez-le avec Soumission.gs et RoutesAjout.gs (version du 21 octobre).';
+  function verifierScript(d) { if (d && d.ok && !d.soumission && !d.id && Array.isArray(d.vehicules)) throw new Error(SCRIPT_PAS_A_JOUR); }
   AMX.soumission = {
     charger: function (force) {
       if (!force && cache.liste && Date.now() - cache.le < DUREE_CACHE_MS) return Promise.resolve(cache.liste);
@@ -106,7 +110,9 @@
         cache.promesse = null;
         if (!d || d.refuse) { var e = new Error((d && (d.erreur || d.message)) || 'Accès refusé.'); e.refuse = true; throw e; }
         if (!d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
-        cache.liste = d.soumissions || []; cache.le = Date.now(); cache.duCache = false;
+        // Un script déployé sans Soumission.gs / RoutesAjout.gs renvoie l'inventaire ({ ok, vehicules }) au lieu de la liste.
+        if (!Array.isArray(d.soumissions)) throw new Error(SCRIPT_PAS_A_JOUR);
+        cache.liste = d.soumissions; cache.le = Date.now(); cache.duCache = false;
         reglages.voitInvoice = !!d.voitInvoice; reglages.peutEcrire = !!d.peutEcrire;
         if (d.taxes) reglages.taxes = d.taxes; if (d.provinces) reglages.provinces = d.provinces;
         try { document.dispatchEvent(new CustomEvent('amx:soumissions')); } catch (e) {}
@@ -131,6 +137,7 @@
       return AMX.get({ soumission: 1, id: id }, { secours: false }).then(function (d) {
         if (!d || d.refuse) { var e = new Error((d && (d.erreur || d.message)) || 'Accès refusé.'); e.refuse = true; throw e; }
         if (!d.ok) throw new Error((d && (d.erreur || d.message)) || 'Soumission introuvable.');
+        if (!d.soumission) throw new Error(SCRIPT_PAS_A_JOUR);
         reglages.voitInvoice = !!d.voitInvoice; reglages.peutEcrire = !!d.peutEcrire;
         if (d.taxes) reglages.taxes = d.taxes; if (d.provinces) reglages.provinces = d.provinces;
         cache.fiches[id] = { donnees: d, le: Date.now() };
@@ -139,13 +146,13 @@
     },
     enregistrer: function (corps) {
       return AMX.post(Object.assign({ action: 'soumissionEnregistrer' }, corps), { rejouer: true }).then(function (d) {
-        AMX.verifier(d, 'Soumission non enregistrée');
+        AMX.verifier(d, 'Soumission non enregistrée'); verifierScript(d);
         var s = d.soumission; if (s) { poserDansListe(s); if (cache.fiches[s.id]) cache.fiches[s.id].donnees.soumission = s; }
         return d;
       });
     },
-    dupliquer: function (id) { return AMX.post({ action: 'soumissionDupliquer', id: id }).then(function (d) { AMX.verifier(d, 'Copie impossible'); if (d.soumission) poserDansListe(d.soumission); return d; }); },
-    supprimer: function (id) { return AMX.post({ action: 'soumissionSupprimer', id: id }, { rejouer: true }).then(function (d) { AMX.verifier(d, 'Suppression impossible'); if (cache.liste) cache.liste = cache.liste.filter(function (s) { return s.id !== id; }); delete cache.fiches[String(id).toUpperCase()]; return d; }); },
+    dupliquer: function (id) { return AMX.post({ action: 'soumissionDupliquer', id: id }).then(function (d) { AMX.verifier(d, 'Copie impossible'); verifierScript(d); if (d.soumission) poserDansListe(d.soumission); return d; }); },
+    supprimer: function (id) { return AMX.post({ action: 'soumissionSupprimer', id: id }, { rejouer: true }).then(function (d) { AMX.verifier(d, 'Suppression impossible'); verifierScript(d); if (cache.liste) cache.liste = cache.liste.filter(function (s) { return s.id !== id; }); delete cache.fiches[String(id).toUpperCase()]; return d; }); },
     // Nombre de soumissions ouvertes (brouillon, envoyée) de la concession choisie — compteur de l'onglet.
     compteur: function () { var l = cache.liste; if (!l) return ''; var c = AMX.compagnieChoisie('inventaire'); return l.filter(function (s) { return (!c || s.compagnie === c) && (s.statut === 'brouillon' || s.statut === 'envoyee'); }).length; },
     calculer: calculer, STATUTS: STATUTS, TAXES: TAXES_DEFAUT,

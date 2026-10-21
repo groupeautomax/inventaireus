@@ -151,7 +151,9 @@
         var n = 0, charge = false;
         Object.keys(FEUILLES).forEach(function (id) { var l = AMX.inventaire.enCache(FEUILLES[id].feuille); if (l) { charge = true; n += l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; }).length; } });
         return charge ? n : '';
-      } }
+      } },
+      // 21 oct. : soumissions de neufs bâtis dans GM AutoBook PRO (assets/soumission.js) — compteur = ouvertes (brouillon, envoyée).
+      { id: 'soumissions', titre: 'Soumissions', compteur: function () { return AMX.soumission && AMX.soumission.compteur ? AMX.soumission.compteur() : ''; } }
     ],
     monter: function (conteneur, ctx) { return new VueInventaire(conteneur, ctx); }
   });
@@ -165,13 +167,14 @@
     if (this.enfant && this.enfant.demonter) { try { this.enfant.demonter(); } catch (e) {} }
     AMX.vider(this.conteneur);
     if (ctx.onglet === 'neufs' && AMX.neufs && AMX.neufs.monter) { this.type = 'neufs'; this.enfant = AMX.neufs.monter(this.conteneur, ctx); return; }
+    if (ctx.onglet === 'soumissions' && AMX.soumission && AMX.soumission.monter) { this.type = 'soumissions'; this.enfant = AMX.soumission.monter(this.conteneur, ctx); return; }
     this.type = 'usage';
     var reg = registreDemande(ctx);
     AMX.memo.ecrire('inv_registre', reg);
     this.enfant = new Registre(this.conteneur, { onglet: reg, params: ctx.params || {} });
   };
   VueInventaire.prototype.naviguer = function (ctx) {
-    var type = ctx.onglet === 'neufs' ? 'neufs' : 'usage';
+    var type = ctx.onglet === 'neufs' ? 'neufs' : (ctx.onglet === 'soumissions' ? 'soumissions' : 'usage');
     if (type !== this.type) { this.monterEnfant(ctx); return; }
     if (type === 'usage') { var reg = registreDemande(ctx); AMX.memo.ecrire('inv_registre', reg); if (this.enfant.naviguer) this.enfant.naviguer({ onglet: reg, params: ctx.params || {} }); return; }
     if (this.enfant && this.enfant.naviguer) this.enfant.naviguer(ctx);

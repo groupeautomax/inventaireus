@@ -224,7 +224,7 @@
     if (!d) return;
     var n = d.compte || {}, total = d.ventes.length;
     var copie = cache.copieLe ? 'Copie du ' + AMX.copieTexte(cache.copieLe) + ' — mise à jour en cours… · ' : '';
-    this.elSous.textContent = copie + (total ? total + ' vente' + (total > 1 ? 's' : '') + (n.declaree ? ' · ' + n.declaree + ' à compléter' : '') + (n.comptabilisee ? ' · ' + n.comptabilisee + ' comptabilisée' + (n.comptabilisee > 1 ? 's' : '') : '') + (n.erreurLivre ? ' · ' + n.erreurLivre + ' pas au livre' : '') : 'Aucune vente déclarée pour cette période.') + (d.relu && d.relu.le && !d.relu.duCache ? ' · livre relu à ' + AMX.fmtDate(d.relu.le, true).split(' ').pop() : '');
+    this.elSous.textContent = copie + (total ? total + ' vente' + (total > 1 ? 's' : '') + (n.declaree ? ' · ' + n.declaree + ' à compléter' : '') + (n.comptabilisee ? ' · ' + n.comptabilisee + ' comptabilisée' + (n.comptabilisee > 1 ? 's' : '') : '') + (n.erreurLivre ? ' · ' + n.erreurLivre + ' pas au livre' : '') : 'Aucune vente déclarée pour cette période.') + (d.relu && d.relu.le && !d.relu.duCache ? ' · livre relu à ' + AMX.fmtDate(d.relu.le, true).replace(/^\S+\s/, '') : '');
     if (!cache.copieLe && cache.cle && cache.cle.split('|')[0] !== this.compagnie) { /* la réponse est d'une autre concession : on attend */ }
     AMX.vider(this.elKpis);
     var kpi = function (etat, libelle, valeur, cls) {

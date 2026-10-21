@@ -472,10 +472,14 @@
     // Historique Torque du NIV (archive des évaluations importées de Torque) : rempli par AMX.torqueHistorique.
     this.elTorque = h('div.eval-sous-vehicule#eval-torque');
     this.torqueVin = '';
+    // Vente où ce véhicule a servi d'échange (Livre des ventes, 21 oct.) : rempli par rendreVenteEchange.
+    this.elEchange = h('div.eval-sous-vehicule#eval-vente-echange');
+    this.echangeVin = '';
     var vehicule = h('div.carte#sec-vehicule', [h('div.carte-corps', [
       h('div.grille.eval-grille-vehicule', [cNiv.el, cAnnee.el, cMarque.el, cModele.el, cVersion.el, cKm.el, cConcession, cTaux.el]),
       h('div.eval-sous-vehicule', [this.elContexte, this.elLiens]),
-      this.elTorque
+      this.elTorque,
+      this.elEchange
     ])]);
 
     // --- Prix : achat + frais = payé ; payé + recon + marge = détail -------
@@ -998,6 +1002,32 @@
     AMX.openlaneBloc(vin, zone, { km: km || undefined, auto: true, source: 'evaluation', compagnie: cie, previsionComplete: true }).then(function (r) { if (self.openlaneVin !== cle) return; if (!r && !zone.childNodes.length) zone.appendChild(h('span.doux.petit', 'Rien de lu pour ce NIV.')); }).catch(function () {});
   };
 
+  // Vente où ce véhicule a servi d'échange (21 oct., Maxime) : ?venteVin=NIV renvoie aussi `echanges` (Vente.gs).
+  // Sans vente liée (ou script d'avant), rien ne s'affiche.
+  Evaluation.prototype.rendreVenteEchange = function (vin) {
+    var self = this, el = this.elEchange;
+    AMX.vider(el);
+    AMX.get({ venteVin: vin }, { essais: 1 }).then(function (d) {
+      if (self.echangeVin !== vin) return;
+      AMX.vider(el);
+      ((d && d.ok && d.echanges) || []).forEach(function (v) {
+        var annulee = v.statut === 'annulee';
+        var vendu = v.vehicule || 'véhicule';
+        var texte = 'Pris en échange le ' + (v.dateVente ? AMX.fmtDate(v.dateVente) : '—') + ' — vente ' + v.id + ' : ' + vendu + (v.client ? ' à ' + v.client : '') + (v.conseiller ? ' (' + v.conseiller + ')' : '');
+        var chiffres = [];
+        if (v.echangeValeur !== undefined && v.echangeValeur !== null && v.echangeValeur !== '') chiffres.push('valeur accordée ' + fmt(nombre(v.echangeValeur)));
+        if (v.echangeEvaluation !== undefined && v.echangeEvaluation !== null && v.echangeEvaluation !== '') chiffres.push('évaluation ' + fmt(nombre(v.echangeEvaluation)));
+        if (v.overUnder !== undefined && v.overUnder !== null && v.overUnder !== '') chiffres.push('over / under ' + fmt(nombre(v.overUnder)));
+        el.appendChild(h('div.eval-torque-historique', [
+          h('span.badge.sans-point.' + (annulee ? 'gris' : 'vert'), { text: annulee ? 'Échange · vente annulée' : 'Échange', title: 'Ce véhicule a été pris en échange dans cette vente (Livre des ventes)' }),
+          h('span', { text: texte }),
+          chiffres.length ? h('span', { text: chiffres.join(' · ') }) : null,
+          h('a', { href: AMX.lien('vente', 'ventes', { id: v.id }), text: 'Ouvrir la vente' })
+        ]));
+      });
+    }).catch(function () {});
+  };
+
   Evaluation.prototype.rendreLiens = function () {
     var vin = (this.elNiv.value || '').trim().toUpperCase();
     var vinOk = /^[A-HJ-NPR-Z0-9]{17}$/.test(vin);
@@ -1023,6 +1053,9 @@
     // Historique Torque : une requête par NIV, seulement quand il change.
     if (vinOk && this.torqueVin !== vin && typeof AMX.torqueHistorique === 'function') { this.torqueVin = vin; AMX.torqueHistorique(vin, this.elTorque); }
     else if (!vinOk && this.torqueVin) { this.torqueVin = ''; AMX.vider(this.elTorque); }
+    // Vente où ce véhicule a servi d'échange : une requête par NIV, seulement quand il change.
+    if (vinOk && this.echangeVin !== vin) { this.echangeVin = vin; this.rendreVenteEchange(vin); }
+    else if (!vinOk && this.echangeVin) { this.echangeVin = ''; AMX.vider(this.elEchange); }
     if (this.elExport && (vin || this.vinCourant) !== this.vinExport) { this.vinExport = vin || this.vinCourant; this.rendreExport(); }
   };
 

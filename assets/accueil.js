@@ -23,7 +23,7 @@
   /* 21 oct. (Maxime : « 6 grosses tuiles — Vente, Inventaire, Relance, Service après-vente, Outils et Aide ») : une tuile par
      section de la barre (app.js, TUILES) ; les anciennes sections absorbées gardent leur résumé pour la page de départ. */
   var RESUMES = {
-    vente: 'Offres reçues, véhicules en vente, acheteurs externes, soumissions de neufs, échanges entre concessions, résultats.',
+    vente: 'Livre des ventes (inscription, F&I, récapitulatif), offres reçues, véhicules en vente, acheteurs externes, soumissions de neufs, échanges entre concessions, résultats.',
     inventaire: 'Neufs (DMS et manufacturier, détail et flotte), usagé (É.-U., Canada, Detail), fiche d\'achat, évaluations.',
     relance: 'Équité des clients financés, leads, avis Google et sondages, CSI.',
     service: 'Suivi du reconditionnement (autorisation, bons de travail, livraison), rendez-vous, textos du service.',

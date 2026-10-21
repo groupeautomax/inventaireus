@@ -187,7 +187,8 @@
     var lues = this.compagniesLues().filter(function (c) { return !self.compagnie || c === self.compagnie; });
     if (!lues.length && !this.sondagesVisibles().length) {
       this.elEtat.textContent = 'Aucune lecture du CSI pour l\'instant' + (this.compagnie ? ' — ' + nomCie(this.compagnie) : '') + '.';
-      this.elVide.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Pas encore de données CSI'), h('div', { text: 'Ouvrez le site CSI du constructeur (bouton en haut : BoostCX pour Hyundai, ISC InMoment pour GM), connecté, et cliquez-y le favori « Automax ← Constructeur » — il se trouve dans Inventaire › Neufs › Portail du constructeur. Les scores, le composite de la marque et les sondages arrivent ici en une à trois minutes.' })]));
+      this.rendreSites();   /* le lien du site CSI et le favori BMW servent justement à faire la première lecture */
+      this.elVide.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Pas encore de données CSI'), h('div', { text: 'Ouvrez le site CSI du constructeur (bouton en haut : BoostCX pour Hyundai, ISC InMoment pour GM, Forsta pour BMW), connecté, et cliquez-y le favori « Automax ← Constructeur » — il se trouve dans Inventaire › Neufs › Portail du constructeur. Pour BMW, c\'est le favori « Automax ← CSI BMW » (bouton en haut, à glisser dans la barre de favoris) : Forsta bloque l\'autre. Les scores, le composite de la marque et les sondages arrivent ici en une à trois minutes.' })]));
       [this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elSondages].forEach(function (el) { AMX.vider(el); el.classList.add('cache'); });
       return;
     }

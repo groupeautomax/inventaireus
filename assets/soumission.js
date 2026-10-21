@@ -21,8 +21,14 @@
    POST catalogueImporter, catalogueSupprimer). Le site BÂTIT ensuite sans AutoBook (?batir=1) : année →
    marque → modèle → style, options cochées (catégories à choix unique = celles où un seul choix est
    fait par défaut), total PDSF / Invoice en direct → POST soumissionBatir → la fiche habituelle.
-   Limite assumée : les règles de compatibilité d'AutoBook (telle option exige / exclut telle autre)
-   ne sont pas copiées ; les statuts par défaut (inclus, requis, exclu) le sont.
+   RÈGLES SAISIES PAR NOUS (21 oct., 09 h 21 — la lecture automatique des règles dans AutoBook a été
+   refusée par le garde-fou de Claude ; Maxime : « 2 » = règles saisies par nous) : feuille
+   CatalogueRegles (Catalogue.gs), carte « Règles de compatibilité » dans Bâtir — code source,
+   type (exige / exclut / inclut / une seule parmi), cibles, portée (ce style ou tout le modèle),
+   note. Moteur appliquerRegles = CAT_appliquer_ du script : statuts de départ lus dans AutoBook,
+   puis les actions de l'utilisateur dans l'ordre ; groupes « une seule » implicites (catégorie où
+   une seule option est choisie par défaut) + règles « unique ». Bâtir envoie `actions` (ordonnées)
+   au serveur, qui rejoue le même moteur.
    Les montants Invoice n'arrivent que pour les comptes qui modifient les montants, les
    gestionnaires / admins et ceux qui voient les résultats (comme les coûts des neufs). */
 (function () {
@@ -106,6 +112,8 @@
       '.so-batir-opts tr.choix td.coche { width: 30px; } .so-batir-opts tr.choix input { width: 16px; height: 16px; } .so-batir-opts tr.choix.off td { color: var(--encre-4); } .so-batir-opts tr.choix.on td.desc { font-weight: 600; } .so-batir-opts tr.cat td .unique { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--encre-3); margin-left: 8px; }',
       '.so-recap .so-l { padding: 7px 12px; } .so-recap .champ { padding: 8px 12px; border-top: 1px dashed var(--ligne); } .so-recap .champ label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--encre-3); margin-bottom: 4px; } .so-recap .champ input.saisie, .so-recap .champ select.saisie { width: 100%; height: 32px; } .so-recap .actions { padding: 12px; display: flex; flex-direction: column; gap: 8px; } .so-recap .actions .btn { justify-content: center; }',
       '.so-cat-table .tableau td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } .so-cat-table tr.marque td { background: var(--carte-2); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; } .so-cat-table td .sous { font-size: 11.5px; color: var(--encre-3); }',
+      '.so-regles table { width: 100%; border-collapse: collapse; font-size: 12.5px; } .so-regles td, .so-regles th { padding: 6px 8px; border-bottom: 1px solid var(--ligne); vertical-align: top; text-align: left; } .so-regles th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); } .so-regles td.code { font-family: var(--mono); white-space: nowrap; } .so-regles .portee { font-size: 11px; color: var(--encre-3); } .so-regles-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; align-items: end; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--ligne); } .so-regles-form label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--encre-3); margin-bottom: 4px; } .so-regles-form select.saisie, .so-regles-form input.saisie { width: 100%; height: 32px; } .so-regles-form .pleine { grid-column: 1 / -1; } .so-regles-form select[multiple] { height: 110px; } .so-regles .vide-regles { color: var(--encre-3); font-size: 12.5px; }',
+      '.so-batir-opts tr.choix.regle td.desc::after { content: " · règle"; font-size: 10.5px; color: var(--ambre); font-weight: 400; }',
       '@media (max-width: 960px) { .so-batir { grid-template-columns: 1fr; } .so-batir .colonne-droite { position: static; } }',
       '@media (max-width: 720px) { .so-l { grid-template-columns: minmax(0, 1fr) 120px; } .so-ajouts .ajout { grid-template-columns: minmax(0, 1fr) 90px 100px 28px; } }'
     ].join('\n');
@@ -771,10 +779,10 @@
     var f = stylesFiltres(l, this.rechercheCat), inv = voitInvoice();
     this.elCompteCat.textContent = f.length + ' style' + (f.length > 1 ? 's' : '') + (f.length !== l.length ? ' sur ' + l.length : '');
     if (!f.length) { this.elCatTable.appendChild(h('div.vide', [h('div', { html: I.achat }), h('h3', l.length ? 'Rien avec cette recherche' : 'Catalogue vide'), h('div', l.length ? 'Essayez un autre mot.' : 'Le favori « catalogue » (ci-dessus) remplit la première ligne.')])); return; }
-    var thead = h('thead', [h('tr', [h('th', 'Année'), h('th', 'Modèle'), h('th', 'Style'), h('th', 'Code'), h('th', 'Mode'), h('th.num', 'PDSF base'), h('th.num', 'Transport'), inv ? h('th.num', 'Invoice base') : null, h('th.num', 'Options'), h('th', 'Prix du'), h('th', 'Lu'), h('th', '')])]);
+    var thead = h('thead', [h('tr', [h('th', 'Année'), h('th', 'Modèle'), h('th', 'Style'), h('th', 'Code'), h('th', 'Mode'), h('th.num', 'PDSF base'), h('th.num', 'Transport'), inv ? h('th.num', 'Invoice base') : null, h('th.num', 'Options'), h('th.num', 'Règles'), h('th', 'Prix du'), h('th', 'Lu'), h('th', '')])]);
     var tbody = h('tbody'), marqueCourante = null;
     f.forEach(function (s) {
-      if (s.marque !== marqueCourante) { marqueCourante = s.marque; tbody.appendChild(h('tr.marque', [h('td', { colspan: inv ? 12 : 11, text: s.marque })])); }
+      if (s.marque !== marqueCourante) { marqueCourante = s.marque; tbody.appendChild(h('tr.marque', [h('td', { colspan: inv ? 13 : 12, text: s.marque })])); }
       var actions = [h('a.btn.petit.primaire', { href: AMX.lien('inventaire', 'soumissions', { batir: 1, style: s.id }), text: 'Bâtir' })];
       if (r.peutSupprimer) actions.push(h('button.btn.petit', { type: 'button', text: 'Retirer', onclick: function () {
         AMX.confirmer('Retirer ce style du catalogue ?', s.vehicule || (s.annee + ' ' + s.marque + ' ' + s.modele + ' ' + s.style), { danger: 'Retirer' }).then(function (oui) {
@@ -792,6 +800,7 @@
         h('td.num', { text: fmt(s.pdsfDest) }),
         inv ? h('td.num', { text: fmt(s.invBase) }) : null,
         h('td.num', { text: String(num0(s.nbOptions)) }),
+        h('td.num', { text: String(num0(s.nbRegles)) }),
         h('td', { text: s.datePrix || '—' }),
         h('td', { text: s.luLe ? AMX.fmtDateCourte(s.luLe) : '—', title: (s.luLe ? AMX.fmtDate(s.luLe, true) : '') + (s.luPar ? ' par ' + s.luPar : '') }),
         h('td', { style: { whiteSpace: 'nowrap' } }, actions)
@@ -801,16 +810,67 @@
   };
 
   /* ----------------------------- Bâtir depuis le catalogue ------------------------------ */
-  function categorieUnique(options) {
-    /* Choix unique (peinture, roues, sellerie, moteur…) : la catégorie a au moins deux options et exactement une choisie par défaut. */
-    var n = 0, choisies = 0;
-    options.forEach(function (o) { if (!o.code || o.code === '___') return; n++; if (o.statut === 'selected') choisies++; });
-    return n >= 2 && choisies === 1;
+  /* ---- Le moteur des règles (= CAT_appliquer_ dans Catalogue.gs) ---- */
+  var TYPES_REGLE = { exige: 'exige (requis)', exclut: 'exclut', inclut: 'inclut', unique: 'une seule parmi' };
+  function cibleNormale(x) { x = String(x || '').trim(); return /^cat:/i.test(x) ? 'cat:' + x.slice(4).trim().toUpperCase() : x.toUpperCase(); }
+  function ciblesDe(r) { return (Array.isArray(r.cibles) ? r.cibles : String(r.cibles || '').split(/[,;\n]+/)).map(cibleNormale).filter(Boolean); }
+  function verrouille(s) { return s === 'included' || s === 'required' || s === 'excluded' || s === 'varies'; }
+  function groupesUniques(options, regles) {
+    var groupes = [], parCat = {};
+    options.forEach(function (o) { if (!o.code || o.code === '___') return; var c = String(o.categorie || '').toUpperCase(); (parCat[c] = parCat[c] || []).push(o); });
+    Object.keys(parCat).forEach(function (c) { var l = parCat[c]; if (l.length >= 2 && l.filter(function (o) { return o.statut === 'selected'; }).length === 1) groupes.push(l.map(function (o) { return String(o.code).toUpperCase(); })); });
+    (regles || []).forEach(function (r) {
+      if (r.type !== 'unique') return;
+      var codes = [];
+      ciblesDe(r).forEach(function (x) { if (/^cat:/.test(x)) { (parCat[x.slice(4)] || []).forEach(function (o) { codes.push(String(o.code).toUpperCase()); }); } else codes.push(x); });
+      if (codes.length >= 2) groupes.push(codes);
+    });
+    return groupes;
   }
+  function appliquerRegles(options, regles, actions) {
+    var actifs = (actions || []).slice(), index = {};
+    options.forEach(function (o, i) { var k = String(o.code || '').toUpperCase(); if (k && k !== '___' && index[k] === undefined) index[k] = i; });
+    for (var tour = 0; tour < 5; tour++) {
+      var st = appliquerPasse(options, regles, actifs, index);
+      var restants = actifs.filter(function (a) { var i = index[String(a && a.code || '').toUpperCase()]; return String(a.action) === 'unselected' || i === undefined || st[i] === 'selected'; });
+      if (restants.length === actifs.length) return st;
+      actifs = restants;
+    }
+    return appliquerPasse(options, regles, actifs, index);
+  }
+  function appliquerPasse(options, regles, actions, index) {
+    var statuts = options.map(function (o) { return String(o.statut || 'unselected'); }), defauts = statuts.slice();
+    var groupes = groupesUniques(options, regles);
+    (actions || []).forEach(function (a) {
+      var k = String(a && a.code || '').toUpperCase(), i = index[k];
+      if (i === undefined || verrouille(statuts[i])) return;
+      if (String(a.action) === 'unselected') { statuts[i] = 'unselected'; return; }
+      statuts[i] = 'selected';
+      groupes.forEach(function (g) { if (g.indexOf(k) < 0) return; g.forEach(function (c) { var j = index[c]; if (j !== undefined && j !== i && statuts[j] === 'selected') statuts[j] = 'unselected'; }); });
+      (regles || []).forEach(function (r) {
+        if (r.type === 'unique' || String(r.code || '').toUpperCase() !== k) return;
+        var statut = r.type === 'exige' ? 'required' : (r.type === 'exclut' ? 'excluded' : 'included');
+        ciblesDe(r).forEach(function (c) { var j = index[c]; if (j === undefined || j === i || verrouille(defauts[j])) return; statuts[j] = statut; });
+      });
+    });
+    return statuts;
+  }
+  AMX.catalogue.appliquerRegles = appliquerRegles;
+  AMX.catalogue.regles = function (annee, marque, modele) {
+    return AMX.get({ catalogueRegles: 1, annee: annee, marque: marque, modele: modele }, { secours: false }).then(function (d) {
+      if (!d || d.refuse) { var e = new Error((d && (d.erreur || d.message)) || 'Accès refusé.'); e.refuse = true; throw e; }
+      if (!d.ok) throw new Error((d && (d.erreur || d.message)) || 'Règles indisponibles');
+      if (!Array.isArray(d.regles)) throw new Error(SCRIPT_PAS_A_JOUR);
+      return d.regles;
+    });
+  };
+  AMX.catalogue.regleEnregistrer = function (r) { return AMX.post(Object.assign({ action: 'catalogueRegle' }, r)).then(function (d) { AMX.verifier(d, 'Règle non enregistrée'); verifierScript(d); if (!d.regle) throw new Error(SCRIPT_PAS_A_JOUR); catalogue.styles = {}; return d.regle; }); };
+  AMX.catalogue.regleSupprimer = function (id) { return AMX.post({ action: 'catalogueRegleSupprimer', id: id }, { rejouer: true }).then(function (d) { AMX.verifier(d, 'Règle non retirée'); verifierScript(d); catalogue.styles = {}; return d; }); };
+
   VueSoumissions.prototype.montrerBatir = function (p) {
     var self = this;
     this.mode = 'batir'; this.fiche = null;
-    this.batir = { styleId: p && p.style ? String(p.style).toUpperCase() : '', annee: '', marque: '', modele: '', detail: null, coches: {}, compagnie: AMX.compagnieChoisie('inventaire') || (AMX.codesPour('inventaire')[0] || ''), titre: '', client: '', recherche: '', toutes: false };
+    this.batir = { styleId: p && p.style ? String(p.style).toUpperCase() : '', annee: '', marque: '', modele: '', detail: null, regles: [], actions: [], compagnie: AMX.compagnieChoisie('inventaire') || (AMX.codesPour('inventaire')[0] || ''), titre: '', client: '', recherche: '', toutes: false, reglesOuvertes: false, regleForm: null };
     AMX.vider(this.el);
     this.elEtat = h('p', { text: 'Choisissez l\'année, la marque, le modèle et le style, cochez les options : le prix se calcule en direct.' });
     this.el.appendChild(h('div.entete-page', [
@@ -820,9 +880,10 @@
     this.elChoix = h('div.so-choix');
     this.elStyleInfo = h('div.so-style-info');
     this.elBatirOpts = h('div.so-options.so-batir-opts');
+    this.elRegles = h('div.so-regles');
     this.elRecap = h('div.so-recap');
     this.el.appendChild(h('div.so-batir', [
-      h('div', [h('div.carte', [h('div.carte-corps', [this.elChoix, this.elStyleInfo])]), h('div.carte', [h('div.carte-corps', [this.elBatirOpts])])]),
+      h('div', [h('div.carte', [h('div.carte-corps', [this.elChoix, this.elStyleInfo])]), h('div.carte', [h('div.carte-corps', [this.elBatirOpts])]), h('div.carte', [h('div.carte-corps', [this.elRegles])])]),
       h('div.colonne-droite', [h('div.carte.so-col', [h('h3', [h('span', 'Soumission'), h('span.badge.sans-point.gris', 'en direct')]), this.elRecap])])
     ]));
     this.catalogueListe = AMX.catalogue.enCache();
@@ -844,6 +905,7 @@
     l.forEach(function (s) { if (!b.annee || String(s.annee) === b.annee) marques[s.marque] = 1; });
     l.forEach(function (s) { if ((!b.annee || String(s.annee) === b.annee) && (!b.marque || s.marque === b.marque)) modeles[s.modele] = 1; });
     l.forEach(function (s) { if ((!b.annee || String(s.annee) === b.annee) && (!b.marque || s.marque === b.marque) && (!b.modele || s.modele === b.modele)) styles.push(s); });
+    if (!b.styleId) this.rendreRegles();
     var sel = function (id, lib, valeurs, valeur, vide, onchange) {
       var s = h('select.saisie#' + id, { onchange: function (e) { onchange(e.target.value); } }, [h('option', { value: '', text: vide })].concat(valeurs.map(function (v) { return h('option', { value: v[0], text: v[1], selected: v[0] === valeur }); })));
       return h('div', [h('label', { text: lib }), s]);
@@ -851,13 +913,15 @@
     this.elChoix.appendChild(sel('so-b-annee', 'Année', Object.keys(annees).sort().reverse().map(function (a) { return [a, a]; }), b.annee, 'Toutes', function (v) { b.annee = v; b.marque = ''; b.modele = ''; b.styleId = ''; b.detail = null; self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
     this.elChoix.appendChild(sel('so-b-marque', 'Marque', Object.keys(marques).sort().map(function (m) { return [m, m]; }), b.marque, 'Choisir…', function (v) { b.marque = v; b.modele = ''; b.styleId = ''; b.detail = null; self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
     this.elChoix.appendChild(sel('so-b-modele', 'Modèle', Object.keys(modeles).sort().map(function (m) { return [m, m]; }), b.modele, 'Choisir…', function (v) { b.modele = v; b.styleId = ''; b.detail = null; var seuls = l.filter(function (s) { return (!b.annee || String(s.annee) === b.annee) && (!b.marque || s.marque === b.marque) && s.modele === v; }); if (seuls.length === 1) { b.styleId = seuls[0].id; self.chargerStyle(seuls[0].id); } self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
-    this.elChoix.appendChild(sel('so-b-style', 'Style', styles.map(function (s) { return [s.id, (s.style || s.codeStyle) + (s.codeStyle ? ' (' + s.codeStyle + ')' : '') + ' — ' + fmt(s.pdsfBase) + (b.modele ? '' : ' · ' + s.annee + ' ' + s.marque + ' ' + s.modele)]; }), b.styleId, b.modele ? 'Choisir…' : 'Choisissez d\'abord le modèle', function (v) { b.styleId = v; b.detail = null; b.coches = {}; if (v) self.chargerStyle(v); self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
+    this.elChoix.appendChild(sel('so-b-style', 'Style', styles.map(function (s) { return [s.id, (s.style || s.codeStyle) + (s.codeStyle ? ' (' + s.codeStyle + ')' : '') + ' — ' + fmt(s.pdsfBase) + (b.modele ? '' : ' · ' + s.annee + ' ' + s.marque + ' ' + s.modele)]; }), b.styleId, b.modele ? 'Choisir…' : 'Choisissez d\'abord le modèle', function (v) { b.styleId = v; b.detail = null; b.actions = []; if (v) self.chargerStyle(v); self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
     if (courant) {
       this.elStyleInfo.appendChild(h('span', ['Style : ', h('b', { text: courant.vehicule || (courant.annee + ' ' + courant.marque + ' ' + courant.modele + ' ' + courant.style) })]));
       this.elStyleInfo.appendChild(h('span', ['PDSF de base : ', h('b', { text: fmt(courant.pdsfBase) })]));
       this.elStyleInfo.appendChild(h('span', ['Transport : ', h('b', { text: fmt(courant.pdsfDest) })]));
       if (courant.datePrix) this.elStyleInfo.appendChild(h('span', ['Prix du ', h('b', { text: courant.datePrix })]));
       if (courant.luLe) this.elStyleInfo.appendChild(h('span', { text: 'lu dans AutoBook le ' + AMX.fmtDate(courant.luLe) }));
+      var nr = b.regles ? b.regles.length : num0(courant.nbRegles);
+      this.elStyleInfo.appendChild(h('span', ['Règles de compatibilité : ', h('b', { text: String(nr) }), nr ? '' : ' (aucune — à saisir ci-dessous)']));
     }
   };
   VueSoumissions.prototype.chargerStyle = function (id) {
@@ -867,27 +931,40 @@
       if (gen !== self.generation || self.mode !== 'batir' || self.batir.styleId !== id) return;
       self.batir.detail = d.detail || { options: [], equipement: [], specs: [] };
       self.batir.styleObj = d.style;
-      self.batir.coches = {};
-      (self.batir.detail.options || []).forEach(function (o) { if (o.code && o.code !== '___' && o.statut === 'selected') self.batir.coches[String(o.code).toUpperCase()] = true; });
-      self.rendreOptionsBatir(); self.rendreRecap();
+      self.batir.regles = Array.isArray(d.regles) ? d.regles : [];
+      self.batir.actions = [];
+      self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRegles(); self.rendreRecap();
     }).catch(function (e) {
       if (gen !== self.generation || self.mode !== 'batir') return;
       AMX.vider(self.elBatirOpts); self.elBatirOpts.appendChild(h('div.vide', [h('h3', 'Style injoignable'), h('div', { text: AMX.erreurTexte(e) })]));
     });
   };
+  /* Statuts finaux du véhicule en cours : défauts AutoBook + actions de l'utilisateur + règles saisies. */
+  VueSoumissions.prototype.statutsBatir = function () {
+    var b = this.batir; if (!b.detail) return [];
+    return appliquerRegles(b.detail.options || [], b.regles || [], b.actions || []);
+  };
   VueSoumissions.prototype.optionsBatirCochees = function () {
-    var b = this.batir; return Object.keys(b.coches).filter(function (k) { return b.coches[k]; });
+    var b = this.batir, st = this.statutsBatir(), out = [];
+    (b.detail && b.detail.options || []).forEach(function (o, i) { if (o.code && o.code !== '___' && /^(selected|included|required|upgraded)$/.test(st[i])) out.push(String(o.code).toUpperCase()); });
+    return out;
+  };
+  VueSoumissions.prototype.basculerOption = function (code, cocher) {
+    var b = this.batir, k = String(code).toUpperCase(), defaut = null;
+    (b.detail.options || []).forEach(function (o) { if (String(o.code).toUpperCase() === k && defaut === null) defaut = o.statut; });
+    b.actions = b.actions.filter(function (a) { return a.code !== k; });
+    if (cocher) b.actions.push({ code: k, action: 'selected' });            /* aussi pour une option choisie par défaut qu'un groupe unique avait décochée */
+    else if (defaut === 'selected') b.actions.push({ code: k, action: 'unselected' });
+    this.rendreOptionsBatir(); this.rendreRecap();
   };
   VueSoumissions.prototype.calculBatir = function () {
     var b = this.batir, s = b.styleObj;
     if (!s || !b.detail) return null;
-    var opts = 0, inv = 0, taxe = 0, taxeInv = 0, n = 0, sansCode = false;
-    (b.detail.options || []).forEach(function (o) {
-      var code = String(o.code || '').toUpperCase(), statut = o.statut;
+    var opts = 0, inv = 0, taxe = 0, taxeInv = 0, n = 0, sansCode = false, st = this.statutsBatir();
+    (b.detail.options || []).forEach(function (o, i) {
+      var statut = st[i];
       if (!o.code || o.code === '___') { sansCode = true; if (optionChoisie(o)) { taxe += num0(o.pdsf); taxeInv += num0(o.invoice); } return; }
-      if (statut === 'excluded' || statut === 'varies') return;
-      var choisie = (statut === 'included' || statut === 'required') ? true : !!b.coches[code];
-      if (!choisie) return;
+      if (!/^(selected|included|required|upgraded)$/.test(statut)) return;
       n++; opts += num0(o.pdsf); inv += num0(o.invoice);
     });
     if (!sansCode) { taxe = num0(s.pdsfTaxe); taxeInv = num0(s.invTaxe); }
@@ -909,12 +986,16 @@
       h('span.compte', { text: (b.detail.options || []).length + ' options lues dans AutoBook' })
     ]);
     this.elBatirOpts.appendChild(outils);
-    var q = String(b.recherche || '').trim().toLowerCase();
-    var options = (b.detail.options || []).filter(function (o) {
-      if (!b.toutes && (o.statut === 'excluded' || o.statut === 'included' || o.statut === 'required' || !o.code || o.code === '___')) return false;
+    var q = String(b.recherche || '').trim().toLowerCase(), st = this.statutsBatir(), toutesOptions = b.detail.options || [];
+    var statutDe = function (o) { return st[toutesOptions.indexOf(o)] || o.statut; };
+    var options = toutesOptions.filter(function (o) {
+      var s = o.statut;
+      if (!b.toutes && (s === 'excluded' || s === 'included' || s === 'required' || !o.code || o.code === '___')) return false;
       if (q && [o.code, o.description, o.categorie].join(' ').toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
+    var groupes = groupesUniques(toutesOptions, b.regles || []), codesRegles = {};
+    (b.regles || []).forEach(function (r) { if (r.code) codesRegles[String(r.code).toUpperCase()] = true; ciblesDe(r).forEach(function (c) { if (!/^cat:/.test(c)) codesRegles[c] = true; }); });
     if (!options.length) { this.elBatirOpts.appendChild(h('div.vide', [h('h3', q ? 'Rien avec cette recherche' : 'Aucune option à choisir'), h('div', q ? 'Essayez un autre mot.' : 'Ce style n\'a que des options incluses ou requises (voir « Toutes »).')])); return; }
     var parCat = {}, ordre = [];
     (b.detail.options || []).forEach(function (o) { var c = o.categorie || 'Options'; if (!parCat[c]) { parCat[c] = []; ordre.push(c); } parCat[c].push(o); });
@@ -923,21 +1004,19 @@
     ordre.forEach(function (cat) {
       var lignes = parCat[cat].filter(function (o) { return options.indexOf(o) >= 0; });
       if (!lignes.length) return;
-      var unique = categorieUnique(parCat[cat]);
+      var codesCat = parCat[cat].map(function (o) { return String(o.code || '').toUpperCase(); });
+      var unique = groupes.some(function (g) { return codesCat.length >= 2 && codesCat.filter(function (c) { return c && c !== '___'; }).every(function (c) { return g.indexOf(c) >= 0; }); });
       tbody.appendChild(h('tr.cat', [h('td', { colspan: inv ? 6 : 5 }, [h('span', { text: cat }), unique ? h('span.unique', '— un seul choix') : null])]));
       lignes.forEach(function (o) {
-        var code = String(o.code || '').toUpperCase(), fixe = o.statut === 'included' || o.statut === 'required' || o.statut === 'excluded' || o.statut === 'varies' || !o.code || o.code === '___';
-        var cochee = fixe ? (o.statut === 'included' || o.statut === 'required' || (!o.code || o.code === '___') && o.statut === 'selected') : !!b.coches[code];
-        var case_ = h('input', { type: unique && !fixe ? 'radio' : 'checkbox', name: unique ? 'so-cat-' + cat.replace(/\W+/g, '-') : null, checked: cochee, disabled: fixe, 'data-code': code, onchange: function (e) {
-          if (unique) { parCat[cat].forEach(function (x) { if (x.code && x.code !== '___' && !(x.statut === 'included' || x.statut === 'required' || x.statut === 'excluded')) b.coches[String(x.code).toUpperCase()] = false; }); }
-          b.coches[code] = e.target.checked;
-          self.rendreOptionsBatir(); self.rendreRecap();
-        } });
+        var code = String(o.code || '').toUpperCase(), statut = statutDe(o);
+        var fixe = verrouille(statut) || !o.code || o.code === '___';
+        var cochee = /^(selected|included|required|upgraded)$/.test(statut);
+        var case_ = h('input', { type: unique && !fixe ? 'radio' : 'checkbox', name: unique ? 'so-cat-' + cat.replace(/\W+/g, '-') : null, checked: cochee, disabled: fixe, 'data-code': code, onchange: function (e) { self.basculerOption(code, e.target.checked); } });
         var desc = String(o.description || ''), parts = desc.split(/\s+-inc:\s*/);
-        tbody.appendChild(h('tr.choix' + (cochee ? '.on' : '') + (fixe && o.statut === 'excluded' ? '.off' : ''), [
+        tbody.appendChild(h('tr.choix' + (cochee ? '.on' : '') + (statut === 'excluded' ? '.off' : '') + (codesRegles[code] ? '.regle' : ''), [
           h('td.coche', [case_]), h('td.code', { text: o.code === '___' ? '—' : o.code }),
           h('td.desc', [h('span', { text: parts[0] }), parts[1] ? h('span.inc', { text: 'inclut : ' + parts.slice(1).join(' ; ') }) : null]),
-          h('td', [badgeOption(fixe ? o.statut : (cochee ? 'selected' : 'unselected'))]),
+          h('td', [badgeOption(statut)]),
           h('td.num', { text: o.varie ? 'varie' : fmt(o.pdsf) }), inv ? h('td.num', { text: fmt(o.invoice) }) : null
         ]));
       });
@@ -963,12 +1042,83 @@
     this.elRecap.appendChild(h('div.champ', [h('label', 'Client (facultatif)'), h('input.saisie#so-b-client', { type: 'text', value: b.client, placeholder: 'Nom, entreprise', oninput: function (e) { b.client = e.target.value; } })]));
     var btn = h('button.btn.primaire#so-b-creer', { type: 'button', text: 'Créer la soumission', disabled: !peutEcrire(), onclick: function () {
       btn.disabled = true; btn.textContent = 'Création…';
-      AMX.catalogue.batir({ styleId: b.styleId, codes: self.optionsBatirCochees(), compagnie: b.compagnie, titre: b.titre, client: b.client }).then(function (d) {
+      AMX.catalogue.batir({ styleId: b.styleId, actions: b.actions.slice(0, 200), codes: self.optionsBatirCochees(), compagnie: b.compagnie, titre: b.titre, client: b.client }).then(function (d) {
         AMX.toast('Soumission ' + d.id + ' créée — ' + fmt(d.pdsfTotal), 'ok');
         AMX.aller('inventaire', 'soumissions', { id: d.id });
       }).catch(function (e) { btn.disabled = false; btn.textContent = 'Créer la soumission'; AMX.toast(AMX.erreurTexte(e), 'erreur'); });
     } });
-    this.elRecap.appendChild(h('div.actions', [btn, h('p.doux', { style: { margin: 0, fontSize: '11.5px' }, text: 'La soumission s\'ouvre ensuite : feuille client / interne, rabais, échange, taxes, PDF. Les règles de compatibilité des options d\'AutoBook ne sont pas vérifiées ici.' })]));
+    this.elRecap.appendChild(h('div.actions', [btn, h('p.doux', { style: { margin: 0, fontSize: '11.5px' }, text: 'La soumission s\'ouvre ensuite : feuille client / interne, rabais, échange, taxes, PDF. Les règles appliquées sont celles saisies ci-dessous (' + (b.regles ? b.regles.length : 0) + ') et les choix uniques par catégorie — pas celles d\'AutoBook.' })]));
+  };
+
+  /* ---- Règles de compatibilité saisies (carte sous les options) ---- */
+  VueSoumissions.prototype.rendreRegles = function () {
+    var self = this, b = this.batir;
+    if (this.mode !== 'batir') return;
+    AMX.vider(this.elRegles);
+    var s = b.styleObj;
+    if (!b.styleId || !s) { this.elRegles.appendChild(h('div.vide-regles', 'Les règles de compatibilité (ce qu\'une option exige, exclut ou inclut) se saisissent ici une fois le style choisi ; elles valent pour le style ou pour tout le modèle.')); return; }
+    var regles = b.regles || [], options = (b.detail && b.detail.options) || [];
+    var libelleCode = function (c) { var o = options.filter(function (x) { return String(x.code).toUpperCase() === c; })[0]; return o ? c + ' — ' + String(o.description).split(/\s+-inc:\s*/)[0] : c; };
+    var tete = h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' } }, [
+      h('div.section-titre', { style: { margin: 0 }, text: 'Règles de compatibilité (' + regles.length + ')' }),
+      h('span.doux', { style: { fontSize: '12px' }, text: 'Saisies par nous, d\'après AutoBook : « exige » rend la cible requise, « exclut » l\'exclut, « inclut » l\'inclut, « une seule parmi » n\'en laisse qu\'une. Les choix uniques évidents (peinture, roues, sellerie) sont déjà appliqués.' }),
+      peutEcrire() ? h('button.btn.petit.primaire', { type: 'button', text: b.regleForm ? 'Fermer le formulaire' : 'Ajouter une règle', style: { marginLeft: 'auto' }, onclick: function () { b.regleForm = b.regleForm ? null : { portee: 'modele', type: 'exige', code: '', cibles: [], note: '' }; self.rendreRegles(); } }) : null
+    ]);
+    this.elRegles.appendChild(tete);
+    if (regles.length) {
+      var tbody = h('tbody');
+      regles.forEach(function (r) {
+        var cibles = ciblesDe(r).map(function (c) { return /^cat:/.test(c) ? 'toute la catégorie ' + c.slice(4) : c; }).join(', ');
+        tbody.appendChild(h('tr', [
+          h('td.code', { text: r.type === 'unique' ? '—' : r.code }),
+          h('td', [h('span.badge.sans-point.' + (r.type === 'exige' ? 'ambre' : r.type === 'exclut' ? 'rouge' : r.type === 'inclut' ? 'bleu' : 'violet'), { text: TYPES_REGLE[r.type] || r.type })]),
+          h('td', { text: cibles }),
+          h('td', [h('span.portee', { text: r.portee === 'style' ? 'ce style (' + (r.codeStyle || '') + ')' : 'tout le ' + r.annee + ' ' + r.marque + ' ' + r.modele })]),
+          h('td', { text: r.note || '' }),
+          h('td', { style: { whiteSpace: 'nowrap' } }, peutEcrire() ? [
+            h('button.btn.petit', { type: 'button', text: 'Modifier', onclick: function () { b.regleForm = { id: r.id, portee: r.portee, type: r.type, code: r.code, cibles: ciblesDe(r), note: r.note || '' }; self.rendreRegles(); } }),
+            h('button.btn.petit', { type: 'button', text: 'Retirer', onclick: function () {
+              AMX.confirmer('Retirer cette règle ?', (r.code ? r.code + ' ' : '') + (TYPES_REGLE[r.type] || r.type) + ' ' + cibles, { danger: 'Retirer' }).then(function (oui) {
+                if (!oui) return;
+                AMX.catalogue.regleSupprimer(r.id).then(function () { b.regles = b.regles.filter(function (x) { return x.id !== r.id; }); self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRegles(); self.rendreRecap(); AMX.toast('Règle retirée.', 'ok'); }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+              });
+            } })
+          ] : [])
+        ]));
+      });
+      this.elRegles.appendChild(h('table', [h('thead', [h('tr', [h('th', 'Option'), h('th', 'Règle'), h('th', 'Cibles'), h('th', 'Portée'), h('th', 'Note'), h('th', '')])]), tbody]));
+    } else {
+      this.elRegles.appendChild(h('p.vide-regles', { style: { margin: '8px 0 0' }, text: 'Aucune règle saisie pour ce style. Ouvrez le style dans AutoBook, cochez une option et notez ici ce qu\'elle change (requis, exclu, inclus).' }));
+    }
+    if (!b.regleForm) return;
+    var f = b.regleForm, codes = options.filter(function (o) { return o.code && o.code !== '___'; }).map(function (o) { return String(o.code).toUpperCase(); });
+    var categories = []; options.forEach(function (o) { var c = String(o.categorie || '').toUpperCase(); if (o.code && o.code !== '___' && c && categories.indexOf(c) < 0) categories.push(c); });
+    var selType = h('select.saisie#so-r-type', { onchange: function (e) { f.type = e.target.value; self.rendreRegles(); } }, Object.keys(TYPES_REGLE).map(function (k) { return h('option', { value: k, text: TYPES_REGLE[k], selected: k === f.type }); }));
+    var selCode = h('select.saisie#so-r-code', { disabled: f.type === 'unique', onchange: function (e) { f.code = e.target.value; } }, [h('option', { value: '', text: f.type === 'unique' ? '— (groupe)' : 'Choisir l\'option…' })].concat(codes.map(function (c) { return h('option', { value: c, text: libelleCode(c), selected: c === f.code }); })));
+    var selCibles = h('select.saisie#so-r-cibles', { multiple: true, onchange: function (e) { f.cibles = [].slice.call(e.target.selectedOptions).map(function (o) { return o.value; }); } },
+      (f.type === 'unique' ? categories.map(function (c) { return h('option', { value: 'cat:' + c, text: 'Toute la catégorie ' + c, selected: f.cibles.indexOf('cat:' + c) >= 0 }); }) : []).concat(codes.map(function (c) { return h('option', { value: c, text: libelleCode(c), selected: f.cibles.indexOf(c) >= 0 }); })));
+    var selPortee = h('select.saisie#so-r-portee', { onchange: function (e) { f.portee = e.target.value; } }, [h('option', { value: 'modele', text: 'Tout le ' + s.annee + ' ' + s.marque + ' ' + s.modele, selected: f.portee !== 'style' }), h('option', { value: 'style', text: 'Ce style seulement (' + (s.codeStyle || s.style) + ')', selected: f.portee === 'style' })]);
+    var inNote = h('input.saisie#so-r-note', { type: 'text', value: f.note, placeholder: 'ex. : vu dans AutoBook le 21 oct.', oninput: function (e) { f.note = e.target.value; } });
+    var btn = h('button.btn.primaire#so-r-enregistrer', { type: 'button', text: f.id ? 'Enregistrer la règle' : 'Ajouter la règle', onclick: function () {
+      var corps = { id: f.id || '', portee: f.portee, annee: s.annee, marque: s.marque, modele: s.modele, codeStyle: s.codeStyle, code: f.type === 'unique' ? '' : f.code, type: f.type, cibles: f.cibles.join(', '), note: f.note };
+      if (f.type !== 'unique' && !corps.code) { AMX.toast('Choisissez l\'option qui déclenche la règle.', 'attention'); return; }
+      if (!f.cibles.length) { AMX.toast('Choisissez au moins une cible.', 'attention'); return; }
+      btn.disabled = true;
+      AMX.catalogue.regleEnregistrer(corps).then(function (r) {
+        b.regles = b.regles.filter(function (x) { return x.id !== r.id; }).concat([r]);
+        b.regleForm = null;
+        self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRegles(); self.rendreRecap();
+        AMX.toast('Règle ' + (f.id ? 'modifiée' : 'ajoutée') + ' — appliquée tout de suite.', 'ok');
+      }).catch(function (e) { btn.disabled = false; AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+    } });
+    this.elRegles.appendChild(h('div.so-regles-form', [
+      h('div', [h('label', 'Règle'), selType]),
+      h('div', [h('label', 'Option qui déclenche'), selCode]),
+      h('div.pleine', [h('label', f.type === 'unique' ? 'Une seule parmi (Cmd + clic pour plusieurs)' : 'Cibles (Cmd + clic pour plusieurs)'), selCibles]),
+      h('div', [h('label', 'Portée'), selPortee]),
+      h('div', [h('label', 'Note'), inNote]),
+      h('div', [btn])
+    ]));
   };
 
   /* ----------------------------- Comparaison ------------------------------ */

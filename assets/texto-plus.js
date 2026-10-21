@@ -1,4 +1,4 @@
-/* texto-plus.js — Service › Texto, suite (20 octobre 2026, soir) : ce que Kimoby fait de plus, en mieux.
+/* texto-plus.js — Service après-vente › Texto, suite (20 octobre 2026, soir) : ce que Kimoby fait de plus, en mieux.
    Étend VueTexto (texto.js, AMX.texto.Vue) : photos / vidéos dans les conversations (bouton 📷 du composer, page client media.html),
    onglet Clients (annuaire du service : liste, recherche, fiche, import CSV / Excel du DMS, export), onglet Campagnes (audience,
    message, test, planification, envoi par lots 9 h – 20 h, réponses), onglet Automatisations (8 règles par concession, OFF par

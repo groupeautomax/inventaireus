@@ -1,5 +1,5 @@
 /* =========================================================================
-   Outils › Archive Torque — tout ce qui a été fait dans Torque, chez nous.
+   Inventaire › Évaluations › Archive Torque — tout ce qui a été fait dans Torque, chez nous.
 
    Maxime cesse l'abonnement Torque (500 $/mois par concession) le mois
    prochain. Le signet « Automax ← Torque » (ci-dessous, CODE_SIGNET_TORQUE,

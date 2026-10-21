@@ -5,12 +5,12 @@
    pour une nouvelle auto similaire » → « tu peux procéder ».
 
    Deux morceaux :
-   - Outils › Portefeuille BMW (AMX.vues.ImportPortefeuille) : on y dépose l'export d'InfoBahn (Portfolio ›
+   - Relance › Équité › Importer le portefeuille (AMX.vues.ImportPortefeuille ; était Relance › Équité › Importer le portefeuille) : on y dépose l'export d'InfoBahn (Portfolio ›
      Entire Portfolio › « … » › Export → SearchResults.xls, une table HTML de 35 colonnes) ; la page le lit
      dans le navigateur, montre ce qu'elle a compris et l'envoie au serveur par lots (POST
      constructeurImporter, phase « portefeuille » → Equite.gs, feuille ConstructeurPortefeuille). Une tâche
      planifiée pourra faire l'export et le dépôt elle-même (#eq-fichier, #eq-envoyer, .eq-page[data-etat]).
-   - Inventaire › Neufs › BMW Sherbrooke › onglet « Équité » (AMX.equite.monter) : pour chaque client, la valeur
+   - Relance › Équité › Clients (AMX.equite.monter, page assets/relance.js ; était l'onglet Équité des Neufs) : pour chaque client, la valeur
      du véhicule (OpenLane Market guide si lu, sinon l'estimation BMW), le solde (payoff du financement ;
      résiduel + paiements restants pour une location), l'équité, un neuf SIMILAIRE en stock ou en route
      (même série dans l'inventaire IVS-R, PDSF connu), la nouvelle mensualité (prix + frais − équité, taxes du
@@ -214,7 +214,7 @@
   }
 
   /* =====================================================================
-     Onglet « Équité » dans Neufs (par concession)
+     Vue « Équité » (par concession) — montée par Relance › Équité › Clients
      ===================================================================== */
   function VueEquite(conteneur, cie, ctx) {
     injecterCss();
@@ -260,8 +260,8 @@
     var etat = AMX.equite.etat(this.cie), comptes = AMX.equite.comptes(this.cie);
     if (!comptes.length) {
       el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Équité — clients ' + nomCie(this.cie))]), h('div.carte-corps', [
-        h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille importé pour ' + nomCie(this.cie) + '. Exportez le portefeuille d\'InfoBahn (Portfolio › Entire Portfolio › « … » › Export) et déposez le fichier dans Outils › Portefeuille BMW.'),
-        h('a.btn', { href: AMX.lien('outils', 'equite') }, 'Ouvrir Outils › Portefeuille BMW')
+        h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille importé pour ' + nomCie(this.cie) + '. Exportez le portefeuille d\'InfoBahn (Portfolio › Entire Portfolio › « … » › Export) et déposez le fichier dans Relance › Équité › Importer le portefeuille.'),
+        h('a.btn', { href: AMX.lien('relance', 'equite', { vue: 'import' }) }, 'Importer le portefeuille')
       ])]));
       return;
     }
@@ -370,7 +370,7 @@
   };
 
   /* =====================================================================
-     Outils › Portefeuille BMW : dépôt de l'export InfoBahn
+     Relance › Équité › Importer le portefeuille : dépôt de l'export InfoBahn
      ===================================================================== */
   function ImportPortefeuille(ctx) {
     injecterCss();
@@ -399,7 +399,7 @@
     this.btnEnvoyer = h('button.btn.primaire', { type: 'button', id: 'eq-envoyer', disabled: 'disabled', text: 'Envoyer au site' });
     this.btnEnvoyer.addEventListener('click', function () { self.envoyer(); });
     this.el = h('div.page.etroite.outils-page.eq-page', { 'data-etat': 'attente' }, [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Portefeuille BMW (InfoBahn)'), h('p', 'Les clients financés ou en location chez BMW Financial Services, avec le solde et la valeur estimés par BMW : la base de l\'onglet « Équité » dans Inventaire › Neufs › BMW Sherbrooke.')])]),
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Portefeuille BMW (InfoBahn)'), h('p', 'Les clients financés ou en location chez BMW Financial Services, avec le solde et la valeur estimés par BMW : la base de Relance › Équité (clients à relancer).')])]),
       h('div.carte', [h('div.carte-entete', [h('h2', 'Dernier import')]), h('div.carte-corps', [this.elEtat])]),
       h('div.carte', [h('div.carte-entete', [h('h2', '1. Exporter le portefeuille d\'InfoBahn')]), h('div.carte-corps', [
         h('ol.eq-etapes', [

@@ -1,5 +1,5 @@
 /* =========================================================================
-   Section « Offres & clients » : offres reçues (négociation, contrat),
+   Section « Vente » : offres reçues (négociation, contrat),
    véhicules en vente (vitrine), acheteurs externes, leads.
    Routes serveur : offresRecues, offreAction (accepter | contre | refuser |
    annuler | lien | km | signer | exportation), contratPdf, vitrineListe, publierVehicule,
@@ -26,7 +26,7 @@
   var cache = { offres: null, vente: null, cle: '', acheteurs: null, concessions: null };
 
   AMX.section('offres', {
-    titre: 'Offres & clients', icone: 'offres', ordre: 20,
+    titre: 'Vente', icone: 'offres', ordre: 20,
     visible: function () { return AMX.perm('changerStatut') || AMX.perm('voirResultats'); },
     onglets: [
       { id: 'recues', titre: 'Offres reçues', compteur: function () { return cache.offres ? cache.offres.filter(function (o) { return o.statut === 'nouvelle'; }).length : ''; } },
@@ -127,7 +127,7 @@
         AMX.vider(elListe);
         var t = recherche.toLowerCase();
         var l = inscrits.filter(function (a) { return !t || [a.nomLegal, a.nomCommercial, a.signataire, a.courriel, a.ville, paysNom(a)].join(' ').toLowerCase().indexOf(t) >= 0; });
-        if (!inscrits.length) elListe.appendChild(h('div.vide', [h('h3', 'Aucun acheteur inscrit'), h('div', 'Invitez d\'abord un acheteur (Offres & clients › Acheteurs) : il remplit sa fiche, puis vous pouvez lui envoyer des véhicules.')]));
+        if (!inscrits.length) elListe.appendChild(h('div.vide', [h('h3', 'Aucun acheteur inscrit'), h('div', 'Invitez d\'abord un acheteur (Vente › Acheteurs) : il remplit sa fiche, puis vous pouvez lui envoyer des véhicules.')]));
         else if (!l.length) elListe.appendChild(h('div.doux.petit', { style: { padding: '8px' }, text: 'Aucun acheteur ne correspond.' }));
         l.forEach(function (a) {
           var tel = telephoneTexto(a), c = paysDe(a);

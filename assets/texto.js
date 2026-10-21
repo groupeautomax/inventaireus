@@ -1,4 +1,4 @@
-/* ScanAutomax — Service › Texto : estimés par texto, conversations avec les clients, paiements, suivi de courtoisie (20 oct. 2026).
+/* ScanAutomax — Service après-vente › Texto : estimés par texto, conversations avec les clients, paiements, suivi de courtoisie (20 oct. 2026).
    Maxime, devant Kimoby (BMW Sherbrooke › Estimés) : « on doit se créer cette application mais elle doit être meilleure.
    Mets-la dans Service, appelle l'onglet Texto » — puis « je veux toutes les options incluant paiement et suivi courtoisie ».
 
@@ -264,7 +264,7 @@
     this.btnReglages.classList.toggle('cache', !d.peutConfigurer);
     [this.btnTexto, this.btnPaiement, this.btnNouveau].forEach(function (b) { b.classList.toggle('cache', !d.peutEcrire); });
     var textos = d.textos || {};
-    this.elEtat.textContent = (textos.actif ? 'Textos actifs' + (textos.numero ? ' · ' + telJoli(textos.numero) : '') + (textos.lectureInstallee ? ' · réponses lues chaque minute' : ' · lecture des réponses non installée (Admin › Échanges par texto)') : 'Textos non configurés (Admin › Alertes)') + ' · ' + new Date(d.genereLe || Date.now()).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+    this.elEtat.textContent = (textos.actif ? 'Textos actifs' + (textos.numero ? ' · ' + telJoli(textos.numero) : '') + (textos.lectureInstallee ? ' · réponses lues chaque minute' : ' · lecture des réponses non installée (Outils › Comptes et droits › Échanges par texto)') : 'Textos non configurés (Outils › Comptes et droits › Alertes)') + ' · ' + new Date(d.genereLe || Date.now()).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
     [].forEach.call(this.elSeg.querySelectorAll('button'), function (b) { b.classList.toggle('actif', b.dataset.vue === self.vue); });
     this.rendreKpis();
     this.rendreCorps();

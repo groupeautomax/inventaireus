@@ -1,4 +1,4 @@
-/* ScanAutomax — Service › Rendez-vous : carnet de rendez-vous du service (pilote VW Brossard, 16 oct. 2026).
+/* ScanAutomax — Service après-vente › Rendez-vous : carnet de rendez-vous du service (pilote VW Brossard, 16 oct. 2026).
    Maxime : « peut-on répliquer Xtime dans notre site, et faire mieux ? » → « oui, pilote pour VW ».
 
    Ce que fait la page :

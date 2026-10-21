@@ -105,7 +105,7 @@
       f().then(function () { actifs--; pomper(); });
     }
   }
-  AMX.photosDe = photosDe;   // partagé avec Offres & clients
+  AMX.photosDe = photosDe;   // partagé avec Vente
 
   /* ------------------------------ Section ------------------------------ */
   // Pour revenir d'un autre onglet (Neufs) au registre sans recharger la section.
@@ -775,7 +775,7 @@
       }).catch(function () {});
     }
 
-    // Évaluation (Outils › Évaluation marché) : ce qu'on en sait, depuis la fiche d'inventaire (7 oct.).
+    // Évaluation (Inventaire › Évaluations) : ce qu'on en sait, depuis la fiche d'inventaire (7 oct.).
     var blocEval = h('div.bloc', [h('h3', ['Évaluation', h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.vin }), text: 'Ouvrir' })])]);
     var zoneEval = h('div.doux.petit', 'Chargement…');
     blocEval.appendChild(zoneEval);

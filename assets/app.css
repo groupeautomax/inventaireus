@@ -308,6 +308,11 @@ a.lien-puce:hover { filter: brightness(.92); text-decoration: underline; }
 .sous-barre a.actif .compteur { color: var(--vert); }
 .sous-barre .espace { flex: 1; }
 .sous-barre .outils { display: flex; align-items: center; gap: 8px; }
+/* 21 oct. : vues de l'onglet actif d'une tuile (Résultats › É.-U. · Wholesale Canada · Neufs), à droite de la sous-barre */
+.sous-barre .vues { align-self: center; margin-right: 0; flex: none; }
+.sous-barre .vues a { height: 28px; padding: 0 11px; border-bottom: 0; border-radius: 6px; font-size: 12.5px; color: var(--encre-3); gap: 6px; }
+.sous-barre .vues a.actif { background: #fff; color: var(--encre); box-shadow: var(--ombre); }
+.sous-barre .vues a.actif .compteur { color: var(--vert); }
 
 /* ----------------------------- Mise en page ---------------------------- */
 .page { padding: 16px; max-width: 1600px; margin: 0 auto; }
@@ -618,6 +623,8 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
   .kpi { flex: 1 0 96px; padding: 9px 10px 8px; }
   .sous-barre { overflow-x: auto; scrollbar-width: none; padding: 0 8px; }
   .sous-barre .outils { display: none; }
+  .sous-barre .espace { flex: 0 0 10px; }
+  .sous-barre .vues a { padding: 0 9px; font-size: 12px; }
   .page { padding: 10px; }
   .agencement, .agencement.avec-panneau { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; max-height: none; display: none; }

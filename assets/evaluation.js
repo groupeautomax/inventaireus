@@ -1,5 +1,5 @@
 /* =========================================================================
-   Outils › Évaluation marché — la fiche d'évaluation (refaite le 2 oct.).
+   Inventaire › Évaluations — la fiche d'évaluation (refaite le 2 oct.).
 
    Modèle : l'« Analyse de marché » de Torque, mais à partir de nos propres
    sources. Les données viennent du serveur (Marche.gs → MarketCheck) :
@@ -8,7 +8,7 @@
             vendus: { n90, parMois, prix, km, jours, portee }, versionElargie,
             ventesElargies, avertissements[], genereLe }
        ou { ok: false, sansCle: true, erreur } quand la clé MarketCheck manque
-       (un administrateur la pose dans Admin › Données de marché).
+       (un administrateur la pose dans Outils › Comptes et droits › Données de marché).
      GET  ?evalVin=VIN                               → { trouve, donnees, dateMaj }
      POST { action: 'saveEvaluation', vin, data }    → { dateMaj }
      Externe : NHTSA vPIC pour décoder le NIV (marque / modèle / année / version).
@@ -1238,7 +1238,7 @@
         h('span', { html: I.alerte }),
         h('div', [
           h('div', { text: a.sansCle ? 'La clé MarketCheck n\'est pas en place sur le serveur.' : 'Analyse impossible : ' + (a.erreur || 'erreur inconnue') }),
-          a.sansCle ? h('div.mini', { style: { marginTop: '4px' } }, admin ? [h('a', { href: AMX.lien('admin', '', {}), text: 'Coller la clé dans Admin › Données de marché' })] : 'Demandez à un administrateur de la coller dans Admin › Données de marché.') : null
+          a.sansCle ? h('div.mini', { style: { marginTop: '4px' } }, admin ? [h('a', { href: AMX.lien('admin', '', {}), text: 'Coller la clé dans Outils › Comptes et droits › Données de marché' })] : 'Demandez à un administrateur de la coller dans Outils › Comptes et droits › Données de marché.') : null
         ])
       ]));
       if (this.derniereSauvegarde) this.elMarche.appendChild(this.blocSauvegarde(this.derniereSauvegarde));
@@ -1342,7 +1342,7 @@
     (a.avertissements || []).forEach(function (t) { pied.push(h('span.puce.attention', { text: t })); });
     if (a.appels && typeof a.appels.n === 'number' && AMX.estAdmin()) {
       var q = a.appels.quota || 500, pctQ = Math.round(a.appels.n / q * 100);
-      pied.push(h('span.puce' + (pctQ >= 85 ? '.alerte' : (pctQ >= 60 ? '.attention' : '')) + '#eval-appels', { text: 'Appels MarketCheck ce mois : ' + AMX.fmtNombre(a.appels.n) + ' / ' + AMX.fmtNombre(q), title: 'Compteur du plan gratuit — détails dans Admin › Données de marché' }));
+      pied.push(h('span.puce' + (pctQ >= 85 ? '.alerte' : (pctQ >= 60 ? '.attention' : '')) + '#eval-appels', { text: 'Appels MarketCheck ce mois : ' + AMX.fmtNombre(a.appels.n) + ' / ' + AMX.fmtNombre(q), title: 'Compteur du plan gratuit — détails dans Outils › Comptes et droits › Données de marché' }));
     }
     if (this.derniereSauvegarde) pied.push(h('span.puce', { text: 'Dernière analyse conservée : standard ' + fmt(this.derniereSauvegarde.standard) + ' (' + AMX.fmtDateCourte(this.derniereSauvegarde.genereLe) + ')' }));
     this.elMarche.appendChild(h('div.eval-pied', pied));
@@ -1594,7 +1594,7 @@
     if (!v.ok) {
       el.appendChild(h('div.alerte-bloc.' + (v.sansCle ? 'attention' : 'erreur'), [h('span', { html: I.alerte }), h('div', [
         h('div', { text: v.sansCle ? 'La clé VinAudit n\'est pas en place sur le serveur.' : 'Valeurs indisponibles : ' + (v.erreur || 'erreur inconnue') }),
-        v.sansCle ? h('div.mini', { style: { marginTop: '4px' } }, AMX.estAdmin() ? [h('a', { href: AMX.lien('admin', '', {}), text: 'Coller la clé dans Admin › Données de marché' })] : 'Demandez à un administrateur de la coller dans Admin › Données de marché.') : null
+        v.sansCle ? h('div.mini', { style: { marginTop: '4px' } }, AMX.estAdmin() ? [h('a', { href: AMX.lien('admin', '', {}), text: 'Coller la clé dans Outils › Comptes et droits › Données de marché' })] : 'Demandez à un administrateur de la coller dans Outils › Comptes et droits › Données de marché.') : null
       ])]));
       return;
     }
@@ -1810,7 +1810,7 @@
 
 
   /* =====================================================================
-     Registre des évaluations (Outils › Registre d'évaluations)
+     Registre des évaluations (Inventaire › Évaluations › Registre)
      GET ?evaluations=1[&concession=] → { ok, evaluations: [...], parConcession, total }
      Une ligne par véhicule évalué ; filtre par concession (toutes les
      concessions du groupe, y compris celles qu'on ajoute), recherche, tri,

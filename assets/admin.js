@@ -530,7 +530,7 @@
     this.btnCleRetirer = h('button.btn.danger.petit#adm-cle-retirer', { type: 'button', text: 'Retirer la clé', onclick: function () { self.retirerCle(); } });
     var voir = h('button.btn.petit.fantome', { type: 'button', text: 'Afficher', onclick: function () { var p = self.elCle.type === 'password'; self.elCle.type = p ? 'text' : 'password'; voir.textContent = p ? 'Masquer' : 'Afficher'; } });
     var corps = [
-      h('p.doux.petit', { style: { margin: 0 }, text: 'L\'analyse de marché de la fiche d\'évaluation (Outils › Évaluation marché) interroge MarketCheck : annonces actives et ventes récentes au Canada et aux États-Unis. La clé est gardée sur le serveur, jamais renvoyée au navigateur ni enregistrée dans l\'app.' }),
+      h('p.doux.petit', { style: { margin: 0 }, text: 'L\'analyse de marché de la fiche d\'évaluation (Inventaire › Évaluations) interroge MarketCheck : annonces actives et ventes récentes au Canada et aux États-Unis. La clé est gardée sur le serveur, jamais renvoyée au navigateur ni enregistrée dans l\'app.' }),
       h('div.ligne-cle', [h('div.champ', [h('label', { 'for': 'adm-cle-marketcheck', text: 'Clé API MarketCheck' }), this.elCle]), voir, this.btnCle, this.btnCleRetirer]),
       h('div', [h('span.etiquette', { text: 'État : ' }), this.elEtatCle]),
       h('details', [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Obtenir ou renouveler une clé (plan gratuit : 500 appels par mois)' }), h('ol', [

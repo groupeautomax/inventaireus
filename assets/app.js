@@ -111,6 +111,9 @@
     inventaire: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l1.5-5A2 2 0 0 1 6.4 4.5h11.2a2 2 0 0 1 1.9 1.5L21 11"/><rect x="3" y="11" width="18" height="7" rx="1.5"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></svg>',
     neufs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l1.5-5A2 2 0 0 1 6.4 5.5h7.1"/><rect x="3" y="12" width="18" height="6.5" rx="1.5"/><circle cx="7.5" cy="18.5" r="1.8"/><circle cx="16.5" cy="18.5" r="1.8"/><path d="M18 2.5l1 2.2 2.4.3-1.8 1.6.5 2.4L18 7.8l-2.1 1.2.5-2.4-1.8-1.6 2.4-.3z"/></svg>',
     offres: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 13.5l-7 7-10-10V3.5h7l10 10z"/><circle cx="8" cy="8" r="1.5"/></svg>',
+    /* 21 oct. : tuiles Vente (poignée de main) et Relance (téléphone qui rappelle). */
+    vente: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l3-3h4l2 2h3l2-2h4"/><path d="M3 10l5 6a2 2 0 0 0 3 0l1-1 1 1a2 2 0 0 0 3 0l5-6"/><path d="M8 7l4 4"/></svg>',
+    relance: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h3.5l1.5 4-2 1.5a10 10 0 0 0 6.5 6.5L16 14l4 1.5V19a2 2 0 0 1-2 2A15 15 0 0 1 3 6a2 2 0 0 1 2-2z"/><path d="M15 3a6 6 0 0 1 6 6"/><path d="M15 6.5a2.5 2.5 0 0 1 2.5 2.5"/></svg>',
     achat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>',
     service: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5a4.5 4.5 0 0 0-5.6 5.6L4 15v5h5l4.9-4.9a4.5 4.5 0 0 0 5.6-5.6l-2.6 2.6-2.6-.9-.9-2.6z"/></svg>',
     outils: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0 5 5l-9.4 9.4a2.1 2.1 0 0 1-3-3l9.4-9.4z"/><path d="M15 5l4 4"/></svg>',
@@ -678,6 +681,7 @@
   function ouvrir() {
     document.getElementById('porte').style.display = 'none';
     document.getElementById('appli').classList.add('pret');
+    appliquerTuiles();   /* 21 oct. : les modules sont tous enregistrés (scripts chargés) — on regroupe en tuiles */
     dessinerBarre();
     document.dispatchEvent(new CustomEvent('automax:connecte'));
     router();
@@ -688,8 +692,168 @@
   AMX.section = function (id, def) { def.id = id; AMX.sections[id] = def; };
   AMX.listeSections = function () {
     return Object.keys(AMX.sections).map(function (k) { return AMX.sections[k]; })
-      .filter(function (s) { return !s.visible || s.visible(); })
+      .filter(function (s) { return !s.absorbee && (!s.visible || s.visible()); })
       .sort(function (a, b) { return (a.ordre || 50) - (b.ordre || 50); });
+  };
+
+  /* ------------------------- Tuiles (21 octobre 2026) -------------------------
+     Maxime : « conserver Accueil et débuter avec cela, après 6 grosses tuiles : Vente, Inventaire, Relance, Service
+     après-vente, Outils et Aide ; regrouper les sous-menus dans les tuiles appropriées ». Les modules continuent de
+     s'enregistrer avec AMX.section(...) : ce sont les « sources » (gardées dans AMX.sources, et dans AMX.sections pour
+     leurs visible() et liens). TUILES dit sous quelle tuile et quel onglet chaque source apparaît. Un onglet de tuile peut
+     offrir des « vues » (pastilles à droite de la sous-barre, ex. Résultats › É.-U. · Wholesale Canada · Neufs) : ce sont
+     les anciens onglets de la source. AMX.lien / AMX.aller / le routeur traduisent les anciennes adresses
+     (#/offres/recues → #/vente/offres, #/outils/evaluation → #/inventaire/evaluations?vue=evaluation…), donc les liens
+     écrits dans les modules n'ont pas changé. `fixes` = paramètres ajoutés à l'adresse de la source (mode d'une page). */
+  var TUILES = [
+    { id: 'vente', titre: 'Vente', icone: 'vente', ordre: 10, onglets: [
+      { id: 'offres', titre: 'Offres reçues', de: 'offres', onglet: 'recues' },
+      { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente' },
+      { id: 'acheteurs', titre: 'Acheteurs', de: 'offres', onglet: 'acheteurs' },
+      { id: 'soumissions', titre: 'Soumissions', de: 'inventaire', onglet: 'soumissions' },
+      { id: 'echanges', titre: 'Échanges de neufs', de: 'inventaire', onglet: 'neufs', fixes: { seul: 'echanges' }, compteur: function () { return AMX.neufs && AMX.neufs.compteurEchanges ? AMX.neufs.compteurEchanges() : ''; } },
+      { id: 'resultats', titre: 'Résultats', de: 'resultat', vues: [{ id: 'us', titre: 'É.-U.' }, { id: 'can', titre: 'Wholesale Canada' }, { id: 'neuf', titre: 'Neufs' }] }
+    ] },
+    { id: 'inventaire', titre: 'Inventaire', icone: 'inventaire', ordre: 20, onglets: [
+      { id: 'neufs', titre: 'Neufs', de: 'inventaire', onglet: 'neufs' },
+      { id: 'usage', titre: 'Usagé', de: 'inventaire', onglet: 'usage' },
+      { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '' },
+      { id: 'evaluations', titre: 'Évaluations', de: 'outils', vues: [{ id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] }
+    ] },
+    { id: 'relance', titre: 'Relance', icone: 'relance', ordre: 30, onglets: [
+      { id: 'equite', titre: 'Équité', visible: function () { return !!(AMX.relance && AMX.equite); }, monter: function (c, ctx) { return AMX.relance.equite(c, ctx); }, vues: [{ id: 'clients', titre: 'Clients' }, { id: 'import', titre: 'Importer le portefeuille', de: 'outils', onglet: 'equite' }] },
+      { id: 'leads', titre: 'Leads', de: 'offres', onglet: 'leads' },
+      { id: 'avis', titre: 'Avis Google', de: 'avis', vues: [{ id: 'apercu', titre: 'Aperçu' }, { id: 'avis', titre: 'Avis' }, { id: 'sondages', titre: 'Sondages' }] },
+      { id: 'csi', titre: 'CSI', de: 'csi', onglet: '' }
+    ] },
+    { id: 'service', titre: 'Service après-vente', icone: 'service', ordre: 40, onglets: [
+      { id: 'suivi', titre: 'Suivi service', de: 'service', vues: [{ id: 'encours', titre: 'En cours' }, { id: 'autoriser', titre: 'Direction' }, { id: 'termines', titre: 'Terminés' }] },
+      { id: 'rendezvous', titre: 'Rendez-vous', de: 'service', onglet: 'rendezvous' },
+      { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' }
+    ] },
+    { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
+      { id: 'eblock', titre: 'Fiches eBlock', de: 'outils', onglet: 'eblock' },
+      { id: 'openlane', titre: 'Valeurs OpenLane', de: 'outils', onglet: 'openlane' },
+      { id: 'carfax', titre: 'Import CARFAX', de: 'outils', onglet: 'carfax' },
+      { id: 'd2c', titre: 'Import D2C', de: 'outils', onglet: 'd2c' },
+      { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification' },
+      { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '' }
+    ] },
+    { id: 'aide', titre: 'Aide', icone: 'aide', ordre: 60, onglets: [{ de: 'aide', tous: true }] }
+  ];
+  var TRAD = {};            // 'source/onglet' → { section, onglet, vue }
+  AMX.sources = {};         // sections sources absorbées par les tuiles (id → définition d'origine)
+  AMX.TUILES = TUILES;
+
+  function ongletSource(src, id) { return ((src && src.onglets) || []).filter(function (o) { return o.id === id; })[0] || null; }
+  function ongletVisible(src, id) { if (!src || (src.visible && !src.visible())) return false; var o = id ? ongletSource(src, id) : null; return o ? (!o.visible || o.visible()) : true; }
+  function compteurSource(src, id) { var o = ongletSource(src, id); if (!o || !o.compteur) return ''; try { return o.compteur(); } catch (e) { return ''; } }
+  /* La source et l'onglet de source derrière une vue (la vue peut avoir sa propre source, ex. Équité › Importer). */
+  function sourceDeVue(o, v) { return { de: (v && v.de) || o.de, onglet: v ? (v.de ? v.onglet : v.id) : (o.onglet || '') }; }
+  function vuesVisibles(o) {
+    return (o.vues || []).filter(function (v) {
+      if (v.visible && !v.visible()) return false;
+      var s = sourceDeVue(o, v); if (!s.de) return true;
+      return ongletVisible(AMX.sources[s.de] || AMX.sections[s.de], s.onglet);
+    });
+  }
+  /* Vue courante d'un onglet à vues : l'adresse (?vue=), sinon la dernière choisie sur cet appareil, sinon la première. */
+  function vueCourante(tuile, o, params) {
+    var vis = vuesVisibles(o); if (!vis.length) return '';
+    var demandee = String((params && params.vue) || '');
+    if (vis.some(function (v) { return v.id === demandee; })) return demandee;
+    var memo = String(AMX.memo.lire('vue_' + tuile.id + '_' + o.id, '') || '');
+    if (vis.some(function (v) { return v.id === memo; })) return memo;
+    return vis[0].id;
+  }
+  function definirTuile(t) {
+    var onglets = [];
+    t.onglets.forEach(function (o) {
+      if (o.tous) {   /* tous les onglets de la source, tels quels (Aide) */
+        var src = AMX.sources[o.de] || AMX.sections[o.de];
+        ((src && src.onglets) || []).forEach(function (so) { onglets.push({ id: so.id, titre: so.titre, de: o.de, onglet: so.id }); });
+      } else onglets.push(o);
+    });
+    var def = { id: t.id, titre: t.titre, icone: t.icone, ordre: t.ordre, tuile: true };
+    def.onglets = onglets.map(function (o) {
+      var src = function () { return o.de ? (AMX.sources[o.de] || AMX.sections[o.de]) : null; };
+      return {
+        id: o.id, titre: o.titre, de: o.de, onglet: o.onglet, fixes: o.fixes, vues: o.vues, monter: o.monter,
+        visible: function () {
+          if (o.visible && !o.visible()) return false;
+          if (o.vues) return vuesVisibles(o).length > 0;
+          return o.de ? ongletVisible(src(), o.onglet) : true;
+        },
+        compteur: function () {
+          if (o.compteur) { try { return o.compteur(); } catch (e) { return ''; } }
+          if (o.vues) { var n = ''; o.vues.some(function (v) { var s = sourceDeVue(o, v); var c = s.de ? compteurSource(AMX.sources[s.de] || AMX.sections[s.de], s.onglet) : ''; if (c !== '' && c !== null && c !== undefined) { n = c; return true; } return false; }); return n; }
+          return o.de ? compteurSource(src(), o.onglet) : '';
+        }
+      };
+    });
+    def.visible = function () { return def.onglets.some(function (o) { return o.visible(); }); };
+    def.monter = function (conteneur, ctx) { return new Tuile(def, conteneur, ctx); };
+    return def;
+  }
+  /* L'instance d'une tuile : monte la page de la source derrière l'onglet (et la vue) demandés, change de page quand
+     l'onglet mène à une autre source, sinon délègue naviguer() à la page en place. */
+  function Tuile(def, conteneur, ctx) { this.def = def; this.conteneur = conteneur; this.enfant = null; this.cle = ''; this.monterEnfant(ctx); }
+  Tuile.prototype.resoudre = function (ctx) {
+    var o = this.def.onglets.filter(function (x) { return x.id === ctx.onglet; })[0] || this.def.onglets[0];
+    var params = {}; Object.keys(ctx.params || {}).forEach(function (k) { if (k !== 'vue') params[k] = ctx.params[k]; });
+    var vue = o.vues ? vueCourante(this.def, o, ctx.params) : '';
+    if (vue) AMX.memo.ecrire('vue_' + this.def.id + '_' + o.id, vue);
+    var v = o.vues ? o.vues.filter(function (x) { return x.id === vue; })[0] : null;
+    var s = sourceDeVue(o, v);
+    if (o.fixes) Object.keys(o.fixes).forEach(function (k) { params[k] = o.fixes[k]; });
+    var propre = v ? !v.de && !!o.monter : !!o.monter;   /* page propre à la tuile (ex. Relance › Équité › Clients) */
+    return { onglet: o, vue: vue, source: propre ? null : (AMX.sources[s.de] || AMX.sections[s.de]), ongletSource: propre ? vue : s.onglet, params: params, cle: propre ? 'propre:' + o.id : 'source:' + s.de, monter: propre ? o.monter : null };
+  };
+  Tuile.prototype.monterEnfant = function (ctx) {
+    var r = this.resoudre(ctx);
+    if (this.enfant && this.enfant.demonter) { try { this.enfant.demonter(); } catch (e) {} }
+    AMX.vider(this.conteneur);
+    this.cle = r.cle;
+    var sous = { onglet: r.ongletSource, params: r.params };
+    this.enfant = (r.monter ? r.monter(this.conteneur, sous) : (r.source ? r.source.monter(this.conteneur, sous) : null)) || {};
+  };
+  Tuile.prototype.naviguer = function (ctx) {
+    var r = this.resoudre(ctx);
+    if (r.cle !== this.cle || !this.enfant || !this.enfant.naviguer) { this.monterEnfant(ctx); return; }
+    this.enfant.naviguer({ onglet: r.ongletSource, params: r.params });
+  };
+  Tuile.prototype.demonter = function () { if (this.enfant && this.enfant.demonter) { try { this.enfant.demonter(); } catch (e) {} } this.enfant = null; };
+
+  function appliquerTuiles() {
+    if (appliquerTuiles.fait) return; appliquerTuiles.fait = true;
+    // 1. Les sources absorbées quittent la barre (gardées dans AMX.sources et AMX.sections pour leurs visible() et liens).
+    TUILES.forEach(function (t) { t.onglets.forEach(function (o) {
+      var ids = [o.de].concat((o.vues || []).map(function (v) { return v.de; })).filter(Boolean);
+      ids.forEach(function (id) { if (AMX.sections[id] && !AMX.sources[id]) { AMX.sources[id] = AMX.sections[id]; AMX.sections[id].absorbee = true; } });
+    }); });
+    // 2. Les tuiles prennent place (une tuile peut porter l'id d'une source : Inventaire, Service, Outils, Aide).
+    TUILES.forEach(function (t) { AMX.sections[t.id] = definirTuile(t); });
+    // 3. Table de traduction des anciennes adresses. Un onglet « fixes » (page en mode spécial) ne traduit rien.
+    TUILES.forEach(function (t) { AMX.sections[t.id].onglets.forEach(function (o) {
+      if (o.fixes) return;
+      if (o.vues) { o.vues.forEach(function (v) { var s = sourceDeVue(o, v); if (!s.de) return; var cle = s.de + '/' + s.onglet; if (!TRAD[cle]) TRAD[cle] = { section: t.id, onglet: o.id, vue: v.id }; }); return; }
+      if (!o.de) return;
+      var cle = o.de + '/' + (o.onglet || ''); if (!TRAD[cle]) TRAD[cle] = { section: t.id, onglet: o.id };
+      if (!o.onglet && !TRAD[o.de + '/*']) TRAD[o.de + '/*'] = { section: t.id, onglet: o.id };
+    }); });
+  }
+  /* L'adresse d'une ancienne section / d'un ancien onglet dans les tuiles ; null si rien à changer. */
+  AMX.traduire = function (section, onglet, params) {
+    if (!appliquerTuiles.fait) return null;
+    var t = TRAD[section + '/' + (onglet || '')] || TRAD[section + '/*'];
+    if (!t && AMX.sources[section] && !(AMX.sections[section] && AMX.sections[section].tuile)) {   /* onglet inconnu d'une source absorbée : son premier onglet */
+      var pre = section + '/'; Object.keys(TRAD).some(function (k) { if (k.indexOf(pre) === 0) { t = TRAD[k]; return true; } return false; });
+    }
+    if (!t) return null;
+    var p = {}; Object.keys(params || {}).forEach(function (k) { p[k] = params[k]; });
+    if (t.vue) p.vue = t.vue;
+    if (t.section === section && t.onglet === (onglet || '') && !t.vue) return null;
+    return { section: t.section, onglet: t.onglet, params: p };
   };
 
   var courante = { section: null, onglet: null, params: null, instance: null };
@@ -703,11 +867,15 @@
     return { section: parts[0] || '', onglet: parts[1] || '', params: q };
   }
   AMX.aller = function (section, onglet, params) {
+    var t = AMX.traduire(section, onglet, params);   /* 21 oct. : les anciennes adresses mènent aux tuiles */
+    if (t) { section = t.section; onglet = t.onglet; params = t.params; }
     var hsh = '#/' + section + (onglet ? '/' + onglet : '');
     if (params && Object.keys(params).length) hsh += '?' + Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
     if (location.hash === hsh) router(); else location.hash = hsh;
   };
   AMX.lien = function (section, onglet, params) {
+    var t = AMX.traduire(section, onglet, params);
+    if (t) { section = t.section; onglet = t.onglet; params = t.params; }
     var hsh = '#/' + section + (onglet ? '/' + onglet : '');
     if (params && Object.keys(params).length) hsh += '?' + Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
     return hsh;
@@ -724,8 +892,12 @@
     // #/inventaire/us|can|detail → #/inventaire/usage?registre=… (les trois registres sont des pastilles dans la page Usagé).
     if (r.section === 'neufs' && !AMX.sections.neufs && AMX.sections.inventaire) { AMX.aller('inventaire', 'neufs', r.params); return; }
     if (r.section === 'inventaire' && /^(us|can|detail)$/.test(r.onglet) && AMX.inventaire && AMX.inventaire.registres) { var pr = { registre: r.onglet }; Object.keys(r.params || {}).forEach(function (k) { pr[k] = r.params[k]; }); AMX.aller('inventaire', 'usage', pr); return; }
+    // 21 oct. : anciennes sections (offres, resultat, achat, avis, csi, admin…) et anciens onglets → leur tuile.
+    var trad = AMX.traduire(r.section, r.onglet, r.params);
+    if (trad) { AMX.aller(trad.section, trad.onglet, trad.params); return; }
     var secs = AMX.listeSections();
     var sec = AMX.sections[r.section];
+    if (sec && sec.absorbee) sec = null;
     if (!sec || (sec.visible && !sec.visible())) {
       // Ancien lien (ex. index.html?vin=…) : fiche d'achat ; sinon la première section.
       var vinUrl = new URLSearchParams(location.search).get('vin');
@@ -820,7 +992,7 @@
       ]),
       h('button.btn.petit', { type: 'button', text: tel ? 'Modifier' : 'Ajouter', onclick: function (e) { e.stopPropagation(); AMX.modifierTextos(); } })
     ]);
-    if (textos && textos.actif === false) ligne.title = 'Les textos ne sont pas encore activés par l\'administrateur (Admin › Alertes aux directeurs).';
+    if (textos && textos.actif === false) ligne.title = 'Les textos ne sont pas encore activés par l\'administrateur (Outils › Comptes et droits › Alertes aux directeurs).';
     return ligne;
   };
   AMX.modifierTextos = function () {
@@ -863,6 +1035,19 @@
       sb.appendChild(h('a' + (ong && ong.id === o.id ? '.actif' : ''), { href: AMX.lien(sec.id, o.id) }, [o.titre, (c !== null && c !== undefined && c !== '') ? h('span.compteur', { text: String(c) }) : null]));
     });
     sb.appendChild(h('div.espace'));
+    // 21 oct. : les vues de l'onglet actif (anciens onglets regroupés : Résultats › É.-U. · Wholesale Canada · Neufs…).
+    if (ong && ong.vues && sec.tuile) {
+      var vis = vuesVisibles(ong), courante = vueCourante(sec, ong, (AMX.courante && AMX.courante.params) || {});
+      if (vis.length > 1) {
+        var seg = h('div.vues.segment', { role: 'group', 'aria-label': ong.titre });
+        vis.forEach(function (v) {
+          var s = sourceDeVue(ong, v), c = s.de ? compteurSource(AMX.sources[s.de] || AMX.sections[s.de], s.onglet) : '';
+          var p = {}; Object.keys((AMX.courante && AMX.courante.params) || {}).forEach(function (k) { if (k !== 'vue') p[k] = AMX.courante.params[k]; }); p.vue = v.id;
+          seg.appendChild(h('a' + (v.id === courante ? '.actif' : ''), { href: AMX.lien(sec.id, ong.id, p), 'data-vue': v.id }, [v.titre, (c !== '' && c !== null && c !== undefined) ? h('span.compteur', { text: String(c) }) : null]));
+        });
+        sb.appendChild(seg);
+      }
+    }
     if (sec.outils) { var out = h('div.outils'); sec.outils(out); sb.appendChild(out); }
   }
 
@@ -1205,7 +1390,7 @@
     var codes = AMX.codesPour(opts.domaine), valeur = opts.valeur || '';
     if (codes.length < 2) return null;
     var liste = h('div.choix-cie' + (opts.vertical ? '' : '.rangee'), { role: 'radiogroup', 'aria-label': 'Concession' });
-    [['', 'Toutes les concessions']].concat(codes.map(function (c) { return [c, AMX.COMPAGNIES_TOUTES[c] || c]; })).forEach(function (l) {
+    (opts.sansToutes ? [] : [['', 'Toutes les concessions']]).concat(codes.map(function (c) { return [c, AMX.COMPAGNIES_TOUTES[c] || c]; })).forEach(function (l) {   /* sansToutes (21 oct.) : pages par concession seulement (Relance › Équité) */
       var actif = valeur === l[0], n = opts.compte ? opts.compte(l[0]) : null, sous = opts.sous ? opts.sous(l[0]) : null;
       liste.appendChild(h('button.choix' + (actif ? '.actif' : '') + (l[0] ? '.' + (AMX.COULEUR_COMPAGNIE[l[0]] || 'gris') : '.toutes') + (sous ? '.avec-sous' : ''), {
         type: 'button', role: 'radio', 'aria-checked': actif ? 'true' : 'false', 'aria-pressed': actif ? 'true' : 'false', 'data-compagnie': l[0], title: l[1],

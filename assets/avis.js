@@ -52,7 +52,7 @@
     regle:      { libelle: 'Réglé',        couleur: 'gris' }
   };
   var A_TRAITER = { nouveau: 1, a_repondre: 1, assigne: 1, brouillon: 1 };
-  var SEUIL = 3;   // réglable dans Admin › Réglages des avis (le serveur renvoie seuilNegatif)
+  var SEUIL = 3;   // réglable dans Outils › Comptes et droits › Réglages des avis (le serveur renvoie seuilNegatif)
   var DEP_NOMS = { direction: 'Direction', ventes: 'Ventes', service: 'Service', pieces: 'Pièces', marketing: 'Marketing', administration: 'Administration' };
   var DEP_COULEUR = { direction: 'sombre', ventes: 'vert', service: 'ambre', pieces: 'ambre', marketing: 'violet', administration: 'gris' };
   function puceDep(dep) { return dep ? h('span.puce.avis-dep.avis-dep-' + (DEP_COULEUR[dep] || 'gris'), { text: DEP_NOMS[dep] || dep }) : null; }

@@ -20,18 +20,22 @@
   var h = AMX.h, I = AMX.icones;
   var CLE_DEPART = 'accueil_depart';
 
+  /* 21 oct. (Maxime : « 6 grosses tuiles — Vente, Inventaire, Relance, Service après-vente, Outils et Aide ») : une tuile par
+     section de la barre (app.js, TUILES) ; les anciennes sections absorbées gardent leur résumé pour la page de départ. */
   var RESUMES = {
-    inventaire: 'Neufs (stock, commandes, ventes déclarées, portails des constructeurs) et usagé (registres É.-U., Canada, Detail).',
-    service: 'Reconditionnement au détail : autorisation, bons de travail, livraison.',
+    vente: 'Offres reçues, véhicules en vente, acheteurs externes, soumissions de neufs, échanges entre concessions, résultats.',
+    inventaire: 'Neufs (DMS et manufacturier, détail et flotte), usagé (É.-U., Canada, Detail), fiche d\'achat, évaluations.',
+    relance: 'Équité des clients financés, leads, avis Google et sondages, CSI.',
+    service: 'Suivi du reconditionnement (autorisation, bons de travail, livraison), rendez-vous, textos du service.',
+    outils: 'Fiches eBlock, valeurs OpenLane, imports CARFAX et D2C, vérification Excel, comptes et droits.',
+    aide: 'Guide de toutes les fonctions, nouveautés, suggestions.',
     offres: 'Véhicules en vente, offres reçues, acheteurs externes, leads.',
     achat: 'La fiche d\'achat d\'un véhicule : prix, km, dommages, rapports.',
-    outils: 'Évaluation marché, registre, Torque, fiches eBlock, valeurs OpenLane.',
     avis: 'Les avis Google des concessions et les sondages aux clients.',
     resultat: 'Profits et résultats par période, concession et acheteur.',
-    admin: 'Comptes, droits, concessions et réglages du site.',
-    aide: 'Guide de toutes les fonctions, nouveautés, suggestions.'
+    admin: 'Comptes, droits, concessions et réglages du site.'
   };
-  var COULEURS = { inventaire: 'vert', neufs: 'vert', service: 'sarcelle', offres: 'bleu', achat: 'violet', outils: 'gris', avis: 'ambre', resultat: 'prune', admin: 'noir', aide: 'bleu' };
+  var COULEURS = { vente: 'bleu', inventaire: 'vert', relance: 'ambre', service: 'sarcelle', outils: 'gris', aide: 'violet', neufs: 'vert', offres: 'bleu', achat: 'violet', avis: 'ambre', resultat: 'prune', admin: 'noir' };
 
   function injecterCss() {
     if (document.getElementById('css-accueil')) return;
@@ -65,13 +69,13 @@
       '.acc-kpi .alerte { color: var(--rouge); font-weight: 600; }',
       /* sections */
       '.acc-titre { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 10px; } .acc-titre h2 { font-size: 15px; margin: 0; letter-spacing: .02em; } .acc-titre span { font-size: 12px; color: var(--encre-3); }',
-      '.acc-tuiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }',
-      '.acc-tuile { position: relative; display: flex; flex-direction: column; gap: 9px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 14px; padding: 16px 16px 14px; box-shadow: var(--ombre); color: inherit; text-decoration: none; transition: transform .14s, box-shadow .14s, border-color .14s; overflow: hidden; }',
+      '.acc-tuiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; } @media (max-width: 1000px) { .acc-tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
+      '.acc-tuile { position: relative; display: flex; flex-direction: column; gap: 11px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 16px; padding: 20px 20px 18px; min-height: 196px; box-shadow: var(--ombre); color: inherit; text-decoration: none; transition: transform .14s, box-shadow .14s, border-color .14s; overflow: hidden; }',
       '.acc-tuile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--acc, var(--ligne-forte)); opacity: 0; transition: opacity .14s; }',
       '.acc-tuile:hover { text-decoration: none; transform: translateY(-2px); box-shadow: 0 10px 26px rgba(16,24,40,.10); border-color: var(--ligne-forte); } .acc-tuile:hover::before { opacity: 1; }',
-      '.acc-tuile .haut { display: flex; align-items: center; gap: 12px; padding-right: 34px; } .acc-tuile .ic { width: 42px; height: 42px; border-radius: 12px; background: var(--acc-bg, var(--gris-bg)); color: var(--acc, var(--encre)); display: flex; align-items: center; justify-content: center; flex: none; } .acc-tuile .ic svg { width: 21px; height: 21px; }',
-      '.acc-tuile h2 { font-size: 16.5px; margin: 0; font-weight: 700; } .acc-tuile .resume { color: var(--encre-3); font-size: 12.5px; line-height: 1.45; min-height: 36px; }',
-      '.acc-tuile .onglets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; } .acc-tuile .onglets a { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--carte-2); border: 1px solid var(--ligne); color: var(--encre-2); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; transition: background .12s, border-color .12s; } .acc-tuile .onglets a:hover { background: var(--gris-bg); border-color: var(--ligne-forte); color: var(--encre); } .acc-tuile .onglets a b { font-weight: 700; color: var(--acc, var(--encre)); }',
+      '.acc-tuile .haut { display: flex; align-items: center; gap: 14px; padding-right: 34px; } .acc-tuile .ic { width: 50px; height: 50px; border-radius: 14px; background: var(--acc-bg, var(--gris-bg)); color: var(--acc, var(--encre)); display: flex; align-items: center; justify-content: center; flex: none; } .acc-tuile .ic svg { width: 26px; height: 26px; }',
+      '.acc-tuile h2 { font-size: 19px; margin: 0; font-weight: 800; letter-spacing: -.01em; } .acc-tuile .resume { color: var(--encre-3); font-size: 12.5px; line-height: 1.45; min-height: 36px; }',
+      '.acc-tuile .onglets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; } .acc-tuile .onglets a { font-size: 12.5px; padding: 5px 11px; border-radius: 999px; background: var(--carte-2); border: 1px solid var(--ligne); color: var(--encre-2); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; transition: background .12s, border-color .12s; } .acc-tuile .onglets a:hover { background: var(--gris-bg); border-color: var(--ligne-forte); color: var(--encre); } .acc-tuile .onglets a b { font-weight: 700; color: var(--acc, var(--encre)); }',
       '.acc-tuile .depart { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; color: var(--encre-4); cursor: pointer; padding: 5px; border-radius: 8px; line-height: 0; transition: background .12s, color .12s; } .acc-tuile .depart:hover { background: var(--gris-bg); color: var(--encre); } .acc-tuile .depart.actif { color: var(--ambre); } .acc-tuile .depart svg { width: 18px; height: 18px; }',
       '.acc-tuile.depart-actif { border-color: var(--ambre-bord); box-shadow: 0 0 0 3px var(--ambre-bg); } .acc-tuile.depart-actif::before { opacity: 1; background: var(--ambre); }',
       '.acc-tuile.vert { --acc: var(--vert); --acc-bg: var(--vert-clair); } .acc-tuile.sarcelle { --acc: var(--sarcelle); --acc-bg: var(--sarcelle-bg); } .acc-tuile.bleu { --acc: var(--bleu); --acc-bg: var(--bleu-bg); } .acc-tuile.violet { --acc: var(--violet); --acc-bg: var(--violet-bg); } .acc-tuile.gris { --acc: var(--gris); --acc-bg: var(--gris-bg); } .acc-tuile.ambre { --acc: var(--ambre); --acc-bg: var(--ambre-bg); } .acc-tuile.prune { --acc: var(--prune); --acc-bg: var(--prune-bg); } .acc-tuile.noir { --acc: var(--noir-3); --acc-bg: var(--gris-bg); }',
@@ -89,7 +93,10 @@
   function departLu() {
     var d = AMX.memo.lire(CLE_DEPART, null);
     if (!d || typeof d !== 'object' || !d.section) return null;
+    var t = AMX.traduire ? AMX.traduire(d.section, d.onglet) : null;   /* 21 oct. : ancienne section mémorisée (ex. Vente) → sa tuile */
+    if (t) d = { section: t.section, onglet: t.onglet };
     var sec = AMX.sections[d.section];
+    if (sec && sec.absorbee) return null;
     if (!sec || (sec.visible && !sec.visible())) return null;
     var onglets = (sec.onglets || []).filter(function (o) { return !o.visible || o.visible(); });
     var ong = onglets.filter(function (o) { return o.id === d.onglet; })[0] || onglets[0] || null;
@@ -207,7 +214,7 @@
 
     /* ---- sections ---- */
     var depart = departLu();
-    this.el.appendChild(h('div.acc-titre', [h('h2', 'Sections'), h('span', 'L\'étoile fixe la page de départ')]));
+    this.el.appendChild(h('div.acc-titre', [h('h2', 'Où aller'), h('span', 'L\'étoile fixe la page de départ')]));
     var tuiles = h('div.acc-tuiles');
     AMX.listeSections().filter(function (s) { return s.id !== 'accueil'; }).forEach(function (s) {
       var onglets = (s.onglets || []).filter(function (o) { return !o.visible || o.visible(); });

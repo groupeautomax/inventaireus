@@ -168,7 +168,16 @@
     return h('span.dispo.non.' + couleurRaison(r) + (grande ? '.grande' : ''), { title: titre }, [h('i', { text: '✕' }), h('span', { text: RAISONS[r] || r })]);
   }
   function puceExportable(v) { var e = estExportable(v); return e ? h('span.badge.sans-point.' + (e === 'oui' ? 'sarcelle' : 'gris'), { text: EXPORTABLES[e], title: e === 'oui' ? 'Le NIV peut être exporté' : 'Le NIV ne doit pas être exporté' }) : null; }
-  var ONGLETS_NEUFS = ['liste', 'commandes', 'ventes', 'ecarts', 'absents', 'echanges', 'equite', 'analyse'];   /* equite (21 oct.) : clients BMW Financial Services (InfoBahn) avec équité, neuf similaire, nouvelle mensualité — assets/equite.js */   /* absents (12 oct.) : au DMS / sur la feuille, absents du manufacturier ; echanges (12 oct.) : demandes d'échange entre concessions par texto */
+  /* 21 oct. (Maxime : « enlever les onglets de la deuxième barre sauf DMS absent et manufacturier absent ») : la barre de la
+     page n'a plus que Liste · Absents du DMS · Absents du manufacturier. Commandes et Ventes déclarées sont des pastilles de
+     la liste (VUES_LISTE), Analyse un bouton de l'en-tête, Échanges vit dans Vente › Échanges de neufs (mode « seul »),
+     Équité dans Relance (assets/relance.js). Les anciens ids (commandes, ventes, ecarts, echanges, equite) sont traduits. */
+  var ONGLETS_NEUFS = ['liste', 'absentsDms', 'absents', 'analyse'];
+  var VUES_LISTE = ['table', 'commandes', 'ventes'];
+  var ANCIENS_ONGLETS = { commandes: { onglet: 'liste', vue: 'commandes' }, ventes: { onglet: 'liste', vue: 'ventes' }, ecarts: { onglet: 'absentsDms' }, echanges: { onglet: 'liste' }, equite: { onglet: 'liste' } };
+  function ongletDemande(id) { if (ANCIENS_ONGLETS[id]) return ANCIENS_ONGLETS[id]; return ONGLETS_NEUFS.indexOf(id) >= 0 ? { onglet: id } : null; }
+  /* Demandes d'échange (cache du module) : le compteur de Vente › Échanges de neufs sans monter la page. */
+  var cacheEchanges = null;
   var MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   function libMois(p) { var m = /^(\d{4})-(\d{2})/.exec(String(p || '')); return m ? MOIS_FR[Number(m[2]) - 1] + ' ' + m[1] : String(p || '—'); }
   function peutImporterPortail() { return !!(AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.perm('gererUtilisateurs') || AMX.estAdmin()); }
@@ -273,7 +282,11 @@
       '.neufs-options { display: flex; flex-wrap: wrap; gap: 4px; } .neufs-options span { background: var(--gris-bg); border-radius: 999px; padding: 2px 8px; font-size: 11.5px; }',
       '.neufs-vide { padding: 28px 12px; text-align: center; color: var(--encre-3); }',
       '.neufs-ecarts tr.ecart { cursor: pointer; } .neufs-ecarts tr.ecart:hover td { background: var(--gris-bg); }',
-      '.neufs-origine { margin: 6px 0 4px; } .neufs-origine button { display: inline-flex; gap: 6px; align-items: center; padding: 5px 12px; font-size: 12.5px; } .neufs-origine button b { font-weight: 600; font-size: 11.5px; color: var(--encre-3); background: var(--gris-bg); border-radius: 999px; padding: 0 7px; } .neufs-origine button.actif b { color: var(--vert); background: var(--vert-clair); } .neufs-origine button.vide:not(.actif) { color: var(--encre-3); opacity: .75; }',
+      '.neufs-origine { margin: 0; } .neufs-origine button, .neufs-flotte button { display: inline-flex; gap: 6px; align-items: center; padding: 5px 12px; font-size: 12.5px; } .neufs-origine button b, .neufs-flotte button b { font-weight: 600; font-size: 11.5px; color: var(--encre-3); background: var(--gris-bg); border-radius: 999px; padding: 0 7px; } .neufs-origine button.actif b, .neufs-flotte button.actif b { color: var(--vert); background: var(--vert-clair); } .neufs-origine button.vide:not(.actif) { color: var(--encre-3); opacity: .75; }',
+      /* 21 oct. : l'entonnoir sous les concessions — Inventaire (DMS | Manufacturier) puis Type (Détail | Flotte | Tout) */
+      '.neufs-etapes2 { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; margin: 2px 0 12px; } .neufs-palier { display: inline-flex; align-items: center; gap: 8px; } .neufs-palier .etiquette { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); font-weight: 600; } .neufs-palier.cache { display: none; }',
+      '.neufs-statut.portail i { background: var(--bleu); } .neufs-statut.portail.actif { background: var(--bleu); color: #fff; } .neufs-statut.portail.actif b { color: #fff; background: rgba(255,255,255,.22); }',
+      '.neufs-page .btn.actif { background: var(--encre); color: #fff; border-color: var(--encre); }',
       '.neufs-filtres-ventes { margin-bottom: 10px; }',
       '.neufs-panneau .carte-entete { flex-wrap: wrap; } .neufs-panneau .carte-entete h2 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; } .neufs-panneau .carte-entete h2 .sous { font-weight: 400; font-size: 12px; color: var(--encre-3); }',
       '.neufs-portail-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }',
@@ -367,6 +380,22 @@
   // 11 oct. (Maxime : « un onglet Inventaire, puis Neufs et Usagé ») : plus de section à part — la vue est montée par
   // Inventaire › Neufs (assets/inventaire.js, VueInventaire). L'ancienne adresse #/neufs est redirigée (app.js).
   AMX.neufs.monter = function (conteneur, ctx) { return new VueNeufs(conteneur, ctx); };
+  /* 21 oct. — Vente › Échanges de neufs : les demandes d'échange (GET ?echanges=1) en cache du module, pour le compteur de la
+     sous-barre et de l'accueil sans monter la page. Compteur = demandes en attente dans la portée ('' tant que rien n'est lu). */
+  AMX.neufs.chargerEchanges = function () {
+    return AMX.get({ echanges: 1 }).then(function (d) {
+      cacheEchanges = (d && d.ok && Array.isArray(d.echanges)) ? d : { echanges: [], peutDemander: false, textosActifs: false, indisponible: (d && (d.erreur || d.message)) || 'route absente' };
+      try { document.dispatchEvent(new CustomEvent('amx:echanges')); } catch (e) {}
+      return cacheEchanges;
+    });
+  };
+  AMX.neufs.echangesEnCache = function () { return cacheEchanges; };
+  AMX.neufs.compteurEchanges = function () {
+    if (!cacheEchanges) return '';
+    var c = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
+    var n = (cacheEchanges.echanges || []).filter(function (o) { return o.statut === 'en_attente' && (!c || o.deCompagnie === c || o.aCompagnie === c); }).length;
+    return n || '';
+  };
 
   /** Groupes modèle › version : en stock, tranches, sorties 90 j, jours d'approvisionnement, âge moyen. */
   function groupes(vehicules, mouvements) {
@@ -445,37 +474,23 @@
     this.flotte = AMX.memo.lire('neufs_flotte', 'detail'); if (['detail', 'flotte', 'tout'].indexOf(this.flotte) < 0) this.flotte = 'detail';   /* détail par défaut : la flotte fausse les jours d'appro et l'âge */
     this.origine = AMX.memo.lire('neufs_origine', ''); if (['dms', 'constructeur'].indexOf(this.origine) < 0) this.origine = '';   /* '' = l'origine par défaut (DMS s'il y en a un) */
     this.tri = AMX.memo.lire('neufs_tri', { cle: 'jours', desc: true });
+    this.seul = !!(ctx && ctx.params && ctx.params.seul === 'echanges');   /* 21 oct. : Vente › Échanges de neufs = cette page, réduite aux demandes d'échange */
+    this.vue = AMX.memo.lire('neufs_vue', 'table'); if (VUES_LISTE.indexOf(this.vue) < 0) this.vue = 'table';   /* 21 oct. : table · commandes · ventes déclarées (pastilles de la liste) */
     this.construire();
     if (ctx && ctx.params && ctx.params.vin) { this.filtres.recherche = String(ctx.params.vin).toUpperCase(); this.elRecherche.value = this.filtres.recherche; this.vinDemande = true; }
-    if (ctx && ctx.params && ONGLETS_NEUFS.indexOf(ctx.params.onglet) >= 0) this.onglet = ctx.params.onglet;   /* #/neufs?onglet=ventes (tuile de l'accueil) */
+    var od = ctx && ctx.params ? ongletDemande(ctx.params.onglet) : null;   /* #/inventaire/neufs?onglet=ventes (tuile de l'accueil) */
+    if (od) { this.onglet = od.onglet; if (od.vue) this.vue = od.vue; }
     this.charger();
     this.surProfil = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('inventaire'); self.rendre(); } };
     document.addEventListener('amx:profil', this.surProfil);
     document.addEventListener('amx:compagnie', this.surProfil);
   }
-  VueNeufs.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:compagnie', this.surProfil); if (this.vueEquite && this.vueEquite.demonter) { try { this.vueEquite.demonter(); } catch (e) {} } };
-  /* 21 oct. — onglet « Équité » (assets/equite.js) : visible quand un portefeuille BMW Financial Services est importé pour la
-     concession choisie (ou pour une des concessions visibles) ; le compte = comptes actifs. null = pas d'onglet. */
-  VueNeufs.prototype.equiteCie = function () { return this.compagnie || 'BMW'; };
-  VueNeufs.prototype.equiteVisible = function () {
-    if (!AMX.equite) return null;
-    var cie = this.equiteCie(), n = AMX.equite.comptes(cie).length;
-    if (!n && !AMX.equite.enCache() && cie === 'BMW') { var self = this; AMX.equite.charger().then(function () { if (self.detruit) return; if (AMX.equite.comptes(cie).length) { self.rendreOnglets(); if (self.onglet === 'equite') self.montrer('equite'); } else if (self.onglet === 'equite') { self.onglet = 'liste'; self.montrer('liste'); } }).catch(function () { if (!self.detruit && self.onglet === 'equite') { self.onglet = 'liste'; self.montrer('liste'); } }); }
-    return n ? n : null;
-  };
-  VueNeufs.prototype.rendreEquite = function () {
-    if (!AMX.equite) return;
-    var cie = this.equiteCie();
-    if (this.vueEquite && this.vueEquiteCie === cie) { this.vueEquite.ctx.neufs = this.donnees; this.vueEquite.rendre(); return; }
-    if (this.vueEquite && this.vueEquite.demonter) { try { this.vueEquite.demonter(); } catch (e) {} }
-    AMX.vider(this.elEquite);
-    this.vueEquiteCie = cie;
-    this.vueEquite = AMX.equite.monter(this.elEquite, cie, { neufs: this.donnees });
-  };
+  VueNeufs.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:compagnie', this.surProfil); };
   // Même section, nouvelle adresse (ex. recherche globale avec un NIV).
   VueNeufs.prototype.naviguer = function (ctx) {
     if (ctx.params && ctx.params.vin) { this.filtres.recherche = String(ctx.params.vin).toUpperCase(); this.elRecherche.value = this.filtres.recherche; this.vinDemande = true; this.rendre(); }
-    if (ctx.params && ONGLETS_NEUFS.indexOf(ctx.params.onglet) >= 0) { if (this.donnees) this.montrer(ctx.params.onglet, { defiler: true }); else this.onglet = ctx.params.onglet; }
+    var od = ctx.params ? ongletDemande(ctx.params.onglet) : null;
+    if (od) { if (od.vue) this.choisirVue(od.vue, true); if (this.donnees) this.montrer(od.onglet, { defiler: true }); else this.onglet = od.onglet; }
   };
 
   VueNeufs.prototype.construire = function () {
@@ -484,24 +499,33 @@
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
     this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail du constructeur</span>', title: 'Lire l\'inventaire, les commandes et les ventes déclarées depuis le portail du constructeur (favori à cliquer sur le portail, connecté)', onclick: function () { self.ouvrirSignet(self.compagnie || 'HYUNDAI'); } });
-    this.elOrigine = h('div.segment.neufs-origine', { role: 'group', 'aria-label': 'Origine de l\'inventaire', title: 'Deux inventaires distincts, jamais mélangés : l\'export du DMS (fichier ou feuille Google) et le portail du manufacturier (favori) — l\'onglet Écarts les compare' });
-    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Véhicules neufs'), this.elOrigine, this.elEtat]), h('div.actions', [this.btnPortail, this.btnRafraichir, this.btnExport])]);
+    this.elOrigine = h('div.segment.neufs-origine', { role: 'group', 'aria-label': 'Origine de l\'inventaire', title: 'Deux inventaires distincts, jamais mélangés : l\'export du DMS (fichier ou feuille Google) et le portail du manufacturier (favori) — les onglets Absents les comparent' });
+    this.elFlotte = h('div.segment.neufs-flotte', { role: 'group', 'aria-label': 'Détail ou flotte', title: 'GM : les unités commandées en FNR / FCN sont de la flotte (parcs) ; TRE / SRE, le détail' });
+    // 21 oct. (Maxime : « dans Inventaire, commencer par le choix de la concession, après DMS ou manufacturier, après détail ou
+    // flotte, après les menus ») : concession → origine → type → barre (Liste · Absents) → menus → liste. Analyse = bouton.
+    this.btnAnalyse = h('button.btn#neufs-analyse', { type: 'button', html: I.resultat + '<span>Analyse</span>', title: 'Vieillissement, jours d\'approvisionnement, revue des modèles', onclick: function () { self.montrer(self.onglet === 'analyse' ? 'liste' : 'analyse'); } });
+    var titre = this.seul ? 'Échanges de neufs entre concessions' : 'Véhicules neufs';
+    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', titre), this.elEtat]), h('div.actions', this.seul ? [this.btnRafraichir] : [this.btnAnalyse, this.btnPortail, this.btnRafraichir, this.btnExport])]);
     this.elChoix = h('div.barre-cies.neufs-concessions');   /* 16 oct. : même rangée de concessions que partout (AMX.barreConcessions) */
+    this.elEtapeOrigine = h('div.neufs-palier', [h('span.etiquette', { text: 'Inventaire' }), this.elOrigine]);
+    this.elEtapeFlotte = h('div.neufs-palier.cache', [h('span.etiquette', { text: 'Type' }), this.elFlotte]);
+    this.elEtapes = h('div.neufs-etapes2', [this.elEtapeOrigine, this.elEtapeFlotte]);
     this.elMarques = h('div.neufs-marques');
     this.elPipeline = h('div.carte.neufs-pipeline');
     this.elCartes = h('div.neufs-cartes');
     this.elOnglets = h('div.neufs-onglets', { role: 'tablist' });
-    // Onglets : Liste · Commandes · Ventes déclarées · Analyse — un seul affiché à la fois (page courte, Maxime 10 oct.)
-    this.onglet = AMX.memo.lire('neufs_onglet', 'liste'); if (ONGLETS_NEUFS.indexOf(this.onglet) < 0) this.onglet = 'liste';
+    // Deuxième barre : Liste · Absents du DMS · Absents du manufacturier — un seul panneau affiché à la fois.
+    this.onglet = AMX.memo.lire('neufs_onglet', 'liste'); if (ONGLETS_NEUFS.indexOf(this.onglet) < 0) this.onglet = (ANCIENS_ONGLETS[this.onglet] || {}).onglet || 'liste';
+    if (this.onglet === 'analyse') this.onglet = 'liste';   /* l'analyse ne se mémorise pas : on rouvre toujours sur la liste */
     this.elVieillissement = h('div.carte');
     this.elRevue = h('div.carte');
     this.elGroupes = h('div.carte');
     this.elCommandes = h('div.neufs-panneau');
     this.elVentes = h('div.neufs-panneau');
-    this.elEcarts = h('div.neufs-panneau');   /* DMS vs constructeur (11 oct.) */
+    this.elEcarts = h('div.neufs-panneau');   /* DMS vs constructeur (11 oct.) — rendu au bas d'« Absents du DMS » (21 oct.) */
+    this.elAbsentsDms = h('div.neufs-panneau');   /* 21 oct. : en stock au portail du manufacturier, absents du DMS */
     this.elAbsents = h('div.neufs-panneau');   /* 12 oct. (Maxime : « absent de Global mais dans le DMS, comme onglet ») */
-    this.elEchanges = h('div.neufs-panneau');   /* 12 oct. : demandes d'échange entre concessions, par texto */
-    this.elEquite = h('div.neufs-panneau');   /* 21 oct. : équité des clients BMW FS (AMX.equite.monter) */
+    this.elEchanges = h('div.neufs-panneau');   /* 12 oct. : demandes d'échange entre concessions, par texto — page Vente › Échanges de neufs (21 oct.) */
     this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, version, couleur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { self.filtres.modele = e.target.value; self.filtres.version = ''; self.rendreTable(); self.rendreSelects(); } });
     this.selVersion = h('select.saisie', { 'aria-label': 'Version', onchange: function (e) { self.filtres.version = e.target.value; self.rendreTable(); } });
@@ -521,22 +545,41 @@
     this.elBarre = barre;
     this.elTable = h('div.neufs-table');
     this.elExclus = h('div.neufs-exclus');
-    this.elListe = h('div.neufs-panneau', [barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])])]);
+    this.elCarteTable = h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])]);
+    // La liste (21 oct.) : marques, pipeline, cartes et menus (elTete, visibles pour Liste seulement), puis la table — ou, par les
+    // pastilles « Portail », les commandes chez le manufacturier ou les ventes déclarées à la place de la table (panneaux frères).
+    this.elTete = h('div.neufs-tete', [this.elMarques, this.elPipeline, this.elCartes, barre]);
+    this.elListe = h('div.neufs-panneau', [this.elCarteTable]);
     this.elAnalyse = h('div.neufs-panneau', [this.elVieillissement, this.elGroupes, this.elRevue]);
-    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elMarques, this.elPipeline, this.elCartes, this.elOnglets, this.elListe, this.elCommandes, this.elVentes, this.elEcarts, this.elAbsents, this.elEchanges, this.elEquite, this.elAnalyse]);
+    this.el = this.seul
+      ? h('div.page.neufs-page', [entete, this.elChoix, this.elEchanges])
+      : h('div.page.neufs-page', [entete, this.elChoix, this.elEtapes, this.elOnglets, this.elTete, this.elListe, this.elCommandes, this.elVentes, this.elAbsentsDms, this.elAbsents, this.elAnalyse]);
     this.conteneur.appendChild(this.el);
   };
-  /* Sélecteur Détail · Flotte · Tout (GM seulement : les unités FNR / FCN du portail sont de la flotte). */
+  /* Sélecteur Détail · Flotte · Tout (GM seulement : les unités FNR / FCN du portail sont de la flotte) — rangée « Type », sous
+     l'origine (21 oct.) ; caché quand la portée n'a pas de flotte. */
   VueNeufs.prototype.rendreFlotte = function () {
-    var self = this, ancien = this.elChoix.querySelector('.extra');
-    if (ancien) ancien.remove();
-    if (!this.aFlotte()) { this.elChoix.classList.toggle('sans-choix', !this.elChoix.querySelector('.choix-cie')); return; }
+    var self = this;
+    AMX.vider(this.elFlotte);
+    var aFlotte = this.aFlotte();
+    this.elEtapeFlotte.classList.toggle('cache', !aFlotte);
+    if (!aFlotte) return;
     var tous = this.visiblesTous().filter(function (v) { return v.enStock; }), nF = tous.filter(estFlotte).length, nD = tous.length - nF;
-    var seg = h('div.segment.neufs-flotte', { role: 'group', 'aria-label': 'Détail ou flotte', title: 'GM : les unités commandées en FNR / FCN sont de la flotte (parcs) ; TRE / SRE, le détail' }, [['detail', 'Détail', nD], ['flotte', 'Flotte', nF], ['tout', 'Tout', tous.length]].map(function (o) {
-      return h('button' + (self.flotte === o[0] ? '.actif' : ''), { type: 'button', text: o[1] + ' ' + AMX.fmtNombre(o[2]), onclick: function () { if (self.flotte === o[0]) return; self.flotte = o[0]; AMX.memo.ecrire('neufs_flotte', o[0]); self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); } });
-    }));
-    this.elChoix.appendChild(h('div.extra', [seg]));
-    this.elChoix.classList.remove('sans-choix');
+    [['detail', 'Détail', nD], ['flotte', 'Flotte', nF], ['tout', 'Tout', tous.length]].forEach(function (o) {
+      self.elFlotte.appendChild(h('button' + (self.flotte === o[0] ? '.actif' : ''), { type: 'button', 'data-flotte': o[0], onclick: function () { if (self.flotte === o[0]) return; self.flotte = o[0]; AMX.memo.ecrire('neufs_flotte', o[0]); self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); } }, [h('span', { text: o[1] }), h('b', { text: AMX.fmtNombre(o[2]) })]));
+    });
+  };
+  /* Vue de la liste (21 oct.) : la table des véhicules, les commandes chez le manufacturier ou les ventes déclarées (RDR). */
+  VueNeufs.prototype.choisirVue = function (vue, silencieux) {
+    if (VUES_LISTE.indexOf(vue) < 0) vue = 'table';
+    this.vue = vue; AMX.memo.ecrire('neufs_vue', vue);
+    if (!silencieux) { this.rendreSelects(); this.montrerVue(); }
+  };
+  VueNeufs.prototype.montrerVue = function () {
+    var vue = this.onglet === 'liste' ? this.vue : '';
+    this.elListe.classList.toggle('cache', vue !== 'table');
+    this.elCommandes.classList.toggle('cache', vue !== 'commandes');
+    this.elVentes.classList.toggle('cache', vue !== 'ventes');
   };
   /* Filtre de marque (Maxime, 11 oct.) : pastilles sous les concessions quand la concession vend plusieurs marques (GM). */
   VueNeufs.prototype.rendreMarques = function () {
@@ -555,31 +598,39 @@
   };
   /* Onglet actif : un seul panneau visible ; mémorisé pour la prochaine visite. */
   VueNeufs.prototype.montrer = function (onglet, options) {
-    this.onglet = onglet; AMX.memo.ecrire('neufs_onglet', onglet);
-    var self = this;
-    [['liste', this.elListe], ['commandes', this.elCommandes], ['ventes', this.elVentes], ['ecarts', this.elEcarts], ['absents', this.elAbsents], ['echanges', this.elEchanges], ['equite', this.elEquite], ['analyse', this.elAnalyse]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
-    if (onglet === 'equite') this.rendreEquite();
+    var ancien = ANCIENS_ONGLETS[onglet];   /* commandes / ventes → la liste, dans cette vue ; ecarts → Absents du DMS ; echanges / equite → la liste */
+    if (ancien) { if (ancien.vue) { this.choisirVue(ancien.vue, true); if (this.donnees) this.rendreSelects(); } onglet = ancien.onglet; }
+    if (ONGLETS_NEUFS.indexOf(onglet) < 0) onglet = 'liste';
+    if (this.seul) onglet = 'liste';
+    this.onglet = onglet; if (onglet !== 'analyse') AMX.memo.ecrire('neufs_onglet', onglet);
+    [['absentsDms', this.elAbsentsDms], ['absents', this.elAbsents], ['analyse', this.elAnalyse]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
+    this.elTete.classList.toggle('cache', onglet !== 'liste');
+    this.btnAnalyse.classList.toggle('actif', onglet === 'analyse');
+    this.btnAnalyse.querySelector('span').textContent = onglet === 'analyse' ? 'Retour à la liste' : 'Analyse';
+    this.montrerVue();
     this.rendreOnglets();
-    if (options && options.defiler) { var cible = { liste: this.elBarre, commandes: this.elCommandes, ventes: this.elVentes, ecarts: this.elEcarts, absents: this.elAbsents, echanges: this.elEchanges, equite: this.elEquite, analyse: this.elAnalyse }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    if (options && options.defiler) { var cible = { liste: this.vue === 'table' ? this.elBarre : (this.vue === 'commandes' ? this.elCommandes : this.elVentes), absentsDms: this.elAbsentsDms, absents: this.elAbsents, analyse: this.elAnalyse }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  };
+  /* Nombre d'unités en stock au portail du manufacturier mais absentes du DMS (ou de la feuille de référence), dans la portée. */
+  VueNeufs.prototype.nAbsentsDms = function () {
+    var self = this, c = this.compagnie;
+    if (!this.donnees) return 0;
+    if (!this.absents) this.absents = this.calculerAbsentsDms();
+    return this.donnees.vehicules.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === 'constructeur' && self.absentDms(v); }).length;
   };
   VueNeufs.prototype.rendreOnglets = function () {
     var self = this, d = this.donnees;
     AMX.vider(this.elOnglets);
-    if (!d) return;
+    if (!d || this.seul) return;
     var enStock = this.visibles().filter(function (v) { return v.enStock; }).length;
-    var c = this.compagnie, pv = this.portailVisible();   /* concession ET mode détail / flotte */
-    var commandes = pv.commandes.filter(function (x) { return !commandeAttente(x); }).reduce(function (s, x) { return s + (x.n || 0); }, 0);
-    var depuis12 = debut12Mois(), ventes = pv.ventes.filter(function (x) { return String(x.dateVente) >= depuis12; }).length;
-    var portail = !c || !!PORTAILS[c];
-    var ec = this.deuxOrigines() ? this.ecarts() : null, ab = this.absentsConstructeur();
-    var echA = this.echangesEnAttente(), echMoi = echA.filter(function (o) { return o.peutRepondre; }).length;
-    var equite = this.equiteVisible();   /* 21 oct. : portefeuille BMW FS importé pour cette concession */
-    var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['ecarts', 'Écarts DMS / manufacturier', ec ? ec.total : null], ['absents', 'Absents du manufacturier', ab ? ab.lignes.length : null], ['echanges', 'Échanges', echA.length || null], ['equite', 'Équité', equite], ['analyse', 'Analyse', null]];
-    onglets.forEach(function (o) {
-      if (o[2] === null && (o[0] === 'commandes' || o[0] === 'ventes' || o[0] === 'ecarts' || o[0] === 'absents' || o[0] === 'equite')) return;   /* concession sans portail (ou sans rien à comparer) : pas d'onglets vides */
-      self.elOnglets.appendChild(h('button' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', 'data-onglet': o[0], onclick: function () { self.montrer(o[0]); } }, [h('span', { text: o[1] }), o[2] !== null ? h('b' + ((o[0] === 'absents' && o[2]) || (o[0] === 'echanges' && echMoi) ? '.rouge' : ''), { text: AMX.fmtNombre(o[2]) }) : null]));
+    var ab = this.absentsConstructeur();
+    var o = this.originesDispo(), nAbs = o.constructeur ? this.nAbsentsDms() : null;   /* sans inventaire du manufacturier : rien à comparer */
+    var onglets = [['liste', 'Liste', enStock], ['absentsDms', 'Absents du DMS', nAbs], ['absents', 'Absents du manufacturier', ab ? ab.lignes.length : null]];
+    onglets.forEach(function (x) {
+      if (x[2] === null && x[0] !== 'liste') return;   /* concession sans portail (ou sans rien à comparer) : pas d'onglets vides */
+      self.elOnglets.appendChild(h('button' + (self.onglet === x[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === x[0] ? 'true' : 'false', 'data-onglet': x[0], onclick: function () { self.montrer(x[0]); } }, [h('span', { text: x[1] }), x[2] !== null ? h('b' + (x[0] !== 'liste' && x[2] ? '.rouge' : ''), { text: AMX.fmtNombre(x[2]) }) : null]));
     });
-    if (!this.elOnglets.querySelector('button.actif')) { if (this.onglet === 'equite' && AMX.equite && !AMX.equite.enCache()) return; this.onglet = 'liste'; this.montrer('liste'); }   /* 21 oct. : Équité demandé mais portefeuille pas encore lu → on attend */
+    if (this.onglet !== 'analyse' && !this.elOnglets.querySelector('button.actif')) { this.onglet = 'liste'; this.montrer('liste'); }
   };
 
   VueNeufs.prototype.charger = function (force) {
@@ -720,6 +771,15 @@
     }   /* NIV demandé (recherche globale) caché par l'origine, le mode ou la marque : on bascule */
     var tous = this.donnees ? this.donnees.vehicules : [];
     var def = AMX.neufs.originesDefaut ? AMX.neufs.originesDefaut() : {}, oc = this.origineCourante();
+    if (this.seul) {   /* Vente › Échanges de neufs : la concession, puis les demandes (le compte = demandes en attente) */
+      AMX.barreConcessions(this.elChoix, { domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { var e = (self.echanges && self.echanges.echanges) || []; return self.echanges ? e.filter(function (o) { return o.statut === 'en_attente' && (!c || o.deCompagnie === c || o.aCompagnie === c); }).length : null; }, onchange: function (c) { self.compagnie = c; self.rendre(); } });
+      var att = this.echangesEnAttente();
+      this.elEtat.textContent = !this.echanges ? 'Chargement des demandes…' : (this.compagnie ? nomCie(this.compagnie) : 'Tout le groupe') + ' · ' + att.length + ' demande' + (att.length > 1 ? 's' : '') + ' en attente' + (this.echanges.textosActifs ? ' · réponses par texto' : '');
+      if (this.erreur && !this.donnees) { this.elEtat.textContent = this.erreur; return; }
+      if (!this.donnees) return;
+      this.rendreEchanges();
+      return;
+    }
     AMX.barreConcessions(this.elChoix, { domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return tous.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === (c ? (self.origine && self.compagnie === c ? oc : def[c]) : def[v.compagnie]) && self.garde(estFlotte(v)); }).length; }, onchange: function (c) { self.compagnie = c; self.typeParVin = null; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre(); } });
     this.rendreOrigine();
     this.rendreFlotte();
@@ -748,10 +808,69 @@
     this.rendreSelects();
     this.rendreTable();
     this.rendreExclus();
-    this.rendreEcarts();
+    this.rendreAbsentsDms();
     this.rendreAbsents();
-    this.rendreEchanges();
     this.montrer(this.onglet);
+  };
+  /* Onglet « Absents du DMS » (21 oct.) : en stock au portail du manufacturier (livré au concessionnaire) mais pas dans l'export du
+     DMS — ou pas sur la feuille Google de référence tant que le feed n'est pas là. Les écarts de statut (en stock d'un côté,
+     transit ou démo de l'autre) suivent au bas, avec l'export des écarts : l'ancien onglet Écarts n'existe plus. */
+  VueNeufs.prototype.rendreAbsentsDms = function () {
+    var self = this, d = this.donnees, c = this.compagnie;
+    AMX.vider(this.elAbsentsDms);
+    if (!d) return;
+    var o = this.originesDispo(); if (!o.constructeur) return;
+    if (!this.absents) this.absents = this.calculerAbsentsDms();
+    var lignes = d.vehicules.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === 'constructeur' && self.absentDms(v); }).sort(function (a, b) { return String(a.compagnie).localeCompare(String(b.compagnie)) || (b.jours || 0) - (a.jours || 0); });
+    var cies = c ? [c] : Object.keys(AMX.COMPAGNIES_TOUTES || AMX.COMPAGNIES);
+    var refs = cies.map(function (x) { var r = self.referenceAbsents(x); return r ? nomCie(x) + ' : ' + r.texte : null; }).filter(Boolean).join(' · ');
+    var fc = d.feedsConstructeur || {}, luCon = cies.map(function (x) { return fc[x] ? nomCie(x) + ' ' + AMX.fmtDate(fc[x].le, true) : null; }).filter(Boolean).join(' · ');
+    var e = this.deuxOrigines() ? this.ecarts() : null;
+    var carte = function (cls, nom, n, bas) { return h('div.neufs-carte.' + cls, [h('div.nom', { text: nom }), h('div.n', { text: AMX.fmtNombre(n) }), bas ? h('div.bas', { text: bas }) : null]); };
+    var tuiles = h('div.neufs-cartes', { style: { marginBottom: '0' } }, [
+      carte(lignes.length ? 'rouge' : 'vert', 'Absents du DMS', lignes.length, 'au portail du manufacturier, pas au DMS / sur la feuille'),
+      e ? carte('vert', 'Dans les deux', e.communs, 'même NIV au DMS et chez le manufacturier') : null,
+      e ? carte(e.statut.length ? 'rouge' : 'vert', 'Statut différent', e.statut.length, 'en stock d\'un côté, transit ou démo de l\'autre') : null
+    ]);
+    var rangee = function (v) {
+      var tr = h('tr.ecart.absent-manufacturier', (c ? [] : [h('td', { text: nomCie(v.compagnie) })]).concat([
+        h('td', { text: v.stock || '—' }),
+        h('td.vehicule', [h('div.nom', { text: nomVehicule(v) }), h('div.vin', { text: v.vin })]),
+        h('td', { text: v.couleur || '—' }),
+        h('td', { text: statutNorme(v) }),
+        h('td.num', { text: fmtJours(v.jours) }),
+        h('td', { text: v.emplacement || (v.extra || {}).etape || '—' })
+      ]));
+      tr.addEventListener('click', function () { self.ouvrir(v); }); tr.title = 'Ouvrir la fiche du portail';
+      return tr;
+    };
+    var entetes = (c ? [] : ['Concession']).concat(['# Stock', 'Véhicule', 'Couleur', 'Statut au portail', 'Jours', 'Étape / emplacement']);
+    var corps = [tuiles,
+      h('p.doux.petit', { style: { margin: '10px 0 0' }, text: 'Portail du manufacturier lu : ' + (luCon || 'pas de lecture') + '. Comparé à ' + (refs || 'rien (pas de DMS ni de feuille)') + '. Un NIV absent du DMS est en général une réception non saisie au DMS, un mauvais NIV ou un véhicule déjà vendu côté DMS : à vérifier au DMS.' }),
+      lignes.length ? h('div.neufs-table.neufs-ecarts', { style: { marginTop: '14px' } }, [h('table.tableau', [h('thead', [h('tr', entetes.map(function (x) { return h('th', x); }))]), h('tbody', lignes.slice(0, 300).map(rangee))])]) : h('div.neufs-vide', { text: 'Tout ce que le manufacturier a en stock est au DMS / sur la feuille.' }),
+      lignes.length > 300 ? h('p.doux.petit', { text: '… et ' + (lignes.length - 300) + ' autres (export Excel pour le tout).' }) : null
+    ];
+    if (e && e.statut.length) {
+      var ligneV = function (v, cols) { var tr = h('tr.ecart', [h('td.vehicule', [h('div.nom', { text: nomVehicule(v) }), h('div.vin', { text: v.vin + (v.stock ? ' · #' + v.stock : '') })]), h('td', { text: v.couleur || '—' })].concat(cols)); tr.addEventListener('click', function () { self.ouvrir(v); }); return tr; };
+      corps.push(h('div', { style: { marginTop: '18px' } }, [h('h3', { text: 'Statut différent (' + e.statut.length + ')' }), h('div.neufs-table.neufs-ecarts', [h('table.tableau', [h('thead', [h('tr', ['Véhicule', 'Couleur', 'Au DMS', 'Chez le manufacturier'].map(function (x) { return h('th', x); }))]), h('tbody', e.statut.slice(0, 200).map(function (x) { return ligneV(x.dms, [h('td', { text: statutNorme(x.dms) + (x.dms.emplacement ? ' · ' + x.dms.emplacement : '') }), h('td', { text: statutNorme(x.constructeur) + ((x.constructeur.extra || {}).etape ? ' · ' + x.constructeur.extra.etape : '') })]); }))])])]));
+    }
+    this.elAbsentsDms.appendChild(h('div.carte', [
+      h('div.carte-entete', [h('h2', ['Au portail du manufacturier, absents du DMS', h('span.sous', { text: lignes.length ? lignes.length + ' NIV à vérifier au DMS' : 'rien à signaler' })]), h('div.actions', [h('button.btn.petit', { type: 'button', html: I.telecharger + '<span>Exporter</span>', onclick: function () { self.exporterAbsentsDms(); } }), e && e.total ? h('button.btn.petit.fantome', { type: 'button', html: I.telecharger + '<span>Exporter les écarts</span>', onclick: function () { self.exporterEcarts(); } }) : null])]),
+      h('div.carte-corps', corps)
+    ]));
+  };
+  VueNeufs.prototype.exporterAbsentsDms = function () {
+    var self = this, d = this.donnees, c = this.compagnie;
+    if (!d) return;
+    if (!this.absents) this.absents = this.calculerAbsentsDms();
+    var lignes = d.vehicules.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === 'constructeur' && self.absentDms(v); });
+    if (!lignes.length) { AMX.toast('Aucune unité absente du DMS à exporter.', 'attention'); return; }
+    if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
+    var rows = lignes.map(function (v) { return { 'Concession': nomCie(v.compagnie), '# Stock': v.stock || '', 'NIV': v.vin, 'Année': v.annee, 'Marque': v.marque, 'Modèle': v.modele, 'Version': v.version, 'Couleur': v.couleur, 'Statut au portail': statutNorme(v), 'Jours': v.jours, 'Étape / emplacement': v.emplacement || (v.extra || {}).etape || '' }; });
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Absents du DMS');
+    XLSX.writeFile(wb, 'neufs-absents-dms-' + (this.compagnie || 'groupe').toLowerCase() + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    AMX.toast('Export — ' + rows.length + ' NIV absents du DMS', 'ok');
   };
   /* Onglet Écarts : ce que le DMS / fichier a et pas le constructeur, l'inverse, et les NIV des deux côtés dont le statut diffère
      (en stock / en transit / démo). C'est la liste à envoyer au constructeur ou au DMS pour demander les différences. */
@@ -890,12 +1009,14 @@
      prévient le demandeur ; « NON E101 » refuse. On peut aussi répondre ici. GET ?echanges=1, POST echangeCreer / echangeRepondre. */
   VueNeufs.prototype.chargerEchanges = function (gen) {
     var self = this;
-    return AMX.get({ echanges: 1 }).then(function (d) {
+    return AMX.neufs.chargerEchanges().then(function (d) {
       if (self.detruit || (gen !== undefined && gen !== self.generation)) return;
       /* L'ancien script répond à un GET inconnu par la liste de l'inventaire (ok + vehicules) : sans tableau echanges, la route n'est pas déployée. */
-      self.echanges = (d && d.ok && Array.isArray(d.echanges)) ? d : { echanges: [], peutDemander: false, textosActifs: false, indisponible: (d && (d.erreur || d.message)) || 'route absente — redéployez le script (Echange.gs)' };
-      self.rendreEchanges(); self.rendreOnglets();
-    }).catch(function (e) { if (self.detruit) return; self.echanges = { echanges: [], peutDemander: false, textosActifs: false, indisponible: AMX.erreurTexte(e) }; self.rendreEchanges(); self.rendreOnglets(); });
+      self.echanges = d;
+      if (d.indisponible === 'route absente') d.indisponible = 'route absente — redéployez le script (Echange.gs)';
+      if (self.seul) self.rendre(); else { self.rendreEchanges(); self.rendreOnglets(); }
+      if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre();   /* compteur de Vente › Échanges de neufs */
+    }).catch(function (e) { if (self.detruit) return; self.echanges = { echanges: [], peutDemander: false, textosActifs: false, indisponible: AMX.erreurTexte(e) }; if (self.seul) self.rendre(); else { self.rendreEchanges(); self.rendreOnglets(); } });
   };
   VueNeufs.prototype.echangesEnAttente = function () {
     var c = this.compagnie;
@@ -944,8 +1065,8 @@
     var corps = [
       h('p.doux.petit', { style: { margin: 0 }, text: 'Un responsable de la feuille des neufs demande un véhicule à une autre concession du groupe : le site envoie un texto aux responsables de cette concession (admins, gestionnaires, direction des ventes et comptes avec le droit « Neufs — responsable de la feuille », qui ont un numéro de cellulaire). Ils répondent « OUI E101 » ou « NON E101 » par texto — ou ici, Accepter / Refuser. Un OUI marque aussitôt le véhicule « Échangé » à la concession demandeuse (comme un marquage) et prévient le demandeur par texto et courriel.' }),
       e && e.indisponible ? h('p.neufs-absent-dms', { text: 'Les échanges ne sont pas disponibles : ' + e.indisponible }) : null,
-      e && !e.indisponible && !e.textosActifs ? h('p.neufs-absent-dms', { text: 'Les textos ne sont pas activés (Admin › Alertes aux directeurs (textos) : compte Infobip) : les demandes seront enregistrées mais aucun texto ne partira.' }) : null,
-      e && !e.indisponible && e.textosActifs && e.lectureInstallee === false && AMX.estAdmin() ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Les réponses par texto ne sont pas encore lues automatiquement : Admin › Réponses par texto › Installer la lecture (toutes les minutes).' }) : null,
+      e && !e.indisponible && !e.textosActifs ? h('p.neufs-absent-dms', { text: 'Les textos ne sont pas activés (Outils › Comptes et droits › Alertes aux directeurs (textos) : compte Infobip) : les demandes seront enregistrées mais aucun texto ne partira.' }) : null,
+      e && !e.indisponible && e.textosActifs && e.lectureInstallee === false && AMX.estAdmin() ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Les réponses par texto ne sont pas encore lues automatiquement : Outils › Comptes et droits › Réponses par texto › Installer la lecture (toutes les minutes).' }) : null,
       liste.length ? h('div.neufs-table.neufs-echanges', { style: { marginTop: '14px' } }, [h('table.tableau', [h('thead', [h('tr', ['#', 'Demandé par', 'À', 'Véhicule', 'Message', 'Statut', 'Réponse / textos', ''].map(function (x) { return h('th', x); }))]), h('tbody', liste.slice(0, 200).map(rangee))])]) : h('div.neufs-vide', { style: { marginTop: '14px' }, text: e && e.indisponible ? '' : 'Aucune demande d\'échange' + (c ? ' pour ' + nomCie(c) : '') + '.' })
     ];
     this.elEchanges.appendChild(h('div.carte', [
@@ -1227,7 +1348,7 @@
     mois.forEach(function (m) { m.par = {}; });
     pv.ventes.forEach(function (v) { var k = String(v.dateVente).slice(0, 7); if (parMois[k]) { parMois[k].n++; total12++; var t = groupeTypeVente(v.typeVente); parType[t] = (parType[t] || 0) + 1; parMois[k].par[t] = (parMois[k].par[t] || 0) + 1; var m = v.modele || '—'; parModele[m] = parModele[m] || { n: 0, cout: 0, nCout: 0 }; parModele[m].n++; if (v.coutFacture) { parModele[m].cout += v.coutFacture; parModele[m].nCout++; } } if (k === cleMois) ceMois++; if (k === moisPrec) nPrec++; });
     var jourMois = now.getDate(), rythme = ceMois / Math.max(1, jourMois), joursMois = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    carte.appendChild(h('div.carte-entete', [h('h2', ['Ventes déclarées au constructeur (RDR)', h('span.sous', { text: total12 + ' sur 12 mois · ' + ceMois + ' ce mois' + (lu ? ' · ' + lu : '') })]), h('span.doux.petit', { text: 'livraisons déclarées, pas les profits (voir Résultat › Véhicules neufs)' })]));
+    carte.appendChild(h('div.carte-entete', [h('h2', ['Ventes déclarées au constructeur (RDR)', h('span.sous', { text: total12 + ' sur 12 mois · ' + ceMois + ' ce mois' + (lu ? ' · ' + lu : '') })]), h('span.doux.petit', { text: 'livraisons déclarées, pas les profits (voir Vente › Résultats › Neufs)' })]));
     // Tableau par mois (Maxime, 12 oct. : « le tableau met le nombre par mois ») : une ligne par mois, le total et les familles de vente
     var familles = GROUPES_VENTE.filter(function (g) { return parType[g]; }).concat(parType['—'] ? ['—'] : []);
     var colMois = h('div', [
@@ -1454,15 +1575,26 @@
     this.elStatuts.appendChild(h('span.etiquette', { text: 'Statut' }));
     this.elStatuts.appendChild(pastille('', 'Tous', base.length, ''));
     ordre.forEach(function (k) { self.elStatuts.appendChild(pastille(k, statuts[k].libelle, statuts[k].n, statuts[k].couleur)); });
-    // Type : les mêmes boutons Détail / Flotte / Tout que le sélecteur du haut (pour trouver les unités de flotte depuis la liste)
-    if (this.aFlotte()) {
-      var tous = this.visiblesTous().filter(function (v) { return (f.sortis || v.enStock) && self.gardeMarque(v.marque); }), nF = tous.filter(estFlotte).length;
+    // (Le choix Détail / Flotte / Tout est la rangée « Type » du haut, 21 oct.)
+    // Portail (21 oct.) : Commandes et Ventes déclarées — des pastilles de la liste, plus des onglets. Elles remplacent la
+    // table par le panneau correspondant ; un clic sur une pastille de statut ou de disponibilité ramène la table.
+    var pv = this.portailVisible(), portail = !this.compagnie || !!PORTAILS[this.compagnie];
+    if (portail && (pv.lus.length || pv.commandes.length || pv.ventes.length)) {
+      var nCmd = pv.commandes.filter(function (x) { return !commandeAttente(x); }).reduce(function (s, x) { return s + (x.n || 0); }, 0);
+      var depuis12 = debut12Mois(), nVentes = pv.ventes.filter(function (x) { return String(x.dateVente) >= depuis12; }).length;
+      var pastilleVue = function (vue, libelle, n, titre) {
+        return h('button.neufs-statut.portail' + (self.vue === vue ? '.actif' : ''), { type: 'button', 'data-vue': vue, title: titre, onclick: function () { self.choisirVue(self.vue === vue ? 'table' : vue); } }, [h('i'), h('span', { text: libelle }), h('b', { text: AMX.fmtNombre(n) })]);
+      };
       this.elStatuts.appendChild(h('span.sep'));
-      this.elStatuts.appendChild(h('span.etiquette', { text: 'Type' }));
-      [['detail', 'Détail', tous.length - nF, ''], ['flotte', 'Flotte', nF, 'ambre'], ['tout', 'Tout', tous.length, '']].forEach(function (o) {
-        self.elStatuts.appendChild(h('button.neufs-statut' + (o[3] ? '.' + o[3] : '') + (self.flotte === o[0] ? '.actif' : ''), { type: 'button', title: o[0] === 'flotte' ? 'Les unités commandées en flotte (FNR / FCN)' : (o[0] === 'detail' ? 'Les unités au détail (TRE / SRE) et celles sans type' : 'Détail et flotte ensemble'), onclick: function () { if (self.flotte === o[0]) return; self.flotte = o[0]; AMX.memo.ecrire('neufs_flotte', o[0]); self.filtres.modele = ''; self.filtres.version = ''; self.rendre(); } }, [o[3] ? h('i') : null, h('span', { text: o[1] }), h('b', { text: AMX.fmtNombre(o[2]) })]));
-      });
-    }
+      this.elStatuts.appendChild(h('span.etiquette', { text: 'Portail' }));
+      this.elStatuts.appendChild(pastilleVue('commandes', 'Commandes', nCmd, 'Ce qui est commandé chez le manufacturier (en cours, en attente RFO), par modèle'));
+      this.elStatuts.appendChild(pastilleVue('ventes', 'Ventes déclarées', nVentes, 'Les ventes déclarées au manufacturier (RDR) sur 12 mois'));
+    } else if (this.vue !== 'table') { this.vue = 'table'; }
+    // Un filtre touché (disponibilité, statut, menus, recherche) ramène la table si un panneau du portail était affiché.
+    var empreinte = JSON.stringify(f);
+    if (this.vue !== 'table' && this.empreinteVue !== undefined && empreinte !== this.empreinteVue) { this.vue = 'table'; AMX.memo.ecrire('neufs_vue', 'table'); this.elStatuts.querySelectorAll('button.portail.actif').forEach(function (b) { b.classList.remove('actif'); }); }
+    this.empreinteVue = empreinte;
+    this.montrerVue();
     var annees = uniques(function (v) { return v.annee; }).reverse();
     remplir(this.selAnnee, [['ancienne', 'Ancienne année-modèle']].concat(annees), 'Toutes les années', f.annee);
     remplir(this.selEmplacement, uniques(function (v) { return v.emplacement; }).map(function (o) { return [o[0], o[1].replace(o[0], emplacementTexte(o[0]))]; }), 'Tous les emplacements', f.emplacement);

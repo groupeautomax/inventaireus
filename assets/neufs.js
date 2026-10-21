@@ -168,7 +168,7 @@
     return h('span.dispo.non.' + couleurRaison(r) + (grande ? '.grande' : ''), { title: titre }, [h('i', { text: '✕' }), h('span', { text: RAISONS[r] || r })]);
   }
   function puceExportable(v) { var e = estExportable(v); return e ? h('span.badge.sans-point.' + (e === 'oui' ? 'sarcelle' : 'gris'), { text: EXPORTABLES[e], title: e === 'oui' ? 'Le NIV peut être exporté' : 'Le NIV ne doit pas être exporté' }) : null; }
-  var ONGLETS_NEUFS = ['liste', 'commandes', 'ventes', 'ecarts', 'absents', 'echanges', 'analyse'];   /* absents (12 oct.) : au DMS / sur la feuille, absents du manufacturier ; echanges (12 oct.) : demandes d'échange entre concessions par texto */
+  var ONGLETS_NEUFS = ['liste', 'commandes', 'ventes', 'ecarts', 'absents', 'echanges', 'equite', 'analyse'];   /* equite (21 oct.) : clients BMW Financial Services (InfoBahn) avec équité, neuf similaire, nouvelle mensualité — assets/equite.js */   /* absents (12 oct.) : au DMS / sur la feuille, absents du manufacturier ; echanges (12 oct.) : demandes d'échange entre concessions par texto */
   var MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   function libMois(p) { var m = /^(\d{4})-(\d{2})/.exec(String(p || '')); return m ? MOIS_FR[Number(m[2]) - 1] + ' ' + m[1] : String(p || '—'); }
   function peutImporterPortail() { return !!(AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.perm('gererUtilisateurs') || AMX.estAdmin()); }
@@ -453,7 +453,25 @@
     document.addEventListener('amx:profil', this.surProfil);
     document.addEventListener('amx:compagnie', this.surProfil);
   }
-  VueNeufs.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:compagnie', this.surProfil); };
+  VueNeufs.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:compagnie', this.surProfil); if (this.vueEquite && this.vueEquite.demonter) { try { this.vueEquite.demonter(); } catch (e) {} } };
+  /* 21 oct. — onglet « Équité » (assets/equite.js) : visible quand un portefeuille BMW Financial Services est importé pour la
+     concession choisie (ou pour une des concessions visibles) ; le compte = comptes actifs. null = pas d'onglet. */
+  VueNeufs.prototype.equiteCie = function () { return this.compagnie || 'BMW'; };
+  VueNeufs.prototype.equiteVisible = function () {
+    if (!AMX.equite) return null;
+    var cie = this.equiteCie(), n = AMX.equite.comptes(cie).length;
+    if (!n && !AMX.equite.enCache() && cie === 'BMW') { var self = this; AMX.equite.charger().then(function () { if (self.detruit) return; if (AMX.equite.comptes(cie).length) { self.rendreOnglets(); if (self.onglet === 'equite') self.montrer('equite'); } else if (self.onglet === 'equite') { self.onglet = 'liste'; self.montrer('liste'); } }).catch(function () { if (!self.detruit && self.onglet === 'equite') { self.onglet = 'liste'; self.montrer('liste'); } }); }
+    return n ? n : null;
+  };
+  VueNeufs.prototype.rendreEquite = function () {
+    if (!AMX.equite) return;
+    var cie = this.equiteCie();
+    if (this.vueEquite && this.vueEquiteCie === cie) { this.vueEquite.ctx.neufs = this.donnees; this.vueEquite.rendre(); return; }
+    if (this.vueEquite && this.vueEquite.demonter) { try { this.vueEquite.demonter(); } catch (e) {} }
+    AMX.vider(this.elEquite);
+    this.vueEquiteCie = cie;
+    this.vueEquite = AMX.equite.monter(this.elEquite, cie, { neufs: this.donnees });
+  };
   // Même section, nouvelle adresse (ex. recherche globale avec un NIV).
   VueNeufs.prototype.naviguer = function (ctx) {
     if (ctx.params && ctx.params.vin) { this.filtres.recherche = String(ctx.params.vin).toUpperCase(); this.elRecherche.value = this.filtres.recherche; this.vinDemande = true; this.rendre(); }
@@ -483,6 +501,7 @@
     this.elEcarts = h('div.neufs-panneau');   /* DMS vs constructeur (11 oct.) */
     this.elAbsents = h('div.neufs-panneau');   /* 12 oct. (Maxime : « absent de Global mais dans le DMS, comme onglet ») */
     this.elEchanges = h('div.neufs-panneau');   /* 12 oct. : demandes d'échange entre concessions, par texto */
+    this.elEquite = h('div.neufs-panneau');   /* 21 oct. : équité des clients BMW FS (AMX.equite.monter) */
     this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, version, couleur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { self.filtres.modele = e.target.value; self.filtres.version = ''; self.rendreTable(); self.rendreSelects(); } });
     this.selVersion = h('select.saisie', { 'aria-label': 'Version', onchange: function (e) { self.filtres.version = e.target.value; self.rendreTable(); } });
@@ -504,7 +523,7 @@
     this.elExclus = h('div.neufs-exclus');
     this.elListe = h('div.neufs-panneau', [barre, h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])])]);
     this.elAnalyse = h('div.neufs-panneau', [this.elVieillissement, this.elGroupes, this.elRevue]);
-    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elMarques, this.elPipeline, this.elCartes, this.elOnglets, this.elListe, this.elCommandes, this.elVentes, this.elEcarts, this.elAbsents, this.elEchanges, this.elAnalyse]);
+    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elMarques, this.elPipeline, this.elCartes, this.elOnglets, this.elListe, this.elCommandes, this.elVentes, this.elEcarts, this.elAbsents, this.elEchanges, this.elEquite, this.elAnalyse]);
     this.conteneur.appendChild(this.el);
   };
   /* Sélecteur Détail · Flotte · Tout (GM seulement : les unités FNR / FCN du portail sont de la flotte). */
@@ -538,9 +557,10 @@
   VueNeufs.prototype.montrer = function (onglet, options) {
     this.onglet = onglet; AMX.memo.ecrire('neufs_onglet', onglet);
     var self = this;
-    [['liste', this.elListe], ['commandes', this.elCommandes], ['ventes', this.elVentes], ['ecarts', this.elEcarts], ['absents', this.elAbsents], ['echanges', this.elEchanges], ['analyse', this.elAnalyse]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
+    [['liste', this.elListe], ['commandes', this.elCommandes], ['ventes', this.elVentes], ['ecarts', this.elEcarts], ['absents', this.elAbsents], ['echanges', this.elEchanges], ['equite', this.elEquite], ['analyse', this.elAnalyse]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
+    if (onglet === 'equite') this.rendreEquite();
     this.rendreOnglets();
-    if (options && options.defiler) { var cible = { liste: this.elBarre, commandes: this.elCommandes, ventes: this.elVentes, ecarts: this.elEcarts, absents: this.elAbsents, echanges: this.elEchanges, analyse: this.elAnalyse }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    if (options && options.defiler) { var cible = { liste: this.elBarre, commandes: this.elCommandes, ventes: this.elVentes, ecarts: this.elEcarts, absents: this.elAbsents, echanges: this.elEchanges, equite: this.elEquite, analyse: this.elAnalyse }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
   VueNeufs.prototype.rendreOnglets = function () {
     var self = this, d = this.donnees;
@@ -553,12 +573,13 @@
     var portail = !c || !!PORTAILS[c];
     var ec = this.deuxOrigines() ? this.ecarts() : null, ab = this.absentsConstructeur();
     var echA = this.echangesEnAttente(), echMoi = echA.filter(function (o) { return o.peutRepondre; }).length;
-    var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['ecarts', 'Écarts DMS / manufacturier', ec ? ec.total : null], ['absents', 'Absents du manufacturier', ab ? ab.lignes.length : null], ['echanges', 'Échanges', echA.length || null], ['analyse', 'Analyse', null]];
+    var equite = this.equiteVisible();   /* 21 oct. : portefeuille BMW FS importé pour cette concession */
+    var onglets = [['liste', 'Liste', enStock], ['commandes', 'Commandes', portail ? commandes : null], ['ventes', 'Ventes déclarées', portail ? ventes : null], ['ecarts', 'Écarts DMS / manufacturier', ec ? ec.total : null], ['absents', 'Absents du manufacturier', ab ? ab.lignes.length : null], ['echanges', 'Échanges', echA.length || null], ['equite', 'Équité', equite], ['analyse', 'Analyse', null]];
     onglets.forEach(function (o) {
-      if (o[2] === null && (o[0] === 'commandes' || o[0] === 'ventes' || o[0] === 'ecarts' || o[0] === 'absents')) return;   /* concession sans portail (ou sans rien à comparer) : pas d'onglets vides */
+      if (o[2] === null && (o[0] === 'commandes' || o[0] === 'ventes' || o[0] === 'ecarts' || o[0] === 'absents' || o[0] === 'equite')) return;   /* concession sans portail (ou sans rien à comparer) : pas d'onglets vides */
       self.elOnglets.appendChild(h('button' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', 'data-onglet': o[0], onclick: function () { self.montrer(o[0]); } }, [h('span', { text: o[1] }), o[2] !== null ? h('b' + ((o[0] === 'absents' && o[2]) || (o[0] === 'echanges' && echMoi) ? '.rouge' : ''), { text: AMX.fmtNombre(o[2]) }) : null]));
     });
-    if (!this.elOnglets.querySelector('button.actif')) { this.onglet = 'liste'; this.montrer('liste'); }
+    if (!this.elOnglets.querySelector('button.actif')) { if (this.onglet === 'equite' && AMX.equite && !AMX.equite.enCache()) return; this.onglet = 'liste'; this.montrer('liste'); }   /* 21 oct. : Équité demandé mais portefeuille pas encore lu → on attend */
   };
 
   VueNeufs.prototype.charger = function (force) {

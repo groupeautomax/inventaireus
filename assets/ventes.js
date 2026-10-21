@@ -364,12 +364,13 @@
     var self = this, cie = this.compagnie, nom = AMX.COMPAGNIES_TOUTES[cie] || cie;
     AMX.confirmer('Importer le livre de ' + nom, 'ScanAutomax lit les onglets Neuf, Occasion et Wholesale du livre et crée ici une vente pour chaque ligne inscrite depuis le 1er janvier qui n\'y est pas encore (statut, comptabilisé, profits réels compris). La colonne « ScanAutomax » du livre reçoit l\'identifiant de chaque ligne importée ; rien d\'autre n\'est modifié dans le livre. Relancer l\'import ne crée pas de doublon.', { ok: 'Importer' }).then(function (ok) {
       if (!ok) return;
-      var total = { creees: 0, liees: 0, ignorees: 0, passages: 0 }, btn = document.getElementById('ventes-importer');
+      var total = { creees: 0, liees: 0, ignorees: 0, passages: 0, erreurs: [] }, btn = document.getElementById('ventes-importer');
       if (btn) { btn.disabled = true; btn.textContent = 'Import en cours…'; }
       var passe = function () {
         total.passages++;
         return AMX.ventes.importer(cie, { max: 300 }).then(function (r) {
           total.creees += r.creees || 0; total.liees += r.liees || 0; total.ignorees += r.ignorees || 0;
+          (r.erreurs || []).forEach(function (e) { if (total.erreurs.indexOf(e) < 0) total.erreurs.push(e); });
           if (btn) btn.textContent = 'Import en cours… (' + total.creees + ' importée' + (total.creees > 1 ? 's' : '') + ')';
           if (r.reste && total.passages < 12) return passe();
           return r;
@@ -377,6 +378,7 @@
       };
       passe().then(function (r) {
         AMX.toast(total.creees + ' vente' + (total.creees > 1 ? 's' : '') + ' importée' + (total.creees > 1 ? 's' : '') + ' du livre de ' + nom + (total.liees ? ', ' + total.liees + ' liée' + (total.liees > 1 ? 's' : '') : '') + (r && r.reste ? ' — ' + r.reste + ' ligne(s) restent : relancez' : '') + '.', 'ok', 9000);
+        if (total.erreurs.length) AMX.toast('Import — ' + total.erreurs.slice(0, 2).join(' · ') + (total.erreurs.length > 2 ? ' · (+' + (total.erreurs.length - 2) + ')' : ''), 'erreur', 14000);
         AMX.ventes.invalider(); self.chargerVue(true);
       }, function (e) { AMX.toast('Import : ' + AMX.erreurTexte(e), 'erreur', 9000); self.rendreEntete(); }).then(function () { self.rendreEntete(); });
     });

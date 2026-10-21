@@ -13,6 +13,16 @@
 
    Routes : GET ?soumissions=1, ?soumission=1&id= ; POST soumissionEnregistrer, soumissionDupliquer,
    soumissionSupprimer (Soumission.gs). Montée par Inventaire › Soumissions (assets/inventaire.js).
+
+   CATALOGUE (21 oct., 08 h 40 — Maxime : « copie le catalogue alors ») : le favori « Automax ← AutoBook
+   (catalogue) » (même code, chargeur CODE_SIGNET_AUTOBOOK_CATALOGUE) lit un style à la fois dans
+   AutoBook — toutes ses options avec leur statut par défaut, PDSF et Invoice, prix de base, transport,
+   équipement, specs — et l'envoie au catalogue (Catalogue.gs : GET ?catalogue=1, ?catalogueStyle=,
+   POST catalogueImporter, catalogueSupprimer). Le site BÂTIT ensuite sans AutoBook (?batir=1) : année →
+   marque → modèle → style, options cochées (catégories à choix unique = celles où un seul choix est
+   fait par défaut), total PDSF / Invoice en direct → POST soumissionBatir → la fiche habituelle.
+   Limite assumée : les règles de compatibilité d'AutoBook (telle option exige / exclut telle autre)
+   ne sont pas copiées ; les statuts par défaut (inclus, requis, exclu) le sont.
    Les montants Invoice n'arrivent que pour les comptes qui modifient les montants, les
    gestionnaires / admins et ceux qui voient les résultats (comme les coûts des neufs). */
 (function () {
@@ -21,6 +31,7 @@
   var URL_AUTOBOOK = 'https://carbookpro.carbook.com/';
   // Chargeur du signet (généré par mock/signet-build.py) — ne jamais éditer la constante à la main.
   var CODE_SIGNET_AUTOBOOK = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-autobook.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
+  var CODE_SIGNET_AUTOBOOK_CATALOGUE = "javascript:(function () { window.__amxAutobookMode = 'catalogue'; var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-autobook.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
 
   var STATUTS = { brouillon: ['Brouillon', 'gris'], envoyee: ['Envoyée', 'bleu'], acceptee: ['Acceptée', 'vert'], perdue: ['Perdue', 'rouge'], annulee: ['Annulée', 'sombre'] };
   var STATUTS_ORDRE = ['brouillon', 'envoyee', 'acceptee', 'perdue', 'annulee'];
@@ -90,6 +101,12 @@
       '.so-specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; } .so-specs dl { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 12.5px; } .so-specs dt { color: var(--encre-3); overflow-wrap: anywhere; } .so-specs dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; } .so-specs h4 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--ligne); } .so-specs h5 { font-size: 12px; margin: 10px 0 4px; color: var(--encre-2); }',
       '.so-comp { overflow-x: auto; } .so-comp table { border-collapse: collapse; width: 100%; font-size: 12.5px; } .so-comp th, .so-comp td { padding: 7px 10px; border-bottom: 1px solid var(--ligne); text-align: left; vertical-align: top; } .so-comp th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); } .so-comp th.col { font-size: 12.5px; text-transform: none; letter-spacing: 0; color: var(--encre); font-weight: 700; min-width: 180px; } .so-comp td.lib { color: var(--encre-3); white-space: nowrap; } .so-comp td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } .so-comp tr.diff td { background: #FFFBEB; } .so-comp tr.sec td { background: var(--carte-2); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; } .so-comp td.meilleur { color: var(--vert); font-weight: 700; } .so-comp .colonnes-choix { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }',
       '.so-vide-fiche { padding: 30px; text-align: center; color: var(--encre-3); }',
+      '.so-batir { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; } .so-batir .colonne-droite { position: sticky; top: 70px; } .so-choix { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; } .so-choix label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--encre-3); margin-bottom: 4px; } .so-choix select.saisie { width: 100%; }',
+      '.so-style-info { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--encre-2); } .so-style-info b { color: var(--encre); }',
+      '.so-batir-opts tr.choix td.coche { width: 30px; } .so-batir-opts tr.choix input { width: 16px; height: 16px; } .so-batir-opts tr.choix.off td { color: var(--encre-4); } .so-batir-opts tr.choix.on td.desc { font-weight: 600; } .so-batir-opts tr.cat td .unique { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--encre-3); margin-left: 8px; }',
+      '.so-recap .so-l { padding: 7px 12px; } .so-recap .champ { padding: 8px 12px; border-top: 1px dashed var(--ligne); } .so-recap .champ label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--encre-3); margin-bottom: 4px; } .so-recap .champ input.saisie, .so-recap .champ select.saisie { width: 100%; height: 32px; } .so-recap .actions { padding: 12px; display: flex; flex-direction: column; gap: 8px; } .so-recap .actions .btn { justify-content: center; }',
+      '.so-cat-table .tableau td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } .so-cat-table tr.marque td { background: var(--carte-2); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; } .so-cat-table td .sous { font-size: 11.5px; color: var(--encre-3); }',
+      '@media (max-width: 960px) { .so-batir { grid-template-columns: 1fr; } .so-batir .colonne-droite { position: static; } }',
       '@media (max-width: 720px) { .so-l { grid-template-columns: minmax(0, 1fr) 120px; } .so-ajouts .ajout { grid-template-columns: minmax(0, 1fr) 90px 100px 28px; } }'
     ].join('\n');
     document.head.appendChild(s);
@@ -157,7 +174,57 @@
     compteur: function () { var l = cache.liste; if (!l) return ''; var c = AMX.compagnieChoisie('inventaire'); return l.filter(function (s) { return (!c || s.compagnie === c) && (s.statut === 'brouillon' || s.statut === 'envoyee'); }).length; },
     calculer: calculer, STATUTS: STATUTS, TAXES: TAXES_DEFAUT,
     monter: function (conteneur, ctx) { return new VueSoumissions(conteneur, ctx); },
-    signet: function () { return CODE_SIGNET_AUTOBOOK; }
+    signet: function () { return CODE_SIGNET_AUTOBOOK; },
+    signetCatalogue: function () { return CODE_SIGNET_AUTOBOOK_CATALOGUE; }
+  };
+  /* Catalogue copié d'AutoBook (Catalogue.gs) : styles (liste légère), un style avec son détail, bâtir, retirer. */
+  var catalogue = { liste: null, le: 0, promesse: null, styles: {}, reglages: {} };
+  AMX.catalogue = {
+    charger: function (force) {
+      if (!force && catalogue.liste && Date.now() - catalogue.le < DUREE_CACHE_MS) return Promise.resolve(catalogue.liste);
+      if (catalogue.promesse) return catalogue.promesse;
+      catalogue.promesse = AMX.get({ catalogue: 1 }, { secours: false, copie: 'catalogue' }).then(function (d) {
+        catalogue.promesse = null;
+        if (!d || d.refuse) { var e = new Error((d && (d.erreur || d.message)) || 'Accès refusé.'); e.refuse = true; throw e; }
+        if (!d.ok) throw new Error((d && (d.erreur || d.message)) || 'Réponse inattendue du serveur');
+        if (!Array.isArray(d.styles)) throw new Error(SCRIPT_PAS_A_JOUR);
+        catalogue.liste = d.styles; catalogue.le = Date.now();
+        catalogue.reglages = { voitInvoice: !!d.voitInvoice, peutEcrire: !!d.peutEcrire, peutSupprimer: !!d.peutSupprimer, marques: d.marques || {}, annees: d.annees || {} };
+        reglages.voitInvoice = !!d.voitInvoice;
+        return catalogue.liste;
+      }, function (e) { catalogue.promesse = null; throw e; });
+      return catalogue.promesse;
+    },
+    enCache: function () { return catalogue.liste; },
+    reglages: function () { return catalogue.reglages; },
+    vider: function () { catalogue.liste = null; catalogue.le = 0; catalogue.styles = {}; AMX.cacheLocal.oublier('catalogue'); },
+    style: function (id, force) {
+      id = String(id || '').toUpperCase();
+      if (!force && catalogue.styles[id] && Date.now() - catalogue.styles[id].le < 10 * 60000) return Promise.resolve(catalogue.styles[id].donnees);
+      return AMX.get({ catalogueStyle: id }, { secours: false }).then(function (d) {
+        if (!d || d.refuse) { var e = new Error((d && (d.erreur || d.message)) || 'Accès refusé.'); e.refuse = true; throw e; }
+        if (!d.ok) throw new Error((d && (d.erreur || d.message)) || 'Style introuvable.');
+        if (!d.style) throw new Error(SCRIPT_PAS_A_JOUR);
+        catalogue.styles[id] = { donnees: d, le: Date.now() };
+        return d;
+      });
+    },
+    batir: function (corps) {
+      return AMX.post(Object.assign({ action: 'soumissionBatir' }, corps)).then(function (d) {
+        AMX.verifier(d, 'Soumission non créée'); verifierScript(d);
+        if (!d.id) throw new Error(SCRIPT_PAS_A_JOUR);
+        cache.liste = null; cache.le = 0;
+        return d;
+      });
+    },
+    supprimer: function (id) {
+      return AMX.post({ action: 'catalogueSupprimer', id: id }, { rejouer: true }).then(function (d) {
+        AMX.verifier(d, 'Retrait impossible'); verifierScript(d);
+        if (catalogue.liste) catalogue.liste = catalogue.liste.filter(function (s) { return s.id !== id; });
+        delete catalogue.styles[String(id).toUpperCase()];
+        return d;
+      });
+    }
   };
   function poserDansListe(s) {
     if (!cache.liste) return;
@@ -188,6 +255,8 @@
     var p = (ctx && ctx.params) || {};
     if (p.id) { this.ouvrirFiche(String(p.id).toUpperCase(), p.onglet); return; }
     if (p.comparer) { this.comparer(String(p.comparer).split(',').map(function (x) { return x.trim().toUpperCase(); }).filter(Boolean)); return; }
+    if (p.batir) { this.montrerBatir(p); return; }
+    if (p.catalogue) { this.montrerCatalogue(); return; }
     this.montrerListe(!!p.nouvelle);
   };
 
@@ -200,10 +269,12 @@
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
     this.btnComparer = h('button.btn', { type: 'button', text: 'Comparer', onclick: function () { var ids = Object.keys(self.coches).filter(function (k) { return self.coches[k]; }); if (ids.length < 2) { AMX.toast('Cochez 2 à 4 soumissions à comparer.', 'attention'); return; } AMX.aller('inventaire', 'soumissions', { comparer: ids.slice(0, 4).join(',') }); } });
-    this.btnNouvelle = h('button.btn.primaire', { type: 'button', text: 'Nouvelle depuis AutoBook', onclick: function () { self.elImport.open = !self.elImport.open; if (self.elImport.open) self.elImport.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+    this.btnNouvelle = h('button.btn', { type: 'button', text: 'Nouvelle depuis AutoBook', onclick: function () { self.elImport.open = !self.elImport.open; if (self.elImport.open) self.elImport.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+    this.btnCatalogue = h('a.btn', { href: AMX.lien('inventaire', 'soumissions', { catalogue: 1 }), text: 'Catalogue' });
+    this.btnBatir = h('a.btn.primaire', { href: AMX.lien('inventaire', 'soumissions', { batir: 1 }), text: 'Bâtir un véhicule' });
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Soumissions'), this.elEtat]),
-      h('div.actions', [this.btnRafraichir, this.btnExport, this.btnComparer, this.btnNouvelle])
+      h('div.actions', [this.btnRafraichir, this.btnExport, this.btnComparer, this.btnNouvelle, this.btnCatalogue, this.btnBatir])
     ]);
     this.elImport = this.construireImport();
     if (ouvrirImport) this.elImport.open = true;
@@ -272,7 +343,7 @@
     if (!this.liste) { this.elEtat.textContent = this.erreur ? 'Serveur injoignable : ' + this.erreur : 'Chargement des soumissions…'; if (!this.erreur) this.elVide.appendChild(AMX.chargeur('Soumissions')); return; }
     var total = this.liste.length, ouvertes = this.liste.filter(function (s) { return s.statut === 'brouillon' || s.statut === 'envoyee'; }).length;
     this.elEtat.textContent = (total ? (total + ' soumission' + (total > 1 ? 's' : '') + ', ' + ouvertes + ' ouverte' + (ouvertes > 1 ? 's' : '') + ' — véhicules bâtis dans AutoBook, feuille client / interne, PDF, comparaison. Cliquez une ligne.') : 'Aucune soumission pour l\'instant : installez le favori ci-dessous et cliquez-le depuis AutoBook sur un véhicule bâti.') + (this.duCache ? ' (mise à jour en cours…)' : (this.erreur ? ' (liste gardée localement — serveur injoignable)' : ''));
-    this.btnNouvelle.style.display = peutEcrire() ? '' : 'none';
+    this.btnNouvelle.style.display = peutEcrire() ? '' : 'none'; this.btnBatir.style.display = peutEcrire() ? '' : 'none';
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return self.liste.filter(function (s) { return !c || s.compagnie === c; }).length; }, onchange: function (c) { self.compagnie = c; self.rendreListe(); } });
     [['ouvertes', 'Ouvertes'], ['acceptee', 'Acceptées'], ['perdue', 'Perdues'], ['toutes', 'Toutes']].forEach(function (p) {
       self.elSegment.appendChild(h('button' + (p[0] === self.filtreStatut ? '.actif' : ''), { type: 'button', text: p[1], onclick: function () { self.filtreStatut = p[0]; AMX.memo.ecrire('so_statut', p[0]); self.rendreListe(); } }));
@@ -627,6 +698,277 @@
     if (!w) { AMX.toast('Autorisez les fenêtres pop-up pour imprimer.', 'attention'); return; }
     w.document.open(); w.document.write(html); w.document.close();
     setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 400);
+  };
+
+  /* ----------------------------- Catalogue (copié d'AutoBook) ------------------------------ */
+  VueSoumissions.prototype.construireImportCatalogue = function () {
+    var signet = h('a.btn.primaire', { href: CODE_SIGNET_AUTOBOOK_CATALOGUE, text: 'Automax ← AutoBook (catalogue)', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
+    signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis AutoBook, sur un style.', 'attention', 8000); });
+    return h('details.carte#so-import-catalogue', { open: true }, [
+      h('summary.carte-entete', { style: { cursor: 'pointer' } }, [h('h2', 'Remplir le catalogue depuis GM AutoBook PRO')]),
+      h('div.carte-corps', [
+        h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)' } }, 'Le favori « catalogue » lit, dans AutoBook, le style affiché avec sa configuration par défaut — toutes ses options (statut par défaut, PDSF, Invoice), prix de base, transport, équipement de série, fiche technique — et le garde ici. Quand il trouve le sélecteur des styles, il propose de lire tous les styles du modèle d\'un coup (une dizaine de secondes par style). Relire un style met ses prix à jour. Les règles de compatibilité des options d\'AutoBook ne sont pas copiées : le site garde les statuts par défaut (inclus, requis, exclu) et vous laisse cocher le reste.'),
+        h('div.so-etapes', [
+          h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', 'Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B si elle est cachée). C\'est un favori distinct de « Automax ← AutoBook ».'), signet]),
+          h('div', [h('div.section-titre', '2. Dans AutoBook'), h('p', ['Connectez-vous sur ', h('a', { href: URL_AUTOBOOK, target: '_blank', rel: 'noopener', text: 'carbookpro.carbook.com' }), ', « Build Vehicle » : année, marque, modèle, puis un style. Gardez cet onglet du site ouvert et connecté.'])]),
+          h('div', [h('div.section-titre', '3. Cliquer le favori'), h('p', 'Sur l\'onglet « Build A Vehicle » du style. La bande verte lit le style, puis propose de lire les autres styles du modèle. À la fin : « Ouvrir le catalogue », puis « Bâtir un véhicule ».')])
+        ])
+      ])
+    ]);
+  };
+  VueSoumissions.prototype.montrerCatalogue = function () {
+    var self = this, gen = ++this.generation;
+    this.mode = 'catalogue'; this.fiche = null;
+    AMX.vider(this.el);
+    this.elEtat = h('p', { text: 'Chargement du catalogue…' });
+    this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.chargerCatalogue(true); } });
+    this.el.appendChild(h('div.entete-page', [
+      h('div', { style: { minWidth: 0 } }, [h('h1', 'Catalogue AutoBook'), this.elEtat]),
+      h('div.actions', [h('a.btn', { href: AMX.lien('inventaire', 'soumissions'), text: '← Soumissions' }), this.btnRafraichir, h('a.btn.primaire', { href: AMX.lien('inventaire', 'soumissions', { batir: 1 }), text: 'Bâtir un véhicule' })])
+    ]));
+    this.elImportCat = this.construireImportCatalogue();
+    this.el.appendChild(this.elImportCat);
+    this.elRechercheCat = h('input.saisie#so-cat-recherche', { type: 'search', placeholder: 'Marque, modèle, style, code…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.rechercheCat = e.target.value; self.rendreCatalogue(); }, 120) });
+    this.elCompteCat = h('span.compte.doux');
+    this.el.appendChild(h('div.carte', [h('div.carte-corps', [h('div.so-outils', [h('div.recherche', [h('span', { html: I.recherche }), this.elRechercheCat]), this.elCompteCat])])]));
+    this.elCatTable = h('div.so-cat-table');
+    this.el.appendChild(h('div.carte', [h('div.carte-corps', [this.elCatTable])]));
+    this.rechercheCat = '';
+    this.catalogueListe = AMX.catalogue.enCache();
+    this.rendreCatalogue();
+    this.chargerCatalogue();
+  };
+  VueSoumissions.prototype.chargerCatalogue = function (manuel) {
+    var self = this, gen = ++this.generation;
+    if (manuel && this.btnRafraichir) this.btnRafraichir.classList.add('occupe');
+    return AMX.catalogue.charger(true).then(function (l) {
+      if (gen !== self.generation || (self.mode !== 'catalogue' && self.mode !== 'batir')) return;
+      if (self.btnRafraichir) self.btnRafraichir.classList.remove('occupe');
+      self.catalogueListe = l; self.erreurCat = '';
+      if (self.mode === 'catalogue') self.rendreCatalogue(); else { self.rendreChoixStyle(); if (self.batir && self.batir.styleId && !self.batir.detail) self.chargerStyle(self.batir.styleId); }
+      if (manuel) AMX.toast('Catalogue mis à jour — ' + l.length + ' style' + (l.length > 1 ? 's' : ''), 'ok');
+    }).catch(function (e) {
+      if (gen !== self.generation) return;
+      if (self.btnRafraichir) self.btnRafraichir.classList.remove('occupe');
+      self.erreurCat = AMX.erreurTexte(e); self.catalogueRefus = !!(e && e.refuse);
+      if (self.mode === 'catalogue') self.rendreCatalogue(); else self.rendreChoixStyle();
+    });
+  };
+  function stylesFiltres(liste, q) {
+    q = String(q || '').trim().toLowerCase();
+    if (!q) return liste;
+    return liste.filter(function (s) { return [s.annee, s.marque, s.modele, s.style, s.codeStyle, s.vehicule].join(' ').toLowerCase().indexOf(q) >= 0; });
+  }
+  VueSoumissions.prototype.rendreCatalogue = function () {
+    var self = this;
+    if (this.mode !== 'catalogue') return;
+    AMX.vider(this.elCatTable);
+    if (this.catalogueRefus) { this.elEtat.textContent = this.erreurCat; this.elCatTable.appendChild(h('div.vide', [h('div', { html: I.cadenas }), h('h3', 'Accès non autorisé'), h('div', { text: this.erreurCat })])); return; }
+    var l = this.catalogueListe;
+    if (!l) { this.elEtat.textContent = this.erreurCat ? 'Serveur injoignable : ' + this.erreurCat : 'Chargement du catalogue…'; if (!this.erreurCat) this.elCatTable.appendChild(AMX.chargeur('Catalogue')); return; }
+    var r = AMX.catalogue.reglages(), marques = Object.keys(r.marques || {}).sort();
+    this.elEtat.textContent = l.length ? (l.length + ' style' + (l.length > 1 ? 's' : '') + ' — ' + marques.map(function (m) { return m + ' ' + r.marques[m]; }).join(', ') + (this.erreurCat ? ' (liste gardée localement — serveur injoignable)' : '') + '. Prix et options tels que lus dans AutoBook ; relire un style met ses prix à jour.') : 'Le catalogue est vide : installez le favori « catalogue » ci-dessous et cliquez-le dans AutoBook sur un style.';
+    var f = stylesFiltres(l, this.rechercheCat), inv = voitInvoice();
+    this.elCompteCat.textContent = f.length + ' style' + (f.length > 1 ? 's' : '') + (f.length !== l.length ? ' sur ' + l.length : '');
+    if (!f.length) { this.elCatTable.appendChild(h('div.vide', [h('div', { html: I.achat }), h('h3', l.length ? 'Rien avec cette recherche' : 'Catalogue vide'), h('div', l.length ? 'Essayez un autre mot.' : 'Le favori « catalogue » (ci-dessus) remplit la première ligne.')])); return; }
+    var thead = h('thead', [h('tr', [h('th', 'Année'), h('th', 'Modèle'), h('th', 'Style'), h('th', 'Code'), h('th', 'Mode'), h('th.num', 'PDSF base'), h('th.num', 'Transport'), inv ? h('th.num', 'Invoice base') : null, h('th.num', 'Options'), h('th', 'Prix du'), h('th', 'Lu'), h('th', '')])]);
+    var tbody = h('tbody'), marqueCourante = null;
+    f.forEach(function (s) {
+      if (s.marque !== marqueCourante) { marqueCourante = s.marque; tbody.appendChild(h('tr.marque', [h('td', { colspan: inv ? 12 : 11, text: s.marque })])); }
+      var actions = [h('a.btn.petit.primaire', { href: AMX.lien('inventaire', 'soumissions', { batir: 1, style: s.id }), text: 'Bâtir' })];
+      if (r.peutSupprimer) actions.push(h('button.btn.petit', { type: 'button', text: 'Retirer', onclick: function () {
+        AMX.confirmer('Retirer ce style du catalogue ?', s.vehicule || (s.annee + ' ' + s.marque + ' ' + s.modele + ' ' + s.style), { danger: 'Retirer' }).then(function (oui) {
+          if (!oui) return;
+          AMX.catalogue.supprimer(s.id).then(function () { self.catalogueListe = AMX.catalogue.enCache(); self.rendreCatalogue(); AMX.toast('Style retiré.', 'ok'); }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+        });
+      } }));
+      tbody.appendChild(h('tr', [
+        h('td.num', { text: String(s.annee || '') }),
+        h('td', [h('div', { text: s.modele }), h('div.sous', { text: s.vehicule || '' })]),
+        h('td', { text: s.style || '—' }),
+        h('td', [h('code', { text: s.codeStyle || '—' })]),
+        h('td', { text: modeTexte(s) || '—' }),
+        h('td.num', { text: fmt(s.pdsfBase) }),
+        h('td.num', { text: fmt(s.pdsfDest) }),
+        inv ? h('td.num', { text: fmt(s.invBase) }) : null,
+        h('td.num', { text: String(num0(s.nbOptions)) }),
+        h('td', { text: s.datePrix || '—' }),
+        h('td', { text: s.luLe ? AMX.fmtDateCourte(s.luLe) : '—', title: (s.luLe ? AMX.fmtDate(s.luLe, true) : '') + (s.luPar ? ' par ' + s.luPar : '') }),
+        h('td', { style: { whiteSpace: 'nowrap' } }, actions)
+      ]));
+    });
+    this.elCatTable.appendChild(h('table.tableau', [thead, tbody]));
+  };
+
+  /* ----------------------------- Bâtir depuis le catalogue ------------------------------ */
+  function categorieUnique(options) {
+    /* Choix unique (peinture, roues, sellerie, moteur…) : la catégorie a au moins deux options et exactement une choisie par défaut. */
+    var n = 0, choisies = 0;
+    options.forEach(function (o) { if (!o.code || o.code === '___') return; n++; if (o.statut === 'selected') choisies++; });
+    return n >= 2 && choisies === 1;
+  }
+  VueSoumissions.prototype.montrerBatir = function (p) {
+    var self = this;
+    this.mode = 'batir'; this.fiche = null;
+    this.batir = { styleId: p && p.style ? String(p.style).toUpperCase() : '', annee: '', marque: '', modele: '', detail: null, coches: {}, compagnie: AMX.compagnieChoisie('inventaire') || (AMX.codesPour('inventaire')[0] || ''), titre: '', client: '', recherche: '', toutes: false };
+    AMX.vider(this.el);
+    this.elEtat = h('p', { text: 'Choisissez l\'année, la marque, le modèle et le style, cochez les options : le prix se calcule en direct.' });
+    this.el.appendChild(h('div.entete-page', [
+      h('div', { style: { minWidth: 0 } }, [h('h1', 'Bâtir un véhicule'), this.elEtat]),
+      h('div.actions', [h('a.btn', { href: AMX.lien('inventaire', 'soumissions'), text: '← Soumissions' }), h('a.btn', { href: AMX.lien('inventaire', 'soumissions', { catalogue: 1 }), text: 'Catalogue' })])
+    ]));
+    this.elChoix = h('div.so-choix');
+    this.elStyleInfo = h('div.so-style-info');
+    this.elBatirOpts = h('div.so-options.so-batir-opts');
+    this.elRecap = h('div.so-recap');
+    this.el.appendChild(h('div.so-batir', [
+      h('div', [h('div.carte', [h('div.carte-corps', [this.elChoix, this.elStyleInfo])]), h('div.carte', [h('div.carte-corps', [this.elBatirOpts])])]),
+      h('div.colonne-droite', [h('div.carte.so-col', [h('h3', [h('span', 'Soumission'), h('span.badge.sans-point.gris', 'en direct')]), this.elRecap])])
+    ]));
+    this.catalogueListe = AMX.catalogue.enCache();
+    this.rendreChoixStyle();
+    if (!this.catalogueListe) this.chargerCatalogue(); else if (this.batir.styleId) this.chargerStyle(this.batir.styleId);
+    this.rendreRecap();
+  };
+  VueSoumissions.prototype.rendreChoixStyle = function () {
+    var self = this, b = this.batir, l = this.catalogueListe;
+    if (this.mode !== 'batir') return;
+    AMX.vider(this.elChoix); AMX.vider(this.elStyleInfo);
+    if (this.catalogueRefus) { this.elChoix.appendChild(h('div.vide', [h('div', { html: I.cadenas }), h('h3', 'Accès non autorisé'), h('div', { text: this.erreurCat })])); return; }
+    if (!l) { this.elChoix.appendChild(this.erreurCat ? h('p.doux', { text: 'Catalogue injoignable : ' + this.erreurCat }) : AMX.chargeur('Catalogue')); return; }
+    if (!l.length) { this.elChoix.appendChild(h('div.vide', [h('h3', 'Le catalogue est vide'), h('div', ['Lisez d\'abord un modèle dans AutoBook avec le favori « catalogue » (', h('a', { href: AMX.lien('inventaire', 'soumissions', { catalogue: 1 }), text: 'Catalogue' }), ').'])])); return; }
+    var courant = null; l.forEach(function (s) { if (s.id === b.styleId) courant = s; });
+    if (courant) { b.annee = String(courant.annee); b.marque = courant.marque; b.modele = courant.modele; }
+    var annees = {}, marques = {}, modeles = {}, styles = [];
+    l.forEach(function (s) { annees[s.annee] = 1; });
+    l.forEach(function (s) { if (!b.annee || String(s.annee) === b.annee) marques[s.marque] = 1; });
+    l.forEach(function (s) { if ((!b.annee || String(s.annee) === b.annee) && (!b.marque || s.marque === b.marque)) modeles[s.modele] = 1; });
+    l.forEach(function (s) { if ((!b.annee || String(s.annee) === b.annee) && (!b.marque || s.marque === b.marque) && (!b.modele || s.modele === b.modele)) styles.push(s); });
+    var sel = function (id, lib, valeurs, valeur, vide, onchange) {
+      var s = h('select.saisie#' + id, { onchange: function (e) { onchange(e.target.value); } }, [h('option', { value: '', text: vide })].concat(valeurs.map(function (v) { return h('option', { value: v[0], text: v[1], selected: v[0] === valeur }); })));
+      return h('div', [h('label', { text: lib }), s]);
+    };
+    this.elChoix.appendChild(sel('so-b-annee', 'Année', Object.keys(annees).sort().reverse().map(function (a) { return [a, a]; }), b.annee, 'Toutes', function (v) { b.annee = v; b.marque = ''; b.modele = ''; b.styleId = ''; b.detail = null; self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
+    this.elChoix.appendChild(sel('so-b-marque', 'Marque', Object.keys(marques).sort().map(function (m) { return [m, m]; }), b.marque, 'Choisir…', function (v) { b.marque = v; b.modele = ''; b.styleId = ''; b.detail = null; self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
+    this.elChoix.appendChild(sel('so-b-modele', 'Modèle', Object.keys(modeles).sort().map(function (m) { return [m, m]; }), b.modele, 'Choisir…', function (v) { b.modele = v; b.styleId = ''; b.detail = null; var seuls = l.filter(function (s) { return (!b.annee || String(s.annee) === b.annee) && (!b.marque || s.marque === b.marque) && s.modele === v; }); if (seuls.length === 1) { b.styleId = seuls[0].id; self.chargerStyle(seuls[0].id); } self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
+    this.elChoix.appendChild(sel('so-b-style', 'Style', styles.map(function (s) { return [s.id, (s.style || s.codeStyle) + (s.codeStyle ? ' (' + s.codeStyle + ')' : '') + ' — ' + fmt(s.pdsfBase) + (b.modele ? '' : ' · ' + s.annee + ' ' + s.marque + ' ' + s.modele)]; }), b.styleId, b.modele ? 'Choisir…' : 'Choisissez d\'abord le modèle', function (v) { b.styleId = v; b.detail = null; b.coches = {}; if (v) self.chargerStyle(v); self.rendreChoixStyle(); self.rendreOptionsBatir(); self.rendreRecap(); }));
+    if (courant) {
+      this.elStyleInfo.appendChild(h('span', ['Style : ', h('b', { text: courant.vehicule || (courant.annee + ' ' + courant.marque + ' ' + courant.modele + ' ' + courant.style) })]));
+      this.elStyleInfo.appendChild(h('span', ['PDSF de base : ', h('b', { text: fmt(courant.pdsfBase) })]));
+      this.elStyleInfo.appendChild(h('span', ['Transport : ', h('b', { text: fmt(courant.pdsfDest) })]));
+      if (courant.datePrix) this.elStyleInfo.appendChild(h('span', ['Prix du ', h('b', { text: courant.datePrix })]));
+      if (courant.luLe) this.elStyleInfo.appendChild(h('span', { text: 'lu dans AutoBook le ' + AMX.fmtDate(courant.luLe) }));
+    }
+  };
+  VueSoumissions.prototype.chargerStyle = function (id) {
+    var self = this, gen = ++this.generation;
+    AMX.vider(this.elBatirOpts); this.elBatirOpts.appendChild(AMX.chargeur('Options du style'));
+    AMX.catalogue.style(id).then(function (d) {
+      if (gen !== self.generation || self.mode !== 'batir' || self.batir.styleId !== id) return;
+      self.batir.detail = d.detail || { options: [], equipement: [], specs: [] };
+      self.batir.styleObj = d.style;
+      self.batir.coches = {};
+      (self.batir.detail.options || []).forEach(function (o) { if (o.code && o.code !== '___' && o.statut === 'selected') self.batir.coches[String(o.code).toUpperCase()] = true; });
+      self.rendreOptionsBatir(); self.rendreRecap();
+    }).catch(function (e) {
+      if (gen !== self.generation || self.mode !== 'batir') return;
+      AMX.vider(self.elBatirOpts); self.elBatirOpts.appendChild(h('div.vide', [h('h3', 'Style injoignable'), h('div', { text: AMX.erreurTexte(e) })]));
+    });
+  };
+  VueSoumissions.prototype.optionsBatirCochees = function () {
+    var b = this.batir; return Object.keys(b.coches).filter(function (k) { return b.coches[k]; });
+  };
+  VueSoumissions.prototype.calculBatir = function () {
+    var b = this.batir, s = b.styleObj;
+    if (!s || !b.detail) return null;
+    var opts = 0, inv = 0, taxe = 0, taxeInv = 0, n = 0, sansCode = false;
+    (b.detail.options || []).forEach(function (o) {
+      var code = String(o.code || '').toUpperCase(), statut = o.statut;
+      if (!o.code || o.code === '___') { sansCode = true; if (optionChoisie(o)) { taxe += num0(o.pdsf); taxeInv += num0(o.invoice); } return; }
+      if (statut === 'excluded' || statut === 'varies') return;
+      var choisie = (statut === 'included' || statut === 'required') ? true : !!b.coches[code];
+      if (!choisie) return;
+      n++; opts += num0(o.pdsf); inv += num0(o.invoice);
+    });
+    if (!sansCode) { taxe = num0(s.pdsfTaxe); taxeInv = num0(s.invTaxe); }
+    var pdsf = num0(s.pdsfBase) + num0(s.pdsfDest) + num0(s.pdsfAjust) + opts + taxe;
+    var invConnu = s.invBase !== '' && s.invBase !== null && s.invBase !== undefined;
+    var invoice = invConnu ? num0(s.invBase) + num0(s.invDest) + num0(s.invAjust) + inv + taxeInv : null;
+    return { n: n, options: opts, taxe: taxe, pdsf: arrondi(pdsf), optionsInv: inv, invoice: invoice === null ? null : arrondi(invoice), profit: invoice === null ? null : arrondi(pdsf - invoice), invConnu: invConnu };
+  };
+  VueSoumissions.prototype.rendreOptionsBatir = function () {
+    var self = this, b = this.batir;
+    if (this.mode !== 'batir') return;
+    AMX.vider(this.elBatirOpts);
+    if (!b.styleId) { this.elBatirOpts.appendChild(h('div.vide', [h('h3', 'Choisissez un style'), h('div', 'Année, marque, modèle, puis le style : ses options apparaissent ici.')])); return; }
+    if (!b.detail) { this.elBatirOpts.appendChild(AMX.chargeur('Options du style')); return; }
+    var inv = voitInvoice();
+    var outils = h('div.so-opts-outils', [
+      h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie#so-b-recherche', { type: 'search', placeholder: 'Code, description…', value: b.recherche, oninput: AMX.debounce(function (e) { b.recherche = e.target.value; self.rendreOptionsBatir(); }, 120) })]),
+      h('div.segment', [h('button' + (b.toutes ? '' : '.actif'), { type: 'button', text: 'À choisir', onclick: function () { b.toutes = false; self.rendreOptionsBatir(); } }), h('button' + (b.toutes ? '.actif' : ''), { type: 'button', text: 'Toutes (inclus, requis, exclus)', onclick: function () { b.toutes = true; self.rendreOptionsBatir(); } })]),
+      h('span.compte', { text: (b.detail.options || []).length + ' options lues dans AutoBook' })
+    ]);
+    this.elBatirOpts.appendChild(outils);
+    var q = String(b.recherche || '').trim().toLowerCase();
+    var options = (b.detail.options || []).filter(function (o) {
+      if (!b.toutes && (o.statut === 'excluded' || o.statut === 'included' || o.statut === 'required' || !o.code || o.code === '___')) return false;
+      if (q && [o.code, o.description, o.categorie].join(' ').toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    if (!options.length) { this.elBatirOpts.appendChild(h('div.vide', [h('h3', q ? 'Rien avec cette recherche' : 'Aucune option à choisir'), h('div', q ? 'Essayez un autre mot.' : 'Ce style n\'a que des options incluses ou requises (voir « Toutes »).')])); return; }
+    var parCat = {}, ordre = [];
+    (b.detail.options || []).forEach(function (o) { var c = o.categorie || 'Options'; if (!parCat[c]) { parCat[c] = []; ordre.push(c); } parCat[c].push(o); });
+    var thead = h('thead', [h('tr', [h('th', ''), h('th', 'Code'), h('th', 'Description'), h('th', 'Statut'), h('th.num', 'PDSF'), inv ? h('th.num', 'Invoice') : null])]);
+    var tbody = h('tbody');
+    ordre.forEach(function (cat) {
+      var lignes = parCat[cat].filter(function (o) { return options.indexOf(o) >= 0; });
+      if (!lignes.length) return;
+      var unique = categorieUnique(parCat[cat]);
+      tbody.appendChild(h('tr.cat', [h('td', { colspan: inv ? 6 : 5 }, [h('span', { text: cat }), unique ? h('span.unique', '— un seul choix') : null])]));
+      lignes.forEach(function (o) {
+        var code = String(o.code || '').toUpperCase(), fixe = o.statut === 'included' || o.statut === 'required' || o.statut === 'excluded' || o.statut === 'varies' || !o.code || o.code === '___';
+        var cochee = fixe ? (o.statut === 'included' || o.statut === 'required' || (!o.code || o.code === '___') && o.statut === 'selected') : !!b.coches[code];
+        var case_ = h('input', { type: unique && !fixe ? 'radio' : 'checkbox', name: unique ? 'so-cat-' + cat.replace(/\W+/g, '-') : null, checked: cochee, disabled: fixe, 'data-code': code, onchange: function (e) {
+          if (unique) { parCat[cat].forEach(function (x) { if (x.code && x.code !== '___' && !(x.statut === 'included' || x.statut === 'required' || x.statut === 'excluded')) b.coches[String(x.code).toUpperCase()] = false; }); }
+          b.coches[code] = e.target.checked;
+          self.rendreOptionsBatir(); self.rendreRecap();
+        } });
+        var desc = String(o.description || ''), parts = desc.split(/\s+-inc:\s*/);
+        tbody.appendChild(h('tr.choix' + (cochee ? '.on' : '') + (fixe && o.statut === 'excluded' ? '.off' : ''), [
+          h('td.coche', [case_]), h('td.code', { text: o.code === '___' ? '—' : o.code }),
+          h('td.desc', [h('span', { text: parts[0] }), parts[1] ? h('span.inc', { text: 'inclut : ' + parts.slice(1).join(' ; ') }) : null]),
+          h('td', [badgeOption(fixe ? o.statut : (cochee ? 'selected' : 'unselected'))]),
+          h('td.num', { text: o.varie ? 'varie' : fmt(o.pdsf) }), inv ? h('td.num', { text: fmt(o.invoice) }) : null
+        ]));
+      });
+    });
+    this.elBatirOpts.appendChild(h('table', [thead, tbody]));
+  };
+  VueSoumissions.prototype.rendreRecap = function () {
+    var self = this, b = this.batir, c = this.calculBatir(), s = b.styleObj, inv = voitInvoice();
+    if (this.mode !== 'batir') return;
+    AMX.vider(this.elRecap);
+    var L = function (lib, val, cls) { return h('div.so-l' + (cls ? '.' + cls : ''), [h('div.lib', { text: lib }), h('div.v', { text: val })]); };
+    if (!c) { this.elRecap.appendChild(h('div.so-vide-fiche', 'Choisissez un style pour voir le prix.')); return; }
+    this.elRecap.appendChild(L('Prix de base', fmt2(s.pdsfBase)));
+    this.elRecap.appendChild(L('Transport et préparation', fmt2(s.pdsfDest)));
+    if (num0(s.pdsfAjust)) this.elRecap.appendChild(L('Ajustements', fmt2(s.pdsfAjust)));
+    this.elRecap.appendChild(L('Options choisies (' + c.n + ')', fmt2(c.options)));
+    if (c.taxe) this.elRecap.appendChild(L('Taxe sur la climatisation', fmt2(c.taxe)));
+    this.elRecap.appendChild(L('PDSF du véhicule', fmt2(c.pdsf), 'total'));
+    if (inv && c.invConnu) { this.elRecap.appendChild(L('Invoice (coût)', fmt2(c.invoice), 'sous')); this.elRecap.appendChild(h('div.so-l.profit', [h('div.lib', 'Profit brut avant rabais'), h('div.v' + (c.profit >= 0 ? '.pos' : '.neg'), { text: fmt2(c.profit) })])); }
+    var cies = AMX.compagniesPour('inventaire'), codes = Object.keys(cies);
+    this.elRecap.appendChild(h('div.champ', [h('label', 'Concession'), h('select.saisie#so-b-cie', { onchange: function (e) { b.compagnie = e.target.value; } }, codes.map(function (k) { return h('option', { value: k, text: cies[k], selected: k === b.compagnie }); }))]));
+    this.elRecap.appendChild(h('div.champ', [h('label', 'Titre (facultatif)'), h('input.saisie#so-b-titre', { type: 'text', value: b.titre, placeholder: s.annee + ' ' + s.marque + ' ' + s.modele + ' ' + (s.style || ''), oninput: function (e) { b.titre = e.target.value; } })]));
+    this.elRecap.appendChild(h('div.champ', [h('label', 'Client (facultatif)'), h('input.saisie#so-b-client', { type: 'text', value: b.client, placeholder: 'Nom, entreprise', oninput: function (e) { b.client = e.target.value; } })]));
+    var btn = h('button.btn.primaire#so-b-creer', { type: 'button', text: 'Créer la soumission', disabled: !peutEcrire(), onclick: function () {
+      btn.disabled = true; btn.textContent = 'Création…';
+      AMX.catalogue.batir({ styleId: b.styleId, codes: self.optionsBatirCochees(), compagnie: b.compagnie, titre: b.titre, client: b.client }).then(function (d) {
+        AMX.toast('Soumission ' + d.id + ' créée — ' + fmt(d.pdsfTotal), 'ok');
+        AMX.aller('inventaire', 'soumissions', { id: d.id });
+      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Créer la soumission'; AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+    } });
+    this.elRecap.appendChild(h('div.actions', [btn, h('p.doux', { style: { margin: 0, fontSize: '11.5px' }, text: 'La soumission s\'ouvre ensuite : feuille client / interne, rabais, échange, taxes, PDF. Les règles de compatibilité des options d\'AutoBook ne sont pas vérifiées ici.' })]));
   };
 
   /* ----------------------------- Comparaison ------------------------------ */

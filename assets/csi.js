@@ -12,6 +12,8 @@
    directeur F&I ou technicien, NPS, commentaire, alerte). La concession suit
    le choix du site. Le signet se trouve dans Inventaire › Neufs › « Portail
    Hyundai » (même favori pour le portail des ventes et pour BoostCX).
+   21 oct. : BMW Sherbrooke par Forsta (horizons.confirmit.ca), échelle « npsc »
+   — NPS comparé au composite BMW, région BMW-Eastern et national.
 
    Toutes les données serveur sont rendues via textContent (jamais innerHTML).
    ========================================================================= */
@@ -27,9 +29,11 @@
   var SITES_CSI = {
     HYUNDAI: { nom: 'BoostCX', url: 'https://hacc.boostcx.com/bcx/dashboard/combined', echelle: 'nps' },
     STM: { nom: 'ISC (InMoment)', url: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', echelle: 'index' },
-    HAWKS: { nom: 'ISC (InMoment)', url: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', echelle: 'index' }
+    HAWKS: { nom: 'ISC (InMoment)', url: 'https://field-reporting.inmoment.com/program/clt3hf6a4u9r91e88k56m1b7z/report/272998', echelle: 'index' },
+    // BMW (21 oct.) : Forsta, rapport « Ventes et service après-vente VoC » ; NPS comparé au composite BMW (pas de cible).
+    BMW: { nom: 'Forsta (CSI BMW)', url: 'https://horizons.confirmit.ca/apps/dashboard/2250', echelle: 'npsc' }
   };
-  var ECHELLES = { nps: { nom: 'NPS', long: 'NPS (BoostCX)', ref: 'cible', refLong: 'cible du constructeur' }, index: { nom: 'Index', long: 'index de satisfaction (ISC InMoment)', ref: 'composite', refLong: 'composite de la marque' } };
+  var ECHELLES = { nps: { nom: 'NPS', long: 'NPS (BoostCX)', ref: 'cible', refLong: 'cible du constructeur' }, npsc: { nom: 'NPS', long: 'NPS (Forsta)', ref: 'composite', refLong: 'composite de la marque' },index: { nom: 'Index', long: 'index de satisfaction (ISC InMoment)', ref: 'composite', refLong: 'composite de la marque' } };
   function echelleDe(s) { return ECHELLES[(s && s.echelle) || 'nps'] || ECHELLES.nps; }
   function compositeDe(s) { var c = s && s.composites; if (!c) return null; var m = c.marquePrincipale && c.marques && c.marques[c.marquePrincipale]; return m ? { nom: c.marquePrincipale, score: m.score, n: m.n, region: c.region } : (c.region ? { nom: 'Région', score: c.region.score, n: c.region.n, region: c.region } : null); }
 
@@ -240,7 +244,7 @@
       var cls = ecart === null || ecart === undefined ? '' : (ecart >= 0 ? '.csi-pos' : '.csi-neg');
       return h('td.num', [h('b', { text: nb(score, 1) }), ref !== null && ref !== undefined ? h('div.mini', { text: nomRef + ' ' + nb(ref, 1) }) : null, ecart !== null && ecart !== undefined ? h('div.mini' + cls, { text: signe(ecart) + ' pt' + (Math.abs(ecart) >= 2 ? 's' : '') }) : null]);
     };
-    this.elComparaison.appendChild(h('div.carte-entete', [h('h2', ['Comparaison des concessions', h('span.sous', { text: (PERIODES.filter(function (x) { return x[0] === p; })[0] || [])[1].toLowerCase() + ' · chaque concession est mesurée sur l\'échelle de son constructeur (NPS Hyundai, index GM) : on compare l\'écart au composite de la marque, pas les scores entre eux' })])]));
+    this.elComparaison.appendChild(h('div.carte-entete', [h('h2', ['Comparaison des concessions', h('span.sous', { text: (PERIODES.filter(function (x) { return x[0] === p; })[0] || [])[1].toLowerCase() + ' · chaque concession est mesurée sur l\'échelle de son constructeur (NPS Hyundai, NPS BMW, index GM) : on compare l\'écart au composite de la marque, pas les scores entre eux' })])]));
     this.elComparaison.appendChild(h('div.carte-corps', [h('div.csi-defilant', [h('table.tableau', [
       h('thead', [h('tr', [h('th', 'Concession'), h('th', 'Échelle'), h('th.num', 'Ventes'), h('th.num', 'Service'), h('th.num', 'Sondages'), h('th.num', 'Recommandation')])]),
       h('tbody', lignes.map(function (l) {
@@ -267,7 +271,7 @@
     var cartes = [['ventes', 'ventes'], ['service', 'service'], ['combine', 'combiné']];
     cartes.forEach(function (c) {
       var s = self.scoreDe(c[0], self.periode), e = echelleDe(s || premier);   /* carte vide : on garde l'échelle de la concession, pas « NPS » par défaut */
-      if (!s || s.mixte) { if (c[0] === 'combine' && premier && premier.echelle === 'index') return; self.elScores.appendChild(h('div.csi-score.gris', [h('div.nom', { text: e.nom + ' ' + c[1] }), h('div.val', { text: '—' }), h('div.rangs', { text: s && s.mixte ? 'échelles différentes (NPS Hyundai, index GM) : choisissez une concession' : 'pas lu pour cette période' })])); return; }
+      if (!s || s.mixte) { if (c[0] === 'combine' && premier && premier.echelle === 'index') return; self.elScores.appendChild(h('div.csi-score.gris', [h('div.nom', { text: e.nom + ' ' + c[1] }), h('div.val', { text: '—' }), h('div.rangs', { text: s && s.mixte ? 'échelles différentes selon le constructeur : choisissez une concession' : 'pas lu pour cette période' })])); return; }
       var ecart = s.cibleEcart, cls = ecart === null || ecart === undefined ? 'gris' : (ecart >= 0 ? 'vert' : 'rouge');
       var tot = (s.promoteurs || 0) + (s.passifs || 0) + (s.detracteurs || 0);
       var comp = compositeDe(s);

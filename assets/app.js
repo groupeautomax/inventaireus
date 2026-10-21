@@ -707,7 +707,7 @@
      écrits dans les modules n'ont pas changé. `fixes` = paramètres ajoutés à l'adresse de la source (mode d'une page). */
   var TUILES = [
     { id: 'vente', titre: 'Vente', icone: 'vente', ordre: 10, onglets: [
-      { id: 'ventes', titre: 'Ventes', de: 'ventes', onglet: 'liste' },   /* 21 oct. : la vente se déclare ici, ScanAutomax remplit le Livre des ventes (ventes.js) */
+      { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
       { id: 'offres', titre: 'Offres reçues', de: 'offres', onglet: 'recues' },
       { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente' },
       { id: 'acheteurs', titre: 'Acheteurs', de: 'offres', onglet: 'acheteurs' },

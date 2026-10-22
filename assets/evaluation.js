@@ -441,11 +441,13 @@
     this.btnDecoder = h('button.btn#decode-btn', { type: 'button', html: I.scan + '<span>Décoder le VIN</span>', onclick: function () { self.decoderDepuisChamp(); } });
     this.btnAnalyser = h('button.btn.primaire#analyser-btn', { type: 'button', html: I.recherche + '<span>Analyser le marché</span>', onclick: function () { self.analyser(self.pays, true); } });
     this.btnEnregistrer = h('button.btn#save-eval-btn', { type: 'button', html: I.ok + '<span>Enregistrer l\'évaluation</span>', onclick: function () { self.enregistrer(); } });
+    // 21 oct. (Maxime : « un bouton effacer serait bon ») : visible quand l'évaluation existe et qu'on a le droit « Supprimer ».
+    this.btnEffacer = h('button.btn.danger#effacer-eval-btn', { type: 'button', html: I.corbeille + '<span>Effacer</span>', title: 'Effacer cette évaluation du registre', style: { display: 'none' }, onclick: function () { self.effacer(); } });
     this.btnOffre = h('button.btn#offre-btn', { type: 'button', title: 'Feuille d\'offre d\'achat à imprimer ou enregistrer en PDF', html: I.telecharger + '<span>Feuille d\'offre</span>', onclick: function () { self.feuilleOffre(); } });
     this.elSauvegarde = h('div.eval-sauvegarde#eval-sauvegarde');
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Évaluation de marché'), this.elEtat, this.elSauvegarde]),
-      h('div.actions', [this.btnDecoder, this.btnAnalyser, this.btnOffre, this.btnEnregistrer])
+      h('div.actions', [this.btnDecoder, this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer])
     ]);
     this.rendreSauvegarde();
 
@@ -1776,6 +1778,7 @@
     var self = this, vin = this.vinPourSauvegarde();
     clearTimeout(this.minuterieAuto);
     if (!vin || !this.parametresPrets()) return Promise.resolve();
+    if (this.vinEfface && vin === this.vinEfface) return Promise.resolve();   /* 21 oct. : ne pas recréer l'évaluation qu'on vient d'effacer */
     // (9 oct.) un NIV tapé mais pas encore chargé : on ne sauvegarde pas les chiffres de l'ancien véhicule sous le nouveau.
     if (this.vinCourant && vin !== String(this.vinCourant).trim().toUpperCase()) return Promise.resolve();
     var data = this.collecter(), gen = this.generation;
@@ -1793,6 +1796,7 @@
     var el = this.elSauvegarde; if (!el) return;
     AMX.vider(el);
     var sv = this.sauvegarde;
+    if (this.btnEffacer) this.btnEffacer.style.display = (sv && (AMX.perm('supprimer') || AMX.estAdmin())) ? '' : 'none';
     if (!sv) { el.appendChild(h('span.puce', { text: 'Non conservée — l\'analyse sera gardée automatiquement dès qu\'un NIV complet est analysé' })); this.btnEnregistrer.classList.remove('ok'); return; }
     if (sv.statut === 'enregistree') {
       el.appendChild(h('span.puce.ok', { text: 'Enregistrée' + (sv.enregistreLe ? ' le ' + AMX.fmtDate(sv.enregistreLe, true) : '') + (sv.enregistrePar ? ' par ' + sv.enregistrePar.split('@')[0] : '') }));
@@ -1803,6 +1807,29 @@
       el.appendChild(h('span.mini.doux', { text: 'Cliquez « Enregistrer l\'évaluation » pour la confirmer (verte dans le registre).' }));
       this.btnEnregistrer.classList.remove('ok');
     }
+  };
+
+  /* Effacer l'évaluation du NIV (21 oct.) : POST evaluationEffacer (EvaluationEffacer.gs), confirmation en retapant le NIV ;
+     la page repart à vide et le registre est relu. */
+  Evaluation.prototype.effacer = function () {
+    var self = this, vin = this.elNiv.value.trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) || !this.sauvegarde) return;
+    AMX.confirmerSaisie('Effacer l\'évaluation', 'L\'évaluation de ' + vin + ' sera retirée du registre (analyse, prix, comparaison Canada / É.-U.). Retapez le NIV complet pour confirmer.', vin, { ok: 'Effacer', danger: true }).then(function (ok) {
+      if (!ok) return;
+      clearTimeout(self.minuterieAuto);
+      self.vinEfface = vin;
+      return AMX.post({ action: 'evaluationEffacer', vin: vin }).then(function (r) {
+        if (r && r.vehicules && !r.efface) throw new Error('le script n\'est pas à jour : redéployez-le (EvaluationEffacer.gs)');
+        if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'refusé par le serveur');
+        try { AMX.cacheLocal.oublier('evaluations'); } catch (e) {}
+        AMX.toast('Évaluation de ' + vin + ' effacée' + (r.lignes > 1 ? ' (' + r.lignes + ' lignes)' : '') + '.', 'ok');
+        self.elNiv.value = ''; self.vinCourant = ''; self.vinCharge = '';
+        self.reinitialiser();
+        try { history.replaceState(null, '', AMX.lien('outils', 'evaluation', {})); } catch (e2) {}
+        if (typeof self.rendreLiens === 'function') self.rendreLiens();
+        setTimeout(function () { if (self.vinEfface === vin) self.vinEfface = ''; }, 20000);
+      });
+    }).catch(function (e) { self.vinEfface = ''; AMX.toast('Effacement impossible — ' + AMX.erreurTexte(e), 'erreur'); });
   };
 
   Evaluation.prototype.enregistrer = function () {

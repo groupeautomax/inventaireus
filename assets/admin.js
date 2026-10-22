@@ -516,7 +516,8 @@
     this.elOpenlane = this.construireOpenlane();
     this.elExport = this.construireExport();
     this.elDemandes = this.construireDemandes();
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elParametres]), this.elPanneau]);
+    this.elIa = this.construireIa();
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elIa, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -1084,6 +1085,86 @@
     this.elJournalCorps.appendChild(h('div', { style: { overflowX: 'auto' } }, [h('table', [h('thead', [h('tr', [h('th', 'Quand'), h('th', 'Qui'), h('th', 'Action'), h('th', 'Détail')])]), h('tbody', lignes)])]));
   };
 
+  /* ------------------- MAX ai, l'intelligence artificielle (moteur : Claude) — 22 oct. -----------------
+     Ia.gs : la clé API Anthropic (propriété ANTHROPIC_API_KEY, jamais l'écran « Propriétés du script »), le modèle et
+     le budget mensuel. La clé n'est jamais renvoyée : seulement sa présence et ses 4 derniers caractères.
+     GET ?iaReglages=1 ; POST iaReglages { cle?, retirerCle?, modele?, budget? } · iaTester (propriétaire). */
+  VueAdmin.prototype.construireIa = function () {
+    var self = this;
+    this.elEtatIa = h('div.petit.doux', { text: 'Chargement…' });
+    this.elCleIa = h('input#adm-ia-cle', { type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: 'Collez la clé API Anthropic (sk-ant-…)' });
+    this.elCleIa.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.enregistrerIa(); } });
+    this.elModeleIa = h('select#adm-ia-modele');
+    this.elBudgetIa = h('input#adm-ia-budget', { type: 'number', step: 'any', min: '0', autocomplete: 'off' });
+    var voir = h('button.btn.petit.fantome', { type: 'button', text: 'Afficher', onclick: function () { var p = self.elCleIa.type === 'password'; self.elCleIa.type = p ? 'text' : 'password'; voir.textContent = p ? 'Masquer' : 'Afficher'; } });
+    this.btnIa = h('button.btn.primaire#adm-ia-enregistrer', { type: 'button', html: I.ok + '<span>Enregistrer</span>', onclick: function () { self.enregistrerIa(); } });
+    this.btnIaTester = h('button.btn.petit#adm-ia-tester', { type: 'button', text: 'Tester la connexion', onclick: function () { self.testerIa(); } });
+    this.btnIaRetirer = h('button.btn.danger.petit#adm-ia-retirer', { type: 'button', text: 'Retirer la clé', onclick: function () { self.retirerCleIa(); } });
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'MAX ai, l\'assistant de ScanAutomax (moteur : Claude, d\'Anthropic), lit les suggestions des employés (Aide › Suggestions › « Analyser avec MAX ai ») et propose des thèmes, des doublons, des précisions à demander et des pistes d\'amélioration. Rien n\'est appliqué ni envoyé sans vous. Aucune donnée client ; ni le nom ni le courriel des employés ne sont envoyés.' }),
+      h('div.ligne-cle', [h('div.champ', [h('label', { 'for': 'adm-ia-cle', text: 'Clé API Anthropic' }), this.elCleIa]), voir]),
+      h('div.admin-export-grille', [
+        h('div.champ', [h('label', { 'for': 'adm-ia-modele', text: 'Modèle' }), this.elModeleIa]),
+        h('div.champ', [h('label', { 'for': 'adm-ia-budget', text: 'Budget mensuel ($ US)' }), this.elBudgetIa, h('div.mini.doux', { text: 'Au-delà, MAX ai refuse les demandes jusqu\'au mois suivant.' })])
+      ]),
+      h('div.ligne-cle', [this.btnIa, this.btnIaTester, this.btnIaRetirer]),
+      this.elEtatIa,
+      h('details', [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: 'Obtenir une clé API Anthropic' }), h('ol', [
+        h('li', 'Créez un compte sur console.anthropic.com (c\'est distinct de l\'abonnement Claude) et ajoutez un moyen de paiement (Billing).'),
+        h('li', 'API Keys › Create Key (« ScanAutomax »), copiez la clé qui commence par sk-ant-.'),
+        h('li', 'Collez-la ci-dessus et enregistrez, puis « Tester la connexion ». Ne la collez jamais dans « Propriétés du script » de l\'éditeur.')
+      ])])
+    ];
+    return h('div.carte.admin-parametres.admin-ia', [h('div.carte-entete', [h('h2', 'MAX ai — intelligence artificielle')]), h('div.carte-corps', corps)]);
+  };
+  VueAdmin.prototype.chargerIa = function () {
+    var self = this;
+    return AMX.get({ iaReglages: 1 }).then(function (d) { if (!self.detruit) self.rendreIa(d && d.ok && d.modeles ? d : (d && d.refuse ? { refuse: true } : null)); }).catch(function () { if (!self.detruit) self.rendreIa(null); });
+  };
+  VueAdmin.prototype.rendreIa = function (d) {
+    var self = this;
+    AMX.vider(this.elEtatIa);
+    if (!d) { this.elEtatIa.appendChild(h('span.badge.ambre.sans-point', { text: 'Réglages illisibles — script injoignable ou pas à jour (Ia.gs)' })); return; }
+    if (d.refuse) { this.elEtatIa.appendChild(h('span.puce', { text: 'Réservé aux administrateurs' })); return; }
+    this.iaPeut = !!d.peutRegler;
+    AMX.vider(this.elModeleIa);
+    (d.modeles || []).forEach(function (m) { self.elModeleIa.appendChild(h('option', { value: m.id, text: m.nom + ' — ' + String(m.entree).replace('.', ',') + ' $ / ' + String(m.sortie).replace('.', ',') + ' $ par million de jetons', selected: m.id === d.modele ? 'selected' : undefined })); });
+    this.elBudgetIa.value = d.budget === undefined ? '' : String(d.budget);
+    [this.elCleIa, this.elModeleIa, this.elBudgetIa, this.btnIa, this.btnIaTester, this.btnIaRetirer].forEach(function (x) { x.disabled = !self.iaPeut; });
+    this.btnIaTester.disabled = !this.iaPeut || !d.present;
+    this.btnIaRetirer.style.display = d.present ? '' : 'none';
+    var dep = d.depense || {};
+    this.elEtatIa.appendChild(h('div', [
+      d.present ? h('span.badge.vert.sans-point', { text: 'Clé enregistrée (…' + d.fin + ')' }) : h('span.badge.ambre.sans-point', { text: 'Aucune clé : MAX ai est désactivé' }),
+      h('span', { style: { marginLeft: '8px' }, text: 'Ce mois-ci : ' + (dep.usd || 0).toFixed(2).replace('.', ',') + ' $ US sur ' + String(d.budget).replace('.', ',') + ' · ' + (dep.appels || 0) + ' appel' + ((dep.appels || 0) > 1 ? 's' : '') + (dep.dernier ? ' · dernier ' + AMX.fmtDate(dep.dernier, true) : '') })
+    ]));
+    if (!this.iaPeut) this.elEtatIa.appendChild(h('span.puce', { text: 'Lecture seule — réservé au propriétaire' }));
+  };
+  VueAdmin.prototype.posterIa = function (corps, message) {
+    var self = this;
+    this.btnIa.classList.add('occupe');
+    return AMX.post(corps, { delai: 90000 }).then(function (r) {
+      self.btnIa.classList.remove('occupe');
+      if (r && r.vehicules && r.ok !== false && !r.modeles && !r.message) throw new Error('le script n\'est pas à jour (Ia.gs)');
+      if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'refusé');
+      self.elCleIa.value = '';
+      self.rendreIa(r.reglages || r);
+      AMX.toast(r.message || message, 'ok', 7000);
+    }).catch(function (e) { self.btnIa.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(e), 'erreur', 9000); });
+  };
+  VueAdmin.prototype.enregistrerIa = function () {
+    if (!this.iaPeut) return;
+    var corps = { action: 'iaReglages', modele: this.elModeleIa.value, budget: this.elBudgetIa.value.trim() };
+    if (this.elCleIa.value.trim()) corps.cle = this.elCleIa.value.trim();
+    this.posterIa(corps, 'Réglages de MAX ai enregistrés.');
+  };
+  VueAdmin.prototype.testerIa = function () { if (this.iaPeut) this.posterIa({ action: 'iaTester' }, 'MAX ai répond : connexion réussie.'); };
+  VueAdmin.prototype.retirerCleIa = function () {
+    var self = this;
+    if (!this.iaPeut) return;
+    AMX.confirmer('Retirer la clé API', 'MAX ai sera désactivé jusqu\'à ce qu\'une nouvelle clé soit collée. Pensez aussi à révoquer la clé dans console.anthropic.com si elle a fuité.', { ok: 'Retirer', danger: true }).then(function (ok) { if (ok) self.posterIa({ action: 'iaReglages', retirerCle: true }, 'Clé retirée.'); });
+  };
+
   VueAdmin.prototype.charger = function (manuel) {
     var self = this, gen = ++this.generation;
     this.enChargement = true;
@@ -1095,6 +1176,7 @@
     this.chargerOpenlane();
     this.chargerExport();
     this.chargerDemandes();
+    this.chargerIa();
     return AMX.get('utilisateurs=1').then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;

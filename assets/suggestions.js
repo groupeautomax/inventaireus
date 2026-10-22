@@ -78,7 +78,16 @@
       '.sug-form .champ { margin-bottom: 10px; }',
       '.sug-form .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }',
       '@media (max-width: 640px) { .sug-form .deux { grid-template-columns: 1fr; } }',
-      '.sug-aide { font-size: 12px; color: var(--encre-3); margin: 0 0 12px; line-height: 1.5; }'
+      '.sug-aide { font-size: 12px; color: var(--encre-3); margin: 0 0 12px; line-height: 1.5; }',
+      '.sug-ia { padding: 14px 16px; margin-bottom: 14px; border-left: 4px solid var(--violet); } .sug-ia h2 { margin: 0; font-size: 15px; } .sug-ia h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--encre-3); margin: 14px 0 6px; }',
+      '.sug-ia-tete { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }',
+      '.sug-ia-resume { margin: 10px 0 0; font-size: 13px; line-height: 1.5; }',
+      '.sug-ia-themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; } .sug-ia-theme { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; background: var(--carte-2); }',
+      '.sug-ia-theme h4 { margin: 0; font-size: 13.5px; flex: 1 1 200px; } .sug-ia-prop { margin-top: 6px; font-size: 12.5px; line-height: 1.5; } .sug-ia-prop .l { display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--violet); font-weight: 700; }',
+      '.sug-ia-refs { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; align-items: center; } .sug-ia-ref { cursor: pointer; border: 1px solid var(--ligne); background: #fff; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .sug-ia-ref.reglee { text-decoration: line-through; opacity: .6; }',
+      '.sug-ia-liste { margin: 0; padding-left: 18px; font-size: 12.5px; } .sug-ia-liste li { margin-bottom: 6px; } .sug-ia-question { display: flex; gap: 8px; align-items: center; margin-top: 4px; }',
+      '.sug-ia-pied { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ligne); } .sug-ia-pied .btn { margin-left: auto; }',
+      '.sug-carte.sug-flash { box-shadow: 0 0 0 3px var(--violet); transition: box-shadow .2s; }'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -115,16 +124,17 @@
     ]));
     page.appendChild(h('p.sug-aide', { text: 'Une suggestion reste en rouge jusqu\'à ce qu\'elle soit traitée. Quand c\'est fait, elle passe au vert et vous recevez un courriel qui explique ce qui a changé.' }));
     this.elKpis = h('div.kpis');
+    this.elIa = h('div.carte.sug-ia#sug-ia', { style: { display: 'none' } });   /* 22 oct. : MAX ai, analyse des suggestions (admins) */
     this.elFiltres = h('div.sug-filtres');
     this.elListe = h('div.sug-liste');
-    page.appendChild(this.elKpis); page.appendChild(this.elFiltres); page.appendChild(this.elListe);
+    page.appendChild(this.elKpis); page.appendChild(this.elIa); page.appendChild(this.elFiltres); page.appendChild(this.elListe);
     this.conteneur.appendChild(page);
     if (this.params.nouvelle) setTimeout(function () { ouvrirFormulaire(); }, 50);
   };
 
   Suggestions.prototype.charger = function (force) {
     var self = this;
-    AMX.suggestions.charger(force).then(function () { self.rendre(); }, function (e) {
+    AMX.suggestions.charger(force).then(function () { self.rendre(); if (cache.rep && cache.rep.admin && (!self.ia || force)) self.chargerIa(); }, function (e) {
       self.elSous.textContent = /route|absent|inconnue/i.test(e.message) ? 'Route absente — redéployez le script (Suggestion.gs).' : (e.message || 'Erreur');
     });
   };
@@ -154,6 +164,7 @@
       var aTraiter = liste.filter(function (s) { return s.etat === 'recue'; });
       this.elFiltres.appendChild(h('button.btn#sug-copier', { type: 'button', disabled: aTraiter.length ? undefined : 'disabled', title: 'Copie les suggestions à traiter en texte, à coller dans la conversation avec Claude', onclick: function () { AMX.copier(texteClaude(aTraiter), aTraiter.length + ' suggestion' + (aTraiter.length > 1 ? 's' : '') + ' copiée' + (aTraiter.length > 1 ? 's' : '') + ' — collez dans la conversation avec Claude'); } }, [AMX.svg('copier'), ' Copier la liste pour Claude']));
     }
+    this.rendreIa();
     this.rendreListe();
   };
 
@@ -177,6 +188,98 @@
     }
     liste.forEach(function (s) { self.elListe.appendChild(carte(s, d.admin, self)); });
   };
+
+
+  /* ------------------- MAX ai : analyse des suggestions (22 oct.) — admins -------------------
+     GET ?iaSuggestions=1 → { analyse (la dernière), present (clé), budget, depense } ; POST iaSuggestionsAnalyser → { analyse }.
+     Ia.gs : MAX ai (moteur Claude) regroupe les suggestions ouvertes en thèmes, repère les doublons et les redites, propose les précisions
+     à demander et une piste ; rien n'est appliqué ni envoyé. Ni le nom ni le courriel des employés ne partent chez Anthropic. */
+  var PRIORITES_IA = { haute: ['Priorité haute', 'alerte'], moyenne: ['Priorité moyenne', 'attention'], basse: ['Priorité basse', ''] };
+  Suggestions.prototype.chargerIa = function () {
+    var self = this;
+    return AMX.get({ iaSuggestions: 1 }).then(function (d) {
+      if (d && d.ok && d.analyse !== undefined) self.ia = d;
+      else self.ia = { ok: false, absent: true, erreur: d && d.refuse ? (d.erreur || 'Réservé aux administrateurs') : 'Le script n\'est pas à jour (Ia.gs)' };
+      self.rendreIa();
+    }).catch(function (e) { self.ia = { ok: false, absent: true, erreur: AMX.erreurTexte(e) }; self.rendreIa(); });
+  };
+  Suggestions.prototype.analyserIa = function () {
+    var self = this;
+    if (this.iaEnCours) return;
+    this.iaEnCours = true; this.rendreIa();
+    AMX.post({ action: 'iaSuggestionsAnalyser' }, { delai: 240000 }).then(function (r) {
+      self.iaEnCours = false;
+      if (r && r.vehicules && !r.analyse) throw new Error('le script n\'est pas à jour : redéployez-le (Ia.gs)');
+      if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'refusé');
+      self.ia = Object.assign({}, self.ia || {}, { ok: true, analyse: r.analyse, present: true });
+      self.rendreIa();
+      AMX.toast('Analyse terminée — ' + (r.analyse.resultat.themes || []).length + ' thème(s), ' + String((r.analyse.cout || 0).toFixed(3)).replace('.', ',') + ' $ US', 'ok', 7000);
+    }).catch(function (e) { self.iaEnCours = false; self.rendreIa(); AMX.toast('Analyse impossible — ' + AMX.erreurTexte(e), 'erreur', 10000); });
+  };
+  Suggestions.prototype.rendreIa = function () {
+    var self = this, el = this.elIa, d = cache.rep, ia = this.ia;
+    AMX.vider(el);
+    if (!d || !d.admin) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    var parId = {}; (d.suggestions || []).forEach(function (x) { parId[x.id] = x; });
+    var a = ia && ia.analyse, r = a && a.resultat;
+    var nOuvertes = (d.suggestions || []).filter(function (x) { return x.etat === 'recue'; }).length;
+    var btn = h('button.btn.primaire#sug-ia-analyser', { type: 'button', disabled: (!ia || !ia.present || this.iaEnCours || !nOuvertes) ? 'disabled' : undefined, onclick: function () { self.analyserIa(); } }, [AMX.svg('suggestions'), this.iaEnCours ? ' MAX ai lit les suggestions… (jusqu\'à une minute)' : (a ? ' Refaire l\'analyse' : ' Analyser avec MAX ai')]);
+    var info = !ia ? 'Chargement…' : (ia.absent ? ia.erreur : (!ia.present ? 'MAX ai n\'a pas encore de clé : le propriétaire la colle dans Admin › MAX ai.' : (a ? 'Dernière analyse le ' + AMX.fmtDate(a.le, true) + ' · ' + a.nOuvertes + ' suggestion' + (a.nOuvertes > 1 ? 's' : '') + ' · ' + String((a.cout || 0).toFixed(3)).replace('.', ',') + ' $ US' : 'MAX ai regroupe les suggestions à traiter en thèmes, repère les doublons et propose des pistes. Rien n\'est appliqué sans vous.')));
+    var tete = h('div.sug-ia-tete', [h('div', [h('h2', 'MAX ai · analyse des suggestions'), h('div.mini.doux', { text: info })]), btn]);
+    el.appendChild(tete);
+    if (!r) return;
+    var puceSug = function (id) {
+      var x = parId[id], encore = x && x.etat === 'recue';
+      return h('button.puce.sug-ia-ref' + (encore ? '' : '.reglee'), { type: 'button', title: x ? (encore ? 'Voir la suggestion' : 'Réglée depuis l\'analyse') : id, onclick: function () { self.montrerSuggestion(id); } }, x ? x.titre : id);
+    };
+    if (r.resume) el.appendChild(h('p.sug-ia-resume', { text: r.resume }));
+    if (r.themes && r.themes.length) {
+      el.appendChild(h('h3', 'Thèmes, du plus important au moins important'));
+      el.appendChild(h('div.sug-ia-themes', r.themes.map(function (t) {
+        var pr = PRIORITES_IA[t.priorite] || PRIORITES_IA.moyenne;
+        return h('div.sug-ia-theme', [
+          h('div.sug-tete', [h('h4', { text: t.titre }), h('span.puce' + (pr[1] ? '.' + pr[1] : ''), { text: pr[0] })]),
+          t.raison ? h('div.mini.doux', { text: t.raison }) : null,
+          h('div.sug-ia-prop', [h('span.l', 'Piste proposée'), h('span', { text: t.proposition })]),
+          h('div.sug-ia-refs', t.ids.map(puceSug))
+        ]);
+      })));
+    }
+    if (r.doublons && r.doublons.length) {
+      el.appendChild(h('h3', 'Doublons'));
+      el.appendChild(h('ul.sug-ia-liste', r.doublons.map(function (x) { return h('li', [h('div.sug-ia-refs', x.ids.map(puceSug)), h('div.mini.doux', { text: x.raison })]); })));
+    }
+    if (r.dejaTraitees && r.dejaTraitees.length) {
+      el.appendChild(h('h3', 'Ressemblent à une suggestion déjà réglée'));
+      el.appendChild(h('ul.sug-ia-liste', r.dejaTraitees.map(function (x) { var t = parId[x.idTraitee]; return h('li', [h('div.sug-ia-refs', [puceSug(x.id), h('span.doux', ' ↔ '), puceSug(x.idTraitee)]), h('div.mini.doux', { text: x.raison + (t && t.version ? ' (' + t.version + ')' : '') })]); })));
+    }
+    if (r.precisions && r.precisions.length) {
+      el.appendChild(h('h3', 'Précisions à demander'));
+      el.appendChild(h('ul.sug-ia-liste', r.precisions.map(function (x) {
+        return h('li', [h('div.sug-ia-refs', [puceSug(x.id)]), h('div.sug-ia-question', [h('span', { text: x.question }), h('button.btn.petit.fantome', { type: 'button', onclick: function () { AMX.copier(x.question, 'Question copiée'); } }, [AMX.svg('copier'), ' Copier'])])]);
+      })));
+    }
+    el.appendChild(h('div.sug-ia-pied', [h('span.puce', { text: 'Proposé par MAX ai' }), h('span.mini.doux', { text: 'Rien n\'est appliqué ni envoyé sans vous. ' + (a.modele || '') }),
+      h('button.btn.petit', { type: 'button', onclick: function () { AMX.copier(texteAnalyse(a, parId), 'Analyse copiée — collez dans la conversation avec Claude'); } }, [AMX.svg('copier'), ' Copier l\'analyse pour Claude'])]));
+  };
+  /* Défile jusqu'à la suggestion et la fait clignoter (elle peut être cachée par un filtre : on le retire). */
+  Suggestions.prototype.montrerSuggestion = function (id) {
+    var self = this, cible = this.elListe.querySelector('[data-id="' + id + '"]');
+    if (!cible) { this.filtres = { etat: '', concession: '', recherche: '' }; this.rendre(); cible = this.elListe.querySelector('[data-id="' + id + '"]'); }
+    if (!cible) return;
+    cible.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    cible.classList.add('sug-flash'); setTimeout(function () { cible.classList.remove('sug-flash'); }, 1600);
+  };
+  function texteAnalyse(a, parId) {
+    var r = a.resultat || {}, t = function (id) { var x = parId[id]; return '[' + id + '] ' + (x ? x.titre : ''); };
+    var out = ['Analyse MAX ai des suggestions — ' + AMX.fmtDate(a.le, true) + ' (' + a.nOuvertes + ' suggestions)', '', r.resume || ''];
+    (r.themes || []).forEach(function (x, i) { out.push('', (i + 1) + '. ' + x.titre + ' — priorité ' + x.priorite, '   Raison : ' + x.raison, '   Piste : ' + x.proposition, '   Suggestions : ' + x.ids.map(t).join(' ; ')); });
+    if ((r.doublons || []).length) { out.push('', 'Doublons :'); r.doublons.forEach(function (x) { out.push('- ' + x.ids.map(t).join(' = ') + ' — ' + x.raison); }); }
+    if ((r.dejaTraitees || []).length) { out.push('', 'Déjà réglées :'); r.dejaTraitees.forEach(function (x) { out.push('- ' + t(x.id) + ' ↔ ' + t(x.idTraitee) + ' — ' + x.raison); }); }
+    if ((r.precisions || []).length) { out.push('', 'Précisions à demander :'); r.precisions.forEach(function (x) { out.push('- ' + t(x.id) + ' : ' + x.question); }); }
+    return out.join('\n');
+  }
 
   function puceEtat(s) {
     var cls = s.etat === 'recue' ? 'alerte' : (s.etat === 'traitee' ? 'ok' : '');

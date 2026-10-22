@@ -564,6 +564,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion MAX ai
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -945,7 +946,7 @@
       ]);
       nav.appendChild(a);
     });
-    var rech = h('div.recherche-globale', [h('span', { html: ICONES.recherche }), h('input', { type: 'search', id: 'recherche-globale', placeholder: 'VIN, # stock, modèle — ou un NIV avec rapport CARFAX', autocomplete: 'off' }), h('kbd', '/')]);
+    var rech = h('div.recherche-globale', [h('span', { html: ICONES.recherche }), h('input', { type: 'search', id: 'recherche-globale', placeholder: 'NIV, # stock, modèle, client, téléphone…', autocomplete: 'off' }), h('kbd', '/')]);
     var usager = h('div.usager', { tabindex: '0' }, [
       h('div.avatar', { text: AMX.initiales(AMX.session.nom || AMX.session.courriel) }),
       h('div', [h('div.nom', { text: AMX.session.nom || AMX.session.courriel }), h('div.role', { text: AMX.session.role || '' })]),
@@ -967,7 +968,7 @@
     barre.appendChild(rech);
     barre.appendChild(h('span#etat-sync.etat-sync', { title: 'Connecté au serveur' }));
     barre.appendChild(usager);
-    brancherRechercheGlobale(rech.querySelector('input'));
+    (AMX.brancherRecherche || brancherRechercheGlobale)(rech.querySelector('input'));   // 22 oct. : recherche.js (partout) remplace l'ancienne
     if (!dessinerBarre.branche) { dessinerBarre.branche = true; document.addEventListener('amx:profil', function () { dessinerBarre(); majNav(courante.section ? courante.section.id : ''); }); }
   }
 

@@ -326,6 +326,31 @@
 
   // Après une déconnexion (AMX.deconnecter), rien de l'ancienne personne ne doit rester en mémoire.
   function vider() { etat = {}; foin = new WeakMap(); entrees.forEach(function (i) { if (i.__amxFermer) i.__amxFermer(); }); }
-  AMX.recherche = { vider: vider, brancher: brancher, portee: function (el) { return portee(el); }, resultats: resultats, prechauffer: prechauffer, indice: texteIndice, sources: SOURCES };
+
+  /* 22 oct. (Listes et audits, listes.js) : charger les sources voulues d'un coup, puis un index par NIV, par
+     8 derniers caractères du NIV et par # stock — pour dire où est chaque véhicule d'une liste déposée. */
+  function chargerSources(ids, force) {
+    var srcs = sourcesActives().filter(function (s) { return !ids || ids.indexOf(s.id) >= 0; });
+    if (force) srcs.forEach(function (s) { var e = etat[s.id]; if (e && !e.promesse) e.quand = 0; });
+    return Promise.all(srcs.map(function (s) { return charger(s); })).then(function () {
+      return srcs.map(function (s) { var e = etat[s.id] || {}; return { id: s.id, nom: s.nom, n: (e.liste || []).length, erreur: e.erreur || '', quand: e.quand || 0 }; });
+    });
+  }
+  function indexSources(ids) {
+    var parVin = {}, parVin8 = {}, parStock = {};
+    sourcesActives().forEach(function (src) {
+      if (ids && ids.indexOf(src.id) < 0) return;
+      var e = etat[src.id]; if (!e || !e.liste) return;
+      e.liste.forEach(function (x) {
+        var vin = vinDe(src.vin(x)), it = { src: src, x: x, cie: src.cie(x) || '' };
+        if (vin) { (parVin[vin] = parVin[vin] || []).push(it); (parVin8[vin.slice(-8)] = parVin8[vin.slice(-8)] || []).push(it); }
+        var st = src.stock ? norm(src.stock(x)).replace(/[^A-Z0-9]/g, '') : '';
+        if (st) (parStock[st] = parStock[st] || []).push(it);
+      });
+    });
+    return { parVin: parVin, parVin8: parVin8, parStock: parStock };
+  }
+  AMX.recherche = { vider: vider, brancher: brancher, portee: function (el) { return portee(el); }, resultats: resultats, prechauffer: prechauffer, indice: texteIndice, sources: SOURCES,
+    chargerSources: chargerSources, index: indexSources, puce: puceDe, extrasNiv: extrasNiv };
   AMX.brancherRecherche = brancher;
 })();

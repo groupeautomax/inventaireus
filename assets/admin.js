@@ -1115,7 +1115,7 @@
         h('li', 'Collez-la ci-dessus et enregistrez, puis « Tester la connexion ». Ne la collez jamais dans « Propriétés du script » de l\'éditeur.')
       ])])
     ];
-    return h('div.carte.admin-parametres.admin-ia', [h('div.carte-entete', [h('h2', 'MAX ai — intelligence artificielle')]), h('div.carte-corps', corps)]);
+    return h('div.carte.admin-parametres.admin-ia', [h('div.carte-entete', { style: { display: 'flex', alignItems: 'center', gap: '10px' } }, [AMX.maxai ? AMX.maxai.avatar(36) : null, h('h2', 'MAX ai — intelligence artificielle')]), h('div.carte-corps', corps)]);
   };
   VueAdmin.prototype.chargerIa = function () {
     var self = this;

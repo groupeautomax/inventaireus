@@ -47,7 +47,8 @@
     },
     aTraiter: function () { return cache.rep && cache.rep.admin ? (cache.rep.compte && cache.rep.compte.recue) || 0 : 0; },
     // Le formulaire, appelable d'ailleurs (menu du compte, Aide).
-    nouvelle: function () { return ouvrirFormulaire(); }
+    // 22 oct. : `pre` = brouillon { titre, description, pourquoi, exemple, source: 'maxai' } rédigé par MAX ai.
+    nouvelle: function (pre) { return ouvrirFormulaire(pre); }
   };
 
   function injecterCss() {
@@ -226,7 +227,7 @@
     var nOuvertes = (d.suggestions || []).filter(function (x) { return x.etat === 'recue'; }).length;
     var btn = h('button.btn.primaire#sug-ia-analyser', { type: 'button', disabled: (!ia || !ia.present || this.iaEnCours || !nOuvertes) ? 'disabled' : undefined, onclick: function () { self.analyserIa(); } }, [AMX.svg('suggestions'), this.iaEnCours ? ' MAX ai lit les suggestions… (jusqu\'à une minute)' : (a ? ' Refaire l\'analyse' : ' Analyser avec MAX ai')]);
     var info = !ia ? 'Chargement…' : (ia.absent ? ia.erreur : (!ia.present ? 'MAX ai n\'a pas encore de clé : le propriétaire la colle dans Admin › MAX ai.' : (a ? 'Dernière analyse le ' + AMX.fmtDate(a.le, true) + ' · ' + a.nOuvertes + ' suggestion' + (a.nOuvertes > 1 ? 's' : '') + ' · ' + String((a.cout || 0).toFixed(3)).replace('.', ',') + ' $ US' : 'MAX ai regroupe les suggestions à traiter en thèmes, repère les doublons et propose des pistes. Rien n\'est appliqué sans vous.')));
-    var tete = h('div.sug-ia-tete', [h('div', [h('h2', 'MAX ai · analyse des suggestions'), h('div.mini.doux', { text: info })]), btn]);
+    var tete = h('div.sug-ia-tete', [AMX.maxai ? AMX.maxai.avatar(44) : null, h('div', { style: { flex: '1' } }, [h('h2', 'MAX ai · analyse des suggestions'), h('div.mini.doux', { text: info })]), btn]);
     el.appendChild(tete);
     if (!r) return;
     var puceSug = function (id) {
@@ -358,7 +359,7 @@
     });
   }
 
-  function ouvrirFormulaire() {
+  function ouvrirFormulaire(pre) {
     var pages = (cache.rep && cache.rep.pages && cache.rep.pages.length) ? cache.rep.pages : PAGES_DEFAUT;
     var secCourante = AMX.courante && AMX.courante.section ? AMX.courante.section.id : '';
     var selPage = h('select.saisie#sug-page', pages.map(function (p) { return h('option', { value: p.id, text: p.libelle, selected: p.id === secCourante ? 'selected' : undefined }); }));
@@ -367,7 +368,9 @@
     var pourquoi = h('textarea.saisie#sug-pourquoi', { rows: '2', placeholder: 'À quoi ça sert, combien de fois par semaine, ce que ça éviterait.' });
     var exemple = h('textarea.saisie#sug-exemple', { rows: '2', placeholder: 'Un cas vécu : quel véhicule, quelle page, qu\'est-ce que vous vouliez faire.' });
     var selUrg = h('select.saisie#sug-urgence', URGENCES.map(function (u) { return h('option', { value: u[0], text: u[1] }); }));
+    if (pre) { titre.value = pre.titre || ''; desc.value = pre.description || ''; pourquoi.value = pre.pourquoi || ''; exemple.value = pre.exemple || ''; }
     var corps = h('div.sug-form', [
+      pre && pre.source === 'maxai' ? h('p.sug-aide.maxai-redige', [AMX.maxai ? AMX.maxai.avatar(28, { bouton: false }) : null, h('span', { text: ' Rédigée par MAX ai à partir de votre discussion : relisez et corrigez avant d\'envoyer.' })]) : null,
       h('p.sug-aide', { text: 'Une demande claire se traite vite : dites quoi, pourquoi, et donnez un exemple. Elle reste en rouge jusqu\'à ce qu\'elle soit traitée ; vous recevrez un courriel avec ce qui a changé.' }),
       h('div.deux', [
         h('div.champ', [h('label', { 'for': 'sug-page', text: 'Page concernée' }), selPage]),

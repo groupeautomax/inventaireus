@@ -321,6 +321,13 @@
       '.admin-page .admin-parametres .ligne-cle .champ { flex: 1 1 260px; }',
       '.admin-page .admin-parametres .etat-cle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }',
       '.admin-page .admin-parametres ol { margin: 0; padding-left: 18px; font-size: 12px; color: var(--encre-3); line-height: 1.6; }',
+      // 21 oct. : cartes « Canada ou États-Unis ? » et « Demandes de travaux au service ».
+      '.admin-page .admin-export-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; }',
+      '.admin-page .admin-export-grille .champ input { width: 100%; }',
+      '.admin-page .admin-demandes-ligne { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 6px 14px; padding: 10px 0; border-top: 1px solid var(--ligne); }',
+      '.admin-page .admin-demandes-ligne:first-child { border-top: 0; }',
+      '.admin-page .admin-demandes-ligne .ligne-cle input { flex: 1 1 260px; min-width: 0; }',
+      '@media (max-width: 640px) { .admin-page .admin-demandes-ligne { grid-template-columns: minmax(0, 1fr); } }',
       // Avatar (liste et panneau), coloré comme le badge de rôle.
       '.admin-avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; letter-spacing: .02em; }',
       '.admin-avatar.grand { width: 42px; height: 42px; font-size: 14px; }',
@@ -507,7 +514,9 @@
     this.elAlertes = this.construireAlertes();
     this.elEchanges = this.construireEchanges();
     this.elOpenlane = this.construireOpenlane();
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elParametres]), this.elPanneau]);
+    this.elExport = this.construireExport();
+    this.elDemandes = this.construireDemandes();
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -679,6 +688,132 @@
     ];
     return h('div.carte.admin-parametres.admin-openlane', [h('div.carte-entete', [h('h2', 'OpenLane en direct (Market guide)')]), h('div.carte-corps', corps)]);
   };
+  /* ------------------- Canada ou États-Unis ? (évaluation) — 21 oct. -----------------
+     Paramètres de la boîte « Canada ou États-Unis ? » de la fiche d'évaluation (Export.gs : GET ?exportParams=1,
+     POST exportParams) : écart sur le taux, ajustement, gros Canada estimé, seuil de l'alerte « Marché É.-U. vs MMR »,
+     NIV exportables, dates d'encan. Modifiables par le propriétaire (droit gererAdmins) ; les autres admins les lisent. */
+  var CHAMPS_EXPORT = [
+    ['ecartPct', 'Écart sur le taux du jour (%)', 'number', 'Retiré du taux de la Banque du Canada (valeur de départ de la boîte).'],
+    ['ecartAchatPct', 'Préréglage « Achat » (%)', 'number', ''],
+    ['ecartEchangePct', 'Préréglage « Échange » (%)', 'number', ''],
+    ['ajustement', 'Ajustement après conversion ($)', 'number', 'Transport, encan, titre : retirés du prix É.-U. converti.'],
+    ['grosPct', 'Gros Canada estimé (% sous le marché)', 'number', 'Sans gros Canada tapé : marché standard MarketCheck moins ce pourcentage.'],
+    ['alerteMmrPct', 'Seuil de l\'alerte MMR (%)', 'number', 'Tuile rouge si la moyenne des annonces É.-U. ne dépasse pas le MMR de ce pourcentage.'],
+    ['prefixes', 'NIV exportables (premiers caractères)', 'text', 'Séparés par des virgules : 1, 4, 5 = fabriqués aux États-Unis.'],
+    ['tauxManuel', 'Taux de secours (0 = aucun)', 'number', 'Servi seulement si la Banque du Canada ne répond pas.'],
+    ['premierEncan', 'Premier encan É.-U.', 'date', ''],
+    ['derniereExpedition', 'Dernières expéditions', 'date', '']
+  ];
+  VueAdmin.prototype.construireExport = function () {
+    var self = this;
+    this.elEtatExport = h('div.petit.doux', { text: 'Chargement…' });
+    this.champsExport = {};
+    var grille = h('div.admin-export-grille', CHAMPS_EXPORT.map(function (c) {
+      var attrs = { type: c[2], autocomplete: 'off', spellcheck: 'false' };
+      if (c[2] === 'number') attrs.step = 'any';
+      var i = h('input#adm-export-' + c[0], attrs);
+      self.champsExport[c[0]] = i;
+      return h('div.champ', [h('label', { 'for': 'adm-export-' + c[0], text: c[1] }), i, c[3] ? h('div.mini.doux', { text: c[3] }) : null]);
+    }));
+    this.btnExport = h('button.btn.primaire#adm-export-enregistrer', { type: 'button', html: I.ok + '<span>Enregistrer</span>', onclick: function () { self.enregistrerExport(false); } });
+    this.btnExportDefaut = h('button.btn.petit.fantome#adm-export-defaut', { type: 'button', text: 'Remettre les valeurs par défaut', onclick: function () { self.enregistrerExport(true); } });
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Réglages de la boîte « Canada ou États-Unis ? » de la fiche d\'évaluation : ils servent de valeurs de départ, chaque évaluation peut encore les ajuster.' }),
+      this.elEtatExport, grille, h('div.ligne-cle', [this.btnExport, this.btnExportDefaut])
+    ];
+    return h('div.carte.admin-parametres.admin-export', [h('div.carte-entete', [h('h2', 'Canada ou États-Unis ? (évaluation)')]), h('div.carte-corps', corps)]);
+  };
+  VueAdmin.prototype.chargerExport = function () {
+    var self = this;
+    return AMX.get({ exportParams: 1 }).then(function (d) { if (!self.detruit) self.rendreExport(d && d.ok && d.params ? d : null); }).catch(function () { if (!self.detruit) self.rendreExport(null); });
+  };
+  VueAdmin.prototype.rendreExport = function (d) {
+    var self = this;
+    AMX.vider(this.elEtatExport);
+    if (!d) { this.elEtatExport.appendChild(h('span.badge.ambre.sans-point', { text: 'Paramètres illisibles — script injoignable ou pas à jour (Export.gs)' })); return; }
+    this.exportPeut = !!d.peutModifier;
+    CHAMPS_EXPORT.forEach(function (c) {
+      var v = d.params[c[0]], i = self.champsExport[c[0]];
+      i.value = c[0] === 'prefixes' ? (Array.isArray(v) ? v.join(', ') : String(v || '')) : (v === undefined || v === null ? '' : String(v));
+      i.disabled = !self.exportPeut;
+    });
+    if (d.params.alerteMmrPct === undefined) this.champsExport.alerteMmrPct.placeholder = '10 (script à redéployer)';
+    this.btnExport.disabled = !this.exportPeut; this.btnExportDefaut.disabled = !this.exportPeut;
+    var t = d.taux || {};
+    var sources = { bdc: 'Banque du Canada', dernier: 'dernier taux connu', manuel: 'taux de secours' };
+    this.elEtatExport.appendChild(h('span', { text: t.ok && t.taux ? 'Taux USD → CAD en vigueur : ' + String(t.taux).replace('.', ',') + ' (' + (sources[t.source] || t.source || '') + (t.date ? ', ' + AMX.fmtDate(t.date) : '') + ')' : 'Taux du jour indisponible' + (t.erreur ? ' : ' + t.erreur : '') }));
+    if (!this.exportPeut) this.elEtatExport.appendChild(h('span.puce', { text: 'Lecture seule — réservé au propriétaire' }));
+  };
+  VueAdmin.prototype.enregistrerExport = function (defaut) {
+    var self = this;
+    if (!this.exportPeut) return;
+    var envoyer = function () {
+      var params = {};
+      if (!defaut) CHAMPS_EXPORT.forEach(function (c) { params[c[0]] = self.champsExport[c[0]].value.trim(); });
+      self.btnExport.classList.add('occupe');
+      return AMX.post(defaut ? { action: 'exportParams', reinitialiser: true } : { action: 'exportParams', params: params }).then(function (r) {
+        self.btnExport.classList.remove('occupe');
+        if (r && r.vehicules && !r.params) throw new Error('le script n\'est pas à jour (Export.gs)');
+        if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'refusé');
+        try { if (AMX.export && AMX.export.oublier) AMX.export.oublier(); } catch (e) {}
+        self.rendreExport({ ok: true, params: r.params, taux: r.taux, peutModifier: true });
+        AMX.toast(defaut ? 'Valeurs par défaut remises.' : 'Paramètres Canada / É.-U. enregistrés.', 'ok');
+      }).catch(function (e) { self.btnExport.classList.remove('occupe'); AMX.toast('Enregistrement impossible — ' + AMX.erreurTexte(e), 'erreur'); });
+    };
+    if (!defaut) { envoyer(); return; }
+    AMX.confirmer('Remettre les valeurs par défaut', 'Écart 3 % (achat 4 %, échange 3 %), ajustement 6 000 $, gros Canada estimé 15 %, alerte MMR 10 %, NIV 1, 4, 5. Les évaluations déjà faites ne changent pas.', { ok: 'Remettre' }).then(function (ok) { if (ok) envoyer(); });
+  };
+
+  /* ------------------- Demandes de travaux au service — 21 oct. -----------------
+     Qui reçoit le courriel d'une demande de travaux (Service › décision « Détail ») : d'office les comptes
+     « Service » / « Direction service » ou du département service de la concession (Demande.gs), plus les
+     courriels ajoutés ici (propriété DEMANDES_COURRIELS ; GET / POST demandeReglages). */
+  VueAdmin.prototype.construireDemandes = function () {
+    this.elDemandesListe = h('div', { text: 'Chargement…' });
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Le courriel « demande de travaux » part aux comptes Service et Direction service de la concession. Ajoutez ici d\'autres adresses (contremaître, boîte du service…). Sans personne, il va aux directeurs.' }),
+      this.elDemandesListe
+    ];
+    return h('div.carte.admin-parametres.admin-demandes', [h('div.carte-entete', [h('h2', 'Demandes de travaux au service')]), h('div.carte-corps', corps)]);
+  };
+  VueAdmin.prototype.chargerDemandes = function () {
+    var self = this;
+    return AMX.get({ demandeReglages: 1 }).then(function (d) { if (!self.detruit) self.rendreDemandes(d && d.ok && d.apercu ? d : null); }).catch(function () { if (!self.detruit) self.rendreDemandes(null); });
+  };
+  VueAdmin.prototype.rendreDemandes = function (d) {
+    var self = this;
+    AMX.vider(this.elDemandesListe);
+    if (!d) { this.elDemandesListe.appendChild(h('span.badge.ambre.sans-point', { text: 'Réglages illisibles — script injoignable ou pas à jour (Demande.gs)' })); return; }
+    var codes = Object.keys(d.apercu);
+    if (!codes.length) { this.elDemandesListe.appendChild(h('p.doux.petit', { text: 'Aucune concession visible.' })); return; }
+    codes.forEach(function (c) {
+      var a = d.apercu[c] || {};
+      var dest = (a.destinataires || []).map(function (x) { return (x.nom && x.nom !== x.courriel ? x.nom + ' ' : '') + '<' + x.courriel + '>' + (x.pourquoi ? ' — ' + x.pourquoi : ''); });
+      var champ = h('input#adm-demandes-' + c, { type: 'text', autocomplete: 'off', spellcheck: 'false', placeholder: 'service@concession.com, autre@…', value: (a.courriels || []).join(', ') });
+      champ.disabled = !d.peutModifier;
+      var btn = h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function () { self.enregistrerDemandes(c, champ.value, btn); } });
+      btn.disabled = !d.peutModifier;
+      self.elDemandesListe.appendChild(h('div.admin-demandes-ligne', [
+        h('div', [h('b', { text: AMX.COMPAGNIES_TOUTES[c] || c }), a.repli ? h('div.mini', [h('span.badge.ambre.sans-point', { text: 'Repli : directeurs' })]) : null]),
+        h('div', [
+          h('div.mini.doux', { text: dest.length ? 'Reçoivent aujourd\'hui : ' + dest.join(' · ') : 'Personne pour l\'instant.' }),
+          h('div.ligne-cle', { style: { marginTop: '6px' } }, [champ, btn])
+        ])
+      ]));
+    });
+  };
+  VueAdmin.prototype.enregistrerDemandes = function (code, valeur, btn) {
+    var self = this;
+    btn.classList.add('occupe');
+    AMX.post({ action: 'demandeReglages', compagnie: code, courriels: String(valeur || '') }).then(function (r) {
+      btn.classList.remove('occupe');
+      if (r && r.vehicules && !r.apercu) throw new Error('le script n\'est pas à jour (Demande.gs)');
+      if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'refusé');
+      self.rendreDemandes(r);
+      AMX.toast('Destinataires des demandes enregistrés — ' + (AMX.COMPAGNIES_TOUTES[code] || code) + '.', 'ok');
+    }).catch(function (e) { btn.classList.remove('occupe'); AMX.toast('Enregistrement impossible — ' + AMX.erreurTexte(e), 'erreur'); });
+  };
+
   VueAdmin.prototype.chargerOpenlane = function () {
     var self = this;
     return AMX.get({ openlaneEtat: 1 }).then(function (d) { if (self.detruit) return; self.rendreEtatOpenlane(d && d.ok && d.connecte !== undefined ? d : null); }).catch(function () { if (!self.detruit) self.rendreEtatOpenlane(null); });
@@ -958,6 +1093,8 @@
     this.chargerJournal();
     this.chargerEchanges();
     this.chargerOpenlane();
+    this.chargerExport();
+    this.chargerDemandes();
     return AMX.get('utilisateurs=1').then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;

@@ -1112,6 +1112,7 @@
     [this.elAchat, this.elFrais].forEach(function (el) { el.addEventListener('input', function () { self.rendreEcartClient(); }); });
     this.rendreSuiviStatut();
     this.rendreConseillers();
+    this.rendrePhotos();   // page sans NIV : bouton grisé et « dès que le NIV est complet »
   };
 
   Evaluation.prototype.rendreSuiviStatut = function () {

@@ -416,27 +416,62 @@
       corps.appendChild(comp);
     } else if (r.luLe) corps.appendChild(h('div.doux', { style: { marginTop: '8px' }, text: 'Aucune vente comparable chez OpenLane sur 180 jours.' }));
   }
-  /** La modale d'un NIV, d'où qu'on vienne (table, panneau d'inventaire, fiche d'achat, évaluation). */
-  AMX.openlaneOuvrir = function (vin, ligne) {
+  /** La modale d'un NIV, d'où qu'on vienne (table, panneau d'inventaire, fiche d'achat, évaluation).
+      22 oct. (Maxime : « le lien OpenLane devrait s'ouvrir dans notre site et non dans OpenLane ») : quand le site tient
+      une session OpenLane (lecture directe), un NIV jamais lu est lu tout de suite ici, et « Mettre à jour » relit sur
+      place ; OpenLane ne s'ouvre (avec le favori) que si le site n'a pas de session. opts = { km, source, compagnie }. */
+  AMX.openlaneOuvrir = function (vin, ligne, opts) {
     injecterCss();
+    opts = opts || {};
     vin = String(vin || '').trim().toUpperCase();
     var corps = h('div.ol-fiche');
     corps.appendChild(h('div.doux', { text: 'Chargement des valeurs OpenLane…' }));
     var r0 = ligne || AMX.openlane.valeur(vin) || null;
     var titre = r0 && (r0.marque || r0.modeleInventaire) ? vehiculeTexte(r0) + (r0.stock ? ' — # ' + r0.stock : '') : 'Valeurs OpenLane';
     var modale = AMX.modale({ titre: titre, corps: corps, large: true, boutons: [{ texte: 'Fermer' }] });
-    AMX.get({ openlaneVin: vin }).then(function (d) {
-      if (!d || !d.ok) throw new Error((d && d.erreur) || 'Valeurs indisponibles');
-      var r = d.valeur || r0 || { vin: vin }, f = d.detail || null;
+    var kmVoulu = opts.km !== undefined && nombre(opts.km) !== null ? nombre(opts.km) : null;
+    var dejaLu = false;
+    var afficher = function (r, f, message) {
+      AMX.vider(corps);
+      if (message) corps.appendChild(h('div.doux', { style: { background: 'var(--ambre-bg)', border: '1px solid var(--ambre-bord)', color: 'var(--ambre)', borderRadius: '8px', padding: '8px 10px', marginBottom: '10px' }, text: message }));
       rendreDetail(corps, r, f);
-      var actions = h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' } }, [
+      var direct = directConnu === true && peutDemander();
+      var lire = null;
+      if (direct) {
+        lire = h('button.btn' + (r.luLe ? '' : '.primaire'), { type: 'button', text: r.luLe ? 'Mettre à jour les valeurs' : 'Lire les valeurs maintenant', title: 'Le site lit Market Guide d\'OpenLane pour ce NIV (environ 30 secondes)', onclick: function () { lireDirect(r, !!r.luLe); } });
+      } else if (peutDemander()) {
+        // Pas de session OpenLane côté site : dernier recours, Market guide avec le favori « Automax ← OpenLane ».
+        lire = h('button.btn', { type: 'button', html: I.externe + '<span>Ouvrir OpenLane (favori)</span>', title: 'Le site n\'a pas de session OpenLane : ouvre Market guide avec ce NIV ; cliquez-y le favori « Automax ← OpenLane (valeurs) »', onclick: function (e) { var b = e.currentTarget; AMX.openlane.ouvrir(vin, r.km); b.classList.add('occupe'); AMX.openlane.demander(vin, r.km).then(function (x) { b.classList.remove('occupe'); AMX.toast(x && x.ok ? 'OpenLane ouvert : cliquez-y le favori « Automax ← OpenLane », puis Rafraîchir ici.' : ((x && x.erreur) || 'Refusé'), x && x.ok ? 'ok' : 'erreur', 7000); }, function (err) { b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(err), 'erreur'); }); } });
+      }
+      corps.appendChild(h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' } }, [
+        lire,
         r.vehiculeId && r.registre ? h('a.btn', { href: AMX.lien('inventaire', r.registre.toLowerCase(), { vin: vin }), text: 'Voir à l\'inventaire' }) : null,
-        h('a.btn', { href: AMX.lien('outils', 'evaluation', { vin: vin }), text: 'Évaluation' }),
+        opts.source === 'evaluation' ? null : h('a.btn', { href: AMX.lien('outils', 'evaluation', { vin: vin }), text: 'Évaluation' }),
         h('a.btn', { href: AMX.lien('achat', '', { vin: vin }), html: I.achat + '<span>Fiche d\'achat</span>' }),
-        peutDemander() ? h('button.btn', { type: 'button', html: I.externe + '<span>' + (r.luLe ? 'Mettre à jour sur OpenLane' : 'Lire sur OpenLane') + '</span>', title: 'Ouvre Market guide avec ce NIV : cliquez-y le favori « Automax ← OpenLane (valeurs) »', onclick: function (e) { var b = e.currentTarget; AMX.openlane.ouvrir(vin, r.km); b.classList.add('occupe'); AMX.openlane.demander(vin, r.km).then(function (x) { b.classList.remove('occupe'); AMX.toast(x && x.ok ? 'OpenLane ouvert : cliquez-y le favori « Automax ← OpenLane », puis Rafraîchir ici.' : ((x && x.erreur) || 'Refusé'), x && x.ok ? 'ok' : 'erreur', 7000); }, function (err) { b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(err), 'erreur'); }); } }) : h('a.btn.fantome', { href: lienMarche(vin, r.km), target: '_blank', rel: 'noopener', html: I.externe + '<span>Market guide</span>' })
-      ]);
-      corps.appendChild(actions);
-    }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Valeurs indisponibles'), h('div', { text: AMX.erreurTexte(e) })])); });
+        h('a.btn.fantome', { href: AMX.lien('outils', 'openlane', { vin: vin }), text: 'Toutes les valeurs OpenLane' })
+      ]));
+    };
+    var lireDirect = function (r, forcer) {
+      dejaLu = true;
+      AMX.vider(corps);
+      corps.appendChild(h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } }, [h('span.badge.sans-point.bleu', { text: 'OpenLane' }), h('span.doux', { text: 'Lecture de Market Guide en cours… (environ 30 secondes)' })]));
+      var km = kmVoulu !== null ? kmVoulu : nombre(r && r.km);
+      return AMX.openlane.direct(vin, km, { source: opts.source || 'direct', compagnie: opts.compagnie || '', forcer: !!forcer }).then(function (x) {
+        if (x && x.ok && x.valeur && x.valeur.luLe) { charger(); return; }
+        afficher(r, null, x && x.nonConnecte ? (x.erreur || 'OpenLane n\'est pas connecté au site.') : 'OpenLane : ' + ((x && x.erreur) || 'pas de réponse'));
+      }, function (e) { afficher(r, null, 'OpenLane : ' + AMX.erreurTexte(e)); });
+    };
+    var charger = function () {
+      AMX.get({ openlaneVin: vin }).then(function (d) {
+        if (!d || !d.ok) throw new Error((d && d.erreur) || 'Valeurs indisponibles');
+        if (d.direct !== undefined) directConnu = !!d.direct;
+        var r = d.valeur || r0 || { vin: vin }, f = d.detail || null;
+        // Jamais lu et le site tient une session OpenLane : on lit tout de suite, sans quitter le site.
+        if (!r.luLe && !dejaLu && directConnu === true && peutDemander()) { lireDirect(r, false); return; }
+        afficher(r, f, '');
+      }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Valeurs indisponibles'), h('div', { text: AMX.erreurTexte(e) })])); });
+    };
+    charger();
     return modale;
   };
 

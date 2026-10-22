@@ -1312,10 +1312,10 @@
     var carfax = (vinOk && AMX.carfax && AMX.carfax.lien) ? AMX.carfax.lien(vin) : '';
     this.elLiens.appendChild(h('a.btn.petit' + (carfax ? '' : ''), { href: carfax || URL_CARFAX_COMPTE, target: '_blank', rel: 'noopener', title: carfax ? 'Rapport CARFAX partagé de ce véhicule' : 'Mon compte CARFAX (aucun rapport partagé pour ce NIV)', html: I.externe + '<span>' + (carfax ? 'Rapport CARFAX' : 'CARFAX (compte)') + '</span>' }));
     this.elLiens.appendChild(h('a.btn.petit' + (vinOk ? '' : '.desactive'), { href: vinOk ? lienMarketGuide(vin) : '#', target: '_blank', rel: 'noopener', title: 'Valeurs d\'encan eBlock (vendus 90 jours) pour ce NIV', html: I.externe + '<span>eBlock Market Guide</span>' }));
-    // OpenLane (9 oct.) : Market guide avec ce NIV et le km du formulaire ; le favori « Automax ← OpenLane » y lit ce NIV en premier et les valeurs reviennent dans le bloc « Valeurs OpenLane » ci-dessous.
+    // OpenLane (9 oct. ; 22 oct. : Maxime « le lien OpenLane devrait s'ouvrir dans notre site ») : la fiche de valeurs du site, lue en direct au besoin.
     if (AMX.openlane && AMX.openlane.lienMarche) {
       var kmOl = AMX.kmValide(this.elKm.value), selfOl = this;
-      this.elLiens.appendChild(h('a.btn.petit' + (vinOk ? '' : '.desactive'), { href: vinOk ? AMX.openlane.lienMarche(vin, kmOl) : '#', target: '_blank', rel: 'noopener', title: vinOk ? 'Valeurs OpenLane (Market guide) pour ce NIV : cliquez-y le favori « Automax ← OpenLane (valeurs) », puis revenez ici' : 'Entrez un NIV complet', html: I.externe + '<span>OpenLane</span>', onclick: function () { if (!vinOk) return; if (AMX.openlane.demander) AMX.openlane.demander(vin, AMX.kmValide(selfOl.elKm.value)).catch(function () {}); } }));
+      this.elLiens.appendChild(h('button.btn.petit' + (vinOk ? '' : '.desactive'), { type: 'button', title: vinOk ? 'Valeurs OpenLane de ce NIV, dans le site (lues en direct sur Market Guide au besoin)' : 'Entrez un NIV complet', html: '<span>OpenLane</span>', onclick: function () { if (!vinOk) return; AMX.openlaneOuvrir(vin, null, { km: AMX.kmValide(selfOl.elKm.value), source: 'evaluation', compagnie: AMX.CONCESSION_COMPAGNIE[selfOl.elConcession ? selfOl.elConcession.value : ''] || '' }); } }));
     }
     this.elLiens.appendChild(h('a.btn.petit', { href: URL_TORQUE, target: '_blank', rel: 'noopener', title: 'Évaluations Torque (Hawkesbury)', html: I.externe + '<span>Torque</span>' }));
     // Évaluation → fiche d'achat → inventaire : la fiche s'ouvre préremplie

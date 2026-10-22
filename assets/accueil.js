@@ -179,28 +179,37 @@
   Accueil.prototype.rendre = function () {
     var self = this;
     var ancienneValeur = this.inputRecherche ? this.inputRecherche.value : '';
-    AMX.vider(this.el);
     var p = AMX.session.perms || {};
+    // 22 oct. : pendant une recherche (boîte active ou remplie), le bandeau et sa boîte restent en place : les listes
+    // qui arrivent en arrière-plan (amx:service, amx:eblock…) redessinent seulement le reste, sans voler le curseur.
+    var garder = !!(this.elHero && this.elHero.parentNode === this.el && this.inputRecherche && (document.activeElement === this.inputRecherche || this.inputRecherche.value.trim()));
+    if (garder) {
+      while (this.el.lastChild && this.el.lastChild !== this.elHero) this.el.removeChild(this.el.lastChild);
+      while (this.el.firstChild && this.el.firstChild !== this.elHero) this.el.removeChild(this.el.firstChild);
+    } else {
+      AMX.vider(this.el);
 
-    /* ---- bandeau ---- */
-    var input = h('input', { type: 'search', id: 'accueil-recherche', placeholder: 'Trouver un véhicule : NIV, # stock, modèle…', autocomplete: 'off', value: ancienneValeur });
-    this.inputRecherche = input;
-    var recherche = h('div.acc-recherche', [h('span', { html: I.recherche }), input, h('kbd', '/')]);
-    var actions = [];
-    var ajouterAction = function (sec, onglet, texte, icone, cls) { var s = AMX.sections[sec]; if (!s || (s.visible && !s.visible())) return; actions.push(h('a' + (cls ? '.' + cls : ''), { href: AMX.lien(sec, onglet), html: (I[icone] || '') + '<span>' + texte + '</span>' })); };
-    ajouterAction('outils', 'evaluation', 'Évaluer un véhicule', 'scan', 'primaire');
-    ajouterAction('achat', '', 'Nouvelle fiche d\'achat', 'achat');
-    ajouterAction('service', 'encours', 'Suivi service', 'service');
-    ajouterAction('outils', 'openlane', 'Valeurs OpenLane', 'outils');
-    ajouterAction('avis', 'avis', 'Avis Google', 'avis');
-    this.el.appendChild(h('div.acc-hero', [
-      h('div.sur', { text: [p.nomConcession || 'Groupe Automax', dateLongue()].filter(Boolean).join(' · ') }),
-      h('h1', { text: salutation() + (prenom() ? ', ' + prenom() : '') }),
-      h('div.sous', [roleTexte() ? h('b', { text: roleTexte() }) : null, roleTexte() ? ' · ' : '', 'Où voulez-vous commencer aujourd\'hui ?']),
-      recherche,
-      actions.length ? h('div.acc-actions', actions) : null
-    ]));
-    if (AMX.brancherRecherche) AMX.brancherRecherche(input);
+      /* ---- bandeau ---- */
+      var input = h('input', { type: 'search', id: 'accueil-recherche', placeholder: 'Chercher : NIV, # stock, modèle, client, téléphone…', autocomplete: 'off', value: ancienneValeur });
+      this.inputRecherche = input;
+      var recherche = h('div.acc-recherche', [h('span', { html: I.recherche }), input, h('kbd', '/')]);
+      var actions = [];
+      var ajouterAction = function (sec, onglet, texte, icone, cls) { var s = AMX.sections[sec]; if (!s || (s.visible && !s.visible())) return; actions.push(h('a' + (cls ? '.' + cls : ''), { href: AMX.lien(sec, onglet), html: (I[icone] || '') + '<span>' + texte + '</span>' })); };
+      ajouterAction('outils', 'evaluation', 'Évaluer un véhicule', 'scan', 'primaire');
+      ajouterAction('achat', '', 'Nouvelle fiche d\'achat', 'achat');
+      ajouterAction('service', 'encours', 'Suivi service', 'service');
+      ajouterAction('outils', 'openlane', 'Valeurs OpenLane', 'outils');
+      ajouterAction('avis', 'avis', 'Avis Google', 'avis');
+      this.elHero = this.el.appendChild(h('div.acc-hero', [
+        h('div.sur', { text: [p.nomConcession || 'Groupe Automax', dateLongue()].filter(Boolean).join(' · ') }),
+        h('h1', { text: salutation() + (prenom() ? ', ' + prenom() : '') }),
+        h('div.sous', [roleTexte() ? h('b', { text: roleTexte() }) : null, roleTexte() ? ' · ' : '', 'Où voulez-vous commencer aujourd\'hui ?']),
+        recherche,
+        AMX.recherche ? AMX.recherche.portee(h('div.acc-recherche-portee')) : null,   // 22 oct. : dans quelle concession on cherche, et pour en changer
+        actions.length ? h('div.acc-actions', actions) : null
+      ]));
+      if (AMX.brancherRecherche) AMX.brancherRecherche(input);
+    }
 
     /* ---- chiffres clés ---- */
     var kpis = chiffres();

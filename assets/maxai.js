@@ -239,7 +239,9 @@
     document.head.appendChild(h('style#maxai-style', { text: css }));
   }
 
-  AMX.maxai = { avatar: avatar, ouvrir: ouvrir, fermer: fermer, articlesProches: articlesProches };
+  // Déconnexion (AMX.deconnecter) : la discussion de l'ancienne personne disparaît de l'onglet.
+  function vider() { etat.messages = []; etat.reste = null; try { sessionStorage.removeItem(CLE); } catch (e) {} fermer(); if (el.panneau) rendre(); }
+  AMX.maxai = { avatar: avatar, ouvrir: ouvrir, fermer: fermer, vider: vider, articlesProches: articlesProches };
   styles();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', poserBulle); else poserBulle();
 })();

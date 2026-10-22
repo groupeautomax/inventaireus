@@ -34,7 +34,7 @@
     sorti: { libelle: 'Vendu · sorti', court: 'Vendu, sorti', ordre: 1 },
     introuvable: { libelle: 'Introuvable', court: 'Introuvable', ordre: 2 },
     vendu: { libelle: 'Vendu, pas livré', court: 'Vendu, pas livré', ordre: 3 },
-    transit: { libelle: 'En route', court: 'En route', ordre: 4 },
+    transit: { libelle: 'En route / encan', court: 'En route / encan', ordre: 4 },
     service: { libelle: 'Au service', court: 'Au service', ordre: 5 },
     demo: { libelle: 'Démo', court: 'Démo', ordre: 6 },
     stock: { libelle: 'En stock', court: 'En stock', ordre: 7 }
@@ -289,8 +289,9 @@
     var t = trouver(l, idx, cieListe), items = t.items, auj = aujourdhui();
     var de = function (id) { return items.filter(function (it) { return it.src.id === id; }).map(function (it) { return it.x; }); };
     var usages = de('usage'), neufs = de('neuf');
-    var usageActif = usages.filter(function (u) { return u.statut !== 'arrive' && u.statut !== 'comptabilise'; })[0] || null;
-    var usageVendu = usages.filter(function (u) { return u.statut === 'arrive' || u.statut === 'comptabilise'; })[0] || null;
+    // « Expédié » (transit) = parti chez l'acheteur après la vente : sorti du lot, comme vendu / comptabilisé.
+    var usageActif = usages.filter(function (u) { return !/^(arrive|comptabilise|transit)$/.test(u.statut); })[0] || null;
+    var usageVendu = usages.filter(function (u) { return /^(arrive|comptabilise|transit)$/.test(u.statut); })[0] || null;
     var neufDms = neufs.filter(function (n) { return n.origine !== 'constructeur'; })[0] || null, neufC = neufs.filter(function (n) { return n.origine === 'constructeur'; })[0] || null;
     var neuf = neufDms || neufC;
     // Une vente plus vieille que l'entrée du véhicule à l'usagé (revenu en échange) ne compte pas.
@@ -327,7 +328,7 @@
       var st = AMX.statut ? AMX.statut(usageVendu.statut, usageVendu._feuille) : { libelle: usageVendu.statut };
       r.cat = 'sorti'; r.texte = 'Usagé · ' + st.libelle + ' (' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageVendu._feuille) : usageVendu._feuille) + ')';
       r.detail = usageVendu.stock ? '# ' + usageVendu.stock : '';
-      if (plan) alertes.unshift('Vendu mais encore sur la liste du prêteur');
+      if (plan) alertes.unshift(usageVendu.statut === 'transit' ? 'Expédié à l\'acheteur mais encore sur la liste du prêteur' : 'Vendu mais encore sur la liste du prêteur');
     } else if (/livre|vendu-constructeur/.test(indispo) && !usageActif) {
       r.cat = 'sorti'; r.texte = indispo === 'livre' ? 'Livré (marquage)' + (marq.client ? ' — ' + marq.client : '') : 'Livré au client (manufacturier)';
       r.detail = 'Neuf' + (neuf.stock ? ' · # ' + neuf.stock : '');
@@ -340,7 +341,7 @@
     } else if (neuf && (/DEMO/.test(statutNeuf) || /demo/.test(indispo))) {
       r.cat = 'demo'; r.texte = 'Démo' + (marq.localisation ? ' · ' + marq.localisation : '') + (neuf.km ? ' · ' + AMX.fmtNombre(neuf.km) + ' km' : '');
       r.detail = 'Neuf · ' + (neuf.statutLibelle || 'DEMO') + (neuf.stock ? ' · # ' + neuf.stock : '');
-    } else if ((usageActif && /^(transit|transitqc|manheimpa)$/.test(usageActif.statut)) || (neuf && !usageActif && /TRANSIT|COMMANDE/.test(statutNeuf))) {
+    } else if ((usageActif && /^(transitqc|manheimpa)$/.test(usageActif.statut)) || (neuf && !usageActif && /TRANSIT|COMMANDE/.test(statutNeuf))) {
       r.cat = 'transit';
       if (usageActif && !neuf) { var st2 = AMX.statut ? AMX.statut(usageActif.statut, usageActif._feuille) : { libelle: usageActif.statut }; r.texte = 'Usagé · ' + st2.libelle; r.detail = AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageActif._feuille) : usageActif._feuille; }
       else { r.texte = 'Neuf · ' + (neuf.statutLibelle || 'en route') + (neuf.emplacement ? ' · ' + neuf.emplacement : ''); r.detail = neuf.origine === 'constructeur' ? 'Portail du manufacturier' : 'DMS'; }
@@ -636,7 +637,7 @@
       kpi('stock', r.stock, 'En stock', ''),
       kpi('service', r.service, 'Au service', ''),
       kpi('demo', r.demo, 'Démos', ''),
-      kpi('transit', r.transit, 'En route', ''),
+      kpi('transit', r.transit, 'En route / encan', '', 'hors du lot'),
       kpi('vendu', r.vendu, 'Vendus, pas livrés', r.vendu ? 'attention' : ''),
       kpi('sorti', r.sorti, 'Vendus, sortis', r.sorti ? 'alerte' : '', li.type === 'plan' && r.sorti ? 'à rembourser au prêteur' : ''),
       kpi('introuvable', r.introuvable, 'Introuvables', r.introuvable ? 'alerte' : ''),

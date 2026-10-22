@@ -314,6 +314,16 @@
       '@media (max-width: 1200px) { .eval-grille-vehicule { grid-template-columns: repeat(4, minmax(0, 1fr)); } .eval-prix-grille { grid-template-columns: 1fr; } }',
       '@media (max-width: 900px) { .eval-cibles { grid-template-columns: 1fr; } .eval-grille-vehicule { grid-template-columns: repeat(2, minmax(0, 1fr)); } .eval-sommaire .sauts { display: none; } }',
       '.eval-resume { margin-bottom: 12px; }',
+      '.eval-grille-suivi { grid-template-columns: 1.4fr 1fr 1.4fr 1fr 1.3fr 1.1fr; gap: 10px 12px; }',
+      '.eval-grille-etat { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; }',
+      '.eval-suivi-ecart:not(:empty) { margin-top: 10px; }',
+      '.eval-etat-notes { margin-top: 10px; } .eval-etat-notes textarea { width: 100%; min-height: 54px; resize: vertical; }',
+      '.eval-photos-entete { display: flex; align-items: center; gap: 10px; margin: 14px 0 8px; } .eval-photos-entete h3 { margin: 0; font-size: 13px; }',
+      '.eval-photos { display: flex; flex-wrap: wrap; gap: 8px; } .eval-photo img { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid var(--ligne); display: block; background: var(--gris-bg); }',
+      '#eval-suivi-statut button.actif.s-ambre { color: var(--ambre); } #eval-suivi-statut button.actif.s-vert { color: var(--vert); } #eval-suivi-statut button.actif.s-rouge { color: var(--rouge); } #eval-suivi-statut button.actif.s-bleu { color: var(--bleu); } #eval-suivi-statut button.actif.s-violet { color: var(--violet); }',
+      '.eval-sommaire .item.suivi.s-ambre .v { color: var(--ambre); } .eval-sommaire .item.suivi.s-vert .v { color: var(--vert); } .eval-sommaire .item.suivi.s-rouge .v { color: var(--rouge); } .eval-sommaire .item.suivi.s-bleu .v { color: var(--bleu); } .eval-sommaire .item.suivi.s-violet .v { color: var(--violet); }',
+      '@media (max-width: 1200px) { .eval-grille-suivi, .eval-grille-etat { grid-template-columns: repeat(3, minmax(0, 1fr)); } }',
+      '@media (max-width: 900px) { .eval-grille-suivi, .eval-grille-etat { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
       '.eval-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }',
       '.eval-stat { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 12px 14px; }',
       '.eval-stat h3 { font-size: 13px; margin: 0 0 8px; }',
@@ -564,12 +574,15 @@
 
     this.elTaux.addEventListener('input', function () { self.rendreMarche(); self.rendreExport(); });
 
+    // --- Client et suivi, état et photos (21 oct.) : ce qui remplace Torque au quotidien
+    this.construireSuivi();
+
     // --- Canada ou États-Unis ? (8 oct.) — mise de l'avant : première carte sous le véhicule
     this.elExport = h('div.carte#sec-export');
     this.construireExport();
 
     // (8 oct., soir — Maxime) le calcul de l'évaluation plus haut ; la comparaison Canada / É.-U. en dessous, à ouvrir d'un clic.
-    this.el = h('div.page.eval-page', [entete, this.elSommaire, vehicule, detail, this.elExport, marche]);
+    this.el = h('div.page.eval-page', [entete, this.elSommaire, vehicule, detail, this.elSuiviCarte, this.elEtatCarte, this.elExport, marche]);
     this.rendreSommaire();
     this.rendreLiens();
     this.rendreExport();
@@ -981,9 +994,269 @@
     var us = this.elExport ? this.usCollecter() : null;
     if (us && us.verdict) this.elSommaire.appendChild(item('Verdict', AMX.export.texteVerdict(us), 'verdict.' + us.verdict));
     if (us && us.alerteMmr) this.elSommaire.appendChild(item('É.-U. vs MMR', (us.marcheUSPct >= 0 ? '+' : '') + us.marcheUSPct + ' %', 'neg'));
-    this.elSommaire.appendChild(h('nav.sauts', [['sec-vehicule', 'Véhicule'], ['sec-prix', 'Prix'], ['sec-export', 'CA / É.-U.'], ['sec-marche', 'Marché']].map(function (x) {
+    var st = this.suiviStatut ? statutSuivi(this.suiviStatut) : null;
+    if (st) this.elSommaire.appendChild(item('Suivi', st[1], 'suivi.s-' + st[2]));
+    this.elSommaire.appendChild(h('nav.sauts', [['sec-vehicule', 'Véhicule'], ['sec-prix', 'Prix'], ['sec-suivi', 'Client'], ['sec-etat', 'État'], ['sec-export', 'CA / É.-U.'], ['sec-marche', 'Marché']].map(function (x) {
       return h('a', { href: '#', text: x[1], onclick: function (e) { e.preventDefault(); var el = document.getElementById(x[0]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
     })));
+    this.rendreEcartClient && this.rendreEcartClient();
+  };
+
+  /* ------------- Client, suivi, état et photos (21 oct.) -------------
+     Ce que Torque donnait au quotidien : le client (nom, téléphone, courriel, origine, transaction, ce
+     qu'il cherche), le conseiller, le statut (En attente → Complété / relance → Perdu ou Repris), la
+     valeur offerte au client contre la valeur interne (prix d'achat), l'état du véhicule et ses photos.
+     Tout vit dans le JSON de l'évaluation (`suivi`, `etatVehicule`, plus etat / pneus / pareBrise /
+     accident à plat pour le panneau d'inventaire) ; les photos passent par uploadPhoto (par NIV) et
+     suivent le véhicule s'il est acheté. */
+  var SUIVI_STATUTS = [['attente', 'En attente', 'ambre'], ['complete', 'Complété / relance', 'vert'], ['perdu', 'Perdu', 'rouge'], ['repris', 'Repris', 'bleu'], ['reprisWholesale', 'Repris wholesale', 'violet']];
+  var SUIVI_ORIGINES = ['Sans rendez-vous', 'Téléphone', 'Internet', 'Référence', 'Service', 'Client existant', 'Autre'];
+  var SUIVI_TRANSACTIONS = [['echange', 'Échange (achète chez nous)'], ['achat', 'Achat seulement']];
+  var ETAT_GENERAL = [['excellent', 'Excellent'], ['bon', 'Bon'], ['normal', 'Normal'], ['mauvais', 'Mauvais']];
+  var ETAT_PNEUS = ['Neufs', 'Bons', 'Moyens', 'À changer', 'Aucun'];
+  var ETAT_PARE_BRISE = ['Bon', 'Éclat', 'Fissuré', 'À changer'];
+  var ETAT_ACCIDENT = [['non', 'Non'], ['oui', 'Oui'], ['inconnu', 'Inconnu']];
+  function statutSuivi(cle) { return SUIVI_STATUTS.filter(function (s) { return s[0] === cle; })[0] || null; }
+  function listeChoix(id, libelle, options) {
+    var sel = h('select#' + id, [h('option', { value: '', text: '—' })].concat(options.map(function (o) {
+      return h('option', { value: Array.isArray(o) ? o[0] : o, text: Array.isArray(o) ? o[1] : o });
+    })));
+    return { el: h('div.champ', [h('label', { 'for': id, text: libelle }), sel]), input: sel };
+  }
+  // Une valeur gardée qui n'est plus dans la liste (ancienne fiche) reste choisie.
+  function poserChoix(sel, v) {
+    v = v === null || v === undefined ? '' : String(v);
+    if (v && !Array.prototype.some.call(sel.options, function (o) { return o.value === v; })) sel.appendChild(h('option', { value: v, text: v }));
+    sel.value = v;
+  }
+  function reduirePhoto(fichier) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(fichier), img = new Image();
+      img.onload = function () {
+        try {
+          var k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+          c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          res(c.toDataURL('image/jpeg', 0.82).replace(/^data:image\/jpeg;base64,/, ''));
+        } catch (e) { rej(e); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('Image illisible')); };
+      img.src = url;
+    });
+  }
+
+  Evaluation.prototype.construireSuivi = function () {
+    var self = this;
+    this.suiviStatut = ''; this.suiviStatutLe = ''; this.suiviStatutPar = '';
+    this.elSuiviSegment = h('div.segment.petit#eval-suivi-statut', { role: 'group', 'aria-label': 'Statut du suivi' });
+    this.elSuiviInfo = h('span.mini.doux#eval-suivi-info');
+    var cNom = champ('e-client', 'Client', { placeholder: 'Nom du client' });
+    var cTel = champ('e-client-tel', 'Téléphone', { type: 'tel', placeholder: '514 555-0100' });
+    var cCourriel = champ('e-client-courriel', 'Courriel', { type: 'email' });
+    var cOrigine = listeChoix('e-client-origine', 'Origine', SUIVI_ORIGINES);
+    var cTransaction = listeChoix('e-client-transaction', 'Transaction', SUIVI_TRANSACTIONS);
+    var cConseiller = champ('e-conseiller', 'Conseiller', { placeholder: (AMX.session && AMX.session.nom) || '' });
+    cConseiller.input.setAttribute('list', 'e-conseillers');
+    this.elConseillers = h('datalist#e-conseillers');
+    var cCherche = champ('e-client-cherche', 'Ce que le client cherche', { placeholder: 'VUS 2024, 400 $ / mois…' });
+    var cValeur = champ('e-valeur-client', 'Valeur offerte au client ($)', { type: 'number', inputmode: 'numeric', placeholder: 'Montant annoncé au client' });
+    var cRelance = champ('e-relance', 'Relancer le', { type: 'date' });
+    this.elClient = cNom.input; this.elClientTel = cTel.input; this.elClientCourriel = cCourriel.input;
+    this.elOrigine = cOrigine.input; this.elTransaction = cTransaction.input; this.elConseiller = cConseiller.input;
+    this.elCherche = cCherche.input; this.elValeurClient = cValeur.input; this.elRelance = cRelance.input;
+    this.elEcartClient = h('div.eval-suivi-ecart#eval-ecart-client');
+    this.elSuiviCarte = carte(h('div.titre', [h('h2', 'Client et suivi'), this.elSuiviInfo]), [
+      h('div.grille.eval-grille-suivi', [cNom.el, cTel.el, cCourriel.el, cOrigine.el, cTransaction.el, cConseiller.el, cCherche.el, cValeur.el, cRelance.el]),
+      this.elEcartClient, this.elConseillers
+    ], h('div.droite', [this.elSuiviSegment]));
+    this.elSuiviCarte.id = 'sec-suivi';
+
+    var cGeneral = listeChoix('e-etat-general', 'État général', ETAT_GENERAL);
+    var cPneusEte = listeChoix('e-pneus-ete', 'Pneus d\'été', ETAT_PNEUS);
+    var cPneusHiver = listeChoix('e-pneus-hiver', 'Pneus d\'hiver', ETAT_PNEUS);
+    var cPareBrise = listeChoix('e-pare-brise', 'Pare-brise', ETAT_PARE_BRISE);
+    var cAccident = listeChoix('e-accident', 'Accident déclaré', ETAT_ACCIDENT);
+    var cCarrosserie = champ('e-carrosserie', 'Carrosserie', { placeholder: 'Égratignures, bosses…' });
+    var cVoyants = champ('e-voyants', 'Voyants allumés', { placeholder: 'Moteur, ABS…' });
+    var cSolde = champ('e-solde-pret', 'Solde de prêt ($)', { type: 'number', inputmode: 'numeric' });
+    this.elEtatGeneral = cGeneral.input; this.elPneusEte = cPneusEte.input; this.elPneusHiver = cPneusHiver.input;
+    this.elPareBrise = cPareBrise.input; this.elAccident = cAccident.input; this.elCarrosserie = cCarrosserie.input;
+    this.elVoyants = cVoyants.input; this.elSoldePret = cSolde.input;
+    this.elEtatNotes = h('textarea.saisie#e-etat-notes', { rows: '2', placeholder: 'Odeurs, entretien, clés, livrets…' });
+    this.elPhotos = h('div.eval-photos#eval-photos');
+    this.elPhotoInput = h('input#eval-photo-fichier', { type: 'file', accept: 'image/*', multiple: 'multiple', style: { display: 'none' } });
+    this.elPhotoInput.addEventListener('change', function () {
+      var f = Array.prototype.slice.call(self.elPhotoInput.files || []);
+      self.elPhotoInput.value = '';
+      if (f.length) self.ajouterPhotos(f);
+    });
+    this.btnPhotos = h('button.btn.petit#eval-photos-btn', { type: 'button', html: I.plus + '<span>Ajouter des photos</span>', onclick: function () { self.elPhotoInput.click(); } });
+    this.elEtatCarte = carte(h('div.titre', [h('h2', 'État du véhicule et photos'), h('p', 'Ce que le client déclare et ce que vous voyez. Les photos restent avec le NIV et suivent le véhicule s\'il est acheté.')]), [
+      h('div.grille.eval-grille-etat', [cGeneral.el, cPneusEte.el, cPneusHiver.el, cPareBrise.el, cAccident.el, cCarrosserie.el, cVoyants.el, cSolde.el]),
+      h('div.champ.eval-etat-notes', [h('label', { 'for': 'e-etat-notes', text: 'Notes' }), this.elEtatNotes]),
+      h('div.eval-photos-entete', [h('h3', 'Photos'), this.btnPhotos, this.elPhotoInput]),
+      this.elPhotos
+    ]);
+    this.elEtatCarte.id = 'sec-etat';
+
+    // Le premier client tapé sans conseiller : le conseiller est la personne connectée (modifiable).
+    [this.elClient, this.elClientTel].forEach(function (el) {
+      el.addEventListener('input', function () {
+        if (el.value.trim() && !self.elConseiller.value.trim() && AMX.session && AMX.session.nom) self.elConseiller.value = AMX.session.nom;
+      });
+    });
+    [this.elClient, this.elClientTel, this.elClientCourriel, this.elConseiller, this.elCherche, this.elValeurClient, this.elRelance,
+      this.elCarrosserie, this.elVoyants, this.elSoldePret, this.elEtatNotes].forEach(function (el) { el.addEventListener('input', function () { self.suiviModifie(); }); });
+    [this.elOrigine, this.elTransaction, this.elEtatGeneral, this.elPneusEte, this.elPneusHiver, this.elPareBrise, this.elAccident, this.elRelance].forEach(function (el) { el.addEventListener('change', function () { self.suiviModifie(); }); });
+    [this.elAchat, this.elFrais].forEach(function (el) { el.addEventListener('input', function () { self.rendreEcartClient(); }); });
+    this.rendreSuiviStatut();
+    this.rendreConseillers();
+  };
+
+  Evaluation.prototype.rendreSuiviStatut = function () {
+    var self = this;
+    AMX.vider(this.elSuiviSegment);
+    SUIVI_STATUTS.forEach(function (s) {
+      self.elSuiviSegment.appendChild(h('button' + (self.suiviStatut === s[0] ? '.actif.s-' + s[2] : ''), { type: 'button', text: s[1], 'data-statut': s[0], onclick: function () { self.choisirStatutSuivi(self.suiviStatut === s[0] ? '' : s[0]); } }));
+    });
+    var s = statutSuivi(this.suiviStatut);
+    this.elSuiviInfo.textContent = s ? s[1] + (this.suiviStatutLe ? ' depuis le ' + AMX.fmtDate(this.suiviStatutLe) : '') + (this.suiviStatutPar ? ' · ' + this.suiviStatutPar.split('@')[0] : '') : 'Statut à choisir à droite';
+  };
+
+  Evaluation.prototype.choisirStatutSuivi = function (cle) {
+    this.suiviStatut = cle;
+    this.suiviStatutLe = cle ? new Date().toISOString() : '';
+    this.suiviStatutPar = cle ? ((AMX.session && AMX.session.courriel) || '') : '';
+    this.rendreSuiviStatut();
+    this.rendreSommaire();
+    this.suiviModifie();
+    if (cle === 'repris' || cle === 'reprisWholesale') AMX.toast('Véhicule repris : « Créer la fiche d\'achat » sous le véhicule le fait entrer à l\'inventaire.', 'info', 6000);
+  };
+
+  // Les noms déjà utilisés sur ce navigateur, plus la personne connectée.
+  Evaluation.prototype.rendreConseillers = function () {
+    var noms = AMX.memo.lire('eval_conseillers', []);
+    if (!Array.isArray(noms)) noms = [];
+    if (AMX.session && AMX.session.nom && noms.indexOf(AMX.session.nom) < 0) noms = [AMX.session.nom].concat(noms);
+    AMX.vider(this.elConseillers);
+    var dl = this.elConseillers;
+    noms.slice(0, 30).forEach(function (n) { dl.appendChild(h('option', { value: n })); });
+  };
+
+  // Une modification du suivi ou de l'état est conservée comme le reste (1,5 s), dès que le véhicule est connu.
+  Evaluation.prototype.suiviModifie = function () {
+    var self = this;
+    this.rendreEcartClient();
+    if (!this.vinPourSauvegarde() || !this.parametresPrets()) return;
+    clearTimeout(this.minuterieAuto);
+    this.minuterieAuto = setTimeout(function () { self.sauvegarderAuto(); }, 1500);
+  };
+
+  Evaluation.prototype.rendreEcartClient = function () {
+    var el = this.elEcartClient; if (!el) return;
+    AMX.vider(el);
+    var vc = nombre(this.elValeurClient.value), vi = nombre(this.elAchat.value);
+    if (vc === null) return;
+    if (vi === null) { el.appendChild(h('span.mini.doux', { text: 'Entrez le prix d\'achat (valeur interne) dans la carte Prix pour voir l\'écart avec la valeur offerte.' })); return; }
+    var ecart = vc - vi;
+    var texte = ecart === 0 ? 'Valeur offerte égale à la valeur interne (' + fmt(vi) + ')'
+      : 'Valeur offerte ' + fmt(vc) + ' : ' + fmt(Math.abs(ecart)) + (ecart > 0 ? ' au-dessus de' : ' sous') + ' la valeur interne (' + fmt(vi) + ')';
+    el.appendChild(h('span.puce' + (ecart > 0 ? '.attention' : '.ok'), { text: texte }));
+  };
+
+  Evaluation.prototype.collecterSuivi = function () {
+    function t(el) { return String(el.value || '').trim(); }
+    function vide(o) { return !Object.keys(o).some(function (k) { return o[k]; }); }
+    var suivi = {
+      statut: this.suiviStatut, statutLe: this.suiviStatutLe, statutPar: this.suiviStatutPar,
+      client: t(this.elClient), telephone: t(this.elClientTel), courriel: t(this.elClientCourriel), origine: t(this.elOrigine),
+      transaction: t(this.elTransaction), cherche: t(this.elCherche), conseiller: t(this.elConseiller),
+      valeurClient: t(this.elValeurClient), relanceLe: t(this.elRelance)
+    };
+    var etat = {
+      general: t(this.elEtatGeneral), pneusEte: t(this.elPneusEte), pneusHiver: t(this.elPneusHiver), pareBrise: t(this.elPareBrise),
+      accident: t(this.elAccident), carrosserie: t(this.elCarrosserie), voyants: t(this.elVoyants), soldePret: t(this.elSoldePret), notes: t(this.elEtatNotes)
+    };
+    if (suivi.conseiller) {
+      var noms = AMX.memo.lire('eval_conseillers', []);
+      if (!Array.isArray(noms)) noms = [];
+      if (noms[0] !== suivi.conseiller) AMX.memo.ecrire('eval_conseillers', [suivi.conseiller].concat(noms.filter(function (n) { return n !== suivi.conseiller; })).slice(0, 30));
+    }
+    // À plat pour le bloc « Évaluation » du panneau d'inventaire (inventaire.js : état, pneus, pare-brise, accident).
+    var general = (ETAT_GENERAL.filter(function (x) { return x[0] === etat.general; })[0] || [])[1] || '';
+    var pneus = [etat.pneusEte ? 'été ' + etat.pneusEte.toLowerCase() : '', etat.pneusHiver ? 'hiver ' + etat.pneusHiver.toLowerCase() : ''].filter(Boolean).join(' · ');
+    return {
+      suivi: vide(suivi) ? null : suivi,
+      etatVehicule: vide(etat) ? null : etat,
+      etat: general.toLowerCase(), pneus: pneus, pareBrise: etat.pareBrise.toLowerCase(), accident: etat.accident === 'oui' ? 'oui (déclaré)' : ''
+    };
+  };
+
+  Evaluation.prototype.remplirSuivi = function (data) {
+    data = data || {};
+    var s = (data.suivi && typeof data.suivi === 'object') ? data.suivi : {};
+    var e = (data.etatVehicule && typeof data.etatVehicule === 'object') ? data.etatVehicule : {};
+    function v(x) { return x === null || x === undefined ? '' : String(x); }
+    this.elClient.value = v(s.client); this.elClientTel.value = v(s.telephone); this.elClientCourriel.value = v(s.courriel);
+    poserChoix(this.elOrigine, s.origine); poserChoix(this.elTransaction, s.transaction);
+    this.elConseiller.value = v(s.conseiller); this.elCherche.value = v(s.cherche);
+    this.elValeurClient.value = v(s.valeurClient); this.elRelance.value = v(s.relanceLe).slice(0, 10);
+    this.suiviStatut = statutSuivi(s.statut) ? s.statut : '';
+    this.suiviStatutLe = this.suiviStatut ? v(s.statutLe) : ''; this.suiviStatutPar = this.suiviStatut ? v(s.statutPar) : '';
+    poserChoix(this.elEtatGeneral, e.general); poserChoix(this.elPneusEte, e.pneusEte); poserChoix(this.elPneusHiver, e.pneusHiver);
+    poserChoix(this.elPareBrise, e.pareBrise); poserChoix(this.elAccident, e.accident);
+    this.elCarrosserie.value = v(e.carrosserie); this.elVoyants.value = v(e.voyants); this.elSoldePret.value = v(e.soldePret); this.elEtatNotes.value = v(e.notes);
+    this.rendreSuiviStatut();
+    this.rendreEcartClient();
+    this.rendrePhotos();
+  };
+
+  /* Photos du NIV (celles de l'inventaire aussi) : AMX.photosDe (getPhotosByVin), ajout par uploadPhoto. */
+  Evaluation.prototype.rendrePhotos = function (force) {
+    var self = this, el = this.elPhotos; if (!el) return;
+    var vin = String(this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    var valide = /^[A-HJ-NPR-Z0-9]{17}$/.test(vin), droit = AMX.perm('photos') || AMX.estAdmin();
+    this.btnPhotos.disabled = !valide || !droit;
+    this.btnPhotos.title = !valide ? 'Entrez un NIV complet' : (droit ? '' : 'Le droit « Photos » est requis');
+    if (!valide) { this.photosVin = ''; AMX.vider(el); el.appendChild(h('span.mini.doux', { text: 'Les photos s\'ajoutent dès que le NIV est complet.' })); return; }
+    if (this.photosVin === vin && !force) return;
+    this.photosVin = vin;
+    if (force && typeof AMX.photosOublier === 'function') AMX.photosOublier(vin);
+    AMX.vider(el); el.appendChild(h('span.mini.doux', { text: 'Chargement des photos…' }));
+    var lire = typeof AMX.photosDe === 'function' ? AMX.photosDe(vin) : Promise.resolve([]);
+    lire.then(function (p) {
+      if (self.photosVin !== vin) return;
+      AMX.vider(el);
+      if (!p || !p.length) { el.appendChild(h('span.mini.doux', { text: 'Aucune photo pour ce NIV.' })); return; }
+      p.forEach(function (x) {
+        var u = typeof x === 'string' ? x : (x.url || '');
+        if (!u) return;
+        el.appendChild(h('a.eval-photo', { href: u, target: '_blank', rel: 'noopener', title: (x && x.description) || '' }, [h('img', { src: AMX.vignetteDrive(u, 320), alt: (x && x.description) || 'Photo', loading: 'lazy' })]));
+      });
+    });
+  };
+
+  Evaluation.prototype.ajouterPhotos = function (fichiers) {
+    var self = this, vin = this.photosVin, n = 0, suite = Promise.resolve();
+    if (!vin) return;
+    this.btnPhotos.classList.add('occupe');
+    fichiers.forEach(function (f, i) {
+      suite = suite.then(function () {
+        if (fichiers.length > 1) AMX.toast('Envoi de la photo ' + (i + 1) + ' / ' + fichiers.length + '…', 'info', 1500);
+        return reduirePhoto(f).then(function (b64) {
+          return AMX.post({ action: 'uploadPhoto', vin: vin, angle: '', description: 'Évaluation', montant: '', imageBase64: b64, mimeType: 'image/jpeg' }, { delai: 120000 });
+        }).then(function (d) {
+          if (!d || d.ok === false || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'refusée par le serveur');
+          n++;
+        });
+      });
+    });
+    suite.catch(function (e) { AMX.toast('Photo non envoyée — ' + AMX.erreurTexte(e), 'erreur'); }).then(function () {
+      self.btnPhotos.classList.remove('occupe');
+      if (n) AMX.toast(n + ' photo' + (n > 1 ? 's' : '') + ' ajoutée' + (n > 1 ? 's' : '') + ' au NIV ' + vin, 'ok');
+      self.rendrePhotos(true);
+    });
   };
 
   /* ----------------------------- Liens ---------------------------------- */
@@ -1415,6 +1688,7 @@
     if (marche && valeurs) marche.valeurs = valeurs;
     // Boîte « Canada ou États-Unis ? » : le bloc `us`, plus trois clés plates pour la fiche d'achat (EVAL_VERS_FICHE).
     var us = this.usCollecter();
+    var sv = this.collecterSuivi();
     return {
       marque: this.elMarque.value, modele: this.elModele.value, annee: this.elAnnee.value, version: this.elVersion.value,
       km: this.elKm.value, tauxKm: this.elTaux.value, prixVente: this.elPrix.value, prixAchat: this.elAchat.value, frais: this.elFrais.value, prixPaye: this.elPaye.value, recon: this.elRecon.value, marge: this.elMarge.value, concession: this.elConcession.value,
@@ -1424,7 +1698,9 @@
       us: us,
       mmr: us && us.mmr !== null ? String(us.mmr) : '',
       tauxUs: us && us.tauxAjuste !== null ? String(us.tauxAjuste) : '',
-      depenseUs: us ? String(us.ajustement) : ''
+      depenseUs: us ? String(us.ajustement) : '',
+      suivi: sv.suivi, etatVehicule: sv.etatVehicule,
+      etat: sv.etat, pneus: sv.pneus, pareBrise: sv.pareBrise, accident: sv.accident
     };
   };
 
@@ -1461,6 +1737,7 @@
     // Statut posé par le serveur (Api.gs) : « auto » ou « enregistree » ; les anciennes fiches sans statut ont été enregistrées à la main.
     this.sauvegarde = { statut: data._statut === 'auto' ? 'auto' : 'enregistree', dateMaj: data._le || '', enregistreLe: data._enregistreLe || (data._statut === 'auto' ? '' : (data._le || '')), enregistrePar: data._enregistrePar || (data._statut === 'auto' ? '' : (data._par || '')) };
     this.rendreSauvegarde();
+    this.remplirSuivi(data);
     if (this.derniereSauvegarde && this.derniereSauvegarde.pays) { this.pays = this.derniereSauvegarde.pays === 'us' ? 'us' : 'ca'; this.majSegment(); }
     this.analyses = { ca: null, us: null };
     this.enCours = { ca: false, us: false };
@@ -1484,6 +1761,7 @@
     this.derniereSauvegarde = null;
     this.sauvegarde = null; clearTimeout(this.minuterieAuto);
     this.rendreSauvegarde();
+    this.remplirSuivi({});
     this.valeurs = null; this.valeursEnCours = false; this.rendreValeurs();
     this.rappels = null; this.rappelsCle = ''; this.rendreRappels();
     this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null };
@@ -1899,6 +2177,7 @@
     { cle: 'vehicule', libelle: 'Véhicule', valeur: function (r) { return [r.annee, r.marque, r.modele, r.version].filter(Boolean).join(' '); } },
     { cle: 'vin', libelle: 'NIV' },
     { cle: 'concession', libelle: 'Concession', valeur: function (r) { return AMX.CONCESSIONS_TOUTES[r.concession] || r.concession || ''; } },
+    { cle: 'client', libelle: 'Client · suivi', valeur: function (r) { return (r.suivi && r.suivi.client) || ''; } },
     { cle: 'prixPaye', libelle: 'Payé', num: true, valeur: function (r) { return nombre(r.prixPaye); } },
     { cle: 'recon', libelle: 'Recon', num: true, valeur: function (r) { return nombre(r.recon); } },
     { cle: 'marge', libelle: 'Marge', num: true, valeur: function (r) { return nombre(r.marge); } },
@@ -1943,14 +2222,19 @@
     ]);
     this.elCartes = h('div.barre-cies#registre-kpis');   /* 16 oct. : même rangée de concessions que partout, avec une ligne de chiffres */
     this.elVeille = h('div#registre-veille');
-    this.elRecherche = h('input.saisie#registre-recherche', { type: 'search', placeholder: 'NIV, modèle, version, acheteur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreTable(); }, 120) });
+    this.elRecherche = h('input.saisie#registre-recherche', { type: 'search', placeholder: 'NIV, modèle, client, téléphone, conseiller…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreTable(); }, 120) });
     this.elSegment = h('div.segment', { role: 'group', 'aria-label': 'Période' });
     this.elSegmentStatut = h('div.segment#registre-statut', { role: 'group', 'aria-label': 'Statut' });
     this.elAcheteur = h('select.saisie#registre-acheteur', { 'aria-label': 'Évaluateur', style: { height: '32px', width: 'auto' } });
     this.elAcheteur.addEventListener('change', function () { self.acheteur = self.elAcheteur.value; self.rendreTable(); });
+    this.suivi = AMX.memo.lire('registre_eval_suivi', '');
+    if (this.suivi !== 'aucun' && !statutSuivi(this.suivi)) this.suivi = '';
+    this.elSuivi = h('select.saisie#registre-suivi', { 'aria-label': 'Suivi du client', style: { height: '32px', width: 'auto' } }, [h('option', { value: '', text: 'Tous les suivis' })].concat(SUIVI_STATUTS.map(function (x) { return h('option', { value: x[0], text: x[1] }); }), [h('option', { value: 'aucun', text: 'Sans suivi' })]));
+    this.elSuivi.value = this.suivi;
+    this.elSuivi.addEventListener('change', function () { self.suivi = self.elSuivi.value; AMX.memo.ecrire('registre_eval_suivi', self.suivi); self.rendre(); });
     this.elCompte = h('span.compte.doux');
     var barre = h('div.carte.registre-barre', [h('div.carte-corps', [h('div.registre-outils', [
-      h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elSegment, this.elSegmentStatut, this.elAcheteur, this.elCompte
+      h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elSegment, this.elSegmentStatut, this.elSuivi, this.elAcheteur, this.elCompte
     ])])]);
     this.elTable = h('div.eval-table.registre-table');
     this.elVide = h('div');
@@ -1993,6 +2277,7 @@
       if (!(isNaN(t) || t >= debut)) return false;
       if (self.acheteur && (r.par || '') !== self.acheteur) return false;
       if (self.statut !== 'tous' && (r.statut === 'auto' ? 'auto' : 'enregistree') !== self.statut) return false;
+      if (self.suivi) { var sr = (r.suivi && r.suivi.statut) || ''; if (self.suivi === 'aucun' ? sr : sr !== self.suivi) return false; }
       return true;
     });
   };
@@ -2001,9 +2286,20 @@
     return this.base().filter(function (r) {
       if (self.concession && concessionDe(r) !== self.concession) return false;
       if (!q) return true;
-      return [r.vin, r.marque, r.modele, r.version, r.annee, r.par, AMX.CONCESSIONS_TOUTES[concessionDe(r)]].join(' ').toUpperCase().indexOf(q) >= 0;
+      var su = r.suivi || {};
+      return [r.vin, r.marque, r.modele, r.version, r.annee, r.par, AMX.CONCESSIONS_TOUTES[concessionDe(r)], su.client, su.telephone, su.courriel, su.conseiller].join(' ').toUpperCase().indexOf(q) >= 0;
     });
   };
+  // Client · suivi (21 oct.) : nom, téléphone et conseiller, statut en pastille de couleur.
+  function celluleSuivi(r) {
+    var su = r.suivi || null, st = su && su.statut ? statutSuivi(su.statut) : null;
+    if (!su) return h('td.registre-client', { text: '—' });
+    return h('td.registre-client', [
+      h('div.nom', { text: su.client || '—' }),
+      (su.telephone || su.conseiller) ? h('div.mini', { text: [su.telephone, su.conseiller].filter(Boolean).join(' · ') }) : null,
+      st ? h('span.badge.sans-point.' + st[2], { text: st[1] }) : null
+    ]);
+  }
   function concessionDe(r) { return (r.concession && AMX.CONCESSIONS_TOUTES[r.concession]) ? r.concession : 'stemarie'; }
   function agregerRegistre(lignes) {
     var n = lignes.length, paye = 0, detail = 0, marge = 0, nMarge = 0, pct = 0, nPct = 0, nEnr = 0;
@@ -2090,6 +2386,7 @@
         h('td.registre-vehicule', [AMX.logoMarque(r.marque, 'petit'), h('div', [h('div.nom', { text: [r.annee, r.marque, r.modele].filter(Boolean).join(' ') || '—' }), h('div.mini', { text: [r.version, kmV !== null ? fmtKm(kmV) : ''].filter(Boolean).join(' · ') })])]),
         h('td.mono.registre-vin', { text: r.vin }),
         h('td', [h('span.badge.sans-point.' + (COULEUR_CONCESSION[concessionDe(r)] || 'gris'), { text: nomCourt(concessionDe(r)) })]),
+        celluleSuivi(r),
         h('td.num', { text: fmt(nombre(r.prixPaye)) }),
         h('td.num', { text: fmt(nombre(r.recon)) }),
         h('td.num' + (marge !== null ? (marge >= 0 ? '.inf' : '.sup') : ''), { text: fmt(marge) }),
@@ -2108,7 +2405,7 @@
     });
     var ag = agregerRegistre(lignes);
     var tfoot = h('tfoot', [h('tr', [
-      h('td', { colspan: '4', text: 'Total — ' + ag.n + ' évaluation' + (ag.n > 1 ? 's' : '') }),
+      h('td', { colspan: '5', text: 'Total — ' + ag.n + ' évaluation' + (ag.n > 1 ? 's' : '') }),
       h('td.num', { text: fmt(ag.paye) }), h('td.num', ''), h('td.num.' + (ag.marge >= 0 ? 'inf' : 'sup'), [h('div', { text: fmt(ag.marge) }), ag.margeMoy !== null ? h('div.mini', { style: { fontWeight: 400 }, text: 'moy. ' + fmt(ag.margeMoy) }) : null]),
       h('td.num', { text: fmt(ag.detail) }), h('td.num', ''), h('td.num', { text: ag.pctMoy !== null ? 'moy. ' + pct(ag.pctMoy) : '' }), h('td.num', ''), h('td.num', ''), h('td', { text: ag.nEnr + ' enr. · ' + ag.nAuto + ' auto' }), h('td', '')
     ])]);
@@ -2121,6 +2418,9 @@
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
     var rows = lignes.map(function (r) {
       return { 'Date': r.dateMaj ? AMX.fmtDate(r.dateMaj) : '', 'Statut': r.statut === 'auto' ? 'Analyse automatique' : 'Enregistrée', 'Enregistrée le': r.enregistreLe ? AMX.fmtDate(r.enregistreLe, true) : '', 'Enregistrée par': r.enregistrePar || '', 'NIV': r.vin, 'Année': r.annee, 'Marque': r.marque, 'Modèle': r.modele, 'Version': r.version, 'Concession': AMX.CONCESSIONS_TOUTES[concessionDe(r)],
+        'Client': (r.suivi && r.suivi.client) || '', 'Téléphone': (r.suivi && r.suivi.telephone) || '', 'Courriel': (r.suivi && r.suivi.courriel) || '', 'Origine': (r.suivi && r.suivi.origine) || '',
+        'Transaction': (r.suivi && r.suivi.transaction) === 'achat' ? 'Achat seulement' : ((r.suivi && r.suivi.transaction) === 'echange' ? 'Échange' : ''), 'Conseiller': (r.suivi && r.suivi.conseiller) || '',
+        'Suivi': r.suivi && statutSuivi(r.suivi.statut) ? statutSuivi(r.suivi.statut)[1] : '', 'Valeur offerte au client': r.suivi ? nombre(r.suivi.valeurClient) : null, 'Relancer le': (r.suivi && r.suivi.relanceLe) || '',
         'KM': nombre(r.km), 'Prix payé': nombre(r.prixPaye), 'Reconditionnement': nombre(r.recon), 'Marge': nombre(r.marge), 'Prix de détail': nombre(r.prixVente),
         'Marché agressif': r.agressif, 'Marché standard': r.standard, 'Marché conservateur': r.conservateur, 'Marché %': r.marchePct !== null && r.marchePct !== undefined ? Math.round(r.marchePct * 1000) / 10 : '', 'Rang': r.rang ? r.rang + '/' + r.rangSur : '', 'Pays': r.pays, 'CA / É.-U.': r.us && r.us.verdict ? AMX.export.texteVerdict(r.us) : '', 'Gros É.-U.': r.us ? r.us.grosUS : '', 'Gros Canada': r.us ? r.us.grosCA : '', 'MMR ($ US)': r.us ? r.us.mmr : '', 'État / province': r.etat || '', 'Veille %': r.veille && typeof r.veille.marchePct === 'number' ? Math.round((r.veille.marchePct - 1) * 1000) / 10 : '', 'Veille le': r.veille && r.veille.le ? AMX.fmtDate(r.veille.le) : '', 'Analyse le': r.analyseLe ? AMX.fmtDate(r.analyseLe, true) : '', 'Par': r.par };
     });

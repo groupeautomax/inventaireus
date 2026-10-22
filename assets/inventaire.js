@@ -106,6 +106,8 @@
     }
   }
   AMX.photosDe = photosDe;   // partagé avec Vente
+  // Après un ajout (Évaluation, 21 oct.) : relire les photos du NIV au prochain appel.
+  AMX.photosOublier = function (vin) { vin = String(vin || '').toUpperCase(); delete cachePhotos[vin]; try { sessionStorage.removeItem('amx_photos_' + vin); } catch (e) {} };
 
   /* ------------------------------ Section ------------------------------ */
   // Pour revenir d'un autre onglet (Neufs) au registre sans recharger la section.

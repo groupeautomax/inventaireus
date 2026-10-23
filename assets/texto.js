@@ -210,7 +210,7 @@
     this.elCorps = h('div');
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Texto'), this.elEtat]),
-      h('div.actions', [this.btnRafraichir, this.btnReglages, this.btnTexto, this.btnPaiement, this.btnNouveau])
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnReglages, this.btnTexto, this.btnPaiement, this.btnNouveau], [this.btnTexto, this.btnNouveau]))
     ]);
     this.conteneur.appendChild(h('div.page.txt-page', [entete, this.elCies, this.elKpis, this.elOutils, this.elCorps]));
   };

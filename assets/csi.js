@@ -136,7 +136,7 @@
     this.elSondages = h('div.carte');
     this.elVide = h('div');
     this.el = h('div.page.etroite.csi-page', [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', ['CSI', h('span.csi-h1-sous', { text: 'Satisfaction client déclarée au constructeur — ventes et service, comparée au composite de la marque' })]), this.elEtat]), h('div.actions', [this.elSites, this.btnRafraichir, this.btnExport])]),
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', ['CSI', h('span.csi-h1-sous', { text: 'Satisfaction client déclarée au constructeur — ventes et service, comparée au composite de la marque' })]), this.elEtat]), h('div.actions', AMX.actionsEntete([this.elSites, this.btnRafraichir, this.btnExport], [this.elSites]))]),
       this.elChoix, this.elVide, this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elSondages
     ]);
     this.conteneur.appendChild(this.el);

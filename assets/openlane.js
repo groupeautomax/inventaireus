@@ -127,7 +127,7 @@
     this.btnRelire = h('button.btn.primaire#openlane-relire', { type: 'button', text: 'Relire maintenant', title: 'Lire Market guide en direct pour les NIV à relire (session du site, compte Hawkesbury), par lots de 12', style: { display: 'none' }, onclick: function () { self.relire(); } });
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Valeurs OpenLane'), this.elEtat]),
-      h('div.actions', [this.btnRafraichir, this.btnExport, this.btnRelire, this.btnImport])
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnExport, this.btnRelire, this.btnImport], [this.btnRelire, this.btnImport]))
     ]);
     this.elImport = this.construireImport();
     this.elCartes = h('div.barre-cies');   /* 16 oct. : même rangée de concessions que partout, avec une ligne de chiffres */

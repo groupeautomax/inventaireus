@@ -303,7 +303,7 @@
     this.elCorps = h('div');
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Rendez-vous'), this.elEtat]),
-      h('div.actions', [h('div.rdv-nav', [this.btnPrec, this.elDate, this.btnSuiv, this.btnAuj]), this.elSegVue, this.btnRafraichir, this.btnReglages, this.btnSans, this.btnNouveau])
+      h('div.actions', (function (nav, t) { return AMX.actionsEntete([nav, t.elSegVue, t.btnRafraichir, t.btnReglages, t.btnSans, t.btnNouveau], [nav, t.elSegVue, t.btnSans, t.btnNouveau]); })(h('div.rdv-nav', [this.btnPrec, this.elDate, this.btnSuiv, this.btnAuj]), this))
     ]);
     this.conteneur.appendChild(h('div.page.rdv-page', [entete, this.elCies, this.elKpis, this.elCap, this.elOutils, this.elCorps]));
   };

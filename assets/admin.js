@@ -480,7 +480,7 @@
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExporter = h('button.btn', { type: 'button', title: 'Exporter la liste des comptes (Excel)', html: I.telecharger + '<span>Exporter</span>', onclick: function () { self.exporter(); } });
     this.btnAjouter = h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Ajouter un compte</span>', onclick: function () { self.modaleAjouter(); } });
-    this.elActions = h('div.actions', [this.btnRafraichir, this.btnExporter, this.btnAjouter]);
+    this.elActions = h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnExporter, this.btnAjouter], [this.btnAjouter]));
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Comptes et droits'), this.elEtat]),
       this.elActions

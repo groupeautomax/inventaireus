@@ -589,7 +589,7 @@
       });
     }
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
-    this.elActions = h('div.actions', [this.elSegmentType, this.btnRafraichir]);
+    this.elActions = h('div.actions', AMX.actionsEntete([this.elSegmentType, this.btnRafraichir], [this.elSegmentType]));
 
     this.elVide = h('div');
     this.elKpis = h('div.kpis');

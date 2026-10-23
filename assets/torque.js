@@ -109,7 +109,7 @@
     this.btnImport = h('button.btn.primaire', { type: 'button', text: 'Importer depuis Torque', onclick: function () { self.elImport.open = !self.elImport.open; if (self.elImport.open) self.elImport.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Archive Torque'), this.elEtat]),
-      h('div.actions', [this.btnRafraichir, this.btnExport, this.btnImport])
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnExport, this.btnImport], [this.btnImport]))
     ]);
     this.elImport = this.construireImport();
     this.elCartes = h('div.barre-cies');   /* 16 oct. : même rangée de concessions que partout, avec une ligne de chiffres */

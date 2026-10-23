@@ -184,7 +184,7 @@
     this.elFiltres = h('div.kpi-filtres');
     this.elCorps = h('div.kpi-corps');
     this.el = h('div.page.kpi-page', [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', ['KPI du Groupe', h('span.kpi-h1-sous', { text: 'Réalisés et états financiers des concessions, lus dans les Drive partagés — réel contre budget ou année précédente' })]), this.elEtat]), h('div.actions', [this.btnRafraichir, this.btnExport])]),
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', ['KPI du Groupe', h('span.kpi-h1-sous', { text: 'Réalisés et états financiers des concessions, lus dans les Drive partagés — réel contre budget ou année précédente' })]), this.elEtat]), h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnExport], []))]),
       this.elChoix, this.elFiltres, this.elCorps
     ]);
     this.conteneur.appendChild(this.el);

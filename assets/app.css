@@ -976,3 +976,15 @@ html.ui2 .neufs-carte-analyse { display: none; }
 .neufs-barre2 .neufs-outils > select.saisie { width: auto; flex: 0 1 220px; min-width: 150px; }
 .neufs-barre2 .neufs-outils .recherche { flex: 1 1 320px; }
 .neufs-barre2 .inv2-pop .champ select.saisie { width: 100%; }
+
+/* v135 — pages qui gardent leur volet de filtres (Leads, Offres…) : en ui2, il passe au-dessus de la liste, en rangée. */
+@media (min-width: 861px) {
+  html.ui2 .agencement:not(.sans-rail) { grid-template-columns: minmax(0, 1fr); }
+  html.ui2 .agencement:not(.sans-rail).avec-panneau { grid-template-columns: minmax(0, 1fr) var(--panneau-l); }
+  html.ui2 .agencement:not(.sans-rail) > .rail { grid-column: 1 / -1; position: static; max-height: none; overflow: visible; flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+  html.ui2 .agencement:not(.sans-rail) > .rail .groupe { flex: 1 1 240px; max-width: 420px; }
+}
+@media (min-width: 861px) and (max-width: 1100px) {
+  html.ui2 .agencement:not(.sans-rail).avec-panneau { grid-template-columns: minmax(0, 1fr); }
+}
+html.ui2 .kpi.kpi-secondaire { display: none; }

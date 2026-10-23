@@ -236,11 +236,9 @@
           h('h1', { text: 'Leads' }),
           h('p', { text: 'Le client reçoit un lien unique, scanne son NIV, inscrit le kilométrage et prend cinq photos. Sa demande entre dans le CRM de la concession ; vous pouvez ensuite lui répondre avec une offre.' })
         ]),
-        h('div.actions', [
+        h('div.actions', (function (filtres, nouveau) { return AMX.actionsEntete([filtres, self.btnRafraichir, nouveau], [nouveau]); })(
           h('button.btn.fantome.icone', { type: 'button', title: 'Filtres', html: I.filtre, onclick: function () { self.elRail.classList.toggle('ouvert'); } }),
-          this.btnRafraichir,
-          h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Nouveau lien d\'évaluation</span>', onclick: function () { self.modaleCreer(); } })
-        ])
+          h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Nouveau lien d\'évaluation</span>', onclick: function () { self.modaleCreer(); } })))
       ]),
       this.elCies, this.elKpis, this.elAgencement
     ]));

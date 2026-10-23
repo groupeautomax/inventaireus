@@ -234,10 +234,9 @@
     var page = h('div.page.avis-page');
     this.elEntete = h('div.entete-page', [
       h('div', [h('h1', 'Avis Google'), this.elSous = h('p', 'Chargement…')]),
-      h('div.actions', [
+      h('div.actions', (function (demander, rafraichir) { return AMX.actionsEntete([rafraichir, demander], [demander]); })(
         h('button.btn.primaire', { type: 'button', onclick: function () { self.demanderAvis(); } }, [AMX.svg('plus'), ' Demander un avis']),
-        h('button.btn', { type: 'button', title: 'Rafraîchir', onclick: function () { self.charger(true); } }, [AMX.svg('rafraichir'), ' Rafraîchir'])
-      ])
+        h('button.btn', { type: 'button', title: 'Rafraîchir', onclick: function () { self.charger(true); } }, [AMX.svg('rafraichir'), ' Rafraîchir'])))
     ]);
     this.elCorps = h('div');
     page.appendChild(this.elEntete); page.appendChild(this.elCorps);
@@ -300,13 +299,13 @@
     };
     this.elCorps.appendChild(h('div.kpis', [
       kpi(fmtNote(g.note), 'Note du groupe', rep.note ? 'marché ' + fmtNote(rep.note) : ''),
-      kpi(AMX.fmtNombre(g.nombre), 'Avis Google', d.fiches.length + ' fiches'),
-      kpi(g.nouveaux30 ? '+' + g.nouveaux30 : '0', 'Nouveaux 30 j', g.nouveaux7 ? '+' + g.nouveaux7 + ' cette semaine' : 'aucun cette semaine'),
+      kpi(AMX.fmtNombre(g.nombre), 'Avis Google', d.fiches.length + ' fiches', 'kpi-secondaire'),   /* v135 : cachés en ui2 (repris sous le titre) */
+      kpi(g.nouveaux30 ? '+' + g.nouveaux30 : '0', 'Nouveaux 30 j', g.nouveaux7 ? '+' + g.nouveaux7 + ' cette semaine' : 'aucun cette semaine', 'kpi-secondaire'),
       kpi(String(g.negatifs30), 'Négatifs 30 j', '≤ ' + SEUIL + ' étoiles', g.negatifs30 ? 'alerte' : ''),
       kpi(String(g.aTraiter), 'À traiter', 'avis sans suite', g.aTraiter ? 'attention' : '', function () { AMX.aller('avis', 'avis'); }),
-      kpi(String(ss.envoyes30), 'Sondages 30 j', ss.enAttente ? ss.enAttente + ' en attente d\'envoi' : (ss.envoyes + ' au total'), '', function () { AMX.aller('avis', 'sondages'); }),
+      kpi(String(ss.envoyes30), 'Sondages 30 j', ss.enAttente ? ss.enAttente + ' en attente d\'envoi' : (ss.envoyes + ' au total'), 'kpi-secondaire', function () { AMX.aller('avis', 'sondages'); }),
       kpi(ss.note !== null ? fmtNote1(ss.note) : '—', 'Note sondages', ss.tauxReponse !== null ? ss.tauxReponse + ' % de réponses' : 'aucune réponse encore', ss.negatifs ? 'attention' : ''),
-      kpi(String(ss.clicsGoogle), 'Clics vers Google', 'depuis le sondage'),
+      kpi(String(ss.clicsGoogle), 'Clics vers Google', 'depuis le sondage', 'kpi-secondaire'),
       kpi(String(mesAvis.length), 'Mes avis', mesATraiter ? mesATraiter + ' à traiter' : 'responsable ou crédité', mesATraiter ? 'attention' : '', function () { self.filtres.personne = 'moi'; AMX.aller('avis', 'avis'); })
     ]));
 

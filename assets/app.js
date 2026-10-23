@@ -1207,13 +1207,25 @@
     var env = h('div.menu-actions', [btn, menu]);
     var dehors = function (e) { if (!env.contains(e.target)) fermer(); };
     var fermer = function () { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); };
+    var proxies = [];
     (actions || []).filter(Boolean).forEach(function (a) {
-      var it = h('button', { type: 'button', role: 'menuitem', html: (a.icone || '') + '<span>' + esc(a.texte) + '</span>' });
-      it.addEventListener('click', function () { fermer(); a.action(); });
+      // v135 : `bouton` = un bouton existant de la page (il garde son code) ; l'élément du menu le clique et suit son état.
+      var it = h('button', { type: 'button', role: 'menuitem', html: (a.icone || '') + '<span>' + esc(a.texte || '') + '</span>' });
+      it.addEventListener('click', function () { fermer(); if (a.bouton) a.bouton.click(); else a.action(); });
+      if (a.bouton) proxies.push({ it: it, b: a.bouton });
       menu.appendChild(it);
     });
+    var suivre = function () {
+      proxies.forEach(function (p) {
+        var b = p.b, cache = b.hidden || b.style.display === 'none' || b.classList.contains('cache');
+        var svg = b.querySelector('svg');
+        p.it.innerHTML = (svg ? svg.outerHTML : '') + '<span>' + esc((b.textContent || b.title || '').trim() || b.getAttribute('aria-label') || '') + '</span>';
+        p.it.hidden = cache; p.it.disabled = !!b.disabled;
+      });
+    };
     btn.addEventListener('click', function () {
       if (!menu.hidden) { fermer(); return; }
+      suivre();
       menu.hidden = false; btn.setAttribute('aria-expanded', 'true');
       document.addEventListener('mousedown', dehors, true);
       var p = menu.querySelector('button'); if (p) p.focus();
@@ -1224,7 +1236,18 @@
       else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); l[(i + (e.key === 'ArrowDown' ? 1 : -1) + l.length) % l.length].focus(); }
       else if (e.key === 'Tab') fermer();
     });
+    suivre();
     return env;
+  };
+  /* v135 : en ui2, seuls `garder` restent visibles dans l'en-tête ; les autres boutons de `liste` descendent dans « … » (ce
+     sont toujours les mêmes boutons). Hors ui2, `liste` telle quelle. */
+  AMX.actionsEntete = function (liste, garder) {
+    liste = (liste || []).filter(Boolean);
+    if (!AMX.ui2()) return liste;
+    garder = (garder || []).filter(Boolean);
+    var autres = liste.filter(function (el) { return garder.indexOf(el) < 0; });
+    if (!autres.length) return liste;
+    return [AMX.menuActions(autres.map(function (el) { return { bouton: el }; }))].concat(liste.filter(function (el) { return garder.indexOf(el) >= 0; }));
   };
 
   /* Palette Ctrl+K (⌘K) : pages, actions et véhicules au même endroit, au clavier. */

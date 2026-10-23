@@ -242,6 +242,9 @@
     this.filtres = this.filtresDefaut();
     this.tri = AMX.memo.lire('svc_tri', 'jours');
     this.ecritures = 0; this.generation = 0;
+    this.ui2 = !!(AMX.ui2 && AMX.ui2());   /* v133 : page refaite dans la nouvelle interface */
+    this.surCie = function () { if (self.detruit) return; self.filtres.compagnie = AMX.compagnieChoisie('service'); self.construireRail(); self.rendre(); };
+    document.addEventListener('amx:compagnie', this.surCie);
     this.construire();
     this.charger();
     this.surService = function () { self.suivis = AMX.service.enCache() || self.suivis; self.construireRail(); self.rendre(); AMX.rafraichirSousBarre(); };
@@ -260,7 +263,7 @@
   // La compagnie n'est PAS remise à zéro : c'est le choix du site (AMX.compagnieChoisie), gardé
   // d'un onglet et d'une page à l'autre tant que Maxime ne clique pas sur une autre concession.
   Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: AMX.compagnieChoisie('service'), etapes: null, retard: false }; };
-  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); document.removeEventListener('amx:openlane', this.surEblock); document.removeEventListener('amx:demandes', this.surDemandes); };
+  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); document.removeEventListener('amx:openlane', this.surEblock); document.removeEventListener('amx:demandes', this.surDemandes); };
   Suivi.prototype.naviguer = function (ctx) {
     if (ctx.onglet !== this.onglet) { this.onglet = ctx.onglet; this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || ''; this.construireRail(); this.rendre(); }
     else if (ctx.params.vin && ctx.params.vin !== this.selection) { this.selection = ctx.params.vin; this.rendre(); }
@@ -269,6 +272,7 @@
   /* ---------------------------- Construction ------------------------------ */
   Suivi.prototype.construire = function () {
     var self = this;
+    if (this.ui2) { this.construireUi2(); return; }
     AMX.vider(this.conteneur);
     this.elKpis = h('div.kpis');
     this.elRail = h('aside.rail');
@@ -300,6 +304,7 @@
 
   Suivi.prototype.construireRail = function () {
     var self = this, f = this.filtres, etapes = AMX.service.etapes();
+    if (this.ui2) { this.construireFiltresUi2(); return; }
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock, BT — tous les suivis', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendre(); }, 120) })]);
     // Concession : rangée de pastilles sous l'en-tête (16 oct., même présentation partout), compte des suivis de
@@ -335,6 +340,70 @@
       h('div', [h('b', { text: cibles.total + ' j' }), ' de l\'arrivée à « Prêt à vendre »']),
       h('div', etapes.filter(function (e) { return (cibles.etapes[e.id] || 0) > 0; }).map(function (e) { return e.court + ' ' + cibles.etapes[e.id] + ' j'; }).join(' · '))
     ])]));
+  };
+
+  /* ----------------- v133 : Suivi service refait (nouvelle interface, html.ui2) -----------------
+     Comme Usagé : un en-tête avec le menu « … », au plus cinq chiffres, une barre de filtres au-dessus de la liste
+     (recherche, étapes en pastilles avec leur nombre, « En retard ») ; plus de volet de gauche. */
+  Suivi.prototype.construireUi2 = function () {
+    var self = this;
+    AMX.vider(this.conteneur);
+    this.elKpis = h('div.kpis.inv2-resume');
+    this.elRail = h('div.inv2-filtres');
+    this.elListe = h('div');
+    this.elPanneau = h('aside.panneau');
+    this.elOutils = h('div.outils-liste');
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
+    this.elCies = h('div');
+    this.elRechercheUi2 = h('input.saisie', { type: 'search', placeholder: 'NIV, modèle, # stock, BT — tous les suivis', value: this.filtres.recherche, 'aria-label': 'Chercher dans le suivi service',
+      oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.construireFiltresUi2(); self.rendre(); }, 140) });
+    var menu = AMX.menuActions([
+      { texte: 'Rafraîchir', icone: I.rafraichir, action: function () { self.charger(true); } },
+      { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } },
+      AMX.estAdmin() ? { texte: 'Cibles (jours par étape)', icone: I.outils, action: function () { self.modaleCibles(); } } : null,
+      AMX.estAdmin() ? { texte: 'Recopier dans les feuilles des concessions', icone: I.externe, action: function () { self.miroir(); } } : null
+    ]);
+    this.conteneur.appendChild(h('div.page.inv2', [
+      h('div.entete-page.inv2-tete', [
+        h('div.inv2-titre', [h('h1', 'Suivi service'), h('p#svc-etat.inv2-etat', { text: 'Chargement…' })]),
+        h('div.actions', [menu])
+      ]),
+      this.elKpis, this.elRail, this.elAgencement
+    ]));
+    this.construireFiltresUi2();
+    var moi = this;
+    this.surProfil = function () { if (!moi.detruit) { moi.filtres.compagnie = AMX.compagnieChoisie('service'); moi.construireRail(); moi.rendre(); } };
+    document.addEventListener('amx:profil', this.surProfil);
+  };
+  Suivi.prototype.construireFiltresUi2 = function () {
+    var self = this, f = this.filtres, etapes = AMX.service.etapes(), cibles = AMX.service.cibles();
+    if (!this.elRechWrap || this.elRechWrap.parentNode !== this.elRail) {
+      AMX.vider(this.elRail);
+      this.elRechWrap = h('div.recherche.inv2-recherche', [h('span', { html: I.recherche }), this.elRechercheUi2]);
+      this.elPastillesUi2 = h('div.inv2-statuts', { role: 'group', 'aria-label': 'Étape courante' });
+      this.elRail.appendChild(this.elRechWrap); this.elRail.appendChild(this.elPastillesUi2);
+    }
+    var pastilles = AMX.vider(this.elPastillesUi2);
+    var cherche = !!(f.recherche && f.recherche.trim());
+    var pastille = function (texte, n, actif, couleur, clic, titre) {
+      var b = h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', title: titre || null }, [couleur ? h('i', { style: { background: 'var(--' + couleur + ')' } }) : null, h('span', { text: texte }), n === null ? null : h('b', { text: String(n) })]);
+      b.addEventListener('click', function () { clic(); f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); });
+      return b;
+    };
+    if (this.onglet === 'termines') { pastilles.appendChild(h('span.doux', { text: 'Suivis terminés des 90 derniers jours — cherchez un NIV, un modèle ou un # stock.' })); return; }
+    var base = this.base();
+    var enCours = base.filter(function (s) { return s.statut === 'encours'; });
+    pastilles.appendChild(pastille('Toutes les étapes', enCours.length, !cherche && !f.etapes && !f.retard, '', function () { f.etapes = null; f.retard = false; }));
+    etapes.forEach(function (e) {
+      if (e.id === 'arrivee') return;
+      var n = enCours.filter(function (s) { return s.etapeCourante === e.id; }).length;
+      if (!n) return;
+      var actif = !cherche && f.etapes && f.etapes.length === 1 && f.etapes[0] === e.id;
+      var cible = (cibles.etapes || {})[e.id];
+      pastilles.appendChild(pastille(e.court || e.libelle, n, actif, e.porte ? 'ambre' : 'bleu', function () { f.etapes = actif ? null : [e.id]; }, e.libelle + (cible ? ' — cible ' + cible + ' j' : '')));
+    });
+    var nRetard = enCours.filter(function (s) { return s.enRetard; }).length;
+    pastilles.appendChild(pastille('En retard', nRetard, !cherche && f.retard, 'rouge', function () { f.retard = !f.retard; }, 'Cible : ' + cibles.total + ' j de l\'arrivée à « Prêt à vendre »'));
   };
 
   /* ------------------------------- Données -------------------------------- */
@@ -471,7 +540,7 @@
     var moy = prets.length ? Math.round(prets.reduce(function (a, s) { return a + (s.joursTotal || 0); }, 0) / prets.length * 10) / 10 : null;
     var kpi = function (valeur, libelle, opts) {
       opts = opts || {};
-      var k = h('button.kpi' + (opts.classe ? '.' + opts.classe : '') + (opts.actif ? '.actif' : ''), { type: 'button' }, [h('div.valeur', { text: valeur }), h('div.libelle', { text: libelle }), opts.sous ? h('div.sous', { text: opts.sous }) : null]);
+      var k = h('button.kpi' + (opts.classe ? '.' + opts.classe : '') + (opts.actif ? '.actif' : ''), { type: 'button', title: opts.titre || null }, [h('div.valeur', { text: valeur }), h('div.libelle', { text: libelle }), opts.sous ? h('div.sous', { text: opts.sous }) : null]);
       if (opts.onclick) k.addEventListener('click', opts.onclick);
       return k;
     };
@@ -480,6 +549,17 @@
     var auDetail = f.compagnie ? ((resume.parCompagnie || {})[f.compagnie] || {}).auDetail : resume.auDetail;
     if (auDetail === undefined || auDetail === null) auDetail = tous.filter(function (s) { return s.statut !== 'refuse' && s.dansRegistre !== false; }).length;
     var parStatut = resume.registreParStatut || {};
+    var dem0 = (AMX.demandes.enCache() || []).filter(function (d) { return (!f.compagnie || String(d.compagnie || '').toUpperCase() === f.compagnie); });
+    if (this.ui2) {
+      /* v133 : au plus cinq chiffres ; la moyenne et les prêts passent en sous-titre. */
+      var att = dem0.filter(function (d) { return d.etat === 'envoyee'; }).length, ret = dem0.filter(function (d) { return d.etat === 'retournee'; }).length;
+      this.elKpis.appendChild(kpi(auDetail, 'Au détail', { classe: 'neutre', sous: 'registre Detail', onclick: function () { AMX.aller('inventaire', 'detail'); } }));
+      this.elKpis.appendChild(kpi(enCours.length, 'En reconditionnement', { sous: prets.length + ' prêt' + (prets.length > 1 ? 's' : '') + ' en 30 j' + (moy === null ? '' : ' · moyenne ' + moy + ' j'), actif: this.onglet === 'encours' && !f.retard && !f.demandes, onclick: function () { f.retard = false; f.demandes = false; if (self.onglet !== 'encours') AMX.aller('service', 'encours'); else { self.construireRail(); self.rendre(); } } }));
+      this.elKpis.appendChild(kpi(aAutoriser, 'Direction', { classe: aAutoriser ? 'attention' : '', sous: 'à vérifier / autoriser', actif: this.onglet === 'autoriser', onclick: function () { AMX.aller('service', 'autoriser'); } }));
+      this.elKpis.appendChild(kpi(enRetard, 'En retard', { classe: enRetard ? 'alerte' : '', sous: 'cible ' + cibles.total + ' j', actif: f.retard, onclick: function () { f.retard = !f.retard; f.demandes = false; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.construireRail(); self.rendre(); } }));
+      if (AMX.demandes.enCache()) this.elKpis.appendChild(kpi(att, 'Demandes au service', { classe: att ? 'attention' : 'neutre', sous: ret ? ret + ' retournée' + (ret > 1 ? 's' : '') + ' avec une question' : 'en attente d\'un n° de BT', actif: !!f.demandes, onclick: function () { f.demandes = !f.demandes; f.retard = false; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.construireRail(); self.rendre(); } }));
+      return;
+    }
     var sousDetail = f.compagnie ? 'registre Detail · ' + AMX.COMPAGNIES_TOUTES[f.compagnie] : (parStatut.achete || parStatut.stock ? (parStatut.achete || 0) + ' acheté' + ((parStatut.achete || 0) > 1 ? 's' : '') + ' · ' + (parStatut.stock || 0) + ' en stock' : 'registre Detail');
     this.elKpis.appendChild(kpi(auDetail, 'Au détail', { classe: 'neutre', sous: sousDetail, onclick: function () { AMX.aller('inventaire', 'detail'); } }));
     this.elKpis.appendChild(kpi(enCours.length, 'En reconditionnement', { sous: f.compagnie ? AMX.COMPAGNIES_TOUTES[f.compagnie] : 'Toutes compagnies', actif: this.onglet === 'encours' && !f.retard, onclick: function () { f.retard = false; f.etapes = null; AMX.aller('service', 'encours'); } }));

@@ -70,7 +70,7 @@
   function cumulProfits(liste) { var t = cumulPaire(liste, estimeDe, comptableDe); t.front = cumulPaire(liste, frontE, frontC); t.fi = cumulPaire(liste, fiE, fiC); return t; }
   /* Une carte « Front (voiture) » ou « F&I » : estimé, comptable et écart l'un sous l'autre. */
   function carteComparaison(id, titre, q, extra) {
-    var ligne = function (l, v, sous, cls) { return h('div.ligne' + (cls || ''), [h('span.l', { text: l }), h('span.v', { text: v }), sous ? h('span.n', { text: sous }) : null]); };
+    var ligne = function (l, v, sous, cls) { return h('div.cmp-ligne' + (cls || ''), [h('span.l', { text: l }), h('span.v', { text: v }), sous ? h('span.n', { text: sous }) : null]); };
     return h('div.kpi.neutre.ventes-comp#' + id, [h('div.titre', { text: titre }),
       ligne('Estimé', q.nEstime ? argent(q.estime) : '—', q.nEstime ? String(q.nEstime) : ''),
       ligne('Comptable', q.nComptable ? argent(q.comptable) : '—', q.nComptable ? String(q.nComptable) : ''),
@@ -228,7 +228,7 @@
       '.ventes-page .ecart-plus { color: var(--vert); } .ventes-page .ecart-moins { color: var(--rouge); }',
       '.ventes-page .ventes-defile { overflow-x: auto; } .ventes-table td.num, .ventes-table th.num { white-space: nowrap; } .ventes-table td.vehicule { min-width: 170px; }',
       '.ventes-page .ventes-comp { min-width: 250px; } .ventes-comp .titre { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); margin-bottom: 4px; }',
-      '.ventes-comp .ligne { display: grid; grid-template-columns: 74px 1fr auto; gap: 8px; white-space: nowrap; font-size: 13px; align-items: baseline; } .ventes-comp .ligne .v { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; } .ventes-comp .ligne .n { font-size: 12px; color: var(--encre-3); }',
+      '.ventes-comp .cmp-ligne { display: grid; grid-template-columns: 74px 1fr auto; gap: 8px; white-space: nowrap; font-size: 13px; align-items: baseline; } .ventes-comp .cmp-ligne .v { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; } .ventes-comp .cmp-ligne .n { font-size: 12px; color: var(--encre-3); }',
       '.ventes-table th.groupe-col { text-align: center; border-bottom: 1px solid var(--ligne); } .ventes-table th.debut-groupe, .ventes-table td.debut-groupe { border-left: 2px solid var(--ligne); }',
       '.ventes-recap th.groupe-col { text-align: center; } .ventes-recap th.debut-groupe, .ventes-recap td.debut-groupe { border-left: 2px solid var(--ligne); }',
       '.ventes-page .segment button .n { margin-left: 5px; font-variant-numeric: tabular-nums; opacity: .75; }',
@@ -353,6 +353,7 @@
   VueVentes.prototype.rendreEntete = function () {
     var self = this, d = cache.rep;
     AMX.vider(this.elActions);
+    if (AMX.ui2 && AMX.ui2()) { this.rendreEnteteUi2(); return; }
     if (AMX.ventes.peutDeclarer()) this.elActions.appendChild(h('button.btn.primaire#ventes-nouvelle', { type: 'button', onclick: function () { AMX.ventes.declarer({ compagnie: self.compagnie }); } }, [AMX.svg('plus'), ' Inscrire une vente']));
     var livre = d && d.livres && self.compagnie ? d.livres[self.compagnie] : null;
     if (livre && livre.url) this.elActions.appendChild(h('a.btn#ventes-livre', { href: livre.url, target: '_blank', rel: 'noopener', title: livre.titre }, [AMX.svg('externe'), ' Ouvrir le livre']));
@@ -360,6 +361,21 @@
     if (self.compagnie && d && d.admin && livre && livre.url) this.elActions.appendChild(h('button.btn#ventes-importer', { type: 'button', title: 'Importer dans ScanAutomax les ventes déjà inscrites dans le livre (depuis le 1er janvier) — les lignes importées reçoivent leur identifiant dans la colonne ScanAutomax du livre', onclick: function () { self.importer(); } }, [AMX.svg('telecharger'), ' Importer le livre']));
     if (self.compagnie) this.elActions.appendChild(h('button.btn#ventes-relire', { type: 'button', title: 'Relire tout de suite ce que la comptabilité a inscrit dans le livre (Comptabilisé, profit réel) et importer les nouvelles lignes', onclick: function () { self.relire(); } }, [AMX.svg('rafraichir'), ' Relire le livre']));
     this.elActions.appendChild(h('button.btn', { type: 'button', title: 'Rafraîchir', onclick: function () { self.chargerVue(true); } }, [AMX.svg('rafraichir')]));
+  };
+  /* v133 (nouvelle interface) : une action principale (« Inscrire une vente »), « Ouvrir le livre », le reste dans « … ». */
+  VueVentes.prototype.rendreEnteteUi2 = function () {
+    var self = this, d = cache.rep;
+    var livre = d && d.livres && self.compagnie ? d.livres[self.compagnie] : null;
+    var nomCie = AMX.COMPAGNIES_TOUTES[self.compagnie] || self.compagnie;
+    this.elActions.appendChild(AMX.menuActions([
+      { texte: 'Rafraîchir', icone: AMX.svg('rafraichir').outerHTML, action: function () { self.chargerVue(true); } },
+      self.compagnie ? { texte: 'Relire le livre (comptabilité)', icone: AMX.svg('rafraichir').outerHTML, action: function () { self.relire(); } } : null,
+      (typeof XLSX !== 'undefined' && self.vue !== 'recap') ? { texte: 'Exporter Excel', icone: AMX.svg('telecharger').outerHTML, action: function () { self.exporter(); } } : null,
+      (self.compagnie && d && d.admin && livre && livre.url) ? { texte: 'Importer le livre (depuis le 1er janvier)', icone: AMX.svg('telecharger').outerHTML, action: function () { self.importer(); } } : null,
+      (livre && livre.aCreer && d.admin) ? { texte: 'Créer le livre de ' + nomCie, icone: AMX.svg('plus').outerHTML, action: function () { self.creerLivre(); } } : null
+    ]));
+    if (livre && livre.url) this.elActions.appendChild(h('a.btn#ventes-livre', { href: livre.url, target: '_blank', rel: 'noopener', title: livre.titre }, [AMX.svg('externe'), ' Ouvrir le livre']));
+    if (AMX.ventes.peutDeclarer()) this.elActions.appendChild(h('button.btn.primaire#ventes-nouvelle', { type: 'button', onclick: function () { AMX.ventes.declarer({ compagnie: self.compagnie }); } }, [AMX.svg('plus'), ' Inscrire une vente']));
   };
   VueVentes.prototype.rendreCies = function () {
     var self = this, d = cache.rep, extra;
@@ -460,13 +476,17 @@
     var importees = d.ventes.filter(function (v) { return v.importee; }).length;
     this.elSous.textContent = copie + (total ? pluriel(total, 'vente') + (n.declaree ? ' · ' + n.declaree + ' en attente du F&I' : '') + (n.comptabilisee ? ' · ' + n.comptabilisee + ' comptabilisée' + (n.comptabilisee > 1 ? 's' : '') : '') + (importees ? ' · ' + importees + ' importée' + (importees > 1 ? 's' : '') + ' du livre' : '') + (n.erreurLivre ? ' · ' + n.erreurLivre + ' pas au livre' : '') : 'Aucune vente inscrite pour cette période.') + (d.relu && d.relu.le && !d.relu.duCache ? ' · livre relu à ' + AMX.fmtDate(d.relu.le, true).replace(/^\S+\s/, '') : '');
     AMX.vider(this.elKpis);
+    var ui2 = AMX.ui2 && AMX.ui2();
     var kpi = function (etat, libelle, valeur, cls) {
       return h('div.kpi' + (cls ? '.' + cls : '') + (self.filtres.etat === etat ? '.actif' : ''), { role: 'button', tabindex: '0', 'data-etat': etat, onclick: function () { self.filtres.etat = self.filtres.etat === etat ? '' : etat; self.rendre(); } }, [h('div.valeur', { text: String(valeur || 0) }), h('div.libelle', { text: libelle })]);
     };
-    this.elKpis.appendChild(kpi('declaree', 'Attente F&I', n.declaree, n.declaree ? 'alerte' : ''));
-    this.elKpis.appendChild(kpi('completee', 'Au livre', n.completee, ''));
-    this.elKpis.appendChild(kpi('comptabilisee', 'Comptabilisées', n.comptabilisee, ''));
-    this.elKpis.appendChild(kpi('annulee', 'Annulées', n.annulee, ''));
+    /* v133 : en ui2, les états passent en pastilles dans la barre de filtres ; les chiffres gardent l'essentiel. */
+    if (!ui2) {
+      this.elKpis.appendChild(kpi('declaree', 'Attente F&I', n.declaree, n.declaree ? 'alerte' : ''));
+      this.elKpis.appendChild(kpi('completee', 'Au livre', n.completee, ''));
+      this.elKpis.appendChild(kpi('comptabilisee', 'Comptabilisées', n.comptabilisee, ''));
+      this.elKpis.appendChild(kpi('annulee', 'Annulées', n.annulee, ''));
+    }
     if (n.erreurLivre) this.elKpis.appendChild(kpi('erreur', 'Pas au livre', n.erreurLivre, 'alerte'));
     if (d.montants) {
       var actives = d.ventes.filter(function (v) { return v.statut !== 'annulee' && (!self.filtres.type || v.type === self.filtres.type); });
@@ -482,6 +502,20 @@
     var segType = h('div.segment#ventes-types', [['', 'Tous', nonAnnulees.length], ['neuf', 'Neufs', ct.neuf], ['usage', 'Usagés', ct.usage], ['wholesale', 'Wholesale', ct.wholesale]].map(function (t) { return h('button' + (self.filtres.type === t[0] ? '.actif' : ''), { type: 'button', 'data-type': t[0], onclick: function () { self.filtres.type = t[0]; self.rendre(); } }, [t[1], h('span.n', { text: String(t[2]) })]); }));
     var rech = h('input.saisie#ventes-recherche', { type: 'search', placeholder: 'Client, NIV, # stock, conseiller…', value: this.filtres.recherche });
     rech.addEventListener('input', function () { self.filtres.recherche = rech.value; self.rendreListe(); });
+    if (ui2) {
+      // Barre de filtres : recherche, puis l'état de la vente en pastilles (avec leur nombre), puis le type.
+      this.elFiltres.classList.add('inv2-filtres');
+      var etats = [['', 'Toutes', total], ['declaree', 'Attente F&I', n.declaree], ['completee', 'Au livre', n.completee], ['comptabilisee', 'Comptabilisées', n.comptabilisee], ['annulee', 'Annulées', n.annulee]];
+      var pas = h('div.inv2-statuts', { role: 'group', 'aria-label': 'État de la vente' }, etats.map(function (e) {
+        var actif = (self.filtres.etat || '') === e[0];
+        return h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres.etat = e[0]; self.rendre(); } }, [h('span', { text: e[1] }), h('b', { text: String(e[2] || 0) })]);
+      }));
+      this.elFiltres.appendChild(h('div.recherche.inv2-recherche', [h('span', { html: AMX.icones.recherche }), rech]));
+      this.elFiltres.appendChild(pas);
+      this.elFiltres.appendChild(segType);
+      this.rendreListe();
+      return;
+    }
     this.elFiltres.appendChild(segType); this.elFiltres.appendChild(rech);
     if (typeof XLSX !== 'undefined') this.elFiltres.appendChild(h('button.btn.petit#ventes-export', { type: 'button', onclick: function () { self.exporter(); } }, [AMX.svg('telecharger'), ' Excel']));
     this.rendreListe();

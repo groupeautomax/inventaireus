@@ -1145,7 +1145,7 @@
     return el;
   }
   // Pages qui écoutent déjà amx:compagnie (elles se redessinent seules) ; les autres sont remontées.
-  var SUIT_COMPAGNIE = { 'csi/': 1, 'listes/': 1, 'kpi/': 1, 'ventes/': 1, 'inventaire/soumissions': 1, 'inventaire/neufs': 1, 'inventaire/usage': 1, 'service/rendezvous': 1, 'service/texto': 1 };
+  var SUIT_COMPAGNIE = { 'service/': 1, 'csi/': 1, 'listes/': 1, 'kpi/': 1, 'ventes/': 1, 'inventaire/soumissions': 1, 'inventaire/neufs': 1, 'inventaire/usage': 1, 'service/rendezvous': 1, 'service/texto': 1 };
   function remonterSiBesoin(code) {
     var o = courante.onglet, cle = o ? (o.de || '') + '/' + (o.onglet || '') : '';
     if (SUIT_COMPAGNIE[cle]) return;

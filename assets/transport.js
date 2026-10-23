@@ -377,7 +377,15 @@
         var etat = c.branche ? ('Branché' + (c.nom ? ' — ' + c.nom : '') + (c.echangeLe ? ' · dernier échange ' + AMX.fmtDate(c.echangeLe, true) : '') + (c.expireLe ? ' · expire le ' + AMX.fmtDateCourte(String(c.expireLe).slice(0, 10)) : '')) : 'Pas branché';
         var champJeton = h('input.saisie', { type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: c.branche ? 'Coller un nouveau jeton pour le remplacer' : 'Coller le jeton cfrt_…' });
         var poser = h('button.btn.primaire.petit', { type: 'button', text: c.branche ? 'Remplacer' : 'Brancher', onclick: function () {
-          var j = champJeton.value.trim(); if (!j) { AMX.toast('Collez d\'abord le jeton.', 'attention'); return; }
+          // Ce qu'on colle depuis Excel : espaces, retours de ligne, guillemets, libellé devant (« Ste-Marie : cfrt_… »).
+          var brut = champJeton.value || '', j = brut.replace(/[\s\u00a0\u200b-\u200d\ufeff]+/g, '').replace(/^["'«»“”‘’]+|["'«»“”‘’]+$/g, '');
+          var i0 = j.toLowerCase().indexOf('cfrt_'); if (i0 > 0) j = j.slice(i0);
+          if (!j) { AMX.toast('Collez d\'abord le jeton.', 'attention'); return; }
+          if (!/^cfrt_\S{8,}$/i.test(j)) {
+            var forme = j.length + ' caractères' + (j.toLowerCase().indexOf('cfrt') < 0 ? ', sans « cfrt »' : '') + (/^[0-9]/.test(j) ? ', commence par un chiffre' : '') + (/[•*]/.test(j) ? ', avec des « • » ou « * » (jeton masqué ?)' : '');
+            AMX.toast('Ce n\'est pas un jeton Central Fleet : il doit contenir « cfrt_ » suivi du jeton (' + forme + '). Copiez la case du jeton elle-même.', 'erreur', 14000);
+            return;
+          }
           poser.classList.add('occupe');
           AMX.post({ action: 'cfJeton', compagnie: c.compagnie, jeton: j }, { delai: 60000, secours: false }).then(function (x) {
             champJeton.value = '';

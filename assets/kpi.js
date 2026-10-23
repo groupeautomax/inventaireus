@@ -53,7 +53,9 @@
   function moisLib(p, maj) { var y = +p.slice(0, 4), m = +p.slice(5, 7); var s = (MOIS[m - 1] || '?') + ' ' + y; return maj ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
   var MOIS_COURTS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
   function moisCourt(p) { return (MOIS_COURTS[+p.slice(5, 7) - 1] || '?') + ' ' + p.slice(2, 4); }
-  function moisPrec(p, n) { var y = +p.slice(0, 4), m = +p.slice(5, 7) - (n || 1); while (m < 1) { m += 12; y--; } return cle(y, m); }
+  /* 23 oct. : `n === 0` = le mois même (avant, `n || 1` en faisait le mois précédent : la courbe de 13 mois finissait sur le mois
+     d'avant répété, et le mois choisi n'y était jamais). */
+  function moisPrec(p, n) { var y = +p.slice(0, 4), m = +p.slice(5, 7) - (n === undefined || n === null ? 1 : n); while (m < 1) { m += 12; y--; } return cle(y, m); }
   function argent(v) { return nb(v) ? AMX.fmtArgent(v) : '—'; }
   function argentCourt(v) {
     if (!nb(v)) return '—';
@@ -379,7 +381,7 @@
 
   /* Courbe SVG maison (format selon l'indicateur ; un mois sans chiffre coupe la ligne). */
   function courbe(m, k, etiquettes, reel, comp, actif) {
-    var NS = 'http://www.w3.org/2000/svg', L = 720, H = 220, mg = { g: 64, d: 12, h: 12, b: 28 };
+    var NS = 'http://www.w3.org/2000/svg', L = 720, H = 220, mg = { g: 64, d: 30, h: 12, b: 28 };   /* d : la dernière étiquette (en gras) tient dans le cadre */
     var el = function (t, a, enfants) { var e = document.createElementNS(NS, t); Object.keys(a || {}).forEach(function (x) { e.setAttribute(x, a[x]); }); (enfants || []).forEach(function (c) { if (typeof c === 'string') e.textContent = c; else e.appendChild(c); }); return e; };
     var svg = el('svg', { viewBox: '0 0 ' + L + ' ' + H, class: 'kpi-svg', role: 'img', 'aria-label': m.libelle(k) });
     var tous = reel.concat(comp).filter(nb);

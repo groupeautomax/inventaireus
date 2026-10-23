@@ -44,10 +44,12 @@
   /* ---------------------- Nouvelle interface (v131, 23 oct.) ----------------------
      Maxime : « la nouvelle interface derrière un interrupteur : barre latérale, concession dans la barre, Ctrl+K,
      Accueil « À faire », puis la page Usagé refaite ». html.ui2 l'allume. Propre à l'appareil (localStorage amx_ui) ;
-     ?ui=2 / ?ui=1 dans l'adresse l'allume / l'éteint d'un lien ; menu du compte → « Essayer la nouvelle interface ». */
+     ?ui=2 / ?ui=1 dans l'adresse l'allume / l'éteint d'un lien ; menu du compte → « Essayer la nouvelle interface ».
+     v132 (Maxime : « allume la nouvelle interface par défaut pour tout le monde, avec l'option de revenir à l'ancienne ») :
+     allumée partout, sauf sur un appareil où quelqu'un a choisi « Revenir à l'ancienne interface » (amx_ui = '1'). */
   (function () {
     try { var p = new URLSearchParams(location.search).get('ui'); if (p === '2' || p === '1') ecrire('amx_ui', p); } catch (e) {}
-    if (lire('amx_ui') === '2') document.documentElement.classList.add('ui2');
+    if (lire('amx_ui') !== '1') document.documentElement.classList.add('ui2');
   })();
   AMX.ui2 = function () { return document.documentElement.classList.contains('ui2'); };
   AMX.basculerInterface = function (nouvelle) {
@@ -1035,7 +1037,7 @@
         h('div.sep'),
         // Guide et aide (7 oct.) : la référence de toutes les fonctions, avec recherche par question (assets/aide.js).
         AMX.sections.aide ? h('button.aide-menu', { type: 'button', html: (ICONES.aide || '') + '<span>Guide et aide</span>', onclick: function () { usager.classList.remove('ouvert'); AMX.aller('aide', 'questions'); } }) : null,
-        h('button.ui-bascule', { type: 'button', text: AMX.ui2() ? 'Revenir à l\'interface actuelle' : 'Essayer la nouvelle interface', onclick: function () { AMX.basculerInterface(!AMX.ui2()); } }),
+        h('button.ui-bascule', { type: 'button', text: AMX.ui2() ? 'Revenir à l\'ancienne interface' : 'Passer à la nouvelle interface', onclick: function () { AMX.basculerInterface(!AMX.ui2()); } }),
         h('button', { type: 'button', text: 'Déconnexion', onclick: function () { AMX.deconnecter(''); } })
       ])
     ]);
@@ -1192,7 +1194,7 @@
     cote.appendChild(liste);
     cote.appendChild(h('div.cote-pied', [
       h('button.cote-palette', { type: 'button', onclick: function () { AMX.palette(); } }, [h('span', { html: ICONES.recherche }), h('span', 'Aller à…'), h('kbd', { text: /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K' })]),
-      h('button.cote-bascule', { type: 'button', text: 'Revenir à l\'interface actuelle', onclick: function () { AMX.basculerInterface(false); } })
+      h('button.cote-bascule', { type: 'button', text: 'Revenir à l\'ancienne interface', onclick: function () { AMX.basculerInterface(false); } })
     ]));
     cote.scrollTop = defile;
   }
@@ -1241,7 +1243,7 @@
       voit('ventes') && AMX.ventes && AMX.ventes.peutDeclarer && AMX.ventes.peutDeclarer() && { t: 'Inscrire une vente', ic: 'vente', href: AMX.lien('ventes', 'liste', { nouvelle: Date.now() }) },
       voit('service') && { t: 'Nouveau rendez-vous', ic: 'service', href: AMX.lien('service', 'rendezvous', { nouveau: 1 }) },
       voit('aide') && { t: 'Écrire une suggestion', ic: 'suggestions', href: AMX.lien('aide', 'suggestions') },
-      { t: 'Revenir à l\'interface actuelle', ic: 'rafraichir', faire: function () { AMX.basculerInterface(false); } }
+      { t: 'Revenir à l\'ancienne interface', ic: 'rafraichir', faire: function () { AMX.basculerInterface(false); } }
     ];
     actions.filter(Boolean).forEach(function (a) { a.groupe = 'Actions'; a.s = a.s || ''; out.push(a); });
     return out;

@@ -387,7 +387,8 @@
             return;
           }
           poser.classList.add('occupe');
-          AMX.post({ action: 'cfJeton', compagnie: c.compagnie, jeton: j }, { delai: 60000, secours: false }).then(function (x) {
+          // `cleCf`, pas `jeton` : AMX.post ajoute déjà `jeton` (la session) à chaque requête.
+          AMX.post({ action: 'cfJeton', compagnie: c.compagnie, cleCf: j }, { delai: 60000, secours: false }).then(function (x) {
             champJeton.value = '';
             if (!x || x.refuse || x.ok === false) { AMX.toast((x && x.erreur) || 'Jeton refusé', 'erreur', 10000); return; }
             AMX.toast(x.message || 'Branché', 'ok', 9000); if (x.avertissement) AMX.toast(x.avertissement, 'attention', 12000);

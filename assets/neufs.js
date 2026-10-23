@@ -542,7 +542,7 @@
     this.elAbsentsDms = h('div.neufs-panneau');   /* 21 oct. : en stock au portail du manufacturier, absents du DMS */
     this.elAbsents = h('div.neufs-panneau');   /* 12 oct. (Maxime : « absent de Global mais dans le DMS, comme onglet ») */
     this.elEchanges = h('div.neufs-panneau');   /* 12 oct. : demandes d'échange entre concessions, par texto — page Vente › Échanges de neufs (21 oct.) */
-    this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, version, couleur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.rendreTable(); }, 120) });
+    this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, version, couleur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; if (AMX.ui2 && AMX.ui2()) self.rendreSelects(); self.rendreTable(); }, 120) });
     this.selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { self.filtres.modele = e.target.value; self.filtres.version = ''; self.rendreTable(); self.rendreSelects(); } });
     this.selVersion = h('select.saisie', { 'aria-label': 'Version', onchange: function (e) { self.filtres.version = e.target.value; self.rendreTable(); } });
     this.elStatuts = h('div.neufs-statuts', { role: 'group', 'aria-label': 'Statut' });   /* pastilles cliquables avec le compte par statut */
@@ -580,7 +580,15 @@
     this.elCarteTable = h('div.carte', [h('div.carte-corps', [this.elTable, this.elExclus])]);
     // La liste (21 oct.) : marques, pipeline, cartes et menus (elTete, visibles pour Liste seulement), puis la table — ou, par les
     // pastilles « Portail », les commandes chez le manufacturier ou les ventes déclarées à la place de la table (panneaux frères).
-    this.elTete = h('div.neufs-tete', [this.elMarques, this.elPipeline, this.elCartes, barre]);
+    this.elPortee = h('div.portee-chiffres');
+    if (AMX.ui2 && AMX.ui2()) {
+      /* v138 (Maxime, 23 oct. : « les feuilles d'inventaire, c'est pas encore super, trop mélangeant » ; « la recherche et les
+         onglets avant les carrés, et les chiffres doivent représenter ce qu'on a choisi ») : Inventaire · Type · Marque sur UNE
+         ligne ; puis le pipeline (où sont les unités) ; puis la barre de filtres ; puis la ligne « Chiffres et liste » ; puis les
+         tuiles, calculées sur les véhicules que les filtres gardent ; puis la table. */
+      this.elEtapes.appendChild(this.elMarques);
+      this.elTete = h('div.neufs-tete', [this.elPipeline, barre, this.elPortee, this.elCartes]);
+    } else this.elTete = h('div.neufs-tete', [this.elMarques, this.elPipeline, this.elCartes, barre]);
     this.elListe = h('div.neufs-panneau', [this.elCarteTable]);
     this.elAnalyse = h('div.neufs-panneau', [this.elVieillissement, this.elGroupes, this.elRevue]);
     this.el = this.seul
@@ -831,7 +839,7 @@
     this.elEtat.textContent = (this.copieLe ? 'Copie du ' + AMX.copieTexte(this.copieLe) + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : ' — mise à jour en cours…') + ' · ' : '') + (this.compagnie ? nomCie(this.compagnie) : (codesVis.length === 1 ? nomCie(codesVis[0]) : 'Tout le groupe')) + ' · ' + enStock.length + ' neuf' + (enStock.length > 1 ? 's' : '') + ' · ' + nDispoE + ' disponible' + (nDispoE > 1 ? 's' : '') + (derniers.length ? ' · lu le ' + derniers.map(function (x) { return x.replace(/^.*? (\d{4}-\d{2}-\d{2}.*)$/, '$1'); }).join(' · ') : ' · rien reçu encore du ' + ORIGINES_LONG[origine]);   /* Maxime, 11 oct. : pas de longue phrase sous le titre */
     this.btnPortail.classList.toggle('cache', !(peutImporterPortail() && (!this.compagnie || PORTAILS[this.compagnie])));
     this.rendrePipeline(enStock);
-    this.rendreCartes(enStock);
+    if (!(AMX.ui2 && AMX.ui2())) this.rendreCartes(enStock);   /* v138 : en ui2, rendreTable les calcule sur la liste filtrée */
     this.rendreVieillissement(enStock);
     this.rendreCommandes();
     this.rendreVentes();
@@ -1462,10 +1470,13 @@
     AMX.modale({ titre: p.nom + ' → ScanAutomax', corps: corps, large: true, boutons: [{ texte: 'Fermer', action: function (fermer) { fermer(); } }] });
   };
 
-  VueNeufs.prototype.rendreCartes = function (enStock) {
-    var self = this, d = this.donnees;
+  VueNeufs.prototype.rendreCartes = function (enStock, filtre) {
+    var self = this, d = this.donnees, f0 = this.filtres;
     AMX.vider(this.elCartes);
-    var g = groupes(enStock, this.mouvements());
+    // v138 (ui2) : `filtre` = les tuiles portent sur la liste filtrée ; les sorties (jours d'appro) suivent le modèle et la version.
+    var mvts = this.mouvements();
+    if (filtre) mvts = mvts.filter(function (m) { return (!f0.modele || m.modele === f0.modele) && (!f0.version || m.version === f0.version); });
+    var g = groupes(enStock, mvts);
     // Âge moyen et « plus de 60 jours » : hors échanges concessionnaire et fantômes (> 2 ans au DMS),
     // qui sont des cas de nettoyage, pas des véhicules à vendre — ils ont leur bloc dans la revue.
     var vendables = enStock.filter(function (v) { return !estEchange(v) && (v.jours || 0) < FANTOME_J; });
@@ -1493,7 +1504,7 @@
     if (detention !== null) this.elCartes.appendChild(carte('sombre', 'Coût de détention', AMX.fmtArgent(detention), AMX.fmtArgent(detentionJour) + ' / jour à ' + (d.parametres.tauxPlan || 5) + ' %'));
     // Maxime (12 oct.) : « les unités en stock chez le manufacturier [mais pas au DMS] : mettre le nombre dans un icône en haut, en rouge »
     var o = this.originesDispo(), c = this.compagnie;
-    if (o.constructeur) {
+    if (o.constructeur && !filtre) {   /* ui2 : « Absents du DMS / du manufacturier » sont déjà les onglets du haut, en rouge */
       this.absents = this.calculerAbsentsDms();
       var nAbs = d.vehicules.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && self.absentDms(v); }).length;
       var ref = c ? this.referenceAbsents(c) : (o.dms ? { type: 'dms' } : (d.referenceDms && Object.keys(d.referenceDms).length ? { type: 'feuille', source: 'feuille Google' } : null));
@@ -1576,9 +1587,10 @@
     remplir(this.selModele, uniques(function (v) { return v.modele; }), 'Tous les modèles', f.modele);
     remplir(this.selVersion, uniques(function (v) { return (!f.modele || v.modele === f.modele) ? v.version : ''; }), 'Toutes les versions', f.version);
     // Statuts : une pastille par statut présent (sur les véhicules en stock, ou tous si « Inclure les sortis »), avec le compte.
-    var base = liste.filter(function (v) { return f.sortis || v.enStock; }), statuts = {}, ordre = [];
+    var ui2 = AMX.ui2 && AMX.ui2();
+    var base = ui2 ? this.filtrees(null, 'statut') : liste.filter(function (v) { return f.sortis || v.enStock; }), statuts = {}, ordre = [];
     base.forEach(function (v) { var k = String(v.statutLibelle || '').toUpperCase(), s = statutDms(v); if (!statuts[k]) { statuts[k] = { libelle: s.libelle, couleur: s.couleur, n: 0 }; ordre.push(k); } statuts[k].n++; });
-    if (f.statut && !statuts[f.statut]) f.statut = '';
+    if (f.statut && !statuts[f.statut]) { if (ui2) { statuts[f.statut] = { libelle: f.statut, couleur: '', n: 0 }; ordre.push(f.statut); } else f.statut = ''; }   /* ui2 : un statut choisi reste visible, à 0 */
     var rang = { 'EN-INVENT.': 0, 'DEMO': 1, 'TRANSIT': 2, 'COMMANDE': 3, 'ECH. CONC.': 4 };
     ordre.sort(function (a, b) { var ra = rang[a] === undefined ? 9 : rang[a], rb = rang[b] === undefined ? 9 : rang[b]; return ra - rb || statuts[b].n - statuts[a].n; });
     AMX.vider(this.elStatuts);
@@ -1586,7 +1598,7 @@
       return h('button.neufs-statut' + (couleur ? '.' + couleur : '') + (f.statut === cle ? '.actif' : ''), { type: 'button', title: cle ? 'Ne montrer que « ' + libelle + ' »' : 'Tous les statuts', onclick: function () { f.statut = f.statut === cle ? '' : cle; self.rendreSelects(); self.rendreTable(); } }, [couleur ? h('i') : null, h('span', { text: libelle }), h('b', { text: AMX.fmtNombre(n) })]);
     };
     // Disponibilité (11 oct.) : la première chose à voir — disponibles, vendus, échangés, démos (marquage interne ou DMS), exportables
-    var enStockBase = base.filter(function (v) { return v.enStock; });
+    var enStockBase = (ui2 ? this.filtrees(null, 'dispo') : base).filter(function (v) { return v.enStock; });
     var nDispo = enStockBase.filter(estDisponible).length, parCat = { vendu: 0, echange: 0, demo: 0, livre: 0 }, nExp = enStockBase.filter(function (v) { return estExportable(v) === 'oui'; }).length, nPunch = enStockBase.filter(estPunch).length;
     enStockBase.forEach(function (v) { var c = categorieIndispo(v); if (parCat[c] !== undefined) parCat[c]++; });
     var pastilleDispoF = function (cle, libelle, n, cls, titre) {
@@ -1612,7 +1624,7 @@
     // Portail (21 oct.) : Commandes et Ventes déclarées — des pastilles de la liste, plus des onglets. Elles remplacent la
     // table par le panneau correspondant ; un clic sur une pastille de statut ou de disponibilité ramène la table.
     var pv = this.portailVisible(), portail = !this.compagnie || !!PORTAILS[this.compagnie];
-    if (portail && (pv.lus.length || pv.commandes.length || pv.ventes.length)) {
+    if (portail && !ui2 && (pv.lus.length || pv.commandes.length || pv.ventes.length)) {
       var nCmd = pv.commandes.filter(function (x) { return !commandeAttente(x); }).reduce(function (s, x) { return s + (x.n || 0); }, 0);
       var depuis12 = debut12Mois(), nVentes = pv.ventes.filter(function (x) { return String(x.dateVente) >= depuis12; }).length;
       var pastilleVue = function (vue, libelle, n, titre) {
@@ -1622,7 +1634,7 @@
       this.elStatuts.appendChild(h('span.etiquette', { text: 'Portail' }));
       this.elStatuts.appendChild(pastilleVue('commandes', 'Commandes', nCmd, 'Ce qui est commandé chez le manufacturier (en cours, en attente RFO), par modèle'));
       this.elStatuts.appendChild(pastilleVue('ventes', 'Ventes déclarées', nVentes, 'Les ventes déclarées au manufacturier (RDR) sur 12 mois'));
-    } else if (this.vue !== 'table') { this.vue = 'table'; }
+    } else if (this.vue !== 'table' && !(ui2 && portail)) { this.vue = 'table'; }
     // Un filtre touché (disponibilité, statut, menus, recherche) ramène la table si un panneau du portail était affiché.
     var empreinte = JSON.stringify(f);
     if (this.vue !== 'table' && this.empreinteVue !== undefined && empreinte !== this.empreinteVue) { this.vue = 'table'; AMX.memo.ecrire('neufs_vue', 'table'); this.elStatuts.querySelectorAll('button.portail.actif').forEach(function (b) { b.classList.remove('actif'); }); }
@@ -1648,8 +1660,9 @@
     this.visibles().forEach(function (v) { vus[v.vin] = true; });
     return this.filtrees(this.visiblesTous().filter(function (v) { return !vus[v.vin]; }));
   };
-  VueNeufs.prototype.filtrees = function (source) {
-    var self = this, f = this.filtres, q = f.recherche.trim().toUpperCase();
+  /* v138 : `sauf` ('statut' ou 'dispo') = le filtre à ne pas appliquer, pour compter une pastille (ce qu'on verra en cliquant). */
+  VueNeufs.prototype.filtrees = function (source, sauf) {
+    var self = this, f = this.filtres, mots = AMX.motsCherches(f.recherche);   /* v138 : même recherche partout (AMX.correspond) */
     if (!this.absents) this.absents = this.calculerAbsentsDms();
     var liste = source || this.visibles();
     var anneeMax = liste.reduce(function (m, v) { return v.enStock ? Math.max(m, Number(v.annee) || 0) : m; }, 0);
@@ -1659,21 +1672,22 @@
       else if (f.tranche) { var t = tranche(v.jours); if (!t || t.id !== f.tranche) return false; }
       if (f.modele && v.modele !== f.modele) return false;
       if (f.version && v.version !== f.version) return false;
-      if (f.statut && String(v.statutLibelle || '').toUpperCase() !== f.statut) return false;
+      if (sauf !== 'statut' && f.statut && String(v.statutLibelle || '').toUpperCase() !== f.statut) return false;
       if (f.annee === 'ancienne') { if (!(Number(v.annee) && Number(v.annee) < anneeMax)) return false; }
       else if (f.annee && String(v.annee) !== f.annee) return false;
       if (f.emplacement && v.emplacement !== f.emplacement) return false;
       if (f.moteur && moteurDe(v) !== f.moteur) return false;
       if (f.etiquette && etiquettesDe(v).indexOf(f.etiquette) < 0) return false;
       if (f.ncp && ncpsDe(v).indexOf(f.ncp) < 0) return false;
-      if (f.dispo === 'dispo' && !estDisponible(v)) return false;
-      if (f.dispo === 'indispo' && estDisponible(v)) return false;
-      if (f.dispo === 'exportable' && estExportable(v) !== 'oui') return false;
-      if (f.dispo === 'punch' && !estPunch(v)) return false;
-      if (f.dispo === 'absentDms' && !self.absentDms(v)) return false;
-      if (MARQUES[f.dispo] && categorieIndispo(v) !== f.dispo) return false;
+      var dispo = sauf === 'dispo' ? '' : f.dispo;
+      if (dispo === 'dispo' && !estDisponible(v)) return false;
+      if (dispo === 'indispo' && estDisponible(v)) return false;
+      if (dispo === 'exportable' && estExportable(v) !== 'oui') return false;
+      if (dispo === 'punch' && !estPunch(v)) return false;
+      if (dispo === 'absentDms' && !self.absentDms(v)) return false;
+      if (MARQUES[dispo] && categorieIndispo(v) !== dispo) return false;
       var mq = marquageDe(v) || {};
-      if (q && [v.vin, v.stock, v.modele, v.version, v.couleur, v.annee, v.modelNum, v.emplacement, (v.extra || {}).ncp, (v.extra || {}).ncpNom, (v.extra || {}).ncpFinal, (v.extra || {}).commande, (v.extra || {}).code, mq.vendeur, mq.client, mq.localisation, mq.note, moteurDe(v), etiquettesDe(v).map(function (k) { return ETIQUETTES[k]; }).join(' ')].join(' ').toUpperCase().indexOf(q) < 0) return false;
+      if (mots.length && !AMX.correspond([v.vin, v.stock, v.marque, v.modele, v.version, v.couleur, v.annee, v.modelNum, v.emplacement, (v.extra || {}).ncp, (v.extra || {}).ncpNom, (v.extra || {}).ncpFinal, (v.extra || {}).commande, (v.extra || {}).code, mq.vendeur, mq.client, mq.localisation, mq.note, moteurDe(v), etiquettesDe(v).map(function (k) { return ETIQUETTES[k]; }).join(' ')], mots)) return false;
       return true;
     });
   };
@@ -1685,10 +1699,34 @@
     var cie = this.compagnie ? nomCie(this.compagnie) : 'ce groupe';
     return c === 'constructeur' ? 'Aucun inventaire du manufacturier pour ' + cie + ' : cliquez le favori « Automax ← Constructeur » sur le portail du manufacturier, connecté (bouton « Portail du constructeur »).' + (o.dms ? ' Le DMS / fichier, lui, a ' + o.dms + ' véhicule' + (o.dms > 1 ? 's' : '') + '.' : '') : 'Aucun inventaire DMS / fichier pour ' + cie + ' : il faut programmer l\'export quotidien du DMS (ou une feuille Google) vers le site.' + (o.constructeur ? ' Le manufacturier, lui, en a ' + o.constructeur + '.' : '');
   };
+  function classer(el, c) { el.classList.add(c); return el; }
+  VueNeufs.prototype.rendrePortee = function (lignes) {
+    var self = this, f = this.filtres, filtres = [], t = (f.recherche || '').trim();
+    if (!this.elPortee) return;
+    var dispoLib = { dispo: 'Disponibles', indispo: 'Pas disponibles', punch: 'Pré-enregistrés', vendu: 'Vendus', echange: 'Échangés', demo: 'Démos', livre: 'Livrés', exportable: 'Exportables', absentDms: 'Absents du DMS' };
+    if (f.dispo) filtres.push(dispoLib[f.dispo] || f.dispo);
+    if (f.statut) { var st = this.donnees ? this.donnees.vehicules.filter(function (v) { return String(v.statutLibelle || '').toUpperCase() === f.statut; })[0] : null; filtres.push('Statut ' + (st ? statutDms(st).libelle : f.statut)); }
+    if (f.modele) filtres.push(f.modele + (f.version ? ' ' + f.version : ''));
+    else if (f.version) filtres.push(f.version);
+    if (f.annee) filtres.push(f.annee === 'ancienne' ? 'Ancienne année-modèle' : String(f.annee));
+    if (f.tranche) filtres.push(f.tranche === 'plus60' ? 'Plus de 60 jours' : ((TRANCHES.filter(function (x) { return x.id === f.tranche; })[0] || {}).libelle || 'Âge choisi'));
+    if (f.moteur) filtres.push(f.moteur);
+    if (f.emplacement) filtres.push(emplacementTexte(f.emplacement));
+    if (f.etiquette) filtres.push(ETIQUETTES[f.etiquette] || f.etiquette);
+    if (f.ncp) filtres.push('FAN ' + f.ncp);
+    if (f.sortis) filtres.push('sortis compris');
+    if (t) filtres.push('« ' + t + ' »');
+    var mode = this.modeFlotte();
+    AMX.porteeChiffres(this.elPortee, { n: lignes.length, unite: ['véhicule', 'véhicules'],
+      contexte: [this.compagnie ? nomCie(this.compagnie) : 'tout le groupe', ({ dms: 'DMS / fichier', constructeur: 'manufacturier' })[this.origineCourante()] || '', this.aFlotte() ? { detail: 'détail', flotte: 'flotte', tout: 'détail + flotte' }[mode] : '', this.marque || ''],
+      filtres: filtres,
+      effacer: function () { var garde = { sortis: false }; Object.keys(f).forEach(function (k) { f[k] = typeof f[k] === 'boolean' ? false : ''; }); Object.assign(f, garde); self.elRecherche.value = ''; self.rendreSelects(); self.rendreTable(); } });
+  };
   VueNeufs.prototype.rendreTable = function () {
     var self = this, d = this.donnees;
     AMX.vider(this.elTable);
     if (!d) return;
+    if (AMX.ui2 && AMX.ui2() && !this.dansSelects) { this.dansSelects = true; try { this.rendreSelects(); } finally { this.dansSelects = false; } }   /* v138 : nombres des pastilles à jour */
     var lignes = this.filtrees();
     var tri = this.tri;
     var valeur = function (v) {
@@ -1711,6 +1749,7 @@
     };
     lignes.sort(function (a, b) { var x = valeur(a), y = valeur(b); var r = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'fr'); return tri.desc ? -r : r; });
     this.elCompte.textContent = lignes.length + ' véhicule' + (lignes.length > 1 ? 's' : '');
+    if (AMX.ui2 && AMX.ui2()) { this.rendreCartes(lignes.filter(function (v) { return v.enStock; }), true); this.rendrePortee(lignes); }
     var th = function (cle, texte, num) {
       var el = h('th.tri' + (num ? '.num' : '') + (tri.cle === cle ? '.actif' : ''), { text: texte + (tri.cle === cle ? (tri.desc ? ' ↓' : ' ↑') : '') });
       el.addEventListener('click', function () { if (tri.cle === cle) tri.desc = !tri.desc; else { tri.cle = cle; tri.desc = cle === 'jours' || cle === 'cout' || cle === 'detention'; } AMX.memo.ecrire('neufs_tri', tri); self.rendreTable(); });
@@ -1718,7 +1757,7 @@
     };
     var marquable = peutMarquer();
     /* Maxime (12 oct.) : « Marquage » devient « Note », à la fin ; « Reçu le » enlevé (on a les jours) ; le tableau tient dans la page. */
-    var entete = h('tr', [th('stock', '# Stock'), th('vehicule', 'Véhicule'), th('moteur', 'Moteur'), th('couleur', 'Couleur'), th('km', 'Km', true), th('pdsf', 'PDSF', true), th('dispo', 'Disponible'), th('emplacement', 'Emplacement'), th('statut', 'Statut DMS'), th('jours', 'Jours', true)].concat(d.montants ? [th('cout', 'Coût facture', true), th('detention', 'Détention', true)] : []).concat([th('note', 'Note')]));
+    var entete = h('tr', [th('stock', '# Stock'), th('vehicule', 'Véhicule'), classer(th('moteur', 'Moteur'), 'col-moteur'), classer(th('couleur', 'Couleur'), 'col-couleur'), th('km', 'Km', true), th('pdsf', 'PDSF', true), th('dispo', 'Disponible'), th('emplacement', 'Emplacement'), th('statut', 'Statut DMS'), th('jours', 'Jours', true)].concat(d.montants ? [th('cout', 'Coût facture', true), classer(th('detention', 'Détention', true), 'col-detention')] : []).concat([th('note', 'Note')]));
     var corps = h('tbody');
     if (!lignes.length) {
       // Les mêmes filtres sur ce que le mode cache (flotte en mode détail, etc.) : on le dit et on propose de l'afficher
@@ -1745,16 +1784,16 @@
       var km = kmDe(v), pd = pdsfDe(v);
       var tr = h('tr.rangee' + (v.enStock ? '' : '.sorti') + (cat ? '.marq-' + cat : '') + (absent ? '.absent-dms' : ''), [
         h('td', { text: v.stock || '—' }),
-        h('td.vehicule', [h('div.nom', [nomVehicule(v), estFlotte(v) ? h('span.badge.ambre.sans-point.neufs-flotte-badge', { text: 'Flotte', title: 'Commande ' + ((v.extra || {}).typeCommande || '') + ' (flotte / parcs)' }) : null]), h('div.vin', { text: v.vin + (v.modelNum ? ' · ' + v.modelNum : '') + (fanTexte(v) ? ' · ' + fanTexte(v) : '') + ((v.extra || {}).code ? ' · évol. ' + v.extra.code : '') })]),
-        h('td', { text: moteurDe(v) || '—', title: 'Moteur' }),
-        h('td', { text: v.couleur || '—' }),
+        h('td.vehicule', [h('div.nom', [nomVehicule(v), estFlotte(v) ? h('span.badge.ambre.sans-point.neufs-flotte-badge', { text: 'Flotte', title: 'Commande ' + ((v.extra || {}).typeCommande || '') + ' (flotte / parcs)' }) : null]), h('div.vin', { text: v.vin + (v.modelNum ? ' · ' + v.modelNum : '') + (fanTexte(v) ? ' · ' + fanTexte(v) : '') + ((v.extra || {}).code ? ' · évol. ' + v.extra.code : '') }), h('div.sous-ui2', { text: [v.couleur, moteurDe(v)].filter(Boolean).join(' · ') })]),   /* v138 (ui2) : couleur et moteur sous le nom, deux colonnes de moins */
+        h('td.col-moteur', { text: moteurDe(v) || '—', title: 'Moteur' }),
+        h('td.col-couleur', { text: v.couleur || '—' }),
         h('td.num', [h('span' + (km.source === 'defaut' ? '.km-defaut' : ''), { text: AMX.fmtNombre(km.km) + ' km', title: 'Km ' + KM_SOURCES[km.source] + (km.source === 'defaut' ? ' — cliquez Marquer pour l\'indiquer' : '') })]),
         h('td.num', { text: pd.total ? AMX.fmtArgent(pd.total) : '—', title: pd.pdsf ? 'PDSF ' + AMX.fmtArgent(pd.pdsf) + (pd.transport ? ' + transport ' + AMX.fmtArgent(pd.transport) : '') : 'PDSF (avec transport) lu au portail du manufacturier' }),
         h('td.dispo-cell', [pastilleDispo(v)].concat(pc.length ? [h('div.sous', pc)] : [])),
         h('td', { text: emplacementTexte(v.emplacement) || '—', title: v.emplacement || '' }),
         h('td', [v.enStock ? h('span.badge.' + s.couleur, { text: s.libelle }) : h('span.badge.gris', { text: 'Sorti le ' + AMX.fmtDateCourte(v.sortiLe) })]),
         h('td.num', [t ? h('span.badge.' + t.couleur + '.sans-point', { text: fmtJours(v.jours), title: v.recuLe ? 'Reçu le ' + AMX.fmtDate(v.recuLe) : '' }) : h('span', '—')])
-      ].concat(d.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' }), h('td.num', { text: v.coutDetention ? AMX.fmtArgent(v.coutDetention) : '—' })] : []).concat([cellNote]));
+      ].concat(d.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' }), h('td.num.col-detention', { text: v.coutDetention ? AMX.fmtArgent(v.coutDetention) : '—' })] : []).concat([cellNote]));
       tr.addEventListener('click', function () { self.ouvrir(v); });
       corps.appendChild(tr);
     });

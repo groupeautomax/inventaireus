@@ -106,17 +106,17 @@
   }
   function botte(src, x) {
     var f = foin.get(x);
-    if (!f) { f = { t: norm(src.champs(x)), d: chiffres(src.tel ? src.tel(x) : '') }; foin.set(x, f); }
+    if (!f) { var t = AMX.texteCherche(src.champs(x), true); f = { t: t, c: t.replace(/ /g, ''), d: chiffres(src.tel ? src.tel(x) : '') }; foin.set(x, f); }   /* v138 : AMX.texteCherche */
     return f;
   }
   function correspond(src, x, mots) {
     var f = botte(src, x);
-    return mots.every(function (m) { return f.t.indexOf(m) >= 0 || (/^\d{4,}$/.test(m) && f.d.indexOf(m) >= 0); });
+    return mots.every(function (m) { return f.t.indexOf(m) >= 0 || f.c.indexOf(m) >= 0 || (/^\d{4,}$/.test(m) && f.d.indexOf(m) >= 0); });
   }
 
   /* ------------------------------ Résultats ------------------------------ */
   function resultats(q, cie) {
-    var mots = norm(q).split(/\s+/).filter(Boolean);
+    var mots = AMX.motsCherches(q);
     var parVin = {}, ordre = [], autres = [], ailleurs = 0, enLecture = [];
     var src2 = sourcesActives();
     // 1. Les NIV qui répondent à la recherche (dans n'importe quelle liste).

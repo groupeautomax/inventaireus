@@ -299,7 +299,7 @@
     this.periode = periodeValide(this.params.mois) ? String(this.params.mois) : moisCourant();
     this.avenir = {};   /* nombre de ventes à livrer plus tard, par concession */
     this.annee = String(this.params.annee || AMX.memo.lire('ventes_annee', '') || new Date().getFullYear());
-    this.filtres = { etat: this.params.etat || '', type: this.params.type || '', recherche: '' };
+    this.filtres = { etat: this.params.etat || '', type: this.params.type || '', drapeau: '', recherche: '' };
     this.construire();
     this.montrer();
     this.sur = function () { self.rendre(); AMX.rafraichirSousBarre(); };
@@ -341,7 +341,9 @@
     this.elKpis = h('div.kpis');
     this.elFiltres = h('div.ventes-filtres');
     this.elListe = h('div');
-    this.elVueListe = h('div.ventes-vue-liste', [this.elKpis, this.elFiltres, this.elListe]);
+    this.elPortee = h('div.portee-chiffres');
+    /* v138 : les filtres d'abord, puis ce sur quoi portent les chiffres, les chiffres, la liste. */
+    this.elVueListe = h('div.ventes-vue-liste', [this.elFiltres, this.elPortee, this.elKpis, this.elListe]);
     this.elVueRecap = h('div.ventes-recap');
     page.appendChild(this.elCies); page.appendChild(this.elFi); page.appendChild(this.elVueListe); page.appendChild(this.elVueRecap);
     this.conteneur.appendChild(page);
@@ -494,80 +496,130 @@
   };
 
   VueVentes.prototype.rendre = function () {
-    var self = this, d = cache.rep;
+    var d = cache.rep;
     this.rendreEntete();
     this.rendreFi();
     if (this.vue === 'recap') { this.rendreRecap(); return; }
     if (!d) return;
+    this.normaliserFiltres();
     var n = d.compte || {}, total = d.ventes.length;
     var copie = cache.copieLe ? 'Copie du ' + AMX.copieTexte(cache.copieLe) + ' — mise à jour en cours… · ' : '';
     var importees = d.ventes.filter(function (v) { return v.importee; }).length;
     this.elSous.textContent = copie + (total ? pluriel(total, 'vente') + (n.declaree ? ' · ' + n.declaree + ' en attente du F&I' : '') + (n.comptabilisee ? ' · ' + n.comptabilisee + ' comptabilisée' + (n.comptabilisee > 1 ? 's' : '') : '') + (importees ? ' · ' + importees + ' importée' + (importees > 1 ? 's' : '') + ' du livre' : '') + (n.erreurLivre ? ' · ' + n.erreurLivre + ' pas au livre' : '') : 'Aucune vente inscrite pour cette période.') + (d.relu && d.relu.le && !d.relu.duCache ? ' · livre relu à ' + AMX.fmtDate(d.relu.le, true).replace(/^\S+\s/, '') : '');
-    AMX.vider(this.elKpis);
-    var ui2 = AMX.ui2 && AMX.ui2();
-    var kpi = function (etat, libelle, valeur, cls) {
-      return h('div.kpi' + (cls ? '.' + cls : '') + (self.filtres.etat === etat ? '.actif' : ''), { role: 'button', tabindex: '0', 'data-etat': etat, onclick: function () { self.filtres.etat = self.filtres.etat === etat ? '' : etat; self.rendre(); } }, [h('div.valeur', { text: String(valeur || 0) }), h('div.libelle', { text: libelle })]);
-    };
-    /* v133 : en ui2, les états passent en pastilles dans la barre de filtres ; les chiffres gardent l'essentiel. */
-    if (!ui2) {
-      this.elKpis.appendChild(kpi('declaree', 'Attente F&I', n.declaree, n.declaree ? 'alerte' : ''));
-      this.elKpis.appendChild(kpi('completee', 'Au livre', n.completee, ''));
-      this.elKpis.appendChild(kpi('comptabilisee', 'Comptabilisées', n.comptabilisee, ''));
-      this.elKpis.appendChild(kpi('annulee', 'Annulées', n.annulee, ''));
+    this.rendreFiltres();
+    this.rafraichir();
+  };
+  /* v138 (Maxime : « mettre la barre de recherche et les onglets avant les carrés avec les moyennes ; quand je choisis Au
+     livre, le calcul doit changer pour représenter Au livre ») : filtres → « Chiffres et liste : … » → chiffres → liste.
+     Les chiffres (moyennes, front, F&I, F&I à inscrire) portent sur les ventes que les filtres gardent ; le nombre d'une
+     pastille est ce qu'on verra en la choisissant (les autres filtres appliqués). */
+  VueVentes.prototype.rafraichir = function () { this.majCompteurs(); this.rendrePortee(); this.rendreKpis(); this.rendreListe(); };
+  /* Une vente passe-t-elle les filtres ? `sauf` = le filtre à ne pas appliquer ('etat' ou 'type') pour compter une pastille. */
+  VueVentes.prototype.garde = function (v, sauf) {
+    var f = this.filtres, q = f.recherche || '';
+    if (sauf !== 'etat' && f.etat && v.statut !== f.etat) return false;
+    if (sauf !== 'type' && f.type && v.type !== f.type) return false;
+    if (sauf !== 'drapeau' && f.drapeau === 'sansFI' && !besoinFI(v)) return false;
+    if (sauf !== 'drapeau' && f.drapeau === 'erreur' && v.livre !== 'erreur') return false;
+    if (q && !AMX.correspond([v.client, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin], q)) return false;   /* v138 : AMX.correspond */
+    return true;
+  };
+  VueVentes.prototype.visibles = function () {
+    var d = cache.rep, self = this; if (!d) return [];
+    return d.ventes.filter(function (v) { return self.garde(v); });
+  };
+  /* « F&I à inscrire » et « Pas au livre » se combinent avec l'onglet d'état (Au livre + F&I à inscrire) ; une adresse
+     d'avant (?etat=sansFI, depuis l'Accueil ou le récapitulatif) est remise dans `drapeau`. */
+  VueVentes.prototype.normaliserFiltres = function () {
+    var f = this.filtres;
+    if (f.etat === 'sansFI' || f.etat === 'erreur') { f.drapeau = f.etat; f.etat = ''; }
+    if (f.drapeau !== 'sansFI' && f.drapeau !== 'erreur') f.drapeau = '';
+  };
+  /* Les nombres des pastilles : état (sans le filtre d'état), type (sans le filtre de type), F&I à inscrire / pas au livre
+     (sans ce drapeau) — chaque nombre est ce qu'on verra en cliquant. */
+  VueVentes.prototype.compteurs = function () {
+    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 };
+    if (!d) return { etat: e, type: t };
+    d.ventes.forEach(function (v) {
+      if (self.garde(v, 'etat')) { e['']++; if (e[v.statut] !== undefined) e[v.statut]++; }
+      if (self.garde(v, 'type')) { t['']++; if (t[v.type] !== undefined) t[v.type]++; }
+      if (self.garde(v, 'drapeau')) { if (v.livre === 'erreur') e.erreur++; if (besoinFI(v)) e.sansFI++; }
+    });
+    return { etat: e, type: t };
+  };
+  var ETATS_VENTE = [['', 'Toutes'], ['declaree', 'Attente F&I'], ['completee', 'Au livre'], ['comptabilisee', 'Comptabilisées'], ['annulee', 'Annulées']];
+  var TYPES_VENTE = [['', 'Tous'], ['neuf', 'Neufs'], ['usage', 'Usagés'], ['wholesale', 'Wholesale']];
+  function libelleEtatVente(e) { if (e === 'sansFI') return 'F&I à inscrire'; if (e === 'erreur') return 'Pas au livre'; for (var i = 0; i < ETATS_VENTE.length; i++) if (ETATS_VENTE[i][0] === e) return ETATS_VENTE[i][1]; return e; }
+  /* La barre de filtres, dessinée une fois par rendu : la recherche garde le curseur, les nombres changent sur place. */
+  VueVentes.prototype.rendreFiltres = function () {
+    var self = this, ui2 = AMX.ui2 && AMX.ui2();
+    AMX.vider(this.elFiltres);
+    this.elFiltres.classList.toggle('inv2-filtres', !!ui2);
+    this.nbEtat = {}; this.nbType = {};
+    var rech = h('input.saisie#ventes-recherche', { type: 'search', placeholder: 'Client, NIV, # stock, conseiller…', value: this.filtres.recherche, 'aria-label': 'Chercher une vente' });
+    rech.addEventListener('input', function () { self.filtres.recherche = rech.value; self.rafraichir(); });
+    var segType = h('div.segment#ventes-types', TYPES_VENTE.map(function (t) { var b = h('span.n', { text: '0' }); self.nbType[t[0]] = b; return h('button' + (self.filtres.type === t[0] ? '.actif' : ''), { type: 'button', 'data-type': t[0], 'aria-pressed': self.filtres.type === t[0] ? 'true' : 'false', onclick: function () { self.filtres.type = t[0]; self.rendre(); } }, [t[1], b]); }));
+    if (ui2) {
+      // Recherche, puis l'état de la vente en pastilles (avec leur nombre), puis le type.
+      var pas = h('div.inv2-statuts', { role: 'group', 'aria-label': 'État de la vente' }, ETATS_VENTE.map(function (e) {
+        var actif = (self.filtres.etat || '') === e[0], b = h('b', { text: '0' }); self.nbEtat[e[0]] = b;
+        return h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'data-etat': e[0], 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres.etat = e[0]; self.rendre(); } }, [h('span', { text: e[1] }), b]);
+      }));
+      this.elFiltres.appendChild(h('div.recherche.inv2-recherche', [h('span', { html: AMX.icones.recherche }), rech]));
+      this.elFiltres.appendChild(pas);
+      this.elFiltres.appendChild(segType);
+      return;
     }
-    if (n.erreurLivre) this.elKpis.appendChild(kpi('erreur', 'Pas au livre', n.erreurLivre, 'alerte'));
+    this.elFiltres.appendChild(segType); this.elFiltres.appendChild(rech);
+    if (typeof XLSX !== 'undefined') this.elFiltres.appendChild(h('button.btn.petit#ventes-export', { type: 'button', onclick: function () { self.exporter(); } }, [AMX.svg('telecharger'), ' Excel']));
+  };
+  VueVentes.prototype.majCompteurs = function () {
+    var c = this.compteurs(), self = this;
+    this.nbCompte = c;
+    Object.keys(this.nbEtat || {}).forEach(function (k) { self.nbEtat[k].textContent = String(c.etat[k] || 0); });
+    Object.keys(this.nbType || {}).forEach(function (k) { self.nbType[k].textContent = String(c.type[k] || 0); });
+  };
+  VueVentes.prototype.rendrePortee = function () {
+    var self = this, f = this.filtres, liste = this.visibles(), q = (f.recherche || '').trim();
+    if (!this.elPortee) return;
+    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['vente', 'ventes'],
+      contexte: [this.periode === 'avenir' ? 'À livrer plus tard' : (this.periode === 'tout' ? 'Toutes les périodes' : capitale(this.periode.length === 4 ? 'année ' + this.periode : moisLibelle(this.periode))), this.compagnie ? (AMX.COMPAGNIES_TOUTES[this.compagnie] || this.compagnie) : ''],
+      filtres: [f.etat ? libelleEtatVente(f.etat) : '', f.drapeau ? libelleEtatVente(f.drapeau) : '', f.type ? (TYPES_VENTE.filter(function (t) { return t[0] === f.type; })[0] || ['', f.type])[1] : '', q ? '« ' + q + ' »' : ''],
+      effacer: function () { self.filtres = { etat: '', type: '', drapeau: '', recherche: '' }; self.rendre(); } });
+  };
+  VueVentes.prototype.rendreKpis = function () {
+    var self = this, d = cache.rep, ui2 = AMX.ui2 && AMX.ui2(), c = this.nbCompte || this.compteurs();
+    AMX.vider(this.elKpis);
+    if (!d) return;
+    var kpi = function (etat, libelle, valeur, cls) {
+      var champ = (etat === 'sansFI' || etat === 'erreur') ? 'drapeau' : 'etat', actif = self.filtres[champ] === etat;
+      return h('div.kpi' + (cls ? '.' + cls : '') + (actif ? '.actif' : ''), { role: 'button', tabindex: '0', 'data-etat': etat, 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres[champ] = actif ? '' : etat; self.rendre(); } }, [h('div.valeur', { text: String(valeur || 0) }), h('div.libelle', { text: libelle })]);
+    };
+    /* v133 : en ui2, les états sont des pastilles dans la barre de filtres ; ici, l'ancienne interface garde ses tuiles. */
+    if (!ui2) {
+      this.elKpis.appendChild(kpi('declaree', 'Attente F&I', c.etat.declaree, c.etat.declaree ? 'alerte' : ''));
+      this.elKpis.appendChild(kpi('completee', 'Au livre', c.etat.completee, ''));
+      this.elKpis.appendChild(kpi('comptabilisee', 'Comptabilisées', c.etat.comptabilisee, ''));
+      this.elKpis.appendChild(kpi('annulee', 'Annulées', c.etat.annulee, ''));
+    }
+    if (c.etat.erreur || this.filtres.drapeau === 'erreur') this.elKpis.appendChild(kpi('erreur', 'Pas au livre', c.etat.erreur, 'alerte'));
     if (d.montants) {
-      var actives = d.ventes.filter(function (v) { return v.statut !== 'annulee' && (!self.filtres.type || v.type === self.filtres.type); });
+      // Les montants portent sur les ventes gardées par les filtres, annulées exclues (sauf si on regarde les annulées).
+      var vues = this.visibles(), actives = this.filtres.etat === 'annulee' ? vues : vues.filter(function (v) { return v.statut !== 'annulee'; });
+      var nAnnulees = vues.length - actives.length;
       var cp = cumulProfits(actives);
-      /* v137 (Maxime : « indique en haut les moyennes par unité ») : profit moyen par vente — front, F&I, total — estimé et
-         comptable, et le prix de vente moyen, sur les ventes de la période et du type choisis (annulées exclues). */
       var moy = function (q) { return { e: q.nEstime ? q.estime / q.nEstime : null, c: q.nComptable ? q.comptable / q.nComptable : null }; };
       var prixL = actives.map(function (v) { return nombre(v.prixVente); }).filter(function (x) { return x !== null && x > 0; });
       var rangee = function (l, m) { return h('div.cmp-ligne', [h('span.l', { text: l }), h('span.v', { text: m.e === null ? '—' : argent(Math.round(m.e)) }), h('span.n', { text: m.c === null ? '' : 'compta ' + argent(Math.round(m.c)) })]); };
-      var carteMoy = h('div.kpi.neutre.ventes-comp.ventes-moy#ventes-kpi-moyennes', [h('div.titre', { text: 'Moyennes par unité · ' + pluriel(actives.length, 'vente') }),
+      var titreMoy = 'Moyennes par unité · ' + pluriel(actives.length, 'vente');
+      var carteMoy = h('div.kpi.neutre.ventes-comp.ventes-moy#ventes-kpi-moyennes', { title: nAnnulees ? nAnnulees + ' vente(s) annulée(s) exclue(s) des montants' : '' }, [h('div.titre', { text: titreMoy }),
         rangee('Front', moy(cp.front)), rangee('F&I', moy(cp.fi)), rangee('Total', moy(cp)),
         prixL.length ? h('div.cmp-ligne', [h('span.l', { text: 'Prix' }), h('span.v', { text: argent(Math.round(prixL.reduce(function (a, b) { return a + b; }, 0) / prixL.length)) }), h('span.n', { text: 'sur ' + prixL.length })]) : null]);
       this.elKpis.insertBefore(carteMoy, this.elKpis.firstChild);
       this.elKpis.appendChild(carteComparaison('ventes-kpi-front', 'Front (voiture)', cp.front));
       this.elKpis.appendChild(carteComparaison('ventes-kpi-fi', 'F&I', cp.fi));
     }
-    var nSansFI = d.ventes.filter(function (v) { return besoinFI(v) && (!self.filtres.type || v.type === self.filtres.type); }).length;
-    this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', nSansFI, nSansFI ? 'alerte' : ''));
-    AMX.vider(this.elFiltres);
-    /* 22 oct. : les compteurs Neufs / Usagés / Wholesale suivent la période et la concession (annulées exclues, comme le récapitulatif). */
-    var nonAnnulees = d.ventes.filter(function (v) { return v.statut !== 'annulee'; }), ct = compteTypes(nonAnnulees);
-    var segType = h('div.segment#ventes-types', [['', 'Tous', nonAnnulees.length], ['neuf', 'Neufs', ct.neuf], ['usage', 'Usagés', ct.usage], ['wholesale', 'Wholesale', ct.wholesale]].map(function (t) { return h('button' + (self.filtres.type === t[0] ? '.actif' : ''), { type: 'button', 'data-type': t[0], onclick: function () { self.filtres.type = t[0]; self.rendre(); } }, [t[1], h('span.n', { text: String(t[2]) })]); }));
-    var rech = h('input.saisie#ventes-recherche', { type: 'search', placeholder: 'Client, NIV, # stock, conseiller…', value: this.filtres.recherche });
-    rech.addEventListener('input', function () { self.filtres.recherche = rech.value; self.rendreListe(); });
-    if (ui2) {
-      // Barre de filtres : recherche, puis l'état de la vente en pastilles (avec leur nombre), puis le type.
-      this.elFiltres.classList.add('inv2-filtres');
-      var etats = [['', 'Toutes', total], ['declaree', 'Attente F&I', n.declaree], ['completee', 'Au livre', n.completee], ['comptabilisee', 'Comptabilisées', n.comptabilisee], ['annulee', 'Annulées', n.annulee]];
-      var pas = h('div.inv2-statuts', { role: 'group', 'aria-label': 'État de la vente' }, etats.map(function (e) {
-        var actif = (self.filtres.etat || '') === e[0];
-        return h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres.etat = e[0]; self.rendre(); } }, [h('span', { text: e[1] }), h('b', { text: String(e[2] || 0) })]);
-      }));
-      this.elFiltres.appendChild(h('div.recherche.inv2-recherche', [h('span', { html: AMX.icones.recherche }), rech]));
-      this.elFiltres.appendChild(pas);
-      this.elFiltres.appendChild(segType);
-      this.rendreListe();
-      return;
-    }
-    this.elFiltres.appendChild(segType); this.elFiltres.appendChild(rech);
-    if (typeof XLSX !== 'undefined') this.elFiltres.appendChild(h('button.btn.petit#ventes-export', { type: 'button', onclick: function () { self.exporter(); } }, [AMX.svg('telecharger'), ' Excel']));
-    this.rendreListe();
-  };
-  VueVentes.prototype.visibles = function () {
-    var d = cache.rep; if (!d) return [];
-    var f = this.filtres, q = (f.recherche || '').trim().toLowerCase();
-    return d.ventes.filter(function (v) {
-      if (f.etat === 'sansFI') { if (!besoinFI(v)) return false; }
-      else if (f.etat === 'erreur') { if (v.livre !== 'erreur') return false; }
-      else if (f.etat && v.statut !== f.etat) return false;
-      if (f.type && v.type !== f.type) return false;
-      if (q && [v.client, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin].join(' ').toLowerCase().indexOf(q) < 0) return false;
-      return true;
-    });
+    this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', c.etat.sansFI, c.etat.sansFI ? 'alerte' : ''));
   };
   /* Les ventes par mois afférent (la date inscrite), dans l'ordre de la liste (la plus récente d'abord). */
   function grouperParMois(liste) {
@@ -596,7 +648,7 @@
     var liste = this.visibles(), montants = !!d.montants;
     AMX.vider(this.elListe);
     if (!liste.length) {
-      this.elListe.appendChild(h('div.carte', [h('div.ventes-vide', [h('div', { text: (this.filtres.etat || this.filtres.type || this.filtres.recherche) ? 'Aucune vente pour ce filtre.' : 'Aucune vente inscrite pour cette période.' }),
+      this.elListe.appendChild(h('div.carte', [h('div.ventes-vide', [h('div', { text: (this.filtres.etat || this.filtres.drapeau || this.filtres.type || this.filtres.recherche) ? 'Aucune vente pour ce filtre.' : 'Aucune vente inscrite pour cette période.' }),
         AMX.ventes.peutDeclarer() ? h('button.btn.primaire', { type: 'button', style: { marginTop: '10px' }, onclick: function () { AMX.ventes.declarer({ compagnie: self.compagnie }); } }, [AMX.svg('plus'), ' Inscrire une vente']) : null])]));
       return;
     }

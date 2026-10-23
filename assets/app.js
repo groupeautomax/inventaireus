@@ -1735,6 +1735,46 @@
     conteneur.classList.toggle('sans-choix', !choix && !extra.length);
     return choix;
   };
+  /* v138 — la même recherche partout (Usagé, Neufs, Suivi service, Livre des ventes, recherche du haut). Maxime, 23 oct. :
+     « les recherches de stock dans inventaire ne fonctionnent pas, j'ai fait des tests avec Série 3 2015 » — l'export du DMS
+     BMW écrit « BMW SERIE 3 2015 » sans accent (d'autres « 3 Series », « 328i xDrive »), et les pages cherchaient le texte
+     tapé tel quel. Maintenant : accents, majuscules et ponctuation ignorés, chaque mot doit se trouver mais dans n'importe
+     quel ordre, et « série 3 » = « 3 series » = « 3er » = 320i / 328i / 330e / M340i / M3 pour une BMW. */
+  AMX.texteCherche = function (s, champs) {
+    var t = String(s === undefined || s === null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    t = t.replace(/\bseries? ([1-8])\b/g, 'serie$1').replace(/\b([1-8]) series?\b/g, 'serie$1').replace(/\b([1-8])er\b/g, 'serie$1');
+    if (champs && /\bbmw\b/.test(t)) {
+      var plus = [];
+      t.replace(/\bm?([1-8])\d\d[a-z]{0,2}\b|\bm([2-8])\b/g, function (x, a, b) { var n = a || b; if (plus.indexOf('serie' + n) < 0 && t.indexOf('serie' + n) < 0) plus.push('serie' + n); return x; });
+      if (plus.length) t += ' ' + plus.join(' ');
+    }
+    return t;
+  };
+  AMX.motsCherches = function (q) { var t = AMX.texteCherche(q); return t ? t.split(' ') : []; };
+  /** Le véhicule (ou la vente…) répond-il à la recherche ? champs = texte ou liste de textes ; q = texte tapé ou motsCherches(q). */
+  AMX.correspond = function (champs, q) {
+    var mots = Array.isArray(q) ? q : AMX.motsCherches(q);
+    if (!mots.length) return true;
+    var t = AMX.texteCherche(Array.isArray(champs) ? champs.join(' ') : champs, true), colle = t.replace(/ /g, '');
+    return mots.every(function (m) { return t.indexOf(m) >= 0 || colle.indexOf(m) >= 0; });
+  };
+  /* v138 (Maxime, 23 oct. : « mettre la recherche et les onglets avant les carrés ; quand je choisis Au livre, le calcul doit
+     changer pour représenter Au livre — concept qui doit s'appliquer partout ») : sur une page à filtres, l'ordre est
+     filtres → cette ligne → chiffres → liste, et les chiffres portent sur ce que les filtres gardent. La ligne le dit :
+     « 3 ventes · Octobre 2026 · Au livre · Neufs · « tucson » » + « Effacer les filtres ».
+     opts = { n, unite: ['vente', 'ventes'], contexte: 'Octobre 2026', filtres: ['Au livre', …], effacer: fn }. */
+  AMX.porteeChiffres = function (conteneur, opts) {
+    AMX.vider(conteneur);
+    conteneur.className = 'portee-chiffres';
+    var u = opts.unite || ['élément', 'éléments'], filtres = (opts.filtres || []).filter(Boolean);
+    conteneur.appendChild(h('span.l', { text: 'Chiffres et liste :' }));
+    conteneur.appendChild(h('b.n', { text: AMX.fmtNombre(opts.n || 0) + ' ' + (opts.n > 1 ? u[1] : u[0]) }));
+    [].concat(opts.contexte || []).filter(Boolean).forEach(function (c) { conteneur.appendChild(h('span.ctx', { text: c })); });
+    filtres.forEach(function (f) { conteneur.appendChild(h('span.filtre', { text: f })); });
+    if (!filtres.length) conteneur.appendChild(h('span.ctx.doux', { text: 'aucun filtre' }));
+    else if (opts.effacer) conteneur.appendChild(h('button.lien.effacer', { type: 'button', onclick: opts.effacer }, [h('span', { html: '&times;' }), ' Effacer les filtres']));
+    return conteneur;
+  };
   AMX.STATUTS_OFFRE = {
     nouvelle: { libelle: 'À traiter', couleur: 'ambre' }, contre: { libelle: 'Contre-offre', couleur: 'violet' },
     acceptee: { libelle: 'Acceptée', couleur: 'bleu' }, contrat: { libelle: 'Contrat signé', couleur: 'vert' },

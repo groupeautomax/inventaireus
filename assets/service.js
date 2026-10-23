@@ -350,6 +350,7 @@
     AMX.vider(this.conteneur);
     this.elKpis = h('div.kpis.inv2-resume');
     this.elRail = h('div.inv2-filtres');
+    this.elPortee = h('div.portee-chiffres');
     this.elListe = h('div');
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
@@ -368,7 +369,8 @@
         h('div.inv2-titre', [h('h1', 'Suivi service'), h('p#svc-etat.inv2-etat', { text: 'Chargement…' })]),
         h('div.actions', [menu])
       ]),
-      this.elKpis, this.elRail, this.elAgencement
+      /* v138 : filtres → « Chiffres et liste » → chiffres (calculés sur la liste filtrée) → liste */
+      this.elRail, this.elPortee, this.elKpis, this.elAgencement
     ]));
     this.construireFiltresUi2();
     var moi = this;
@@ -391,9 +393,9 @@
       return b;
     };
     if (this.onglet === 'termines') { pastilles.appendChild(h('span.doux', { text: 'Suivis terminés des 90 derniers jours — cherchez un NIV, un modèle ou un # stock.' })); return; }
-    var base = this.base();
-    var enCours = base.filter(function (s) { return s.statut === 'encours'; });
-    pastilles.appendChild(pastille('Toutes les étapes', enCours.length, !cherche && !f.etapes && !f.retard, '', function () { f.etapes = null; f.retard = false; }));
+    // v138 : le nombre d'une pastille = ce qu'on verra en la choisissant (les autres filtres appliqués).
+    var enCours = this.filtrer('etapes').filter(function (s) { return s.statut === 'encours'; });
+    pastilles.appendChild(pastille('Toutes les étapes', enCours.length, !cherche && !f.etapes, '', function () { f.etapes = null; }));
     etapes.forEach(function (e) {
       if (e.id === 'arrivee') return;
       var n = enCours.filter(function (s) { return s.etapeCourante === e.id; }).length;
@@ -402,7 +404,7 @@
       var cible = (cibles.etapes || {})[e.id];
       pastilles.appendChild(pastille(e.court || e.libelle, n, actif, e.porte ? 'ambre' : 'bleu', function () { f.etapes = actif ? null : [e.id]; }, e.libelle + (cible ? ' — cible ' + cible + ' j' : '')));
     });
-    var nRetard = enCours.filter(function (s) { return s.enRetard; }).length;
+    var nRetard = this.filtrer('retard').filter(function (s) { return s.statut === 'encours' && s.enRetard; }).length;
     pastilles.appendChild(pastille('En retard', nRetard, !cherche && f.retard, 'rouge', function () { f.retard = !f.retard; }, 'Cible : ' + cibles.total + ' j de l\'arrivée à « Prêt à vendre »'));
   };
 
@@ -489,7 +491,8 @@
       return s.statut === 'encours';
     });
   };
-  Suivi.prototype.filtrer = function () {
+  // v138 : `sauf` ('etapes', 'retard' ou 'demandes') = le filtre à ne pas appliquer, pour compter une pastille ou un chiffre.
+  Suivi.prototype.filtrer = function (sauf) {
     var f = this.filtres;
     var l = this.base();
     // Recherche « partout » (Maxime, 6 oct.) : dès qu'on tape, on fouille tous les suivis —
@@ -498,13 +501,13 @@
     if (f.recherche && f.recherche.trim()) {
       l = this.suivis.filter(function (s) { return !f.compagnie || String(s.compagnie || '').toUpperCase() === f.compagnie; });
     } else {
-      if (f.etapes && this.onglet !== 'termines') l = l.filter(function (s) { return f.etapes.indexOf(s.etapeCourante) >= 0; });
-      if (f.retard) l = l.filter(function (s) { return s.enRetard; });
-      if (f.demandes) l = l.filter(function (s) { var e = AMX.demandes.etat(s.vin); return e === 'envoyee' || e === 'retournee'; });
+      if (sauf !== 'etapes' && f.etapes && this.onglet !== 'termines') l = l.filter(function (s) { return f.etapes.indexOf(s.etapeCourante) >= 0; });
+      if (sauf !== 'retard' && f.retard) l = l.filter(function (s) { return s.enRetard; });
+      if (sauf !== 'demandes' && f.demandes) l = l.filter(function (s) { var e = AMX.demandes.etat(s.vin); return e === 'envoyee' || e === 'retournee'; });
     }
     if (f.recherche) {
-      var t = f.recherche.trim().toLowerCase();
-      l = l.filter(function (s) { return String(s.vin).toLowerCase().indexOf(t) >= 0 || String(s.modele || '').toLowerCase().indexOf(t) >= 0 || String(s.stock || '').toLowerCase().indexOf(t) >= 0 || String(s.btNo || '').toLowerCase().indexOf(t) >= 0; });
+      var mots = AMX.motsCherches(f.recherche);   /* v138 : même recherche partout (AMX.correspond) */
+      l = l.filter(function (s) { return AMX.correspond([s.vin, s.modele, s.stock, s.btNo], mots); });
     }
     var etapes = AMX.service.etapes();
     var cmp = {
@@ -520,15 +523,16 @@
   /* -------------------------------- Rendu --------------------------------- */
   Suivi.prototype.rendre = function () {
     if (this.elBandeau && this.elBandeau.parentNode) { var nb = AMX.bandeauPortee('service', this.filtres.compagnie, !!this.filtres.recherche); this.elBandeau.parentNode.replaceChild(nb, this.elBandeau); this.elBandeau = nb; }
-    this.rendreKpis();
+    if (this.ui2 && this.elPastillesUi2) this.construireFiltresUi2();   /* v138 : les nombres des pastilles suivent les données et les filtres */
     var liste = this.filtrer();
     this.listeCourante = liste;
+    this.rendreKpis(liste);
     this.rendreOutils(liste);
     this.rendreListe(liste);
     this.rendrePanneau();
   };
 
-  Suivi.prototype.rendreKpis = function () {
+  Suivi.prototype.rendreKpis = function (liste) {
     var self = this, f = this.filtres, cibles = AMX.service.cibles();
     AMX.vider(this.elKpis);
     var tous = this.suivis.filter(function (s) { return !f.compagnie || String(s.compagnie || '').toUpperCase() === f.compagnie; });
@@ -540,7 +544,7 @@
     var moy = prets.length ? Math.round(prets.reduce(function (a, s) { return a + (s.joursTotal || 0); }, 0) / prets.length * 10) / 10 : null;
     var kpi = function (valeur, libelle, opts) {
       opts = opts || {};
-      var k = h('button.kpi' + (opts.classe ? '.' + opts.classe : '') + (opts.actif ? '.actif' : ''), { type: 'button', title: opts.titre || null }, [h('div.valeur', { text: valeur }), h('div.libelle', { text: libelle }), opts.sous ? h('div.sous', { text: opts.sous }) : null]);
+      var k = h((opts.onclick ? 'button' : 'div') + '.kpi' + (opts.classe ? '.' + opts.classe : '') + (opts.actif ? '.actif' : ''), opts.onclick ? { type: 'button', title: opts.titre || null, 'aria-pressed': opts.actif ? 'true' : 'false' } : { title: opts.titre || null }, [h('div.valeur', { text: valeur }), h('div.libelle', { text: libelle }), opts.sous ? h('div.sous', { text: opts.sous }) : null]);
       if (opts.onclick) k.addEventListener('click', opts.onclick);
       return k;
     };
@@ -551,13 +555,22 @@
     var parStatut = resume.registreParStatut || {};
     var dem0 = (AMX.demandes.enCache() || []).filter(function (d) { return (!f.compagnie || String(d.compagnie || '').toUpperCase() === f.compagnie); });
     if (this.ui2) {
-      /* v133 : au plus cinq chiffres ; la moyenne et les prêts passent en sous-titre. */
-      var att = dem0.filter(function (d) { return d.etat === 'envoyee'; }).length, ret = dem0.filter(function (d) { return d.etat === 'retournee'; }).length;
-      this.elKpis.appendChild(kpi(auDetail, 'Au détail', { classe: 'neutre', sous: 'registre Detail', onclick: function () { AMX.aller('inventaire', 'detail'); } }));
-      this.elKpis.appendChild(kpi(enCours.length, 'En reconditionnement', { sous: prets.length + ' prêt' + (prets.length > 1 ? 's' : '') + ' en 30 j' + (moy === null ? '' : ' · moyenne ' + moy + ' j'), actif: this.onglet === 'encours' && !f.retard && !f.demandes, onclick: function () { f.retard = false; f.demandes = false; if (self.onglet !== 'encours') AMX.aller('service', 'encours'); else { self.construireRail(); self.rendre(); } } }));
-      this.elKpis.appendChild(kpi(aAutoriser, 'Direction', { classe: aAutoriser ? 'attention' : '', sous: 'à vérifier / autoriser', actif: this.onglet === 'autoriser', onclick: function () { AMX.aller('service', 'autoriser'); } }));
-      this.elKpis.appendChild(kpi(enRetard, 'En retard', { classe: enRetard ? 'alerte' : '', sous: 'cible ' + cibles.total + ' j', actif: f.retard, onclick: function () { f.retard = !f.retard; f.demandes = false; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.construireRail(); self.rendre(); } }));
-      if (AMX.demandes.enCache()) this.elKpis.appendChild(kpi(att, 'Demandes au service', { classe: att ? 'attention' : 'neutre', sous: ret ? ret + ' retournée' + (ret > 1 ? 's' : '') + ' avec une question' : 'en attente d\'un n° de BT', actif: !!f.demandes, onclick: function () { f.demandes = !f.demandes; f.retard = false; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.construireRail(); self.rendre(); } }));
+      /* v138 (Maxime : « quand je choisis un onglet, le calcul doit changer pour le représenter — partout ») : le premier
+         chiffre, le retard et les demandes portent sur la liste que les filtres gardent (étape, recherche) ; « Au détail » et
+         « Direction » restent des raccourcis vers le registre Detail et l'onglet Direction. */
+      liste = liste || this.filtrer();
+      var lesJours = liste.map(function (s) { return s.joursTotal; }).filter(function (j) { return typeof j === 'number' && !isNaN(j); });
+      var joursMoy = lesJours.length ? Math.round(lesJours.reduce(function (a, j) { return a + j; }, 0) / lesJours.length * 10) / 10 : null;
+      var sansRetard = this.filtrer('retard').filter(function (s) { return s.statut === 'encours' && s.enRetard; }).length;
+      var sansDem = this.filtrer('demandes'), etatDem = function (s) { return AMX.demandes.etat(s.vin); };
+      var att = sansDem.filter(function (s) { var e = etatDem(s); return e === 'envoyee' || e === 'retournee'; }).length, ret = sansDem.filter(function (s) { return etatDem(s) === 'retournee'; }).length;
+      var titreListe = (f.recherche && f.recherche.trim()) ? 'Trouvés' : ({ encours: 'En reconditionnement', autoriser: 'À la direction', termines: 'Terminés (90 j)' }[this.onglet] || 'Véhicules');
+      this.elKpis.appendChild(kpi(String(liste.length), titreListe, { classe: 'neutre.inv2-fixe', sous: joursMoy === null ? '' : 'en moyenne ' + joursMoy + ' j depuis l\'arrivée' }));
+      this.elKpis.appendChild(kpi(sansRetard, 'En retard', { classe: sansRetard ? 'alerte' : '', sous: 'cible ' + cibles.total + ' j', actif: f.retard, onclick: function () { f.retard = !f.retard; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.construireRail(); self.rendre(); } }));
+      if (AMX.demandes.enCache()) this.elKpis.appendChild(kpi(att, 'Demandes au service', { classe: att ? 'attention' : 'neutre', sous: ret ? ret + ' retournée' + (ret > 1 ? 's' : '') + ' avec une question' : 'en attente d\'un n° de BT', actif: !!f.demandes, onclick: function () { f.demandes = !f.demandes; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.construireRail(); self.rendre(); } }));
+      if (this.onglet !== 'autoriser') this.elKpis.appendChild(kpi(aAutoriser, 'Direction →', { classe: aAutoriser ? 'attention' : 'neutre', sous: 'à vérifier / autoriser', titre: 'Ouvrir l\'onglet Direction', onclick: function () { AMX.aller('service', 'autoriser'); } }));
+      this.elKpis.appendChild(kpi(auDetail, 'Au détail →', { classe: 'neutre', sous: prets.length + ' prêt' + (prets.length > 1 ? 's' : '') + ' en 30 j' + (moy === null ? '' : ' · ' + moy + ' j en moyenne'), titre: 'Ouvrir le registre Detail', onclick: function () { AMX.aller('inventaire', 'detail'); } }));
+      this.rendrePorteeUi2(liste);
       return;
     }
     var sousDetail = f.compagnie ? 'registre Detail · ' + AMX.COMPAGNIES_TOUTES[f.compagnie] : (parStatut.achete || parStatut.stock ? (parStatut.achete || 0) + ' acheté' + ((parStatut.achete || 0) > 1 ? 's' : '') + ' · ' + (parStatut.stock || 0) + ' en stock' : 'registre Detail');
@@ -574,11 +587,26 @@
     if (AMX.demandes.enCache()) this.elKpis.appendChild(kpi(attente, 'Au service', { classe: attente ? 'attention' : 'neutre', sous: retournees ? retournees + ' retournée' + (retournees > 1 ? 's' : '') + ' avec une question' : 'demandes en attente du no de BT', actif: f.demandes, onclick: function () { f.demandes = !f.demandes; if (self.onglet !== 'encours') { AMX.aller('service', 'encours'); return; } self.rendre(); } }));
   };
 
+  Suivi.prototype.rendrePorteeUi2 = function (liste) {
+    var self = this, f = this.filtres, etapes = AMX.service.etapes(), t = (f.recherche || '').trim(), filtres = [];
+    if (!this.elPortee) return;
+    if (t) filtres.push('« ' + t + ' » — tous les suivis');
+    else {
+      if (f.etapes && this.onglet !== 'termines') filtres.push(f.etapes.map(function (id) { var e = etapes.filter(function (x) { return x.id === id; })[0]; return e ? (e.court || e.libelle) : id; }).join(' + '));
+      if (f.retard) filtres.push('En retard');
+      if (f.demandes) filtres.push('Demande au service');
+    }
+    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['véhicule', 'véhicules'],
+      contexte: [{ encours: 'En cours', autoriser: 'Direction', termines: 'Terminés' }[this.onglet] || '', f.compagnie ? (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : 'toutes les concessions'],
+      filtres: filtres,
+      effacer: function () { f.etapes = null; f.retard = false; f.demandes = false; f.recherche = ''; if (self.elRechercheUi2) self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); } });
+  };
   Suivi.prototype.rendreOutils = function (liste) {
     var self = this, f = this.filtres;
     AMX.vider(this.elOutils);
     var sel = h('select.saisie', { onchange: function (e) { self.tri = e.target.value; AMX.memo.ecrire('svc_tri', self.tri); self.rendre(); } });
     [['jours', 'Jours depuis l\'arrivée'], ['etape', 'Étape'], ['maj', 'Dernière mise à jour'], ['modele', 'Modèle'], ['stock', '# stock']].forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: self.tri === o[0], text: 'Tri : ' + o[1] })); });
+    if (this.ui2) { this.elOutils.appendChild(h('span.espace')); this.elOutils.appendChild(sel); return; }   /* v138 : nombre et filtres dans « Chiffres et liste » */
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     var puces = [];
     if (f.retard) puces.push(['En retard', function () { f.retard = false; }]);

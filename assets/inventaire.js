@@ -40,6 +40,8 @@
     if (m === 'FORD' || m === 'LINCOLN') return 'https://www.windowsticker.ford.com/vin/' + encodeURIComponent(v.vin);
     return '';
   }
+  /* 1 161 135 → « 1,16 M$ », 345 200 → « 345 k$ » (pastilles des registres, v138). */
+  function montantCourt(n) { n = Number(n) || 0; if (Math.abs(n) >= 1e6) return (Math.round(n / 1e4) / 100).toLocaleString('fr-CA') + ' M$'; if (Math.abs(n) >= 1e3) return Math.round(n / 1e3).toLocaleString('fr-CA') + ' k$'; return Math.round(n) + ' $'; }
   function trier(liste, cle) {
     var l = liste.slice();
     var cmp = {
@@ -346,6 +348,7 @@
     this.elKpis = h('div.kpis.inv2-resume');
     this.elValeur = h('div');
     this.elRail = h('div.inv2-filtres');
+    this.elPortee = h('div.portee-chiffres');
     this.elListe = h('div');
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
@@ -364,7 +367,8 @@
         h('div.inv2-titre', [h('h1', 'Usagé'), this.elRegistres, h('p#inv-etat.inv2-etat', { text: 'Chargement…' })]),
         h('div.actions', [menu, AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null])
       ]),
-      this.elKpis, this.elRail, this.elAgencement
+      /* v138 (Maxime : « la recherche et les onglets avant les carrés ; les chiffres doivent représenter ce qu'on a choisi ») */
+      this.elRail, this.elPortee, this.elKpis, this.elAgencement
     ]));
     this.rendreRegistres();
     this.construireFiltresUi2();
@@ -382,22 +386,24 @@
       this.elPlusUi2 = h('div.inv2-plus-env');
       this.elRail.appendChild(this.elRechWrap); this.elRail.appendChild(this.elPastillesUi2); this.elRail.appendChild(this.elPlusUi2);
     }
-    var base = this.vehicules.filter(function (v) { return !f.compagnie || v.compagnie === f.compagnie; });
+    // v138 : le nombre d'une pastille = ce qu'on verra en la choisissant (alerte et filtres secondaires appliqués) ;
+    // l'alerte (« Registre 10 j+ », « Achat 7 j+ ») se combine avec le statut.
+    var base = this.filtrer('statut');
     var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
     var pastilles = AMX.vider(this.elPastillesUi2);
     var pastille = function (texte, n, actif, couleur, clic) {
       var b = h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false' }, [couleur ? h('i', { style: { background: 'var(--' + couleur + ')' } }) : null, h('span', { text: texte }), h('b', { text: String(n) })]);
-      b.addEventListener('click', function () { clic(); f.alerte = ''; f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); });
+      b.addEventListener('click', function () { clic(); f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); });
       return b;
     };
     var cherche = !!(f.recherche && f.recherche.trim());
-    pastilles.appendChild(pastille('Actifs', base.filter(function (v) { return actifs.indexOf(v.statut) >= 0; }).length, !cherche && !f.alerte && f.statuts === null, '', function () { f.statuts = null; }));
+    pastilles.appendChild(pastille('Actifs', base.filter(function (v) { return actifs.indexOf(v.statut) >= 0; }).length, !cherche && f.statuts === null, '', function () { f.statuts = null; }));
     cfg.statuts.forEach(function (s) {
       var st = AMX.statut(s, cfg.feuille), n = base.filter(function (v) { return v.statut === s; }).length;
-      var actif = !cherche && !f.alerte && f.statuts && f.statuts.length === 1 && f.statuts[0] === s;
+      var actif = !cherche && f.statuts && f.statuts.length === 1 && f.statuts[0] === s;
       pastilles.appendChild(pastille(st.libelle, n, actif, st.couleur, function () { f.statuts = actif ? null : [s]; }));
     });
-    pastilles.appendChild(pastille('Tous', base.length, !cherche && !f.alerte && f.statuts && f.statuts.length === cfg.statuts.length, '', function () { f.statuts = cfg.statuts.slice(); }));
+    pastilles.appendChild(pastille('Tous', base.length, !cherche && f.statuts && f.statuts.length === cfg.statuts.length, '', function () { f.statuts = cfg.statuts.slice(); }));
     // Filtres secondaires dans un menu déroulant
     var nbAutres = ['origine', 'rappel', 'importateur', 'registre'].filter(function (k) { return f[k]; }).length;
     var selectFiltre = function (libelle, cle, options) {
@@ -418,21 +424,46 @@
     var enveloppe = AMX.vider(this.elPlusUi2);
     enveloppe.appendChild(btnFiltres); enveloppe.appendChild(pop);
   };
-  // Au plus quatre chiffres : actifs (et leur coût), registre non reçu 10 j+, achat 7 j+, valeur des trois registres.
-  Registre.prototype.rendreResumeUi2 = function (kpi) {
-    var self = this, f = this.filtres, cfg = this.cfg;
-    var actifsSt = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
-    var base = this.base(), actifs = base.filter(function (v) { return actifsSt.indexOf(v.statut) >= 0; });
-    var sA = AMX.inventaire.sommeCouts(actifs);
-    var retard = actifs.filter(enRetardRegistre).length, retardAchat = actifs.filter(enRetardAchat).length;
-    var regs = AMX.inventaire.valeurRegistres(f.compagnie), charges = regs.filter(function (r) { return r.charge; });
-    var total = charges.reduce(function (t, r) { return t + r.total; }, 0);
-    var clic = function (alerte) { return function () { f.alerte = f.alerte === alerte ? '' : alerte; f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); }; };
-    this.elKpis.appendChild(kpi(actifs.length, 'Véhicules actifs', { classe: 'neutre', sous: sA.texte + ' de coût', titre: sA.detail, actif: !f.alerte && f.statuts === null && !f.recherche, onclick: function () { f.alerte = ''; f.statuts = null; f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); } }));
-    this.elKpis.appendChild(kpi(retard, 'Registre 10 j+', { classe: retard ? 'alerte' : 'neutre', sous: retard ? 'non reçu — à relancer' : 'tout est reçu', actif: f.alerte === 'retard', onclick: clic('retard') }));
-    this.elKpis.appendChild(kpi(retardAchat, 'Achat 7 j+', { classe: retardAchat ? 'attention' : 'neutre', sous: retardAchat ? 'pas encore en stock' : 'aucun retard', actif: f.alerte === 'retardAchat', onclick: clic('retardAchat') }));
-    this.elKpis.appendChild(kpi(charges.length ? AMX.fmtArgent(total, 0) : '…', 'Valeur des 3 registres', { classe: 'neutre', sous: charges.map(function (r) { return r.titre + ' ' + r.n; }).join(' · ') || 'chargement…', titre: 'Coût des véhicules actifs, É.-U. + Canada + Detail' }));
+  // v138 (Maxime, 23 oct. : « quand je choisis un onglet, le calcul doit changer pour le représenter — partout ») : les chiffres
+  // portent sur la liste que les filtres gardent. Véhicules et coût total, registre non reçu 10 j+ et achat 7 j+ (chacun :
+  // ce qu'on verra en cliquant, l'alerte se combinant avec le statut), coût moyen et âge moyen. La valeur des trois
+  // registres est sur les pastilles É.-U. · Canada · Detail, à côté du titre.
+  Registre.prototype.rendreResumeUi2 = function (kpi, liste) {
+    var self = this, f = this.filtres;
+    liste = liste || this.filtrer();
+    var sA = AMX.inventaire.sommeCouts(liste);
+    var sansAlerte = this.filtrer('alerte'), retard = sansAlerte.filter(enRetardRegistre).length, retardAchat = sansAlerte.filter(enRetardAchat).length;
+    var clic = function (alerte) { return function () { f.alerte = f.alerte === alerte ? '' : alerte; self.construireFiltresUi2(); self.rendre(); }; };
+    var avecCout = liste.filter(function (v) { return Number(v.cout) > 0; }), coutMoy = avecCout.length ? Math.round(avecCout.reduce(function (t, v) { return t + Number(v.cout); }, 0) / avecCout.length) : null;
+    var ages = liste.map(function (v) { return AMX.joursDepuis(v.dateAjout); }).filter(function (j) { return j !== null && j !== undefined && !isNaN(j) && j >= 0; });
+    var ageMoy = ages.length ? Math.round(ages.reduce(function (t, j) { return t + j; }, 0) / ages.length) : null;
+    this.elKpis.appendChild(kpi(String(liste.length), liste.length > 1 ? 'Véhicules' : 'Véhicule', { classe: 'neutre.inv2-fixe', sous: sA.texte + ' de coût', titre: sA.detail }));
+    this.elKpis.appendChild(kpi(String(retard), 'Registre 10 j+', { classe: retard ? 'alerte' : 'neutre', sous: retard ? 'non reçu — à relancer' : 'tout est reçu', actif: f.alerte === 'retard', onclick: clic('retard') }));
+    this.elKpis.appendChild(kpi(String(retardAchat), 'Achat 7 j+', { classe: retardAchat ? 'attention' : 'neutre', sous: retardAchat ? 'pas encore en stock' : 'aucun retard', actif: f.alerte === 'retardAchat', onclick: clic('retardAchat') }));
+    this.elKpis.appendChild(kpi(coutMoy === null ? '—' : AMX.fmtArgent(coutMoy, 0), 'Coût moyen', { classe: 'neutre.inv2-fixe', sous: ageMoy === null ? '' : 'âge moyen ' + ageMoy + ' j depuis l\'achat', titre: avecCout.length + ' véhicule(s) avec un coût' + (liste.length - avecCout.length ? ', ' + (liste.length - avecCout.length) + ' sans coût' : '') }));
     this.rendreRegistres();
+    this.rendrePorteeUi2(liste);
+  };
+  /* « Chiffres et liste : 34 véhicules · É.-U. · Ste Marie… · En stock · Registre 10 j+ » + « Effacer les filtres ». */
+  Registre.prototype.rendrePorteeUi2 = function (liste) {
+    var self = this, f = this.filtres, cfg = this.cfg;
+    if (!this.elPortee) return;
+    var t = (f.recherche || '').trim(), filtres = [];
+    if (t) filtres.push('« ' + t + ' » — tous statuts, tous registres');
+    else if (f.statuts && f.statuts.length === cfg.statuts.length) filtres.push('Tous les statuts (vendus compris)');
+    else if (f.statuts) filtres.push(f.statuts.map(function (s) { return AMX.statut(s, cfg.feuille).libelle; }).join(' + '));
+    if (f.alerte === 'retard') filtres.push('Registre non reçu 10 j+');
+    if (f.alerte === 'retardAchat') filtres.push('Achat 7 j+, pas en stock');
+    if (!t) {
+      if (f.origine) filtres.push('Origine : ' + f.origine);
+      if (f.rappel) filtres.push({ oui: 'Rappel ouvert', non: 'Aucun rappel', inconnu: 'Rappel non vérifié' }[f.rappel] || f.rappel);
+      if (f.importateur) filtres.push('Importateur : ' + f.importateur);
+      if (f.registre) filtres.push({ non: 'Registre non reçu', 'oui-bon': 'Registre reçu · bon nom', 'oui-mauvais': 'Registre reçu · mauvais nom' }[f.registre] || f.registre);
+    }
+    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['véhicule', 'véhicules'],
+      contexte: ['Registre ' + cfg.titre, f.compagnie ? (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : 'toutes les concessions', (!t && f.statuts === null) ? 'actifs' : ''],
+      filtres: filtres,
+      effacer: function () { var c = f.compagnie; self.filtres = self.filtresDefaut(); self.filtres.compagnie = c; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); } });
   };
 
   /* ------------------------------ Données ------------------------------ */
@@ -534,20 +565,24 @@
       self.chargementsAutres[feuille] = true;
       AMX.inventaire.lire(feuille, false).then(function () { if (!self.detruit && self.filtres.recherche) self.rendre(); }).catch(function () {});
     });
+    var mots = AMX.motsCherches(t);   /* v138 : accents, ordre des mots, « série 3 » = « 3 series » = 328i (AMX.correspond) */
     return tout.filter(function (v) {
       if (f.compagnie && v.compagnie !== f.compagnie) return false;
-      return String(v.vin).toLowerCase().indexOf(t) >= 0 || String(v.modele || '').toLowerCase().indexOf(t) >= 0 || String(v.stock || '').toLowerCase().indexOf(t) >= 0;
+      return AMX.correspond([v.vin, v.modele, v.stock, v.origine], mots);
     });
   };
-  Registre.prototype.filtrer = function () {
-    var f = this.filtres, cfg = this.cfg;
-    if (f.recherche && f.recherche.trim()) return trier(this.rechercherPartout(f.recherche.trim().toLowerCase()), this.tri);
+  // v138 : `sauf` ('statut' ou 'alerte') = le filtre à ne pas appliquer, pour compter une pastille ou un chiffre. L'alerte
+  // (registre 10 j+, achat 7 j+) se combine maintenant avec le statut (avant, elle le remplaçait) : par défaut on voit donc les
+  // véhicules ACTIFS en retard, le même compte que l'Accueil (AMX.inventaire.alertes).
+  Registre.prototype.filtrer = function (sauf) {
+    var f = this.filtres, cfg = this.cfg, alerte = sauf === 'alerte' ? '' : f.alerte;
+    var gardeAlerte = function (v) { return alerte === 'retard' ? enRetardRegistre(v) : (alerte === 'retardAchat' ? enRetardAchat(v) : true); };
+    if (f.recherche && f.recherche.trim()) return trier(this.rechercherPartout(f.recherche.trim().toLowerCase()).filter(gardeAlerte), this.tri);
     var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
     var statuts = f.statuts || actifs;
     var l = this.base().filter(function (v) {
-      if (f.alerte === 'retard') return enRetardRegistre(v);
-      if (f.alerte === 'retardAchat') return enRetardAchat(v);
-      return statuts.indexOf(v.statut) >= 0 || (statuts.length === cfg.statuts.length);
+      if (sauf !== 'statut' && !(statuts.indexOf(v.statut) >= 0 || statuts.length === cfg.statuts.length)) return false;
+      return gardeAlerte(v);
     });
     if (f.origine) l = l.filter(function (v) { return v.origine === f.origine; });
     if (f.rappel === 'oui') l = l.filter(function (v) { return v.rappel === 'oui'; });
@@ -556,8 +591,8 @@
     if (f.importateur) l = l.filter(function (v) { return v.importateur === f.importateur; });
     if (f.registre) l = l.filter(function (v) { return registreDe(v) === f.registre; });
     if (f.recherche) {
-      var t = f.recherche.trim().toLowerCase();
-      l = l.filter(function (v) { return String(v.vin).toLowerCase().indexOf(t) >= 0 || String(v.modele || '').toLowerCase().indexOf(t) >= 0 || String(v.stock || '').toLowerCase().indexOf(t) >= 0; });
+      var mots = AMX.motsCherches(f.recherche);
+      l = l.filter(function (v) { return AMX.correspond([v.vin, v.modele, v.stock, v.origine], mots); });
     }
     return trier(l, this.tri);
   };
@@ -565,20 +600,21 @@
   /* -------------------------------- Rendu ------------------------------ */
   Registre.prototype.rendre = function () {
     if (this.elBandeau && this.elBandeau.parentNode) { var nb = AMX.bandeauPortee('inventaire', this.filtres.compagnie, !!this.filtres.recherche); this.elBandeau.parentNode.replaceChild(nb, this.elBandeau); this.elBandeau = nb; }
-    this.rendreKpis();
+    if (this.ui2 && this.elPastillesUi2) this.construireFiltresUi2();   /* v138 : les nombres des pastilles suivent les données et les filtres */
     var liste = this.filtrer();
     this.listeCourante = liste;
+    this.rendreKpis(liste);
     this.rendreOutils(liste);
     this.rendreListe(liste);
     this.rendrePanneau();
   };
 
-  Registre.prototype.rendreKpis = function () {
+  Registre.prototype.rendreKpis = function (liste) {
     var self = this, base = this.base(), f = this.filtres, cfg = this.cfg;
     AMX.vider(this.elKpis);
     var kpi = function (valeur, libelle, opts) {
       opts = opts || {};
-      var k = h('button.kpi' + (opts.classe ? '.' + opts.classe : '') + (opts.actif ? '.actif' : ''), { type: 'button', title: opts.titre || '' }, [
+      var k = h((opts.onclick ? 'button' : 'div') + '.kpi' + (opts.classe ? '.' + opts.classe : '') + (opts.actif ? '.actif' : ''), opts.onclick ? { type: 'button', title: opts.titre || '', 'aria-pressed': opts.actif ? 'true' : 'false' } : { title: opts.titre || '' }, [
         h('div.valeur', { text: valeur }), h('div.libelle', { text: libelle }), opts.sous ? h('div.sous', { text: opts.sous }) : null,
         opts.couleur ? h('span.pastille', { style: { background: 'var(--' + opts.couleur + ')' } }) : null
       ]);
@@ -586,7 +622,7 @@
       return k;
     };
     var tousActifs = f.statuts === null && !f.alerte;
-    if (this.ui2) { this.rendreResumeUi2(kpi); return; }
+    if (this.ui2) { this.rendreResumeUi2(kpi, liste); return; }
     // Total en $ (coût d'achat) par registre et par statut — demande de Maxime, 7 oct.
     var sommeCouts = AMX.inventaire.sommeCouts;
     var sTotal = sommeCouts(base);
@@ -602,7 +638,7 @@
         self.construireRail(); self.rendre();
       } }));
     });
-    var retard = base.filter(enRetardRegistre).length, retardAchat = base.filter(enRetardAchat).length;
+    var sansAlerte = this.filtrer('alerte'), retard = sansAlerte.filter(enRetardRegistre).length, retardAchat = sansAlerte.filter(enRetardAchat).length;
     if (retard) this.elKpis.appendChild(kpi(retard, 'Registre 10 j+', { classe: 'alerte', sous: 'non reçu', actif: f.alerte === 'retard', onclick: function () { f.alerte = f.alerte === 'retard' ? '' : 'retard'; self.rendre(); } }));
     if (retardAchat) this.elKpis.appendChild(kpi(retardAchat, 'Achat 7 j+', { classe: 'attention', sous: 'pas encore en stock', actif: f.alerte === 'retardAchat', onclick: function () { f.alerte = f.alerte === 'retardAchat' ? '' : 'retardAchat'; self.rendre(); } }));
     void tousActifs;
@@ -616,7 +652,7 @@
     AMX.vider(this.elRegistres);
     var regs = AMX.inventaire.valeurRegistres(this.filtres.compagnie);
     regs.forEach(function (r) {
-      self.elRegistres.appendChild(h('button' + (r.id === self.onglet ? '.actif' : ''), { type: 'button', 'data-registre': r.id, onclick: function () { if (r.id !== self.onglet) AMX.inventaire.aller(r.id); } }, [r.titre, r.charge ? h('span.compteur', { text: ' ' + r.n }) : null]));
+      self.elRegistres.appendChild(h('button' + (r.id === self.onglet ? '.actif' : ''), { type: 'button', 'data-registre': r.id, title: r.charge ? r.n + ' véhicule(s) actif(s) · ' + r.texte + ' de coût' : '', onclick: function () { if (r.id !== self.onglet) AMX.inventaire.aller(r.id); } }, [r.titre, r.charge ? h('span.compteur', { text: ' ' + r.n }) : null, (self.ui2 && r.charge && r.total) ? h('span.valeur-reg', { text: montantCourt(r.total) }) : null]));
     });
   };
   // Bande « Valeur des inventaires » : les trois registres côte à côte (véhicules actifs), registre courant en évidence.
@@ -642,6 +678,7 @@
     AMX.vider(this.elOutils);
     var sel = h('select.saisie', { onchange: function (e) { self.tri = e.target.value; AMX.memo.ecrire('inv_tri', self.tri); self.rendre(); } });
     [['maj', 'Dernière mise à jour'], ['achat', 'Achat récent'], ['achatAsc', 'Achat ancien'], ['statut', 'Statut'], ['modele', 'Modèle'], ['stock', '# stock'], ['cout', 'Coût']].forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: self.tri === o[0], text: 'Tri : ' + o[1] })); });
+    if (this.ui2) { this.elOutils.appendChild(h('span.espace')); this.elOutils.appendChild(sel); return; }
     var f = this.filtres;
     var puces = [];
     if (f.alerte === 'retard') puces.push(['Registre non reçu 10 j+', function () { f.alerte = ''; }]);
@@ -670,6 +707,9 @@
     }
     var frag = document.createDocumentFragment();
     var MAX = 400;
+    /* v138 : la liste se lit comme un tableau — les titres de colonnes une seule fois, en haut, au lieu de « Statut / Mise à
+       jour / Suivi / Coût » répétés sur chaque ligne. */
+    if (this.ui2) frag.appendChild(h('div.ligne.ligne-tete', { 'aria-hidden': 'true' }, [h('div'), h('div', 'Véhicule'), h('div.cell.statut', 'Statut'), h('div.cell.maj', 'Mise à jour'), h('div.cell.indic', 'Suivi'), h('div.montant', 'Coût'), h('div')]));
     liste.slice(0, MAX).forEach(function (v) { frag.appendChild(self.ligne(v)); });
     if (liste.length > MAX) frag.appendChild(h('div.vide', { text: (liste.length - MAX) + ' autres véhicules — affinez les filtres pour les voir.' }));
     this.elListe.appendChild(h('div.liste', [frag]));

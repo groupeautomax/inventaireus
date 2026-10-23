@@ -20,7 +20,7 @@
   window.AMX = window.AMX || {};
 
   AMX.AIDE_CONTENU = {
-    version: '23 octobre 2026',
+    version: '23 octobre 2026 (soir)',
 
     frequentes: ['inv-statut', 'inv-stock-km', 'achat-quand', 'svc-autoriser', 'svc-rdv-prendre', 'avis-repondre', 'eval-lancer', 'dem-connexion', 'app-installer', 'inv-recherche', 'svc-refus', 'offre-publier', 'offre-signer', 'dep-deconnecte', 'dep-lent'],
 
@@ -73,7 +73,7 @@
           { id: 'inv-registre-immat', q: 'Qu\'est-ce que « Registre » (Non reçu / Reçu · bon nom / Mauvais nom) ?', mots: 'registre immatriculation reçu bon nom mauvais nom enregistrement papiers titre',
             r: '<p>C\'est le registre d\'immatriculation (les papiers du véhicule). Dans le bloc Statut, ligne <b>REGISTRE</b> : cliquez Non reçu, Reçu · bon nom ou Reçu · mauvais nom. La puce « n j sans registre » compte les jours depuis l\'achat tant qu\'il n\'est pas reçu ; elle passe en rouge quand ça traîne.</p>' },
           { id: 'inv-recherche', q: 'Comment trouver un véhicule rapidement ?', mots: 'chercher recherche niv vin stock modèle partout tous registres statuts',
-            r: '<p>Deux recherches :</p><ul><li>La <b>recherche globale</b> dans la barre du haut (touche <b>/</b>) : NIV, # stock ou modèle, dans tous les registres ; un NIV hors inventaire avec rapport CARFAX ouvre le rapport.</li><li>Dans l\'inventaire, la case <b>Recherche</b> du rail : dès qu\'elle contient du texte, elle cherche <b>partout</b> — tous les statuts, les trois registres — en gardant la concession choisie. Une ligne d\'un autre registre porte une puce ambre « Registre Canada » ; un clic l\'ouvre là-bas.</li></ul>' },
+            r: '<p>Deux recherches :</p><ul><li>La <b>recherche globale</b> dans la barre du haut (touche <b>/</b>) : NIV, # stock ou modèle, dans tous les registres ; un NIV hors inventaire avec rapport CARFAX ouvre le rapport.</li><li>Dans l\'inventaire, la case <b>Recherche</b> au-dessus de la liste : dès qu\'elle contient du texte, elle cherche <b>partout</b> — tous les statuts, les trois registres — en gardant la concession choisie. Une ligne d\'un autre registre porte une puce ambre « Registre Canada » ; un clic l\'ouvre là-bas.</li></ul><p>Partout, les accents, les majuscules et l\'ordre des mots ne comptent pas : « serie 3 2015 », « 2015 Série 3 » et « BMW SERIE 3 2015 » trouvent les mêmes véhicules. Pour une BMW, « série 3 » trouve aussi « 3 Series », « 328i », « 330e » ou « M340i ».</p>' },
           { id: 'inv-filtres', q: 'À quoi servent les filtres du rail ?', mots: 'filtrer statut alertes origine rappel importateur tri colonnes réinitialiser',
             r: '<p>Le rail de gauche filtre la liste : concession, statuts (cases), alertes (registre non reçu, véhicules anciens), origine (échange, encan…), rappel du fabricant, importateur (É.-U.). <b>Réinitialiser</b> remet tout sauf la concession choisie. Les chiffres clés en haut (Total, par statut) sont aussi des filtres : un clic sur « En stock » ne montre que ceux-là.</p>' },
           { id: 'inv-valeur', q: 'Où voir la valeur en $ des inventaires ?', mots: 'total dollars valeur registre montant somme coût chiffres clés bande',
@@ -110,6 +110,8 @@
       /* ------------------------------------------------------------------ */
       { id: 'neufs', titre: 'Véhicules neufs', intro: 'Le suivi des neufs alimenté par le DMS de chaque concession.',
         articles: [
+          { id: 'neufs-annees', q: 'Pourquoi un neuf de 2024 ou plus vieux n\'apparaît pas ?', mots: 'vieux ancien 2024 2015 année modèle retiré effacer supprimer neuf fantôme dms',
+            r: '<p>Depuis le 23 octobre, les neufs d\'<b>année-modèle 2024 et moins</b> ne sont plus suivis : ce sont de vieilles fiches restées « neuves » au DMS (par exemple des Série 3 2015 chez BMW Sherbrooke), pas des véhicules à vendre. Ils ne sont plus importés, plus montrés, et sont retirés de la feuille au prochain import, sans compter de sortie.</p><p>Un véhicule plus récent à retirer quand même : sa fiche › <b>Retirer du suivi</b> (administrateurs).</p>' },
           { id: 'neufs-quoi', q: 'D\'où viennent les véhicules neufs ?', mots: 'dms feed import automatique quotidien export fichier',
             r: '<p>Du <b>DMS</b> de la concession : un export quotidien (fichier texte ou csv de l\'inventaire) est envoyé par courriel à l\'adresse de réception du système, lu chaque heure, et les neufs (N) comme les usagés (U) sont mis à jour. VW Brossard est branché ; pour les autres concessions, il faut programmer le même envoi dans le DMS — Maxime donne l\'adresse.</p><p>Rien n\'est jamais supprimé : un véhicule absent du feed est marqué <b>sorti</b> (vendu), et il revient comme « retour » s\'il réapparaît.</p>',
             liens: [{ t: 'Ouvrir les neufs', s: 'inventaire', o: 'neufs' }] },
@@ -467,6 +469,8 @@
     ],
 
     nouveautes: [
+      { date: '23 octobre 2026 (soir)', titre: 'Les filtres d\'abord, et les chiffres suivent ce que vous choisissez',
+        texte: 'Livre des ventes, Usagé, Neufs et Suivi service : la recherche et les onglets (Au livre, En stock, Démo…) sont maintenant au-dessus des carrés de chiffres, et ces chiffres portent sur ce que vous avez choisi — « Au livre » donne les moyennes des ventes au livre. Le nombre sur chaque onglet est ce que vous verrez en cliquant. Une ligne « Chiffres et liste : … » dit sur quoi portent les chiffres, avec « Effacer les filtres ». La recherche ignore les accents et l\'ordre des mots (« serie 3 2015 » trouve « BMW SERIE 3 2015 »). La liste Usagé se lit comme un tableau ; dans Neufs, Inventaire · Type · Marque tiennent sur une ligne, la couleur et le moteur passent sous le nom et le tableau tient dans l\'écran. Les neufs de 2024 et moins ne sont plus suivis.' },
       { date: '23 octobre 2026 (suite)', titre: 'Nouvelle interface pour tout le monde, et MAX ai devient Einstein AI',
         texte: 'Le site s\'ouvre maintenant dans sa nouvelle interface : une barre de navigation à gauche, la concession choisie une seule fois en haut pour tout le site, Ctrl+K (⌘K sur Mac) pour aller n\'importe où, un Accueil qui liste ce qui vous attend aujourd\'hui et une page Usagé plus simple. Pour retrouver l\'ancienne : « Revenir à l\'ancienne interface » au bas de la barre de gauche (ou dans le menu du compte) ; le choix est gardé sur votre appareil. L\'assistant s\'appelle maintenant Einstein AI ; dans l\'app, il a son propre onglet en bas de l\'écran.' },
       { date: '23 octobre 2026', titre: 'Un site plus lisible et plus simple à parcourir : texte plus grand, couleurs plus contrastées, recherche plus large, chaque tuile rouvre votre dernier onglet',

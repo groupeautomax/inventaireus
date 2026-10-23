@@ -969,6 +969,43 @@ html.ui2 .barre-cies:has(> .choix-cie.suit-site):not(:has(> .extra)) { display: 
   .inv2-resume .kpi { flex: 1 0 140px; }
 }
 
+/* v138 — « Chiffres et liste : … » entre les filtres et les chiffres (AMX.porteeChiffres) : les chiffres suivent les filtres. */
+.portee-chiffres { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: -2px 0 10px; font-size: 13px; color: var(--encre-3); }
+.portee-chiffres .n { color: var(--encre); font-weight: 700; font-variant-numeric: tabular-nums; }
+.portee-chiffres .ctx::before, .portee-chiffres .filtre::before { content: "·"; margin-right: 6px; color: var(--encre-4); }
+.portee-chiffres .filtre { color: var(--vert-fonce); font-weight: 600; }
+.portee-chiffres .effacer { margin-left: 6px; background: none; border: none; padding: 2px 4px; font: inherit; color: var(--encre-3); text-decoration: underline; cursor: pointer; }
+.portee-chiffres .effacer:hover { color: var(--encre); }
+.portee-chiffres .effacer span { text-decoration: none; margin-right: 2px; }
+
+/* v138 — Usagé (ui2) : la liste se lit comme un tableau (une carte, des lignes séparées par un filet, les titres de colonnes
+   une seule fois) ; les chiffres qui ne filtrent pas ne ressemblent pas à des boutons ; la valeur sur les pastilles de registre. */
+html.ui2 .inv2 .liste { gap: 0; background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); overflow: hidden; }
+html.ui2 .inv2 .liste > .ligne { border: none; border-radius: 0; border-bottom: 1px solid var(--ligne); min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
+html.ui2 .inv2 .liste > .ligne:last-child { border-bottom: none; }
+html.ui2 .inv2 .liste > .ligne:hover { box-shadow: none; background: var(--carte-2); }
+html.ui2 .inv2 .liste > .ligne.actif { box-shadow: inset 3px 0 0 var(--vert); background: var(--vert-clair); }
+html.ui2 .inv2 .ligne .cell .l, html.ui2 .inv2 .ligne .montant .l { display: none; }
+html.ui2 .inv2 .ligne.ligne-tete { min-height: 0; padding-top: 7px; padding-bottom: 7px; background: var(--carte-2); cursor: default; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--encre-3); }
+html.ui2 .inv2 .ligne.ligne-tete:hover { background: var(--carte-2); }
+html.ui2 .inv2 .ligne.ligne-tete .cell { flex-direction: row; }
+.kpi.inv2-fixe { cursor: default; }
+.kpi.inv2-fixe:hover, .kpi.neutre:not([role]):not(button):hover { background: none; }
+.choix-registre .valeur-reg { margin-left: 6px; font-size: 12px; font-weight: 500; color: var(--encre-3); font-variant-numeric: tabular-nums; }
+.choix-registre button.actif .valeur-reg { color: inherit; opacity: .8; }
+@container (max-width: 600px) { html.ui2 .inv2 .ligne.ligne-tete { display: none; } }
+@media (max-width: 860px) { html.ui2 .inv2 .ligne.ligne-tete { display: none; } }
+
+/* v138 — Neufs (ui2) : les couleurs de Maxime gardées (jaune vendu, orange échangé, bleu démo, vert pré-enregistré, gris
+   livré, rouge absent du DMS), en teinte pâle + un trait de la couleur à gauche — le tableau reste lisible. */
+html.ui2 .neufs-table tr.marq-vendu td { background: #FFFBE6; } html.ui2 .neufs-table tr.marq-vendu td:first-child { box-shadow: inset 4px 0 0 #E2B800; }
+html.ui2 .neufs-table tr.marq-echange td { background: #FFF5EC; } html.ui2 .neufs-table tr.marq-echange td:first-child { box-shadow: inset 4px 0 0 #E07A1F; }
+html.ui2 .neufs-table tr.marq-demo td { background: #F1F8FD; } html.ui2 .neufs-table tr.marq-demo td:first-child { box-shadow: inset 4px 0 0 #2F8FD0; }
+html.ui2 .neufs-table tr.marq-livre td { background: #F6F6F6; } html.ui2 .neufs-table tr.marq-livre td:first-child { box-shadow: inset 4px 0 0 #9AA0A6; }
+html.ui2 .neufs-table tr.marq-punch td { background: #F1FBEE; } html.ui2 .neufs-table tr.marq-punch td:first-child { box-shadow: inset 4px 0 0 #3FA34D; }
+html.ui2 .neufs-table tr.rangee.absent-dms td { background: #FFF1F1; }
+html.ui2 .neufs-table tr.rangee:hover td { background: var(--carte-2); }
+
 /* v134 — Neufs (ui2) : les tuiles d'analyse vont dans « Analyse ». */
 html.ui2 .neufs-carte-analyse { display: none; }
 .neufs-barre2 .inv2-plus-env { margin-left: 0; }
@@ -1009,3 +1046,16 @@ html.ui2 .kpi.kpi-secondaire { display: none; }
 .ventes-avenir b { margin-left: 6px; background: var(--ambre-bg); color: var(--ambre); border-radius: 999px; padding: 0 7px; font-size: 12px; }
 .ventes-avenir.actif { background: var(--noir); border-color: var(--noir); color: #fff; }
 .ventes-avenir.actif b { background: #fff; color: var(--noir); }
+
+/* v138 — Neufs (ui2) : couleur et moteur passent sous le nom du véhicule (deux colonnes de moins : le tableau tient avec la
+   barre de gauche) ; le nom garde une largeur lisible. */
+.neufs-table .sous-ui2 { display: none; }
+html.ui2 .neufs-table .sous-ui2 { display: block; font-size: 12px; color: var(--encre-3); margin-top: 2px; }
+html.ui2 .neufs-table th.col-moteur, html.ui2 .neufs-table td.col-moteur, html.ui2 .neufs-table th.col-couleur, html.ui2 .neufs-table td.col-couleur { display: none; }
+html.ui2 .neufs-table td.vehicule { min-width: 230px; }
+html.ui2 .neufs-table td.vehicule .nom { text-transform: none; }
+html.ui2 .neufs-table th.col-detention, html.ui2 .neufs-table td.col-detention { display: none; }   /* dans Analyse et l'export */
+html.ui2 .neufs-table td, html.ui2 .neufs-table th { padding-left: 7px; padding-right: 7px; }
+html.ui2 .neufs-table td.dispo-cell { white-space: normal; max-width: 150px; }
+html.ui2 .neufs-table td .dispo, html.ui2 .neufs-table td .badge { white-space: normal; text-align: left; line-height: 1.25; }
+html.ui2 .neufs-table td.vehicule { min-width: 210px; }

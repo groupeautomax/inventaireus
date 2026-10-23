@@ -1002,3 +1002,10 @@ html.ui2 .kpi.kpi-secondaire { display: none; }
   html.ui2 .agencement:not(.sans-rail) > .rail .groupe > .segment, html.ui2 .agencement:not(.sans-rail) > .rail .groupe > div { flex: 1 1 100%; }
   html.ui2 .agencement:not(.sans-rail) > .rail .groupe > label.case { flex: 0 0 auto; }
 }
+
+/* v137 — Livre des ventes : mois de livraison + « À livrer plus tard ». */
+.ventes-mois { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ventes-mois select.saisie { width: auto; min-width: 230px; height: 36px; font-weight: 600; }
+.ventes-avenir b { margin-left: 6px; background: var(--ambre-bg); color: var(--ambre); border-radius: 999px; padding: 0 7px; font-size: 12px; }
+.ventes-avenir.actif { background: var(--noir); border-color: var(--noir); color: #fff; }
+.ventes-avenir.actif b { background: #fff; color: var(--noir); }

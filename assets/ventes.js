@@ -33,8 +33,13 @@
     if (periode === 'precedent') { d.setDate(1); d.setMonth(d.getMonth() - 1); return isoLocal(d).slice(0, 7); }
     if (periode === 'annee') return String(d.getFullYear());
     if (/^\d{4}(-\d{2})?$/.test(periode || '')) return periode;   /* un mois ou une année précis (depuis le récapitulatif) */
+    if (periode === 'avenir') return 'avenir';   /* v137 : livraisons des mois suivants (Vente.gs) */
     return periode === 'tout' ? 'tout' : '';
   }
+  /* v137 (Maxime, 23 oct. : « un menu simple pour isoler les mois de livraison, le mois courant en premier ; les ventes des mois
+     suivants ailleurs, elles apparaissent quand elles seront à livrer ») : la page s'ouvre sur le mois de livraison courant. */
+  function moisCourant() { return isoLocal(new Date()).slice(0, 7); }
+  function periodeValide(p) { return /^\d{4}(-\d{2})?$/.test(String(p || '')) || p === 'tout' || p === 'avenir'; }
   function moisLibelle(m) { var r = /^(\d{4})-(\d{2})/.exec(m || ''); return r ? MOIS[parseInt(r[2], 10) - 1] + ' ' + r[1] : (m || ''); }
   /* 22 oct. (Maxime) : une vente compte dans le mois de sa LIVRAISON (sinon de sa vente) — le serveur envoie `mois` calculé ainsi. */
   function dateLivraisonOk(v) { return /^\d{4}-\d{2}-\d{2}/.test(String(v.dateLivraison || '')); }
@@ -291,7 +296,8 @@
     this.params = (ctx && ctx.params) || {};
     this.vue = ctx && ctx.onglet === 'recap' ? 'recap' : 'liste';
     this.compagnie = AMX.compagnieChoisie('inventaire');
-    this.periode = this.params.mois ? String(this.params.mois) : String(AMX.memo.lire('ventes_periode', '') || '');
+    this.periode = periodeValide(this.params.mois) ? String(this.params.mois) : moisCourant();
+    this.avenir = {};   /* nombre de ventes à livrer plus tard, par concession */
     this.annee = String(this.params.annee || AMX.memo.lire('ventes_annee', '') || new Date().getFullYear());
     this.filtres = { etat: this.params.etat || '', type: this.params.type || '', recherche: '' };
     this.construire();
@@ -316,7 +322,7 @@
     var vue = ctx && ctx.onglet === 'recap' ? 'recap' : 'liste';
     if (this.params.etat !== undefined) this.filtres.etat = this.params.etat;
     if (this.params.type !== undefined) this.filtres.type = this.params.type;
-    if (this.params.mois) this.periode = String(this.params.mois);
+    if (periodeValide(this.params.mois)) this.periode = String(this.params.mois);
     if (this.params.annee) this.annee = String(this.params.annee);
     var change = vue !== this.vue; this.vue = vue;
     if (change || this.params.mois) this.rendreCies();
@@ -386,17 +392,39 @@
       sel.addEventListener('change', function () { self.annee = sel.value; AMX.memo.ecrire('ventes_annee', sel.value); self.chargerRecap(false); });
       extra = [h('div.annee', [h('span.doux.petit', 'Année'), sel])];
     } else {
-      var fixe = /^\d{4}(-\d{2})?$/.test(this.periode) ? this.periode : '';
-      var boutons = PERIODES.map(function (p) { return h('button' + (self.periode === p[0] ? '.actif' : ''), { type: 'button', 'data-periode': p[0], text: p[1], onclick: function () { self.periode = p[0]; AMX.memo.ecrire('ventes_periode', p[0]); self.rendreCies(); self.charger(false); } }); });
-      if (fixe) boutons.push(h('button.actif', { type: 'button', 'data-periode': fixe, text: capitale(fixe.length === 4 ? fixe : moisLibelle(fixe)) + ' ×', title: 'Retirer ce filtre', onclick: function () { self.periode = String(AMX.memo.lire('ventes_periode', '') || ''); self.rendreCies(); self.charger(false); } }));
-      extra = [h('div.segment.petit', boutons)];
+      // v137 : un menu des mois de LIVRAISON (le mois courant en premier, puis les 11 précédents, l'année, tout) et, à côté,
+      // « À livrer plus tard » : les ventes livrées dans un mois suivant restent là jusqu'à ce que leur mois arrive.
+      var mc = moisCourant(), opts = [];
+      for (var i = 0; i < 12; i++) { var d0 = new Date(); d0.setDate(1); d0.setMonth(d0.getMonth() - i); var m0 = isoLocal(d0).slice(0, 7); opts.push([m0, capitale(moisLibelle(m0)) + (m0 === mc ? ' — mois courant' : '')]); }
+      var an = mc.slice(0, 4);
+      opts.push([an, 'Toute l\'année ' + an]); opts.push(['tout', 'Toutes les ventes']);
+      if (/^\d{4}(-\d{2})?$/.test(this.periode) && !opts.some(function (o) { return o[0] === self.periode; })) opts.splice(1, 0, [this.periode, capitale(this.periode.length === 4 ? 'Année ' + this.periode : moisLibelle(this.periode))]);
+      if (this.periode === 'avenir') opts.unshift(['avenir', 'À livrer plus tard']);
+      var selMois = h('select.saisie#ventes-mois', { 'aria-label': 'Mois de livraison' }, opts.map(function (o) { return h('option', { value: o[0], text: o[1], selected: o[0] === self.periode ? 'selected' : undefined }); }));
+      selMois.addEventListener('change', function () { self.periode = selMois.value; self.rendreCies(); self.charger(false); });
+      var nAv = this.avenir[this.compagnie || ''];
+      var btnAvenir = h('button.btn.ventes-avenir' + (this.periode === 'avenir' ? '.actif' : ''), { type: 'button', 'aria-pressed': this.periode === 'avenir' ? 'true' : 'false', title: 'Ventes dont la livraison est prévue dans un mois suivant : elles passent dans le mois courant quand leur mois arrive',
+        onclick: function () { self.periode = self.periode === 'avenir' ? moisCourant() : 'avenir'; self.rendreCies(); self.charger(false); } }, [h('span', { text: 'À livrer plus tard' }), nAv ? h('b', { text: String(nAv) }) : null]);
+      extra = [h('div.ventes-mois', [h('label.doux.petit', { 'for': 'ventes-mois', text: 'Mois de livraison' }), selMois, btnAvenir])];
     }
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.compagnie, extra: extra,
       compte: function (code) { if (!d || !cache.cle || cache.cle.split('|')[0] !== '') return null; var n = d.ventes.filter(function (v) { return v.statut === 'declaree' && (!code || v.compagnie === code); }).length; return n || null; },
       onchange: function (code) { self.compagnie = code; self.chargerVue(false); } });
   };
+  VueVentes.prototype.chargerAvenir = function () {
+    var self = this, cie = this.compagnie || '', cle = 'av_' + cie;
+    if (this[cle] && Date.now() - this[cle] < 60000) return;
+    this[cle] = Date.now();
+    var q = { ventes: 1, mois: 'avenir' }; if (cie) q.compagnie = cie;
+    AMX.get(q, { secours: false, gz: true }).then(function (d) {
+      if (!d || !Array.isArray(d.ventes)) return;
+      var n = d.ventes.filter(function (v) { return v.statut !== 'annulee'; }).length;
+      if (self.avenir[cie] !== n) { self.avenir[cie] = n; if (self.vue !== 'recap') self.rendreCies(); }
+    }, function () {});
+  };
   VueVentes.prototype.charger = function (force) {
     var self = this, cie = this.compagnie, mois = moisDe(this.periode);
+    this.chargerAvenir();
     if (!cache.rep || cache.cle !== cleDe(cie, mois)) {
       if (!cache.rep) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur('Livre des ventes')); }
       AMX.ventes.copie(cie, mois).then(function (o) { if (o && o.donnees && (!cache.rep || cache.cle !== cleDe(cie, mois))) { try { verifier(o.donnees); cache.rep = o.donnees; cache.cle = cleDe(cie, mois); cache.quand = 0; cache.copieLe = o.quand; self.rendre(); } catch (e) {} } }).catch(function () {});
@@ -491,6 +519,15 @@
     if (d.montants) {
       var actives = d.ventes.filter(function (v) { return v.statut !== 'annulee' && (!self.filtres.type || v.type === self.filtres.type); });
       var cp = cumulProfits(actives);
+      /* v137 (Maxime : « indique en haut les moyennes par unité ») : profit moyen par vente — front, F&I, total — estimé et
+         comptable, et le prix de vente moyen, sur les ventes de la période et du type choisis (annulées exclues). */
+      var moy = function (q) { return { e: q.nEstime ? q.estime / q.nEstime : null, c: q.nComptable ? q.comptable / q.nComptable : null }; };
+      var prixL = actives.map(function (v) { return nombre(v.prixVente); }).filter(function (x) { return x !== null && x > 0; });
+      var rangee = function (l, m) { return h('div.cmp-ligne', [h('span.l', { text: l }), h('span.v', { text: m.e === null ? '—' : argent(Math.round(m.e)) }), h('span.n', { text: m.c === null ? '' : 'compta ' + argent(Math.round(m.c)) })]); };
+      var carteMoy = h('div.kpi.neutre.ventes-comp.ventes-moy#ventes-kpi-moyennes', [h('div.titre', { text: 'Moyennes par unité · ' + pluriel(actives.length, 'vente') }),
+        rangee('Front', moy(cp.front)), rangee('F&I', moy(cp.fi)), rangee('Total', moy(cp)),
+        prixL.length ? h('div.cmp-ligne', [h('span.l', { text: 'Prix' }), h('span.v', { text: argent(Math.round(prixL.reduce(function (a, b) { return a + b; }, 0) / prixL.length)) }), h('span.n', { text: 'sur ' + prixL.length })]) : null]);
+      this.elKpis.insertBefore(carteMoy, this.elKpis.firstChild);
       this.elKpis.appendChild(carteComparaison('ventes-kpi-front', 'Front (voiture)', cp.front));
       this.elKpis.appendChild(carteComparaison('ventes-kpi-fi', 'F&I', cp.fi));
     }

@@ -1,10 +1,10 @@
-/* MAX ai — la bulle et la fenêtre de discussion (22 oct. 2026)
+/* Einstein AI — la bulle et la fenêtre de discussion (22 oct. 2026)
    Maxime : « mettre cette photo pour représenter l'IA » et « faire en sorte qu'on clique sur l'image pour
    ouvrir le dialogue ». Une bulle ronde en bas à droite de toutes les pages (une fois connecté) ; l'avatar
-   de MAX ai dans Aide › Suggestions et dans Admin ouvre la même fenêtre (AMX.maxai.avatar(taille)).
+   de Einstein AI dans Aide › Suggestions et dans Admin ouvre la même fenêtre (AMX.maxai.avatar(taille)).
    POST iaDiscuter { messages, contexte: { page, source, articles } } → { texte, reste } (Ia.gs) ;
    { mode: 'suggestion' } → { suggestion: { titre, description, pourquoi, exemple } }, qui ouvre le formulaire
-   des Suggestions déjà rempli. MAX ai ne voit pas les données : il répond avec les 5 articles de l'aide les
+   des Suggestions déjà rempli. Einstein AI ne voit pas les données : il répond avec les 5 articles de l'aide les
    plus proches de la question (choisis ici, selon le rôle de la personne), et la page ouverte.
    La discussion vit dans l'onglet (sessionStorage) ; le serveur n'en garde que le coût. */
 (function () {
@@ -23,10 +23,10 @@
   function avatar(taille, opts) {
     opts = opts || {};
     var bouton = opts.bouton !== false;
-    var a = h((bouton ? 'button' : 'span') + '.maxai-avatar', bouton ? { type: 'button', title: 'MAX ai — cliquez pour lui parler', 'aria-label': 'Discuter avec MAX ai' } : { 'aria-hidden': 'true' });
+    var a = h((bouton ? 'button' : 'span') + '.maxai-avatar', bouton ? { type: 'button', title: 'Einstein AI — cliquez pour lui parler', 'aria-label': 'Discuter avec Einstein AI' } : { 'aria-hidden': 'true' });
     a.style.width = a.style.height = taille + 'px';
     var img = h('img', { src: IMAGE, alt: '' });
-    img.addEventListener('error', function () { img.remove(); a.classList.add('sans-image'); a.appendChild(h('span.mono', { text: 'MAX' })); });
+    img.addEventListener('error', function () { img.remove(); a.classList.add('sans-image'); a.appendChild(h('span.mono', { text: 'AI' })); });
     a.appendChild(img);
     if (bouton) a.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); ouvrir(); });
     return a;
@@ -95,16 +95,16 @@
   function construire() {
     if (el.panneau) return;
     el.fil = h('div.maxai-fil', { 'aria-live': 'polite' });
-    el.saisie = h('textarea.maxai-saisie', { rows: '2', placeholder: 'Posez votre question à MAX ai…', 'aria-label': 'Votre message à MAX ai' });
+    el.saisie = h('textarea.maxai-saisie', { rows: '2', placeholder: 'Posez votre question à Einstein AI…', 'aria-label': 'Votre message à Einstein AI' });
     el.saisie.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); envoyer(); } });
     el.saisie.addEventListener('input', function () { el.saisie.style.height = 'auto'; el.saisie.style.height = Math.min(140, el.saisie.scrollHeight) + 'px'; });
     el.envoyer = h('button.btn.primaire.maxai-envoyer', { type: 'button', 'aria-label': 'Envoyer', title: 'Envoyer (Entrée)', html: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>', onclick: function () { envoyer(); } });
-    el.rediger = h('button.btn.petit.maxai-rediger', { type: 'button', text: 'Rédiger une suggestion', title: 'MAX ai rédige une suggestion d\'amélioration à partir de la discussion ; vous la relisez avant de l\'envoyer.', onclick: function () { redigerSuggestion(); } });
+    el.rediger = h('button.btn.petit.maxai-rediger', { type: 'button', text: 'Rédiger une suggestion', title: 'Einstein AI rédige une suggestion d\'amélioration à partir de la discussion ; vous la relisez avant de l\'envoyer.', onclick: function () { redigerSuggestion(); } });
     el.info = h('span.maxai-info');
-    el.panneau = h('div.maxai-panneau#maxai-panneau', { role: 'dialog', 'aria-label': 'Discussion avec MAX ai' }, [
+    el.panneau = h('div.maxai-panneau#maxai-panneau', { role: 'dialog', 'aria-label': 'Discussion avec Einstein AI' }, [
       h('div.maxai-tete', [
         avatar(40, { bouton: false }),
-        h('div.maxai-nom', [h('b', 'MAX ai'), h('span', { text: 'L\'assistant de ScanAutomax' })]),
+        h('div.maxai-nom', [h('b', 'Einstein AI'), h('span', { text: 'L\'assistant de ScanAutomax' })]),
         h('button.btn.petit.fantome', { type: 'button', text: 'Nouvelle', title: 'Effacer la discussion', onclick: function () { nouvelle(); } }),
         h('button.maxai-fermer', { type: 'button', 'aria-label': 'Fermer', html: AMX.icones.fermer || '×', onclick: function () { fermer(); } })
       ]),
@@ -128,7 +128,7 @@
     if (!el.panneau) return;
     AMX.vider(el.fil);
     var p = prenom();
-    el.fil.appendChild(bulleMessage({ role: 'assistant', content: 'Bonjour' + (p ? ' ' + p : '') + ' ! Je suis **MAX ai**. Demandez-moi comment faire quelque chose dans ScanAutomax, ou décrivez une amélioration : je peux la rédiger en suggestion pour vous.' }));
+    el.fil.appendChild(bulleMessage({ role: 'assistant', content: 'Bonjour' + (p ? ' ' + p : '') + ' ! Je suis **Einstein AI**. Demandez-moi comment faire quelque chose dans ScanAutomax, ou décrivez une amélioration : je peux la rédiger en suggestion pour vous.' }));
     if (!etat.messages.length) {
       el.fil.appendChild(h('div.maxai-idees', QUESTIONS.map(function (q) { return h('button.puce.maxai-idee', { type: 'button', text: q, onclick: function () { el.saisie.value = q; envoyer(); } }); })));
     }
@@ -160,8 +160,8 @@
     etat.enCours = true; garder(); rendre();
     var contexte = { page: pageOuverte(), source: 'site', articles: articlesProches(t) };
     AMX.post({ action: 'iaDiscuter', messages: messagesPourServeur(), contexte: contexte }, { delai: 120000 }).then(function (r) {
-      if (scriptPasAJour(r)) throw new Error('Le script n\'est pas à jour : redéployez-le (Ia.gs, MAX ai).');
-      if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'MAX ai n\'a pas pu répondre.');
+      if (scriptPasAJour(r)) throw new Error('Le script n\'est pas à jour : redéployez-le (Ia.gs, Einstein AI).');
+      if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'Einstein AI n\'a pas pu répondre.');
       etat.messages.push({ role: 'assistant', content: r.texte });
       if (typeof r.reste === 'number') etat.reste = r.reste;
     }).catch(function (e) {
@@ -174,8 +174,8 @@
     var dernier = etat.messages.filter(function (m) { return m.role === 'user'; }).map(function (m) { return m.content; }).join(' ');
     AMX.post({ action: 'iaDiscuter', mode: 'suggestion', messages: messagesPourServeur(), contexte: { page: pageOuverte(), source: 'site', articles: articlesProches(dernier) } }, { delai: 120000 }).then(function (r) {
       etat.enCours = false; rendre();
-      if (scriptPasAJour(r)) throw new Error('Le script n\'est pas à jour : redéployez-le (Ia.gs, MAX ai).');
-      if (!r || r.ok === false || r.refuse || !r.suggestion) throw new Error((r && r.erreur) || 'MAX ai n\'a pas pu rédiger la suggestion.');
+      if (scriptPasAJour(r)) throw new Error('Le script n\'est pas à jour : redéployez-le (Ia.gs, Einstein AI).');
+      if (!r || r.ok === false || r.refuse || !r.suggestion) throw new Error((r && r.erreur) || 'Einstein AI n\'a pas pu rédiger la suggestion.');
       if (typeof r.reste === 'number') etat.reste = r.reste;
       fermer();
       if (AMX.suggestions && AMX.suggestions.nouvelle) AMX.suggestions.nouvelle(Object.assign({ source: 'maxai' }, r.suggestion));

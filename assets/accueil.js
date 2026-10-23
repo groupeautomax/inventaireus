@@ -121,7 +121,8 @@
   };
 
   /* ------------------------------- La vue -------------------------------- */
-  var EVENEMENTS = ['amx:profil', 'amx:accueil-depart', 'amx:eblock', 'amx:openlane', 'amx:demandes', 'amx:suggestions', 'amx:service', 'amx:inventaire'];
+  var EVENEMENTS = ['amx:profil', 'amx:accueil-depart', 'amx:eblock', 'amx:openlane', 'amx:demandes', 'amx:suggestions', 'amx:service', 'amx:inventaire',
+    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
   function Accueil(conteneur, ctx) {
     injecterCss();
     var self = this;
@@ -177,6 +178,7 @@
   }
 
   Accueil.prototype.rendre = function () {
+    if (AMX.ui2 && AMX.ui2()) { this.rendreUi2(); return; }
     var self = this;
     var ancienneValeur = this.inputRecherche ? this.inputRecherche.value : '';
     var p = AMX.session.perms || {};
@@ -266,6 +268,161 @@
     ])]);
     this.el.appendChild(h('div.acc-bas', [carteDepart, carteNouv]));
   };
+  /* ------------------ v131 : Accueil « À faire » (nouvelle interface, html.ui2) ------------------
+     Ce qui attend la personne aujourd'hui, selon ses droits et la concession choisie dans la barre du haut ; chaque ligne
+     ouvre la page déjà filtrée. Les listes se chargent en arrière-plan (caches des modules) et la liste se complète. */
+  var offresCache = { liste: null, quand: 0, promesse: null };
+  function chargerOffres() {
+    if (offresCache.liste && Date.now() - offresCache.quand < 120000) return Promise.resolve(offresCache.liste);
+    if (offresCache.promesse) return offresCache.promesse;
+    offresCache.promesse = AMX.post({ action: 'offresRecues' }).then(function (d) { offresCache.promesse = null; offresCache.liste = (d && d.offres) || []; offresCache.quand = Date.now(); return offresCache.liste; },
+      function (e) { offresCache.promesse = null; offresCache.quand = Date.now(); offresCache.liste = offresCache.liste || []; throw e; });
+    return offresCache.promesse;
+  }
+  function voit(id) { var s = (AMX.sources && AMX.sources[id]) || AMX.sections[id]; return !!s && (!s.visible || s.visible()); }
+  function ongletDe(src, id) { var s = (AMX.sources && AMX.sources[src]) || AMX.sections[src]; return s ? (s.onglets || []).filter(function (o) { return o.id === id; })[0] || null : null; }
+  function ongletVoit(src, id) { if (!voit(src)) return false; var o = ongletDe(src, id); return !!o && (!o.visible || o.visible()); }
+  function compteurOnglet(src, id) { var o = ongletDe(src, id), n = 0; try { n = o && o.compteur ? Number(o.compteur()) || 0 : 0; } catch (e) {} return n; }
+  function jourLocal() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function deCie(c, choisie) { return !choisie || String(c || '').toUpperCase() === choisie; }
+
+  Accueil.prototype.chargerAFaire = function () {
+    var cie = AMX.compagnieChoisie('inventaire'), cieSvc = AMX.compagnieChoisie('service'), cle = cie + '|' + cieSvc;
+    if (this.aFaireCle === cle && Date.now() - (this.aFaireLe || 0) < 30000) return;
+    this.aFaireCle = cle; this.aFaireLe = Date.now();
+    var self = this, relancer = function () { self.sur(); }, rien = function () { self.sur(); };
+    if (voit('ventes') && AMX.ventes && AMX.ventes.charger) AMX.ventes.charger(cie, '').then(relancer, rien);
+    if (ongletVoit('service', 'rendezvous') && AMX.rdv) AMX.rdv.charger(cieSvc, jourLocal(), jourLocal()).then(relancer, rien);
+    if (ongletVoit('service', 'texto') && AMX.texto) AMX.texto.charger(cieSvc).then(relancer, rien);
+    if (voit('avis') && AMX.avis) AMX.avis.charger().then(relancer, rien);
+    if (ongletVoit('offres', 'recues')) chargerOffres().then(relancer, rien);
+  };
+
+  function aFaire() {
+    var cie = AMX.compagnieChoisie('inventaire'), cieSvc = AMX.compagnieChoisie('service'), out = [], attente = [];
+    // Usagé : registres en retard (les trois registres)
+    if (voit('inventaire') && AMX.inventaire && AMX.inventaire.alertes) {
+      var ch = AMX.inventaire.alertes(cie).filter(function (r) { return r.charge; });
+      if (!ch.length) attente.push('inventaire usagé');
+      var somme = function (k) { return ch.reduce(function (t, r) { return t + r[k]; }, 0); };
+      var pire = function (k) { return ch.slice().sort(function (a, b) { return b[k] - a[k]; })[0]; };
+      var detail = function (k) { return ch.filter(function (r) { return r[k]; }).map(function (r) { return r.titre + ' ' + r[k]; }).join(' · '); };
+      var r1 = somme('retard'), r2 = somme('retardAchat');
+      if (r1) out.push({ ton: 'rouge', n: r1, titre: 'Registre d\'immatriculation non reçu depuis 10 jours et plus', detail: detail('retard'), href: AMX.inventaire.lien(pire('retard').id, { alerte: 'retard' }), ic: 'inventaire' });
+      if (r2) out.push({ ton: 'ambre', n: r2, titre: 'Achetés depuis 7 jours et plus, pas encore en stock', detail: detail('retardAchat'), href: AMX.inventaire.lien(pire('retardAchat').id, { alerte: 'retardAchat' }), ic: 'inventaire' });
+    }
+    // Neufs : RDR à compléter chez le constructeur
+    var rdr = AMX.neufs && AMX.neufs.aFaireConstructeur ? AMX.neufs.aFaireConstructeur() : null;
+    if (rdr && rdr.length && voit('inventaire')) { var nR = rdr.filter(function (x) { return deCie(x.compagnie, cie); }).length; if (nR) out.push({ ton: 'rouge', n: nR, titre: 'RDR à compléter sur le portail du constructeur', detail: 'ils bloquent le crédit', href: AMX.lien('inventaire', 'neufs', { onglet: 'ventes' }), ic: 'neufs' }); }
+    // Service : direction, demandes de travaux, rendez-vous, textos
+    if (voit('service')) {
+      var svc = AMX.service && AMX.service.enCache ? AMX.service.enCache() : null;
+      if (!svc) attente.push('suivi service');
+      else {
+        var dir = svc.filter(function (s) { return s.statut === 'encours' && (s.etapeCourante === 'verification' || s.etapeCourante === 'autorisation') && deCie(s.compagnie, cieSvc); }).length;
+        if (dir) out.push({ ton: 'rouge', n: dir, titre: 'Véhicules qui attendent la direction (vérification ou autorisation au détail)', href: AMX.lien('service', 'autoriser'), ic: 'service' });
+      }
+      var dem = AMX.demandes && AMX.demandes.enCache ? AMX.demandes.enCache() : null;
+      if (dem) {
+        var ret = dem.filter(function (d) { return d.etat === 'retournee' && deCie(d.compagnie, cieSvc); }).length;
+        var env = dem.filter(function (d) { return d.etat === 'envoyee' && deCie(d.compagnie, cieSvc); }).length;
+        if (ret) out.push({ ton: 'ambre', n: ret, titre: 'Demandes de travaux retournées par le service', detail: 'une question attend votre réponse', href: AMX.lien('service', 'encours'), ic: 'service' });
+        if (env) out.push({ ton: 'bleu', n: env, titre: 'Demandes de travaux en attente du service (pas encore de n° de BT)', href: AMX.lien('service', 'encours'), ic: 'service' });
+      }
+      if (ongletVoit('service', 'texto') && AMX.texto) {
+        var tx = AMX.texto.enCache();
+        if (!tx) attente.push('textos');
+        else {
+          var nl = (tx.conversations || []).filter(function (x) { return deCie(x.compagnie, cieSvc) && x.nonLus > 0; }).length;
+          var es = (tx.estimes || []).filter(function (x) { return deCie(x.compagnie, cieSvc) && x.ouvert; }).length;
+          if (nl) out.push({ ton: 'ambre', n: nl, titre: 'Conversations texto non lues', href: AMX.lien('service', 'texto'), ic: 'texto' });
+          if (es) out.push({ ton: 'bleu', n: es, titre: 'Estimés envoyés en attente de la réponse du client', href: AMX.lien('service', 'texto'), ic: 'texto' });
+        }
+      }
+      if (ongletVoit('service', 'rendezvous') && AMX.rdv) {
+        if (!AMX.rdv.enCache()) attente.push('rendez-vous');
+        else { var nr = Number(AMX.rdv.compteur()) || 0; if (nr) out.push({ ton: 'gris', n: nr, titre: 'Rendez-vous au service aujourd\'hui', href: AMX.lien('service', 'rendezvous'), ic: 'service' }); }
+      }
+    }
+    // Livre des ventes
+    if (voit('ventes') && AMX.ventes) {
+      var vr = AMX.ventes.enCache ? AMX.ventes.enCache() : null;
+      if (!vr) attente.push('livre des ventes');
+      else if (AMX.ventes.peutCompleter && AMX.ventes.peutCompleter()) {
+        var fi = (vr.ventes || []).filter(function (v) { return v.fiAInscrire && v.statut !== 'annulee' && deCie(v.compagnie, cie); }).length;
+        var dec = Number(AMX.ventes.compteur()) || 0;
+        if (fi) out.push({ ton: 'ambre', n: fi, titre: 'Ventes dont le profit F&I n\'est pas inscrit', href: AMX.lien('ventes', 'liste'), ic: 'vente' });
+        if (dec) out.push({ ton: 'bleu', n: dec, titre: 'Ventes inscrites à compléter par la direction', href: AMX.lien('ventes', 'liste'), ic: 'vente' });
+      }
+    }
+    // Offres reçues des acheteurs
+    if (ongletVoit('offres', 'recues')) {
+      if (!offresCache.liste) attente.push('offres');
+      else {
+        var no = offresCache.liste.filter(function (o) { if (o.statut !== 'nouvelle') return false; var v = AMX.inventaire && AMX.inventaire.parVin ? AMX.inventaire.parVin(o.vin) : null; return deCie(o.compagnie || (v && v.compagnie), cie); }).length;
+        if (no) out.push({ ton: 'ambre', n: no, titre: 'Offres d\'acheteurs à traiter', href: AMX.lien('offres', 'recues'), ic: 'offres' });
+      }
+    }
+    // Avis Google et sondages
+    if (voit('avis') && AMX.avis) {
+      if (!AMX.avis.enCache()) attente.push('avis');
+      else {
+        var na = compteurOnglet('avis', 'avis'), ns = compteurOnglet('avis', 'sondages');
+        if (na) out.push({ ton: 'rouge', n: na, titre: 'Avis Google négatifs à traiter', href: AMX.lien('avis', 'avis'), ic: 'relance' });
+        if (ns) out.push({ ton: 'ambre', n: ns, titre: 'Sondages clients notés 3 ou moins (7 derniers jours)', href: AMX.lien('avis', 'sondages'), ic: 'relance' });
+      }
+    }
+    // Suggestions des employés (administrateurs)
+    if (AMX.suggestions && AMX.suggestions.aTraiter && AMX.estAdmin && AMX.estAdmin()) { var sg = Number(AMX.suggestions.aTraiter()) || 0; if (sg) out.push({ ton: 'violet', n: sg, titre: 'Suggestions d\'employés à traiter', href: AMX.lien('aide', 'suggestions'), ic: 'suggestions' }); }
+    var rang = { rouge: 0, ambre: 1, violet: 2, bleu: 3, gris: 4 };
+    out.sort(function (a, b) { return rang[a.ton] - rang[b.ton]; });
+    return { items: out, attente: attente };
+  }
+
+  Accueil.prototype.rendreUi2 = function () {
+    var p = AMX.session.perms || {};
+    this.chargerAFaire();
+    var cie = AMX.compagnieChoisie('inventaire');
+    var ou = cie ? (AMX.COMPAGNIES_TOUTES[cie] || cie) : (AMX.estGroupePour && !AMX.estGroupePour('inventaire') && p.nomConcession ? p.nomConcession : 'Tout le groupe');
+    AMX.vider(this.el);
+    this.el.classList.add('acc2');
+    this.el.appendChild(h('div.acc2-tete', [
+      h('h1', { text: salutation() + (prenom() ? ', ' + prenom() : '') }),
+      h('p', { text: [ou, dateLongue(), roleTexte()].filter(Boolean).join(' · ') })
+    ]));
+    var r = aFaire();
+    var liste = h('div.acc2-liste', { role: 'list' });
+    r.items.forEach(function (it) {
+      liste.appendChild(h('a.acc2-item.' + it.ton, { href: it.href, role: 'listitem' }, [
+        h('span.n', { text: fmtN(it.n) }),
+        h('span.txt', [h('span.t', { text: it.titre }), it.detail ? h('span.d', { text: it.detail }) : null]),
+        h('span.go', { html: I.chevron })
+      ]));
+    });
+    if (!r.items.length) liste.appendChild(h('div.acc2-vide', [h('b', { text: r.attente.length ? 'Vérification en cours…' : 'Rien en attente.' }), r.attente.length ? null : h('span', { text: 'Tout est à jour pour ' + (cie ? ou : 'le groupe') + '.' })]));
+    var carteAFaire = h('section.carte.acc2-afaire', [
+      h('div.acc2-titre', [h('h2', 'À faire aujourd\'hui'), r.items.length ? h('span.puce', { text: r.items.length + ' sujet' + (r.items.length > 1 ? 's' : '') }) : null]),
+      liste,
+      r.attente.length ? h('div.acc2-attente', { text: 'Vérification en cours : ' + r.attente.join(', ') + '…' }) : null
+    ]);
+    var rac = [];
+    var ajout = function (src, onglet, texte, icone, params) { if (!voit(src)) return; rac.push(h('a.acc2-raccourci', { href: AMX.lien(src, onglet, params) }, [h('span.ic', { html: I[icone] || '' }), h('span', { text: texte })])); };
+    ajout('outils', 'evaluation', 'Évaluer un véhicule', 'scan');
+    ajout('achat', '', 'Nouvelle fiche d\'achat', 'achat');
+    if (AMX.ventes && AMX.ventes.peutDeclarer && AMX.ventes.peutDeclarer()) ajout('ventes', 'liste', 'Inscrire une vente', 'vente', { nouvelle: Date.now() });
+    if (ongletVoit('service', 'rendezvous')) ajout('service', 'rendezvous', 'Nouveau rendez-vous', 'service', { nouveau: 1 });
+    ajout('outils', 'openlane', 'Valeurs OpenLane', 'outils');
+    var touche = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K';
+    var carteRac = h('section.carte.acc2-rac', [h('h2', 'Raccourcis'), h('div.acc2-raccourcis', rac),
+      h('button.acc2-palette', { type: 'button', onclick: function () { AMX.palette(); } }, [h('span.ic', { html: I.recherche }), h('span', 'Tout le reste'), h('kbd', { text: touche })])]);
+    var carteBref = h('section.carte.acc2-bref', [h('h2', 'En bref'), h('div.acc2-chiffres', chiffres().slice(0, 3).map(function (x) {
+      return h('a.acc2-chiffre', { href: x.lien }, [h('span.v', { text: x.valeur === null ? '…' : x.valeur }), h('span.l', { text: x.libelle }), x.detail ? h('span.d', { text: x.detail }) : null]);
+    }))]);
+    var nouv = (AMX.AIDE_CONTENU && AMX.AIDE_CONTENU.nouveautes) ? AMX.AIDE_CONTENU.nouveautes[0] : null;
+    var carteNouv = nouv ? h('section.carte.acc2-nouv', [h('h2', 'Nouveauté'), h('div.date', { text: nouv.date }), h('p', { text: nouv.titre }), AMX.sections.aide ? h('a', { href: AMX.lien('aide', 'nouveautes'), text: 'Toutes les nouveautés' }) : null]) : null;
+    this.el.appendChild(h('div.acc2-grille', [h('div.acc2-col', [carteAFaire]), h('div.acc2-col.acc2-droite', [carteRac, carteBref, carteNouv])]));
+  };
+
   var ETOILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8z"/></svg>';
   var ETOILE_PLEINE = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8z"/></svg>';
 

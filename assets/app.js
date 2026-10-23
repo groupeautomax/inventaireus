@@ -41,6 +41,21 @@
     ecrire: function (k, v) { ecrire('amx_' + k, JSON.stringify(v)); }
   };
 
+  /* ---------------------- Nouvelle interface (v131, 23 oct.) ----------------------
+     Maxime : « la nouvelle interface derrière un interrupteur : barre latérale, concession dans la barre, Ctrl+K,
+     Accueil « À faire », puis la page Usagé refaite ». html.ui2 l'allume. Propre à l'appareil (localStorage amx_ui) ;
+     ?ui=2 / ?ui=1 dans l'adresse l'allume / l'éteint d'un lien ; menu du compte → « Essayer la nouvelle interface ». */
+  (function () {
+    try { var p = new URLSearchParams(location.search).get('ui'); if (p === '2' || p === '1') ecrire('amx_ui', p); } catch (e) {}
+    if (lire('amx_ui') === '2') document.documentElement.classList.add('ui2');
+  })();
+  AMX.ui2 = function () { return document.documentElement.classList.contains('ui2'); };
+  AMX.basculerInterface = function (nouvelle) {
+    ecrire('amx_ui', nouvelle ? '2' : '1');
+    try { var u = new URL(location.href); u.searchParams.delete('ui'); history.replaceState(null, '', u.toString()); } catch (e) {}
+    location.reload();
+  };
+
   /* ---------------------------- Utilitaires ---------------------------- */
   var esc = AMX.esc = function (s) {
     return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -230,7 +245,7 @@
        fenêtre du dessus répond à Échap (une confirmation ouverte par-dessus une fiche ne ferme plus les deux). */
     var avant = document.activeElement;
     var idTitre = 'modale-titre-' + (++AMX.modale.n);
-    var voile = h('div.voile');
+    var voile = h('div.voile' + (o.classe ? '.' + o.classe : ''));
     var corps = h('div.modale-corps');
     if (typeof o.corps === 'string') corps.innerHTML = o.corps; else if (o.corps) corps.appendChild(o.corps);
     var pied = h('div.modale-pied');
@@ -610,7 +625,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
-    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion MAX ai
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -992,6 +1007,11 @@
   }
   window.addEventListener('hashchange', router);
   AMX.rafraichirSousBarre = function () { if (courante.section) dessinerSousBarre(courante.section, courante.onglet); };
+  /* v131 : remonte la page courante (changement de concession dans la barre du haut, pour une page qui ne l'écoute pas). */
+  AMX.remonter = function () {
+    if (courante.instance && courante.instance.demonter) { try { courante.instance.demonter(); } catch (e) {} }
+    courante.instance = null; router();
+  };
 
   /* ------------------------------ Barre -------------------------------- */
   function dessinerBarre() {
@@ -1015,6 +1035,7 @@
         h('div.sep'),
         // Guide et aide (7 oct.) : la référence de toutes les fonctions, avec recherche par question (assets/aide.js).
         AMX.sections.aide ? h('button.aide-menu', { type: 'button', html: (ICONES.aide || '') + '<span>Guide et aide</span>', onclick: function () { usager.classList.remove('ouvert'); AMX.aller('aide', 'questions'); } }) : null,
+        h('button.ui-bascule', { type: 'button', text: AMX.ui2() ? 'Revenir à l\'interface actuelle' : 'Essayer la nouvelle interface', onclick: function () { AMX.basculerInterface(!AMX.ui2()); } }),
         h('button', { type: 'button', text: 'Déconnexion', onclick: function () { AMX.deconnecter(''); } })
       ])
     ]);
@@ -1022,12 +1043,25 @@
     document.addEventListener('click', function (e) { if (!usager.contains(e.target)) usager.classList.remove('ouvert'); });
     barre.appendChild(h('a.marque', { href: AMX.sections.accueil ? '#/accueil' : '#/', title: 'Groupe Automax — Accueil' }, [h('img', { src: 'assets/logo.png', alt: 'Groupe Automax' })]));
     barre.appendChild(nav);
-    barre.appendChild(h('div.espace'));
-    barre.appendChild(rech);
+    if (AMX.ui2()) {
+      /* v131 : la concession se choisit une fois, ici, pour tout le site ; Ctrl+K ouvre la palette. */
+      var cie = selecteurConcession(); if (cie) barre.appendChild(cie);
+      barre.appendChild(rech);
+      var kbd = rech.querySelector('kbd'); if (kbd) { kbd.textContent = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K'; kbd.title = 'Ouvrir la palette (pages, actions, véhicules)'; kbd.addEventListener('mousedown', function (e) { e.preventDefault(); AMX.palette(); }); }
+      barre.appendChild(h('div.espace'));
+    } else {
+      barre.appendChild(h('div.espace'));
+      barre.appendChild(rech);
+    }
     barre.appendChild(h('span#etat-sync.etat-sync', { title: 'Connecté au serveur' }));
     barre.appendChild(usager);
+    dessinerCote();
     (AMX.brancherRecherche || brancherRechercheGlobale)(rech.querySelector('input'));   // 22 oct. : recherche.js (partout) remplace l'ancienne
-    if (!dessinerBarre.branche) { dessinerBarre.branche = true; document.addEventListener('amx:profil', function () { dessinerBarre(); majNav(courante.section ? courante.section.id : ''); }); }
+    if (!dessinerBarre.branche) {
+      dessinerBarre.branche = true;
+      document.addEventListener('amx:profil', function () { dessinerBarre(); majNav(courante.section ? courante.section.id : ''); });
+      document.addEventListener('amx:compagnie', function () { var el = document.querySelector('#barre .cie-globale'); if (el && el.__maj) el.__maj(); });
+    }
   }
 
   /* ------------------------------ Textos (6 oct.) ------------------------------
@@ -1081,8 +1115,194 @@
     });
     setTimeout(function () { champ.focus(); champ.select(); }, 50);
   };
+  /* ------------------------- Nouvelle interface : coquille (v131) -------------------------
+     Barre latérale à deux niveaux (tuile › onglet), concession dans la barre du haut, palette Ctrl+K, menu « … ». */
+  function bureauUi2() { try { return window.matchMedia('(min-width: 861px)').matches; } catch (e) { return true; } }
+  if (window.matchMedia) { try { window.matchMedia('(min-width: 861px)').addEventListener('change', function () { if (AMX.ui2()) AMX.rafraichirSousBarre(); }); } catch (e) {} }
+  // Toutes les concessions que le compte voit, quel que soit le domaine, dans l'ordre du groupe.
+  function codesGlobaux() {
+    var vus = {};
+    ['inventaire', 'service', 'evaluations', 'resultats'].forEach(function (d) { (AMX.codesPour ? AMX.codesPour(d) : []).forEach(function (c) { vus[c] = true; }); });
+    return Object.keys(AMX.COMPAGNIES_TOUTES || {}).filter(function (c) { return vus[c]; });
+  }
+  function selecteurConcession() {
+    var codes = codesGlobaux();
+    if (!codes.length) return null;
+    var point = h('i.cie-point');
+    if (codes.length === 1) return h('div.cie-globale.seule', { title: 'Votre concession' }, [point, h('span', { text: AMX.COMPAGNIES_TOUTES[codes[0]] || codes[0] })]);
+    var sel = h('select', { 'aria-label': 'Concession', title: 'La concession affichée sur toutes les pages' },
+      [h('option', { value: '', text: 'Toutes les concessions' })].concat(codes.map(function (c) { return h('option', { value: c, text: AMX.COMPAGNIES_TOUTES[c] || c }); })));
+    var maj = function () {
+      var c = String(AMX.memo.lire('compagnie', '') || ''); if (codes.indexOf(c) < 0) c = '';
+      sel.value = c; point.className = 'cie-point ' + (c ? ((AMX.COULEUR_COMPAGNIE || {})[c] || 'gris') : 'toutes');
+    };
+    sel.addEventListener('change', function () { var c = sel.value; AMX.choisirCompagnie(c); maj(); remonterSiBesoin(c); });
+    maj();
+    var el = h('label.cie-globale', [point, sel, h('span.fleche', { html: ICONES.chevron })]);
+    el.__maj = maj;
+    return el;
+  }
+  // Pages qui écoutent déjà amx:compagnie (elles se redessinent seules) ; les autres sont remontées.
+  var SUIT_COMPAGNIE = { 'csi/': 1, 'listes/': 1, 'kpi/': 1, 'ventes/': 1, 'inventaire/soumissions': 1, 'inventaire/neufs': 1, 'inventaire/usage': 1, 'service/rendezvous': 1, 'service/texto': 1 };
+  function remonterSiBesoin(code) {
+    var o = courante.onglet, cle = o ? (o.de || '') + '/' + (o.onglet || '') : '';
+    if (SUIT_COMPAGNIE[cle]) return;
+    setTimeout(function () {
+      var vue = document.getElementById('vue'), liste = vue && vue.querySelector('.choix-cie.suit-site');
+      if (!liste) return;
+      var offerts = Array.prototype.map.call(liste.querySelectorAll('button.choix'), function (b) { return b.getAttribute('data-compagnie') || ''; });
+      if (offerts.indexOf(code) < 0) return;
+      var actif = liste.querySelector('button.choix.actif');
+      if ((actif ? actif.getAttribute('data-compagnie') || '' : null) !== code) AMX.remonter();
+    }, 80);
+  }
+  function dessinerCote() {
+    var app = document.getElementById('appli'); if (!app) return;
+    var cote = document.getElementById('cote');
+    if (!AMX.ui2()) { if (cote) cote.remove(); return; }
+    if (!cote) { cote = h('nav#cote.cote', { 'aria-label': 'Navigation principale' }); app.insertBefore(cote, app.firstChild); }
+    majCote();
+  }
+  function majCote() {
+    var cote = document.getElementById('cote'); if (!cote || !AMX.ui2()) return;
+    var ouverts = majCote.ouverts = majCote.ouverts || {};
+    var secId = courante.section ? courante.section.id : '', ongId = courante.onglet ? courante.onglet.id : '';
+    var defile = cote.scrollTop;
+    AMX.vider(cote);
+    cote.appendChild(h('a.cote-marque', { href: AMX.sections.accueil ? '#/accueil' : '#/', title: 'Groupe Automax — Accueil' }, [h('img', { src: 'assets/logo.png', alt: 'Groupe Automax' })]));
+    var liste = h('ul.cote-liste');
+    AMX.listeSections().forEach(function (s) {
+      var onglets = (s.onglets || []).filter(function (o) { return !o.visible || o.visible(); });
+      var plusieurs = onglets.length > 1, ici = s.id === secId;
+      var ouvert = plusieurs && (ouverts[s.id] !== undefined ? ouverts[s.id] : ici);
+      var li = h('li.cote-tuile' + (ici ? '.actif' : '') + (ouvert ? '.ouvert' : ''));
+      li.appendChild(h('div.cote-ligne', [
+        h('a.cote-titre', { href: s.tuile ? '#/' + s.id : AMX.lien(s.id, onglets[0] ? onglets[0].id : ''), 'aria-current': ici && !plusieurs ? 'page' : null, onclick: function () { if (plusieurs) ouverts[s.id] = true; } }, [h('span.ic', { html: ICONES[s.icone] || ICONES.inventaire }), h('span.t', { text: s.titre })]),
+        plusieurs ? h('button.cote-plier', { type: 'button', 'aria-expanded': ouvert ? 'true' : 'false', 'aria-label': (ouvert ? 'Replier ' : 'Déplier ') + s.titre, html: ICONES.chevron, onclick: function () { ouverts[s.id] = !ouvert; majCote(); } }) : null
+      ]));
+      if (ouvert) {
+        li.appendChild(h('ul.cote-onglets', onglets.map(function (o) {
+          var c = ''; try { c = o.compteur ? o.compteur() : ''; } catch (e) {}
+          var actif = ici && o.id === ongId;
+          return h('li', [h('a' + (actif ? '.actif' : ''), { href: AMX.lien(s.id, o.id), 'aria-current': actif ? 'page' : null }, [h('span.t', { text: o.titre }), (c !== '' && c !== null && c !== undefined) ? h('span.n', { text: String(c) }) : null])]);
+        })));
+      }
+      liste.appendChild(li);
+    });
+    cote.appendChild(liste);
+    cote.appendChild(h('div.cote-pied', [
+      h('button.cote-palette', { type: 'button', onclick: function () { AMX.palette(); } }, [h('span', { html: ICONES.recherche }), h('span', 'Aller à…'), h('kbd', { text: /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K' })]),
+      h('button.cote-bascule', { type: 'button', text: 'Revenir à l\'interface actuelle', onclick: function () { AMX.basculerInterface(false); } })
+    ]));
+    cote.scrollTop = defile;
+  }
+
+  /* Menu « … » : les actions secondaires d'une page (Rafraîchir, Exporter, Actions en lot…). */
+  AMX.menuActions = function (actions, opts) {
+    opts = opts || {};
+    var menu = h('div.menu-actions-liste', { role: 'menu', hidden: true });
+    var btn = h('button.btn.menu-actions-bouton', { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: opts.titre || 'Autres actions', 'aria-label': opts.titre || 'Autres actions', html: (ICONES.points || '…') + (opts.texte ? '<span>' + esc(opts.texte) + '</span>' : '') });
+    var env = h('div.menu-actions', [btn, menu]);
+    var dehors = function (e) { if (!env.contains(e.target)) fermer(); };
+    var fermer = function () { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); };
+    (actions || []).filter(Boolean).forEach(function (a) {
+      var it = h('button', { type: 'button', role: 'menuitem', html: (a.icone || '') + '<span>' + esc(a.texte) + '</span>' });
+      it.addEventListener('click', function () { fermer(); a.action(); });
+      menu.appendChild(it);
+    });
+    btn.addEventListener('click', function () {
+      if (!menu.hidden) { fermer(); return; }
+      menu.hidden = false; btn.setAttribute('aria-expanded', 'true');
+      document.addEventListener('mousedown', dehors, true);
+      var p = menu.querySelector('button'); if (p) p.focus();
+    });
+    menu.addEventListener('keydown', function (e) {
+      var l = Array.prototype.slice.call(menu.querySelectorAll('button')), i = l.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.stopPropagation(); fermer(); btn.focus(); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); l[(i + (e.key === 'ArrowDown' ? 1 : -1) + l.length) % l.length].focus(); }
+      else if (e.key === 'Tab') fermer();
+    });
+    return env;
+  };
+
+  /* Palette Ctrl+K (⌘K) : pages, actions et véhicules au même endroit, au clavier. */
+  function sansAccent(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+  function entreesPalette() {
+    var out = [];
+    AMX.listeSections().forEach(function (s) {
+      var onglets = (s.onglets || []).filter(function (o) { return !o.visible || o.visible(); });
+      if (onglets.length > 1) onglets.forEach(function (o) { out.push({ groupe: 'Pages', t: o.titre, s: s.titre, ic: s.icone, href: AMX.lien(s.id, o.id) }); });
+      else out.push({ groupe: 'Pages', t: s.titre, s: '', ic: s.icone, href: s.tuile ? '#/' + s.id : AMX.lien(s.id, onglets[0] ? onglets[0].id : '') });
+    });
+    var voit = function (id) { var x = AMX.sources[id] || AMX.sections[id]; return !!x && (!x.visible || x.visible()); };
+    var actions = [
+      voit('outils') && { t: 'Nouvelle évaluation', ic: 'achat', href: AMX.lien('outils', 'evaluation') },
+      voit('achat') && { t: 'Nouvelle fiche d\'achat', ic: 'achat', href: AMX.lien('achat', '') },
+      voit('ventes') && AMX.ventes && AMX.ventes.peutDeclarer && AMX.ventes.peutDeclarer() && { t: 'Inscrire une vente', ic: 'vente', href: AMX.lien('ventes', 'liste', { nouvelle: Date.now() }) },
+      voit('service') && { t: 'Nouveau rendez-vous', ic: 'service', href: AMX.lien('service', 'rendezvous', { nouveau: 1 }) },
+      voit('aide') && { t: 'Écrire une suggestion', ic: 'suggestions', href: AMX.lien('aide', 'suggestions') },
+      { t: 'Revenir à l\'interface actuelle', ic: 'rafraichir', faire: function () { AMX.basculerInterface(false); } }
+    ];
+    actions.filter(Boolean).forEach(function (a) { a.groupe = 'Actions'; a.s = a.s || ''; out.push(a); });
+    return out;
+  }
+  AMX.palette = function () {
+    if (document.querySelector('.voile.palette')) return;
+    var input = h('input.palette-saisie', { type: 'search', placeholder: 'Aller à une page, une action ou un véhicule (NIV, # stock, client…)', autocomplete: 'off', spellcheck: 'false', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'palette-liste', 'aria-autocomplete': 'list', 'aria-label': 'Aller à' });
+    var liste = h('div.palette-liste#palette-liste', { role: 'listbox', 'aria-label': 'Résultats' });
+    var m = AMX.modale({ titre: 'Aller à…', classe: 'palette', sansPied: true, proteger: false, corps: h('div.palette', [input, liste, h('div.palette-aide', { text: '↑ ↓ pour choisir · Entrée pour ouvrir · Échap pour fermer' })]) });
+    var base = entreesPalette(), choisi = 0, items = [];
+    var ouvrir = function (it) { m.fermer(); if (it.faire) it.faire(); else location.hash = String(it.href).replace(/^.*#/, '#'); };
+    var marquer = function (i) {
+      var els = liste.querySelectorAll('.palette-item'); if (!els.length) return;
+      choisi = Math.max(0, Math.min(els.length - 1, i));
+      Array.prototype.forEach.call(els, function (e, k) { e.classList.toggle('sel', k === choisi); e.setAttribute('aria-selected', k === choisi ? 'true' : 'false'); });
+      input.setAttribute('aria-activedescendant', els[choisi].id); els[choisi].scrollIntoView({ block: 'nearest' });
+    };
+    var dessiner = function () {
+      var q = sansAccent(input.value.trim()), mots = q.split(/\s+/).filter(Boolean);
+      items = base.filter(function (it) { var t = sansAccent(it.t + ' ' + it.s); return mots.every(function (m2) { return t.indexOf(m2) >= 0; }); });
+      if (!q) items = items.filter(function (it) { return it.groupe === 'Actions'; }).concat(items.filter(function (it) { return it.groupe === 'Pages'; }));
+      if (q.length >= 2 && AMX.recherche) {
+        var cie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
+        var r = AMX.recherche.resultats(input.value.trim(), cie);
+        r.vehicules.slice(0, 8).forEach(function (g) {
+          var titre = '', href = '';
+          g.items.forEach(function (i) { if (!titre && i.src.modele) titre = i.src.modele(i.x) || ''; var p = i.src.puce(i.x); if (!href && p.principal) href = p.href; });
+          if (!href && g.items.length) href = g.items[0].src.puce(g.items[0].x).href;
+          items.push({ groupe: 'Véhicules', t: titre || g.vin, s: g.vin + (g.cie ? ' · ' + (AMX.COMPAGNIES_TOUTES[g.cie] || g.cie) : ''), ic: 'voiture', href: href });
+        });
+        if (r.enLecture.length) items.push({ groupe: 'Véhicules', t: 'Recherche en cours…', s: r.enLecture.join(', '), ic: 'recherche', inactif: true });
+      }
+      AMX.vider(liste);
+      var groupe = '';
+      items.forEach(function (it, k) {
+        if (it.groupe !== groupe) { groupe = it.groupe; liste.appendChild(h('div.palette-groupe', { text: groupe })); }
+        var el = h(it.inactif ? 'div.palette-item.inactif' : 'a.palette-item', { id: 'palette-o-' + k, role: 'option', href: it.inactif || it.faire ? null : it.href }, [h('span.ic', { html: ICONES[it.ic] || ICONES.chevron }), h('span.t', { text: it.t }), it.s ? h('span.s', { text: it.s }) : null]);
+        if (!it.inactif) el.addEventListener('click', function (e) { e.preventDefault(); ouvrir(it); });
+        liste.appendChild(el);
+      });
+      if (!items.length) liste.appendChild(h('div.palette-vide', { text: 'Rien trouvé pour « ' + input.value.trim() + ' ».' }));
+      marquer(0);
+    };
+    input.addEventListener('input', AMX.debounce(dessiner, 90));
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); marquer(choisi + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); marquer(choisi - 1); }
+      else if (e.key === 'Enter') { e.preventDefault(); var vrais = items.filter(function (it) { return true; }); var it = vrais[choisi]; if (it && !it.inactif) ouvrir(it); }
+    });
+    if (AMX.recherche && AMX.recherche.prechauffer) AMX.recherche.prechauffer(function () { if (document.body.contains(liste) && input.value.trim().length >= 2) dessiner(); });
+    dessiner();
+  };
+  document.addEventListener('keydown', function (e) {
+    if (!(e.metaKey || e.ctrlKey) || String(e.key).toLowerCase() !== 'k' || e.altKey || e.shiftKey) return;
+    if (!AMX.ui2() || !AMX.session.courriel || !document.getElementById('appli') || !document.getElementById('appli').classList.contains('pret')) return;
+    e.preventDefault(); AMX.palette();
+  });
+
   function majNav(id) {
     document.querySelectorAll('#barre nav a').forEach(function (a) { var ici = a.dataset.section === id; a.classList.toggle('actif', ici); if (ici) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    majCote();
   }
   function dessinerSousBarre(sec, ong) {
     var sb = document.getElementById('sous-barre');
@@ -1109,6 +1329,10 @@
       }
     }
     if (sec.outils) { var out = h('div.outils'); sec.outils(out); sb.appendChild(out); }
+    var sansVues = !sb.querySelector('.vues, .outils');
+    sb.classList.toggle('sans-vues', sansVues);
+    if (AMX.ui2() && sansVues && bureauUi2()) document.documentElement.style.setProperty('--sous-h', '0px');
+    majCote();
   }
 
   /* --------------------------- Cache inventaire ------------------------- */
@@ -1455,7 +1679,8 @@
   AMX.choixCompagnie = function (opts) {
     var codes = AMX.codesPour(opts.domaine), valeur = opts.valeur || '';
     if (codes.length < 2) return null;
-    var liste = h('div.choix-cie' + (opts.vertical ? '' : '.rangee'), { role: 'radiogroup', 'aria-label': 'Concession' });
+    var suit = !opts.vertical && opts.garder !== false && !opts.sansToutes;   /* v131 : suit le choix du site → en ui2, la barre du haut suffit */
+    var liste = h('div.choix-cie' + (opts.vertical ? '' : '.rangee') + (suit ? '.suit-site' : ''), { role: 'radiogroup', 'aria-label': 'Concession' });
     (opts.sansToutes ? [] : [['', 'Toutes les concessions']]).concat(codes.map(function (c) { return [c, AMX.COMPAGNIES_TOUTES[c] || c]; })).forEach(function (l) {   /* sansToutes (21 oct.) : pages par concession seulement (Relance › Équité) */
       var actif = valeur === l[0], n = opts.compte ? opts.compte(l[0]) : null, sous = opts.sous ? opts.sous(l[0]) : null;
       liste.appendChild(h('button.choix' + (actif ? '.actif' : '') + (l[0] ? '.' + (AMX.COULEUR_COMPAGNIE[l[0]] || 'gris') : '.toutes') + (sous ? '.avec-sous' : ''), {

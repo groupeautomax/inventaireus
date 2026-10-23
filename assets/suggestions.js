@@ -47,7 +47,7 @@
     },
     aTraiter: function () { return cache.rep && cache.rep.admin ? (cache.rep.compte && cache.rep.compte.recue) || 0 : 0; },
     // Le formulaire, appelable d'ailleurs (menu du compte, Aide).
-    // 22 oct. : `pre` = brouillon { titre, description, pourquoi, exemple, source: 'maxai' } rédigé par MAX ai.
+    // 22 oct. : `pre` = brouillon { titre, description, pourquoi, exemple, source: 'maxai' } rédigé par Einstein AI.
     nouvelle: function (pre) { return ouvrirFormulaire(pre); }
   };
 
@@ -125,7 +125,7 @@
     ]));
     page.appendChild(h('p.sug-aide', { text: 'Une suggestion reste en rouge jusqu\'à ce qu\'elle soit traitée. Quand c\'est fait, elle passe au vert et vous recevez un courriel qui explique ce qui a changé.' }));
     this.elKpis = h('div.kpis');
-    this.elIa = h('div.carte.sug-ia#sug-ia', { style: { display: 'none' } });   /* 22 oct. : MAX ai, analyse des suggestions (admins) */
+    this.elIa = h('div.carte.sug-ia#sug-ia', { style: { display: 'none' } });   /* 22 oct. : Einstein AI, analyse des suggestions (admins) */
     this.elFiltres = h('div.sug-filtres');
     this.elListe = h('div.sug-liste');
     page.appendChild(this.elKpis); page.appendChild(this.elIa); page.appendChild(this.elFiltres); page.appendChild(this.elListe);
@@ -191,9 +191,9 @@
   };
 
 
-  /* ------------------- MAX ai : analyse des suggestions (22 oct.) — admins -------------------
+  /* ------------------- Einstein AI : analyse des suggestions (22 oct.) — admins -------------------
      GET ?iaSuggestions=1 → { analyse (la dernière), present (clé), budget, depense } ; POST iaSuggestionsAnalyser → { analyse }.
-     Ia.gs : MAX ai (moteur Claude) regroupe les suggestions ouvertes en thèmes, repère les doublons et les redites, propose les précisions
+     Ia.gs : Einstein AI (moteur Claude) regroupe les suggestions ouvertes en thèmes, repère les doublons et les redites, propose les précisions
      à demander et une piste ; rien n'est appliqué ni envoyé. Ni le nom ni le courriel des employés ne partent chez Anthropic. */
   var PRIORITES_IA = { haute: ['Priorité haute', 'alerte'], moyenne: ['Priorité moyenne', 'attention'], basse: ['Priorité basse', ''] };
   Suggestions.prototype.chargerIa = function () {
@@ -225,9 +225,9 @@
     var parId = {}; (d.suggestions || []).forEach(function (x) { parId[x.id] = x; });
     var a = ia && ia.analyse, r = a && a.resultat;
     var nOuvertes = (d.suggestions || []).filter(function (x) { return x.etat === 'recue'; }).length;
-    var btn = h('button.btn.primaire#sug-ia-analyser', { type: 'button', disabled: (!ia || !ia.present || this.iaEnCours || !nOuvertes) ? 'disabled' : undefined, onclick: function () { self.analyserIa(); } }, [AMX.svg('suggestions'), this.iaEnCours ? ' MAX ai lit les suggestions… (jusqu\'à une minute)' : (a ? ' Refaire l\'analyse' : ' Analyser avec MAX ai')]);
-    var info = !ia ? 'Chargement…' : (ia.absent ? ia.erreur : (!ia.present ? 'MAX ai n\'a pas encore de clé : le propriétaire la colle dans Admin › MAX ai.' : (a ? 'Dernière analyse le ' + AMX.fmtDate(a.le, true) + ' · ' + a.nOuvertes + ' suggestion' + (a.nOuvertes > 1 ? 's' : '') + ' · ' + String((a.cout || 0).toFixed(3)).replace('.', ',') + ' $ US' : 'MAX ai regroupe les suggestions à traiter en thèmes, repère les doublons et propose des pistes. Rien n\'est appliqué sans vous.')));
-    var tete = h('div.sug-ia-tete', [AMX.maxai ? AMX.maxai.avatar(44) : null, h('div', { style: { flex: '1' } }, [h('h2', 'MAX ai · analyse des suggestions'), h('div.mini.doux', { text: info })]), btn]);
+    var btn = h('button.btn.primaire#sug-ia-analyser', { type: 'button', disabled: (!ia || !ia.present || this.iaEnCours || !nOuvertes) ? 'disabled' : undefined, onclick: function () { self.analyserIa(); } }, [AMX.svg('suggestions'), this.iaEnCours ? ' Einstein AI lit les suggestions… (jusqu\'à une minute)' : (a ? ' Refaire l\'analyse' : ' Analyser avec Einstein AI')]);
+    var info = !ia ? 'Chargement…' : (ia.absent ? ia.erreur : (!ia.present ? 'Einstein AI n\'a pas encore de clé : le propriétaire la colle dans Admin › Einstein AI.' : (a ? 'Dernière analyse le ' + AMX.fmtDate(a.le, true) + ' · ' + a.nOuvertes + ' suggestion' + (a.nOuvertes > 1 ? 's' : '') + ' · ' + String((a.cout || 0).toFixed(3)).replace('.', ',') + ' $ US' : 'Einstein AI regroupe les suggestions à traiter en thèmes, repère les doublons et propose des pistes. Rien n\'est appliqué sans vous.')));
+    var tete = h('div.sug-ia-tete', [AMX.maxai ? AMX.maxai.avatar(44) : null, h('div', { style: { flex: '1' } }, [h('h2', 'Einstein AI · analyse des suggestions'), h('div.mini.doux', { text: info })]), btn]);
     el.appendChild(tete);
     if (!r) return;
     var puceSug = function (id) {
@@ -261,7 +261,7 @@
         return h('li', [h('div.sug-ia-refs', [puceSug(x.id)]), h('div.sug-ia-question', [h('span', { text: x.question }), h('button.btn.petit.fantome', { type: 'button', onclick: function () { AMX.copier(x.question, 'Question copiée'); } }, [AMX.svg('copier'), ' Copier'])])]);
       })));
     }
-    el.appendChild(h('div.sug-ia-pied', [h('span.puce', { text: 'Proposé par MAX ai' }), h('span.mini.doux', { text: 'Rien n\'est appliqué ni envoyé sans vous. ' + (a.modele || '') }),
+    el.appendChild(h('div.sug-ia-pied', [h('span.puce', { text: 'Proposé par Einstein AI' }), h('span.mini.doux', { text: 'Rien n\'est appliqué ni envoyé sans vous. ' + (a.modele || '') }),
       h('button.btn.petit', { type: 'button', onclick: function () { AMX.copier(texteAnalyse(a, parId), 'Analyse copiée — collez dans la conversation avec Claude'); } }, [AMX.svg('copier'), ' Copier l\'analyse pour Claude'])]));
   };
   /* Défile jusqu'à la suggestion et la fait clignoter (elle peut être cachée par un filtre : on le retire). */
@@ -274,7 +274,7 @@
   };
   function texteAnalyse(a, parId) {
     var r = a.resultat || {}, t = function (id) { var x = parId[id]; return '[' + id + '] ' + (x ? x.titre : ''); };
-    var out = ['Analyse MAX ai des suggestions — ' + AMX.fmtDate(a.le, true) + ' (' + a.nOuvertes + ' suggestions)', '', r.resume || ''];
+    var out = ['Analyse Einstein AI des suggestions — ' + AMX.fmtDate(a.le, true) + ' (' + a.nOuvertes + ' suggestions)', '', r.resume || ''];
     (r.themes || []).forEach(function (x, i) { out.push('', (i + 1) + '. ' + x.titre + ' — priorité ' + x.priorite, '   Raison : ' + x.raison, '   Piste : ' + x.proposition, '   Suggestions : ' + x.ids.map(t).join(' ; ')); });
     if ((r.doublons || []).length) { out.push('', 'Doublons :'); r.doublons.forEach(function (x) { out.push('- ' + x.ids.map(t).join(' = ') + ' — ' + x.raison); }); }
     if ((r.dejaTraitees || []).length) { out.push('', 'Déjà réglées :'); r.dejaTraitees.forEach(function (x) { out.push('- ' + t(x.id) + ' ↔ ' + t(x.idTraitee) + ' — ' + x.raison); }); }
@@ -370,7 +370,7 @@
     var selUrg = h('select.saisie#sug-urgence', URGENCES.map(function (u) { return h('option', { value: u[0], text: u[1] }); }));
     if (pre) { titre.value = pre.titre || ''; desc.value = pre.description || ''; pourquoi.value = pre.pourquoi || ''; exemple.value = pre.exemple || ''; }
     var corps = h('div.sug-form', [
-      pre && pre.source === 'maxai' ? h('p.sug-aide.maxai-redige', [AMX.maxai ? AMX.maxai.avatar(28, { bouton: false }) : null, h('span', { text: ' Rédigée par MAX ai à partir de votre discussion : relisez et corrigez avant d\'envoyer.' })]) : null,
+      pre && pre.source === 'maxai' ? h('p.sug-aide.maxai-redige', [AMX.maxai ? AMX.maxai.avatar(28, { bouton: false }) : null, h('span', { text: ' Rédigée par Einstein AI à partir de votre discussion : relisez et corrigez avant d\'envoyer.' })]) : null,
       h('p.sug-aide', { text: 'Une demande claire se traite vite : dites quoi, pourquoi, et donnez un exemple. Elle reste en rouge jusqu\'à ce qu\'elle soit traitée ; vous recevrez un courriel avec ce qui a changé.' }),
       h('div.deux', [
         h('div.champ', [h('label', { 'for': 'sug-page', text: 'Page concernée' }), selPage]),

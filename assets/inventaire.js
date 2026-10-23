@@ -132,6 +132,16 @@
     });
   };
 
+  // v131 (Accueil « À faire ») : par registre, les véhicules actifs en retard — registre non reçu 10 j+, acheté depuis 7 j+.
+  AMX.inventaire.alertes = function (compagnie) {
+    return Object.keys(FEUILLES).map(function (id) {
+      var l = AMX.inventaire.enCache(FEUILLES[id].feuille);
+      if (!l) return { id: id, titre: FEUILLES[id].titre, charge: false, retard: 0, retardAchat: 0 };
+      var actifs = l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise' && (!compagnie || v.compagnie === compagnie); });
+      return { id: id, titre: FEUILLES[id].titre, charge: true, retard: actifs.filter(enRetardRegistre).length, retardAchat: actifs.filter(enRetardAchat).length };
+    });
+  };
+
   // 11 oct. (Maxime : « un onglet Inventaire, puis Neufs et Usagé ») : une seule section « Inventaire » avec deux onglets dans
   // la sous-barre — Neufs (assets/neufs.js, VueNeufs) et Usagé (les trois registres É.-U. / Canada / Detail, choisis par des
   // pastilles dans la page et mémorisés). Anciennes adresses : #/neufs → #/inventaire/neufs ; #/inventaire/us|can|detail →
@@ -192,8 +202,13 @@
     this.selection = ctx.params.vin || '';
     this.ecritures = 0; this.generation = 0;
     this.filtres = this.filtresDefaut();
+    if (ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') this.filtres.alerte = ctx.params.alerte;
     this.tri = AMX.memo.lire('inv_tri', 'maj');
     this.observateur = null;
+    this.ui2 = !!(AMX.ui2 && AMX.ui2());   /* v131 : nouvelle interface (page refaite) */
+    // v131 : la concession choisie dans la barre du haut (ou ailleurs) s'applique tout de suite.
+    this.surCie = function () { if (self.detruit) return; self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); };
+    document.addEventListener('amx:compagnie', this.surCie);
 
     this.construire();
     this.charger();
@@ -223,6 +238,7 @@
     document.removeEventListener('amx:carfax', this.surCarfax);
     document.removeEventListener('amx:eblock', this.surCarfax);
     document.removeEventListener('amx:openlane', this.surCarfax);
+    document.removeEventListener('amx:compagnie', this.surCie);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
   };
@@ -231,8 +247,11 @@
     if (ctx.onglet !== this.onglet) {
       this.onglet = ctx.onglet; this.cfg = FEUILLES[ctx.onglet] || FEUILLES.us;
       this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || '';
+      if (ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') this.filtres.alerte = ctx.params.alerte;
       this.vehicules = AMX.inventaire.enCache(this.cfg.feuille) || [];
       this.construire(); this.charger();
+    } else if ((ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') && ctx.params.alerte !== this.filtres.alerte) {
+      this.filtres.alerte = ctx.params.alerte; this.filtres.recherche = ''; this.construireRail(); this.rendre();
     } else if (ctx.params.vin && ctx.params.vin !== this.selection) {
       this.selection = ctx.params.vin; this.filtres.recherche = ''; this.rendre();
     }
@@ -241,6 +260,7 @@
   /* --------------------------- Construction ---------------------------- */
   Registre.prototype.construire = function () {
     var self = this;
+    if (this.ui2) { this.construireUi2(); return; }
     AMX.vider(this.conteneur);
     this.elKpis = h('div.kpis');
     this.elValeur = h('div.valeur-registres');
@@ -274,6 +294,7 @@
 
   Registre.prototype.construireRail = function () {
     var self = this, f = this.filtres, cfg = this.cfg;
+    if (this.ui2) { this.construireFiltresUi2(); return; }
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock — tous statuts, tous registres', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; f.alerte = ''; self.rendre(); }, 120) })]);
     // Concession : rangée de pastilles sous l'en-tête (16 oct., même présentation que Neufs et partout), compte des
@@ -314,6 +335,104 @@
     this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech]));
     this.elRail.appendChild(grpStatut);
     this.elRail.appendChild(grpAutres);
+  };
+
+  /* ------------------- v131 : page Usagé refaite (nouvelle interface, html.ui2) -------------------
+     Rapport « Refonte ergonomique » : un en-tête avec UNE action principale et un menu « … », au plus quatre chiffres,
+     une barre de filtres au-dessus de la liste (plus de volet de gauche), la concession dans la barre du haut du site. */
+  Registre.prototype.construireUi2 = function () {
+    var self = this;
+    AMX.vider(this.conteneur);
+    this.elKpis = h('div.kpis.inv2-resume');
+    this.elValeur = h('div');
+    this.elRail = h('div.inv2-filtres');
+    this.elListe = h('div');
+    this.elPanneau = h('aside.panneau');
+    this.elOutils = h('div.outils-liste');
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
+    this.elCies = h('div');
+    this.elRegistres = h('div.segment.choix-registre', { 'aria-label': 'Registre' });
+    this.elRechercheUi2 = h('input.saisie', { type: 'search', placeholder: 'NIV, modèle, # stock — tous statuts, tous registres', value: this.filtres.recherche, 'aria-label': 'Chercher dans l\'usagé',
+      oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.filtres.alerte = ''; self.construireFiltresUi2(); self.rendre(); }, 140) });
+    var menu = AMX.menuActions([
+      { texte: 'Rafraîchir', icone: I.rafraichir, action: function () { self.charger(true); } },
+      { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } },
+      { texte: 'Actions en lot', icone: I.scan, action: function () { self.modaleLot('ajout'); } }
+    ]);
+    this.conteneur.appendChild(h('div.page.inv2', [
+      h('div.entete-page.inv2-tete', [
+        h('div.inv2-titre', [h('h1', 'Usagé'), this.elRegistres, h('p#inv-etat.inv2-etat', { text: 'Chargement…' })]),
+        h('div.actions', [menu, AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null])
+      ]),
+      this.elKpis, this.elRail, this.elAgencement
+    ]));
+    this.rendreRegistres();
+    this.construireFiltresUi2();
+    this.surProfil = function () { if (!self.detruit) { self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); } };
+    document.addEventListener('amx:profil', this.surProfil);
+  };
+  // La barre de filtres : recherche, statuts en pastilles (avec leur nombre), « Filtres » pour le reste.
+  Registre.prototype.construireFiltresUi2 = function () {
+    var self = this, f = this.filtres, cfg = this.cfg;
+    // La boîte de recherche reste en place (le curseur ne saute pas) ; seules les pastilles et « Filtres » sont refaites.
+    if (!this.elRechWrap || this.elRechWrap.parentNode !== this.elRail) {
+      AMX.vider(this.elRail);
+      this.elRechWrap = h('div.recherche.inv2-recherche', [h('span', { html: I.recherche }), this.elRechercheUi2]);
+      this.elPastillesUi2 = h('div.inv2-statuts', { role: 'group', 'aria-label': 'Statut' });
+      this.elPlusUi2 = h('div.inv2-plus-env');
+      this.elRail.appendChild(this.elRechWrap); this.elRail.appendChild(this.elPastillesUi2); this.elRail.appendChild(this.elPlusUi2);
+    }
+    var base = this.vehicules.filter(function (v) { return !f.compagnie || v.compagnie === f.compagnie; });
+    var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
+    var pastilles = AMX.vider(this.elPastillesUi2);
+    var pastille = function (texte, n, actif, couleur, clic) {
+      var b = h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false' }, [couleur ? h('i', { style: { background: 'var(--' + couleur + ')' } }) : null, h('span', { text: texte }), h('b', { text: String(n) })]);
+      b.addEventListener('click', function () { clic(); f.alerte = ''; f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); });
+      return b;
+    };
+    var cherche = !!(f.recherche && f.recherche.trim());
+    pastilles.appendChild(pastille('Actifs', base.filter(function (v) { return actifs.indexOf(v.statut) >= 0; }).length, !cherche && !f.alerte && f.statuts === null, '', function () { f.statuts = null; }));
+    cfg.statuts.forEach(function (s) {
+      var st = AMX.statut(s, cfg.feuille), n = base.filter(function (v) { return v.statut === s; }).length;
+      var actif = !cherche && !f.alerte && f.statuts && f.statuts.length === 1 && f.statuts[0] === s;
+      pastilles.appendChild(pastille(st.libelle, n, actif, st.couleur, function () { f.statuts = actif ? null : [s]; }));
+    });
+    pastilles.appendChild(pastille('Tous', base.length, !cherche && !f.alerte && f.statuts && f.statuts.length === cfg.statuts.length, '', function () { f.statuts = cfg.statuts.slice(); }));
+    // Filtres secondaires dans un menu déroulant
+    var nbAutres = ['origine', 'rappel', 'importateur', 'registre'].filter(function (k) { return f[k]; }).length;
+    var selectFiltre = function (libelle, cle, options) {
+      var sel = h('select.saisie', { onchange: function (e) { f[cle] = e.target.value; f.alerte = ''; self.construireFiltresUi2(); self.rendre(); } });
+      options.forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: f[cle] === o[0], text: o[1] })); });
+      return h('div.champ', [h('label', { text: libelle }), sel]);
+    };
+    var pop = h('div.inv2-pop', { hidden: true, role: 'dialog', 'aria-label': 'Autres filtres' }, [
+      selectFiltre('Origine', 'origine', [['', 'Toutes'], ['Achat', 'Achat'], ['Échange', 'Échange']]),
+      selectFiltre('Rappel', 'rappel', [['', 'Tous'], ['oui', 'Rappel ouvert'], ['non', 'Aucun rappel'], ['inconnu', 'Non vérifié']]),
+      cfg.importateur ? selectFiltre('Importateur', 'importateur', [['', 'Tous'], ['DENT', 'DENT'], ['Direct', 'Direct']]) : null,
+      selectFiltre('Registre reçu', 'registre', [['', 'Tous'], ['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Reçu · mauvais nom']]),
+      h('button.btn.petit.fantome', { type: 'button', text: 'Réinitialiser les filtres', onclick: function () { var c = f.compagnie; self.filtres = self.filtresDefaut(); self.filtres.compagnie = c; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); } })
+    ]);
+    var btnFiltres = h('button.btn.inv2-plus' + (nbAutres ? '.actif' : ''), { type: 'button', 'aria-expanded': 'false', html: I.filtre + '<span>Filtres' + (nbAutres ? ' (' + nbAutres + ')' : '') + '</span>' });
+    var dehors = function (e) { if (!enveloppe.contains(e.target)) { pop.hidden = true; btnFiltres.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); } };
+    btnFiltres.addEventListener('click', function () { pop.hidden = !pop.hidden; btnFiltres.setAttribute('aria-expanded', pop.hidden ? 'false' : 'true'); if (!pop.hidden) document.addEventListener('mousedown', dehors, true); });
+    var enveloppe = AMX.vider(this.elPlusUi2);
+    enveloppe.appendChild(btnFiltres); enveloppe.appendChild(pop);
+  };
+  // Au plus quatre chiffres : actifs (et leur coût), registre non reçu 10 j+, achat 7 j+, valeur des trois registres.
+  Registre.prototype.rendreResumeUi2 = function (kpi) {
+    var self = this, f = this.filtres, cfg = this.cfg;
+    var actifsSt = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
+    var base = this.base(), actifs = base.filter(function (v) { return actifsSt.indexOf(v.statut) >= 0; });
+    var sA = AMX.inventaire.sommeCouts(actifs);
+    var retard = actifs.filter(enRetardRegistre).length, retardAchat = actifs.filter(enRetardAchat).length;
+    var regs = AMX.inventaire.valeurRegistres(f.compagnie), charges = regs.filter(function (r) { return r.charge; });
+    var total = charges.reduce(function (t, r) { return t + r.total; }, 0);
+    var clic = function (alerte) { return function () { f.alerte = f.alerte === alerte ? '' : alerte; f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); }; };
+    this.elKpis.appendChild(kpi(actifs.length, 'Véhicules actifs', { classe: 'neutre', sous: sA.texte + ' de coût', titre: sA.detail, actif: !f.alerte && f.statuts === null && !f.recherche, onclick: function () { f.alerte = ''; f.statuts = null; f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); } }));
+    this.elKpis.appendChild(kpi(retard, 'Registre 10 j+', { classe: retard ? 'alerte' : 'neutre', sous: retard ? 'non reçu — à relancer' : 'tout est reçu', actif: f.alerte === 'retard', onclick: clic('retard') }));
+    this.elKpis.appendChild(kpi(retardAchat, 'Achat 7 j+', { classe: retardAchat ? 'attention' : 'neutre', sous: retardAchat ? 'pas encore en stock' : 'aucun retard', actif: f.alerte === 'retardAchat', onclick: clic('retardAchat') }));
+    this.elKpis.appendChild(kpi(charges.length ? AMX.fmtArgent(total, 0) : '…', 'Valeur des 3 registres', { classe: 'neutre', sous: charges.map(function (r) { return r.titre + ' ' + r.n; }).join(' · ') || 'chargement…', titre: 'Coût des véhicules actifs, É.-U. + Canada + Detail' }));
+    this.rendreRegistres();
   };
 
   /* ------------------------------ Données ------------------------------ */
@@ -467,6 +586,7 @@
       return k;
     };
     var tousActifs = f.statuts === null && !f.alerte;
+    if (this.ui2) { this.rendreResumeUi2(kpi); return; }
     // Total en $ (coût d'achat) par registre et par statut — demande de Maxime, 7 oct.
     var sommeCouts = AMX.inventaire.sommeCouts;
     var sTotal = sommeCouts(base);

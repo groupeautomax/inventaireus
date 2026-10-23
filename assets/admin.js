@@ -1085,7 +1085,7 @@
     this.elJournalCorps.appendChild(h('div', { style: { overflowX: 'auto' } }, [h('table', [h('thead', [h('tr', [h('th', 'Quand'), h('th', 'Qui'), h('th', 'Action'), h('th', 'Détail')])]), h('tbody', lignes)])]));
   };
 
-  /* ------------------- MAX ai, l'intelligence artificielle (moteur : Claude) — 22 oct. -----------------
+  /* ------------------- Einstein AI, l'intelligence artificielle (moteur : Claude) — 22 oct. -----------------
      Ia.gs : la clé API Anthropic (propriété ANTHROPIC_API_KEY, jamais l'écran « Propriétés du script »), le modèle et
      le budget mensuel. La clé n'est jamais renvoyée : seulement sa présence et ses 4 derniers caractères.
      GET ?iaReglages=1 ; POST iaReglages { cle?, retirerCle?, modele?, budget? } · iaTester (propriétaire). */
@@ -1101,11 +1101,11 @@
     this.btnIaTester = h('button.btn.petit#adm-ia-tester', { type: 'button', text: 'Tester la connexion', onclick: function () { self.testerIa(); } });
     this.btnIaRetirer = h('button.btn.danger.petit#adm-ia-retirer', { type: 'button', text: 'Retirer la clé', onclick: function () { self.retirerCleIa(); } });
     var corps = [
-      h('p.doux.petit', { style: { margin: 0 }, text: 'MAX ai, l\'assistant de ScanAutomax (moteur : Claude, d\'Anthropic), lit les suggestions des employés (Aide › Suggestions › « Analyser avec MAX ai ») et propose des thèmes, des doublons, des précisions à demander et des pistes d\'amélioration. Rien n\'est appliqué ni envoyé sans vous. Aucune donnée client ; ni le nom ni le courriel des employés ne sont envoyés.' }),
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Einstein AI, l\'assistant de ScanAutomax (moteur : Claude, d\'Anthropic), lit les suggestions des employés (Aide › Suggestions › « Analyser avec Einstein AI ») et propose des thèmes, des doublons, des précisions à demander et des pistes d\'amélioration. Rien n\'est appliqué ni envoyé sans vous. Aucune donnée client ; ni le nom ni le courriel des employés ne sont envoyés.' }),
       h('div.ligne-cle', [h('div.champ', [h('label', { 'for': 'adm-ia-cle', text: 'Clé API Anthropic' }), this.elCleIa]), voir]),
       h('div.admin-export-grille', [
         h('div.champ', [h('label', { 'for': 'adm-ia-modele', text: 'Modèle' }), this.elModeleIa]),
-        h('div.champ', [h('label', { 'for': 'adm-ia-budget', text: 'Budget mensuel ($ US)' }), this.elBudgetIa, h('div.mini.doux', { text: 'Au-delà, MAX ai refuse les demandes jusqu\'au mois suivant.' })])
+        h('div.champ', [h('label', { 'for': 'adm-ia-budget', text: 'Budget mensuel ($ US)' }), this.elBudgetIa, h('div.mini.doux', { text: 'Au-delà, Einstein AI refuse les demandes jusqu\'au mois suivant.' })])
       ]),
       h('div.ligne-cle', [this.btnIa, this.btnIaTester, this.btnIaRetirer]),
       this.elEtatIa,
@@ -1115,7 +1115,7 @@
         h('li', 'Collez-la ci-dessus et enregistrez, puis « Tester la connexion ». Ne la collez jamais dans « Propriétés du script » de l\'éditeur.')
       ])])
     ];
-    return h('div.carte.admin-parametres.admin-ia', [h('div.carte-entete', { style: { display: 'flex', alignItems: 'center', gap: '10px' } }, [AMX.maxai ? AMX.maxai.avatar(36) : null, h('h2', 'MAX ai — intelligence artificielle')]), h('div.carte-corps', corps)]);
+    return h('div.carte.admin-parametres.admin-ia', [h('div.carte-entete', { style: { display: 'flex', alignItems: 'center', gap: '10px' } }, [AMX.maxai ? AMX.maxai.avatar(36) : null, h('h2', 'Einstein AI — intelligence artificielle')]), h('div.carte-corps', corps)]);
   };
   VueAdmin.prototype.chargerIa = function () {
     var self = this;
@@ -1135,7 +1135,7 @@
     this.btnIaRetirer.style.display = d.present ? '' : 'none';
     var dep = d.depense || {};
     this.elEtatIa.appendChild(h('div', [
-      d.present ? h('span.badge.vert.sans-point', { text: 'Clé enregistrée (…' + d.fin + ')' }) : h('span.badge.ambre.sans-point', { text: 'Aucune clé : MAX ai est désactivé' }),
+      d.present ? h('span.badge.vert.sans-point', { text: 'Clé enregistrée (…' + d.fin + ')' }) : h('span.badge.ambre.sans-point', { text: 'Aucune clé : Einstein AI est désactivé' }),
       h('span', { style: { marginLeft: '8px' }, text: 'Ce mois-ci : ' + (dep.usd || 0).toFixed(2).replace('.', ',') + ' $ US sur ' + String(d.budget).replace('.', ',') + ' · ' + (dep.appels || 0) + ' appel' + ((dep.appels || 0) > 1 ? 's' : '') + (dep.dernier ? ' · dernier ' + AMX.fmtDate(dep.dernier, true) : '') })
     ]));
     if (!this.iaPeut) this.elEtatIa.appendChild(h('span.puce', { text: 'Lecture seule — réservé au propriétaire' }));
@@ -1156,13 +1156,13 @@
     if (!this.iaPeut) return;
     var corps = { action: 'iaReglages', modele: this.elModeleIa.value, budget: this.elBudgetIa.value.trim() };
     if (this.elCleIa.value.trim()) corps.cle = this.elCleIa.value.trim();
-    this.posterIa(corps, 'Réglages de MAX ai enregistrés.');
+    this.posterIa(corps, 'Réglages de Einstein AI enregistrés.');
   };
-  VueAdmin.prototype.testerIa = function () { if (this.iaPeut) this.posterIa({ action: 'iaTester' }, 'MAX ai répond : connexion réussie.'); };
+  VueAdmin.prototype.testerIa = function () { if (this.iaPeut) this.posterIa({ action: 'iaTester' }, 'Einstein AI répond : connexion réussie.'); };
   VueAdmin.prototype.retirerCleIa = function () {
     var self = this;
     if (!this.iaPeut) return;
-    AMX.confirmer('Retirer la clé API', 'MAX ai sera désactivé jusqu\'à ce qu\'une nouvelle clé soit collée. Pensez aussi à révoquer la clé dans console.anthropic.com si elle a fuité.', { ok: 'Retirer', danger: true }).then(function (ok) { if (ok) self.posterIa({ action: 'iaReglages', retirerCle: true }, 'Clé retirée.'); });
+    AMX.confirmer('Retirer la clé API', 'Einstein AI sera désactivé jusqu\'à ce qu\'une nouvelle clé soit collée. Pensez aussi à révoquer la clé dans console.anthropic.com si elle a fuité.', { ok: 'Retirer', danger: true }).then(function (ok) { if (ok) self.posterIa({ action: 'iaReglages', retirerCle: true }, 'Clé retirée.'); });
   };
 
   VueAdmin.prototype.charger = function (manuel) {

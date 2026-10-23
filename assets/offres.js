@@ -322,10 +322,10 @@
     this.conteneur.appendChild(h('div.page', [
       h('div.entete-page', [
         h('div', [h('h1', 'Offres reçues'), h('p#off-etat', 'Les offres faites par les acheteurs sur les véhicules en vente.')]),
-        h('div.actions', [
+        h('div.actions', AMX.actionsEntete([
           h('button.btn.fantome.icone', { title: 'Filtres', html: I.filtre, onclick: function () { self.elRail.classList.toggle('ouvert'); } }),
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } })
-        ])
+        ], []))
       ]),
       this.elCies, this.elKpis, this.elAgencement
     ]));
@@ -603,12 +603,12 @@
     this.conteneur.appendChild(h('div.page', [
       h('div.entete-page', [
         h('div', [h('h1', 'En vente'), h('p#vente-etat', 'La vitrine envoyée aux acheteurs : chaque véhicule publié a sa page publique.')]),
-        h('div.actions', [
+        h('div.actions', (function (l) { return AMX.actionsEntete(l, [l[3]]); })([
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
           h('button.btn', { html: I.copier + '<span>Lien de la vitrine</span>', title: 'Copier le lien de la liste complète', onclick: function () { if (!cache.cle) return AMX.toast('Clé non chargée', 'attention'); AMX.copier(AMX.SITE + 'vitrine/index.html?k=' + encodeURIComponent(cache.cle), 'Lien de la vitrine copié'); } }),
           AMX.estAdmin() ? h('button.btn.fantome', { text: 'Régénérer la clé', onclick: function () { self.regenerer(); } }) : null,
           AMX.perm('changerStatut') ? h('button.btn.primaire', { html: I.plus + '<span>Mettre en vente</span>', onclick: function () { self.modalePublier(''); } }) : null
-        ])
+        ]))
       ]),
       this.elKpis, h('div.colonne-liste', [this.elOutils, this.elListe])
     ]));
@@ -649,7 +649,7 @@
     l.forEach(function (p) {
       var v = vehiculeDe(p.vin); var st = v.statut ? AMX.statut(v.statut, v._feuille) : null;
       var lien = cache.cle ? lienPublic(cache.cle, p.vin) : '';
-      var el = h('div.ligne', { style: { cursor: 'default' } }, [
+      var el = h('div.ligne.ligne-vente', { style: { cursor: 'default' } }, [   /* v136 : huit colonnes (le bouton « Envoyer » chevauchait le prix) */
         vignetteVin(p.vin, v.hasPhotos, marque(v.modele)),
         h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: v.modele || p.vin }), h('div.sous', [h('span.vin', { text: p.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, v.compagnie ? h('span.puce', { text: v.compagnie }) : null, st ? h('span.badge.' + st.couleur, { text: st.libelle }) : null])]),
         h('div.cell', [h('span.l', 'Description'), h('span.v', { text: p.description || '— aucune —', title: p.description || '' })]),
@@ -750,11 +750,11 @@
     this.conteneur.appendChild(h('div.page', [
       h('div.entete-page', [
         h('div', [h('h1', 'Acheteurs'), h('p#ach-etat', 'Les concessionnaires qui achètent nos véhicules : invités par courriel, ils remplissent leur fiche eux-mêmes ; les contrats sont ensuite pré-remplis.')]),
-        h('div.actions', [
+        h('div.actions', (function (l) { return AMX.actionsEntete(l, [l[2]]); })([
           h('button.btn.fantome.icone', { title: 'Filtres', html: I.filtre, onclick: function () { self.elRail.classList.toggle('ouvert'); } }),
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
           AMX.perm('changerStatut') ? h('button.btn.primaire', { html: I.courriel + '<span>Inviter un acheteur</span>', onclick: function () { self.modaleInviter(null); } }) : null
-        ])
+        ]))
       ]),
       this.elKpis, this.elAgencement
     ]));

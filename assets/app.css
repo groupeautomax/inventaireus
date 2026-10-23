@@ -988,3 +988,17 @@ html.ui2 .neufs-carte-analyse { display: none; }
   html.ui2 .agencement:not(.sans-rail).avec-panneau { grid-template-columns: minmax(0, 1fr); }
 }
 html.ui2 .kpi.kpi-secondaire { display: none; }
+
+/* v136 — Offres › En vente : huit colonnes dans la ligne (le bouton « Envoyer à un acheteur » chevauchait le prix). */
+.ligne.ligne-vente { grid-template-columns: 56px minmax(180px, 1.3fr) minmax(140px, 1.2fr) 130px minmax(150px, 1fr) 110px auto 36px; }
+@media (max-width: 1280px) { .ligne.ligne-vente > .btn.petit span { display: none; } .ligne.ligne-vente { grid-template-columns: 56px minmax(160px, 1.3fr) minmax(120px, 1fr) 120px minmax(140px, 1fr) 100px auto 36px; } }
+@media (max-width: 860px) { .ligne.ligne-vente { grid-template-columns: 48px minmax(0, 1fr) auto 36px; } .ligne.ligne-vente > .btn.petit { grid-column: 3; } }
+
+/* v136 — volets de filtres au-dessus de la liste (ui2) : les cases d'un groupe se rangent en ligne. */
+@media (min-width: 861px) {
+  html.ui2 .agencement:not(.sans-rail) > .rail .groupe { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; }
+  html.ui2 .agencement:not(.sans-rail) > .rail .groupe > h3 { flex-basis: 100%; }
+  html.ui2 .agencement:not(.sans-rail) > .rail .groupe > .champ, html.ui2 .agencement:not(.sans-rail) > .rail .groupe > .recherche,
+  html.ui2 .agencement:not(.sans-rail) > .rail .groupe > .segment, html.ui2 .agencement:not(.sans-rail) > .rail .groupe > div { flex: 1 1 100%; }
+  html.ui2 .agencement:not(.sans-rail) > .rail .groupe > label.case { flex: 0 0 auto; }
+}

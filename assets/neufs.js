@@ -513,7 +513,7 @@
     // flotte, après les menus ») : concession → origine → type → barre (Liste · Absents) → menus → liste. Analyse = bouton.
     this.btnAnalyse = h('button.btn#neufs-analyse', { type: 'button', html: I.resultat + '<span>Analyse</span>', title: 'Vieillissement, jours d\'approvisionnement, revue des modèles', onclick: function () { self.montrer(self.onglet === 'analyse' ? 'liste' : 'analyse'); } });
     var titre = this.seul ? 'Échanges de neufs' : 'Neufs';
-    var actionsEntete = this.seul ? [this.btnRafraichir] : [this.btnAnalyse, this.btnPortail, this.btnRafraichir, this.btnExport];
+    var actionsEntete = this.seul ? ((AMX.ui2 && AMX.ui2()) ? [] : [this.btnRafraichir]) : [this.btnAnalyse, this.btnPortail, this.btnRafraichir, this.btnExport];   /* v136 : Échanges, la carte a déjà son « Rafraîchir » */
     if (AMX.ui2 && AMX.ui2() && !this.seul) {
       /* v134 (nouvelle interface) : Rafraîchir et Exporter descendent dans « … ». */
       actionsEntete = [AMX.menuActions([

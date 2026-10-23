@@ -282,7 +282,7 @@
     this.btnBatir = h('a.btn.primaire', { href: AMX.lien('inventaire', 'soumissions', { batir: 1 }), text: 'Bâtir un véhicule' });
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Soumissions'), this.elEtat]),
-      h('div.actions', [this.btnRafraichir, this.btnExport, this.btnComparer, this.btnNouvelle, this.btnCatalogue, this.btnBatir])
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnExport, this.btnComparer, this.btnNouvelle, this.btnCatalogue, this.btnBatir], [this.btnComparer, this.btnBatir]))
     ]);
     this.elImport = this.construireImport();
     if (ouvrirImport) this.elImport.open = true;

@@ -1015,6 +1015,13 @@
       ])
     ]);
     if (!blocActions.querySelector('.actions-ligne').children.length) blocActions = null;
+    // 23 oct. : transport de l'achat par Central Fleet (transport.js) — état, prix, dates, documents, ou le bouton de demande.
+    var blocTransport = null;
+    if (AMX.transport && (['arrive', 'comptabilise'].indexOf(v.statut) < 0 || AMX.transport.parVin(v.vin).length)) {
+      var zoneTr = h('div'), mots = String(v.modele || '').trim().split(/\s+/), anTr = /^\d{4}$/.test(mots[mots.length - 1] || '') ? mots.pop() : '';
+      blocTransport = h('div.bloc.inv-transport', [h('h3', 'Transport (Central Fleet)'), zoneTr]);
+      AMX.transport.bloc(v.vin, zoneTr, { compagnie: v.compagnie, stock: v.stock, annee: anTr, marque: mots.shift() || '', modele: mots.join(' ') });
+    }
     var blocLiens = h('div.bloc', [h('h3', ['Rapports', h('button.btn.petit.fantome', { type: 'button', text: lienCfx ? 'lien CARFAX…' : 'coller un lien CARFAX…', onclick: function () { zoneCfx.classList.toggle('cache'); if (!zoneCfx.classList.contains('cache')) { champCfx.focus(); champCfx.select(); } } })]),
       h('div.actions-ligne', [
         lienCfx ? h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Rapport CARFAX</span>' })
@@ -1052,7 +1059,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocEval, blocFicheEblock, blocEblock, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocEblock, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

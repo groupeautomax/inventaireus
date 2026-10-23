@@ -403,8 +403,11 @@
     ]);
 
     // Livraison
+    // 23 oct. : le transport par Central Fleet (transport.js) — la demande part d'ici, le prix et les dates reviennent ici.
+    this.elTransport = h('div.noprint.achat-transport', { style: { marginTop: '12px' } });
     var livraison = carte('Livraison', [
-      h('div.grille.c4', [date('f-appele', 'Appelé — date'), champ('f-livraisona', 'Livraison à'), date('f-datearrivee', 'Date d\'arrivée'), date('f-demandepaiementdate', 'Demande de paiement — date')])
+      h('div.grille.c4', [date('f-appele', 'Appelé — date'), champ('f-livraisona', 'Livraison à'), date('f-datearrivee', 'Date d\'arrivée'), date('f-demandepaiementdate', 'Demande de paiement — date')]),
+      this.elTransport
     ]);
 
     this.elFiche = h('div.achat-fiche', [identification, provenance, couts, statut, vente, livraison]);
@@ -669,6 +672,31 @@
     this.charger(vin);
   };
 
+  /* 23 oct. : bloc « Transport (Central Fleet) ». La demande et ses suites remplissent les cases VIDES de la fiche ouverte
+     (transporteur, appelé le, frais de transport, date d'arrivée) — le serveur fait pareil dans la fiche enregistrée, et ainsi
+     « Enregistrer » ne les efface pas. */
+  Fiche.prototype.rendreTransport = function (vin) {
+    var self = this;
+    if (!AMX.transport || !this.elTransport) return;
+    AMX.vider(this.elTransport);
+    var zone = h('div');
+    this.elTransport.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Transport (Central Fleet)'));
+    this.elTransport.appendChild(zone);
+    var poser = function (id, x) { if (x === '' || x === null || x === undefined) return false; var e = el(id); if (!e || String(e.value || '').trim()) return false; e.value = x; return true; };
+    var remplir = function (t) {
+      if (!t || t.test) return;
+      var change = poser('f-transporteur', 'Central Fleet');
+      change = poser('f-appele', String(t.demandeLe || '').slice(0, 10)) || change;
+      var prix = t.montant !== '' && t.montant !== undefined ? t.montant : t.prix;
+      change = poser('f-fraistransport', prix === '' || prix === undefined ? '' : String(prix)) || change;
+      change = poser('f-datearrivee', String(t.livraison || '').slice(0, 10)) || change;
+      if (change) self.recalculer();
+    };
+    // Ce que la fiche contient AU MOMENT du clic (le décodeur remplit marque, modèle et année après l'ouverture).
+    var prefill = function () { return { compagnie: String(valeur('f-compagnie') || '').toUpperCase(), stock: valeur('f-stock'), annee: valeur('f-annee'), marque: valeur('f-marque'), modele: valeur('f-modele'),
+      carrosserie: self.decode && self.decode.carrosserie, depart: { ville: valeur('f-villeprovenance') } }; };
+    AMX.transport.bloc(vin, zone, Object.assign(prefill(), { prefill: prefill, onDemande: remplir, onInfos: remplir }));
+  };
   Fiche.prototype.charger = function (vin) {
     var self = this;
     vin = String(vin || '').trim();
@@ -699,6 +727,7 @@
       self.rendreContexte();
       self.appliquerPrerempli();
       if (typeof AMX.eblockFiche === 'function') AMX.eblockFiche(vin, self.elFicheEblock);
+      self.rendreTransport(vin);
       if (typeof AMX.openlaneBloc === 'function') { AMX.vider(self.elOpenlane); var zoneOl = h('div'); self.elOpenlane.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Valeurs OpenLane')); self.elOpenlane.appendChild(zoneOl); AMX.openlaneBloc(vin, zoneOl, { km: AMX.kmValide(valeur('f-km')) || undefined, source: 'achat', compagnie: String(valeur('f-compagnie') || '').toUpperCase(), previsionComplete: true }).catch(function () {}); }
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];

@@ -517,7 +517,8 @@
     this.elExport = this.construireExport();
     this.elDemandes = this.construireDemandes();
     this.elIa = this.construireIa();
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elIa, this.elParametres]), this.elPanneau]);
+    this.elCf = (AMX.transport && AMX.transport.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : AMX.estAdmin())) ? AMX.transport.carteAdmin() : null;   /* 23 oct. : jetons Central Fleet (transport.js) */
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elCf, this.elIa, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);

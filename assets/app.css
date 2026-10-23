@@ -968,3 +968,11 @@ html.ui2 .barre-cies:has(> .choix-cie.suit-site):not(:has(> .extra)) { display: 
   .inv2-statuts { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .inv2-resume .kpi { flex: 1 0 140px; }
 }
+
+/* v134 — Neufs (ui2) : les tuiles d'analyse vont dans « Analyse ». */
+html.ui2 .neufs-carte-analyse { display: none; }
+.neufs-barre2 .inv2-plus-env { margin-left: 0; }
+.eval-decoder { margin-top: 8px; }
+.neufs-barre2 .neufs-outils > select.saisie { width: auto; flex: 0 1 220px; min-width: 150px; }
+.neufs-barre2 .neufs-outils .recherche { flex: 1 1 320px; }
+.neufs-barre2 .inv2-pop .champ select.saisie { width: 100%; }

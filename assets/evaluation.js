@@ -457,7 +457,11 @@
     this.elSauvegarde = h('div.eval-sauvegarde#eval-sauvegarde');
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Évaluation'), this.elEtat, this.elSauvegarde]),
-      h('div.actions', [this.btnDecoder, this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer])
+      h('div.actions', (AMX.ui2 && AMX.ui2())
+        /* v134 (nouvelle interface) : une action principale (Analyser le marché) ; la feuille d'offre dans « … » ;
+           « Décoder le VIN » descend à côté du NIV, dans la carte Véhicule. */
+        ? [AMX.menuActions([{ texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }]), this.btnEffacer, this.btnEnregistrer, this.btnAnalyser]
+        : [this.btnDecoder, this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer])
     ]);
     this.rendreSauvegarde();
 
@@ -489,6 +493,7 @@
     this.echangeVin = '';
     var vehicule = h('div.carte#sec-vehicule', [h('div.carte-corps', [
       h('div.grille.eval-grille-vehicule', [cNiv.el, cAnnee.el, cMarque.el, cModele.el, cVersion.el, cKm.el, cConcession, cTaux.el]),
+      (AMX.ui2 && AMX.ui2()) ? h('div.eval-decoder', [this.btnDecoder]) : null,
       h('div.eval-sous-vehicule', [this.elContexte, this.elLiens]),
       this.elTorque,
       this.elEchange

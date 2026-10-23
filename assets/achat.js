@@ -254,11 +254,17 @@
         this.elEtat,
         this.elDateImpression
       ]),
-      h('div.actions.noprint', [
-        h('button.btn', { type: 'button', html: I.imprimer + '<span>Imprimer</span>', onclick: function () { window.print(); } }),
-        h('button.btn', { type: 'button', html: I.rafraichir + '<span>Réinitialiser</span>', onclick: function () { self.reinitialiser(); } }),
-        this.btnEnregistrer
-      ])
+      h('div.actions.noprint', (AMX.ui2 && AMX.ui2())
+        /* v134 (nouvelle interface) : « Enregistrer » seul ; Imprimer et Réinitialiser dans « … ». */
+        ? [AMX.menuActions([
+            { texte: 'Imprimer', icone: I.imprimer, action: function () { window.print(); } },
+            { texte: 'Réinitialiser (fiche vide)', icone: I.rafraichir, action: function () { self.reinitialiser(); } }
+          ]), this.btnEnregistrer]
+        : [
+          h('button.btn', { type: 'button', html: I.imprimer + '<span>Imprimer</span>', onclick: function () { window.print(); } }),
+          h('button.btn', { type: 'button', html: I.rafraichir + '<span>Réinitialiser</span>', onclick: function () { self.reinitialiser(); } }),
+          this.btnEnregistrer
+        ])
     ]);
 
     // Lien avec le registre (par NIV)

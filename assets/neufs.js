@@ -513,7 +513,15 @@
     // flotte, après les menus ») : concession → origine → type → barre (Liste · Absents) → menus → liste. Analyse = bouton.
     this.btnAnalyse = h('button.btn#neufs-analyse', { type: 'button', html: I.resultat + '<span>Analyse</span>', title: 'Vieillissement, jours d\'approvisionnement, revue des modèles', onclick: function () { self.montrer(self.onglet === 'analyse' ? 'liste' : 'analyse'); } });
     var titre = this.seul ? 'Échanges de neufs' : 'Neufs';
-    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', titre), this.elEtat]), h('div.actions', this.seul ? [this.btnRafraichir] : [this.btnAnalyse, this.btnPortail, this.btnRafraichir, this.btnExport])]);
+    var actionsEntete = this.seul ? [this.btnRafraichir] : [this.btnAnalyse, this.btnPortail, this.btnRafraichir, this.btnExport];
+    if (AMX.ui2 && AMX.ui2() && !this.seul) {
+      /* v134 (nouvelle interface) : Rafraîchir et Exporter descendent dans « … ». */
+      actionsEntete = [AMX.menuActions([
+        { texte: 'Rafraîchir', icone: I.rafraichir, action: function () { self.charger(true); } },
+        { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } }
+      ]), this.btnAnalyse, this.btnPortail];
+    }
+    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', titre), this.elEtat]), h('div.actions', actionsEntete)]);
     this.elChoix = h('div.barre-cies.neufs-concessions');   /* 16 oct. : même rangée de concessions que partout (AMX.barreConcessions) */
     this.elEtapeOrigine = h('div.neufs-palier', [h('span.etiquette', { text: 'Inventaire' }), this.elOrigine]);
     this.elEtapeFlotte = h('div.neufs-palier.cache', [h('span.etiquette', { text: 'Type' }), this.elFlotte]);
@@ -546,10 +554,26 @@
     var caseSortis = h('input', { type: 'checkbox' });
     caseSortis.addEventListener('change', function () { self.filtres.sortis = caseSortis.checked; self.rendreSelects(); self.rendreTable(); });
     this.elCompte = h('span.compte.doux');
-    var barre = h('div.carte', [h('div.carte-corps', [this.elStatuts, h('div.neufs-outils', [
-      h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.selModele, this.selVersion, this.selMoteur, this.selAnnee, this.selEmplacement, this.selEtiquette, this.selNcp,
-      h('label.case', { title: 'Les véhicules disparus du feed (vendus, livrés, transférés) sont gardés avec leur date de sortie' }, [caseSortis, h('span', 'Inclure les sortis')]), this.elCompte
-    ])])]);
+    var etiquetteSortis = h('label.case', { title: 'Les véhicules disparus du feed (vendus, livrés, transférés) sont gardés avec leur date de sortie' }, [caseSortis, h('span', 'Inclure les sortis')]);
+    var barre;
+    if (AMX.ui2 && AMX.ui2()) {
+      /* v134 : recherche, modèle et version restent visibles ; les autres menus (moteur, année, emplacement, étiquette, FAN, sortis)
+         passent dans un bouton « Filtres », comme sur Usagé. */
+      var champ = function (libelle, el) { return h('div.champ', [h('label', { text: libelle }), el]); };
+      var pop = h('div.inv2-pop', { hidden: true, role: 'dialog', 'aria-label': 'Autres filtres' }, [champ('Moteur', this.selMoteur), champ('Année-modèle', this.selAnnee), champ('Emplacement', this.selEmplacement), champ('Étiquette', this.selEtiquette), this.selNcp, etiquetteSortis]);
+      var btnF = h('button.btn.inv2-plus', { type: 'button', 'aria-expanded': 'false', html: I.filtre + '<span>Filtres</span>' });
+      var env = h('div.inv2-plus-env', [btnF, pop]);
+      var dehors = function (e) { if (!env.contains(e.target)) { pop.hidden = true; btnF.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); } };
+      btnF.addEventListener('click', function () { pop.hidden = !pop.hidden; btnF.setAttribute('aria-expanded', pop.hidden ? 'false' : 'true'); if (!pop.hidden) document.addEventListener('mousedown', dehors, true); });
+      barre = h('div.carte.neufs-barre2', [h('div.carte-corps', [this.elStatuts, h('div.neufs-outils', [
+        h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.selModele, this.selVersion, env, this.elCompte
+      ])])]);
+    } else {
+      barre = h('div.carte', [h('div.carte-corps', [this.elStatuts, h('div.neufs-outils', [
+        h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.selModele, this.selVersion, this.selMoteur, this.selAnnee, this.selEmplacement, this.selEtiquette, this.selNcp,
+        etiquetteSortis, this.elCompte
+      ])])]);
+    }
     this.elBarre = barre;
     this.elTable = h('div.neufs-table');
     this.elExclus = h('div.neufs-exclus');
@@ -1454,7 +1478,8 @@
     var detention = d.montants ? enStock.reduce(function (s, v) { return s + (v.coutDetention || 0); }, 0) : null;
     var detentionJour = d.montants ? Math.round(enStock.reduce(function (s, v) { return s + ((v.coutFacture || 0) * (d.parametres.tauxPlan || 5) / 100 / 365); }, 0)) : null;
     var carte = function (couleur, nom, n, bas, filtre) {
-      var c = h('button.neufs-carte.' + couleur, { type: 'button' }, [h('div.nom', { text: nom }), h('div.n', { text: n }), bas ? h('div.bas', { text: bas }) : null]);
+      var secondaire = /^(Sorties 90 jours|Âge moyen|Ancienne année-modèle|Coût de détention)$/.test(nom);   /* v134 : en ui2, dans Analyse */
+      var c = h('button.neufs-carte.' + couleur + (secondaire ? '.neufs-carte-analyse' : ''), { type: 'button' }, [h('div.nom', { text: nom }), h('div.n', { text: n }), bas ? h('div.bas', { text: bas }) : null]);
       c.addEventListener('click', function () { if (filtre) { var o = filtre(); self.rendreSelects(); self.montrer(typeof o === 'string' ? o : 'liste', { defiler: true }); } });   /* un filtre peut renvoyer le nom d'un onglet (12 oct. : « absents ») */
       return c;
     };

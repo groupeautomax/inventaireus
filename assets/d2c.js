@@ -97,7 +97,7 @@
     signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis D2C Media (Inventory › Summary).', 'attention', 7000); });
     var btnOuvrir = h('button.btn#d2c-ouvrir', { html: I.externe + '<span>Ouvrir D2C Media</span>', onclick: function () { self.ouvrirD2c(); } });
     this.el.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Import D2C Media'), h('p', 'Reprend chaque matin l\'inventaire que D2C Media reçoit du DMS (Serti pour Hyundai Longueuil et Ste-Marie) : les neufs vers le suivi des neufs, les usagés vers les registres (ajouts, coûts, # stock, vendus), le kilométrage dans les fiches d\'achat et les liens CARFAX. Rien n\'est écrit avant que vous ayez vu la simulation — sauf par la tâche automatique du matin.')]),
+      h('div', [h('h1', 'Import D2C'), h('p', 'Reprend chaque matin l\'inventaire que D2C Media reçoit du DMS (Serti pour Hyundai Longueuil et Ste-Marie) : les neufs vers le suivi des neufs, les usagés vers les registres (ajouts, coûts, # stock, vendus), le kilométrage dans les fiches d\'achat et les liens CARFAX. Rien n\'est écrit avant que vous ayez vu la simulation — sauf par la tâche automatique du matin.')]),
       h('div.actions', [btnOuvrir])
     ]));
     this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [

@@ -196,12 +196,17 @@
       'span.maxai-avatar { cursor: default; }',
       '.maxai-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }',
       '.maxai-avatar.sans-image { background: var(--vert); }',
-      '.maxai-avatar .mono { color: #fff; font-weight: 800; font-size: 11px; letter-spacing: .04em; }',
+      '.maxai-avatar .mono { color: #fff; font-weight: 800; font-size: 12px; letter-spacing: .04em; }',
       'button.maxai-avatar:hover { box-shadow: 0 0 0 3px var(--vert-clair); }',
       '.maxai-flottant { position: fixed; right: 18px; bottom: 18px; z-index: 95; box-shadow: var(--ombre-2); border-width: 3px; transition: transform .15s; }',
       '.maxai-flottant:hover { transform: scale(1.06); }',
       '#appli:not(.pret) ~ .maxai-flottant, #appli:not(.pret) ~ .maxai-panneau, body.maxai-ouvert .maxai-flottant { display: none; }',
       'body:has(.maxai-flottant) #toasts { bottom: 90px; }',
+      // v130 : la bulle ne cache plus le bas des pages (boutons, dernière ligne d'un tableau).
+      'body:has(.maxai-flottant) #vue { padding-bottom: 84px; }',
+      'body:has(.voile) .maxai-flottant { display: none; }',
+      '@media (max-width: 1100px) { body:has(.panneau:not(:empty)) .maxai-flottant { display: none; } }',
+      '@media (max-width: 860px) { .maxai-flottant { width: 46px !important; height: 46px !important; right: 12px; bottom: calc(72px + env(safe-area-inset-bottom)); } body:has(.maxai-flottant) #vue { padding-bottom: calc(130px + env(safe-area-inset-bottom)); } body:has(.maxai-flottant) #toasts { bottom: calc(128px + env(safe-area-inset-bottom)); } }',
       '.maxai-panneau { display: none; position: fixed; right: 18px; bottom: 18px; z-index: 96; width: 400px; max-width: calc(100vw - 32px); height: min(640px, calc(100vh - 100px)); background: var(--carte); border: 1px solid var(--ligne); border-radius: 16px; box-shadow: 0 16px 48px rgba(16, 24, 40, .22); flex-direction: column; overflow: hidden; }',
       'body.maxai-ouvert .maxai-panneau { display: flex; }',
       '.maxai-tete { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--ligne); background: linear-gradient(120deg, var(--noir) 0%, #12402A 100%); color: #fff; }',
@@ -233,7 +238,7 @@
       '.maxai-bas { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }',
       '.maxai-info { font-size: 12px; color: var(--encre-3); }',
       '.maxai-redige { display: flex; align-items: center; gap: 8px; color: var(--vert-fonce); font-weight: 500; }',
-      '@media (max-width: 640px) { .maxai-panneau { right: 0; bottom: 0; width: 100vw; max-width: 100vw; height: 100dvh; border-radius: 0; } .maxai-flottant { right: 14px; bottom: 14px; } }',
+      '@media (max-width: 640px) { .maxai-panneau { right: 0; bottom: 0; width: 100vw; max-width: 100vw; height: 100dvh; border-radius: 0; } }',
       '@media print { .maxai-flottant, .maxai-panneau { display: none !important; } }'
     ].join('\n');
     document.head.appendChild(h('style#maxai-style', { text: css }));

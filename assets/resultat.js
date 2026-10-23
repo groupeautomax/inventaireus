@@ -54,14 +54,14 @@
   var TYPES_NEUF = [['tous', 'Tous'], ['stock', 'Stock'], ['commande', 'Commandes']];
   var LIBELLE_TYPE = { achat: 'Achat', echange: 'Échange', stock: 'Stock', commande: 'Commande', demo: 'Démo' };
   var SOURCES = {
-    us: { cle: 'us', route: 'resultatRaw=1', titre: 'Résultat', sous: '', colVente: 'Vente', exportVente: 'Prix de vente US', seuil: SEUIL_ERREUR, approx: true, compagnies: true, types: null, memo: 'resultat',
+    us: { cle: 'us', route: 'resultatRaw=1', titre: 'Résultats É.-U.', sous: '', colVente: 'Vente', exportVente: 'Prix de vente US', seuil: SEUIL_ERREUR, approx: true, compagnies: true, types: null, memo: 'resultat',
       chargement: 'Chargement des registres de ventes…', champAcheteur: 'acheteur', titreAcheteurs: 'Par acheteur' },
-    can: { cle: 'can', livres: true, route: 'resultatCan=1', titre: 'Wholesale Canada', sous: 'Livres des ventes des concessions (comptabilité)', colVente: 'Vente ($ CA)', exportVente: 'Prix de vente ($ CA)', seuil: 25000, approx: false, compagnies: true, types: TYPES_CAN, memo: 'resultat_can',
+    can: { cle: 'can', livres: true, route: 'resultatCan=1', titre: 'Résultats Wholesale Canada', sous: 'Livres des ventes des concessions (comptabilité)', colVente: 'Vente ($ CA)', exportVente: 'Prix de vente ($ CA)', seuil: 25000, approx: false, compagnies: true, types: TYPES_CAN, memo: 'resultat_can',
       chargement: 'Lecture des Livres des ventes…', champAcheteur: 'acheteur', titreAcheteurs: 'Par acheteur interne', segmentTypes: 'Achats ou échanges', nomVente: 'vente', nomVentePl: 'ventes', comptabilisees: true },
     // (10 oct., Maxime : « va chercher des KPI pour le neuf, pousse plus loin, pas besoin du profit par acheteur ») :
     // pas de carte « Par conseiller » ; à la place, la carte « Indicateurs du neuf » (front / F&I par véhicule,
     // pénétration F&I, pneus, accessoires, mode de paiement, délai de livraison, rythme, comparaison).
-    neuf: { cle: 'neuf', livres: true, route: 'resultatNeuf=1', titre: 'Véhicules neufs', sous: 'Livres Ventes Neuf des concessions (comptabilité) — profit front + F&I', colVente: 'Vente ($ CA)', exportVente: 'Prix de vente ($ CA)', seuil: 40000, approx: false, compagnies: true, types: TYPES_NEUF, memo: 'resultat_neuf',
+    neuf: { cle: 'neuf', livres: true, route: 'resultatNeuf=1', titre: 'Résultats neufs', sous: 'Livres Ventes Neuf des concessions (comptabilité) — profit front + F&I', colVente: 'Vente ($ CA)', exportVente: 'Prix de vente ($ CA)', seuil: 40000, approx: false, compagnies: true, types: TYPES_NEUF, memo: 'resultat_neuf',
       chargement: 'Lecture des Livres Ventes Neuf…', champAcheteur: 'vendeur', titreAcheteurs: 'Par conseiller', sansAcheteurs: true, indicateurs: true, segmentTypes: 'Stock ou commande', nomVente: 'vente neuve', nomVentePl: 'ventes neuves', comptabilisees: false }
   };
   var LIBELLE_PAIEMENT = { financement: 'Financement', location: 'Location', comptant: 'Comptant', autre: 'Autre' };
@@ -162,7 +162,7 @@
       '.resultat-page h1 .resultat-h1-sous { display: block; font-size: 12.5px; font-weight: 400; color: var(--encre-3); letter-spacing: 0; margin-top: 2px; }',
       '.resultat-page .puce.type-achat { background: var(--bleu-bg); color: var(--bleu); } .resultat-page .puce.type-echange { background: var(--ambre-bg); color: var(--ambre); } .resultat-page .puce.type-ajust { background: var(--gris-bg); color: var(--gris); }',
       '.resultat-page .puce.type-stock { background: var(--vert-bg); color: var(--vert); } .resultat-page .puce.type-commande { background: var(--violet-bg, var(--bleu-bg)); color: var(--violet, var(--bleu)); } .resultat-page .puce.type-demo { background: var(--ambre-bg); color: var(--ambre); }',
-      '.resultat-page .resultat-ajust { font-size: 11px; color: var(--encre-3); cursor: help; }',
+      '.resultat-page .resultat-ajust { font-size: 12px; color: var(--encre-3); cursor: help; }',
       '.resultat-page .resultat-attente .carte-corps { padding-top: 0; }',
       '.resultat-page .tableau.resultat-ta { min-width: 640px; }',
       '.resultat-page .resultat-onglet.cache { display: none; }',
@@ -185,7 +185,7 @@
       '.resultat-page th.resultat-triable { cursor: pointer; user-select: none; }',
       '.resultat-page th.resultat-triable:hover { color: var(--encre); }',
       '.resultat-page th.resultat-triable.actif { color: var(--vert); }',
-      '.resultat-page .resultat-fleche { font-size: 9px; margin-left: 4px; }',
+      '.resultat-page .resultat-fleche { font-size: 12px; margin-left: 4px; }',
       '.resultat-page .resultat-chevron { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; color: var(--encre-4); transition: transform .12s; }',
       '.resultat-page .resultat-chevron svg { width: 14px; height: 14px; display: block; }',
       '.resultat-page tr.actif .resultat-chevron { transform: rotate(90deg); color: var(--vert); }',

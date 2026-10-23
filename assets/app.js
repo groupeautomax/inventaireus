@@ -224,11 +224,24 @@
   /* ------------------------------ Modales ------------------------------ */
   // AMX.modale({ titre, corps (Node|string), boutons: [{texte, classe, action(fermer), primaire}], large })
   AMX.modale = function (o) {
+    /* v130 (rapport « Refonte ergonomique », gain rapide 8) : la fenêtre est annoncée comme dialogue, le clavier reste
+       dedans (Tab tourne entre ses boutons), le focus revient où il était à la fermeture, et une saisie modifiée n'est
+       plus perdue par Échap ou un clic à côté : on demande d'abord (o.proteger === false pour s'en passer). Seule la
+       fenêtre du dessus répond à Échap (une confirmation ouverte par-dessus une fiche ne ferme plus les deux). */
+    var avant = document.activeElement;
+    var idTitre = 'modale-titre-' + (++AMX.modale.n);
     var voile = h('div.voile');
     var corps = h('div.modale-corps');
     if (typeof o.corps === 'string') corps.innerHTML = o.corps; else if (o.corps) corps.appendChild(o.corps);
     var pied = h('div.modale-pied');
-    var fermer = function () { voile.remove(); document.removeEventListener('keydown', surTouche); if (o.onFermer) o.onFermer(); };
+    var ferme = false, modifie = false, avis = null;
+    var fermer = function () {
+      if (ferme) return; ferme = true;
+      voile.remove(); document.removeEventListener('keydown', surTouche, true);
+      AMX.modale.pile = AMX.modale.pile.filter(function (x) { return x !== modale; });
+      if (avant && avant.isConnected && typeof avant.focus === 'function') { try { avant.focus({ preventScroll: true }); } catch (e) {} }
+      if (o.onFermer) o.onFermer();
+    };
     // 14 oct. : `boutons(liste)` sur l'objet renvoyé remplace les boutons (modale remplie après un chargement).
     var poserBoutons = function (liste) {
       AMX.vider(pied);
@@ -244,20 +257,53 @@
       });
     };
     poserBoutons(o.boutons);
-    var modale = h('div.modale' + (o.large ? '.large' : ''), [
-      h('div.modale-entete', [h('h2', { text: o.titre || '' }), h('button.fermer', { type: 'button', 'aria-label': 'Fermer', html: ICONES.fermer, onclick: fermer })]),
+    var modale = h('div.modale' + (o.large ? '.large' : ''), { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': idTitre, tabindex: '-1' }, [
+      h('div.modale-entete', [h('h2', { id: idTitre, text: o.titre || '' }), h('button.fermer', { type: 'button', 'aria-label': 'Fermer', html: ICONES.fermer, onclick: fermer })]),
       corps,
       o.sansPied ? null : pied
     ]);
     voile.appendChild(modale);
-    voile.addEventListener('mousedown', function (e) { if (e.target === voile && !o.bloquante) fermer(); });
-    function surTouche(e) { if (e.key === 'Escape' && !o.bloquante) fermer(); }
-    document.addEventListener('keydown', surTouche);
+    // Une saisie dans la fenêtre la rend « modifiée ».
+    var marquer = function (e) { if (avis && avis.contains(e.target)) return; if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) modifie = true; else if (e.target && e.target.isContentEditable) modifie = true; };
+    modale.addEventListener('input', marquer); modale.addEventListener('change', marquer);
+    var demanderFermeture = function () {
+      if (o.bloquante) return;
+      if (!modifie || o.proteger === false) { fermer(); return; }
+      if (avis) { avis.querySelector('button').focus(); return; }
+      avis = h('div.modale-avis', { role: 'alert' }, [
+        h('span', { text: 'Vos changements ne sont pas enregistrés.' }),
+        h('button.btn.petit', { type: 'button', text: 'Continuer la saisie', onclick: function () { avis.remove(); avis = null; var c = corps.querySelector('input, select, textarea'); if (c) c.focus(); } }),
+        h('button.btn.petit.danger', { type: 'button', text: 'Fermer sans enregistrer', onclick: fermer })
+      ]);
+      modale.insertBefore(avis, corps);
+      avis.querySelector('button').focus();
+    };
+    voile.addEventListener('mousedown', function (e) { if (e.target === voile) { e.preventDefault(); demanderFermeture(); } });
+    var focusables = function () {
+      return Array.prototype.slice.call(modale.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+        .filter(function (el) { return el.offsetParent !== null || el === document.activeElement; });
+    };
+    function surTouche(e) {
+      var pile = AMX.modale.pile;
+      if (pile[pile.length - 1] !== modale) return;   // une autre fenêtre est par-dessus
+      if (e.key === 'Escape') { e.stopPropagation(); demanderFermeture(); return; }
+      if (e.key === 'Tab') {
+        var l = focusables(); if (!l.length) { e.preventDefault(); modale.focus(); return; }
+        var i = l.indexOf(document.activeElement);
+        if (e.shiftKey && (i <= 0)) { e.preventDefault(); l[l.length - 1].focus(); }
+        else if (!e.shiftKey && (i < 0 || i === l.length - 1)) { e.preventDefault(); l[0].focus(); }
+      }
+    }
+    document.addEventListener('keydown', surTouche, true);
+    AMX.modale.pile.push(modale);
     document.body.appendChild(voile);
     var premier = corps.querySelector('input, select, textarea, button');
     if (premier && !o.sansFocus) { try { premier.focus(); } catch (e) {} }
-    return { fermer: fermer, el: modale, corps: corps, boutons: poserBoutons };
+    else { try { modale.focus({ preventScroll: true }); } catch (e) {} }
+    return { fermer: fermer, el: modale, corps: corps, boutons: poserBoutons, modifie: function (v) { if (v !== undefined) modifie = !!v; return modifie; } };
   };
+  AMX.modale.n = 0;
+  AMX.modale.pile = [];
   AMX.confirmer = function (titre, message, opts) {
     opts = opts || {};
     return new Promise(function (res) {
@@ -730,7 +776,7 @@
       { id: 'avis', titre: 'Avis Google', de: 'avis', vues: [{ id: 'apercu', titre: 'Aperçu' }, { id: 'avis', titre: 'Avis' }, { id: 'sondages', titre: 'Sondages' }] },
       { id: 'csi', titre: 'CSI', de: 'csi', onglet: '' }
     ] },
-    { id: 'service', titre: 'Service après-vente', icone: 'service', ordre: 40, onglets: [
+    { id: 'service', titre: 'Service après-vente', court: 'Service', icone: 'service', ordre: 40, onglets: [
       { id: 'suivi', titre: 'Suivi service', de: 'service', vues: [{ id: 'encours', titre: 'En cours' }, { id: 'autoriser', titre: 'Direction' }, { id: 'termines', titre: 'Terminés' }] },
       { id: 'rendezvous', titre: 'Rendez-vous', de: 'service', onglet: 'rendezvous' },
       { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' }
@@ -778,7 +824,7 @@
         ((src && src.onglets) || []).forEach(function (so) { onglets.push({ id: so.id, titre: so.titre, de: o.de, onglet: so.id }); });
       } else onglets.push(o);
     });
-    var def = { id: t.id, titre: t.titre, icone: t.icone, ordre: t.ordre, tuile: true };
+    var def = { id: t.id, titre: t.titre, court: t.court, icone: t.icone, ordre: t.ordre, tuile: true };
     def.onglets = onglets.map(function (o) {
       var src = function () { return o.de ? (AMX.sources[o.de] || AMX.sections[o.de]) : null; };
       return {
@@ -863,6 +909,15 @@
   var courante = { section: null, onglet: null, params: null, instance: null };
   AMX.courante = courante;
 
+  /* v130 (rapport « Refonte ergonomique », gain rapide 5) : une tuile cliquée dans la barre rouvre le dernier onglet
+     visité sur cet appareil ; la première fois, l'onglet le plus utilisé (Inventaire → Usagé, Relance → Avis Google). */
+  var ONGLET_DEFAUT = { inventaire: 'usage', relance: 'avis' };
+  function ongletDeDepart(sec, onglets) {
+    var veut = function (id) { return id ? onglets.filter(function (o) { return o.id === id; })[0] : null; };
+    if (!sec.tuile) return onglets[0];
+    return veut(String(AMX.memo.lire('onglet_' + sec.id, '') || '')) || veut(ONGLET_DEFAUT[sec.id]) || onglets[0];
+  }
+
   function lireHash() {
     var hsh = location.hash.replace(/^#\/?/, '');
     var q = {}; var i = hsh.indexOf('?');
@@ -910,8 +965,9 @@
       return;
     }
     var onglets = (sec.onglets || []).filter(function (o) { return !o.visible || o.visible(); });
-    var ong = onglets.length ? (onglets.filter(function (o) { return o.id === r.onglet; })[0] || onglets[0]) : null;
+    var ong = onglets.length ? (onglets.filter(function (o) { return o.id === r.onglet; })[0] || ongletDeDepart(sec, onglets)) : null;
     if (onglets.length && ong.id !== r.onglet) { AMX.aller(sec.id, ong.id, r.params); return; }
+    if (sec.tuile && ong) AMX.memo.ecrire('onglet_' + sec.id, ong.id);   /* v130 : la tuile rouvrira cet onglet */
 
     // Démonter la section précédente si on change.
     var memeSection = courante.section && courante.section.id === sec.id;
@@ -920,7 +976,7 @@
 
     majNav(sec.id);
     dessinerSousBarre(sec, ong);
-    document.title = (ong ? ong.titre + ' · ' : '') + sec.titre + ' — Groupe Automax';
+    document.title = (ong && ong.titre ? (sec.id === 'aide' ? 'Aide · ' + ong.titre : ong.titre) : sec.titre) + ' — ScanAutomax';   /* v130 : le nom de la page d'abord */
 
     var vue = document.getElementById('vue');
     if (!memeSection || !courante.instance) {
@@ -943,8 +999,8 @@
     AMX.vider(barre);
     var nav = h('nav');
     AMX.listeSections().forEach(function (s) {
-      var a = h('a', { href: AMX.lien(s.id, (s.onglets && s.onglets[0]) ? s.onglets[0].id : ''), dataset: { section: s.id } }, [
-        h('span', { html: ICONES[s.icone] || ICONES.inventaire }), h('span.texte', { text: s.titre })
+      var a = h('a', { href: s.tuile ? '#/' + s.id : AMX.lien(s.id, (s.onglets && s.onglets[0]) ? s.onglets[0].id : ''), dataset: { section: s.id }, title: s.titre }, [
+        h('span', { html: ICONES[s.icone] || ICONES.inventaire }), h('span.texte', { text: s.titre }), h('span.court', { text: s.court || s.titre })
       ]);
       nav.appendChild(a);
     });
@@ -1026,7 +1082,7 @@
     setTimeout(function () { champ.focus(); champ.select(); }, 50);
   };
   function majNav(id) {
-    document.querySelectorAll('#barre nav a').forEach(function (a) { a.classList.toggle('actif', a.dataset.section === id); });
+    document.querySelectorAll('#barre nav a').forEach(function (a) { var ici = a.dataset.section === id; a.classList.toggle('actif', ici); if (ici) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   }
   function dessinerSousBarre(sec, ong) {
     var sb = document.getElementById('sous-barre');
@@ -1036,7 +1092,7 @@
     sb.style.display = 'flex'; document.documentElement.style.setProperty('--sous-h', '44px');
     onglets.forEach(function (o) {
       var c = o.compteur ? o.compteur() : null;
-      sb.appendChild(h('a' + (ong && ong.id === o.id ? '.actif' : ''), { href: AMX.lien(sec.id, o.id) }, [o.titre, (c !== null && c !== undefined && c !== '') ? h('span.compteur', { text: String(c) }) : null]));
+      sb.appendChild(h('a' + (ong && ong.id === o.id ? '.actif' : ''), { href: AMX.lien(sec.id, o.id), 'aria-current': ong && ong.id === o.id ? 'page' : null }, [o.titre, (c !== null && c !== undefined && c !== '') ? h('span.compteur', { text: String(c) }) : null]));
     });
     sb.appendChild(h('div.espace'));
     // 21 oct. : les vues de l'onglet actif (anciens onglets regroupés : Résultats › É.-U. · Wholesale Canada · Neufs…).
@@ -1353,6 +1409,12 @@
   // concession on cherche, ou le groupe au complet »). `compagnie` = filtre choisi ('' = tout ce
   // que le compte voit dans ce domaine) ; `partout` = la recherche ignore statuts et registres.
   AMX.bandeauPortee = function (domaine, compagnie, partout) {
+    /* v130 (rapport « Refonte ergonomique », gain rapide 10) : la concession se lit déjà dans la rangée de pastilles en
+       haut de la page ; le rail ne garde que l'avis utile pendant une recherche (statuts et registres ignorés). */
+    if (!partout) return h('span.portee-vide', { hidden: true });
+    return h('div.portee-recherche.partout', [h('span.puce.ok', { text: 'partout' }), h('span', { text: 'tous statuts et tous registres' })]);
+  };
+  AMX.bandeauPorteeComplet = function (domaine, compagnie, partout) {
     var codes = AMX.codesPour(domaine);
     var texte, classe = '';
     if (compagnie) { texte = AMX.COMPAGNIES_TOUTES[compagnie] || compagnie; }
@@ -1401,6 +1463,15 @@
         onclick: function () { if (!actif) { if (opts.garder !== false) AMX.choisirCompagnie(l[0]); opts.onchange(l[0]); } }
       }, [h('i.pastille'), h('span.nom', { text: l[1] }), (n === null || n === undefined) ? null : h('span.n', { text: n }), sous ? h('span.sous', { text: sous }) : null]));
     });
+    /* v130 : sur téléphone, les pastilles laissent place à une seule liste déroulante (CSS ≤ 640 px). */
+    if (!opts.vertical) {
+      var sel = h('select.choix-cie-liste', { 'aria-label': 'Concession', onchange: function () { var c = sel.value; if (c === valeur) return; if (opts.garder !== false) AMX.choisirCompagnie(c); opts.onchange(c); } });
+      liste.querySelectorAll('button.choix').forEach(function (b) {
+        var c = b.getAttribute('data-compagnie') || '', n = b.querySelector('.n');
+        sel.appendChild(h('option', { value: c, selected: c === valeur, text: b.title + (n && n.textContent ? ' (' + n.textContent + ')' : '') }));
+      });
+      liste.appendChild(sel);
+    }
     return liste;
   };
   /** Pose la rangée de concessions dans `conteneur` (div.barre-cies, vidé d'abord) ; opts.extra = éléments à droite. */

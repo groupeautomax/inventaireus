@@ -147,7 +147,8 @@
   /* ------------------------------ Section ------------------------------ */
   AMX.section('kpi', {
     titre: 'KPI', icone: 'kpi', ordre: 51,
-    visible: function () { return AMX.perm('voirResultats') || AMX.estAdmin(); },
+    /* 22 oct. : réservé aux directeurs généraux (droit voirKpi ; admins de concession et propriétaire d'office). */
+    visible: function () { var p = AMX.session.perms; if (p && typeof p.voirKpi === 'boolean') return p.voirKpi; return AMX.session.role === 'admin' || AMX.session.role === 'proprietaire'; },
     onglets: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }],
     monter: function (conteneur, ctx) { return new Kpi(conteneur, ctx); }
   });
@@ -502,12 +503,12 @@
     var s = document.createElement('style'); s.id = 'css-kpi';
     s.textContent = [
       '.kpi-page .carte { margin-bottom: 14px; }',
-      '.kpi-page .mini { font-size: 11.5px; color: var(--encre-3); }',
+      '.kpi-page .mini { font-size: 12px; color: var(--encre-3); }',
       '.kpi-page .carte-entete h2 .sous { font-size: 12px; font-weight: 400; color: var(--encre-3); margin-left: 8px; letter-spacing: 0; text-transform: none; }',
       '.kpi-page h1 .kpi-h1-sous { display: block; font-size: 12.5px; font-weight: 400; color: var(--encre-3); letter-spacing: 0; margin-top: 2px; }',
       '.kpi-filtres { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 0 0 14px; }',
       '.kpi-filtre { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--encre-3); }',
-      '.kpi-filtre > span { font-weight: 600; text-transform: uppercase; letter-spacing: .05em; font-size: 10.5px; }',
+      '.kpi-filtre > span { font-weight: 600; text-transform: uppercase; letter-spacing: .05em; font-size: 12px; }',
       '.kpi-filtre select { min-width: 170px; }',
       '.kpi-page .kpi .sous.pos, .kpi-page td.pos, .kpi-page .mini.pos { color: var(--vert); }',
       '.kpi-page .kpi .sous.neg, .kpi-page td.neg, .kpi-page .mini.neg { color: var(--rouge); }',
@@ -516,7 +517,7 @@
       '.kpi-legende em { font-style: normal; color: var(--encre-4); margin-left: auto; }',
       '.kpi-defile { overflow-x: auto; }',
       '.kpi-tab td, .kpi-tab th { white-space: nowrap; }',
-      '.kpi-tab tr.groupe td { background: var(--carte-2); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); padding-top: 7px; padding-bottom: 7px; }',
+      '.kpi-tab tr.groupe td { background: var(--carte-2); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); padding-top: 7px; padding-bottom: 7px; }',
       '.kpi-tab tr.total td { font-weight: 700; background: var(--carte-2); border-top: 2px solid var(--ligne-forte); }',
       '.kpi-page .carte-corps.kpi-defile { padding: 0; }',
       '.kpi-page .carte-corps.kpi-defile .tableau { border: none; border-radius: 0; box-shadow: none; }',
@@ -529,10 +530,10 @@
       '.kpi-page .carte-corps { padding: 12px 16px; }',
       '.kpi-svg { width: 100%; height: auto; display: block; }',
       '.kpi-svg .kpi-grille { stroke: var(--ligne); stroke-width: 1; } .kpi-svg .kpi-zero { stroke: var(--encre-4); stroke-width: 1; }',
-      '.kpi-svg .kpi-axe { font-size: 11px; fill: var(--encre-3); } .kpi-svg .kpi-axe.actif { fill: var(--encre); font-weight: 700; }',
+      '.kpi-svg .kpi-axe { font-size: 12px; fill: var(--encre-3); } .kpi-svg .kpi-axe.actif { fill: var(--encre); font-weight: 700; }',
       '.kpi-svg .kpi-ligne { fill: none; stroke-width: 2.4; stroke-linejoin: round; } .kpi-svg .kpi-ligne.reel { stroke: var(--vert); } .kpi-svg .kpi-ligne.comp { stroke: var(--encre-4); stroke-dasharray: 5 4; stroke-width: 1.8; }',
       '.kpi-svg .kpi-point.reel { fill: var(--vert); } .kpi-svg .kpi-point.comp { fill: var(--encre-4); }',
-      '.kpi-legende { display: flex; gap: 16px; font-size: 11.5px; color: var(--encre-3); margin-top: 6px; }',
+      '.kpi-legende { display: flex; gap: 16px; font-size: 12px; color: var(--encre-3); margin-top: 6px; }',
       '.kpi-legende span::before { content: ""; display: inline-block; width: 16px; height: 0; border-top: 2.4px solid var(--vert); vertical-align: middle; margin-right: 6px; }',
       '.kpi-legende span.comp::before { border-top: 2px dashed var(--encre-4); }',
       '.kpi-sources li { font-size: 13px; line-height: 1.5; } .kpi-sources li.hors b { color: var(--ambre); } .kpi-sources .puce { margin-left: 8px; }',

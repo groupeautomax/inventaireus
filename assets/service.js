@@ -543,7 +543,7 @@
       h('div.cell.parcours', [h('span.l', 'Parcours'), parcours(s, { compact: true })]),
       h('div.cell.statut', [h('span.l', 'Étape'), h('span', [h('span.badge.' + (s.statut === 'encours' ? (s.etapeCourante === 'autorisation' ? 'ambre' : (s.enRetard ? 'rouge' : 'bleu')) : st.couleur), { text: etapeTexte })]), sousEtape ? h('span.jours' + (s.cibleEtape && s.joursEtape > s.cibleEtape ? '.alerte' : ''), { text: sousEtape }) : null]),
       h('div.montant', [h('span.l', 'Arrivée'), h('span' + (s.enRetard ? '.svc-rouge' : ''), { text: s.joursTotal === null || s.joursTotal === undefined ? '—' : s.joursTotal + ' j' })]),
-      h('button.plus', { type: 'button', title: 'Ouvrir', html: I.chevron })
+      h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { self.selectionner(s.vin); });
     return el;

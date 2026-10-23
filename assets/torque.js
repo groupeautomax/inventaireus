@@ -60,20 +60,20 @@
       '.torque-outils { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .torque-outils .recherche { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; } .torque-outils .recherche svg { width: 16px; height: 16px; color: var(--encre-3); } .torque-outils .recherche input { flex: 1; height: 32px; }',
       '.torque-outils .compte { margin-left: auto; font-size: 12px; }',
       '.torque-table { overflow-x: auto; } .torque-table .tableau { min-width: 980px; } .torque-table td, .torque-table th { padding: 7px 10px; }',
-      '.torque-table td.vehicule { display: flex; gap: 8px; align-items: center; min-width: 220px; } .torque-table td.vehicule .nom { font-weight: 600; } .torque-table td.vehicule .vin { font-family: var(--mono); font-size: 11px; color: var(--encre-3); }',
+      '.torque-table td.vehicule { display: flex; gap: 8px; align-items: center; min-width: 220px; } .torque-table td.vehicule .nom { font-weight: 600; } .torque-table td.vehicule .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-3); }',
       '.torque-table td.photo img { width: 56px; height: 42px; object-fit: cover; border-radius: 6px; background: var(--gris-bg); display: block; }',
-      '.torque-table td.photo .sans { width: 56px; height: 42px; border-radius: 6px; background: var(--gris-bg); display: flex; align-items: center; justify-content: center; color: var(--encre-4); font-size: 10px; }',
+      '.torque-table td.photo .sans { width: 56px; height: 42px; border-radius: 6px; background: var(--gris-bg); display: flex; align-items: center; justify-content: center; color: var(--encre-4); font-size: 12px; }',
       '.torque-table tr.archivee td { color: var(--encre-3); }',
       '.torque-etapes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; } .torque-etapes .section-titre { margin-bottom: 4px; } .torque-etapes p { margin: 0 0 8px; color: var(--encre-2); font-size: 12.5px; }',
-      '.torque-import-etat { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 12px; } .torque-import-etat .case { background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 8px; padding: 8px 10px; font-size: 12px; } .torque-import-etat .case b { display: block; font-size: 15px; } .torque-import-etat .case .mini { color: var(--encre-3); font-size: 11px; }',
+      '.torque-import-etat { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 12px; } .torque-import-etat .case { background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 8px; padding: 8px 10px; font-size: 12px; } .torque-import-etat .case b { display: block; font-size: 15px; } .torque-import-etat .case .mini { color: var(--encre-3); font-size: 12px; }',
       '.torque-photos { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; } .torque-photos .jauge { flex: 1 1 160px; height: 8px; background: var(--gris-bg); border-radius: 4px; overflow: hidden; } .torque-photos .jauge i { display: block; height: 100%; background: var(--vert); }',
       '.torque-fiche { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; } @media (max-width: 760px) { .torque-fiche { grid-template-columns: 1fr; } }',
-      '.torque-fiche h4 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 14px 0 6px; } .torque-fiche h4:first-child { margin-top: 0; }',
+      '.torque-fiche h4 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 14px 0 6px; } .torque-fiche h4:first-child { margin-top: 0; }',
       '.torque-fiche dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 12.5px; margin: 0; } .torque-fiche dt { color: var(--encre-3); } .torque-fiche dd { margin: 0; }',
       '.torque-galerie { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; } .torque-galerie a { display: block; aspect-ratio: 4/3; border-radius: 8px; overflow: hidden; background: var(--gris-bg); } .torque-galerie img { width: 100%; height: 100%; object-fit: cover; display: block; }',
-      '.torque-prix { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; } .torque-prix .tuile { background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 8px; padding: 8px 10px; } .torque-prix .l { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); } .torque-prix .v { font-size: 16px; font-weight: 700; } .torque-prix .tuile.fort .v { color: var(--vert); }',
+      '.torque-prix { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; } .torque-prix .tuile { background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 8px; padding: 8px 10px; } .torque-prix .l { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); } .torque-prix .v { font-size: 16px; font-weight: 700; } .torque-prix .tuile.fort .v { color: var(--vert); }',
       '.torque-notes { white-space: pre-wrap; font-size: 12.5px; background: var(--carte-2); border-radius: 8px; padding: 8px 10px; }',
-      '.torque-options { display: flex; flex-wrap: wrap; gap: 4px; } .torque-options span { background: var(--gris-bg); border-radius: 999px; padding: 2px 8px; font-size: 11.5px; }',
+      '.torque-options { display: flex; flex-wrap: wrap; gap: 4px; } .torque-options span { background: var(--gris-bg); border-radius: 999px; padding: 2px 8px; font-size: 12px; }',
       '.eval-torque-historique { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px; }',
       '.eval-torque-historique .badge { cursor: pointer; }'
     ].join('\n');
@@ -321,7 +321,7 @@
     });
     var thead = h('thead', [h('tr', COLONNES.map(function (col) {
       var actif = self.tri.cle === col.cle;
-      var th = h('th' + (col.num ? '.num' : '') + (col.libelle ? '.registre-triable' : '') + (actif ? '.actif' : ''), { 'aria-sort': actif ? (self.tri.desc ? 'descending' : 'ascending') : 'none', title: col.libelle ? 'Trier par ' + col.libelle.toLowerCase() : '' }, [col.libelle, actif ? h('span', { text: self.tri.desc ? ' ▼' : ' ▲', style: { fontSize: '9px' } }) : null]);
+      var th = h('th' + (col.num ? '.num' : '') + (col.libelle ? '.registre-triable' : '') + (actif ? '.actif' : ''), { 'aria-sort': actif ? (self.tri.desc ? 'descending' : 'ascending') : 'none', title: col.libelle ? 'Trier par ' + col.libelle.toLowerCase() : '' }, [col.libelle, actif ? h('span', { text: self.tri.desc ? ' ▼' : ' ▲', style: { fontSize: '12px' } }) : null]);
       if (col.libelle) th.addEventListener('click', function () { if (self.tri.cle === col.cle) self.tri.desc = !self.tri.desc; else { self.tri.cle = col.cle; self.tri.desc = !!col.num || col.cle === 'creeLe'; } self.rendreTable(); });
       return th;
     }))]);

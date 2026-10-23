@@ -13,15 +13,15 @@
   var CAMP_COULEUR = { brouillon: 'gris', planifiee: 'bleu', encours: 'ambre', pause: 'ambre', terminee: 'vert', annulee: 'rouge' };
   var STYLE = [
     '.txt-plus-barre { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; } .txt-plus-barre .doux { margin-left: auto; }',
-    '.txt-clients td .sous, .txt-camps td .sous { display: block; font-size: 11.5px; color: var(--encre-3); }',
-    '.txt-clients .stop { color: var(--rouge); font-weight: 700; font-size: 11px; }',
+    '.txt-clients td .sous, .txt-camps td .sous { display: block; font-size: 12px; color: var(--encre-3); }',
+    '.txt-clients .stop { color: var(--rouge); font-weight: 700; font-size: 12px; }',
     '.txt-fiche-client dl { display: grid; grid-template-columns: 130px 1fr; gap: 3px 12px; margin: 0 0 10px; font-size: 13px; } .txt-fiche-client dd { margin: 0; }',
     '.txt-fiche-client h4 { margin: 12px 0 4px; font-size: 12.5px; } .txt-fiche-client .liste-mini { font-size: 12.5px; } .txt-fiche-client .liste-mini > div { padding: 4px 0; border-bottom: 1px solid var(--ligne); display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; } .txt-fiche-client .liste-mini a { cursor: pointer; }',
     '.txt-autos .auto { border: 1px solid var(--ligne); border-radius: 10px; padding: 10px 12px; background: #fff; margin-bottom: 8px; } .txt-autos .auto.on { border-left: 4px solid var(--vert); }',
     '.txt-autos .auto .t { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .txt-autos .auto .t b { font-size: 13.5px; } .txt-autos .auto .q { color: var(--encre-3); font-size: 12px; flex: 1 1 100%; }',
     '.txt-autos .auto textarea { margin-top: 6px; min-height: 54px; font-size: 12.5px; } .txt-autos .auto .regl { display: flex; gap: 6px; align-items: center; font-size: 12.5px; } .txt-autos .auto .regl input { width: 70px; }',
     '.txt-autos .interrupteur { position: relative; width: 38px; height: 22px; border-radius: 11px; background: var(--gris); border: none; cursor: pointer; flex: none; transition: background .15s; } .txt-autos .interrupteur::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; } .txt-autos .interrupteur.on { background: var(--vert); } .txt-autos .interrupteur.on::after { left: 19px; }',
-    '.txt-camp-form .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; } @media (max-width: 700px) { .txt-camp-form .grille { grid-template-columns: 1fr; } } .txt-camp-form .champ label { display: block; font-size: 11.5px; color: var(--encre-3); margin-bottom: 2px; }',
+    '.txt-camp-form .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; } @media (max-width: 700px) { .txt-camp-form .grille { grid-template-columns: 1fr; } } .txt-camp-form .champ label { display: block; font-size: 12px; color: var(--encre-3); margin-bottom: 2px; }',
     '.txt-camp-form .apercu-aud { background: var(--carte-2); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; margin-top: 8px; }',
     '.txt-stats .emp td.num { text-align: right; font-variant-numeric: tabular-nums; }'
   ].join('\n');
@@ -242,8 +242,8 @@
     ]);
     var dest = h('div.liste-mini', { style: { maxHeight: '220px', overflow: 'auto', fontSize: '12.5px' } });
     (c.destinataires || []).slice().sort(function (a, b) { return (a.statut === 'repondu' ? 0 : 1) - (b.statut === 'repondu' ? 0 : 1); }).slice(0, 300).forEach(function (d) { dest.appendChild(h('div', { style: { padding: '3px 0', borderBottom: '1px solid var(--ligne)', display: 'flex', gap: '8px', flexWrap: 'wrap' } }, [h('b', { text: d.client || telJoli(d.tel) }), h('span.doux', { text: telJoli(d.tel) + (d.vehicule ? ' · ' + d.vehicule : '') }), h('span', { text: { attente: 'à envoyer', envoye: 'envoyé', repondu: 'a répondu', echec: 'échec' + (d.erreur ? ' (' + d.erreur + ')' : ''), stop: 'STOP', exclu: 'exclu' }[d.statut] || d.statut }), d.reponse ? h('span', { style: { color: 'var(--vert)' }, text: '« ' + d.reponse + ' »' }) : null, d.statut === 'repondu' ? h('a', { text: 'ouvrir', style: { cursor: 'pointer' }, onclick: function () { modale.fermer(); self.vue = 'conversations'; self.ouvrirTel = d.tel; self.rendre(); } }) : null])); });
-    var journal = h('div', { style: { fontSize: '11.5px', color: 'var(--encre-3)', maxHeight: '110px', overflow: 'auto' } });
-    (c.journal || []).slice().reverse().forEach(function (j) { journal.appendChild(h('div', [h('b', { style: { fontFamily: 'var(--mono)', fontSize: '11px' }, text: quand(j.le) }), ' ', j.quoi, j.par ? h('span.doux', { text: ' · ' + nomCourt(j.par) }) : null])); });
+    var journal = h('div', { style: { fontSize: '12px', color: 'var(--encre-3)', maxHeight: '110px', overflow: 'auto' } });
+    (c.journal || []).slice().reverse().forEach(function (j) { journal.appendChild(h('div', [h('b', { style: { fontFamily: 'var(--mono)', fontSize: '12px' }, text: quand(j.le) }), ' ', j.quoi, j.par ? h('span.doux', { text: ' · ' + nomCourt(j.par) }) : null])); });
     var actions = h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' } });
     if (peut) {
       if (['brouillon', 'planifiee', 'pause'].indexOf(c.etat) >= 0) actions.appendChild(h('button.btn.petit.fantome', { type: 'button', text: 'Modifier', onclick: function () { modale.fermer(); self.formCampagne(c); } }));

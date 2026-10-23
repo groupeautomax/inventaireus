@@ -615,7 +615,7 @@
       h('div.cell.maj', [h('span.l', 'Mise à jour'), h('span.v', { text: AMX.fmtDate(v.maj, true) })]),
       h('div.cell.indic', [h('span.l', 'Suivi'), h('div.indicateurs', indicateurs)]),
       h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' })]),
-      h('button.plus', { type: 'button', title: 'Ouvrir', html: I.chevron })
+      h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { if (autreRegistre) AMX.inventaire.aller(autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
     return el;
@@ -842,17 +842,24 @@
       ]) : null
     ]);
     var sticker = stickerUrl(v);
-    var blocLiens = h('div.bloc', [h('h3', ['Rapports et liens', h('button.btn.petit.fantome', { type: 'button', text: lienCfx ? 'lien CARFAX…' : 'coller un lien CARFAX…', onclick: function () { zoneCfx.classList.toggle('cache'); if (!zoneCfx.classList.contains('cache')) { champCfx.focus(); champCfx.select(); } } })]),
+    // v130 (rapport « Refonte ergonomique », gain rapide 12) : les gestes principaux en haut du panneau, juste sous
+    // l'en-tête — avant, « Déclarer la vente » était dans l'avant-dernier bloc.
+    var blocActions = h('div.bloc.inv-actions', [h('h3', 'Actions'),
       h('div.actions-ligne', [
-        lienCfx ? h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Rapport CARFAX</span>' })
-          : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
-        h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }),
-        sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null,
-        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
         // 21 oct. : déclarer la vente (ventes.js) — le script remplit le Livre des ventes (détail ou wholesale selon le registre).
         (AMX.ventes && AMX.ventes.peutDeclarer() && ['comptabilise'].indexOf(v.statut) < 0) ? h('button.btn.primaire.inv-vendre', { type: 'button', title: 'Déclarer la vente de ce véhicule — ScanAutomax écrit la ligne dans le Livre des ventes', html: I.vente + '<span>Déclarer la vente</span>', onclick: function () { AMX.ventes.declarer({ compagnie: v.compagnie, type: cfg.feuille === 'DETAIL' ? 'usage' : 'wholesale', vin: v.vin, stock: v.stock, modeleTexte: v.modele, coutant: v.cout, source: 'Inventaire › Usagé › ' + cfg.titre, resterIci: true }); } }) : null,
         // 14 oct. (Maxime) : « un véhicule disponible à la vente doit pouvoir être envoyé à un acheteur inscrit, par texto et par courriel ».
-        (AMX.offres && AMX.offres.envoyerAcheteurs && (AMX.perm('changerStatut') || AMX.perm('voirResultats')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0) ? h('button.btn.primaire', { type: 'button', title: 'Envoyer la page publique de ce véhicule à des acheteurs inscrits, par courriel et par texto (publié dans la vitrine si besoin)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(v.vin, { concession: AMX.COMPAGNIE_CONCESSION[String(v.compagnie || '').toUpperCase()] || '' }); } }) : null
+        (AMX.offres && AMX.offres.envoyerAcheteurs && (AMX.perm('changerStatut') || AMX.perm('voirResultats')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0) ? h('button.btn', { type: 'button', title: 'Envoyer la page publique de ce véhicule à des acheteurs inscrits, par courriel et par texto (publié dans la vitrine si besoin)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(v.vin, { concession: AMX.COMPAGNIE_CONCESSION[String(v.compagnie || '').toUpperCase()] || '' }); } }) : null,
+        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
+        h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' })
+      ])
+    ]);
+    if (!blocActions.querySelector('.actions-ligne').children.length) blocActions = null;
+    var blocLiens = h('div.bloc', [h('h3', ['Rapports', h('button.btn.petit.fantome', { type: 'button', text: lienCfx ? 'lien CARFAX…' : 'coller un lien CARFAX…', onclick: function () { zoneCfx.classList.toggle('cache'); if (!zoneCfx.classList.contains('cache')) { champCfx.focus(); champCfx.select(); } } })]),
+      h('div.actions-ligne', [
+        lienCfx ? h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Rapport CARFAX</span>' })
+          : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
+        sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null
       ]),
       zoneCfx
     ]);
@@ -885,7 +892,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocEval, blocFicheEblock, blocEblock, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocEval, blocFicheEblock, blocEblock, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

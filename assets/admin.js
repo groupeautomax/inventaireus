@@ -351,14 +351,14 @@
       '.admin-tableau-enveloppe { overflow-x: auto; border: 1px solid var(--ligne); border-radius: var(--rayon); background: var(--carte); }',
       '.admin-tableau { width: 100%; border-collapse: collapse; font-size: 12.5px; }',
       '.admin-tableau th, .admin-tableau td { padding: 8px 10px; border-bottom: 1px solid var(--ligne); text-align: left; white-space: nowrap; vertical-align: middle; }',
-      '.admin-tableau th { font-size: 11px; font-weight: 600; color: var(--encre-3); text-transform: uppercase; letter-spacing: .04em; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--carte-2); }',
+      '.admin-tableau th { font-size: 12px; font-weight: 600; color: var(--encre-3); text-transform: uppercase; letter-spacing: .04em; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--carte-2); }',
       '.admin-tableau th.tri { color: var(--encre); }',
-      '.admin-tableau th .fleche { font-size: 10px; margin-left: 4px; }',
+      '.admin-tableau th .fleche { font-size: 12px; margin-left: 4px; }',
       '.admin-tableau tr.cliquable { cursor: pointer; }',
       '.admin-tableau tr.cliquable:hover td { background: var(--carte-2); }',
       '.admin-tableau tr.actif td { background: var(--vert-clair); }',
       '.admin-tableau tr.inactif td { color: var(--encre-4); }',
-      '.admin-tableau td .mini { font-size: 11px; color: var(--encre-4); }',
+      '.admin-tableau td .mini { font-size: 12px; color: var(--encre-4); }',
       '.admin-tableau td .puces { display: flex; gap: 4px; flex-wrap: wrap; }',
       '.admin-tableau tbody tr:last-child td { border-bottom: none; }',
       '.admin-vue .segment button { white-space: nowrap; }',
@@ -376,25 +376,25 @@
       '.admin-droit .case { padding: 0; color: var(--encre-3); }',          // suit le rôle : grisé
       '.admin-droit .case .t { font-weight: 500; }',
       '.admin-droit .case .puce { margin-left: auto; }',
-      '.admin-droit .aide { font-size: 11.5px; color: var(--encre-4); line-height: 1.35; margin: 3px 0 0 23px; }',
+      '.admin-droit .aide { font-size: 12px; color: var(--encre-4); line-height: 1.35; margin: 3px 0 0 23px; }',
       '.admin-droit.perso { border-color: var(--ambre-bord); background: var(--ambre-bg); }', // différent du rôle
       '.admin-droit.perso .case { color: var(--encre); }',
       '.admin-droit.perso .aide { color: var(--encre-3); }',
       '.admin-droit .aide.admin-ecart { color: var(--ambre); font-weight: 500; }',
       '.admin-droit.bloque { opacity: .55; }',
       '.admin-droit.bloque .case { cursor: default; }',
-      '.admin-pied { margin: 10px 0 0; font-size: 11.5px; color: var(--encre-3); line-height: 1.45; }',
-      '.admin-role-aide { font-size: 11.5px; color: var(--encre-3); line-height: 1.4; margin: 4px 0 0; min-height: 16px; }',
+      '.admin-pied { margin: 10px 0 0; font-size: 12px; color: var(--encre-3); line-height: 1.45; }',
+      '.admin-role-aide { font-size: 12px; color: var(--encre-3); line-height: 1.4; margin: 4px 0 0; min-height: 16px; }',
       // Grille des accès supplémentaires : une ligne par concession, une case par domaine.
       '.admin-acces { width: 100%; border-collapse: collapse; font-size: 12.5px; }',
       '.admin-acces th, .admin-acces td { padding: 5px 2px; border-bottom: 1px solid var(--ligne); text-align: center; }',
-      '.admin-acces th { font-weight: 600; color: var(--encre-3); font-size: 11px; line-height: 1.2; vertical-align: bottom; }',
+      '.admin-acces th { font-weight: 600; color: var(--encre-3); font-size: 12px; line-height: 1.2; vertical-align: bottom; }',
       '.admin-acces td:first-child { font-size: 12px; line-height: 1.25; }',
       '.admin-acces th:first-child, .admin-acces td:first-child { text-align: left; white-space: normal; }',
       '.admin-acces tr.toutes td { background: var(--carte-2); font-weight: 600; }',
       '.admin-acces input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(--bleu); cursor: pointer; }',
       '.admin-acces input[type=checkbox]:disabled { cursor: default; opacity: .45; }',
-      '.admin-acces .implicite { color: var(--encre-4); font-size: 11px; }',
+      '.admin-acces .implicite { color: var(--encre-4); font-size: 12px; }',
       '.admin-acces-enveloppe { overflow-x: auto; margin-top: 4px; }',
       // Cases « Concessions » : une par concession, plus « Tout le groupe ».
       '.admin-concessions { display: flex; flex-direction: column; gap: 4px; }',
@@ -417,7 +417,7 @@
       '.admin-reglages h4 { margin: 6px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--encre-3); }',
       '.admin-reglages .admin-apercu { width: 100%; border-collapse: collapse; font-size: 12px; }',
       '.admin-reglages .admin-apercu th, .admin-reglages .admin-apercu td { padding: 5px 8px; border-bottom: 1px solid var(--ligne); text-align: left; vertical-align: top; }',
-      '.admin-reglages .admin-apercu th { font-size: 11px; color: var(--encre-3); font-weight: 600; }',
+      '.admin-reglages .admin-apercu th { font-size: 12px; color: var(--encre-3); font-weight: 600; }',
       '.admin-reglages .admin-fiches td select, .admin-reglages .admin-fiches td input { height: 30px; font-size: 12.5px; }',
       '.admin-reglages .admin-fiches td input { width: 100%; min-width: 180px; }',
       '@media (max-width: 760px) { .admin-reglages .grille.c3 { grid-template-columns: 1fr 1fr; } }',
@@ -426,7 +426,7 @@
       '.admin-journal .admin-journal-outils input { flex: 1 1 200px; height: 32px; }',
       '.admin-journal table { width: 100%; border-collapse: collapse; font-size: 12.5px; }',
       '.admin-journal th, .admin-journal td { padding: 6px 8px; border-bottom: 1px solid var(--ligne); text-align: left; vertical-align: top; }',
-      '.admin-journal th { font-size: 11px; color: var(--encre-3); font-weight: 600; white-space: nowrap; }',
+      '.admin-journal th { font-size: 12px; color: var(--encre-3); font-weight: 600; white-space: nowrap; }',
       '.admin-journal td.date { white-space: nowrap; color: var(--encre-3); }',
       '.admin-journal td.detail { overflow-wrap: anywhere; }',
       '.admin-journal td.detail .avant { color: var(--encre-4); text-decoration: line-through; }',
@@ -482,7 +482,7 @@
     this.btnAjouter = h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Ajouter un compte</span>', onclick: function () { self.modaleAjouter(); } });
     this.elActions = h('div.actions', [this.btnRafraichir, this.btnExporter, this.btnAjouter]);
     var entete = h('div.entete-page', [
-      h('div', { style: { minWidth: 0 } }, [h('h1', 'Accès et utilisateurs'), this.elEtat]),
+      h('div', { style: { minWidth: 0 } }, [h('h1', 'Comptes et droits'), this.elEtat]),
       this.elActions
     ]);
 

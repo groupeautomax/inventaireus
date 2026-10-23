@@ -95,19 +95,19 @@
       '.avis-carte .texte { font-size: 13.5px; line-height: 1.5; color: var(--encre-2); white-space: pre-wrap; }',
       '.avis-carte .texte.vide-texte { color: var(--encre-4); font-style: italic; }',
       '.avis-carte .reponse { margin-top: 10px; padding: 10px 12px; background: var(--carte-2); border-radius: var(--rayon-s); font-size: 12.5px; line-height: 1.5; border-left: 3px solid var(--vert); }',
-      '.avis-carte .reponse .l { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin-bottom: 4px; }',
-      '.avis-carte .reponse .l .ed { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11px; }',
+      '.avis-carte .reponse .l { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin-bottom: 4px; }',
+      '.avis-carte .reponse .l .ed { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 12px; }',
       '.avis-carte .reponse-edit { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--ligne-forte); border-radius: var(--rayon-s); background: var(--carte-2); }',
-      '.avis-carte .reponse-edit .l { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin-bottom: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
+      '.avis-carte .reponse-edit .l { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin-bottom: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }',
       '.avis-carte .reponse-edit textarea { width: 100%; min-height: 88px; font: inherit; font-size: 13px; line-height: 1.45; padding: 8px 10px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte); color: var(--encre); resize: vertical; box-sizing: border-box; }',
       '.avis-carte .reponse-edit .actions-ligne { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }',
-      '.avis-carte .reponse-edit .compte { margin-left: auto; font-size: 11px; color: var(--encre-4); }',
+      '.avis-carte .reponse-edit .compte { margin-left: auto; font-size: 12px; color: var(--encre-4); }',
       '.avis-plus-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0 6px; }',
       '.retrait-modale .avis-cite { padding: 10px 12px; border-left: 3px solid var(--ligne); background: var(--fond-2, #f6f7f9); border-radius: var(--rayon-s); font-size: 13px; }',
       '.retrait-modale .champ { margin: 10px 0; } .retrait-modale textarea.saisie { width: 100%; box-sizing: border-box; font: inherit; }',
       '.retrait-modale .retrait-texte { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.45; }',
       '.retrait-dossier { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--ligne); }',
-      '.retrait-dossier .l { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-2); margin-bottom: 6px; }',
+      '.retrait-dossier .l { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-2); margin-bottom: 6px; }',
       '.retrait-voie { padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); }',
       '.retrait-voie.recommande { border-color: var(--vert, #0a7f4a); background: var(--vert-bg, #ecf7f1); }',
       '.retrait-voie-tete { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .retrait-voie .btn { white-space: nowrap; }',
@@ -119,7 +119,7 @@
       '.avis-api-barre .pt { width: 8px; height: 8px; border-radius: 50%; background: var(--vert); box-shadow: 0 0 0 3px var(--vert-clair); }',
       '.avis-api-barre .btn { margin-left: auto; }',
       '.avis-carte .cote { display: flex; flex-direction: column; gap: 8px; border-left: 1px solid var(--ligne); padding-left: 14px; }',
-      '.avis-carte .cote .champ > label { font-size: 10.5px; }',
+      '.avis-carte .cote .champ > label { font-size: 12px; }',
       '.avis-carte .cote select { height: 30px; font-size: 12.5px; }',
       '.avis-employes { display: flex; gap: 4px; flex-wrap: wrap; min-height: 22px; }',
       '.avis-employes .puce.moi { background: var(--vert-clair); color: var(--vert); border-color: transparent; }',
@@ -144,7 +144,7 @@
       '.avis-fiche .v b { color: var(--encre); font-size: 15px; }',
       '.avis-moi { background: var(--vert-clair) !important; }',
       '.avis-ligne-neg td:first-child { box-shadow: inset 3px 0 0 var(--rouge); }',
-      '.avis-repere { font-size: 11px; color: var(--encre-4); }',
+      '.avis-repere { font-size: 12px; color: var(--encre-4); }',
       '@media (max-width: 860px) { .avis-carte { grid-template-columns: 1fr; } .avis-carte .cote { border-left: none; padding-left: 0; border-top: 1px solid var(--ligne); padding-top: 10px; } }'
     ].join('\n');
     document.head.appendChild(s);
@@ -619,7 +619,7 @@
       boutons.unshift({ texte: 'Refusé par Google', classe: 'fantome', action: function () { return self.ecrire({ action: 'avisRetrait', id: a.id, etat: 'refuse' }, 'Refus noté'); } });
       boutons.unshift({ texte: 'Retiré par Google', classe: 'fantome', action: function () { return self.ecrire({ action: 'avisRetrait', id: a.id, etat: 'retire' }, 'Retrait noté'); } });
     }
-    if (r.etat) boutons.unshift({ texte: 'Annuler la demande', classe: 'fantome', action: function () { if (!window.confirm('Effacer le suivi de cette demande de retrait ?')) return false; return self.ecrire({ action: 'avisRetrait', id: a.id, etat: '' }, 'Suivi effacé'); } });
+    if (r.etat) boutons.unshift({ texte: 'Annuler la demande', classe: 'fantome', action: function () { return AMX.confirmer('Annuler la demande de retrait', 'Effacer le suivi de cette demande de retrait ?', { ok: 'Effacer le suivi', danger: true }).then(function (oui) { return oui ? self.ecrire({ action: 'avisRetrait', id: a.id, etat: '' }, 'Suivi effacé') : false; }); } });
     var modale = AMX.modale({ titre: 'Demander le retrait à Google — ' + (a.auteur || 'avis') + ' (' + a.etoiles + ' ★)', corps: corps, large: true, boutons: boutons });
   };
 
@@ -636,8 +636,9 @@
     var publiee = a.reponse ? h('div.reponse', [h('div.l', ['Réponse de la concession' + (a.reponseLe ? ' · ' + AMX.fmtDate(a.reponseLe) : ''),
       enDirect && droit ? h('button.btn.fantome.petit.ed', { type: 'button', onclick: function () { self.ouvrirEditeur(a, d, a.reponse); } }, 'Modifier') : null,
       enDirect && droit ? h('button.btn.fantome.petit.ed', { type: 'button', onclick: function () {
-        if (!window.confirm('Retirer la réponse publiée sur Google ?')) return;
-        self.ecrire({ action: 'avisRetirerReponse', id: a.id }, 'Réponse retirée de Google');
+        AMX.confirmer('Retirer la réponse', 'Retirer la réponse publiée sur Google ?', { ok: 'Retirer de Google', danger: true }).then(function (oui) {
+          if (oui) self.ecrire({ action: 'avisRetirerReponse', id: a.id }, 'Réponse retirée de Google');
+        });
       } }, 'Retirer') : null]), a.reponse]) : null;
     if (a.reponse || !droit) return publiee;
     if (!enDirect) {
@@ -680,11 +681,16 @@
     var bPublier = h('button.btn.primaire.petit', { type: 'button', onclick: function (e) {
       var t = ta.value.trim();
       if (t.length < 2) { AMX.toast('Écrivez une réponse d\'abord.', 'erreur'); ta.focus(); return; }
-      if (!window.confirm((a.reponse ? 'Remplacer la réponse publiée sur Google' : 'Publier cette réponse sur Google') + ', au nom de ' + nomRep + ' ? Elle sera visible par tout le monde.')) return;
-      var b = e.currentTarget; occupe(b, true, 'Publication…');
-      // v100 : `remplacer` seulement quand l'écran montre déjà une réponse (« Remplacer sur Google ») — sinon le serveur refuse de
-      // publier par-dessus une réponse qu'il trouve déjà en ligne (faite d'ici ou dans Google) : jamais en double.
-      self.ecrire({ action: 'avisRepondre', id: a.id, texte: t, remplacer: !!a.reponse }, a.reponse ? 'Réponse remplacée sur Google' : 'Réponse publiée sur Google').then(function (ok) { if (!ok) occupe(b, false); });
+      var b = e.currentTarget;
+      AMX.confirmer(a.reponse ? 'Remplacer la réponse sur Google' : 'Publier la réponse sur Google',
+        (a.reponse ? 'Remplacer la réponse publiée sur Google' : 'Publier cette réponse sur Google') + ', au nom de ' + nomRep + ' ? Elle sera visible par tout le monde.',
+        { ok: a.reponse ? 'Remplacer sur Google' : 'Publier sur Google' }).then(function (oui) {
+        if (!oui) return;
+        occupe(b, true, 'Publication…');
+        // v100 : `remplacer` seulement quand l'écran montre déjà une réponse (« Remplacer sur Google ») — sinon le serveur refuse de
+        // publier par-dessus une réponse qu'il trouve déjà en ligne (faite d'ici ou dans Google) : jamais en double.
+        self.ecrire({ action: 'avisRepondre', id: a.id, texte: t, remplacer: !!a.reponse }, a.reponse ? 'Réponse remplacée sur Google' : 'Réponse publiée sur Google').then(function (ok) { if (!ok) occupe(b, false); });
+      });
     } }, a.reponse ? 'Remplacer sur Google' : 'Publier sur Google');
     return h('div.reponse-edit', [
       h('div.l', [a.reponse ? 'Modifier la réponse' : (a.brouillon ? 'Brouillon' : 'Répondre'), h('span.doux', { style: { fontWeight: 400, letterSpacing: 0, textTransform: 'none' } }, '— publiée sur la fiche Google « ' + a.fiche + ' »' + (nomRep !== a.fiche ? ', signée ' + nomRep : ''))]),

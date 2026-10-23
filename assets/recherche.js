@@ -236,8 +236,25 @@
     input.__amxRecherche = true;
     entrees.push(input);
     input.setAttribute('placeholder', texteIndice());
-    var boite = null, derniere = '';
-    var fermer = function () { if (boite) { boite.remove(); boite = null; } };
+    var boite = null, derniere = '', choisi = '';
+    // v130 : la boîte se parcourt aux flèches ; Entrée ouvre l'élément en surbrillance (sinon le premier).
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-expanded', 'false');
+    var liens = function () { return boite ? Array.prototype.slice.call(boite.querySelectorAll('a.rech-tete, .rech-liens a, a.rech-autre')) : []; };
+    var marquer = function (el) {
+      liens().forEach(function (a) { a.classList.toggle('rech-sel', a === el); a.setAttribute('aria-selected', a === el ? 'true' : 'false'); });
+      choisi = el ? el.getAttribute('href') : '';
+      if (el) { if (!el.id) el.id = 'rech-o-' + Math.random().toString(36).slice(2, 8); input.setAttribute('aria-activedescendant', el.id); el.scrollIntoView({ block: 'nearest' }); }
+      else input.removeAttribute('aria-activedescendant');
+    };
+    var deplacer = function (pas) {
+      var l = liens(); if (!l.length) return;
+      var i = l.findIndex(function (a) { return a.classList.contains('rech-sel'); });
+      i = i < 0 ? (pas > 0 ? 0 : l.length - 1) : Math.min(l.length - 1, Math.max(0, i + pas));
+      marquer(l[i]);
+    };
+    var fermer = function () { if (boite) { boite.remove(); boite = null; } choisi = ''; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); };
     var dessiner = function () {
       var q = input.value.trim();
       if (q.length < 2) { fermer(); return; }
@@ -245,8 +262,10 @@
       var r = resultats(q, cie);
       var nouvelle = !boite;
       if (nouvelle) {
-        boite = h('div.carte.rech-boite');
+        boite = h('div.carte.rech-boite', { id: 'rech-boite-' + entrees.indexOf(input), role: 'listbox', 'aria-label': 'Résultats de la recherche' });
         input.parentNode.appendChild(boite);
+        input.setAttribute('aria-controls', boite.id);
+        input.setAttribute('aria-expanded', 'true');
       }
       var defile = boite.scrollTop;
       AMX.vider(boite);
@@ -265,15 +284,26 @@
           [h('b', { text: r.ailleurs + ' résultat' + (r.ailleurs > 1 ? 's' : '') }), ' dans d\'autres concessions — chercher dans tout le groupe']));
       }
       if (r.enLecture.length) boite.appendChild(h('div.rech-lecture', { text: 'Encore en lecture : ' + r.enLecture.join(', ') + '…' }));
+      liens().forEach(function (a) { a.setAttribute('role', 'option'); a.setAttribute('tabindex', '-1'); });
       if (!nouvelle) boite.scrollTop = defile;
+      // Après un redessin (les listes arrivent), la surbrillance reste sur le même lien.
+      if (choisi) { var reprise = liens().filter(function (a) { return a.getAttribute('href') === choisi; })[0]; if (reprise) { reprise.classList.add('rech-sel'); reprise.setAttribute('aria-selected', 'true'); } else choisi = ''; }
+      // La boîte ne dépasse jamais l'écran (barre étroite, téléphone).
+      boite.style.left = ''; boite.style.right = '';
+      var r0 = boite.getBoundingClientRect();
+      if (r0.right > window.innerWidth - 8) { boite.style.left = 'auto'; boite.style.right = '0'; }
     };
     var chercher = AMX.debounce(function () { var q = input.value.trim(); if (q === derniere && boite) return; derniere = q; dessiner(); }, 160);
     var auRetour = AMX.debounce(function () { if (boite && input.value.trim().length >= 2) dessiner(); }, 120);
     input.addEventListener('focus', function () { prechauffer(auRetour); if (input.value.trim().length >= 2 && !boite) dessiner(); });
-    input.addEventListener('input', function () { prechauffer(auRetour); derniere = ''; chercher(); });
+    input.addEventListener('input', function () { prechauffer(auRetour); derniere = ''; choisi = ''; chercher(); });
     input.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { input.value = ''; fermer(); input.blur(); }
-      if (e.key === 'Enter' && boite) { var a = boite.querySelector('.rech-tete, .rech-autre'); if (a) { e.preventDefault(); location.hash = a.getAttribute('href').replace(/^.*#/, '#'); fermer(); } }
+      if (e.key === 'Escape') { if (boite) { fermer(); } else { input.value = ''; input.blur(); } return; }
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && boite) { e.preventDefault(); deplacer(e.key === 'ArrowDown' ? 1 : -1); return; }
+      if (e.key === 'Enter' && boite) {
+        var a = boite.querySelector('a.rech-sel') || boite.querySelector('.rech-tete, .rech-autre');
+        if (a) { e.preventDefault(); location.hash = a.getAttribute('href').replace(/^.*#/, '#'); fermer(); input.blur(); }
+      }
     });
     input.__amxFermer = fermer;
     input.__amxDessiner = function () { input.setAttribute('placeholder', texteIndice()); if (boite) dessiner(); };
@@ -303,7 +333,8 @@
     '.rech-choix.vert i { background: var(--vert); } .rech-choix.bleu i { background: var(--bleu); } .rech-choix.violet i { background: var(--violet); } .rech-choix.sombre i { background: var(--noir); } .rech-choix.ambre i { background: var(--ambre); } .rech-choix.toutes i { background: linear-gradient(135deg, var(--vert), var(--bleu)); }',
     '.rech-choix.actif { background: var(--noir); border-color: var(--noir); color: #fff; font-weight: 600; } .rech-choix.actif i { box-shadow: 0 0 0 2px #fff; }',
     '.rech-vehicule { padding: 10px 12px; border-bottom: 1px solid var(--ligne); }',
-    '.rech-tete { display: block; color: inherit; text-decoration: none; } .rech-tete:hover .rech-titre { color: var(--vert); }',
+    '.rech-tete { display: block; color: inherit; text-decoration: none; border-radius: 6px; } .rech-tete:hover .rech-titre { color: var(--vert); }',
+    '.rech-boite a.rech-sel { outline: 2px solid var(--vert); outline-offset: 1px; } .rech-boite a.rech-tete.rech-sel, .rech-boite a.rech-autre.rech-sel { background: var(--vert-clair); outline-offset: -2px; }',
     '.rech-titre { font-weight: 600; font-size: 14px; }',
     '.rech-sous { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12px; color: var(--encre-3); margin-top: 2px; }',
     '.rech-cie { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--encre-2); } .rech-cie i { width: 8px; height: 8px; border-radius: 50%; background: var(--encre-4); }',
@@ -312,7 +343,7 @@
     '.rech-liens .puce, .rech-puce { text-decoration: none; cursor: pointer; }',
     '.rech-puce.vert { background: var(--vert-clair); color: var(--vert-fonce); } .rech-puce.bleu { background: var(--bleu-bg); color: var(--bleu); } .rech-puce.violet { background: var(--violet-bg); color: var(--violet); }',
     '.rech-puce.sarcelle { background: var(--sarcelle-bg); color: var(--sarcelle); } .rech-puce.ambre { background: var(--ambre-bg); color: var(--ambre); } .rech-puce.prune { background: var(--prune-bg); color: var(--prune); } .rech-puce.rouge { background: var(--rouge-bg); color: var(--rouge); }',
-    '.rech-groupe { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-3); }',
+    '.rech-groupe { padding: 8px 12px 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-3); }',
     '.rech-autre { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--ligne); color: inherit; text-decoration: none; } .rech-autre:hover { background: var(--carte-2); }',
     '.rech-vide, .rech-plus, .rech-lecture { padding: 10px 12px; font-size: 13px; color: var(--encre-3); }',
     '.rech-lecture { font-size: 12px; border-top: 1px dashed var(--ligne); }',
@@ -320,7 +351,7 @@
     '.acc-recherche-portee { margin-top: 10px; } .acc-recherche-portee .l { color: rgba(255,255,255,.75); }',
     '.acc-recherche-portee .rech-choix { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.25); color: #fff; }',
     '.acc-recherche-portee .rech-choix.actif { background: #fff; color: var(--noir); border-color: #fff; } .acc-recherche-portee .rech-choix.actif i { box-shadow: none; }',
-    '@media (max-width: 640px) { .rech-boite { min-width: 0; } }'
+    '@media (max-width: 640px) { .rech-boite { min-width: 0; position: fixed; top: calc(var(--barre-h) + 4px); left: 8px !important; right: 8px !important; max-height: calc(100vh - var(--barre-h) - 76px - env(safe-area-inset-bottom)); } }'
   ].join('\n');
   document.head.appendChild(h('style#rech-style', { text: css }));
 

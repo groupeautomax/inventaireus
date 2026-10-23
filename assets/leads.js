@@ -151,9 +151,9 @@
       '.vignettes.leads-vignettes { grid-template-columns: repeat(3, 1fr); gap: 8px; }',
       '.leads-vig { min-width: 0; }',
       '.leads-vig img, .leads-vig .ph { display: block; }',
-      '.leads-vig .ph { display: grid; place-items: center; color: var(--encre-4); font-size: 11px; cursor: default; border-style: dashed; }',
+      '.leads-vig .ph { display: grid; place-items: center; color: var(--encre-4); font-size: 12px; cursor: default; border-style: dashed; }',
       '.leads-vig .ph svg { width: 18px; height: 18px; }',
-      '.leads-vig .l { font-size: 10.5px; color: var(--encre-3); margin-top: 3px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+      '.leads-vig .l { font-size: 12px; color: var(--encre-3); margin-top: 3px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
       '.leads-vig.manque .l { color: var(--encre-4); }',
       '.leads-video { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: var(--noir); border: 1px solid var(--ligne); margin-bottom: 8px; }',
       '.leads-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }',
@@ -233,7 +233,7 @@
     this.conteneur.appendChild(h('div.page.leads-page', [
       h('div.entete-page', [
         h('div', [
-          h('h1', { text: 'Leads — évaluations clients' }),
+          h('h1', { text: 'Leads' }),
           h('p', { text: 'Le client reçoit un lien unique, scanne son NIV, inscrit le kilométrage et prend cinq photos. Sa demande entre dans le CRM de la concession ; vous pouvez ensuite lui répondre avec une offre.' })
         ]),
         h('div.actions', [
@@ -447,7 +447,7 @@
       h('div.cell', [h('span.l', 'Statut'), h('span', [badgeStatut(l)]), h('span.jours', { text: (recu ? 'Reçu le ' : 'Envoyé le ') + AMX.fmtDate(dateDe(l), true) })]),
       h('div.cell.indic.leads-sec', [h('span.l', 'CRM'), h('div.indicateurs', [puceCrm(l) || h('span.doux.petit', '—')])]),
       h('div.montant', [h('span.l', 'Offre'), h('span', { text: aUneOffre(l) ? montantLisible(l.offre) : '—' })]),
-      h('button.plus', { type: 'button', title: 'Ouvrir', html: I.chevron })
+      h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { self.selectionner(l.id); });
     return el;

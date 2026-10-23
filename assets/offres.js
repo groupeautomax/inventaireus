@@ -404,7 +404,7 @@
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle })]), h('span.jours', { text: AMX.fmtDate(o.date, true) })]),
       h('div.cell.indic', [h('span.l', 'Négociation'), h('div.indicateurs', [h('span.puce', { text: 'Offert ' + AMX.fmtArgent(o.prix) }), o.contre ? h('span.puce.info', { text: 'Contre ' + AMX.fmtArgent(o.contre) }) : null, o.exportation ? h('span.puce.info', { text: 'Export ' + (EXPORTATIONS[o.exportation] || o.exportation), title: exportationTexte(o.exportation) }) : null, o.noContrat ? h('span.puce.ok', { text: o.noContrat }) : null, o.statut === 'contrat' ? h('span.puce' + (o.contresigne ? '.ok' : '.attention'), { text: o.contresigne ? 'Signé ×2' : 'À contresigner' }) : null])]),
       h('div.montant', [h('span.l', o.statut === 'contrat' || o.statut === 'acceptee' ? 'Prix convenu' : (o.statut === 'contre' ? 'Contre-offre' : 'Offert')), h('span', { text: AMX.fmtArgent(montant) })]),
-      h('button.plus', { type: 'button', html: I.chevron })
+      h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', html: I.chevron })
     ]);
     el.addEventListener('click', function () { self.selectionner(o.id); });
     return el;
@@ -602,7 +602,7 @@
     this.elKpis = h('div.kpis'); this.elListe = h('div'); this.elOutils = h('div.outils-liste');
     this.conteneur.appendChild(h('div.page', [
       h('div.entete-page', [
-        h('div', [h('h1', 'Véhicules en vente'), h('p#vente-etat', 'La vitrine envoyée aux acheteurs : chaque véhicule publié a sa page publique.')]),
+        h('div', [h('h1', 'En vente'), h('p#vente-etat', 'La vitrine envoyée aux acheteurs : chaque véhicule publié a sa page publique.')]),
         h('div.actions', [
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
           h('button.btn', { html: I.copier + '<span>Lien de la vitrine</span>', title: 'Copier le lien de la liste complète', onclick: function () { if (!cache.cle) return AMX.toast('Clé non chargée', 'attention'); AMX.copier(AMX.SITE + 'vitrine/index.html?k=' + encodeURIComponent(cache.cle), 'Lien de la vitrine copié'); } }),
@@ -657,7 +657,7 @@
         h('div.cell.indic', [h('span.l', 'Lien'), h('div.indicateurs', [lien ? h('button.puce.info', { type: 'button', html: 'Copier le lien', onclick: function () { AMX.copier(lien, 'Lien de la page copié'); } }) : null, lien ? h('a.puce', { href: lien, target: '_blank', rel: 'noopener', text: 'Ouvrir' }) : null, p.video ? h('span.puce.ok', { text: 'Vidéo' }) : null])]),
         h('div.montant', [h('span.l', 'Prix'), h('span', { text: AMX.montant(p.prix) > 0 ? AMX.fmtArgent(p.prix) : 'Sur demande' })]),
         h('button.btn.petit', { type: 'button', title: 'Envoyer la page de ce véhicule à des acheteurs inscrits (courriel, texto)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(p.vin, { concession: compagnieVersConcession(v.compagnie) }); } }),
-        h('button.plus', { type: 'button', title: 'Modifier', html: I.points, onclick: function () { self.modalePublier(p.vin, p); } })
+        h('button.plus', { 'aria-label': 'Modifier la publication', type: 'button', title: 'Modifier', html: I.points, onclick: function () { self.modalePublier(p.vin, p); } })
       ]);
       ul.appendChild(el);
     });
@@ -803,7 +803,7 @@
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + (inscrit ? 'vert' : 'ambre'), { text: inscrit ? 'Inscrit' : 'Invité' })]), h('span.jours', { text: inscrit ? 'le ' + AMX.fmtDate(a.inscritLe) : 'le ' + AMX.fmtDate(a.inviteLe) })]),
       h('div.cell.indic', [h('span.l', 'Lieu'), h('span.v', { text: [a.ville, a.province].filter(Boolean).join(', ') || '—' }), a.dernierEnvoiLe ? h('span.v.doux', { text: 'Envoi ' + AMX.fmtDate(a.dernierEnvoiLe) }) : null]),
       h('div.montant', [h('span.l', 'Concession'), h('span', { style: { fontWeight: 500, fontSize: '12px' }, text: a.concession ? nomConcession(a.concession).split(' ')[0] : '—' })]),
-      h('button.plus', { type: 'button', html: I.chevron })
+      h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', html: I.chevron })
     ]);
     el.addEventListener('click', function () { self.selectionner(a.id); });
     return el;

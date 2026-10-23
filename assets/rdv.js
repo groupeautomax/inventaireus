@@ -78,7 +78,7 @@
     '.rdv-col > .tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--ligne); font-weight: 700; font-size: 13px; }',
     '.rdv-col > .tete .n { font-size: 12px; color: var(--encre-3); font-weight: 600; font-variant-numeric: tabular-nums; }',
     '.rdv-col > .corps { padding: 8px; display: flex; flex-direction: column; gap: 6px; }',
-    '.rdv-col .heure-sep { font-size: 11px; font-weight: 700; color: var(--encre-4); letter-spacing: .04em; margin: 4px 4px 0; }',
+    '.rdv-col .heure-sep { font-size: 12px; font-weight: 700; color: var(--encre-4); letter-spacing: .04em; margin: 4px 4px 0; }',
     '.rdv-carte { border: 1px solid var(--ligne); border-left: 4px solid var(--gris); border-radius: 8px; padding: 7px 9px; cursor: pointer; background: #fff; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }',
     '.rdv-carte:hover { background: var(--carte-2); }',
     '.rdv-carte.e-arrive { border-left-color: var(--bleu); } .rdv-carte.e-encours { border-left-color: var(--vert); } .rdv-carte.e-pieces, .rdv-carte.e-approbation { border-left-color: var(--ambre); }',
@@ -86,9 +86,9 @@
     '.rdv-carte .client { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
     '.rdv-carte .quand { font-family: var(--mono); font-size: 12px; font-weight: 600; text-align: right; }',
     '.rdv-carte .veh { grid-column: 1 / -1; font-size: 12px; color: var(--encre-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
-    '.rdv-carte .trav { grid-column: 1 / -1; font-size: 11.5px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+    '.rdv-carte .trav { grid-column: 1 / -1; font-size: 12px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
     '.rdv-carte .puces { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }',
-    '.rdv-carte .puces .puce { font-size: 10.5px; padding: 1px 7px; }',
+    '.rdv-carte .puces .puce { font-size: 12px; padding: 1px 7px; }',
     '.rdv-semaine { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }',
     '.rdv-jour { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; min-height: 120px; }',
     '.rdv-jour:hover { background: var(--carte-2); } .rdv-jour.ferme { opacity: .55; cursor: default; } .rdv-jour.auj { box-shadow: inset 0 0 0 2px var(--vert); }',
@@ -96,7 +96,7 @@
     '.rdv-jour .n { font-size: 22px; font-weight: 700; line-height: 1.1; }',
     '.rdv-jour .barre-charge { height: 6px; background: var(--gris-bg); border-radius: 3px; overflow: hidden; }',
     '.rdv-jour .barre-charge i { display: block; height: 100%; background: var(--vert); } .rdv-jour .barre-charge i.plein { background: var(--ambre); } .rdv-jour .barre-charge i.trop { background: var(--rouge); }',
-    '.rdv-jour .sous { font-size: 11px; color: var(--encre-4); }',
+    '.rdv-jour .sous { font-size: 12px; color: var(--encre-4); }',
     '.rdv-cap { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--encre-2); margin: 0 0 12px; }',
     '.rdv-cap b { font-variant-numeric: tabular-nums; }',
     '.rdv-cap .plein { color: var(--ambre); font-weight: 600; } .rdv-cap .trop { color: var(--rouge); font-weight: 600; }',
@@ -111,12 +111,12 @@
     '.rdv-insp .media { position: relative; width: 112px; height: 84px; border-radius: 8px; overflow: hidden; border: 1px solid var(--ligne); background: var(--carte-2); cursor: pointer; }',
     '.rdv-insp .media img { width: 100%; height: 100%; object-fit: cover; display: block; }',
     '.rdv-insp .media .lecture { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 26px; text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none; }',
-    '.rdv-insp .media .type { position: absolute; left: 4px; bottom: 4px; font-size: 10px; background: rgba(0,0,0,.6); color: #fff; padding: 1px 6px; border-radius: 999px; }',
+    '.rdv-insp .media .type { position: absolute; left: 4px; bottom: 4px; font-size: 12px; background: rgba(0,0,0,.6); color: #fff; padding: 1px 6px; border-radius: 999px; }',
     '.rdv-insp .media .retirer { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; line-height: 20px; cursor: pointer; padding: 0; }',
-    '.rdv-insp .media.envoi { display: grid; place-items: center; font-size: 11px; color: var(--encre-3); text-align: center; padding: 6px; cursor: default; }',
+    '.rdv-insp .media.envoi { display: grid; place-items: center; font-size: 12px; color: var(--encre-3); text-align: center; padding: 6px; cursor: default; }',
     '.rdv-insp .outils { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }',
     '.rdv-insp table.tableau input.saisie, .rdv-insp table.tableau select.saisie { height: 30px; font-size: 12.5px; }',
-    '.rdv-insp .etat-ligne { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--gris-bg); color: var(--encre-3); white-space: nowrap; }',
+    '.rdv-insp .etat-ligne { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--gris-bg); color: var(--encre-3); white-space: nowrap; }',
     '.rdv-insp .etat-ligne.approuve { background: var(--vert-clair); color: var(--vert); } .rdv-insp .etat-ligne.refuse { background: var(--rouge-bg); color: var(--rouge); }',
     '.rdv-insp .suivi { font-size: 12.5px; color: var(--encre-2); background: var(--carte-2); border-radius: 8px; padding: 8px 10px; margin: 10px 0; }',
     '.rdv-insp .suivi .note-client { margin-top: 6px; border-left: 3px solid var(--vert); padding-left: 8px; white-space: pre-wrap; }',
@@ -132,7 +132,7 @@
     '.rdv-form .travaux label { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 3px 0; cursor: pointer; min-width: 0; }',
     '.rdv-form .travaux label > span:first-of-type { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
     '.rdv-form input[type="checkbox"], .rdv-reglages input[type="checkbox"], .rdv-envoi input[type="checkbox"] { width: 16px; height: 16px; flex: none; margin: 0; padding: 0; accent-color: var(--vert); }',
-    '.rdv-form .travaux label .d { color: var(--encre-4); font-size: 11px; margin-left: auto; white-space: nowrap; }',
+    '.rdv-form .travaux label .d { color: var(--encre-4); font-size: 12px; margin-left: auto; white-space: nowrap; }',
     '.rdv-form .creneaux { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 4px; max-height: 150px; overflow: auto; padding: 2px; }',
     '.rdv-form .creneaux button { border: 1px solid var(--ligne); background: #fff; border-radius: 6px; padding: 4px 0; font-size: 12px; cursor: pointer; font-family: var(--mono); }',
     '.rdv-form .creneaux button.actif { background: var(--vert-clair); border-color: var(--vert); font-weight: 700; }',
@@ -150,43 +150,43 @@
     '.rdv-grille .coin { left: 0; z-index: 4; border-right: 1px solid var(--ligne); }',
     '.rdv-grille .tete-col { padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; gap: 1px; border-left: 1px solid var(--ligne); min-width: 0; }',
     '.rdv-grille .tete-col .t { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
-    '.rdv-grille .tete-col .s { font-size: 11px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }',
+    '.rdv-grille .tete-col .s { font-size: 12px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }',
     '.rdv-grille .tete-col.cliquable { cursor: pointer; } .rdv-grille .tete-col.cliquable:hover { background: var(--carte-2); }',
     '.rdv-grille .tete-col.auj .t { color: var(--vert); } .rdv-grille .tete-col.ferme .t, .rdv-grille .tete-col.ferme .s { color: var(--encre-4); }',
     '.rdv-grille .axe { position: sticky; left: 0; z-index: 2; background: var(--carte); border-right: 1px solid var(--ligne); }',
-    '.rdv-grille .axe .h { position: absolute; right: 8px; margin-top: 3px; font-size: 11px; font-weight: 600; color: var(--encre-3); font-family: var(--mono); white-space: nowrap; }',
+    '.rdv-grille .axe .h { position: absolute; right: 8px; margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--encre-3); font-family: var(--mono); white-space: nowrap; }',
     '.rdv-grille .pile { position: relative; border-left: 1px solid var(--ligne); min-width: 0; }',
     '.rdv-grille .creneau { position: absolute; left: 0; right: 0; box-sizing: border-box; border-top: 1px dashed var(--ligne); }',
     '.rdv-grille .creneau.heure { border-top: 1px solid var(--ligne-forte); }',
     '.rdv-grille .creneau.hors { background: repeating-linear-gradient(135deg, var(--carte-2) 0 6px, transparent 6px 12px); }',
     '.rdv-grille .creneau.libre { cursor: pointer; } .rdv-grille .creneau.libre:hover { background: var(--vert-clair); }',
     '.rdv-grille .creneau.passe, .rdv-grille .case.passe { background: var(--carte-2); opacity: .7; }',
-    '.rdv-grille .creneau.libre:hover::after { content: "+ " attr(data-heure); position: absolute; right: 6px; top: 2px; font-size: 11px; color: var(--vert); font-weight: 600; font-family: var(--mono); }',
+    '.rdv-grille .creneau.libre:hover::after { content: "+ " attr(data-heure); position: absolute; right: 6px; top: 2px; font-size: 12px; color: var(--vert); font-weight: 600; font-family: var(--mono); }',
     '.rdv-grille .maintenant { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--rouge); z-index: 2; pointer-events: none; }',
     '.rdv-grille .maintenant::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--rouge); }',
     '.rdv-carte.posee.deplacable { cursor: grab; } .rdv-carte.posee.en-deplacement { opacity: .35; }',
     '.rdv-fantome { position: fixed; z-index: 60; pointer-events: none; opacity: .94; box-shadow: 0 14px 30px rgba(0, 0, 0, .28) !important; transform: rotate(-1.5deg); margin: 0 !important; }',
-    '.rdv-grille .cible { position: absolute; left: 2px; right: 3px; box-sizing: border-box; border: 2px dashed var(--vert); border-radius: 8px; background: rgba(0, 136, 64, .09); z-index: 1; pointer-events: none; font: 700 11px var(--mono); color: var(--vert); padding: 2px 6px; }',
+    '.rdv-grille .cible { position: absolute; left: 2px; right: 3px; box-sizing: border-box; border: 2px dashed var(--vert); border-radius: 8px; background: rgba(0, 136, 64, .09); z-index: 1; pointer-events: none; font: 700 12px var(--mono); color: var(--vert); padding: 2px 6px; }',
     '.rdv-grille .cible.refus { border-color: var(--rouge); color: var(--rouge); background: var(--rouge-bg); }',
     'body.rdv-glisse, body.rdv-glisse * { user-select: none !important; cursor: grabbing !important; }',
     '.rdv-grille .ferme-msg { position: absolute; left: 0; right: 0; top: 40%; text-align: center; color: var(--encre-4); font-size: 12.5px; pointer-events: none; }',
     '.rdv-carte.posee { position: absolute; z-index: 1; margin: 1px 3px 1px 2px; padding: 3px 7px; display: block; overflow: hidden; box-shadow: var(--ombre); line-height: 1.25; }',
     '.rdv-carte.posee .ligne1 { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }',
-    '.rdv-carte.posee .client { font-size: 12.5px; flex: 1 1 auto; min-width: 0; } .rdv-carte.posee .quand { font-size: 11px; flex: none; white-space: nowrap; }',
+    '.rdv-carte.posee .client { font-size: 12.5px; flex: 1 1 auto; min-width: 0; } .rdv-carte.posee .quand { font-size: 12px; flex: none; white-space: nowrap; }',
     '.rdv-carte.posee { container-type: inline-size; }',
     '@container (max-width: 170px) { .rdv-carte.posee .quand .dur { display: none; } } @container (max-width: 105px) { .rdv-carte.posee .quand { display: none; } }',
     '.rdv-grille .case { position: absolute; left: 0; right: 0; box-sizing: border-box; border-top: 1px solid var(--ligne-forte); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; cursor: pointer; }',
     '.rdv-grille .case.hors { background: repeating-linear-gradient(135deg, var(--carte-2) 0 6px, transparent 6px 12px); cursor: default; }',
     '.rdv-grille .case.libre:hover { background: var(--vert-clair); } .rdv-grille .case.libre:hover::after { content: "+"; color: var(--vert); font-weight: 700; }',
     '.rdv-grille .case.c1 { background: #EAF6EE; } .rdv-grille .case.c2 { background: #CDEBD7; } .rdv-grille .case.presque { background: var(--ambre-bg); } .rdv-grille .case.trop { background: var(--rouge-bg); }',
-    '.rdv-grille .case b { font-size: 14px; font-variant-numeric: tabular-nums; } .rdv-grille .case .s { color: var(--encre-3); font-size: 11px; }',
-    '.rdv-carte.posee .veh, .rdv-carte.posee .trav { display: block; font-size: 11.5px; }',
-    '.rdv-carte.posee .puces { margin-top: 3px; } .rdv-carte.posee .puces .puce { font-size: 10px; padding: 0 6px; }',
+    '.rdv-grille .case b { font-size: 14px; font-variant-numeric: tabular-nums; } .rdv-grille .case .s { color: var(--encre-3); font-size: 12px; }',
+    '.rdv-carte.posee .veh, .rdv-carte.posee .trav { display: block; font-size: 12px; }',
+    '.rdv-carte.posee .puces { margin-top: 3px; } .rdv-carte.posee .puces .puce { font-size: 12px; padding: 0 6px; }',
     '.rdv-carte.posee.h1 .veh, .rdv-carte.posee.h1 .trav, .rdv-carte.posee.h1 .puces, .rdv-carte.posee.h2 .trav, .rdv-carte.posee.h2 .puces, .rdv-carte.posee.h3 .puces { display: none; }',
-    '.rdv-carte.posee.h1 { padding-top: 1px; padding-bottom: 1px; } .rdv-carte.posee.h1 .client { font-size: 11.5px; }',
+    '.rdv-carte.posee.h1 { padding-top: 1px; padding-bottom: 1px; } .rdv-carte.posee.h1 .client { font-size: 12px; }',
     '.rdv-carte.posee:hover { z-index: 2; }',
     '.rdv-resume { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 12px 14px; font-size: 12.5px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 70px; }',
-    '.rdv-resume h4 { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
+    '.rdv-resume h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
     '.rdv-resume .item { display: grid; grid-template-columns: 78px 1fr 64px; gap: 8px; align-items: center; padding: 2px 0; }',
     '.rdv-resume .item.large { grid-template-columns: 1fr 60px; }',
     '.rdv-resume .item .lib { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--encre-2); font-size: 12px; }',
@@ -302,7 +302,7 @@
     this.elOutils = h('div.rdv-outils', [h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elSegMode, this.btnResume, this.elCompte]);
     this.elCorps = h('div');
     var entete = h('div.entete-page', [
-      h('div', { style: { minWidth: 0 } }, [h('h1', 'Rendez-vous service'), this.elEtat]),
+      h('div', { style: { minWidth: 0 } }, [h('h1', 'Rendez-vous'), this.elEtat]),
       h('div.actions', [h('div.rdv-nav', [this.btnPrec, this.elDate, this.btnSuiv, this.btnAuj]), this.elSegVue, this.btnRafraichir, this.btnReglages, this.btnSans, this.btnNouveau])
     ]);
     this.conteneur.appendChild(h('div.page.rdv-page', [entete, this.elCies, this.elKpis, this.elCap, this.elOutils, this.elCorps]));
@@ -934,7 +934,7 @@
         h('img', { src: m.apercu, alt: m.nom, loading: 'lazy', onerror: function () { this.style.display = 'none'; } }),
         m.type === 'video' ? h('span.lecture', { html: '&#9654;' }) : null,
         h('span.type', { text: m.type === 'video' ? 'vidéo' : 'photo' }),
-        peut ? h('button.retirer', { type: 'button', title: 'Retirer', text: '×', onclick: function (e) { e.stopPropagation(); if (!confirm('Retirer ce média du dossier ?')) return; AMX.post({ action: 'rdvMediaRetirer', id: r.id, mediaId: m.id }).then(function (d) { if (!d || d.ok === false) { AMX.toast((d && d.erreur) || 'Refusé', 'erreur'); return; } r.inspection = d.inspection; AMX.rdv.invalider(); self.rendreInspection(conteneur, r, peut, cfg); }); } }) : null
+        peut ? h('button.retirer', { type: 'button', title: 'Retirer', text: '×', onclick: function (e) { e.stopPropagation(); AMX.confirmer('Retirer ce média', 'Retirer ce média du dossier ?', { ok: 'Retirer', danger: true }).then(function (oui) { if (!oui) return; AMX.post({ action: 'rdvMediaRetirer', id: r.id, mediaId: m.id }).then(function (d) { if (!d || d.ok === false) { AMX.toast((d && d.erreur) || 'Refusé', 'erreur'); return; } r.inspection = d.inspection; AMX.rdv.invalider(); self.rendreInspection(conteneur, r, peut, cfg); }); }); } }) : null
       ]);
       medias.appendChild(el);
     });
@@ -1005,7 +1005,7 @@
         h('p', { text: 'Le client reçoit un lien vers une page sans compte : les photos et vidéos, les travaux proposés avec leur prix, et deux boutons par ligne (approuver / refuser).' }),
         h('label.champ.inline', [cbC, h('span', { text: 'Courriel' + (r.courriel ? ' à ' + r.courriel : ' — aucune adresse dans la fiche') })]),
         h('label.champ.inline', [cbT, h('span', { text: 'Texto' + (r.telephoneJoli ? ' au ' + r.telephoneJoli : '') + (textoPossible ? '' : (cfg && cfg.textos && cfg.textos.inspection ? ' — pas de téléphone' : ' — désactivé dans les réglages (aucun texto sans accord de la direction)')) })]),
-        h('div.champ', { style: { marginTop: '10px' } }, [h('label', 'Lien de la page (à copier dans un texto manuel ou à montrer au comptoir)'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: lien, readonly: true, style: { fontSize: '11.5px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(lien, 'Lien copié'); } })])])
+        h('div.champ', { style: { marginTop: '10px' } }, [h('label', 'Lien de la page (à copier dans un texto manuel ou à montrer au comptoir)'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: lien, readonly: true, style: { fontSize: '12px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(lien, 'Lien copié'); } })])])
       ]);
       AMX.modale({ titre: 'Envoyer l\'inspection — ' + (r.client || r.id), corps: corps2, boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () { return enregistrer({ courriel: cbC.checked, texto: cbT.checked }); } }] });
     } });
@@ -1031,7 +1031,27 @@
   /* r = rendez-vous à modifier (null = nouveau) ; sansRdv = client arrivé sans rendez-vous ; prefill = { date, heure, conseiller, compagnie } (clic dans la grille). */
   VueRdv.prototype.ouvrirFormulaire = function (r, sansRdv, prefill) {
     var self = this, cie = (r && r.compagnie) || (prefill && prefill.compagnie) || this.compagnie;
-    if (!cie) { AMX.toast('Choisissez d\'abord une concession.', 'erreur'); return; }
+    if (!cie) {
+      /* v130 (rapport « Refonte ergonomique », gain rapide 11) : en vue « Toutes les concessions », on demande laquelle
+         au lieu d'afficher une erreur. */
+      var confs = (this.donnees && this.donnees.configs) || {};
+      var dispo = (AMX.codesPour ? AMX.codesPour('service') : []).filter(function (c) { return confs[c]; });
+      Object.keys(confs).forEach(function (c) { if (dispo.indexOf(c) < 0) dispo.push(c); });
+      if (dispo.length === 1) cie = dispo[0];
+      else if (dispo.length) {
+        var choix = AMX.modale({
+          titre: (sansRdv ? 'Client sans rendez-vous' : 'Nouveau rendez-vous') + ' — quelle concession ?',
+          corps: h('div', { style: { display: 'grid', gap: '8px' } }, dispo.map(function (c) {
+            return h('button.btn', { type: 'button', style: { justifyContent: 'flex-start', height: '44px' }, text: nomCie(c), onclick: function () {
+              choix.fermer(); self.ouvrirFormulaire(r, sansRdv, Object.assign({}, prefill || {}, { compagnie: c }));
+            } });
+          })),
+          boutons: [{ texte: 'Annuler' }]
+        });
+        return;
+      }
+      else { AMX.toast('Réglages des concessions introuvables — rafraîchissez.', 'erreur'); return; }
+    }
     var cfg = this.config(cie); if (!cfg) { AMX.toast('Réglages de la concession introuvables — rafraîchissez.', 'erreur'); return; }
     var neuf = !r;
     var v = Object.assign({ compagnie: cie, date: this.date, heure: '', client: '', telephone: '', courriel: '', vin: '', vehicule: '', plaque: '', km: '', travaux: [], transport: 'depot', conseiller: '', canal: sansRdv ? 'sansrdv' : 'telephone', notes: '', noteInterne: '', clientId: '' }, r ? JSON.parse(JSON.stringify(r)) : {});

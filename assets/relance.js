@@ -50,7 +50,7 @@
     this.elCies = h('div.barre-cies');
     this.elCorps = h('div');
     this.el = h('div.page', [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Équité — clients à relancer'), this.elEtat]), h('div.actions', [this.btnRafraichir, this.btnImporter])]),
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Équité'), this.elEtat]), h('div.actions', [this.btnRafraichir, this.btnImporter])]),
       this.elCies,
       this.elCorps
     ]);

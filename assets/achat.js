@@ -81,7 +81,7 @@
       '.achat-page .achat-avec-btn .btn { height: 34px; flex: none; }',
       '.achat-page .achat-calc input[readonly] { background: var(--carte-2); color: var(--encre); font-weight: 600; font-variant-numeric: tabular-nums; }',
       '.achat-page .achat-total { display: flex; justify-content: flex-end; align-items: baseline; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ligne); }',
-      '.achat-page .achat-total .l { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
+      '.achat-page .achat-total .l { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
       '.achat-page .achat-total b { font-size: 18px; font-variant-numeric: tabular-nums; }',
       '.achat-page .achat-verrou { align-items: center; flex-wrap: wrap; }',
       '.achat-page .achat-eval { align-items: center; flex-wrap: wrap; gap: 10px; }',

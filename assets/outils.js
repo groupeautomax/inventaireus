@@ -70,7 +70,7 @@
       '.outils-page .carte-entete .titre { min-width: 0; }',
       '.outils-page .carte-entete .titre p { margin: 2px 0 0; font-size: 12px; color: var(--encre-3); }',
       '.outils-page .outils-pile { display: flex; flex-direction: column; gap: 12px; }',
-      '.outils-page .outils-note { margin: 0; font-size: 11.5px; color: var(--encre-3); line-height: 1.5; }',
+      '.outils-page .outils-note { margin: 0; font-size: 12px; color: var(--encre-3); line-height: 1.5; }',
       // Vérification
       '.outils-source { display: flex; flex-direction: column; gap: 8px; min-width: 0; }',
       '.outils-zone { display: block; border: 1.5px dashed var(--ligne-forte); border-radius: var(--rayon-s); padding: 14px 10px; text-align: center; cursor: pointer; font-size: 12px; color: var(--encre-3); transition: border-color .15s, background .15s; overflow-wrap: anywhere; }',
@@ -83,7 +83,7 @@
       '.outils-ecart { margin-bottom: 12px; }',
       '.outils-ecart .alerte-bloc { align-items: center; }',
       '.outils-ecart .alerte-bloc .texte { flex: 1; }',
-      '.outils-ecart .alerte-bloc .texte span { display: block; font-size: 11.5px; opacity: .85; margin-top: 1px; }',
+      '.outils-ecart .alerte-bloc .texte span { display: block; font-size: 12px; opacity: .85; margin-top: 1px; }',
       '.outils-ecart .alerte-bloc .badge { flex: none; }',
       '.outils-defile { max-height: 260px; overflow: auto; margin-top: 6px; border-radius: var(--rayon); }',
       '.outils-defile .tableau td { padding: 6px 12px; }',
@@ -168,7 +168,7 @@
     var self = this;
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [
-        h('h1', 'Vérification d\'inventaire'),
+        h('h1', 'Vérification Excel'),
         h('p', 'Comparez chaque catégorie de véhicules à sa source de financement (et à Global Connect pour le Neuf) à partir de vos fichiers Excel. Rien n\'est envoyé au serveur : tout se passe dans votre navigateur.')
       ])
     ]);
@@ -451,7 +451,7 @@
     this.elListe = h('div');
     this.elResume = h('div.doux.petit', { style: { marginTop: '8px' } });
     this.el.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Import des rapports CARFAX'), h('p', 'Récupère en un clic les liens publics des rapports que vous avez déjà commandés dans votre compte CARFAX Canada, et les attache aux véhicules — à l\'inventaire ou non. Le lien apparaît dans la fiche du véhicule, sur la page de l\'acheteur, et la recherche du site (en haut) retrouve le rapport d\'un véhicule parti par son NIV.')]),
+      h('div', [h('h1', 'Import CARFAX'), h('p', 'Récupère en un clic les liens publics des rapports que vous avez déjà commandés dans votre compte CARFAX Canada, et les attache aux véhicules — à l\'inventaire ou non. Le lien apparaît dans la fiche du véhicule, sur la page de l\'acheteur, et la recherche du site (en haut) retrouve le rapport d\'un véhicule parti par son NIV.')]),
       h('div.actions', [h('a.btn', { href: SITE_CARFAX, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir mon compte CARFAX</span>' })])
     ]));
     this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [

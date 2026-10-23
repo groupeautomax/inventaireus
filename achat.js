@@ -81,7 +81,7 @@
       '.achat-page .achat-avec-btn .btn { height: 34px; flex: none; }',
       '.achat-page .achat-calc input[readonly] { background: var(--carte-2); color: var(--encre); font-weight: 600; font-variant-numeric: tabular-nums; }',
       '.achat-page .achat-total { display: flex; justify-content: flex-end; align-items: baseline; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ligne); }',
-      '.achat-page .achat-total .l { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
+      '.achat-page .achat-total .l { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); }',
       '.achat-page .achat-total b { font-size: 18px; font-variant-numeric: tabular-nums; }',
       '.achat-page .achat-verrou { align-items: center; flex-wrap: wrap; }',
       '.achat-page .achat-eval { align-items: center; flex-wrap: wrap; gap: 10px; }',
@@ -213,7 +213,7 @@
   // (dommages, eblock) — gardé pour après le chargement de la fiche.
   Fiche.prototype.lireParams = function (ctx) {
     var p = (ctx && ctx.params) || {};
-    var cles = ['dommages', 'eblock', 'carfax', 'marque', 'modele', 'annee', 'couleur', 'km'];
+    var cles = ['dommages', 'eblock', 'carfax', 'marque', 'modele', 'annee', 'couleur', 'km', 'mmr', 'tauxUs', 'depenseUs', 'destination'];   // 8 oct. : la boîte Canada / É.-U. de l'évaluation voyage aussi
     if (cles.some(function (k) { return p[k]; })) {
       var pre = {}; cles.forEach(function (k) { pre[k] = String(p[k] || ''); });
       this.prerempli = pre;
@@ -254,11 +254,17 @@
         this.elEtat,
         this.elDateImpression
       ]),
-      h('div.actions.noprint', [
-        h('button.btn', { type: 'button', html: I.imprimer + '<span>Imprimer</span>', onclick: function () { window.print(); } }),
-        h('button.btn', { type: 'button', html: I.rafraichir + '<span>Réinitialiser</span>', onclick: function () { self.reinitialiser(); } }),
-        this.btnEnregistrer
-      ])
+      h('div.actions.noprint', (AMX.ui2 && AMX.ui2())
+        /* v134 (nouvelle interface) : « Enregistrer » seul ; Imprimer et Réinitialiser dans « … ». */
+        ? [AMX.menuActions([
+            { texte: 'Imprimer', icone: I.imprimer, action: function () { window.print(); } },
+            { texte: 'Réinitialiser (fiche vide)', icone: I.rafraichir, action: function () { self.reinitialiser(); } }
+          ]), this.btnEnregistrer]
+        : [
+          h('button.btn', { type: 'button', html: I.imprimer + '<span>Imprimer</span>', onclick: function () { window.print(); } }),
+          h('button.btn', { type: 'button', html: I.rafraichir + '<span>Réinitialiser</span>', onclick: function () { self.reinitialiser(); } }),
+          this.btnEnregistrer
+        ])
     ]);
 
     // Lien avec le registre (par NIV)
@@ -299,7 +305,7 @@
         champ('f-modele', 'Modèle'),
         champ('f-annee', 'Année', { type: 'number', inputmode: 'numeric' }),
         champ('f-couleur', 'Couleur'),
-        champ('f-km', 'KM', { type: 'number', inputmode: 'numeric' }),
+        champ('f-km', 'KM (obligatoire avec un stock #)', { type: 'number', inputmode: 'numeric' }),
         champ('f-fournisseur', 'Fournisseur'),
         champ('f-vendeur', 'Vendeur'),
         champ('f-villeprovenance', 'Ville de provenance'),
@@ -312,6 +318,10 @@
     // répertorie, en rouge comme sur eBlock.
     this.btnEblock = h('a.btn.noprint#eblock-btn', { href: '#', target: '_blank', rel: 'noopener', title: 'Ouvrir le véhicule sur eBlock', html: I.externe + '<span>Ouvrir</span>' });
     this.elDommagesListe = h('ul.achat-dommages-liste');
+    // Fiche descriptive importée d'eBlock (Outils › Fiches eBlock, 7 oct.) : cote, dommages avec photos, pneus.
+    this.elFicheEblock = h('div.noprint', { style: { marginTop: '10px' } });
+    // Valeurs OpenLane (9 oct.) : ventes comparables et prévision Market guide du NIV (signet OpenLane).
+    this.elOpenlane = h('div.noprint.achat-openlane', { style: { marginTop: '10px' } });
     var signetEblock = h('a.btn.petit.noprint', { href: CODE_SIGNET_EBLOCK, text: 'Automax ← eBlock', title: 'Glissez ce bouton dans votre barre de favoris, puis cliquez-le depuis la page du véhicule sur eBlock : le NIV et les dommages arrivent ici tout seuls.', draggable: 'true' });
     signetEblock.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis la page du véhicule sur eBlock.', 'attention', 7000); });
     var provenance = carte(h('div.carte-entete-ligne', [h('h2', { html: 'Rapport d\'état eBlock <span class="doux petit" style="font-weight:400">— lien de partage et dommages répertoriés</span>' }), signetEblock]), [
@@ -320,7 +330,9 @@
         h('div.champ', [h('label', { 'for': 'f-dommages', text: 'Dommages répertoriés — un par ligne' }),
           h('textarea#f-dommages.achat-dommages', { rows: '4', placeholder: 'Hood\nFront Bumper\nTires / Rims…' })])
       ]),
-      this.elDommagesListe
+      this.elDommagesListe,
+      this.elFicheEblock,
+      this.elOpenlane
     ]);
 
     // Coûts (inclut Frais et ajustements)
@@ -356,7 +368,9 @@
 
     // Wholesale / Vente Detail / Vente USA (selon la destination)
     this.elTitreVente = h('h2#wholesale-section-title', { text: TITRE_VENTE_DEFAUT });
-    this.btnTaux = h('button.btn.noprint#taux-auto-btn', { type: 'button', title: 'Taux Banque du Canada du jour, moins 2 %', text: 'Taux auto (−2 %)', onclick: function () { self.obtenirTaux(); } });
+    // 8 oct. : même écart que la boîte « Canada ou États-Unis ? » (paramètre du propriétaire, 3 % par défaut — avant : 2 % codé en dur).
+    this.btnTaux = h('button.btn.noprint#taux-auto-btn', { type: 'button', title: 'Taux Banque du Canada du jour, moins l\'écart réglé par le propriétaire', text: 'Taux auto (−' + this.ecartTaux() + ' %)', onclick: function () { self.obtenirTaux(); } });
+    if (AMX.export && AMX.export.charger) AMX.export.charger().then(function () { self.btnTaux.textContent = 'Taux auto (−' + self.ecartTaux() + ' %)'; var lab = self.el ? self.el.querySelector('label[for="f-taux"]') : null; if (lab) lab.textContent = 'Taux USD→CAD (taux − ' + self.ecartTaux() + ' %)'; }, function () {});
     this.rangWholesale = h('div.grille.c3#wholesale-row', [champ('f-wsacheteur', 'Wholesale — acheteur'), cout('f-wsprix', 'Wholesale — prix ($)'), date('f-wsdate', 'Wholesale — date de livraison')]);
     this.rangPadCanada = h('div.achat-cases#pad-canada-row', [caseA('c-pad212', 'PAD Canada (212 $)'), caseA('c-pad499-canada', 'PAD Détail (499 $)')]);
     this.rangDetail = h('div.grille.c4#detail-vente-row', [cout('f-prixdetail', 'Prix détail ($)'), caseA('c-pad499', 'PAD Détail (499 $)'), caseA('c-presafety', 'Pré-safety'), cout('f-presafetymontant', 'Montant pré-safety ($)')]);
@@ -370,7 +384,7 @@
         h('div.grille.c4', [
           champ('f-ecartmmr', 'Écart MMR (livraison − initial)', { readonly: true }),
           champ('f-ecartmmrpct', 'Écart MMR (%)', { readonly: true }),
-          champ('f-taux', 'Taux USD→CAD (taux − 2 %)', { type: 'number', step: '0.0001', placeholder: 'ex. 1,3200', apres: this.btnTaux }),
+          champ('f-taux', 'Taux USD→CAD (taux − ' + this.ecartTaux() + ' %)', { type: 'number', step: '0.0001', placeholder: 'ex. 1,3241', apres: this.btnTaux }),
           cout('f-defense', 'Dépense ($) — nette dans le prix de vente')
         ]),
         h('div.grille.c3', [
@@ -389,8 +403,11 @@
     ]);
 
     // Livraison
+    // 23 oct. : le transport par Central Fleet (transport.js) — la demande part d'ici, le prix et les dates reviennent ici.
+    this.elTransport = h('div.noprint.achat-transport', { style: { marginTop: '12px' } });
     var livraison = carte('Livraison', [
-      h('div.grille.c4', [date('f-appele', 'Appelé — date'), champ('f-livraisona', 'Livraison à'), date('f-datearrivee', 'Date d\'arrivée'), date('f-demandepaiementdate', 'Demande de paiement — date')])
+      h('div.grille.c4', [date('f-appele', 'Appelé — date'), champ('f-livraisona', 'Livraison à'), date('f-datearrivee', 'Date d\'arrivée'), date('f-demandepaiementdate', 'Demande de paiement — date')]),
+      this.elTransport
     ]);
 
     this.elFiche = h('div.achat-fiche', [identification, provenance, couts, statut, vente, livraison]);
@@ -426,7 +443,10 @@
     ['frais', 'f-fraisautres'],        // frais estimés à l'évaluation → « Frais autres » (à ventiler au besoin)
     ['recon', 'f-service'],            // reconditionnement estimé → « Service / Pré-safety »
     ['prixVente', 'f-prixdetail'],     // prix de vente visé → prix détail
-    ['prixVente', 'f-coutestime']      // … et « Prix de détail » du bloc vente
+    ['prixVente', 'f-coutestime'],     // … et « Prix de détail » du bloc vente
+    ['mmr', 'f-mmrinitial'],           // 8 oct. — boîte Canada / É.-U. : MMR ($ US)
+    ['tauxUs', 'f-taux'],              // taux USD→CAD déjà réduit de l'écart (ex. 1,3241)
+    ['depenseUs', 'f-defense']         // ajustement retiré après conversion (6 000 $)
   ];
   function resumeEvaluation(d) {
     d = d || {};
@@ -482,7 +502,8 @@
       var v = d[m[0]], e = el(m[1]);
       if (v === undefined || v === null || String(v).trim() === '' || !e || String(e.value || '').trim()) return;
       if (m[1] === 'f-annee' || m[1] === 'f-km') v = String(v).replace(/[^0-9]/g, '');
-      else if (/^f-(prixachat|fraisautres|service|prixdetail|coutestime)$/.test(m[1])) { v = String(v).replace(/[^0-9.,-]/g, '').replace(',', '.'); if (!v || isNaN(parseFloat(v))) return; v = String(Math.round(parseFloat(v) * 100) / 100); }
+      else if (m[1] === 'f-taux') { v = String(v).replace(/[^0-9.,-]/g, '').replace(',', '.'); if (!v || isNaN(parseFloat(v))) return; v = parseFloat(v).toFixed(4); }
+      else if (/^f-(prixachat|fraisautres|service|prixdetail|coutestime|mmrinitial|defense)$/.test(m[1])) { v = String(v).replace(/[^0-9.,-]/g, '').replace(',', '.'); if (!v || isNaN(parseFloat(v))) return; v = String(Math.round(parseFloat(v) * 100) / 100); }
       e.value = v; n++;
       if (m[1] === 'f-fraisautres') libelles.push('frais → « Frais autres »');
       else if (m[1] === 'f-service') libelles.push('recon → « Service / Pré-safety »');
@@ -491,7 +512,9 @@
     var compagnie = '';
     Object.keys(AMX.COMPAGNIE_CONCESSION || {}).forEach(function (c) { if (AMX.COMPAGNIE_CONCESSION[c] === d.concession) compagnie = c; });
     if (compagnie && !valeur('f-compagnie')) { val('f-compagnie', compagnie); n++; }
-    if (!valeur('f-destination')) { val('f-destination', 'DETAIL'); n++; }
+    // Verdict « plus rentable aux États-Unis » de la boîte Canada / É.-U. → registre É.-U. ; sinon une évaluation vise le détail.
+    if (!valeur('f-destination')) { val('f-destination', d.us && d.us.verdict === 'us' ? 'US' : 'DETAIL'); n++; }
+    if (d.mmr && !valeur('f-mmrinitialdate')) val('f-mmrinitialdate', new Date().toISOString().slice(0, 10));
     if (!valeur('f-date')) val('f-date', new Date().toISOString().slice(0, 10));
     ev.importee = true;
     this.basculerExport();
@@ -591,9 +614,11 @@
     this.btnEblock.classList.toggle('desactive', !lien);
     this.btnEblock.setAttribute('aria-disabled', lien ? 'false' : 'true');
     var dommages = AMX.listeDommages(el('f-dommages') ? el('f-dommages').value : '');
+    if (AMX.eblockTraduireLignes) dommages = AMX.eblockTraduireLignes(dommages);   // affichage en français même si le champ est en anglais
     AMX.vider(this.elDommagesListe);
     if (dommages.length) {
-      this.elDommagesListe.appendChild(h('li.achat-dommages-titre', { text: dommages.length + ' dommage' + (dommages.length > 1 ? 's' : '') + ' répertorié' + (dommages.length > 1 ? 's' : '') + ' sur eBlock' }));
+      var nDom = AMX.nbDommages(dommages);
+      this.elDommagesListe.appendChild(h('li.achat-dommages-titre', { text: nDom + ' dommage' + (nDom > 1 ? 's' : '') + ' répertorié' + (nDom > 1 ? 's' : '') + ' sur eBlock' }));
       dommages.forEach(function (d) { this.elDommagesListe.appendChild(h('li', { text: d })); }, this);
     }
   };
@@ -615,9 +640,15 @@
     this.prerempli = null;
     var n = 0, morceaux = [];
     function poser(id, valeur) { var e = el(id); if (valeur && e && !String(e.value || '').trim()) { e.value = valeur; n++; return true; } return false; }
-    if (poser('f-dommages', p.dommages)) morceaux.push(AMX.listeDommages(p.dommages).length + ' dommage(s) répertorié(s)');
+    // Le signet eBlock envoie les pièces en anglais (« Hood ») : on les pose en français.
+    var dommagesFr = p.dommages && AMX.eblockTraduireLignes ? AMX.eblockTraduireLignes(AMX.listeDommages(p.dommages)).join('\n') : p.dommages;
+    if (poser('f-dommages', dommagesFr)) morceaux.push(AMX.nbDommages(AMX.listeDommages(dommagesFr)) + ' dommage(s) répertorié(s)');
     if (p.eblock && AMX.eblockValide(p.eblock)) poser('f-eblock', p.eblock);
-    poser('f-marque', p.marque); poser('f-modele', p.modele); poser('f-annee', p.annee); poser('f-couleur', p.couleur); poser('f-km', p.km);
+    poser('f-marque', p.marque); poser('f-modele', p.modele); poser('f-annee', p.annee); poser('f-couleur', AMX.eblockTraduireCouleur ? AMX.eblockTraduireCouleur(p.couleur) : p.couleur); poser('f-km', p.km);
+    // Boîte « Canada ou États-Unis ? » de l'évaluation (8 oct.) : MMR, taux ajusté et dépense → section Export ; verdict É.-U. → destination.
+    if (poser('f-mmrinitial', p.mmr)) { poser('f-mmrinitialdate', new Date().toISOString().slice(0, 10)); morceaux.push('MMR ' + p.mmr + ' $ US'); }
+    poser('f-taux', p.tauxUs); poser('f-defense', p.depenseUs);
+    if (p.destination && /^(US|CAN|DETAIL)$/.test(p.destination) && el('f-destination') && !valeur('f-destination')) { val('f-destination', p.destination); this.basculerExport(); }
     this.rendreEblock();
     this.recalculer();
     // Le lien CARFAX qu'eBlock fournit (rapport public) s'attache au véhicule
@@ -641,6 +672,31 @@
     this.charger(vin);
   };
 
+  /* 23 oct. : bloc « Transport (Central Fleet) ». La demande et ses suites remplissent les cases VIDES de la fiche ouverte
+     (transporteur, appelé le, frais de transport, date d'arrivée) — le serveur fait pareil dans la fiche enregistrée, et ainsi
+     « Enregistrer » ne les efface pas. */
+  Fiche.prototype.rendreTransport = function (vin) {
+    var self = this;
+    if (!AMX.transport || !this.elTransport) return;
+    AMX.vider(this.elTransport);
+    var zone = h('div');
+    this.elTransport.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Transport (Central Fleet)'));
+    this.elTransport.appendChild(zone);
+    var poser = function (id, x) { if (x === '' || x === null || x === undefined) return false; var e = el(id); if (!e || String(e.value || '').trim()) return false; e.value = x; return true; };
+    var remplir = function (t) {
+      if (!t || t.test) return;
+      var change = poser('f-transporteur', 'Central Fleet');
+      change = poser('f-appele', String(t.demandeLe || '').slice(0, 10)) || change;
+      var prix = t.montant !== '' && t.montant !== undefined ? t.montant : t.prix;
+      change = poser('f-fraistransport', prix === '' || prix === undefined ? '' : String(prix)) || change;
+      change = poser('f-datearrivee', String(t.livraison || '').slice(0, 10)) || change;
+      if (change) self.recalculer();
+    };
+    // Ce que la fiche contient AU MOMENT du clic (le décodeur remplit marque, modèle et année après l'ouverture).
+    var prefill = function () { return { compagnie: String(valeur('f-compagnie') || '').toUpperCase(), stock: valeur('f-stock'), annee: valeur('f-annee'), marque: valeur('f-marque'), modele: valeur('f-modele'),
+      carrosserie: self.decode && self.decode.carrosserie, depart: { ville: valeur('f-villeprovenance') } }; };
+    AMX.transport.bloc(vin, zone, Object.assign(prefill(), { prefill: prefill, onDemande: remplir, onInfos: remplir }));
+  };
   Fiche.prototype.charger = function (vin) {
     var self = this;
     vin = String(vin || '').trim();
@@ -670,6 +726,9 @@
       self.evaluation = null; self.evalVerifiee = ''; self.rendreEvaluation();
       self.rendreContexte();
       self.appliquerPrerempli();
+      if (typeof AMX.eblockFiche === 'function') AMX.eblockFiche(vin, self.elFicheEblock);
+      self.rendreTransport(vin);
+      if (typeof AMX.openlaneBloc === 'function') { AMX.vider(self.elOpenlane); var zoneOl = h('div'); self.elOpenlane.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Valeurs OpenLane')); self.elOpenlane.appendChild(zoneOl); AMX.openlaneBloc(vin, zoneOl, { km: AMX.kmValide(valeur('f-km')) || undefined, source: 'achat', compagnie: String(valeur('f-compagnie') || '').toUpperCase(), previsionComplete: true }).catch(function () {}); }
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];
       if (vin.length >= 11) taches.push(self.decoderVin(vin));
@@ -823,6 +882,11 @@
     if (this.verrouillee) { AMX.toast('Dossier comptabilisé : déverrouillez la fiche avant d\'enregistrer.', 'attention'); return; }
     var vin = valeur('f-niv').trim();
     if (!vin) { AMX.toast('Le NIV doit être rempli avant d\'enregistrer.', 'attention'); el('f-niv').focus(); return; }
+    // Km obligatoire dès qu'il y a un # stock (Maxime, 7 oct. ; même règle que le serveur, Stock.gs).
+    if (valeur('f-stock').trim() && !AMX.kmValide(valeur('f-km'))) {
+      AMX.toast('Le kilométrage est obligatoire pour enregistrer un # stock : entrez d\'abord le km.', 'erreur');
+      el('f-km').classList.add('manque'); el('f-km').focus(); return;
+    }
     var btn = this.btnEnregistrer;
     btn.classList.add('occupe');
     this.etat('Vérification du registre…');
@@ -877,18 +941,29 @@
   };
 
   /* ------------------------------ Divers ------------------------------- */
+  // L'écart retiré au taux du jour : le paramètre du propriétaire (Export.gs, boîte Canada / É.-U.), 3 % par défaut.
+  Fiche.prototype.ecartTaux = function () { var p = AMX.export && AMX.export.params ? AMX.export.params() : null; var e = p && typeof p.ecartPct === 'number' ? p.ecartPct : 3; return e; };
   Fiche.prototype.obtenirTaux = function () {
     var self = this, btn = this.btnTaux;
     if (this.verrouillee) return;
     btn.classList.add('occupe');
-    fetch(URL_TAUX).then(function (r) { return r.json(); }).then(function (d) {
-      var obs = d && d.observations && d.observations[0];
-      var brut = obs && obs.FXUSDCAD && parseFloat(obs.FXUSDCAD.v);
-      if (!brut) throw new Error('taux introuvable');
-      var ajuste = brut * 0.98; // taux Banque du Canada moins 2 %
+    var ecart = this.ecartTaux();
+    var appliquer = function (brut, source) {
+      var ajuste = Math.round(brut * (1 - ecart / 100) * 10000) / 10000;   // même formule qu'Export.gs et que la boîte Canada / É.-U.
       val('f-taux', ajuste.toFixed(4));
       self.recalculer();
-      AMX.toast('Taux Banque du Canada ' + brut.toFixed(4) + ' → ' + ajuste.toFixed(4) + ' (−2 %)', 'ok', 5000);
+      AMX.toast('Taux Banque du Canada ' + brut.toFixed(4) + (source ? ' (' + source + ')' : '') + ' → ' + ajuste.toFixed(4) + ' (−' + ecart + ' %)', 'ok', 5000);
+    };
+    // Le serveur a le taux du jour (cache 6 h, dernier taux en repli) ; sinon la Banque du Canada directement.
+    var serveur = (AMX.export && AMX.export.charger) ? AMX.export.charger().then(function (d) { var t = d && d.taux; if (t && t.ok && t.taux) { appliquer(t.taux, t.date || t.source); return true; } return false; }, function () { return false; }) : Promise.resolve(false);
+    serveur.then(function (fait) {
+      if (fait) return;
+      return fetch(URL_TAUX).then(function (r) { return r.json(); }).then(function (d) {
+        var obs = d && d.observations && d.observations[0];
+        var brut = obs && obs.FXUSDCAD && parseFloat(obs.FXUSDCAD.v);
+        if (!brut) throw new Error('taux introuvable');
+        appliquer(brut, obs.d || '');
+      });
     }).catch(function () {
       AMX.toast('Taux introuvable — entrez-le manuellement.', 'erreur');
     }).then(function () { btn.classList.remove('occupe'); });

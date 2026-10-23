@@ -40,6 +40,8 @@
     if (m === 'FORD' || m === 'LINCOLN') return 'https://www.windowsticker.ford.com/vin/' + encodeURIComponent(v.vin);
     return '';
   }
+  /* 1 161 135 → « 1,16 M$ », 345 200 → « 345 k$ » (pastilles des registres, v138). */
+  function montantCourt(n) { n = Number(n) || 0; if (Math.abs(n) >= 1e6) return (Math.round(n / 1e4) / 100).toLocaleString('fr-CA') + ' M$'; if (Math.abs(n) >= 1e3) return Math.round(n / 1e3).toLocaleString('fr-CA') + ' k$'; return Math.round(n) + ' $'; }
   function trier(liste, cle) {
     var l = liste.slice();
     var cmp = {
@@ -105,19 +107,93 @@
       f().then(function () { actifs--; pomper(); });
     }
   }
-  AMX.photosDe = photosDe;   // partagé avec Offres & clients
+  AMX.photosDe = photosDe;   // partagé avec Vente
+  // Après un ajout (Évaluation, 21 oct.) : relire les photos du NIV au prochain appel.
+  AMX.photosOublier = function (vin) { vin = String(vin || '').toUpperCase(); delete cachePhotos[vin]; try { sessionStorage.removeItem('amx_photos_' + vin); } catch (e) {} };
 
   /* ------------------------------ Section ------------------------------ */
+  // Pour revenir d'un autre onglet (Neufs) au registre sans recharger la section.
+  AMX.inventaire = AMX.inventaire || {};
+  AMX.inventaire.monterRegistre = function (conteneur, ctx) { return new Registre(conteneur, ctx); };
+  // Total en $ d'une liste de véhicules (coût d'achat de la colonne Coût) — Maxime, 7 oct. :
+  // « dans les inventaires il faudrait le total en $ par type d'inventaire ».
+  AMX.inventaire.sommeCouts = function (liste) {
+    var total = 0, n = 0;
+    (liste || []).forEach(function (v) { var c = AMX.montant(v.cout); if (!isNaN(c) && c > 0) { total += c; n++; } });
+    var sans = (liste || []).length - n;
+    return { total: total, n: n, sans: sans, texte: AMX.fmtArgent(total, 0), detail: AMX.fmtArgent(total, 0) + ' de coût d\'achat sur ' + n + ' véhicule' + (n > 1 ? 's' : '') + (sans ? ' — ' + sans + ' sans coût' : '') };
+  };
+  // Valeur des trois registres (véhicules actifs : pas vendus, pas comptabilisés), pour la compagnie choisie.
+  AMX.inventaire.valeurRegistres = function (compagnie) {
+    return Object.keys(FEUILLES).map(function (id) {
+      var l = AMX.inventaire.enCache(FEUILLES[id].feuille);
+      if (!l) return { id: id, titre: FEUILLES[id].titre, charge: false };
+      var actifs = l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise' && (!compagnie || v.compagnie === compagnie); });
+      var s = AMX.inventaire.sommeCouts(actifs);
+      return { id: id, titre: FEUILLES[id].titre, charge: true, n: actifs.length, total: s.total, texte: s.texte, sans: s.sans };
+    });
+  };
+
+  // v131 (Accueil « À faire ») : par registre, les véhicules actifs en retard — registre non reçu 10 j+, acheté depuis 7 j+.
+  AMX.inventaire.alertes = function (compagnie) {
+    return Object.keys(FEUILLES).map(function (id) {
+      var l = AMX.inventaire.enCache(FEUILLES[id].feuille);
+      if (!l) return { id: id, titre: FEUILLES[id].titre, charge: false, retard: 0, retardAchat: 0 };
+      var actifs = l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise' && (!compagnie || v.compagnie === compagnie); });
+      return { id: id, titre: FEUILLES[id].titre, charge: true, retard: actifs.filter(enRetardRegistre).length, retardAchat: actifs.filter(enRetardAchat).length };
+    });
+  };
+
+  // 11 oct. (Maxime : « un onglet Inventaire, puis Neufs et Usagé ») : une seule section « Inventaire » avec deux onglets dans
+  // la sous-barre — Neufs (assets/neufs.js, VueNeufs) et Usagé (les trois registres É.-U. / Canada / Detail, choisis par des
+  // pastilles dans la page et mémorisés). Anciennes adresses : #/neufs → #/inventaire/neufs ; #/inventaire/us|can|detail →
+  // #/inventaire/usage?registre=… (app.js).
+  var REGISTRE_DEFAUT = 'us';
+  function registreDemande(ctx) {
+    var r = String((ctx && ctx.params && ctx.params.registre) || '').toLowerCase();
+    if (!FEUILLES[r]) r = String(AMX.memo.lire('inv_registre', REGISTRE_DEFAUT) || REGISTRE_DEFAUT).toLowerCase();
+    return FEUILLES[r] ? r : REGISTRE_DEFAUT;
+  }
+  AMX.inventaire.registres = FEUILLES;
+  AMX.inventaire.lien = function (registre, params) { var p = { registre: registre }; Object.keys(params || {}).forEach(function (k) { p[k] = params[k]; }); return AMX.lien('inventaire', 'usage', p); };
+  AMX.inventaire.aller = function (registre, params) { var p = { registre: registre }; Object.keys(params || {}).forEach(function (k) { p[k] = params[k]; }); AMX.aller('inventaire', 'usage', p); };
   AMX.section('inventaire', {
     titre: 'Inventaire', icone: 'inventaire', ordre: 10,
-    onglets: Object.keys(FEUILLES).map(function (id) {
-      return { id: id, titre: FEUILLES[id].titre, compteur: function () {
-        var l = AMX.inventaire.enCache(FEUILLES[id].feuille);
-        return l ? l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; }).length : '';
-      } };
-    }),
-    monter: function (conteneur, ctx) { return new Registre(conteneur, ctx); }
+    onglets: [
+      { id: 'neufs', titre: 'Neufs', compteur: function () { return AMX.neufs && AMX.neufs.compteur ? AMX.neufs.compteur() : ''; } },
+      { id: 'usage', titre: 'Usagé', compteur: function () {
+        var n = 0, charge = false;
+        Object.keys(FEUILLES).forEach(function (id) { var l = AMX.inventaire.enCache(FEUILLES[id].feuille); if (l) { charge = true; n += l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; }).length; } });
+        return charge ? n : '';
+      } },
+      // 21 oct. : soumissions de neufs bâtis dans GM AutoBook PRO (assets/soumission.js) — compteur = ouvertes (brouillon, envoyée).
+      { id: 'soumissions', titre: 'Soumissions', compteur: function () { return AMX.soumission && AMX.soumission.compteur ? AMX.soumission.compteur() : ''; } }
+    ],
+    monter: function (conteneur, ctx) { return new VueInventaire(conteneur, ctx); }
   });
+
+  /* Enveloppe : monte la bonne vue selon l'onglet (Neufs ou Usagé) et change de vue quand l'onglet change. */
+  function VueInventaire(conteneur, ctx) {
+    this.conteneur = conteneur; this.enfant = null; this.type = '';
+    this.monterEnfant(ctx);
+  }
+  VueInventaire.prototype.monterEnfant = function (ctx) {
+    if (this.enfant && this.enfant.demonter) { try { this.enfant.demonter(); } catch (e) {} }
+    AMX.vider(this.conteneur);
+    if (ctx.onglet === 'neufs' && AMX.neufs && AMX.neufs.monter) { this.type = 'neufs'; this.enfant = AMX.neufs.monter(this.conteneur, ctx); return; }
+    if (ctx.onglet === 'soumissions' && AMX.soumission && AMX.soumission.monter) { this.type = 'soumissions'; this.enfant = AMX.soumission.monter(this.conteneur, ctx); return; }
+    this.type = 'usage';
+    var reg = registreDemande(ctx);
+    AMX.memo.ecrire('inv_registre', reg);
+    this.enfant = new Registre(this.conteneur, { onglet: reg, params: ctx.params || {} });
+  };
+  VueInventaire.prototype.naviguer = function (ctx) {
+    var type = ctx.onglet === 'neufs' ? 'neufs' : (ctx.onglet === 'soumissions' ? 'soumissions' : 'usage');
+    if (type !== this.type) { this.monterEnfant(ctx); return; }
+    if (type === 'usage') { var reg = registreDemande(ctx); AMX.memo.ecrire('inv_registre', reg); if (this.enfant.naviguer) this.enfant.naviguer({ onglet: reg, params: ctx.params || {} }); return; }
+    if (this.enfant && this.enfant.naviguer) this.enfant.naviguer(ctx);
+  };
+  VueInventaire.prototype.demonter = function () { if (this.enfant && this.enfant.demonter) this.enfant.demonter(); this.enfant = null; };
 
   function Registre(conteneur, ctx) {
     var self = this;
@@ -128,14 +204,23 @@
     this.selection = ctx.params.vin || '';
     this.ecritures = 0; this.generation = 0;
     this.filtres = this.filtresDefaut();
+    if (ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') this.filtres.alerte = ctx.params.alerte;
     this.tri = AMX.memo.lire('inv_tri', 'maj');
     this.observateur = null;
+    this.ui2 = !!(AMX.ui2 && AMX.ui2());   /* v131 : nouvelle interface (page refaite) */
+    // v131 : la concession choisie dans la barre du haut (ou ailleurs) s'applique tout de suite.
+    this.surCie = function () { if (self.detruit) return; self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); };
+    document.addEventListener('amx:compagnie', this.surCie);
 
     this.construire();
     this.charger();
     AMX.carfax.charger().then(function () { self.rendre(); }).catch(function () {});
     this.surCarfax = function () { self.rendre(); };
     document.addEventListener('amx:carfax', this.surCarfax);
+    // Achats eBlock (puce « eBlock · n dommages » sur les lignes) : même cache que la page Fiches eBlock.
+    if (AMX.eblock) { AMX.eblock.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:eblock', this.surCarfax); }
+    if (AMX.openlane) { AMX.openlane.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:openlane', this.surCarfax); }
+    if (AMX.demandes) { AMX.demandes.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:demandes', this.surCarfax); }
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
     this.surVisible = function () { if (!document.hidden) self.rafraichir(); };
     document.addEventListener('visibilitychange', this.surVisible);
@@ -143,13 +228,19 @@
   }
 
   Registre.prototype.filtresDefaut = function () {
-    return { recherche: '', compagnie: '', statuts: null /* null = actifs */, origine: '', rappel: '', importateur: '', registre: '', alerte: '' };
+    // La compagnie n'est PAS remise à zéro : c'est le choix du site (AMX.compagnieChoisie), gardé
+    // d'un onglet et d'une page à l'autre tant qu'on ne clique pas sur une autre concession.
+    return { recherche: '', compagnie: AMX.compagnieChoisie('inventaire'), statuts: null /* null = actifs */, origine: '', rappel: '', importateur: '', registre: '', alerte: '' };
   };
 
   Registre.prototype.demonter = function () {
+    this.detruit = true;
     clearInterval(this.minuterie);
     document.removeEventListener('visibilitychange', this.surVisible);
     document.removeEventListener('amx:carfax', this.surCarfax);
+    document.removeEventListener('amx:eblock', this.surCarfax);
+    document.removeEventListener('amx:openlane', this.surCarfax);
+    document.removeEventListener('amx:compagnie', this.surCie);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
   };
@@ -158,8 +249,11 @@
     if (ctx.onglet !== this.onglet) {
       this.onglet = ctx.onglet; this.cfg = FEUILLES[ctx.onglet] || FEUILLES.us;
       this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || '';
+      if (ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') this.filtres.alerte = ctx.params.alerte;
       this.vehicules = AMX.inventaire.enCache(this.cfg.feuille) || [];
       this.construire(); this.charger();
+    } else if ((ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') && ctx.params.alerte !== this.filtres.alerte) {
+      this.filtres.alerte = ctx.params.alerte; this.filtres.recherche = ''; this.construireRail(); this.rendre();
     } else if (ctx.params.vin && ctx.params.vin !== this.selection) {
       this.selection = ctx.params.vin; this.filtres.recherche = ''; this.rendre();
     }
@@ -168,16 +262,19 @@
   /* --------------------------- Construction ---------------------------- */
   Registre.prototype.construire = function () {
     var self = this;
+    if (this.ui2) { this.construireUi2(); return; }
     AMX.vider(this.conteneur);
     this.elKpis = h('div.kpis');
+    this.elValeur = h('div.valeur-registres');
     this.elRail = h('aside.rail');
     this.elListe = h('div');
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
     this.elAgencement = h('div.agencement', [this.elRail, h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
+    this.elCies = h('div.barre-cies');   /* 16 oct. : rangée de concessions sous l'en-tête, comme partout */
     var page = h('div.page', [
       h('div.entete-page', [
-        h('div', [h('h1', { text: 'Inventaire ' + this.cfg.titre }), h('p#inv-etat', { text: 'Chargement…' })]),
+        h('div', [h('h1', { text: 'Usagé — ' + this.cfg.titre }), h('p#inv-etat', { text: 'Chargement…' }), this.elRegistres = h('div.segment.choix-registre', { style: { marginTop: '8px' }, 'aria-label': 'Registre' })]),
         h('div.actions', [
           h('button.btn.fantome.icone#inv-filtres-btn', { title: 'Filtres', html: I.filtre, onclick: function () { self.elRail.classList.toggle('ouvert'); } }),
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
@@ -186,21 +283,28 @@
           AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null
         ])
       ]),
-      this.elKpis, this.elAgencement
+      this.elCies, this.elKpis, this.elValeur, this.elAgencement
     ]);
     this.conteneur.appendChild(page);
+    this.rendreRegistres();
     this.construireRail();
+    // Les permissions (portée, compagnies visibles) arrivent souvent après le premier rendu : on refait le rail.
+    // Profil (portée) arrivé après le montage : on revalide la concession choisie (un vieux choix hors portée est ignoré).
+    this.surProfil = function () { if (!self.detruit) { self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); } };
+    document.addEventListener('amx:profil', this.surProfil);
   };
 
   Registre.prototype.construireRail = function () {
     var self = this, f = this.filtres, cfg = this.cfg;
+    if (this.ui2) { this.construireFiltresUi2(); return; }
     AMX.vider(this.elRail);
-    var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; f.alerte = ''; self.rendre(); }, 120) })]);
-    // Compagnie
-    var seg = h('div.segment.bloc');
-    [['', 'Toutes']].concat(Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })).forEach(function (c) {
-      seg.appendChild(h('button' + (f.compagnie === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.compagnie = c[0]; self.construireRail(); self.rendre(); } }));
-    });
+    var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'VIN, modèle, # stock — tous statuts, tous registres', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; f.alerte = ''; self.rendre(); }, 120) })]);
+    // Concession : rangée de pastilles sous l'en-tête (16 oct., même présentation que Neufs et partout), compte des
+    // véhicules actifs du registre par concession, choix gardé pour tout le site (AMX.choisirCompagnie).
+    var actifsCie = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; }), vehicules = this.vehicules;
+    AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: f.compagnie,
+      compte: function (c) { return vehicules.filter(function (v) { return actifsCie.indexOf(v.statut) >= 0 && (!c || v.compagnie === c); }).length; },
+      onchange: function (c) { f.compagnie = c; f.alerte = ''; self.construireRail(); self.rendre(); } });
     // Statuts
     var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
     var statutsSel = f.statuts || actifs;
@@ -229,9 +333,137 @@
         selectFiltre('Registre reçu', 'registre', [['', 'Tous'], ['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Reçu · mauvais nom']])
       ])
     ]);
-    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Compagnie' }), seg]));
+    this.elBandeau = AMX.bandeauPortee('inventaire', f.compagnie, !!f.recherche);
+    this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), this.elBandeau, rech]));
     this.elRail.appendChild(grpStatut);
     this.elRail.appendChild(grpAutres);
+  };
+
+  /* ------------------- v131 : page Usagé refaite (nouvelle interface, html.ui2) -------------------
+     Rapport « Refonte ergonomique » : un en-tête avec UNE action principale et un menu « … », au plus quatre chiffres,
+     une barre de filtres au-dessus de la liste (plus de volet de gauche), la concession dans la barre du haut du site. */
+  Registre.prototype.construireUi2 = function () {
+    var self = this;
+    AMX.vider(this.conteneur);
+    this.elKpis = h('div.kpis.inv2-resume');
+    this.elValeur = h('div');
+    this.elRail = h('div.inv2-filtres');
+    this.elPortee = h('div.portee-chiffres');
+    this.elListe = h('div');
+    this.elPanneau = h('aside.panneau');
+    this.elOutils = h('div.outils-liste');
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
+    this.elCies = h('div');
+    this.elRegistres = h('div.segment.choix-registre', { 'aria-label': 'Registre' });
+    this.elRechercheUi2 = h('input.saisie', { type: 'search', placeholder: 'NIV, modèle, # stock — tous statuts, tous registres', value: this.filtres.recherche, 'aria-label': 'Chercher dans l\'usagé',
+      oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.filtres.alerte = ''; self.construireFiltresUi2(); self.rendre(); }, 140) });
+    var menu = AMX.menuActions([
+      { texte: 'Rafraîchir', icone: I.rafraichir, action: function () { self.charger(true); } },
+      { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } },
+      { texte: 'Actions en lot', icone: I.scan, action: function () { self.modaleLot('ajout'); } }
+    ]);
+    this.conteneur.appendChild(h('div.page.inv2', [
+      h('div.entete-page.inv2-tete', [
+        h('div.inv2-titre', [h('h1', 'Usagé'), this.elRegistres, h('p#inv-etat.inv2-etat', { text: 'Chargement…' })]),
+        h('div.actions', [menu, AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null])
+      ]),
+      /* v138 (Maxime : « la recherche et les onglets avant les carrés ; les chiffres doivent représenter ce qu'on a choisi ») */
+      this.elRail, this.elPortee, this.elKpis, this.elAgencement
+    ]));
+    this.rendreRegistres();
+    this.construireFiltresUi2();
+    this.surProfil = function () { if (!self.detruit) { self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); } };
+    document.addEventListener('amx:profil', this.surProfil);
+  };
+  // La barre de filtres : recherche, statuts en pastilles (avec leur nombre), « Filtres » pour le reste.
+  Registre.prototype.construireFiltresUi2 = function () {
+    var self = this, f = this.filtres, cfg = this.cfg;
+    // La boîte de recherche reste en place (le curseur ne saute pas) ; seules les pastilles et « Filtres » sont refaites.
+    if (!this.elRechWrap || this.elRechWrap.parentNode !== this.elRail) {
+      AMX.vider(this.elRail);
+      this.elRechWrap = h('div.recherche.inv2-recherche', [h('span', { html: I.recherche }), this.elRechercheUi2]);
+      this.elPastillesUi2 = h('div.inv2-statuts', { role: 'group', 'aria-label': 'Statut' });
+      this.elPlusUi2 = h('div.inv2-plus-env');
+      this.elRail.appendChild(this.elRechWrap); this.elRail.appendChild(this.elPastillesUi2); this.elRail.appendChild(this.elPlusUi2);
+    }
+    // v138 : le nombre d'une pastille = ce qu'on verra en la choisissant (alerte et filtres secondaires appliqués) ;
+    // l'alerte (« Registre 10 j+ », « Achat 7 j+ ») se combine avec le statut.
+    var base = this.filtrer('statut');
+    var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
+    var pastilles = AMX.vider(this.elPastillesUi2);
+    var pastille = function (texte, n, actif, couleur, clic) {
+      var b = h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false' }, [couleur ? h('i', { style: { background: 'var(--' + couleur + ')' } }) : null, h('span', { text: texte }), h('b', { text: String(n) })]);
+      b.addEventListener('click', function () { clic(); f.recherche = ''; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); });
+      return b;
+    };
+    var cherche = !!(f.recherche && f.recherche.trim());
+    pastilles.appendChild(pastille('Actifs', base.filter(function (v) { return actifs.indexOf(v.statut) >= 0; }).length, !cherche && f.statuts === null, '', function () { f.statuts = null; }));
+    cfg.statuts.forEach(function (s) {
+      var st = AMX.statut(s, cfg.feuille), n = base.filter(function (v) { return v.statut === s; }).length;
+      var actif = !cherche && f.statuts && f.statuts.length === 1 && f.statuts[0] === s;
+      pastilles.appendChild(pastille(st.libelle, n, actif, st.couleur, function () { f.statuts = actif ? null : [s]; }));
+    });
+    pastilles.appendChild(pastille('Tous', base.length, !cherche && f.statuts && f.statuts.length === cfg.statuts.length, '', function () { f.statuts = cfg.statuts.slice(); }));
+    // Filtres secondaires dans un menu déroulant
+    var nbAutres = ['origine', 'rappel', 'importateur', 'registre'].filter(function (k) { return f[k]; }).length;
+    var selectFiltre = function (libelle, cle, options) {
+      var sel = h('select.saisie', { onchange: function (e) { f[cle] = e.target.value; f.alerte = ''; self.construireFiltresUi2(); self.rendre(); } });
+      options.forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: f[cle] === o[0], text: o[1] })); });
+      return h('div.champ', [h('label', { text: libelle }), sel]);
+    };
+    var pop = h('div.inv2-pop', { hidden: true, role: 'dialog', 'aria-label': 'Autres filtres' }, [
+      selectFiltre('Origine', 'origine', [['', 'Toutes'], ['Achat', 'Achat'], ['Échange', 'Échange']]),
+      selectFiltre('Rappel', 'rappel', [['', 'Tous'], ['oui', 'Rappel ouvert'], ['non', 'Aucun rappel'], ['inconnu', 'Non vérifié']]),
+      cfg.importateur ? selectFiltre('Importateur', 'importateur', [['', 'Tous'], ['DENT', 'DENT'], ['Direct', 'Direct']]) : null,
+      selectFiltre('Registre reçu', 'registre', [['', 'Tous'], ['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Reçu · mauvais nom']]),
+      h('button.btn.petit.fantome', { type: 'button', text: 'Réinitialiser les filtres', onclick: function () { var c = f.compagnie; self.filtres = self.filtresDefaut(); self.filtres.compagnie = c; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); } })
+    ]);
+    var btnFiltres = h('button.btn.inv2-plus' + (nbAutres ? '.actif' : ''), { type: 'button', 'aria-expanded': 'false', html: I.filtre + '<span>Filtres' + (nbAutres ? ' (' + nbAutres + ')' : '') + '</span>' });
+    var dehors = function (e) { if (!enveloppe.contains(e.target)) { pop.hidden = true; btnFiltres.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); } };
+    btnFiltres.addEventListener('click', function () { pop.hidden = !pop.hidden; btnFiltres.setAttribute('aria-expanded', pop.hidden ? 'false' : 'true'); if (!pop.hidden) document.addEventListener('mousedown', dehors, true); });
+    var enveloppe = AMX.vider(this.elPlusUi2);
+    enveloppe.appendChild(btnFiltres); enveloppe.appendChild(pop);
+  };
+  // v138 (Maxime, 23 oct. : « quand je choisis un onglet, le calcul doit changer pour le représenter — partout ») : les chiffres
+  // portent sur la liste que les filtres gardent. Véhicules et coût total, registre non reçu 10 j+ et achat 7 j+ (chacun :
+  // ce qu'on verra en cliquant, l'alerte se combinant avec le statut), coût moyen et âge moyen. La valeur des trois
+  // registres est sur les pastilles É.-U. · Canada · Detail, à côté du titre.
+  Registre.prototype.rendreResumeUi2 = function (kpi, liste) {
+    var self = this, f = this.filtres;
+    liste = liste || this.filtrer();
+    var sA = AMX.inventaire.sommeCouts(liste);
+    var sansAlerte = this.filtrer('alerte'), retard = sansAlerte.filter(enRetardRegistre).length, retardAchat = sansAlerte.filter(enRetardAchat).length;
+    var clic = function (alerte) { return function () { f.alerte = f.alerte === alerte ? '' : alerte; self.construireFiltresUi2(); self.rendre(); }; };
+    var avecCout = liste.filter(function (v) { return Number(v.cout) > 0; }), coutMoy = avecCout.length ? Math.round(avecCout.reduce(function (t, v) { return t + Number(v.cout); }, 0) / avecCout.length) : null;
+    var ages = liste.map(function (v) { return AMX.joursDepuis(v.dateAjout); }).filter(function (j) { return j !== null && j !== undefined && !isNaN(j) && j >= 0; });
+    var ageMoy = ages.length ? Math.round(ages.reduce(function (t, j) { return t + j; }, 0) / ages.length) : null;
+    this.elKpis.appendChild(kpi(String(liste.length), liste.length > 1 ? 'Véhicules' : 'Véhicule', { classe: 'neutre.inv2-fixe', sous: sA.texte + ' de coût', titre: sA.detail }));
+    this.elKpis.appendChild(kpi(String(retard), 'Registre 10 j+', { classe: retard ? 'alerte' : 'neutre', sous: retard ? 'non reçu — à relancer' : 'tout est reçu', actif: f.alerte === 'retard', onclick: clic('retard') }));
+    this.elKpis.appendChild(kpi(String(retardAchat), 'Achat 7 j+', { classe: retardAchat ? 'attention' : 'neutre', sous: retardAchat ? 'pas encore en stock' : 'aucun retard', actif: f.alerte === 'retardAchat', onclick: clic('retardAchat') }));
+    this.elKpis.appendChild(kpi(coutMoy === null ? '—' : AMX.fmtArgent(coutMoy, 0), 'Coût moyen', { classe: 'neutre.inv2-fixe', sous: ageMoy === null ? '' : 'âge moyen ' + ageMoy + ' j depuis l\'achat', titre: avecCout.length + ' véhicule(s) avec un coût' + (liste.length - avecCout.length ? ', ' + (liste.length - avecCout.length) + ' sans coût' : '') }));
+    this.rendreRegistres();
+    this.rendrePorteeUi2(liste);
+  };
+  /* « Chiffres et liste : 34 véhicules · É.-U. · Ste Marie… · En stock · Registre 10 j+ » + « Effacer les filtres ». */
+  Registre.prototype.rendrePorteeUi2 = function (liste) {
+    var self = this, f = this.filtres, cfg = this.cfg;
+    if (!this.elPortee) return;
+    var t = (f.recherche || '').trim(), filtres = [];
+    if (t) filtres.push('« ' + t + ' » — tous statuts, tous registres');
+    else if (f.statuts && f.statuts.length === cfg.statuts.length) filtres.push('Tous les statuts (vendus compris)');
+    else if (f.statuts) filtres.push(f.statuts.map(function (s) { return AMX.statut(s, cfg.feuille).libelle; }).join(' + '));
+    if (f.alerte === 'retard') filtres.push('Registre non reçu 10 j+');
+    if (f.alerte === 'retardAchat') filtres.push('Achat 7 j+, pas en stock');
+    if (!t) {
+      if (f.origine) filtres.push('Origine : ' + f.origine);
+      if (f.rappel) filtres.push({ oui: 'Rappel ouvert', non: 'Aucun rappel', inconnu: 'Rappel non vérifié' }[f.rappel] || f.rappel);
+      if (f.importateur) filtres.push('Importateur : ' + f.importateur);
+      if (f.registre) filtres.push({ non: 'Registre non reçu', 'oui-bon': 'Registre reçu · bon nom', 'oui-mauvais': 'Registre reçu · mauvais nom' }[f.registre] || f.registre);
+    }
+    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['véhicule', 'véhicules'],
+      contexte: ['Registre ' + cfg.titre, f.compagnie ? (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : 'toutes les concessions', (!t && f.statuts === null) ? 'actifs' : ''],
+      filtres: filtres,
+      effacer: function () { var c = f.compagnie; self.filtres = self.filtresDefaut(); self.filtres.compagnie = c; self.elRechercheUi2.value = ''; self.construireFiltresUi2(); self.rendre(); } });
   };
 
   /* ------------------------------ Données ------------------------------ */
@@ -240,7 +472,7 @@
     var etat = document.getElementById('inv-etat');
     var enCache = AMX.inventaire.enCache(this.cfg.feuille);
     if (enCache) { this.vehicules = enCache; this.rendre(); }
-    else { this.elListe.innerHTML = ''; for (var i = 0; i < 6; i++) this.elListe.appendChild(h('div.squelette', { style: { height: '64px', marginBottom: '6px' } })); }
+    else { this.elListe.innerHTML = ''; this.elListe.appendChild(AMX.chargeur('Inventaire ' + this.cfg.titre)); }
     if (etat && !enCache) etat.textContent = 'Chargement depuis le serveur…';
     return AMX.inventaire.lire(this.cfg.feuille, force !== false).then(function (liste) {
       if (gen !== self.generation) return;
@@ -257,12 +489,19 @@
     if (document.hidden || this.ecritures > 0) return;
     var a = document.activeElement;
     if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && this.elAgencement.contains(a)) return;
-    this.charger(true);
+    this.charger('frais');   // v=39 : seul le rafraîchissement explicite exige un recalcul côté serveur
   };
 
   // Une écriture : jamais rejouée, liste rafraîchie ensuite.
-  Registre.prototype.ecrire = function (payload, message) {
+  // Actions idempotentes d'un seul véhicule : la liste est retouchée TOUT DE SUITE (mise à jour
+  // optimiste, 7 oct. — Maxime : « changer de statut est trop long »), la requête part avec une
+  // requête de secours (AMX.post secours) et, à la réponse, le serveur a le dernier mot ; en cas
+  // de refus ou d'erreur, on remet l'ancienne valeur. Les actions qui créent / déplacent / suppriment
+  // gardent le chemin complet (relecture).
+  var ACTIONS_OPTIMISTES = { advance: 1, setStatus: 1, setDoc: 1, setStock: 1, setCost: 1, setCompagnie: 1 };
+  Registre.prototype.ecrire = function (payload, message, opts) {
     var self = this;
+    opts = opts || {};
     payload = Object.assign({}, payload, { sheet: this.cfg.feuille });
     this.ecritures++; this.generation++;
     var etat = document.getElementById('inv-etat'); if (etat) etat.textContent = 'Enregistrement…';
@@ -272,15 +511,26 @@
       if (etat) etat.textContent = self.vehicules.length + ' véhicules · synchronisé à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
     };
     var relire = function () { return AMX.inventaire.lire(self.cfg.feuille, true).catch(function () {}); };
-    return AMX.post(payload).then(function (d) {
+    // Mise à jour optimiste : on retouche la liste avant même d'envoyer.
+    var optimiste = opts.optimiste || null, avant = null;
+    if (optimiste && ACTIONS_OPTIMISTES[payload.action]) {
+      avant = AMX.inventaire.retoucher(self.cfg.feuille, optimiste.cle || payload.id, optimiste.champs);
+      if (avant) setTimeout(function () { if (!avant && !self.ecritures) return; self.construireRail(); self.rendre(); AMX.rafraichirSousBarre(); if (etat) etat.textContent = 'Enregistrement…'; }, 0);
+    }
+    var revenir = function () { if (avant) { AMX.inventaire.retoucher(self.cfg.feuille, optimiste.cle || payload.id, avant); avant = null; } };
+    return AMX.post(payload, { secours: ACTIONS_OPTIMISTES[payload.action] ? true : false }).then(function (d) {
       self.ecritures--;
       if (d.refuse || d.ok === false) {
         var motif = d.erreur || d.message || (d.code ? 'action refusée (' + d.code + ')' : 'action refusée');
         AMX.toast('Non enregistré — ' + motif, 'erreur');
-        redessiner();
+        revenir(); redessiner();
         throw new Error(motif);
       }
-      var p = Array.isArray(d.vehicules) ? (AMX.inventaire.remplacer(self.cfg.feuille, d.vehicules), Promise.resolve()) : relire();
+      var p;
+      if (Array.isArray(d.vehicules)) { AMX.inventaire.remplacer(self.cfg.feuille, d.vehicules); p = Promise.resolve(); }
+      else if (d.vehicule && d.vehicule.vin) { AMX.inventaire.retoucher(self.cfg.feuille, d.vehicule.vin, d.vehicule); p = Promise.resolve(); }
+      else if (avant) p = Promise.resolve();          // le serveur a dit oui sans renvoyer la liste : notre retouche tient
+      else p = relire();
       if (d.doublonsIgnores && d.doublonsIgnores.length) AMX.toast(d.doublonsIgnores.length + ' VIN déjà présent(s) ignoré(s) : ' + d.doublonsIgnores.join(', '), 'attention', 7000);
       else if (d.doublonIgnore) AMX.toast('VIN déjà présent, non ajouté : ' + d.doublonIgnore, 'attention');
       else if (message) AMX.toast(message, 'ok');
@@ -289,6 +539,7 @@
       self.ecritures--;
       // Google a mal répondu : le script a souvent fait le travail quand même. On relit.
       AMX.toast('Réponse du serveur incertaine — vérification dans le registre… (' + AMX.erreurTexte(e) + ')', 'attention', 6000);
+      revenir();
       return relire().then(function () { redessiner(); throw e; });
     });
   };
@@ -298,14 +549,40 @@
     var f = this.filtres;
     return this.vehicules.filter(function (v) { return !f.compagnie || v.compagnie === f.compagnie; });
   };
-  Registre.prototype.filtrer = function () {
-    var f = this.filtres, cfg = this.cfg;
+  // Recherche « partout » (Maxime, 6 oct. : « on doit toujours trouver le stock, peu importe où il
+  // est, sans cliquer Acheté / En stock / Expédié ») : dès qu'on tape, les statuts et les autres
+  // filtres ne comptent plus, et les deux autres registres sont fouillés aussi (en cache ; sinon
+  // on les charge et la liste se redessine à leur arrivée). Seule la compagnie choisie reste.
+  Registre.prototype.rechercherPartout = function (t) {
+    var self = this, f = this.filtres, cfg = this.cfg;
+    var tout = this.vehicules.slice();
+    ['US', 'CAN', 'DETAIL'].forEach(function (feuille) {
+      if (feuille === cfg.feuille) return;
+      var l = AMX.inventaire.enCache(feuille);
+      if (l) { tout = tout.concat(l); return; }
+      if (!self.chargementsAutres) self.chargementsAutres = {};
+      if (self.chargementsAutres[feuille]) return;
+      self.chargementsAutres[feuille] = true;
+      AMX.inventaire.lire(feuille, false).then(function () { if (!self.detruit && self.filtres.recherche) self.rendre(); }).catch(function () {});
+    });
+    var mots = AMX.motsCherches(t);   /* v138 : accents, ordre des mots, « série 3 » = « 3 series » = 328i (AMX.correspond) */
+    return tout.filter(function (v) {
+      if (f.compagnie && v.compagnie !== f.compagnie) return false;
+      return AMX.correspond([v.vin, v.modele, v.stock, v.origine], mots);
+    });
+  };
+  // v138 : `sauf` ('statut' ou 'alerte') = le filtre à ne pas appliquer, pour compter une pastille ou un chiffre. L'alerte
+  // (registre 10 j+, achat 7 j+) se combine maintenant avec le statut (avant, elle le remplaçait) : par défaut on voit donc les
+  // véhicules ACTIFS en retard, le même compte que l'Accueil (AMX.inventaire.alertes).
+  Registre.prototype.filtrer = function (sauf) {
+    var f = this.filtres, cfg = this.cfg, alerte = sauf === 'alerte' ? '' : f.alerte;
+    var gardeAlerte = function (v) { return alerte === 'retard' ? enRetardRegistre(v) : (alerte === 'retardAchat' ? enRetardAchat(v) : true); };
+    if (f.recherche && f.recherche.trim()) return trier(this.rechercherPartout(f.recherche.trim().toLowerCase()).filter(gardeAlerte), this.tri);
     var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
     var statuts = f.statuts || actifs;
     var l = this.base().filter(function (v) {
-      if (f.alerte === 'retard') return enRetardRegistre(v);
-      if (f.alerte === 'retardAchat') return enRetardAchat(v);
-      return statuts.indexOf(v.statut) >= 0 || (statuts.length === cfg.statuts.length);
+      if (sauf !== 'statut' && !(statuts.indexOf(v.statut) >= 0 || statuts.length === cfg.statuts.length)) return false;
+      return gardeAlerte(v);
     });
     if (f.origine) l = l.filter(function (v) { return v.origine === f.origine; });
     if (f.rappel === 'oui') l = l.filter(function (v) { return v.rappel === 'oui'; });
@@ -314,28 +591,30 @@
     if (f.importateur) l = l.filter(function (v) { return v.importateur === f.importateur; });
     if (f.registre) l = l.filter(function (v) { return registreDe(v) === f.registre; });
     if (f.recherche) {
-      var t = f.recherche.trim().toLowerCase();
-      l = l.filter(function (v) { return String(v.vin).toLowerCase().indexOf(t) >= 0 || String(v.modele || '').toLowerCase().indexOf(t) >= 0 || String(v.stock || '').toLowerCase().indexOf(t) >= 0; });
+      var mots = AMX.motsCherches(f.recherche);
+      l = l.filter(function (v) { return AMX.correspond([v.vin, v.modele, v.stock, v.origine], mots); });
     }
     return trier(l, this.tri);
   };
 
   /* -------------------------------- Rendu ------------------------------ */
   Registre.prototype.rendre = function () {
-    this.rendreKpis();
+    if (this.elBandeau && this.elBandeau.parentNode) { var nb = AMX.bandeauPortee('inventaire', this.filtres.compagnie, !!this.filtres.recherche); this.elBandeau.parentNode.replaceChild(nb, this.elBandeau); this.elBandeau = nb; }
+    if (this.ui2 && this.elPastillesUi2) this.construireFiltresUi2();   /* v138 : les nombres des pastilles suivent les données et les filtres */
     var liste = this.filtrer();
     this.listeCourante = liste;
+    this.rendreKpis(liste);
     this.rendreOutils(liste);
     this.rendreListe(liste);
     this.rendrePanneau();
   };
 
-  Registre.prototype.rendreKpis = function () {
+  Registre.prototype.rendreKpis = function (liste) {
     var self = this, base = this.base(), f = this.filtres, cfg = this.cfg;
     AMX.vider(this.elKpis);
     var kpi = function (valeur, libelle, opts) {
       opts = opts || {};
-      var k = h('button.kpi' + (opts.classe ? '.' + opts.classe : '') + (opts.actif ? '.actif' : ''), { type: 'button' }, [
+      var k = h((opts.onclick ? 'button' : 'div') + '.kpi' + (opts.classe ? '.' + opts.classe : '') + (opts.actif ? '.actif' : ''), opts.onclick ? { type: 'button', title: opts.titre || '', 'aria-pressed': opts.actif ? 'true' : 'false' } : { title: opts.titre || '' }, [
         h('div.valeur', { text: valeur }), h('div.libelle', { text: libelle }), opts.sous ? h('div.sous', { text: opts.sous }) : null,
         opts.couleur ? h('span.pastille', { style: { background: 'var(--' + opts.couleur + ')' } }) : null
       ]);
@@ -343,21 +622,55 @@
       return k;
     };
     var tousActifs = f.statuts === null && !f.alerte;
-    this.elKpis.appendChild(kpi(base.length, 'Total', { classe: 'neutre', sous: f.compagnie ? AMX.COMPAGNIES[f.compagnie] : 'Toutes compagnies', actif: f.statuts && f.statuts.length === cfg.statuts.length && !f.alerte, onclick: function () { f.statuts = cfg.statuts.slice(); f.alerte = ''; self.construireRail(); self.rendre(); } }));
+    if (this.ui2) { this.rendreResumeUi2(kpi, liste); return; }
+    // Total en $ (coût d'achat) par registre et par statut — demande de Maxime, 7 oct.
+    var sommeCouts = AMX.inventaire.sommeCouts;
+    var sTotal = sommeCouts(base);
+    this.elKpis.appendChild(kpi(base.length, 'Total', { classe: 'neutre', sous: sTotal.texte + ' · ' + (f.compagnie ? AMX.COMPAGNIES[f.compagnie] : 'toutes'), titre: sTotal.detail + (f.compagnie ? '' : ' — toutes les compagnies'), actif: f.statuts && f.statuts.length === cfg.statuts.length && !f.alerte, onclick: function () { f.statuts = cfg.statuts.slice(); f.alerte = ''; self.construireRail(); self.rendre(); } }));
     cfg.statuts.forEach(function (s) {
       var st = AMX.statut(s, cfg.feuille);
-      var n = base.filter(function (v) { return v.statut === s; }).length;
+      var dansStatut = base.filter(function (v) { return v.statut === s; });
+      var n = dansStatut.length, sS = sommeCouts(dansStatut);
       var actif = !f.alerte && f.statuts && f.statuts.length === 1 && f.statuts[0] === s;
-      self.elKpis.appendChild(kpi(n, st.libelle, { couleur: st.couleur, actif: actif, onclick: function () {
+      self.elKpis.appendChild(kpi(n, st.libelle, { couleur: st.couleur, actif: actif, sous: n ? sS.texte : '', titre: sS.detail, onclick: function () {
         f.alerte = '';
         f.statuts = actif ? null : [s];
         self.construireRail(); self.rendre();
       } }));
     });
-    var retard = base.filter(enRetardRegistre).length, retardAchat = base.filter(enRetardAchat).length;
+    var sansAlerte = this.filtrer('alerte'), retard = sansAlerte.filter(enRetardRegistre).length, retardAchat = sansAlerte.filter(enRetardAchat).length;
     if (retard) this.elKpis.appendChild(kpi(retard, 'Registre 10 j+', { classe: 'alerte', sous: 'non reçu', actif: f.alerte === 'retard', onclick: function () { f.alerte = f.alerte === 'retard' ? '' : 'retard'; self.rendre(); } }));
     if (retardAchat) this.elKpis.appendChild(kpi(retardAchat, 'Achat 7 j+', { classe: 'attention', sous: 'pas encore en stock', actif: f.alerte === 'retardAchat', onclick: function () { f.alerte = f.alerte === 'retardAchat' ? '' : 'retardAchat'; self.rendre(); } }));
     void tousActifs;
+    this.rendreValeur();
+  };
+
+  // Pastilles É.-U. · Canada · Detail sous le titre (11 oct.) : le registre courant, avec le nombre de véhicules actifs de la
+  // concession choisie ; cliquer change de registre (#/inventaire/usage?registre=…).
+  Registre.prototype.rendreRegistres = function () {
+    var self = this; if (!this.elRegistres) return;
+    AMX.vider(this.elRegistres);
+    var regs = AMX.inventaire.valeurRegistres(this.filtres.compagnie);
+    regs.forEach(function (r) {
+      self.elRegistres.appendChild(h('button' + (r.id === self.onglet ? '.actif' : ''), { type: 'button', 'data-registre': r.id, title: r.charge ? r.n + ' véhicule(s) actif(s) · ' + r.texte + ' de coût' : '', onclick: function () { if (r.id !== self.onglet) AMX.inventaire.aller(r.id); } }, [r.titre, r.charge ? h('span.compteur', { text: ' ' + r.n }) : null, (self.ui2 && r.charge && r.total) ? h('span.valeur-reg', { text: montantCourt(r.total) }) : null]));
+    });
+  };
+  // Bande « Valeur des inventaires » : les trois registres côte à côte (véhicules actifs), registre courant en évidence.
+  Registre.prototype.rendreValeur = function () {
+    var self = this, f = this.filtres;
+    AMX.vider(this.elValeur);
+    var regs = AMX.inventaire.valeurRegistres(f.compagnie);
+    var charges = regs.filter(function (r) { return r.charge; });
+    var total = charges.reduce(function (t, r) { return t + r.total; }, 0), nTotal = charges.reduce(function (t, r) { return t + r.n; }, 0);
+    this.elValeur.appendChild(h('span.l', { text: 'Valeur des inventaires' + (f.compagnie ? ' — ' + (AMX.COMPAGNIES[f.compagnie] || f.compagnie) : '') }));
+    regs.forEach(function (r) {
+      var el = h('button.reg' + (r.id === self.onglet ? '.courant' : ''), { type: 'button', title: r.charge ? r.n + ' véhicule(s) actif(s)' + (r.sans ? ', ' + r.sans + ' sans coût' : '') : 'Pas encore chargé', onclick: function () { if (r.id !== self.onglet) AMX.inventaire.aller(r.id); } }, [
+        h('span.t', { text: r.titre }), h('span.v', { text: r.charge ? r.texte : '…' }), h('span.n', { text: r.charge ? r.n + ' véh.' : '' })
+      ]);
+      self.elValeur.appendChild(el);
+    });
+    this.elValeur.appendChild(h('span.total', [h('span.t', 'Total'), h('span.v', { text: AMX.fmtArgent(total, 0) }), h('span.n', { text: nTotal + ' véh.' + (charges.length < regs.length ? ' (partiel)' : '') })]));
+    this.rendreRegistres();
   };
 
   Registre.prototype.rendreOutils = function (liste) {
@@ -365,14 +678,15 @@
     AMX.vider(this.elOutils);
     var sel = h('select.saisie', { onchange: function (e) { self.tri = e.target.value; AMX.memo.ecrire('inv_tri', self.tri); self.rendre(); } });
     [['maj', 'Dernière mise à jour'], ['achat', 'Achat récent'], ['achatAsc', 'Achat ancien'], ['statut', 'Statut'], ['modele', 'Modèle'], ['stock', '# stock'], ['cout', 'Coût']].forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: self.tri === o[0], text: 'Tri : ' + o[1] })); });
+    if (this.ui2) { this.elOutils.appendChild(h('span.espace')); this.elOutils.appendChild(sel); return; }
     var f = this.filtres;
     var puces = [];
     if (f.alerte === 'retard') puces.push(['Registre non reçu 10 j+', function () { f.alerte = ''; }]);
     if (f.alerte === 'retardAchat') puces.push(['Pas en stock 7 j+', function () { f.alerte = ''; }]);
     if (f.statuts && f.statuts.length === 1) puces.push([AMX.statut(f.statuts[0], this.cfg.feuille).libelle, function () { f.statuts = null; }]);
     else if (f.statuts && f.statuts.length === this.cfg.statuts.length) puces.push(['Vendus et comptabilisés inclus', function () { f.statuts = null; }]);
-    if (f.compagnie) puces.push([AMX.COMPAGNIES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; }]);
-    if (f.recherche) puces.push(['« ' + f.recherche + ' »', function () { f.recherche = ''; }]);
+    if (f.compagnie) puces.push([AMX.COMPAGNIES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; AMX.choisirCompagnie(''); }]);
+    if (f.recherche) puces = [['« ' + f.recherche + ' » — tous statuts, tous registres' + (f.compagnie ? ', ' + (AMX.COMPAGNIES_TOUTES[f.compagnie] || f.compagnie) : ''), function () { f.recherche = ''; }]];
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     puces.forEach(function (p) {
       var b = h('button.puce.info', { type: 'button', title: 'Retirer ce filtre', html: esc(p[0]) + ' ✕' });
@@ -393,6 +707,9 @@
     }
     var frag = document.createDocumentFragment();
     var MAX = 400;
+    /* v138 : la liste se lit comme un tableau — les titres de colonnes une seule fois, en haut, au lieu de « Statut / Mise à
+       jour / Suivi / Coût » répétés sur chaque ligne. */
+    if (this.ui2) frag.appendChild(h('div.ligne.ligne-tete', { 'aria-hidden': 'true' }, [h('div'), h('div', 'Véhicule'), h('div.cell.statut', 'Statut'), h('div.cell.maj', 'Mise à jour'), h('div.cell.indic', 'Suivi'), h('div.montant', 'Coût'), h('div')]));
     liste.slice(0, MAX).forEach(function (v) { frag.appendChild(self.ligne(v)); });
     if (liste.length > MAX) frag.appendChild(h('div.vide', { text: (liste.length - MAX) + ' autres véhicules — affinez les filtres pour les voir.' }));
     this.elListe.appendChild(h('div.liste', [frag]));
@@ -418,7 +735,8 @@
 
   Registre.prototype.ligne = function (v) {
     var self = this, cfg = this.cfg;
-    var st = AMX.statut(v.statut, cfg.feuille);
+    var autreRegistre = v._feuille && v._feuille !== cfg.feuille ? v._feuille : '';
+    var st = AMX.statut(v.statut, autreRegistre || cfg.feuille);
     var reg = registreDe(v), regInfo = REGISTRE[reg] || REGISTRE.non;
     var retard = enRetardRegistre(v), retardA = enRetardAchat(v);
     var jours = AMX.joursDepuis(v.dateAjout);
@@ -426,34 +744,46 @@
     // Sans photo : le logo du constructeur (voir AMX.logoMarque) ; avec photos,
     // le logo tient lieu de repli jusqu'à ce que la miniature charge.
     var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })]) : h('div.vignette', { title: 'Aucune photo' }, [AMX.logoMarque(marque(v))]);
+    // Rappels (8 oct., soir — Maxime) : rouge ou vert, pas le détail ; un clic sur la puce rouge ouvre le détail.
+    var puceRappel = v.rappel === 'oui'
+      ? h('span.puce.alerte.rappel-puce', { text: 'Rappel', title: 'Rappel ouvert — cliquez pour le détail', onclick: function (e) { e.stopPropagation(); self.rappelsOuverts = true; self.selectionner(v.vin); } })
+      : (v.rappel === 'non' ? h('span.puce.ok', { text: 'Sans rappel', title: 'Aucun rappel ouvert (NHTSA)' }) : h('span.puce', { text: 'Rappel ?', title: 'Rappel non vérifié' }));
     var indicateurs = [
-      v.rappel === 'oui' ? h('span.puce.alerte', { text: 'Rappel', title: v.rappelDetail || 'Rappel ouvert' }) : (v.rappel === 'non' ? null : h('span.puce', { text: 'Rappel ?', title: 'Rappel non vérifié' })),
+      puceRappel,
       h('span.puce' + (reg === 'oui-bon' ? '.ok' : (reg === 'oui-mauvais' ? '.attention' : (retard ? '.alerte' : ''))), { text: reg === 'non' ? (retard ? 'Registre · ' + jours + ' j' : 'Registre à recevoir') : regInfo.libelle }),
       v.ficheExiste ? h('span.puce' + (v.ficheStockRempli ? '.ok' : '.attention'), { text: v.ficheStockRempli ? 'Fiche ✓' : 'Fiche sans stock' }) : null,
       // Un clic sur la puce ouvre le rapport directement (comme sur eBlock), sans ouvrir la fiche.
       AMX.carfax.lien(v.vin) ? h('a.puce.info.lien-puce', { href: AMX.carfax.lien(v.vin), target: '_blank', rel: 'noopener', text: 'CARFAX', title: 'Voir le rapport CARFAX', onclick: function (e) { e.stopPropagation(); } }) : null,
+      // Acheté sur eBlock : la fiche descriptive (dommages, cote) s'ouvre d'un clic, sans ouvrir le panneau.
+      AMX.eblockPuce ? AMX.eblockPuce(v.vin) : null,
+      // Valeurs OpenLane (9 oct.) : prévision (ou moyenne des ventes comparables) d'un clic, sans ouvrir le panneau.
+      AMX.openlanePuce ? AMX.openlanePuce(v.vin) : null,
+      // Demande de travaux au service (8 oct.) : orange = envoyée, verte = BT approuvé, rouge = retournée.
+      (cfg.feuille === 'DETAIL' && AMX.demandePuce) ? AMX.demandePuce(v.vin) : null,
       cfg.importateur && v.importateur ? h('span.puce', { text: v.importateur }) : null
     ];
     var el = h(cls, { dataset: { id: v.id } }, [
       vignette,
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', { text: v.modele || '(modèle à préciser)' }),
-        h('div.sous', [h('span.vin', { text: v.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), v.origine === 'Échange' ? h('span.puce', { text: 'Échange' }) : null])
+        // Les informations du véhicule sont ici, dans la ligne (8 oct., soir — Maxime) : le NIV (une seule fois,
+        // un clic le copie), # stock, compagnie, origine, importateur ; la date d'achat est sous le statut.
+        h('div.sous', [h('span.vin', { text: v.vin, title: 'Copier le NIV', onclick: function (e) { e.stopPropagation(); AMX.copier(v.vin, 'NIV copié'); } }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), v.origine ? h('span.puce', { text: v.origine }) : null, autreRegistre ? h('span.puce.registre-autre', { text: 'Registre ' + AMX.inventaire.nomFeuille(autreRegistre), title: 'Ce véhicule est dans un autre registre — cliquez pour l\'ouvrir là-bas.' }) : null])
       ]),
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle })]),
-        v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : (retardA ? h('span.jours.attention', { text: 'Acheté depuis ' + jours + ' j' }) : h('span.jours', { text: 'Acheté il y a ' + jours + ' j' }))]),
+        v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : h('span.jours' + (retardA ? '.attention' : ''), { text: 'Acheté le ' + AMX.fmtDate(v.dateAjout) + ' · ' + jours + ' j' })]),
       h('div.cell.maj', [h('span.l', 'Mise à jour'), h('span.v', { text: AMX.fmtDate(v.maj, true) })]),
       h('div.cell.indic', [h('span.l', 'Suivi'), h('div.indicateurs', indicateurs)]),
       h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' })]),
-      h('button.plus', { type: 'button', title: 'Ouvrir', html: I.chevron })
+      h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
-    el.addEventListener('click', function () { self.selectionner(v.vin); });
+    el.addEventListener('click', function () { if (autreRegistre) AMX.inventaire.aller(autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
     return el;
   };
 
   Registre.prototype.selectionner = function (vin) {
     this.selection = vin;
-    var hsh = AMX.lien('inventaire', this.onglet, vin ? { vin: vin } : {});
+    var hsh = AMX.inventaire.lien(this.onglet, vin ? { vin: vin } : {});
     history.replaceState(null, '', hsh);
     this.elListe.querySelectorAll('.ligne').forEach(function (l) { l.classList.remove('actif'); });
     var v = this.vehicules.filter(function (x) { return String(x.vin).toUpperCase() === String(vin || '').toUpperCase(); })[0];
@@ -492,82 +822,150 @@
       sel.addEventListener('change', function () {
         var ns = sel.value; if (!ns) return; sel.value = '';
         if (ns === 'transit' && cfg.importateur) { self.avancer(v, 'transit'); return; }
-        AMX.confirmer('Corriger le statut', 'Passer ' + v.vin + ' de « ' + st.libelle + ' » à « ' + AMX.statut(ns, cfg.feuille).libelle + ' » ?').then(function (ok) { if (ok) self.ecrire({ action: 'setStatus', id: v.id, newStatut: ns }, 'Statut corrigé'); });
+        AMX.confirmer('Corriger le statut', 'Passer ' + v.vin + ' de « ' + st.libelle + ' » à « ' + AMX.statut(ns, cfg.feuille).libelle + ' » ?').then(function (ok) { if (ok) self.ecrire({ action: 'setStatus', id: v.id, newStatut: ns }, 'Statut corrigé', { optimiste: { champs: { statut: ns, maj: new Date().toISOString() } } }).catch(function () {}); });
       });
       actions.appendChild(sel);
       blocStatut.appendChild(actions);
     }
 
-    // Registre reçu
+    // Registre reçu — une ligne compacte au bas du bloc Statut (7 oct. : « trop gros » en bloc à part).
     var reg = registreDe(v);
-    var segReg = h('div.segment.bloc');
+    var segReg = h('div.segment.petit');
     [['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Mauvais nom']].forEach(function (o) {
-      segReg.appendChild(h('button' + (reg === o[0] ? '.actif' : ''), { type: 'button', text: o[1], disabled: verrouille || !peutStatut, onclick: function () { if (reg !== o[0]) self.ecrire({ action: 'setDoc', id: v.id, value: o[0] }, 'Registre mis à jour'); } }));
+      segReg.appendChild(h('button' + (reg === o[0] ? '.actif' : ''), { type: 'button', text: o[1], disabled: verrouille || !peutStatut, onclick: function () { if (reg !== o[0]) self.ecrire({ action: 'setDoc', id: v.id, value: o[0] }, 'Registre mis à jour', { optimiste: { champs: { enregistrement: o[0] } } }).catch(function () {}); } }));
     });
-    var blocRegistre = h('div.bloc', [h('h3', ['Registre d\'immatriculation', enRetardRegistre(v) ? h('span.puce.alerte', { text: AMX.joursDepuis(v.dateAjout) + ' j sans registre' }) : null]), segReg]);
+    blocStatut.appendChild(h('div.ligne-registre', [h('span.l', { text: 'Registre' }), segReg, enRetardRegistre(v) ? h('span.puce.alerte', { text: AMX.joursDepuis(v.dateAjout) + ' j sans registre' }) : null]));
 
-    // Informations éditables
-    var champ = function (libelle, valeur, opts) {
-      opts = opts || {};
-      var inp = h('input.saisie', { type: opts.type || 'text', value: valeur || '', placeholder: opts.placeholder || '—', disabled: opts.disabled, step: opts.step });
-      if (opts.mono) inp.classList.add('mono');
-      var bouton = opts.action ? h('button.btn.petit', { text: opts.texteBouton || 'Enregistrer', style: { visibility: 'hidden' } }) : null;
-      inp.addEventListener('input', function () { if (bouton) bouton.style.visibility = (inp.value.trim() !== String(valeur || '').trim()) ? 'visible' : 'hidden'; });
-      var sauver = function () { if (!opts.action) return; var val = inp.value.trim(); if (val === String(valeur || '').trim()) return; opts.action(val, inp); };
-      if (bouton) bouton.addEventListener('click', sauver);
-      if (!opts.explicite) inp.addEventListener('change', sauver);
-      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sauver(); } });
-      return h('div.champ', [h('label', { text: libelle }), bouton ? h('div', { style: { display: 'flex', gap: '6px' } }, [inp, bouton]) : inp]);
-    };
     var selCompagnie = h('select.saisie', { disabled: verrouille || !peutMontants }, AMX.optionsCompagnies('—'));
     selCompagnie.value = AMX.COMPAGNIES[v.compagnie] ? v.compagnie : '';
-    selCompagnie.addEventListener('change', function () { self.ecrire({ action: 'setCompagnie', id: v.id, value: selCompagnie.value }, 'Compagnie enregistrée'); });
-    var blocInfos = h('div.bloc', [h('h3', 'Informations'),
-      h('div.grille.c2', [
-        champ('# Stock', v.stock, { mono: true, disabled: verrouille || !peutMontants, action: function (val) { self.ecrire({ action: 'setStock', id: v.id, value: val }, '# stock enregistré'); } }),
-        champ('Coût', v.cout, { type: 'number', step: '0.01', disabled: verrouille || !peutMontants, action: function (val) { self.ecrire({ action: 'setCost', id: v.id, value: val }, 'Coût enregistré'); } }),
+    // Km obligatoire pour enregistrer un # stock (Maxime, 7 oct.) : le km vit dans la fiche d'achat (f-km) ;
+    // le serveur refuse un # stock sans km (Stock.gs), le site l'envoie avec le # stock quand il vient d'être tapé.
+    var peutStock = peutMontants || AMX.perm('ficheAchat');
+    var kmConnu = null;
+    var puceKm = h('span.puce.cache', { title: 'Kilométrage (fiche d\'achat)' });
+    AMX.ficheDe(v.vin).then(function (f) {
+      if (self.selection !== v.vin) return;
+      kmConnu = f ? AMX.kmValide(f['f-km']) : null;
+      if (kmConnu) { puceKm.textContent = AMX.fmtNombre(kmConnu) + ' km'; puceKm.classList.remove('cache'); }
+    }).catch(function () {});
+    // Les informations (stock, km, coût, compagnie, NIV) se corrigent dans une petite fenêtre « Modifier… » (bloc Gestion) :
+    // dans le panneau elles ne sont plus affichées, la ligne les montre déjà (8 oct., soir — Maxime).
+    var modifierInfos = function () {
+      var inpStock = h('input.saisie.mono#inv-stock', { value: v.stock || '', placeholder: '—', disabled: verrouille || !peutStock });
+      var inpKm2 = h('input.saisie#inv-km', { type: 'number', step: '1', value: kmConnu || '', placeholder: kmConnu ? '' : 'obligatoire avec un # stock', disabled: verrouille || !peutStock });
+      var inpCout = h('input.saisie', { type: 'number', step: '0.01', value: v.cout || '', placeholder: '—', disabled: verrouille || !peutMontants });
+      var inpVin = h('input.saisie.mono', { value: v.vin, disabled: verrouille || !peutMontants });
+      var corps = h('div.grille.c2', [
+        h('div.champ', [h('label', '# Stock'), inpStock]),
+        h('div.champ', [h('label', 'Km'), inpKm2]),
+        h('div.champ', [h('label', 'Coût'), inpCout]),
         h('div.champ', [h('label', 'Compagnie'), selCompagnie]),
-        h('div.champ', [h('label', 'Origine'), h('input.saisie', { value: v.origine || '—', disabled: true })]),
-        cfg.importateur ? h('div.champ', [h('label', 'Importateur'), h('input.saisie', { value: v.importateur || '—', disabled: true })]) : null,
-        h('div.champ', [h('label', 'Acheté le'), h('input.saisie', { value: AMX.fmtDate(v.dateAjout) + ' (' + AMX.joursDepuis(v.dateAjout) + ' j)', disabled: true })]),
-        h('div.plein', [champ('VIN (correction)', v.vin, { mono: true, disabled: verrouille || !peutMontants, explicite: true, texteBouton: 'Corriger', action: function (val, inp) {
-          if (!/^[A-HJ-NPR-Z0-9]{11,17}$/i.test(val)) { AMX.toast('VIN invalide (11 à 17 caractères, sans I, O ni Q).', 'erreur'); return; }
-          AMX.confirmer('Corriger le VIN', 'Remplacer ' + v.vin + ' par ' + val.toUpperCase() + ' ? Cette action modifie le registre.').then(function (ok) { if (ok) self.ecrire({ action: 'setVin', id: v.id, value: val.toUpperCase() }, 'VIN corrigé').then(function () { self.selection = val.toUpperCase(); self.rendre(); }); else inp.value = v.vin; });
-        } })])
-      ])
-    ]);
+        h('div.champ.plein', [h('label', 'NIV (correction — modifie le registre)'), inpVin])
+      ]);
+      AMX.modale({ titre: 'Modifier — ' + (v.modele || v.vin), corps: corps, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+        var stock = inpStock.value.trim(), km = AMX.kmValide(inpKm2.value), cout = inpCout.value.trim(), vinNouveau = inpVin.value.trim().toUpperCase();
+        if (inpKm2.value.trim() && !km) { AMX.toast('Kilométrage invalide : un nombre de km supérieur à zéro.', 'erreur'); inpKm2.focus(); return false; }
+        if (stock && stock !== String(v.stock || '').trim() && !kmConnu && !km) { AMX.toast('Le kilométrage est obligatoire pour enregistrer un # stock : entrez le km.', 'erreur'); inpKm2.classList.add('manque'); inpKm2.focus(); return false; }
+        if (vinNouveau !== v.vin && !/^[A-HJ-NPR-Z0-9]{11,17}$/.test(vinNouveau)) { AMX.toast('NIV invalide (11 à 17 caractères, sans I, O ni Q).', 'erreur'); inpVin.focus(); return false; }
+        var suite = Promise.resolve();
+        var stockChange = stock !== String(v.stock || '').trim(), kmChange = !!(km && km !== kmConnu);
+        // Un nouveau # stock avec un km tapé : les deux partent ensemble (setStock { value, km }) ; sinon setKm seul.
+        if (kmChange && !(stockChange && stock)) suite = suite.then(function () { return AMX.post({ action: 'setKm', vin: v.vin, value: km }).then(function (d) { AMX.verifier(d, 'Kilométrage refusé'); kmConnu = d.km || km; AMX.ficheOublier(v.vin); AMX.toast('Kilométrage enregistré — ' + AMX.fmtNombre(kmConnu) + ' km', 'ok'); }); });
+        if (stockChange) suite = suite.then(function () { var corps = { action: 'setStock', id: v.id, value: stock }; if (stock && kmChange) corps.km = km; return self.ecrire(corps, '# stock enregistré' + (corps.km ? ' avec le kilométrage' : ''), { optimiste: { champs: { stock: stock } } }).then(function () { if (corps.km) { kmConnu = km; AMX.ficheOublier(v.vin); } }); });
+        if (cout !== String(v.cout || '').trim()) suite = suite.then(function () { return self.ecrire({ action: 'setCost', id: v.id, value: cout }, 'Coût enregistré', { optimiste: { champs: { cout: cout } } }); });
+        if (selCompagnie.value !== (AMX.COMPAGNIES[v.compagnie] ? v.compagnie : '')) suite = suite.then(function () { return self.ecrire({ action: 'setCompagnie', id: v.id, value: selCompagnie.value }, 'Compagnie enregistrée', { optimiste: { champs: { compagnie: selCompagnie.value } } }); });
+        if (vinNouveau !== v.vin) suite = suite.then(function () { return AMX.confirmer('Corriger le NIV', 'Remplacer ' + v.vin + ' par ' + vinNouveau + ' ? Cette action modifie le registre.').then(function (ok) { if (!ok) return; return self.ecrire({ action: 'setVin', id: v.id, value: vinNouveau }, 'NIV corrigé').then(function () { self.selection = vinNouveau; self.rendre(); }); }); });
+        return suite.then(function () { if (self.selection === v.vin) self.rendrePanneau(); }).catch(function (e) { AMX.toast('Échec — ' + AMX.erreurTexte(e), 'erreur'); });
+      } }] });
+      setTimeout(function () { (stockVide() ? inpStock : inpKm2).focus(); }, 50);
+    };
+    var stockVide = function () { return !String(v.stock || '').trim(); };
 
-    // Rappels
-    var blocRappel = h('div.bloc', [h('h3', ['Rappels NHTSA', h('button.btn.petit', { text: 'Revérifier', onclick: function (e) { e.target.classList.add('occupe'); e.target.textContent = 'Vérification…'; self.reverifierRappel(v); } })])]);
+    // Rappels (8 oct., soir — Maxime) : rouge ou vert, le détail seulement en cliquant.
+    var ouvrirRappels = !!self.rappelsOuverts; self.rappelsOuverts = false;
+    var blocRappel = h('div.bloc', [h('h3', ['Rappels', h('button.btn.petit.fantome', { text: 'Revérifier', onclick: function (e) { e.target.classList.add('occupe'); e.target.textContent = 'Vérification…'; self.reverifierRappel(v); } })])]);
+    var rapUrl = RAPPELS_FABRICANT[marque(v)];
     if (v.rappel === 'oui') {
       var comps = String(v.rappelDetail || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       var uniques = comps.filter(function (c, i) { return comps.indexOf(c) === i; });
-      blocRappel.appendChild(h('div', [h('span.badge.rouge', { text: uniques.length + ' rappel' + (uniques.length > 1 ? 's' : '') + ' ouvert' + (uniques.length > 1 ? 's' : '') }), h('ul', { style: { margin: '8px 0 0', paddingLeft: '18px', color: 'var(--encre-2)', fontSize: '12px', lineHeight: '1.5' } }, uniques.map(function (c) { return h('li', { text: c }); }))]));
-    } else if (v.rappel === 'non') blocRappel.appendChild(h('span.badge.vert', { text: 'Aucun rappel ouvert' }));
+      var detailRappel = h('div.rappel-detail' + (ouvrirRappels ? '' : '.cache'), [
+        h('ul', { style: { margin: '8px 0 0', paddingLeft: '18px', color: 'var(--encre-2)', fontSize: '12px', lineHeight: '1.5' } }, uniques.map(function (c) { return h('li', { text: c }); })),
+        rapUrl ? h('div', { style: { marginTop: '8px' } }, [h('a.btn.petit', { href: rapUrl, target: '_blank', rel: 'noopener', html: I.externe + '<span>Page des rappels ' + esc(marque(v)) + '</span>' })]) : null
+      ]);
+      var badgeRappel = h('button.badge.rouge.rappel-badge', { type: 'button', title: 'Cliquez pour le détail', text: uniques.length + ' rappel' + (uniques.length > 1 ? 's' : '') + ' ouvert' + (uniques.length > 1 ? 's' : '') + (ouvrirRappels ? ' ▾' : ' ▸'), onclick: function () { var ouvert = detailRappel.classList.toggle('cache'); badgeRappel.textContent = badgeRappel.textContent.replace(/[▸▾]$/, ouvert ? '▸' : '▾'); } });
+      blocRappel.appendChild(badgeRappel); blocRappel.appendChild(detailRappel);
+    } else if (v.rappel === 'non') blocRappel.appendChild(h('span.badge.vert', { text: 'Aucun rappel' }));
     else blocRappel.appendChild(h('span.badge.gris', { text: 'Non vérifié' }));
-    var rapUrl = RAPPELS_FABRICANT[marque(v)];
-    if (rapUrl) blocRappel.appendChild(h('div', { style: { marginTop: '8px' } }, [h('a.btn.petit', { href: rapUrl, target: '_blank', rel: 'noopener', html: I.externe + '<span>Page des rappels ' + esc(marque(v)) + '</span>' })]));
 
     // Rapport d'état eBlock (fiche d'achat) : lien de partage et dommages
     // répertoriés, en rouge. Chargé à part, seulement si une fiche existe, et
     // montré seulement s'il y a quelque chose.
+    // Fiche descriptive eBlock importée (Outils › Fiches eBlock, 7 oct.) : cote d'état,
+    // dommages avec photos, pneus — montrée seulement si le véhicule a été acheté sur eBlock.
+    var blocFicheEblock = null, ficheEblockLa = false;
+    if (typeof AMX.eblockFiche === 'function') {
+      var zoneEb = h('div');
+      blocFicheEblock = h('div.bloc.cache', [h('h3', ['Fiche eBlock']), zoneEb]);
+      AMX.eblockFiche(v.vin, zoneEb, { maxPieces: 6 }).then(function (achats) { if (achats && achats.length && blocFicheEblock.isConnected) { ficheEblockLa = true; blocFicheEblock.classList.remove('cache'); if (blocEblock) blocEblock.classList.add('cache'); } });
+    }
+    // Valeurs OpenLane (9 oct.) : ventes comparables, prévision 30-60-90 j, ajusté au km — ou le bouton pour les demander.
+    var blocOpenlane = null;
+    if (typeof AMX.openlaneBloc === 'function') {
+      var zoneOl = h('div');
+      blocOpenlane = h('div.bloc', [h('h3', ['Valeurs OpenLane']), zoneOl]);
+      // Le km du moment vient de la fiche d'achat (comme la puce km de l'en-tête) : il sert à la prévision.
+      AMX.ficheDe(v.vin).then(function (f) { return f ? AMX.kmValide(f['f-km']) : null; }, function () { return null; }).then(function (km) { AMX.openlaneBloc(v.vin, zoneOl, { km: km || undefined, source: 'inventaire', compagnie: String(v.compagnie || '').toUpperCase() }); }).catch(function () {});
+    }
+    // Dommages de la fiche d'achat (en français) — seulement s'il n'y a pas de fiche eBlock, sinon c'est en double.
     var blocEblock = null;
     if (v.ficheExiste && AMX.ficheDe) {
-      blocEblock = h('div.bloc.cache', [h('h3', ['Rapport d\'état eBlock'])]);
+      blocEblock = h('div.bloc.cache', [h('h3', ['Dommages (fiche d\'achat)'])]);
       AMX.ficheDe(v.vin).then(function (f) {
-        if (!f || !blocEblock.isConnected) return;
+        if (!f || !blocEblock.isConnected || ficheEblockLa) return;
         var lien = AMX.eblockValide(f['f-eblock']), dommages = AMX.listeDommages(f['f-dommages']);
+        if (AMX.eblockTraduireLignes) dommages = AMX.eblockTraduireLignes(dommages);
         if (!lien && !dommages.length) return;
         blocEblock.classList.remove('cache');
         if (dommages.length) {
+          var nDom = AMX.nbDommages(dommages);
           blocEblock.appendChild(h('div', [
-            h('span.badge.rouge', { text: dommages.length + ' dommage' + (dommages.length > 1 ? 's' : '') + ' répertorié' + (dommages.length > 1 ? 's' : '') }),
+            h('span.badge.rouge', { text: nDom + ' dommage' + (nDom > 1 ? 's' : '') + ' répertorié' + (nDom > 1 ? 's' : '') }),
             h('ul.dommages-liste', dommages.map(function (d) { return h('li', { text: d }); }))
           ]));
         }
         if (lien) blocEblock.appendChild(h('div', { style: { marginTop: '8px' } }, [h('a.btn.petit', { href: lien, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir sur eBlock</span>' })]));
       }).catch(function () {});
     }
+
+    // Évaluation (Inventaire › Évaluations) : ce qu'on en sait, depuis la fiche d'inventaire (7 oct.).
+    var blocEval = h('div.bloc', [h('h3', ['Évaluation', h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.vin }), text: 'Ouvrir' })])]);
+    var zoneEval = h('div.doux.petit', 'Chargement…');
+    blocEval.appendChild(zoneEval);
+    AMX.get('evalVin=' + encodeURIComponent(v.vin), { essais: 1 }).then(function (d) {
+      if (!zoneEval.isConnected) return;
+      AMX.vider(zoneEval); zoneEval.className = '';
+      if (!d || !d.trouve) {
+        zoneEval.appendChild(h('div.actions-ligne', [h('span.doux.petit', { style: { alignSelf: 'center' }, text: 'Pas encore évalué.' }), h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.vin }), html: I.outils + '<span>Évaluer ce véhicule</span>' })]));
+        return;
+      }
+      var e = d.donnees || {}, m = (e.marche && typeof e.marche === 'object') ? e.marche : null;
+      var argent = function (x) { var n = parseFloat(String(x === undefined || x === null ? '' : x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? null : n; };
+      var paye = argent(e.prixPaye) || argent(e.prixAchat), recon = argent(e.recon), vente = argent(e.prixVente), standard = m ? argent(m.standard) : null, marge = argent(e.marge);
+      var qui = String(e._enregistrePar || e._par || '').split('@')[0], quand = d.dateMaj || e._le || '';
+      var veh = [e.annee, e.marque, e.modele, e.version].filter(Boolean).join(' '), kmEval = parseInt(String(e.km || '').replace(/[^0-9]/g, ''), 10);
+      if (veh || kmEval) zoneEval.appendChild(h('div', { style: { marginBottom: '6px', fontSize: '12.5px' }, text: [veh, kmEval ? AMX.fmtNombre(kmEval) + ' km' : ''].filter(Boolean).join(' · ') }));
+      zoneEval.appendChild(h('div.actions-ligne', [
+        paye !== null ? h('span.puce', { text: 'payé ' + AMX.fmtArgent(paye, 0) }) : null,
+        recon !== null ? h('span.puce', { text: 'recon ' + AMX.fmtArgent(recon, 0) }) : null,
+        vente !== null ? h('span.puce.ok', { text: 'détail ' + AMX.fmtArgent(vente, 0) }) : null,
+        standard !== null ? h('span.puce.info', { text: 'marché ' + AMX.fmtArgent(standard, 0) + (m && m.actifs && m.actifs.n ? ' · ' + m.actifs.n + ' annonces' : ''), title: 'Prix standard de l\'analyse de marché' }) : null,
+        marge !== null ? h('span.puce' + (marge < 0 ? '.alerte' : ''), { text: 'marge ' + AMX.fmtArgent(marge, 0) }) : null,
+        e.etat ? h('span.puce', { text: 'état : ' + e.etat }) : null, e.pneus ? h('span.puce', { text: 'pneus : ' + e.pneus }) : null, e.pareBrise ? h('span.puce', { text: 'pare-brise : ' + e.pareBrise }) : null, e.accident ? h('span.puce.alerte', { text: 'accident : ' + e.accident }) : null
+      ]));
+      var note = e.notes || e.note;
+      if (note) zoneEval.appendChild(h('div.doux.petit', { style: { marginTop: '6px' }, text: String(note).slice(0, 240) }));
+      zoneEval.appendChild(h('div.doux.petit', { style: { marginTop: '6px' }, text: 'Évaluée' + (quand ? ' le ' + AMX.fmtDate(quand, true) : '') + (qui ? ' par ' + qui : '') + (e.concession ? ' · ' + (AMX.CONCESSIONS_TOUTES && AMX.CONCESSIONS_TOUTES[e.concession] ? AMX.CONCESSIONS_TOUTES[e.concession] : e.concession) : '') }));
+    }).catch(function (err) { if (!zoneEval.isConnected) return; zoneEval.textContent = 'Évaluation indisponible : ' + AMX.erreurTexte(err); });
 
     // Photos
     var blocPhotos = h('div.bloc', [h('h3', ['Photos', h('a.btn.petit', { href: 'scan.html', target: '_blank', rel: 'noopener', html: I.photo + '<span>Ajouter (scan)</span>' })])]);
@@ -592,30 +990,49 @@
     };
     champCfx.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sauverCfx(champCfx.value); } });
     champCfx.addEventListener('paste', function () { setTimeout(function () { if (AMX.carfax.valide(champCfx.value)) sauverCfx(champCfx.value); }, 30); });
-    var blocCarfax = h('div.bloc', [h('h3', ['Rapport CARFAX', lienCfx ? h('span.puce.ok', { text: 'disponible' }) : h('a.btn.petit', { href: AMX.lien('outils', 'carfax'), text: 'Importer depuis mon compte' })]),
-      lienCfx ? h('div.actions-ligne', [
-        h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Voir le rapport</span>' }),
-        h('button.btn', { html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(lienCfx, 'Lien du rapport copié'); } }),
-        h('button.btn.fantome', { text: 'Remplacer', onclick: function () { blocCarfax.querySelector('.cfx-saisie').classList.remove('cache'); champCfx.focus(); champCfx.select(); } }),
-        h('button.btn.fantome', { text: 'Retirer', onclick: function () { AMX.confirmer('Retirer le lien CARFAX', 'Le bouton « Rapport CARFAX » disparaîtra de la page de l\'acheteur pour ce véhicule.').then(function (ok) { if (ok) sauverCfx(''); }); } })
-      ]) : null,
-      h('div.cfx-saisie' + (lienCfx ? '.cache' : ''), { style: { marginTop: lienCfx ? '10px' : '0' } }, [
-        h('div.champ', [h('label', 'Lien du rapport'), h('div', { style: { display: 'flex', gap: '6px' } }, [champCfx, h('button.btn.petit', { text: 'Enregistrer', onclick: function () { sauverCfx(champCfx.value); } })]),
-          h('div.aide', 'Dans votre compte CARFAX (Mes rapports › Mes RHV), ouvrez le rapport et copiez l\'adresse de la page. Le lien s\'affiche ensuite sur la page publique du véhicule.')])
+    // Rapports et liens : CARFAX, fiche d'achat, window sticker, mise en vente — un seul bloc, une
+    // rangée de boutons (7 oct. : le CARFAX était en double et prenait trop de place). Le lien
+    // CARFAX se gère derrière « lien… » (coller / remplacer / retirer).
+    var zoneCfx = h('div.cfx-saisie.cache', { style: { marginTop: '10px' } }, [
+      h('div.champ', [h('label', lienCfx ? 'Remplacer le lien du rapport' : 'Coller le lien du rapport'), h('div', { style: { display: 'flex', gap: '6px' } }, [champCfx, h('button.btn.petit', { text: 'Enregistrer', onclick: function () { sauverCfx(champCfx.value); } })]),
+        h('div.aide', 'Compte CARFAX › Mes rapports › Mes RHV : ouvrez le rapport et copiez l\'adresse de la page (vhr.carfax.ca/?id=…). Le lien sort aussi sur la page publique du véhicule.')]),
+      lienCfx ? h('div.actions-ligne', { style: { marginTop: '6px' } }, [
+        h('button.btn.petit', { html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(lienCfx, 'Lien du rapport copié'); } }),
+        h('button.btn.petit.fantome', { text: 'Retirer le lien', onclick: function () { AMX.confirmer('Retirer le lien CARFAX', 'Le bouton « Rapport CARFAX » disparaîtra de la page de l\'acheteur pour ce véhicule.').then(function (ok) { if (ok) sauverCfx(''); }); } })
+      ]) : null
+    ]);
+    var sticker = stickerUrl(v);
+    // v130 (rapport « Refonte ergonomique », gain rapide 12) : les gestes principaux en haut du panneau, juste sous
+    // l'en-tête — avant, « Déclarer la vente » était dans l'avant-dernier bloc.
+    var blocActions = h('div.bloc.inv-actions', [h('h3', 'Actions'),
+      h('div.actions-ligne', [
+        // 21 oct. : déclarer la vente (ventes.js) — le script remplit le Livre des ventes (détail ou wholesale selon le registre).
+        (AMX.ventes && AMX.ventes.peutDeclarer() && ['comptabilise'].indexOf(v.statut) < 0) ? h('button.btn.primaire.inv-vendre', { type: 'button', title: 'Déclarer la vente de ce véhicule — ScanAutomax écrit la ligne dans le Livre des ventes', html: I.vente + '<span>Déclarer la vente</span>', onclick: function () { AMX.ventes.declarer({ compagnie: v.compagnie, type: cfg.feuille === 'DETAIL' ? 'usage' : 'wholesale', vin: v.vin, stock: v.stock, modeleTexte: v.modele, coutant: v.cout, source: 'Inventaire › Usagé › ' + cfg.titre, resterIci: true }); } }) : null,
+        // 14 oct. (Maxime) : « un véhicule disponible à la vente doit pouvoir être envoyé à un acheteur inscrit, par texto et par courriel ».
+        (AMX.offres && AMX.offres.envoyerAcheteurs && (AMX.perm('changerStatut') || AMX.perm('voirResultats')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0) ? h('button.btn', { type: 'button', title: 'Envoyer la page publique de ce véhicule à des acheteurs inscrits, par courriel et par texto (publié dans la vitrine si besoin)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(v.vin, { concession: AMX.COMPAGNIE_CONCESSION[String(v.compagnie || '').toUpperCase()] || '' }); } }) : null,
+        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
+        h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' })
       ])
     ]);
-
-    // Liens
-    var sticker = stickerUrl(v);
-    var blocLiens = h('div.bloc', [h('h3', 'Liens'), h('div.actions-ligne', [
-      h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }),
-      sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null,
-      lienCfx ? null : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié)', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
-      AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null
-    ])]);
+    if (!blocActions.querySelector('.actions-ligne').children.length) blocActions = null;
+    // 23 oct. : transport de l'achat par Central Fleet (transport.js) — état, prix, dates, documents, ou le bouton de demande.
+    var blocTransport = null;
+    if (AMX.transport && (['arrive', 'comptabilise'].indexOf(v.statut) < 0 || AMX.transport.parVin(v.vin).length)) {
+      var zoneTr = h('div'), mots = String(v.modele || '').trim().split(/\s+/), anTr = /^\d{4}$/.test(mots[mots.length - 1] || '') ? mots.pop() : '';
+      blocTransport = h('div.bloc.inv-transport', [h('h3', 'Transport (Central Fleet)'), zoneTr]);
+      AMX.transport.bloc(v.vin, zoneTr, { compagnie: v.compagnie, stock: v.stock, annee: anTr, marque: mots.shift() || '', modele: mots.join(' ') });
+    }
+    var blocLiens = h('div.bloc', [h('h3', ['Rapports', h('button.btn.petit.fantome', { type: 'button', text: lienCfx ? 'lien CARFAX…' : 'coller un lien CARFAX…', onclick: function () { zoneCfx.classList.toggle('cache'); if (!zoneCfx.classList.contains('cache')) { champCfx.focus(); champCfx.select(); } } })]),
+      h('div.actions-ligne', [
+        lienCfx ? h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Rapport CARFAX</span>' })
+          : h('a.btn', { href: 'https://dealer.carfax.ca/', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
+        sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null
+      ]),
+      zoneCfx
+    ]);
 
     // Transfert + suppression
-    var selTransfert = h('select.saisie', { style: { flex: 1 } }, [h('option', { value: '', text: 'Transférer vers…' })].concat(cfg.transferts.map(function (t) { return h('option', { value: t, text: AMX.inventaire.nomFeuille(t) }); })));
+    var selTransfert = h('select.saisie', { style: { flex: '1 1 170px', minWidth: '170px' } }, [h('option', { value: '', text: 'Transférer vers…' })].concat(cfg.transferts.map(function (t) { return h('option', { value: t, text: AMX.inventaire.nomFeuille(t) }); })));
     selTransfert.addEventListener('change', function () {
       var cible = selTransfert.value; if (!cible) return; selTransfert.value = '';
       AMX.confirmer('Transférer le véhicule', v.vin + ' sera retiré du registre ' + cfg.titre + ' et ajouté au registre ' + AMX.inventaire.nomFeuille(cible) + ' avec le statut « Acheté ».').then(function (ok) {
@@ -624,6 +1041,7 @@
       });
     });
     var blocGestion = h('div.bloc', [h('h3', 'Gestion'), h('div.actions-ligne', [
+      (peutStock || peutMontants) && !verrouille ? h('button.btn', { html: I.outils + '<span>Modifier (stock, km, coût)…</span>', onclick: modifierInfos }) : null,
       peutStatut && !verrouille ? selTransfert : null,
       peutSupprimer ? h('button.btn.danger', { html: I.corbeille + '<span>Supprimer</span>', onclick: function () {
         AMX.confirmerSaisie('Supprimer définitivement', 'Suppression de ' + v.vin + (v.stock ? ' (stock ' + v.stock + ')' : '') + '. Cette action est irréversible. Retapez le VIN complet pour confirmer.', v.vin, { ok: 'Supprimer', danger: true }).then(function (ok) {
@@ -636,11 +1054,12 @@
       h('div.panneau-entete', [
         h('div', { style: { minWidth: 0 } }, [
           h('h2', { text: v.modele || '(modèle à préciser)' }),
-          h('div.sous', [h('span.mono', { text: v.vin }), h('button.btn.fantome.petit.icone', { title: 'Copier le VIN', html: I.copier, onclick: function () { AMX.copier(v.vin, 'VIN copié'); } }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' })])
+          // Pas de NIV ici (il est dans la ligne, 8 oct., soir — Maxime) : # stock, km (de la fiche d'achat), compagnie.
+          h('div.sous', [v.stock ? h('span.puce.mono', { text: v.stock }) : null, puceKm, h('span.puce', { text: v.compagnie || '—' })])
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocRegistre, blocInfos, blocRappel, blocEblock, blocPhotos, blocCarfax, blocLiens, blocGestion
+      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocEblock, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };
@@ -658,7 +1077,7 @@
         } }] });
       return;
     }
-    this.ecrire({ action: 'advance', id: v.id, newStatut: suivant }, AMX.statut(suivant, cfg.feuille).libelle);
+    this.ecrire({ action: 'advance', id: v.id, newStatut: suivant }, AMX.statut(suivant, cfg.feuille).libelle, { optimiste: { champs: { statut: suivant, maj: new Date().toISOString() } } }).catch(function () {});
   };
 
   Registre.prototype.reverifierRappel = function (v) {

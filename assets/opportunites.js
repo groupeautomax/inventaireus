@@ -27,7 +27,16 @@
 
   var STATUTS = [['', 'À voir'], ['suivie', 'Suivies'], ['ecartee', 'Écartées'], ['achetee', 'Achetées'], ['tous', 'Toutes']];
   var STATUT_LIB = { '': 'À voir', suivie: 'Suivie', ecartee: 'Écartée', achetee: 'Achetée' };
-  var TRIS = [['score', 'Meilleur profit'], ['gros', 'Profit au gros'], ['detail', 'Profit au détail'], ['prix', 'Prix le plus bas'], ['km', 'Km le plus bas'], ['nouveau', 'Plus récentes'], ['distance', 'Plus proches']];
+  var TRIS = [['score', 'Meilleur profit'], ['gros', 'Profit au gros'], ['detail', 'Profit au détail'], ['cote', 'Meilleure cote CarGurus'], ['marche', 'Plus sous le marché'], ['prix', 'Prix le plus bas'], ['km', 'Km le plus bas'], ['nouveau', 'Plus récentes'], ['distance', 'Plus proches']];
+  /* Cote CarGurus (sites d'annonces, Apify) : du meilleur au pire. */
+  var COTES = { great: { t: 'Excellent prix', c: 'cg-great', r: 5 }, good: { t: 'Bon prix', c: 'cg-good', r: 4 }, fair: { t: 'Prix juste', c: 'cg-fair', r: 3 }, high: { t: 'Prix élevé', c: 'cg-high', r: 2 }, overpriced: { t: 'Trop cher', c: 'cg-over', r: 1 } };
+  var FILTRES_COTE = [['', 'Toutes les cotes'], ['great', 'Excellent prix'], ['good', 'Bon prix ou mieux'], ['fair', 'Prix juste ou mieux'], ['sans', 'Sans cote']];
+  function rangCote(o) { return COTES[o.coteCg] ? COTES[o.coteCg].r : 0; }
+  function puceCote(o) {
+    var c = COTES[o.coteCg]; if (!c) return null;
+    var v = num(o.valeurMarche), e = num(o.ecartMarche);
+    return h('span.puce.' + c.c, { text: c.t, title: 'Cote CarGurus' + (nb(v) ? ' · valeur du marché ' + AMX.fmtArgent(v) : '') + (nb(e) ? ' · ' + (e > 0 ? '+' : e < 0 ? '−' : '') + AMX.fmtArgent(Math.abs(e)) + ' par rapport au marché' : '') });
+  }
   var SOURCES = [['', 'Toutes les sources'], ['marketcheck', 'Concessionnaires (MarketCheck)'], ['gmf', 'GM Financial DealerSource'], ['particulier', 'Particuliers (tous les sites)'],
     ['autotrader', 'AutoTrader.ca'], ['kijiji', 'Kijiji'], ['cargurus', 'CarGurus.ca'], ['carpages', 'Carpages.ca']];
   var SITES_ANNONCES = { autotrader: 'AutoTrader.ca', kijiji: 'Kijiji', cargurus: 'CarGurus.ca', carpages: 'Carpages.ca' };
@@ -94,7 +103,7 @@
     this.surCie = function () { self.compagnie = AMX.compagnieChoisie('inventaire') || ''; self.rendre(); };
     document.addEventListener('amx:compagnie', this.surCie);
   }
-  Opportunites.prototype.filtresDefaut = function () { return { q: '', marque: '', statut: '', source: '', province: '', groupe: groupeMemo(), vue: vueMemo(), modeles: modelesMemo(), tri: AMX.memo.lire('occ_tri', 'score') }; };
+  Opportunites.prototype.filtresDefaut = function () { return { q: '', marque: '', statut: '', source: '', province: '', cote: '', groupe: groupeMemo(), vue: vueMemo(), modeles: modelesMemo(), tri: AMX.memo.lire('occ_tri', 'score') }; };
   Opportunites.prototype.demonter = function () { this.generation++; document.removeEventListener('amx:compagnie', this.surCie); };
   Opportunites.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
@@ -123,10 +132,11 @@
     this.construireModeles();
     this.elSource = h('select.saisie#occ-source', { onchange: function () { self.f.source = self.elSource.value; self.rafraichir(); } }, SOURCES.map(function (s) { return h('option', { value: s[0], text: s[1] }); }));
     this.elProv = h('select.saisie#occ-province', { onchange: function () { self.f.province = self.elProv.value; self.rafraichir(); } });
+    this.elCote = h('select.saisie#occ-cote', { onchange: function () { self.f.cote = self.elCote.value; self.rafraichir(); } }, FILTRES_COTE.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
     this.elTri = h('select.saisie#occ-tri', { onchange: function () { self.f.tri = self.elTri.value; AMX.memo.ecrire('occ_tri', self.f.tri); self.rafraichir(); } }, TRIS.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
     var filtres = h('div.carte.occ-filtres', [h('div.carte-corps', [
       h('div.occ-ligne', [this.elGroupe, h('div.recherche', [h('span', { html: I.recherche }), this.elQ]), this.elSeul, this.elStatuts]),
-      h('div.occ-ligne', [this.elMarques, this.elModelesEnv, h('label.occ-select', [h('span', 'Source'), this.elSource]), h('label.occ-select', [h('span', 'Province'), this.elProv]), h('label.occ-select', [h('span', 'Trier par'), this.elTri])])
+      h('div.occ-ligne', [this.elMarques, this.elModelesEnv, h('label.occ-select', [h('span', 'Source'), this.elSource]), h('label.occ-select', [h('span', 'Province'), this.elProv]), h('label.occ-select', [h('span', 'Cote CarGurus'), this.elCote]), h('label.occ-select', [h('span', 'Trier par'), this.elTri])])
     ])]);
     this.elPortee = h('div.portee-chiffres');
     this.elKpis = h('div.kpis.occ-kpis');
@@ -311,6 +321,7 @@
       if (sauf !== 'marque' && f.marque && String(o.marque || '').toUpperCase() !== f.marque) return false;
       if (sauf !== 'source' && f.source && (f.source === 'particulier' ? !estParticulier(o) : (o.source || 'marketcheck') !== f.source)) return false;
       if (sauf !== 'province' && f.province && String(o.province || '').toUpperCase() !== f.province) return false;
+      if (sauf !== 'cote' && f.cote) { if (f.cote === 'sans' ? !!COTES[o.coteCg] : rangCote(o) < COTES[f.cote].r) return false; }
       if (sauf !== 'q' && f.q && !AMX.correspond([o.annee, o.marque, o.modele, o.version, o.vin, o.vendeur, o.ville, o.province, o.couleur, o.typeInv], f.q)) return false;
       return true;
     });
@@ -321,6 +332,8 @@
       var k = self.calc(o) || {};
       if (t === 'gros') return nb(k.profitGros) ? k.profitGros : -1e12;
       if (t === 'detail') return nb(k.profitDetail) ? k.profitDetail : -1e12;
+      if (t === 'cote') return rangCote(o) * 1e7 - (nb(num(o.ecartMarche)) ? num(o.ecartMarche) : 0);
+      if (t === 'marche') return nb(num(o.ecartMarche)) ? -num(o.ecartMarche) : -1e12;
       if (t === 'prix') return -(num(o.prix) || 1e12);
       if (t === 'km') return -(num(o.km) || 1e12);
       if (t === 'nouveau') return new Date(o.premiereVue || 0).getTime();
@@ -354,7 +367,7 @@
     AMX.vider(this.elProv); this.elProv.appendChild(h('option', { value: '', text: 'Tout le Canada' }));
     Object.keys(provs).sort().forEach(function (x) { self.elProv.appendChild(h('option', { value: x, text: x })); });
     this.elProv.value = provs[pv] ? pv : ''; this.f.province = this.elProv.value;
-    this.elSource.value = this.f.source; this.elTri.value = this.f.tri;
+    this.elSource.value = this.f.source; this.elTri.value = this.f.tri; this.elCote.value = this.f.cote || '';
     if (this.elQ.value !== this.f.q) this.elQ.value = this.f.q;
     this.rafraichir();
   };
@@ -550,6 +563,7 @@
     if (f.modeles && f.modeles.liste.length) actifs.push(this.texteModeles());
     if (f.source) actifs.push(SOURCES.filter(function (s) { return s[0] === f.source; })[0][1]);
     if (f.province) actifs.push(f.province);
+    if (f.cote) actifs.push(FILTRES_COTE.filter(function (x) { return x[0] === f.cote; })[0][1]);
     if (f.statut) actifs.push(STATUTS.filter(function (s) { return s[0] === f.statut; })[0][1]);
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['annonce', 'annonces'], contexte: [this.compagnie ? 'transport vers ' + (COURTS[this.compagnie] || this.compagnie) : (f.groupe === 'autres' ? 'concession la plus proche' : 'concession la plus avantageuse'),
         f.groupe === 'autres' ? (f.vue === 'bons' ? 'autres marques · bons achats' : 'autres marques · les ' + (p.autresTop || 50) + ' meilleures, ' + AMX.fmtArgent(p.autresPrixMax || 60000) + ' au plus') :
@@ -612,10 +626,14 @@
     var vend = h('div.occ-vend', [h('div', { text: o.vendeur || '—' }), h('div.mini', { text: [o.ville, o.province].filter(Boolean).join(', ') }),
       h('div.mini', gmf ? [h('span.puce.gmf', { text: 'DealerSource' }), ' ', [o.typeInv, o.cote ? 'cote ' + o.cote : '', nb(num(o.dommages)) ? 'dommages ' + argent(num(o.dommages)) : '', o.finVente ? 'fin ' + AMX.fmtDate(o.finVente, true) : '', nb(num(o.offres)) ? num(o.offres) + ' offre' + (num(o.offres) > 1 ? 's' : '') : ''].filter(Boolean).join(' · ')]
         : [SITES_ANNONCES[o.source] ? h('span.puce.' + (estParticulier(o) ? 'part' : 'site'), { text: SITES_ANNONCES[o.source] + (estParticulier(o) ? ' · particulier' : '') }) : h('span.puce.mc', { text: 'Concessionnaire' }),
-          nb(num(o.jours)) ? ' en ligne depuis ' + num(o.jours) + ' j' : ''])]);
+          nb(num(o.jours)) ? ' en ligne depuis ' + num(o.jours) + ' j' : '',
+          num(o.nbSites) > 1 ? ' · sur ' + num(o.nbSites) + ' sites' + (num(o.ecartSites) ? ' (' + AMX.fmtArgent(num(o.ecartSites)) + ' d\'écart)' : '') : ''])]);
     var prix = h('div.occ-prix', [h('b', { text: argent(num(o.prix)) }),
       k.suspect ? h('span.puce.suspect', { text: 'Prix à vérifier', title: 'Très bas devant la prévision OpenLane ou le marché : souvent un acompte, un paiement ou une erreur d\'annonce' }) : null,
       baisse ? h('div.mini.pos', { text: '↓ était ' + argent(num(o.prixPrecedent)) }) : null,
+      !baisse && nb(num(o.baissePrix)) ? h('div.mini.pos', { text: '↓ baisse de ' + argent(num(o.baissePrix)) }) : null,
+      puceCote(o) ? h('div', [puceCote(o)]) : null,
+      nb(num(o.valeurMarche)) ? h('div.mini', { text: 'marché ' + argent(num(o.valeurMarche)) + (nb(num(o.ecartMarche)) && num(o.ecartMarche) !== 0 ? ' (' + (num(o.ecartMarche) > 0 ? '+' : '−') + argent(Math.abs(num(o.ecartMarche))) + ')' : ''), title: 'Valeur du marché selon CarGurus' }) : null,
       gmf && nb(num(o.mise)) ? h('div.mini', { text: 'mise ' + argent(num(o.mise)) + (nb(num(o.pdsf)) ? ' · PDSF ' + argent(num(o.pdsf)) : '') }) : null]);
     var trans = h('div.occ-trans', [h('div', { text: (k.approx ? '≈ ' : '') + argent(k.transport) }), h('div.mini', { text: (COURTS[k.dest] || k.dest || '') + (nb(k.distance) ? ' · ' + AMX.fmtNombre(k.distance) + ' km' : '') + (k.approx ? ' (ville approx.)' : '') })]);
     var gros = h('div.occ-gros', nb(num(o.olPrix)) ? [h('div', { text: argent(num(o.olPrix)) }),
@@ -741,6 +759,7 @@
         'Source': libelleSource(o), 'Vendeur': o.vendeur, 'Ville': o.ville, 'Province': o.province,
         'Concession d\'arrivée': COURTS[k.dest] || k.dest, 'Distance (km)': k.distance, 'Transport': k.transport, 'Coût rendu': k.cout,
         'Prévision OpenLane': num(o.olPrix), 'Profit au gros': k.profitGros, 'Prix médian ajusté': k.refAjuste, 'Annonces de référence': num(o.refN), 'Recon': k.recon, 'Profit au détail': k.profitDetail, 'Achat max.': k.achatMax,
+        'Cote CarGurus': COTES[o.coteCg] ? COTES[o.coteCg].t : '', 'Valeur du marché (CarGurus)': num(o.valeurMarche), 'Écart au marché': num(o.ecartMarche), 'Baisse de prix': num(o.baissePrix), 'Sites': num(o.nbSites),
         'Mise (DealerSource)': num(o.mise), 'Dommages estimés': num(o.dommages), 'Cote': o.cote, 'Fin de vente': o.finVente, 'Statut': STATUT_LIB[o.statut || ''], 'Note': o.note, 'Vue la première fois': o.premiereVue, 'Annonce': o.lien };
     });
     var wb = XLSX.utils.book_new();
@@ -802,6 +821,8 @@
       '.occ-page .puce.nouv { background: var(--bleu-bg, #E6F0FB); color: var(--bleu); }',
       '.occ-page .puce.gmf { background: #EEF2FF; color: #3730A3; } .occ-page .puce.mc { background: var(--fond); color: var(--encre-2); }',
       '.occ-page .puce.part { background: #FCE7F3; color: #9D174D; } .occ-page .puce.site { background: #E0F2FE; color: #075985; }',
+      '.occ-prix .puce { display: inline-block; margin-top: 4px; } .occ-page .puce.cg-great { background: #D1FAE5; color: #065F46; } .occ-page .puce.cg-good { background: var(--vert-clair); color: var(--vert-fonce); }',
+      '.occ-page .puce.cg-fair { background: var(--fond); color: var(--encre-2); } .occ-page .puce.cg-high { background: #FEF3C7; color: var(--ambre); } .occ-page .puce.cg-over { background: #FEE2E2; color: #991B1B; }',
       '.occ-apify-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; } .occ-apify-sites { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }',
       '.occ-page .puce.st-suivie { background: var(--vert-clair); color: var(--vert-fonce); } .occ-page .puce.st-ecartee { background: var(--fond); color: var(--encre-3); } .occ-page .puce.st-achetee { background: #FEF3C7; color: var(--ambre); }',
       '.occ-plus { margin: 10px 14px; }',

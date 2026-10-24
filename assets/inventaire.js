@@ -916,6 +916,13 @@
       // Le km du moment vient de la fiche d'achat (comme la puce km de l'en-tête) : il sert à la prévision.
       AMX.ficheDe(v.vin).then(function (f) { return f ? AMX.kmValide(f['f-km']) : null; }, function () { return null; }).then(function (km) { AMX.openlaneBloc(v.vin, zoneOl, { km: km || undefined, source: 'inventaire', compagnie: String(v.compagnie || '').toUpperCase() }); }).catch(function () {});
     }
+    // Prix du marché (24 oct., OccMarche.gs) : notre annonce comparée à celles des concessionnaires voisins (lecture du lundi).
+    var blocMarche = null;
+    if (cfg.feuille === 'DETAIL' && AMX.occMarche && v.statut !== 'arrive' && v.statut !== 'comptabilise') {
+      var zoneMa = h('div');
+      blocMarche = h('div.bloc', [h('h3', ['Prix du marché']), zoneMa]);
+      AMX.occMarche.bloc(v.vin, zoneMa);
+    }
     // Dommages de la fiche d'achat (en français) — seulement s'il n'y a pas de fiche eBlock, sinon c'est en double.
     var blocEblock = null;
     if (v.ficheExiste && AMX.ficheDe) {
@@ -1059,7 +1066,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocEblock, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

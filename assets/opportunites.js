@@ -28,7 +28,11 @@
   var STATUTS = [['', 'À voir'], ['suivie', 'Suivies'], ['ecartee', 'Écartées'], ['achetee', 'Achetées'], ['tous', 'Toutes']];
   var STATUT_LIB = { '': 'À voir', suivie: 'Suivie', ecartee: 'Écartée', achetee: 'Achetée' };
   var TRIS = [['score', 'Meilleur profit'], ['gros', 'Profit au gros'], ['detail', 'Profit au détail'], ['prix', 'Prix le plus bas'], ['km', 'Km le plus bas'], ['nouveau', 'Plus récentes'], ['distance', 'Plus proches']];
-  var SOURCES = [['', 'Toutes les sources'], ['marketcheck', 'Concessionnaires (MarketCheck)'], ['gmf', 'GM Financial DealerSource']];
+  var SOURCES = [['', 'Toutes les sources'], ['marketcheck', 'Concessionnaires (MarketCheck)'], ['gmf', 'GM Financial DealerSource'], ['particulier', 'Particuliers (tous les sites)'],
+    ['autotrader', 'AutoTrader.ca'], ['kijiji', 'Kijiji'], ['cargurus', 'CarGurus.ca'], ['carpages', 'Carpages.ca']];
+  var SITES_ANNONCES = { autotrader: 'AutoTrader.ca', kijiji: 'Kijiji', cargurus: 'CarGurus.ca', carpages: 'Carpages.ca' };
+  function estParticulier(o) { return o.typeInv === 'Particulier' || o.vendeur === 'Particulier'; }
+  function libelleSource(o) { return o.source === 'gmf' ? 'GM Financial DealerSource' : (SITES_ANNONCES[o.source] ? SITES_ANNONCES[o.source] + (estParticulier(o) ? ' (particulier)' : '') : 'Concessionnaire (MarketCheck)'); }
   var COURTS = { STM: 'Ste Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil' };
   var LIMITE = 150;
 
@@ -226,7 +230,7 @@
   Opportunites.prototype.construireSources = function () {
     var signet = CODE_SIGNET_GMF ? h('a.btn.primaire', { href: CODE_SIGNET_GMF, text: 'Automax ← DealerSource', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' }) : h('span.doux', 'Favori en préparation');
     if (CODE_SIGNET_GMF) signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le sur DealerSource › Acheter.', 'attention', 8000); });
-    this.elEtatMc = h('div.occ-src-etat'); this.elEtatGmf = h('div.occ-src-etat');
+    this.elEtatMc = h('div.occ-src-etat'); this.elEtatGmf = h('div.occ-src-etat'); this.elEtatApify = h('div.occ-src-etat');
     var d = h('details.carte#occ-sources', [
       h('summary.carte-entete', { style: { cursor: 'pointer' } }, [h('h2', 'Sources des annonces')]),
       h('div.carte-corps.occ-sources', [
@@ -234,7 +238,9 @@
           h('p', 'MarketCheck : les annonces des concessionnaires (celles qu\'on voit aussi sur AutoTrader, Kijiji…), lues aux 2 heures, modèle par modèle, les moins chères d\'abord, avec le prix médian du marché. Les annonces de nos concessions et les véhicules déjà dans nos registres sont exclus.'), this.elEtatMc]),
         h('div.occ-source', [h('div.section-titre', 'GM Financial DealerSource — favori'),
           h('p', 'Les véhicules de fin de bail et de location de la Financière GM : achat immédiat, mise, dommages estimés, cote. 1. Glissez le bouton dans la barre de favoris (une fois). 2. Sur gmfdealersource.ca, ouvrez « Acheter ». 3. Cliquez le favori : il lit toutes les pages de résultats et les envoie ici (rien n\'est acheté ni offert).'), signet, this.elEtatGmf]),
-        h('p.mini.doux', 'Pas d\'annonces de particuliers : Marketplace, AutoTrader et Kijiji interdisent la lecture automatique de leurs annonces.')
+        h('div.occ-source', [h('div.section-titre', 'Sites d\'annonces : AutoTrader.ca, Kijiji, CarGurus.ca, Carpages.ca — automatique (Apify)'),
+          h('p', 'Les annonces des particuliers et des concessionnaires de ces quatre sites, lues par un robot Apify (un service payant à part) une fois par jour à partir de 7 h : seulement les annonces nouvelles depuis la lecture précédente, avec NIV, dans le rayon choisi. Une annonce vue sur plusieurs sites compte une fois ; celle d\'un particulier ne garde ni son nom ni son téléphone (le lien de l\'annonce suffit pour le joindre). Facebook Marketplace n\'y est pas.'),
+          this.elEtatApify])
       ])
     ]);
     d.open = false;
@@ -303,7 +309,7 @@
       if (sauf !== 'statut') { if (f.statut === '' && (o.statut === 'ecartee' || o.statut === 'achetee')) return false; if (f.statut && f.statut !== 'tous' && o.statut !== f.statut) return false; }
       if (sauf !== 'modeles' && mods.liste.length) { var dans = mods.liste.indexOf(cleModele(o)) >= 0; if (mods.mode === 'inclure' ? !dans : dans) return false; }
       if (sauf !== 'marque' && f.marque && String(o.marque || '').toUpperCase() !== f.marque) return false;
-      if (sauf !== 'source' && f.source && (o.source || 'marketcheck') !== f.source) return false;
+      if (sauf !== 'source' && f.source && (f.source === 'particulier' ? !estParticulier(o) : (o.source || 'marketcheck') !== f.source)) return false;
       if (sauf !== 'province' && f.province && String(o.province || '').toUpperCase() !== f.province) return false;
       if (sauf !== 'q' && f.q && !AMX.correspond([o.annee, o.marque, o.modele, o.version, o.vin, o.vendeur, o.ville, o.province, o.couleur, o.typeInv], f.q)) return false;
       return true;
@@ -355,7 +361,7 @@
 
   Opportunites.prototype.rendreSources = function () {
     var d = this.donnees || {}, e = d.etat || {}, dern = e.dernier || {}, g = d.gmf;
-    AMX.vider(this.elEtatMc); AMX.vider(this.elEtatGmf);
+    AMX.vider(this.elEtatMc); AMX.vider(this.elEtatGmf); this.rendreApify();
     var mc = [];
     if (!e.cle) mc.push('Clé MarketCheck absente : Admin › Données de marché.');
     mc.push(AMX.fmtNombre(e.unites || 0) + ' modèles-années suivis' + (e.cycleJours ? ' · tour complet en ≈ ' + e.cycleJours + ' jours' : ''));
@@ -371,6 +377,70 @@
   };
 
   /* Filtres, « Chiffres et liste », chiffres, liste — sans reconstruire la recherche (le curseur reste). */
+  /* Sites d'annonces (Apify) : état, lecture manuelle (admin), clé (propriétaire, jamais affichée). */
+  Opportunites.prototype.rendreApify = function () {
+    var self = this, d = this.donnees || {}, a = d.apify, el = this.elEtatApify;
+    if (!el) return;
+    AMX.vider(el);
+    if (!a) { el.appendChild(h('div.mini', { text: 'Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).' })); return; }
+    var lignes = [];
+    if (!a.present) lignes.push('Pas encore branché : il faut un compte Apify (apify.com, forfait Starter ≈ 19 $ US par mois) et sa clé d\'API, collée ci-dessous par le propriétaire.');
+    else {
+      lignes.push('Branché (clé …' + a.fin + ') · ' + (a.parJour || 0) + ' lecture' + (a.parJour > 1 ? 's' : '') + ' par jour · ' + (a.rayon ? a.rayon + ' km autour de ' + a.codePostal : 'tout le Canada') +
+        ' · ' + (a.vendeurs === 'private' ? 'particuliers seulement' : (a.vendeurs === 'dealer' ? 'concessionnaires seulement' : 'particuliers et concessionnaires')) + ' · sites : ' + (a.sources || []).map(function (s) { return SITES_ANNONCES[s] || s; }).join(', '));
+      lignes.push('Ce mois-ci : ' + (a.courses || 0) + ' lecture' + (a.courses > 1 ? 's' : '') + ', ≈ ' + AMX.fmtNombre(Math.round((a.depense || 0) * 100) / 100) + ' $ US sur ' + AMX.fmtNombre(a.budget || 0) + ' $ US permis (une lecture coûte au plus ≈ ' + AMX.fmtNombre(a.estime || 0) + ' $ US)');
+      if (a.enCours) lignes.push('Lecture en cours chez Apify depuis ' + AMX.fmtDate(a.enCours.le, true) + ' : les annonces arrivent au relevé suivant (aux 10 minutes).');
+      var dn = a.derniere;
+      if (dn && dn.le) lignes.push('Dernière lecture ' + AMX.fmtDate(dn.le, true) + (dn.statut && dn.statut !== 'SUCCEEDED' ? ' (' + dn.statut + ')' : '') + ' : ' + (dn.recus || 0) + ' annonces, ' + (dn.gardees || 0) + ' gardées (' + (dn.nouvelles || 0) + ' nouvelles), ' + (dn.sansVin || 0) + ' sans NIV, ' + (dn.horsCriteres || 0) + ' hors critères' + (dn.erreur ? ' — ' + dn.erreur : ''));
+      else if (!a.enCours) lignes.push('Pas encore lu : la première lecture part à la prochaine heure après 7 h' + (d.admin ? ', ou tout de suite avec « Lire maintenant »' : '') + '.');
+      if (a.erreur) lignes.push('Erreur : ' + a.erreur);
+    }
+    lignes.forEach(function (t) { el.appendChild(h('div.mini', { text: t })); });
+    var boutons = [];
+    if (a.present && d.admin) {
+      var b = h('button.btn.petit#occ-apify-lire', { type: 'button', text: a.enCours ? 'Relever la lecture' : 'Lire maintenant', onclick: function () { self.lireApify(a.enCours ? 'relever' : 'lancer', b); } });
+      boutons.push(b);
+    }
+    if (a.peutCle) {
+      if (a.present) boutons.push(h('button.btn.petit.fantome#occ-apify-retirer', { type: 'button', text: 'Retirer la clé', onclick: function () { self.cleApify(true); } }));
+      else {
+        var champ = h('input.saisie#occ-apify-cle', { type: 'password', placeholder: 'apify_api_…', autocomplete: 'off', style: { maxWidth: '280px' } });
+        boutons.push(champ, h('button.btn.petit.primaire#occ-apify-poser', { type: 'button', text: 'Enregistrer la clé', onclick: function () { self.cleApify(false, champ); } }),
+          h('a.btn.petit.fantome', { href: 'https://console.apify.com/settings/integrations', target: '_blank', rel: 'noopener', text: 'Où trouver la clé' }));
+      }
+    }
+    if (boutons.length) el.appendChild(h('div.occ-apify-actions', boutons));
+  };
+  Opportunites.prototype.lireApify = function (mode, b) {
+    var self = this;
+    if (b) b.classList.add('occupe');
+    AMX.post({ action: 'occasionsApify', mode: mode }, { delai: 300000, secours: false }).then(function (r) {
+      if (b) b.classList.remove('occupe');
+      if (!r || r.refuse || r.ok === false) { AMX.toast((r && r.erreur) || 'Refusé', 'attention', 9000); return; }
+      if (r.vehicules) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).');
+      if (r.lance) AMX.toast('Lecture lancée chez Apify : les annonces arrivent dans 5 à 30 minutes (relevé automatique aux 10 minutes).', 'ok', 9000);
+      else if (r.attente) AMX.toast('La lecture est encore en cours chez Apify (' + (r.statut || '') + ').', 'attention', 7000);
+      else AMX.toast('Lecture relevée : ' + (r.recus || 0) + ' annonces, ' + (r.gardees || 0) + ' gardées (' + (r.nouvelles || 0) + ' nouvelles)' + (r.erreurs && r.erreurs.length ? ' — ' + r.erreurs[0] : ''), r.erreurs && r.erreurs.length ? 'attention' : 'ok', 9000);
+      self.charger(true);
+    }).catch(function (e) { if (b) b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+  };
+  Opportunites.prototype.cleApify = function (retirer, champ) {
+    var self = this;
+    var envoyer = function () {
+      var corps = retirer ? { action: 'occasionsApifyCle', retirer: true } : { action: 'occasionsApifyCle', cleApify: String(champ.value || '').trim() };
+      if (!retirer && !corps.cleApify) { AMX.toast('Collez d\'abord la clé d\'API d\'Apify.', 'attention'); return; }
+      AMX.post(corps, { secours: false }).then(function (r) {
+        if (champ) champ.value = '';
+        if (!r || r.refuse || r.ok === false) { AMX.toast((r && r.erreur) || 'Refusé', 'erreur', 9000); return; }
+        if (!('present' in r)) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).');
+        AMX.toast(retirer ? 'Clé Apify retirée' : 'Clé Apify vérifiée et enregistrée' + (r.compte ? ' (compte ' + r.compte + ')' : ''), 'ok');
+        self.charger(true);
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+    };
+    if (retirer) AMX.confirmer('Retirer la clé Apify ?', 'Les sites d\'annonces ne seront plus lus. Les annonces déjà reçues restent.', { ok: 'Retirer' }).then(function (oui) { if (oui) envoyer(); });
+    else envoyer();
+  };
+
   Opportunites.prototype.rafraichir = function () {
     var self = this, d = this.donnees; if (!d || d.refuse) return;
     var f = this.f, p = d.params || {};
@@ -478,7 +548,8 @@
       h('div.vin', { text: o.vin })])]);
     var vend = h('div.occ-vend', [h('div', { text: o.vendeur || '—' }), h('div.mini', { text: [o.ville, o.province].filter(Boolean).join(', ') }),
       h('div.mini', gmf ? [h('span.puce.gmf', { text: 'DealerSource' }), ' ', [o.typeInv, o.cote ? 'cote ' + o.cote : '', nb(num(o.dommages)) ? 'dommages ' + argent(num(o.dommages)) : '', o.finVente ? 'fin ' + AMX.fmtDate(o.finVente, true) : '', nb(num(o.offres)) ? num(o.offres) + ' offre' + (num(o.offres) > 1 ? 's' : '') : ''].filter(Boolean).join(' · ')]
-        : [h('span.puce.mc', { text: 'Concessionnaire' }), nb(num(o.jours)) ? ' en ligne depuis ' + num(o.jours) + ' j' : ''])]);
+        : [SITES_ANNONCES[o.source] ? h('span.puce.' + (estParticulier(o) ? 'part' : 'site'), { text: SITES_ANNONCES[o.source] + (estParticulier(o) ? ' · particulier' : '') }) : h('span.puce.mc', { text: 'Concessionnaire' }),
+          nb(num(o.jours)) ? ' en ligne depuis ' + num(o.jours) + ' j' : ''])]);
     var prix = h('div.occ-prix', [h('b', { text: argent(num(o.prix)) }),
       k.suspect ? h('span.puce.suspect', { text: 'Prix à vérifier', title: 'Très bas devant la prévision OpenLane ou le marché : souvent un acompte, un paiement ou une erreur d\'annonce' }) : null,
       baisse ? h('div.mini.pos', { text: '↓ était ' + argent(num(o.prixPrecedent)) }) : null,
@@ -563,6 +634,8 @@
     ['topParMarque', 'Vue « meilleures par marque » : annonces par marque', '', 1],
     ['autresTop', 'Autres marques : nombre de meilleures montrées', '', 1], ['autresPrixMax', 'Autres marques : prix maximal', '$', 1000],
     ['autresBudgetMois', 'Autres marques : appels MarketCheck par mois', 'appels', 50], ['autresNMin', 'Autres marques : annonces minimum pour balayer un modèle', '', 1],
+    ['apifyParJour', 'Sites d\'annonces : lectures par jour (0 = arrêt)', '', 1], ['apifyMax', 'Sites d\'annonces : annonces au plus par lecture', '', 25],
+    ['apifyRayonKm', 'Sites d\'annonces : rayon (0 = tout le Canada)', 'km', 50], ['apifyBudgetMois', 'Sites d\'annonces : dépense permise par mois', '$ US', 1],
     ['budgetMois', 'Appels MarketCheck par mois (outil)', 'appels', 50], ['garderParUnite', 'Annonces gardées par modèle-année', '', 1], ['olParPassage', 'Prévisions OpenLane par passage', '', 1]
   ];
   Opportunites.prototype.reglages = function () {
@@ -577,16 +650,22 @@
     exclus.value = (p.modelesExclus || []).join('\n');
     var autresM = h('textarea.saisie#occ-autres-marques', { rows: 3, placeholder: 'Une par ligne : Toyota, Honda, Ford…' });
     autresM.value = (p.autresMarques || []).join('\n');
+    var cpA = h('input.saisie#occ-apify-cp', { type: 'text', value: p.apifyCodePostal || 'H3B', placeholder: 'H3B', style: { maxWidth: '120px' } });
+    var vendA = h('select.saisie#occ-apify-vendeurs', [['any', 'Particuliers et concessionnaires'], ['private', 'Particuliers seulement'], ['dealer', 'Concessionnaires seulement']].map(function (x) { var op = h('option', { value: x[0], text: x[1] }); if ((p.apifyVendeurs || 'any') === x[0]) op.selected = true; return op; }));
+    var sitesA = {}, sitesEl = h('div.occ-apify-sites', Object.keys(SITES_ANNONCES).map(function (k) { var c = h('input', { type: 'checkbox' }); c.checked = (p.apifySources || Object.keys(SITES_ANNONCES)).indexOf(k) >= 0; sitesA[k] = c; return h('label.case', [c, ' ' + SITES_ANNONCES[k]]); }));
     var marques = h('p.mini', { text: 'Marques suivies : ' + Object.keys(p.marques || {}).map(function (m) { return m + ' → ' + (p.marques[m] || []).map(function (c) { return COURTS[c] || c; }).join(', '); }).join(' · ') });
     var corps = h('div', [grille, h('label.occ-prov', [h('span', 'Provinces (sigles, séparés par des virgules)'), prov]),
       h('label.occ-prov', [h('span', 'Modèles à ne plus chercher (balayage, DealerSource et liste)'), exclus]),
       h('label.occ-prov', [h('span', 'Autres marques cherchées (vers la concession la plus proche)'), autresM]), marques,
+      h('div.occ-prov', [h('span', 'Sites d\'annonces (Apify) : centre du rayon (code postal), vendeurs, sites'), h('div.occ-apify-actions', [cpA, vendA]), sitesEl]),
       h('p.mini.doux', 'Bon achat = prix demandé égal ou plus bas que la prévision de gros OpenLane. Rendu = prévision OpenLane − (prix + transport + frais) ; « rentable » = bon achat dont le rendu atteint le profit minimal. Le détail (prix médian du modèle-année au Canada, toutes versions, ajusté au km, au plus le gros OpenLane + le % indiqué) est indicatif. Un prix sous le % indiqué de la prévision OpenLane est marqué « à vérifier » (acompte, paiement ou erreur). Une année ou un km changé relance la découverte des modèles au prochain passage.')]);
     AMX.modale({ titre: 'Réglages — opportunités d\'achat', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
       var params = {}; Object.keys(champs).forEach(function (k) { var v = num(champs[k].value); if (v !== null) params[k] = v; });
       params.provinces = prov.value;
       params.modelesExclus = exclus.value;
       params.autresMarques = autresM.value;
+      params.apifyCodePostal = cpA.value; params.apifyVendeurs = vendA.value;
+      params.apifySources = Object.keys(sitesA).filter(function (k) { return sitesA[k].checked; });
       return AMX.post({ action: 'occasionsParams', params: params }).then(function (r) {
         if (!r || r.ok === false || r.refuse) { AMX.toast((r && r.erreur) || 'Refusé', 'erreur'); return false; }
         if (!r.params) { AMX.toast('Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).', 'erreur'); return false; }
@@ -603,7 +682,7 @@
     var lignes = liste.map(function (o) {
       var k = self.calc(o) || {};
       return { 'Année': o.annee, 'Marque': o.marque, 'Modèle': o.modele, 'Version': o.version, 'NIV': o.vin, 'Km': num(o.km), 'Prix': num(o.prix), 'Prix précédent': num(o.prixPrecedent),
-        'Source': o.source === 'gmf' ? 'GM Financial DealerSource' : 'Concessionnaire', 'Vendeur': o.vendeur, 'Ville': o.ville, 'Province': o.province,
+        'Source': libelleSource(o), 'Vendeur': o.vendeur, 'Ville': o.ville, 'Province': o.province,
         'Concession d\'arrivée': COURTS[k.dest] || k.dest, 'Distance (km)': k.distance, 'Transport': k.transport, 'Coût rendu': k.cout,
         'Prévision OpenLane': num(o.olPrix), 'Profit au gros': k.profitGros, 'Prix médian ajusté': k.refAjuste, 'Annonces de référence': num(o.refN), 'Recon': k.recon, 'Profit au détail': k.profitDetail, 'Achat max.': k.achatMax,
         'Mise (DealerSource)': num(o.mise), 'Dommages estimés': num(o.dommages), 'Cote': o.cote, 'Fin de vente': o.finVente, 'Statut': STATUT_LIB[o.statut || ''], 'Note': o.note, 'Vue la première fois': o.premiereVue, 'Annonce': o.lien };
@@ -666,6 +745,8 @@
       '.occ-note { grid-column: 1 / -1; font-size: 12.5px; color: var(--encre-2); background: var(--fond); border-radius: 6px; padding: 4px 8px; }',
       '.occ-page .puce.nouv { background: var(--bleu-bg, #E6F0FB); color: var(--bleu); }',
       '.occ-page .puce.gmf { background: #EEF2FF; color: #3730A3; } .occ-page .puce.mc { background: var(--fond); color: var(--encre-2); }',
+      '.occ-page .puce.part { background: #FCE7F3; color: #9D174D; } .occ-page .puce.site { background: #E0F2FE; color: #075985; }',
+      '.occ-apify-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; } .occ-apify-sites { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }',
       '.occ-page .puce.st-suivie { background: var(--vert-clair); color: var(--vert-fonce); } .occ-page .puce.st-ecartee { background: var(--fond); color: var(--encre-3); } .occ-page .puce.st-achetee { background: #FEF3C7; color: var(--ambre); }',
       '.occ-plus { margin: 10px 14px; }',
       '.occ-page .puce.suspect { display: inline-block; margin-top: 4px; background: #FEF3C7; color: var(--ambre); }',

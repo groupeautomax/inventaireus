@@ -332,7 +332,8 @@
       : [h('span.doux', { text: o.olErreur ? 'pas de prévision' : 'à lire' })]);
     var det = h('div.occ-det', nb(k.refAjuste) ? [h('div', { text: argent(k.refAjuste), title: 'Prix médian du ' + o.annee + ' ' + o.marque + ' ' + o.modele + ' au Canada (' + (o.refN || '?') + ' annonces, toutes versions), ajusté au km' }),
       h('b.' + (k.oppDetail ? 'pos.opp' : (nb(k.profitDetail) && k.profitDetail < 0 ? 'neg' : 'neutre')), { text: signe(k.profitDetail) }),
-      h('div.mini', { text: 'achat max. ' + argent(k.achatMax) + (!k.oppDetail && nb(k.profitDetail) && k.profitDetail >= (p.marge || 0) && !k.suspect ? ' · à confirmer' : '') }), h('div.mini.doux', 'toutes versions')]
+      h('div.mini', { text: 'achat max. ' + argent(k.achatMax) + (!k.oppDetail && nb(k.profitDetail) && k.profitDetail >= (p.marge || 0) && !k.suspect ? ' · à confirmer' : '') }),
+      h('div.mini.doux', { text: k.plafonne ? 'gros OpenLane + ' + (p.detailMaxSurOl || 15) + ' % (marché ' + argent(k.refMarche) + ', toutes versions)' : 'marché, toutes versions' })]
       : [h('span.doux', { text: 'pas de référence' })]);
     var actions = h('div.occ-act', [
       o.lien ? h('a.btn.petit', { href: o.lien, target: '_blank', rel: 'noopener', text: 'Annonce ↗' }) : null,
@@ -399,7 +400,7 @@
     ['transportBase', 'Transport : montant de base', '$', 25], ['transportKm', 'Transport : par km de route', '$/km', 0.05], ['facteurRoute', 'Distance de route ÷ vol d\'oiseau', '×', 0.05],
     ['recon', 'Reconditionnement prévu (détail)', '$', 100], ['frais', 'Frais d\'achat (inspection, immatriculation, encan…)', '$', 50], ['marge', 'Marge visée au détail', '$', 250],
     ['tauxKm', 'Ajustement du prix au km', '$/km', 0.01], ['seuilGros', 'Profit minimal au gros', '$', 100],
-    ['detailSurGros', 'Détail : coût rendu au plus le gros OpenLane +', '%', 1], ['suspectPct', 'Prix à vérifier sous ce % de la prévision OpenLane', '%', 5],
+    ['detailSurGros', 'Détail : coût rendu au plus le gros OpenLane +', '%', 1], ['detailMaxSurOl', 'Détail : prix de revente au plus le gros OpenLane +', '%', 1], ['suspectPct', 'Prix à vérifier sous ce % de la prévision OpenLane', '%', 5],
     ['budgetMois', 'Appels MarketCheck par mois (outil)', 'appels', 50], ['garderParUnite', 'Annonces gardées par modèle-année', '', 1], ['olParPassage', 'Prévisions OpenLane par passage', '', 1]
   ];
   Opportunites.prototype.reglages = function () {
@@ -412,7 +413,7 @@
     var prov = h('input.saisie', { type: 'text', value: (p.provinces || []).join(', '), placeholder: 'vide = tout le Canada (ex. QC, ON)' });
     var marques = h('p.mini', { text: 'Marques suivies : ' + Object.keys(p.marques || {}).map(function (m) { return m + ' → ' + (p.marques[m] || []).map(function (c) { return COURTS[c] || c; }).join(', '); }).join(' · ') });
     var corps = h('div', [grille, h('label.occ-prov', [h('span', 'Provinces (sigles, séparés par des virgules)'), prov]), marques,
-      h('p.mini.doux', 'Profit au gros = prévision OpenLane − (prix + transport + frais). Profit au détail = prix médian du modèle-année au Canada (toutes versions) ajusté au km − recon (ou les dommages estimés s\'ils sont plus élevés) − (prix + transport + frais) ; il ne compte comme opportunité que si OpenLane le confirme (coût rendu au plus le gros + le % ci-dessus). Un prix sous le % indiqué de la prévision OpenLane est marqué « à vérifier » (acompte, paiement ou erreur). Une année ou un km changé relance la découverte des modèles au prochain passage.')]);
+      h('p.mini.doux', 'Profit au gros = prévision OpenLane − (prix + transport + frais). Profit au détail = prix médian du modèle-année au Canada (toutes versions) ajusté au km − recon (ou les dommages estimés s\'ils sont plus élevés) − (prix + transport + frais) ; quand OpenLane connaît le NIV, ce prix de revente ne dépasse pas le gros OpenLane + le % indiqué, et il ne compte comme opportunité que si le coût rendu ne dépasse pas le gros + l\'autre %. Un prix sous le % indiqué de la prévision OpenLane est marqué « à vérifier » (acompte, paiement ou erreur). Une année ou un km changé relance la découverte des modèles au prochain passage.')]);
     AMX.modale({ titre: 'Réglages — opportunités d\'achat', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
       var params = {}; Object.keys(champs).forEach(function (k) { var v = num(champs[k].value); if (v !== null) params[k] = v; });
       params.provinces = prov.value;

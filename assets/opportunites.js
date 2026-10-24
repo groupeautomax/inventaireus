@@ -635,7 +635,7 @@
     if (signetMh) signetMh.addEventListener('click', function (ev) { ev.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le sur marketplace.manheim.ca.', 'attention', 8000); });
     el.appendChild(blocSrc('manheim', 'Manheim — BMW Financial Services', 'favori, à la demande', [
       mh && mh.le ? 'Dernière lecture ' + AMX.fmtDate(mh.le, true) + ' par ' + (mh.par || '?') + ' : ' + (mh.recues || 0) + ' disponibles lus, ' + (mh.gardees || 0) + ' gardés.' : 'Pas encore lu.',
-      'Glissez le bouton dans vos favoris (une fois), puis cliquez-le sur marketplace.manheim.ca : il lit les onglets « Disponible » (ici, classés comme les autres annonces) et « Achats » (photos et état ajoutés à nos véhicules). Rien n\'est misé ni acheté.'
+      'Glissez le bouton dans vos favoris (une fois). Sur marketplace.manheim.ca, cliquez-le dans l\'onglet « Disponible » (les véhicules à vendre arrivent ici, classés comme les autres annonces), puis dans l\'onglet « Achats » (photos et état ajoutés à nos véhicules). Il lit toutes les pages ; rien n\'est misé ni acheté.'
     ], [signetMh]));
     // 4. OpenLane
     var ol = e.openlane;

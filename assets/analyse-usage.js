@@ -98,7 +98,13 @@
     a.marque = m ? m.marque : ''; a.modele = m ? m.modele : ''; a.annee = m ? m.annee : null; a.version = m ? m.version : '';
     a.nom = m ? [m.annee, nomMarque(m.marque), m.modele, m.version].filter(Boolean).join(' ') : a.texte;
     a.km = m && nb(m.km) ? m.km : null;
-    a.cout = num(r ? r.cout : null); if (!nb(a.cout) || a.cout <= 0) a.cout = m && nb(m.cout) && m.cout > 0 ? m.cout : null;
+    // Coût du registre ; une cellule illisible (ex. « Fri Sep 01 1076… » : Sheets a pris le montant pour une date) est
+    // signalée et jamais remplacée par le coût du Prix du marché (qui lit la même cellule).
+    var brut = r ? String(r.cout === undefined || r.cout === null ? '' : r.cout).trim() : '', c = num(brut);
+    a.coutIllisible = '';
+    if (brut && brut !== '0' && (/[a-z]{3}/i.test(brut) || !nb(c) || c > 500000)) { a.coutIllisible = brut; c = null; }
+    a.cout = nb(c) && c > 0 ? c : null;
+    if (!a.cout && !a.coutIllisible && !r && m && nb(m.cout) && m.cout > 0 && m.cout <= 500000) a.cout = m.cout;
     // Coût absent du registre : le prix payé sur Manheim (achats BMW Financial Services), à défaut de mieux.
     var mh = AMX.manheim && AMX.manheim.parVin ? AMX.manheim.parVin(a.vin) : null;
     a.manheim = !!mh; a.coutSource = nb(a.cout) ? 'registre' : '';
@@ -126,8 +132,8 @@
     a.grosEcart = nb(a.gros) && nb(a.cout) ? a.gros - a.cout : null;
     var md = ctx.mds[a.vin];
     a.mds = md && nb(md.mds) ? Math.round(md.mds) : null; a.mdsActifs = md ? md.actifs : null; a.mdsVendus = md ? md.vendus : null; a.mdsLu = !!md;
-    var vt = ctx.ventes[a.cle];
-    a.ventes90 = vt ? vt.n : 0;
+    var vt = ctx.ventes[a.compagnie + '#' + a.cle], vg = ctx.ventes[a.cle];
+    a.ventes90 = vt ? vt.n : 0; a.ventes90Groupe = vg ? vg.n : 0; a.delaiVente = vt && vt.jours.length ? Math.round(mediane(vt.jours)) : null;
     a.action = conseil(a, p);
     a.alertes = alertes(a, p);
     return a;
@@ -136,7 +142,9 @@
     var tol = p.tolerance, c = a.cible, vieux = nb(a.jours) && a.jours >= p.ageGros;
     var grosTexte = function () { return nb(a.gros) ? 'OpenLane ' + argent(a.gros) + (voitCouts() && nb(a.grosEcart) ? ' (' + signe(a.grosEcart) + ' vs coût)' : '') : 'pas encore de valeur OpenLane'; };
     if (a.statut !== 'stock' && !vieux) return { code: 'prep', titre: 'En préparation', detail: (STATUT_LIB[a.statut] || a.statut) + (nb(a.jours) ? ' depuis ' + a.jours + ' j' : '') + (nb(a.prixCible) ? ' · prix visé à la mise en ligne ≈ ' + argent(a.prixCible) + ' (' + pct(c) + ' du marché)' : '') };
-    if (vieux && (a.ptm === null || a.ptm > c + tol || (nb(a.mds) && a.mds > p.mdsHaut))) return { code: 'gros', titre: 'Envisager le gros', detail: a.jours + ' j en stock · ' + grosTexte() + (nb(a.ptm) && a.ptm > c + tol && nb(a.prixCible) ? ' · sinon baisser à ' + argent(a.prixCible) : '') };
+    // Au-delà de l'âge du gros (75 j par défaut), le gros est envisagé quel que soit le prix : s'il est au marché et ne part
+    // pas, c'est d'autant plus clair (vAuto : « hard stop » à 60 ou 90 jours).
+    if (vieux) return { code: 'gros', titre: 'Envisager le gros', detail: a.jours + ' j en stock · ' + grosTexte() + (nb(a.ptm) ? ' · ' + pct(a.ptm) + ' du marché' + (a.ptm > c + tol && nb(a.prixCible) ? ', sinon baisser à ' + argent(a.prixCible) : '') : (nb(a.prixCible) ? ' · marché ' + argent(a.med) : '')) };
     if (!nb(a.prix)) return { code: 'sansprix', titre: 'Afficher un prix', detail: nb(a.prixCible) ? 'Prix visé ≈ ' + argent(a.prixCible) + ' (' + pct(c) + ' du marché à ' + (a.jours || 0) + ' j)' : 'Aucun prix trouvé sur les sites ni dans D2C, et pas de marché pour ce modèle' };
     if (a.n < 3 || !nb(a.med)) return { code: 'valider', titre: 'Prix à valider', detail: 'Peu de comparables (' + a.n + ') : comparer à la main' };
     if (a.ptm > c + tol) return { code: 'baisser', titre: 'Baisser à ' + argent(a.prixCible), montant: a.ecartCible, detail: signe(a.ecartCible) + ' · ' + pct(a.ptm) + ' du marché, visé ' + pct(c) + ' à ' + a.jours + ' j' + (nb(a.joursPrix) && a.joursPrix >= 14 ? ' · prix inchangé depuis ' + a.joursPrix + ' j' : '') };
@@ -145,6 +153,7 @@
   }
   function alertes(a, p) {
     var l = [];
+    if (voitCouts() && a.coutIllisible) l.push({ t: 'Coût illisible au registre', c: 'rouge', title: 'La cellule « Coût » du registre contient « ' + String(a.coutIllisible).slice(0, 40) + ' » (Sheets l\'a transformée en date) : retapez le coût dans Usagé.' });
     if (voitCouts() && nb(a.ctm) && a.ctm > p.ctmMax) l.push({ t: 'Coût élevé : ' + pct(a.ctm) + ' du marché', c: 'rouge', title: 'Notre coût dépasse ' + p.ctmMax + ' % de la médiane du marché : peu de place pour le prix.' });
     if (nb(a.mds) && a.mds > p.mdsHaut) l.push({ t: 'Offre abondante (MDS ' + a.mds + ' j)', c: 'ambre', title: a.mdsActifs + ' en vente pour ' + a.mdsVendus + ' vendus en 45 jours autour de la concession (MarketCheck).' });
     else if (a.mdsLu && a.mds === null && nb(a.mdsActifs) && a.mdsActifs > 0) l.push({ t: 'Aucune vente en 45 j au marché', c: 'ambre', title: a.mdsActifs + ' en vente, aucun vendu en 45 jours (MarketCheck).' });
@@ -153,18 +162,36 @@
     if (a.elargi) l.push({ t: 'Marché élargi', c: 'gris', title: 'Moins de 3 comparables à l\'année ± 1 et km ± 30 000 : élargi à l\'année ± 2, tout km.' });
     return l;
   }
-  /* Nos ventes au détail des 90 derniers jours (registre Detail : vendus), par modèle. La date de vente est la dernière mise à
-     jour de la ligne (passage à « vendu ») : une approximation, assez juste pour un rythme de vente. */
-  function ventesDe(detail, cie, maintenant) {
-    var out = {}, tot = { n: 0, jours: [] };
+  /* Nos ventes au détail des 90 derniers jours, par modèle : le Livre des ventes (usagés, pas annulés, date de vente) et,
+     pour ce qui n'y est pas (Hawkesbury n'a pas de livre), les véhicules du registre Detail passés à « vendu » (date = dernière
+     mise à jour de la ligne). Délai de vente = date de vente − entrée au registre, quand le NIV y est. */
+  function ventesDe(detail, livre, cie, maintenant) {
+    var out = {}, tot = { n: 0, jours: [], livre: 0, registre: 0 }, entree = {}, vus = {};
+    (detail || []).forEach(function (r) { var v = String(r.vin || '').toUpperCase(); if (v && r.dateAjout) entree[v] = r.dateAjout; });
+    var duree = function (vin, dv) {
+      var e = entree[vin]; if (!e || !dv) return null;
+      var d = Math.round((new Date(String(dv).length === 10 ? dv + 'T12:00:00' : dv).getTime() - new Date(String(e).length === 10 ? e + 'T12:00:00' : e).getTime()) / 86400000);
+      return nb(d) && d >= 0 && d < 730 ? d : null;
+    };
+    var ajouter = function (k, d, src, c) {
+      [k, String(c || '').toUpperCase() + '#' + k].forEach(function (cle) { var x = out[cle] = out[cle] || { n: 0, jours: [] }; x.n++; if (nb(d)) x.jours.push(d); });
+      tot.n++; tot[src]++; if (nb(d)) tot.jours.push(d);
+    };
+    (livre || []).forEach(function (v) {
+      if (v.type !== 'usage' || v.statut === 'annulee') return;
+      if (cie && String(v.compagnie || '').toUpperCase() !== cie) return;
+      var dv = v.dateVente || v.dateLivraison, j = joursEntre(dv, maintenant); if (!nb(j) || j > 90) return;
+      var k = cleModele([v.marque, v.modele].filter(Boolean).join(' ')); if (!k) return;
+      var vin = String(v.vin || '').toUpperCase(); if (vin) vus[vin] = true;
+      ajouter(k, duree(vin, dv), 'livre', v.compagnie);
+    });
     (detail || []).forEach(function (r) {
       if (VENDUS.indexOf(String(r.statut || '')) < 0) return;
       if (cie && String(r.compagnie || '').toUpperCase() !== cie) return;
+      var vin = String(r.vin || '').toUpperCase(); if (vin && vus[vin]) return;
       var j = joursEntre(r.maj, maintenant); if (!nb(j) || j > 90) return;
       var k = cleModele(r.modele); if (!k) return;
-      var d = (r.dateAjout && r.maj) ? Math.round((new Date(r.maj).getTime() - new Date(String(r.dateAjout).length === 10 ? r.dateAjout + 'T12:00:00' : r.dateAjout).getTime()) / 86400000) : null;
-      var x = out[k] = out[k] || { n: 0, jours: [] }; x.n++; tot.n++;
-      if (nb(d) && d >= 0 && d < 730) { x.jours.push(d); tot.jours.push(d); }
+      ajouter(k, duree(vin, r.maj), 'registre', r.compagnie);
     });
     out._tout = tot;
     return out;
@@ -203,6 +230,11 @@
     AMX.inventaire.lire('DETAIL', force).then(function (l) { self.detail = l || []; fin(); }, function () { self.detail = self.detail || []; fin(); });
     if (AMX.openlane && AMX.openlane.charger) AMX.openlane.charger(false).then(fin, function () {});
     if (AMX.manheim && AMX.manheim.charger) AMX.manheim.charger(false).then(function () { self._cle = null; fin(); }, function () {});
+    // Nos ventes : le Livre des ventes complet (copie du navigateur d'abord), si la personne y a accès.
+    if (AMX.ventes && AMX.ventes.charger && (!AMX.sections.ventes || !AMX.sections.ventes.visible || AMX.sections.ventes.visible())) {
+      if (!this.livre && AMX.ventes.copie) AMX.ventes.copie('', 'tout').then(function (o) { if (o && o.donnees && Array.isArray(o.donnees.ventes) && !self.livre) { self.livre = o.donnees.ventes; fin(); } }, function () {});
+      AMX.ventes.charger('', 'tout', false).then(function (d) { if (d && Array.isArray(d.ventes)) { self.livre = d.ventes; fin(); } }, function () {});
+    }
   };
   VueAnalyse.prototype.construire = function () {
     var self = this;
@@ -237,12 +269,12 @@
   VueAnalyse.prototype.p = function () { return params(this.d); };
   /* Tous nos usagés au détail : le registre Detail (en stock, acheté, transit) et ce que le Prix du marché en sait. */
   VueAnalyse.prototype.base = function () {
-    var self = this, cle = [this.d ? this.d.genereLe : '', this.marche ? this.marche.calculeLe || this.marche.le : '', this.detail ? this.detail.length : -1, AMX.inventaire.quand ? AMX.inventaire.quand('DETAIL') : 0,
+    var self = this, cle = [this.d ? this.d.genereLe : '', this.marche ? this.marche.calculeLe || this.marche.le : '', this.detail ? this.detail.length : -1, this.livre ? this.livre.length : -1, AMX.inventaire.quand ? AMX.inventaire.quand('DETAIL') : 0,
       AMX.openlane && AMX.openlane.enCache && AMX.openlane.enCache() ? Object.keys(AMX.openlane.enCache()).length : 0].join('|');
     if (this._cle === cle && this._base) return this._base;
     var p = this.p(), maintenant = Date.now(), mParVin = {};
     ((this.marche && this.marche.vehicules) || []).forEach(function (m) { if (m && m.vin) mParVin[String(m.vin).toUpperCase()] = m; });
-    var ctx = { p: p, maintenant: maintenant, mds: (this.d && this.d.mds) || {}, ventes: ventesDe(this.detail, '', maintenant) };
+    var ctx = { p: p, maintenant: maintenant, mds: (this.d && this.d.mds) || {}, ventes: ventesDe(this.detail, this.livre, '', maintenant) };
     var vus = {}, out = [];
     (this.detail || []).forEach(function (r) {
       var vin = String(r.vin || '').toUpperCase(); if (!vin || STOCK.indexOf(String(r.statut || '')) < 0 || vus[vin]) return;
@@ -347,7 +379,7 @@
     var gros = liste.filter(function (a) { return a.action.code === 'gros'; });
     var mdsMed = mediane(liste.map(function (a) { return a.mds; })), mdsHaut = liste.filter(function (a) { return nb(a.mds) && a.mds > p.mdsHaut; }).length;
     // Nos ventes 90 j des MÊMES modèles que la liste (même concession) : approvisionnement = stock ÷ ventes par jour.
-    var vm = ventesDe(this.detail, this.compagnie, Date.now()), cles = {}, vt = { n: 0, jours: [] };
+    var vm = ventesDe(this.detail, this.livre, this.compagnie, Date.now()), cles = {}, vt = { n: 0, jours: [] };
     liste.forEach(function (a) { if (a.cle) cles[a.cle] = true; });
     Object.keys(cles).forEach(function (k) { var x = vm[k]; if (x) { vt.n += x.n; vt.jours = vt.jours.concat(x.jours); } });
     var appro = vt.n ? Math.round(liste.length / (vt.n / 90)) : null, delai = mediane(vt.jours);
@@ -359,11 +391,11 @@
     if (couts) this.elKpis.appendChild(tuile(pct(ctmMoy), '% coût / marché', 'repère ≤ ' + p.ctmMax + ' %' + (nb(profitMoy) ? ' · profit affiché moyen ' + argent(profitMoy) : ''), nb(ctmMoy) && ctmMoy > p.ctmMax ? 'neg' : '',
       'Notre coût ÷ médiane du marché (vAuto : « cost to market »). Au-delà de ' + p.ctmMax + ' %, il reste peu de place pour le prix.'));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(baisser.length) + ' · ' + AMX.fmtNombre(monter.length), 'À baisser · à monter', baisser.length || monter.length ? signe(somme(baisser.map(function (a) { return a.ecartCible; }))) + ' · ' + signe(somme(monter.map(function (a) { return a.ecartCible; }))) : 'tous dans le profil visé', baisser.length ? 'neg' : ''));
-    this.elKpis.appendChild(tuile(AMX.fmtNombre(gros.length), 'Envisager le gros', p.ageGros + ' j et plus, au-dessus du marché ou en offre abondante', gros.length ? 'neg' : ''));
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(gros.length), 'Envisager le gros', p.ageGros + ' j et plus en stock (valeur OpenLane dans le conseil)', gros.length ? 'neg' : ''));
     this.elKpis.appendChild(tuile(nb(mdsMed) ? Math.round(mdsMed) + ' j' : '—', 'MDS (médiane)', nb(mdsMed) ? mdsHaut + ' modèle(s) au-dessus de ' + p.mdsHaut + ' j' : ((this.d && this.d.ancien) ? 'après le déploiement du script' : 'lu aux 2 heures par MarketCheck'), '',
       'Market days supply : annonces en vente ÷ ventes par jour des 45 derniers jours, même année-marque-modèle, autour de la concession (MarketCheck).'));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(vt.n), 'Nos ventes · mêmes modèles', '90 j · ' + (nb(delai) ? 'délai médian ' + Math.round(delai) + ' j' : 'délai inconnu') + (nb(appro) ? ' · ' + appro + ' j d\'approvisionnement' : '') + (couts && detJour ? ' · détention ' + argent(detJour) + '/j' : ''), '',
-      'Véhicules des mêmes modèles que la liste, passés à « vendu » au registre Detail dans les 90 derniers jours. Approvisionnement = usagés de la liste ÷ ventes par jour. Détention = coût × ' + p.tauxDetention + ' % par an.'));
+      'Usagés des mêmes modèles que la liste vendus dans les 90 derniers jours : Livre des ventes (et, pour ce qui n\'y est pas, le registre Detail passé à « vendu »). Délai = date de vente − entrée au registre. Approvisionnement = usagés de la liste ÷ ventes par jour. Détention = coût × ' + p.tauxDetention + ' % par an.'));
   };
   /* Profil de prix par âge (vAuto « pricing profile ») : le % du marché moyen de chaque tranche contre le % visé. */
   VueAnalyse.prototype.rendreProfil = function (liste) {
@@ -451,9 +483,9 @@
     var ctm = couts ? h('div.anu-ctm', [h('b' + (nb(a.ctm) && a.ctm > p.ctmMax ? '.neg' : ''), { text: pct(a.ctm) }), h('div.mini', { text: nb(a.profitAff) ? 'profit affiché ' + signe(a.profitAff) : (nb(a.cout) ? 'coût ' + argent(a.cout) : 'coût inconnu') }),
       a.coutSource === 'manheim' ? h('div.mini.doux', { text: 'coût = prix payé Manheim', title: 'Pas de coût au registre : le prix payé sur Manheim sert de coût (sans les frais).' }) : null,
       nb(a.detention) && a.detention >= 50 ? h('div.mini.doux', { text: 'détention ' + argent(a.detention) }) : null]) : null;
-    var appro = (this._ctx && this._ctx.ventes[a.cle]) || null;
     var mds = h('div.anu-mds', [h('b', { text: nb(a.mds) ? a.mds + ' j' : (a.mdsLu ? (nb(a.mdsActifs) && a.mdsActifs > 0 ? '∞' : '—') : '—'), title: a.mdsLu ? (a.mdsActifs + ' en vente, ' + a.mdsVendus + ' vendus en 45 jours (MarketCheck)') : 'Pas encore lu' }),
-      h('div.mini' + (a.ventes90 ? '' : '.doux'), { text: a.ventes90 ? a.ventes90 + ' vendu' + (a.ventes90 > 1 ? 's' : '') + ' chez nous (90 j)' : 'aucun vendu chez nous (90 j)', title: appro && appro.jours.length ? 'Délai médian de vente : ' + Math.round(mediane(appro.jours)) + ' j' : '' })]);
+      h('div.mini' + (a.ventes90 || a.ventes90Groupe ? '' : '.doux'), { text: (a.ventes90 ? a.ventes90 + ' vendu' + (a.ventes90 > 1 ? 's' : '') + ' ici' : 'aucun vendu ici') + (a.ventes90Groupe > a.ventes90 ? ' · ' + a.ventes90Groupe + ' au groupe' : '') + ' (90 j)',
+        title: 'Même modèle, 90 derniers jours (Livre des ventes)' + (nb(a.delaiVente) ? ' · délai médian de vente ici : ' + a.delaiVente + ' j' : '') })]);
     var lib = A_LIB[a.action.code] || A_LIB.ok;
     var conseilEl = h('div.anu-conseil', [h('span.puce.' + lib.c + '.anu-action', { text: a.action.titre }), h('div.mini', { text: a.action.detail })]);
     var menu = AMX.menuActions ? AMX.menuActions([
@@ -542,7 +574,7 @@
         'Tranche': libTranche(a.tranche, p.tranches), 'Notre prix': a.prix, 'Source du prix': a.source === 'site' ? 'site (D2C)' : (a.source ? 'annonce' : ''), 'Prix d\'avant': a.avant, 'Prix changé le': a.changeLe,
         'Médiane du marché (ajustée au km)': a.med, 'Comparables': a.n, 'Rang (du moins cher)': a.rang, '% du marché': a.ptm, '% visé': a.cible, 'Prix visé': a.prixCible, 'Écart au prix visé': a.ecartCible };
       if (couts) { o['Coût'] = a.cout; o['Source du coût'] = a.coutSource === 'manheim' ? 'prix payé Manheim' : (a.coutSource ? 'registre' : ''); o['% coût / marché'] = a.ctm; o['Profit affiché'] = a.profitAff; o['Profit au marché'] = a.profitMarche; o['Coût de détention cumulé'] = nb(a.detention) ? Math.round(a.detention) : null; o['Gros OpenLane'] = a.gros; o['Gros − coût'] = a.grosEcart; }
-      o['MDS (j)'] = a.mds; o['En vente (MarketCheck)'] = a.mdsActifs; o['Vendus 45 j (MarketCheck)'] = a.mdsVendus; o['Nos ventes du modèle (90 j)'] = a.ventes90;
+      o['MDS (j)'] = a.mds; o['En vente (MarketCheck)'] = a.mdsActifs; o['Vendus 45 j (MarketCheck)'] = a.mdsVendus; o['Nos ventes du modèle ici (90 j)'] = a.ventes90; o['Nos ventes du modèle au groupe (90 j)'] = a.ventes90Groupe; o['Délai de vente ici (j)'] = a.delaiVente;
       o['Conseil'] = a.action.titre; o['Détail'] = a.action.detail; o['Alertes'] = a.alertes.map(function (x) { return x.t; }).join(' · ');
       return o;
     });

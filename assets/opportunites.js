@@ -394,6 +394,14 @@
     if (f.statut) actifs.push(STATUTS.filter(function (s) { return s[0] === f.statut; })[0][1]);
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['annonce', 'annonces'], contexte: [this.compagnie ? 'transport vers ' + (COURTS[this.compagnie] || this.compagnie) : 'concession la plus avantageuse', f.vue === 'top' ? 'bons achats + ' + ((p.topParMarque || 20)) + ' meilleures par marque' : (f.vue === 'bons' ? 'bons achats (prix ≤ gros OpenLane)' : 'toutes les annonces')],
       filtres: actifs, effacer: function () { var v = f.vue, t = f.tri; self.f = self.filtresDefaut(); self.f.vue = v; self.f.tri = t; self.f.modeles = { mode: 'exclure', liste: [], noms: {} }; AMX.memo.ecrire('occ_modeles', ''); self.elQ.value = ''; self.rendre(); } });
+    // Une concession choisie en haut ne voit que les marques qu'elle vend (24 oct. : « je ne vois aucun BMW » — Hawkesbury
+    // était choisie). On le dit, avec un bouton pour voir toutes les concessions.
+    if (this.compagnie) {
+      var autres = {}, nAutres = 0;
+      (d.occasions || []).forEach(function (o) { if (!self.calc(o)) { var m = nomMarque(o.marque); autres[m] = (autres[m] || 0) + 1; nAutres++; } });
+      if (nAutres) this.elPortee.appendChild(h('div.occ-autres', [h('span', { text: AMX.fmtNombre(nAutres) + ' annonce' + (nAutres > 1 ? 's' : '') + ' d\'autres marques (' + Object.keys(autres).sort().join(', ') + ') : ' + (COURTS[this.compagnie] || this.compagnie) + ' ne les vend pas.' }),
+        h('button.btn.petit#occ-toutes-cies', { type: 'button', text: 'Voir toutes les concessions', onclick: function () { AMX.choisirCompagnie(''); self.compagnie = ''; self.rendre(); } })]));
+    }
     this.rendreKpis(liste, p);
     this.rendreListe(liste, p);
   };
@@ -590,6 +598,7 @@
       '.occ-select { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--encre-3); }',
       '.occ-select > span { font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }',
       '.occ-kpis { margin-bottom: 14px; }',
+      '.occ-autres { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; padding: 6px 10px; border-radius: 8px; background: var(--ambre-bg, #FFF4E0); color: var(--ambre); font-size: 13px; }',
       '.occ-modeles-env { margin-left: 0; }',
       '.occ-pop-modeles { width: 320px; left: 0; right: auto; }',
       '.occ-mode { display: flex; }',

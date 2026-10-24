@@ -21,7 +21,10 @@
   var V_LIB = {}; VERDICTS.forEach(function (v) { V_LIB[v[0]] = { t: v[2], c: v[3] }; });
   var TRIS_M = [['ecart', 'Écart au marché'], ['jours', 'Jours en stock'], ['comps', 'Nombre de comparables'], ['modele', 'Modèle']];
   var RAYONS = [[25, '25 km'], [50, '50 km'], [100, '100 km'], [0, 'Tout le rayon lu']];
-  var SITES = { autotrader: 'AutoTrader.ca', cargurus: 'CarGurus.ca', kijiji: 'Kijiji', carpages: 'Carpages.ca' };
+  var SITES = { autotrader: 'AutoTrader.ca', cargurus: 'CarGurus.ca', kijiji: 'Kijiji', carpages: 'Carpages.ca', site: 'site de la concession' };
+  /* Notre prix : notre annonce trouvée par le robot, sinon le prix du site de la concession (import D2C Media). */
+  function sourceNotre(n) { return n.source === 'site' ? 'site de la concession' + (n.le ? ' (D2C, ' + AMX.fmtDate(n.le) + ')' : '') : (SITES[n.site] || 'annonce'); }
+  function texteComps(v) { return v.n + ' comparable' + (v.n > 1 ? 's' : '') + (v.elargi ? ' (élargi)' : ''); }
   var LIMITE = 100;
 
   function nb(v) { return typeof v === 'number' && isFinite(v); }
@@ -174,7 +177,7 @@
     var laisse = bas.reduce(function (s, v) { return s + (nb(v.ecart) ? -v.ecart : 0); }, 0);
     var jours = mediane(liste.map(function (v) { return v.joursMed; }).filter(nb));
     var tuile = function (val, lib, sous, cls) { return h('div.kpi.inv2-fixe' + (cls ? '.' + cls : ''), [h('div.valeur', { text: val }), h('div.libelle', { text: lib }), h('div.sous', { text: sous })]); };
-    this.elKpis.appendChild(tuile(AMX.fmtNombre(liste.length), 'Usagés', AMX.fmtNombre(avecPrix.length) + ' avec notre annonce trouvée'));
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(liste.length), 'Usagés', AMX.fmtNombre(avecPrix.length) + ' avec notre prix affiché'));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(chers.length), 'Trop chers', chers.length ? 'écart moyen ' + pct(moy(chers)) : 'au-dessus du marché + ' + ((this.d.etat || {}).seuilPct || 5) + ' %', chers.length ? 'neg' : ''));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(bas.length), 'Pas assez chers', bas.length ? '≈ ' + argent(laisse) + ' sous la médiane' : 'sous le marché − ' + ((this.d.etat || {}).seuilPct || 5) + ' %', bas.length ? 'bleu' : ''));
     this.elKpis.appendChild(tuile(nb(jours) ? jours + ' j' : '—', 'Âge des annonces', 'médiane chez les concurrents (mêmes modèles)'));
@@ -197,10 +200,10 @@
       h('div.nom', [h('span', { text: vehicule(v), title: v.vin })]),
       h('div.mini', { text: [v.stock ? '# ' + v.stock : '', km(v.km), COURTS[v.compagnie] || v.compagnie, nb(jours) ? jours + ' j en stock' : ''].filter(Boolean).join(' · ') })])]);
     var notre = h('div.occm-notre', v.notre && nb(v.notre.prix) ? [h('b', { text: argent(v.notre.prix) }),
-      h('div.mini', [SITES[v.notre.site] || 'annonce', nb(v.notre.jours) ? ' · en ligne ' + v.notre.jours + ' j' : '', ' ', lien(v.notre.lien, '↗')])]
-      : [h('span.doux', { text: 'introuvable' }), h('div.mini.doux', { text: 'pas dans les sites lus' })]);
+      h('div.mini', [sourceNotre(v.notre), nb(v.notre.jours) ? ' · en ligne ' + v.notre.jours + ' j' : '', ' ', v.notre.lien ? lien(v.notre.lien, '↗') : null])]
+      : [h('span.doux', { text: 'inconnu' }), h('div.mini.doux', { text: 'ni dans les sites lus ni dans D2C' })]);
     var marche = h('div.occm-marche', nb(v.mediane) ? [h('b', { text: argent(v.mediane) }),
-      h('div.mini', { text: v.n + ' comparable' + (v.n > 1 ? 's' : '') + (v.n >= 4 ? ' · ' + argent(v.p25) + ' à ' + argent(v.p75) : '') })]
+      h('div.mini', { text: texteComps(v) + (v.n >= 4 ? ' · ' + argent(v.p25) + ' à ' + argent(v.p75) : ''), title: v.elargi ? 'Moins de 3 comparables à l\'année ± 1 et km ± 30 000 : élargi à l\'année ± 2, tout km (prix toujours ajusté à notre km).' : '' })]
       : [h('span.doux', { text: 'aucun comparable' })]);
     var ecart = h('div.occm-ecart', [puceVerdict(v.verdict),
       nb(v.ecartPct) ? h('div.' + (v.verdict === 'cher' ? 'neg' : (v.verdict === 'bas' ? 'bleu' : 'doux')), { text: pct(v.ecartPct) + ' · ' + signe(v.ecart) }) : null,
@@ -219,7 +222,7 @@
     });
     return h('div.occm-comps', [
       h('table.occm-table', [h('thead', [h('tr', ['Comparable', 'Km', 'Prix', 'Ajusté à ' + (nb(v.km) ? AMX.fmtNombre(v.km) + ' km' : 'notre km'), 'Concessionnaire', 'En ligne', ''].map(function (t) { return h('th', { text: t }); }))]), h('tbody', lignes)]),
-      h('div.mini.doux', { text: 'Les ' + (v.comps || []).length + ' moins chers' + (v.n > (v.comps || []).length ? ' sur ' + v.n : '') + ' · même modèle, année ± 1, km ± 30 000 · prix ajusté à notre km (' + String(nb(taux) ? taux : 0.1).replace('.', ',') + ' $ par km d\'écart).' })
+      h('div.mini.doux', { text: 'Les ' + (v.comps || []).length + ' moins chers' + (v.n > (v.comps || []).length ? ' sur ' + v.n : '') + ' · même modèle, ' + (v.elargi ? 'année ± 2, tout km (élargi : trop peu à l\'année ± 1 et km ± 30 000)' : 'année ± 1, km ± 30 000') + ' · prix ajusté à notre km (' + String(nb(taux) ? taux : 0.1).replace('.', ',') + ' $ par km d\'écart).' })
     ]);
   }
 
@@ -348,8 +351,8 @@
       if (!v) { conteneur.appendChild(h('div.mini.doux', { text: d && d.le ? 'Pas dans la lecture du marché du ' + AMX.fmtDate(d.le) + ' (véhicule ajouté depuis, ou modèle non reconnu).' : 'Lecture du marché pas encore faite (le lundi).' })); return; }
       conteneur.appendChild(h('div.occm-bloc', [
         h('div.occm-bloc-ligne', [puceVerdict(v.verdict, true),
-          v.notre && nb(v.notre.prix) ? h('span', [h('span.doux', { text: 'Notre annonce ' }), h('b', { text: argent(v.notre.prix) }), v.notre.lien ? h('span', [' ', lien(v.notre.lien, '↗')]) : null]) : h('span.doux', { text: 'Notre annonce : introuvable dans les sites lus' }),
-          nb(v.mediane) ? h('span', [h('span.doux', { text: 'Marché ' }), h('b', { text: argent(v.mediane) }), h('span.doux', { text: ' (' + v.n + ' comparable' + (v.n > 1 ? 's' : '') + ', ajusté au km)' })]) : null,
+          v.notre && nb(v.notre.prix) ? h('span', [h('span.doux', { text: 'Notre prix ' }), h('b', { text: argent(v.notre.prix) }), v.notre.lien ? h('span', [' ', lien(v.notre.lien, '↗')]) : h('span.doux', { text: ' (' + sourceNotre(v.notre) + ')' })]) : h('span.doux', { text: 'Notre prix affiché : inconnu' }),
+          nb(v.mediane) ? h('span', [h('span.doux', { text: 'Marché ' }), h('b', { text: argent(v.mediane) }), h('span.doux', { text: ' (' + texteComps(v) + ', ajusté au km)' })]) : null,
           nb(v.ecartPct) ? h('span.' + (v.verdict === 'cher' ? 'neg' : (v.verdict === 'bas' ? 'bleu' : 'doux')), { text: pct(v.ecartPct) + (nb(v.rang) ? ' · ' + rangTexte(v.rang, v.n + 1) : '') }) : null]),
         nb(v.joursMed) ? h('div.mini.doux', { text: 'Les annonces comparables sont en ligne depuis ' + v.joursMed + ' j (médiane) · lecture du ' + AMX.fmtDate(d.le) }) : null,
         h('button.lien', { type: 'button', text: 'Voir les comparables ›', onclick: function () { AMX.aller('outils', 'opportunites', { onglet: 'marche', q: v.stock || v.vin }); } })

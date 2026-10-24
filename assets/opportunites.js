@@ -39,6 +39,12 @@
   function ageJ(iso) { if (!iso) return Infinity; var t = new Date(iso).getTime(); return isFinite(t) ? (Date.now() - t) / 86400000 : Infinity; }
   function vehicule(o) { return [o.annee, o.marque, o.modele, o.version].filter(Boolean).join(' '); }
   function nomMarque(m) { var x = String(m || ''); if (/^(GMC|BMW|VW)$/i.test(x)) return x.toUpperCase(); return x.charAt(0).toUpperCase() + x.slice(1).toLowerCase(); }
+  /* Même score que le serveur (OCC_score_) : le gros d'abord ; le détail seulement confirmé ; un prix à vérifier en dernier. */
+  function scoreDe(k, marge) {
+    if (!k || k.suspect) return -1e12;
+    if (!nb(k.profitGros)) return nb(k.profitDetail) ? k.profitDetail - marge - 100000 : -1e11;
+    return Math.max(k.profitGros, (k.oppDetail && nb(k.profitDetail)) ? k.profitDetail - marge : -1e11);
+  }
   function ton(v) { return !nb(v) ? 'neutre' : (v > 0 ? 'pos' : (v < 0 ? 'neg' : 'neutre')); }
 
   /* ------------------------------ Données ------------------------------ */
@@ -185,8 +191,7 @@
       if (t === 'km') return -(num(o.km) || 1e12);
       if (t === 'nouveau') return new Date(o.premiereVue || 0).getTime();
       if (t === 'distance') return -(nb(k.distance) ? k.distance : 1e12);
-      var a = nb(k.profitGros) ? k.profitGros : -1e12, b = nb(k.profitDetail) ? k.profitDetail - ((self.donnees.params || {}).marge || 0) : -1e12;
-      return Math.max(a, b);
+      return scoreDe(k, (self.donnees.params || {}).marge || 0);
     };
     return l.slice().sort(function (x, y) { return v(y) - v(x); });
   };
@@ -279,15 +284,17 @@
     var ks = liste.map(function (o) { return self.calc(o) || {}; });
     var gros = ks.filter(function (k) { return k.oppGros; }), det = ks.filter(function (k) { return k.oppDetail; });
     var meilleur = null; liste.forEach(function (o, i) {
-      var k = ks[i], g = nb(k.profitGros) ? k.profitGros : -1e12, dd = nb(k.profitDetail) ? k.profitDetail - (p.marge || 0) : -1e12, s = Math.max(g, dd);
-      if (s > -1e11 && (!meilleur || s > meilleur.s)) meilleur = { o: o, s: s, profit: g >= dd ? k.profitGros : k.profitDetail, ou: g >= dd ? 'au gros' : 'au détail' };
+      var k = ks[i]; if (k.suspect || !(k.oppGros || k.oppDetail)) return;
+      var g = nb(k.profitGros) ? k.profitGros : -1e12, dd = (k.oppDetail && nb(k.profitDetail)) ? k.profitDetail - (p.marge || 0) : -1e12, s = Math.max(g, dd);
+      if (!meilleur || s > meilleur.s) meilleur = { o: o, s: s, profit: g >= dd ? k.profitGros : k.profitDetail, ou: g >= dd ? 'au gros' : 'au détail' };
     });
+    var suspects = ks.filter(function (k) { return k.suspect; }).length;
     var nouv = liste.filter(function (o) { return ageJ(o.premiereVue) < 2; }).length, baisses = liste.filter(function (o) { return o.baisseLe && ageJ(o.baisseLe) < 7; }).length;
     var tuile = function (valeur, libelle, sous, cls) { return h('div.kpi.inv2-fixe' + (cls ? '.' + cls : ''), [h('div.valeur', { text: valeur }), h('div.libelle', { text: libelle }), h('div.sous', { text: sous })]); };
     this.elKpis.appendChild(tuile(AMX.fmtNombre(gros.length), 'Au gros', 'profit ≥ ' + argent(p.seuilGros) + ' contre la prévision OpenLane', 'pos'));
-    this.elKpis.appendChild(tuile(AMX.fmtNombre(det.length), 'Au détail', 'profit ≥ la marge visée (' + argent(p.marge) + ')', 'pos'));
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(det.length), 'Au détail', 'profit ≥ ' + argent(p.marge) + ', confirmé par OpenLane (coût ≤ gros + ' + (p.detailSurGros || 0) + ' %)', 'pos'));
     this.elKpis.appendChild(tuile(meilleur ? signe(meilleur.profit) : '—', 'Meilleure', meilleur ? meilleur.ou + ' · ' + vehicule(meilleur.o) + ' · ' + (meilleur.o.ville || '') : 'rien pour ces filtres'));
-    this.elKpis.appendChild(tuile(AMX.fmtNombre(nouv), 'Nouvelles', 'vues pour la première fois depuis 48 h · ' + baisses + ' baisse' + (baisses > 1 ? 's' : '') + ' de prix (7 j)'));
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(nouv), 'Nouvelles', 'vues depuis 48 h · ' + baisses + ' baisse' + (baisses > 1 ? 's' : '') + ' de prix (7 j)' + (suspects ? ' · ' + suspects + ' prix à vérifier' : '')));
   };
 
   Opportunites.prototype.rendreListe = function (liste, p) {
@@ -317,12 +324,15 @@
       h('div.mini', gmf ? [h('span.puce.gmf', { text: 'DealerSource' }), ' ', [o.typeInv, o.cote ? 'cote ' + o.cote : '', nb(num(o.dommages)) ? 'dommages ' + argent(num(o.dommages)) : '', o.finVente ? 'fin ' + AMX.fmtDate(o.finVente, true) : '', nb(num(o.offres)) ? num(o.offres) + ' offre' + (num(o.offres) > 1 ? 's' : '') : ''].filter(Boolean).join(' · ')]
         : [h('span.puce.mc', { text: 'Concessionnaire' }), nb(num(o.jours)) ? ' en ligne depuis ' + num(o.jours) + ' j' : ''])]);
     var prix = h('div.occ-prix', [h('b', { text: argent(num(o.prix)) }),
+      k.suspect ? h('span.puce.suspect', { text: 'Prix à vérifier', title: 'Très bas devant la prévision OpenLane ou le marché : souvent un acompte, un paiement ou une erreur d\'annonce' }) : null,
       baisse ? h('div.mini.pos', { text: '↓ était ' + argent(num(o.prixPrecedent)) }) : null,
       gmf && nb(num(o.mise)) ? h('div.mini', { text: 'mise ' + argent(num(o.mise)) + (nb(num(o.pdsf)) ? ' · PDSF ' + argent(num(o.pdsf)) : '') }) : null]);
     var trans = h('div.occ-trans', [h('div', { text: (k.approx ? '≈ ' : '') + argent(k.transport) }), h('div.mini', { text: (COURTS[k.dest] || k.dest || '') + (nb(k.distance) ? ' · ' + AMX.fmtNombre(k.distance) + ' km' : '') + (k.approx ? ' (ville approx.)' : '') })]);
-    var gros = h('div.occ-gros', nb(num(o.olPrix)) ? [h('div', { text: argent(num(o.olPrix)) }), h('b.' + ton(k.profitGros) + (k.oppGros ? '.opp' : ''), { text: signe(k.profitGros) })]
+    var gros = h('div.occ-gros', nb(num(o.olPrix)) ? [h('div', { text: argent(num(o.olPrix)) }), h('b.' + (k.suspect ? 'neutre' : ton(k.profitGros)) + (k.oppGros ? '.opp' : ''), { text: signe(k.profitGros) })]
       : [h('span.doux', { text: o.olErreur ? 'pas de prévision' : 'à lire' })]);
-    var det = h('div.occ-det', nb(k.refAjuste) ? [h('div', { text: argent(k.refAjuste), title: 'Prix médian du ' + o.annee + ' ' + o.marque + ' ' + o.modele + ' au Canada (' + (o.refN || '?') + ' annonces), ajusté au km' }), h('b.' + ton(k.profitDetail - (p.marge || 0)) + (k.oppDetail ? '.opp' : ''), { text: signe(k.profitDetail) }), h('div.mini', { text: 'achat max. ' + argent(k.achatMax) })]
+    var det = h('div.occ-det', nb(k.refAjuste) ? [h('div', { text: argent(k.refAjuste), title: 'Prix médian du ' + o.annee + ' ' + o.marque + ' ' + o.modele + ' au Canada (' + (o.refN || '?') + ' annonces, toutes versions), ajusté au km' }),
+      h('b.' + (k.oppDetail ? 'pos.opp' : (nb(k.profitDetail) && k.profitDetail < 0 ? 'neg' : 'neutre')), { text: signe(k.profitDetail) }),
+      h('div.mini', { text: 'achat max. ' + argent(k.achatMax) + (!k.oppDetail && nb(k.profitDetail) && k.profitDetail >= (p.marge || 0) && !k.suspect ? ' · à confirmer' : '') }), h('div.mini.doux', 'toutes versions')]
       : [h('span.doux', { text: 'pas de référence' })]);
     var actions = h('div.occ-act', [
       o.lien ? h('a.btn.petit', { href: o.lien, target: '_blank', rel: 'noopener', text: 'Annonce ↗' }) : null,
@@ -389,6 +399,7 @@
     ['transportBase', 'Transport : montant de base', '$', 25], ['transportKm', 'Transport : par km de route', '$/km', 0.05], ['facteurRoute', 'Distance de route ÷ vol d\'oiseau', '×', 0.05],
     ['recon', 'Reconditionnement prévu (détail)', '$', 100], ['frais', 'Frais d\'achat (inspection, immatriculation, encan…)', '$', 50], ['marge', 'Marge visée au détail', '$', 250],
     ['tauxKm', 'Ajustement du prix au km', '$/km', 0.01], ['seuilGros', 'Profit minimal au gros', '$', 100],
+    ['detailSurGros', 'Détail : coût rendu au plus le gros OpenLane +', '%', 1], ['suspectPct', 'Prix à vérifier sous ce % de la prévision OpenLane', '%', 5],
     ['budgetMois', 'Appels MarketCheck par mois (outil)', 'appels', 50], ['garderParUnite', 'Annonces gardées par modèle-année', '', 1], ['olParPassage', 'Prévisions OpenLane par passage', '', 1]
   ];
   Opportunites.prototype.reglages = function () {
@@ -401,7 +412,7 @@
     var prov = h('input.saisie', { type: 'text', value: (p.provinces || []).join(', '), placeholder: 'vide = tout le Canada (ex. QC, ON)' });
     var marques = h('p.mini', { text: 'Marques suivies : ' + Object.keys(p.marques || {}).map(function (m) { return m + ' → ' + (p.marques[m] || []).map(function (c) { return COURTS[c] || c; }).join(', '); }).join(' · ') });
     var corps = h('div', [grille, h('label.occ-prov', [h('span', 'Provinces (sigles, séparés par des virgules)'), prov]), marques,
-      h('p.mini.doux', 'Profit au gros = prévision OpenLane − (prix + transport + frais). Profit au détail = prix médian du modèle-année au Canada ajusté au km − recon (ou les dommages estimés s\'ils sont plus élevés) − (prix + transport + frais). Une année ou un km changé relance la découverte des modèles au prochain passage.')]);
+      h('p.mini.doux', 'Profit au gros = prévision OpenLane − (prix + transport + frais). Profit au détail = prix médian du modèle-année au Canada (toutes versions) ajusté au km − recon (ou les dommages estimés s\'ils sont plus élevés) − (prix + transport + frais) ; il ne compte comme opportunité que si OpenLane le confirme (coût rendu au plus le gros + le % ci-dessus). Un prix sous le % indiqué de la prévision OpenLane est marqué « à vérifier » (acompte, paiement ou erreur). Une année ou un km changé relance la découverte des modèles au prochain passage.')]);
     AMX.modale({ titre: 'Réglages — opportunités d\'achat', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
       var params = {}; Object.keys(champs).forEach(function (k) { var v = num(champs[k].value); if (v !== null) params[k] = v; });
       params.provinces = prov.value;
@@ -471,6 +482,7 @@
       '.occ-page .puce.gmf { background: #EEF2FF; color: #3730A3; } .occ-page .puce.mc { background: var(--fond); color: var(--encre-2); }',
       '.occ-page .puce.st-suivie { background: var(--vert-clair); color: var(--vert-fonce); } .occ-page .puce.st-ecartee { background: var(--fond); color: var(--encre-3); } .occ-page .puce.st-achetee { background: #FEF3C7; color: var(--ambre); }',
       '.occ-plus { margin: 10px 14px; }',
+      '.occ-page .puce.suspect { display: inline-block; margin-top: 4px; background: #FEF3C7; color: var(--ambre); }',
       '.occ-reglages { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 14px; }',
       '.occ-reglages label, .occ-prov { display: grid; gap: 4px; font-size: 12.5px; color: var(--encre-2); } .occ-prov { margin-top: 12px; }',
       '@media (max-width: 1100px) { .occ-rangee { grid-template-columns: 1fr 1fr; } .occ-rangee.occ-tete { display: none; } .occ-act { justify-content: flex-start; } }'

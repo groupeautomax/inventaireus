@@ -783,6 +783,7 @@
     { id: 'inventaire', titre: 'Inventaire', icone: 'inventaire', ordre: 20, onglets: [
       { id: 'neufs', titre: 'Neufs', de: 'inventaire', onglet: 'neufs' },
       { id: 'usage', titre: 'Usagé', de: 'inventaire', onglet: 'usage' },
+      { id: 'analyse', titre: 'Analyse usagé', de: 'analyse', onglet: '' },   /* 24 oct. : façon vAuto — % du marché, rang, jours, MDS, profil de prix par âge (analyse-usage.js) */
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '' },
       { id: 'evaluations', titre: 'Évaluations', de: 'outils', vues: [{ id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] },
       { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '' },   /* 22 oct. : dépôt d'une liste (PDF, Excel, CSV) → où est chaque véhicule ; audit dans l'app (listes.js) */

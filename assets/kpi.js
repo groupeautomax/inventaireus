@@ -31,14 +31,25 @@
   var ORDRE = ['STM', 'HAWKS', 'BMW', 'VW', 'HYUNDAI'];
   var COURTS = { STM: 'Ste Marie', HAWKS: 'Hawkesbury', BMW: 'BMW', VW: 'VW', HYUNDAI: 'Hyundai' };
   var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-  var GROUPES = [['volume', 'Volume (unités)'], ['profit', 'Profit brut'], ['revenue_expense', 'Revenus et dépenses'], ['net', 'Profit net'], ['ebitda', 'BAIIA / EBT'], ['other', 'Autres indicateurs']];
+  var GROUPES = [['volume', 'Volume (unités)'], ['unite', 'Par unité vendue'], ['profit', 'Profit brut'], ['apv', 'Après-vente — par bon de travail'], ['revenue_expense', 'Revenus et dépenses'], ['net', 'Profit net'], ['ebitda', 'BAIIA / EBT'], ['other', 'Autres indicateurs']];
+  // 24 oct. (Maxime : « ne pas oublier les indicateurs clés par unité, par $ de vente de bon de travail ») : les ratios par
+  // unité du tableau de bord passent dans « Par unité vendue » ; les sommes du groupe « cache » ne servent qu'aux ratios.
+  var GROUPE_FORCE = { gpa_neuf: 'unite', gpa_usage: 'unite', pbv_unite_neuf: 'unite', fi_unite_neuf: 'unite', pbv_unite_usage: 'unite', fi_unite_usage: 'unite' };
+  var ORDRE_UNITE = ['u_total', 'pb_unite_total', 'pn_unite', 'dep_unite', 'gpa_neuf', 'pbv_unite_neuf', 'fi_unite_neuf', 'gpa_usage', 'pbv_unite_usage', 'fi_unite_usage'];
+  function groupeDe(lib, k) { return GROUPE_FORCE[k] || (lib[k] || {}).g || 'other'; }
   // Dépenses : le fichier les garde négatives ; on les montre positives (comme le tableau de bord).
   var NEGATIFS = { depenses: 1, depenses_variables: 1, depenses_personnel: 1, depenses_semifixes: 1 };
-  var MOINS_MIEUX = { depenses: 1, depenses_variables: 1, depenses_personnel: 1, depenses_semifixes: 1, total_variables: 1, total_personnel: 1, total_semifixes: 1, total_depenses: 1, impot: 1, amort_interets: 1, amortissement: 1 };
+  var MOINS_MIEUX = { depenses: 1, depenses_variables: 1, depenses_personnel: 1, depenses_semifixes: 1, total_variables: 1, total_personnel: 1, total_semifixes: 1, total_depenses: 1, impot: 1, amort_interets: 1, amortissement: 1, dep_unite: 1 };
   // Ratios : recalculés à partir des sommes (numérateur, dénominateur) pour le groupe.
   var RATIOS = { ebt_pct_profit_brut: ['ebt', 'pb_total'], ros: ['ebt', 'ventes_nettes'], gpa_neuf: ['pb_neuf', 'unites_neuf'], gpa_usage: ['pb_usage', 'unites_usage'],
-    pbv_unite_neuf: ['pbv_neuf', 'unites_neuf'], fi_unite_neuf: ['fi_neuf', 'unites_neuf'], pbv_unite_usage: ['pbv_usage', 'unites_usage'], fi_unite_usage: ['fi_usage', 'unites_usage'] };
+    pbv_unite_neuf: ['pbv_neuf', 'unites_neuf'], fi_unite_neuf: ['fi_neuf', 'unites_neuf'], pbv_unite_usage: ['pbv_usage', 'unites_usage'], fi_unite_usage: ['fi_usage', 'unites_usage'],
+    // Par unité vendue et par bon de travail (export_scanautomax.py, INDICATEURS_UNITE)
+    pb_unite_total: ['vh_pb', 'u_total'], pn_unite: ['profit_net', 'u_total'], dep_unite: ['dep_abs', 'u_total'],
+    av_tot_bt: ['av_tot', 'av_bt'], av_mo_bt: ['av_mo', 'av_bt'], av_pc_bt: ['av_pc', 'av_bt'], av_pb_bt: ['av_pb', 'av_bt'], av_pb_dollar: ['av_pb', 'av_tot'],
+    av_marge_mo: ['av_mopb', 'av_mo'], av_pc_mo: ['av_pc', 'av_mo'], av_tot_bt_client: ['av_tot_client', 'av_bt_client'], av_mo_bt_client: ['av_mo_client', 'av_bt_client'],
+    av_pb_bt_client: ['av_pb_client', 'av_bt_client'], av_h_bt: ['av_h', 'av_h_n'], av_elr: ['av_h_mo', 'av_h'], av_marge_pieces: ['av_pieces_pb', 'av_pieces_v'], av_carr_bt: ['av_carr_v', 'av_carr_n'] };
   var TUILES = [['profit_net', 'Profit net'], ['pb_total', 'Profit brut'], ['ventes_nettes', 'Ventes nettes'], ['depenses', 'Dépenses'], ['unites_neuf', 'Unités neuves'], ['unites_usage', 'Unités usagées'], ['ebt_pct_profit_brut', 'EBT % du profit brut']];
+  var TUILES_UNITE = [['pb_unite_total', 'Profit brut par unité vendue'], ['pn_unite', 'Profit net par unité vendue'], ['av_tot_bt', 'Vente par bon de travail'], ['av_pb_bt', 'Profit brut par BT'], ['av_pb_dollar', 'Profit brut par $ de vente de BT'], ['av_tot_bt_client', 'Vente par BT client']];
   var TABLEAU = [['profit_net', 'Profit net'], ['pb_total', 'Profit brut'], ['ventes_nettes', 'Ventes nettes'], ['unites_neuf', 'Unités neuves'], ['unites_usage', 'Unités usagées'], ['ebt_pct_profit_brut', 'EBT % PB']];
   var DEPTS = ['Véhicules neufs', 'Véhicules usagés', 'Service', 'Carrosserie', 'Pièces'];
   var DEPTS_CACHES = { Boutique: 1 };
@@ -163,7 +174,8 @@
   Moteur.prototype.format = function (k, v, court) {
     var l = this.lib[k] || {};
     if (l.f === 'percent') return pct(v);
-    if (l.g === 'volume' || /^unites/.test(k)) return nb(v) ? AMX.fmtNombre(Math.round(v)) : '—';
+    if (l.f === 'dec2') return nb(v) ? v.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+    if (l.f === 'volume' || l.g === 'volume' || /^unites/.test(k)) return nb(v) ? AMX.fmtNombre(Math.round(v)) : '—';
     return court ? argentCourt(v) : argent(v);
   };
   Moteur.prototype.formatEcart = function (k, v) {
@@ -378,13 +390,19 @@
     var self = this, cies = this.ciesAvec(p), lb = libBase(this.base);
     // Tuiles
     var kpis = h('div.kpis.kpi-tuiles');
-    TUILES.forEach(function (t) {
+    var tuile = function (t, conteneur, siVide) {
       var v = m.valeur(cies, p, t[0]);
+      if (siVide === false && !nb(v.r)) return;
       var sous = nb(v.ecart) ? m.formatEcart(t[0], v.ecart) + (nb(v.ecartPct) && (m.lib[t[0]] || {}).f !== 'percent' ? ' (' + signe(pct(v.ecartPct, 0)) + ')' : '') + ' vs ' + lb + (m.composite && nb(v.c) ? ' (' + m.format(t[0], v.c, true) + ')' : '') + (v.paires < v.n ? ' · sur ' + v.paires + ' conc.' : '') : m.B.sans;
-      kpis.appendChild(h('div.kpi.neutre' + (t[0] === self.tendance ? '.actif' : ''), { role: 'button', tabindex: '0', 'data-cle': t[0], style: { cursor: 'pointer' }, onclick: function () { self.tendance = t[0]; self.rendre(); } }, [
+      conteneur.appendChild(h('div.kpi.neutre' + (t[0] === self.tendance ? '.actif' : ''), { role: 'button', tabindex: '0', 'data-cle': t[0], style: { cursor: 'pointer' }, onclick: function () { self.tendance = t[0]; self.rendre(); } }, [
         h('div.valeur' + (t[0] === 'profit_net' && nb(v.r) && v.r < 0 ? '.kpi-neg' : ''), { text: m.format(t[0], v.r, true) }), h('div.libelle', { text: t[1] }), h('div.sous.' + (m.ton(t[0], v.ecart) || 'neutre'), { text: sous }), noteRealise(m, t[0], v)]));
-    });
+    };
+    TUILES.forEach(function (t) { tuile(t, kpis); });
     this.elCorps.appendChild(kpis);
+    // Par unité (24 oct., Maxime : « ne pas oublier les indicateurs clés par unité ») — seulement ceux qui ont un chiffre ce mois-ci
+    var parUnite = h('div.kpis.kpi-tuiles.kpi-tuiles-unite#kpi-par-unite');
+    TUILES_UNITE.forEach(function (t) { tuile(t, parUnite, false); });
+    if (parUnite.childNodes.length) this.elCorps.appendChild(h('div', [h('div.kpi-sous-titre', 'Par unité et par bon de travail'), parUnite]));
 
     // Tableau des concessions (avec le groupe) — seulement s'il y en a plusieurs
     var toutes = this.cies();
@@ -508,20 +526,30 @@
     var self = this, cies = this.ciesAvec(p), plusieurs = cies.length > 1, lb = libBase(this.base);
     this.elCorps.appendChild(this.carteTendance(m, p, this.tendance));
     var cles = {}; cies.forEach(function (c) { var x = self.donnees.concessions[c].periodes[p][self.mode] || {}; Object.keys(x).forEach(function (k) { cles[k] = true; }); });
-    var tete = [h('th', 'Indicateur')].concat(plusieurs ? cies.map(function (c) { return h('th.num', { text: COURTS[c] || c }); }) : []).concat([h('th.num', { text: plusieurs ? 'Groupe' : 'Réel' }), h('th.num', { text: m.B.col }), h('th.num', 'Écart'), h('th.num', 'Écart %')]);
+    // 24 oct. (Maxime : « voir toutes les concessions par KPI, une en dessous de l'autre, sinon il faut défiler ») : une ligne
+    // pour le groupe, puis une ligne par concession sous chaque indicateur — quatre colonnes de chiffres, plus de défilement.
+    var tete = [h('th', plusieurs ? 'Indicateur · concession' : 'Indicateur'), h('th.num', 'Réel'), h('th.num', { text: m.B.col }), h('th.num', 'Écart'), h('th.num', 'Écart %')];
     var corps = [];
     GROUPES.forEach(function (g) {
-      var ks = Object.keys(cles).filter(function (k) { return ((m.lib[k] || {}).g || 'other') === g[0]; });
+      var ks = Object.keys(cles).filter(function (k) { return groupeDe(m.lib, k) === g[0]; });
       if (!ks.length) return;
       corps.push(h('tr.groupe', [h('td', { colSpan: tete.length, text: g[1] })]));
-      ks.sort(function (a, b) { return m.libelle(a).localeCompare(m.libelle(b), 'fr'); });
+      // Ordre : celui de l'envoi (le tableau de bord, puis les indicateurs par unité dans un ordre pensé) ; sinon alphabétique.
+      var ordre = ORDRE_UNITE.concat(Object.keys(m.lib).filter(function (x) { return ORDRE_UNITE.indexOf(x) < 0; }));
+      ks.sort(function (a, b) { return (g[0] === 'unite' || g[0] === 'apv') ? ordre.indexOf(a) - ordre.indexOf(b) : m.libelle(a).localeCompare(m.libelle(b), 'fr'); });
       ks.forEach(function (k) {
-        var v = m.valeur(cies, p, k), ton = m.ton(k, v.ecart);
-        corps.push(h('tr.cliquable' + (k === self.tendance ? '.actif' : ''), { 'data-cle': k, onclick: function () { self.tendance = k; self.rendre(); var t = document.getElementById('kpi-tendance'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } },
-          [h('td', { text: m.libelle(k) })]
-            .concat(plusieurs ? cies.map(function (c) { var x = m.valeur([c], p, k); return h('td.num', { text: m.format(k, x.r, true), title: nb(x.ecart) ? 'Écart vs ' + lb + ' : ' + m.formatEcart(k, x.ecart) : '' }); }) : [])
-            .concat([h('td.num', [h('b', { text: m.format(k, v.r) }), noteRealise(m, k, v)]), celluleComp(m.format(k, v.c), v), h('td.num.' + (ton || 'neutre'), { text: m.formatEcart(k, v.ecart) }),
-              h('td.num.' + (ton || 'neutre'), { text: nb(v.ecartPct) && (m.lib[k] || {}).f !== 'percent' ? signe(pct(v.ecartPct)) : '—' })])));
+        var v = m.valeur(cies, p, k), choisir = function () { self.tendance = k; self.rendre(); var t = document.getElementById('kpi-tendance'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
+        var chiffres = function (x, gras) {
+          var ton = m.ton(k, x.ecart) || 'neutre';
+          return [h('td.num', [gras ? h('b', { text: m.format(k, x.r) }) : document.createTextNode(m.format(k, x.r)), noteRealise(m, k, x)]), gras ? celluleComp(m.format(k, x.c), x) : h('td.num', { text: m.format(k, x.c) }),
+            h('td.num.' + ton, { text: m.formatEcart(k, x.ecart) }), h('td.num.' + ton, { text: nb(x.ecartPct) && (m.lib[k] || {}).f !== 'percent' ? signe(pct(x.ecartPct)) : '—' })];
+        };
+        corps.push(h('tr.cliquable' + (plusieurs ? '.kpi-ind' : '') + (k === self.tendance ? '.actif' : ''), { 'data-cle': k, onclick: choisir },
+          [h('td', plusieurs ? [h('b', { text: m.libelle(k) }), h('span.kpi-groupe-mot', ' · groupe')] : [document.createTextNode(m.libelle(k))])].concat(chiffres(v, true))));
+        if (plusieurs) cies.forEach(function (c) {
+          corps.push(h('tr.cliquable.kpi-cie' + (k === self.tendance ? '.actif' : ''), { 'data-cle': k, 'data-cie': c, onclick: choisir },
+            [h('td', [h('i.kpi-pt.' + ((AMX.COULEUR_COMPAGNIE || {})[c] || 'gris')), document.createTextNode(COURTS[c] || c)])].concat(chiffres(m.valeur([c], p, k), false))));
+        });
       });
     });
     this.elCorps.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', ['Indicateurs', h('span.sous', { text: moisLib(p) + (this.mode === 'c' ? ' · cumul' : '') + ' · ' + (plusieurs ? 'le groupe additionne les concessions, les ratios sont recalculés' : nomCie(cies[0] || this.compagnie)) + ' · touchez une ligne pour sa courbe' })])]),
@@ -536,19 +564,26 @@
     if (!liste.length) { this.elCorps.appendChild(h('div.vide', [h('h3', 'Pas de départements pour ' + moisLib(p)), h('div', { text: 'Le fichier de ce mois ne détaille pas les départements.' })])); return; }
     var grille = h('div.kpi-deps');
     liste.forEach(function (dep) {
-      var tete = [h('th', '')].concat(plusieurs ? cies.map(function (c) { return h('th.num', { text: COURTS[c] || c }); }) : []).concat([h('th.num', { text: plusieurs ? 'Groupe' : 'Réel' }), h('th.num', { text: m.B.col }), h('th.num', 'Écart')]);
+      var tete = [h('th', plusieurs ? 'Ligne · concession' : ''), h('th.num', 'Réel'), h('th.num', { text: m.B.col }), h('th.num', 'Écart')];
       // Composite : seulement les lignes que l'état constructeur donne aussi pour le groupe ; le profit porte le nom de l'analyse.
       var libProfit = null;
       if (m.composite) cies.forEach(function (c) { var b = m.blocComposite(c, p); if (!libProfit && b && b.pl && b.pl[dep]) libProfit = b.pl[dep]; });
-      var lignes = DEP_METRIQUES.map(function (mt) {
-        if (m.composite && !COMPOSITE_METRIQUES[mt[0]]) return null;
-        var v = m.valeurDep(cies, p, dep, mt[0]); if (!nb(v.r)) return null;
+      var lignes = [];
+      DEP_METRIQUES.forEach(function (mt) {
+        if (m.composite && !COMPOSITE_METRIQUES[mt[0]]) return;
+        var v = m.valeurDep(cies, p, dep, mt[0]); if (!nb(v.r)) return;
         var fmt = function (x) { return mt[2] === 'volume' ? (nb(x) ? AMX.fmtNombre(Math.round(x)) : '—') : argent(x); };
-        var ton = !nb(v.ecart) || Math.abs(v.ecart) < 1e-9 ? 'neutre' : ((v.ecart > 0) !== !!MOINS_MIEUX[mt[0]] ? 'pos' : 'neg');
-        return h('tr' + (mt[0] === 'profit_departemental' ? '.total' : ''), [h('td', { text: mt[0] === 'profit_departemental' && libProfit ? libProfit : mt[1] })]
-          .concat(plusieurs ? cies.map(function (c) { return h('td.num', { text: fmt(m.valeurDep([c], p, dep, mt[0]).r) }); }) : [])
-          .concat([h('td.num', [h('b', { text: fmt(v.r) })]), celluleComp(fmt(v.c), v), h('td.num.' + ton, { text: nb(v.ecart) ? signe(fmt(v.ecart)) : '—' })]));
-      }).filter(Boolean);
+        var tonDe = function (x) { return !nb(x.ecart) || Math.abs(x.ecart) < 1e-9 ? 'neutre' : ((x.ecart > 0) !== !!MOINS_MIEUX[mt[0]] ? 'pos' : 'neg'); };
+        var total = mt[0] === 'profit_departemental', lib = total && libProfit ? libProfit : mt[1];
+        lignes.push(h('tr' + (total ? '.total' : '') + (plusieurs ? '.kpi-ind' : ''), [h('td', plusieurs ? [h('b', { text: lib }), h('span.kpi-groupe-mot', ' · groupe')] : [document.createTextNode(lib)])]
+          .concat([h('td.num', [h('b', { text: fmt(v.r) })]), celluleComp(fmt(v.c), v), h('td.num.' + tonDe(v), { text: nb(v.ecart) ? signe(fmt(v.ecart)) : '—' })])));
+        // Une ligne par concession sous la ligne du groupe (24 oct., Maxime : plus de colonnes à faire défiler)
+        if (plusieurs) cies.forEach(function (c) {
+          var x = m.valeurDep([c], p, dep, mt[0]); if (!nb(x.r)) return;
+          lignes.push(h('tr.kpi-cie', { 'data-cie': c }, [h('td', [h('i.kpi-pt.' + ((AMX.COULEUR_COMPAGNIE || {})[c] || 'gris')), document.createTextNode(COURTS[c] || c)]),
+            h('td.num', { text: fmt(x.r) }), h('td.num', { text: fmt(x.c) }), h('td.num.' + tonDe(x), { text: nb(x.ecart) ? signe(fmt(x.ecart)) : '—' })]));
+        });
+      });
       var net = m.valeurDep(cies, p, dep, 'profit_departemental');
       grille.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', [dep, h('span.sous', { text: (libProfit ? libProfit.toLowerCase() : 'profit départemental') + ' ' + argent(net.r) + (nb(net.ecart) ? ' · ' + signe(argent(net.ecart)) + ' vs ' + lb : '') })])]),
         h('div.carte-corps.kpi-defile', [h('table.tableau.kpi-tab', { 'data-dep': dep }, [h('thead', [h('tr', tete)]), h('tbody', lignes)])])]));
@@ -569,8 +604,9 @@
         var x = (d.concessions[c].periodes[p] || {})[mode] || {};
         var bx = ((d.concessions[c].periodes[p] || {}).x || {}), cx = bx[mode] || {};
         Object.keys(x).forEach(function (k) {
+          if (groupeDe(m.lib, k) === 'cache') return;
           var t = m.brut(c, p, k), q = cx[k], neg = NEGATIFS[k] ? -1 : 1;
-          lignes.push({ 'Concession': nomCie(c), 'Mois': p, 'Période': mode === 'c' ? 'Cumul' : 'Mois', 'Groupe': ((m.lib[k] || {}).g) || '', 'Indicateur': m.libelle(k), 'Clé': k, 'Réel': t[0], 'Budget': t[1], 'Année précédente': t[2],
+          lignes.push({ 'Concession': nomCie(c), 'Mois': p, 'Période': mode === 'c' ? 'Cumul' : 'Mois', 'Groupe': (GROUPES.filter(function (g) { return g[0] === groupeDe(m.lib, k); })[0] || [0, ''])[1], 'Indicateur': m.libelle(k), 'Clé': k, 'Réel': t[0], 'Budget': t[1], 'Année précédente': t[2],
             'Composite — concession (état constructeur)': q && nb(q[0]) ? neg * q[0] : null, 'Composite — moyenne du groupe': q && nb(q[1]) ? neg * q[1] : null, 'Groupe du composite': q ? nomGroupeComposite(bx) : '' });
         });
         var dx = (d.concessions[c].periodes[p] || {})['d' + mode] || {};
@@ -613,6 +649,15 @@
       '.kpi-tab td, .kpi-tab th { white-space: nowrap; }',
       '.kpi-tab tr.groupe td { background: var(--carte-2); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); padding-top: 7px; padding-bottom: 7px; }',
       '.kpi-tab tr.total td { font-weight: 700; background: var(--carte-2); border-top: 2px solid var(--ligne-forte); }',
+      '.kpi-tab tr.kpi-ind td { border-top: 2px solid var(--ligne-forte); }',
+      '.kpi-sous-titre { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 4px 0 8px; }',
+      '.kpi-tab tr.kpi-ind td:first-child { white-space: normal; }',
+      '.kpi-tab .kpi-groupe-mot { font-size: 12px; color: var(--encre-3); font-weight: 400; }',
+      '.kpi-tab tr.kpi-cie td { padding-top: 4px; padding-bottom: 4px; font-size: 13px; color: var(--encre-2); border-top-color: transparent; }',
+      '.kpi-tab tr.kpi-cie td:first-child { padding-left: 26px; }',
+      '.kpi-tab tr.kpi-cie.total td { font-weight: 400; }',
+      '.kpi-tab .kpi-pt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; background: var(--encre-4); }',
+      '.kpi-tab .kpi-pt.vert { background: var(--vert); } .kpi-tab .kpi-pt.bleu { background: var(--bleu); } .kpi-tab .kpi-pt.violet { background: #7C4DBA; } .kpi-tab .kpi-pt.sombre { background: var(--noir, #141A1F); } .kpi-tab .kpi-pt.ambre { background: var(--ambre); }',
       '.kpi-page .carte-corps.kpi-defile { padding: 0; }',
       '.kpi-page .carte-corps.kpi-defile .tableau { border: none; border-radius: 0; box-shadow: none; }',
       '.kpi-rangee { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 14px; }',

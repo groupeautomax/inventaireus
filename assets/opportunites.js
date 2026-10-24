@@ -388,6 +388,7 @@
     else {
       lignes.push('Branché (clé …' + a.fin + ') · ' + (a.parJour || 0) + ' lecture' + (a.parJour > 1 ? 's' : '') + ' par jour · ' + (a.rayon ? a.rayon + ' km autour de ' + a.codePostal : 'tout le Canada') +
         ' · ' + (a.vendeurs === 'private' ? 'particuliers seulement' : (a.vendeurs === 'dealer' ? 'concessionnaires seulement' : 'particuliers et concessionnaires')) + ' · sites : ' + (a.sources || []).map(function (s) { return SITES_ANNONCES[s] || s; }).join(', '));
+      lignes.push(texteFiltresApify(a));
       lignes.push('Ce mois-ci : ' + (a.courses || 0) + ' lecture' + (a.courses > 1 ? 's' : '') + ', ≈ ' + AMX.fmtNombre(Math.round((a.depense || 0) * 100) / 100) + ' $ US sur ' + AMX.fmtNombre(a.budget || 0) + ' $ US permis (une lecture coûte au plus ≈ ' + AMX.fmtNombre(a.estime || 0) + ' $ US)');
       if (a.enCours) lignes.push('Lecture en cours chez Apify depuis ' + AMX.fmtDate(a.enCours.le, true) + ' : les annonces arrivent au relevé suivant (aux 10 minutes).');
       var dn = a.derniere;
@@ -397,6 +398,8 @@
     }
     lignes.forEach(function (t) { el.appendChild(h('div.mini', { text: t })); });
     var boutons = [];
+    if (d.peutRegler) boutons.push(h('button.btn.petit#occ-apify-filtres', { type: 'button', text: 'Filtres de recherche', onclick: function () { self.filtresApify(); } }));
+    if (a.present && d.admin && a.filtres) boutons.push(h('button.btn.petit.fantome#occ-apify-zero', { type: 'button', text: 'Repartir à zéro', title: 'La prochaine lecture rend toutes les annonces qui correspondent aux filtres, pas seulement les nouvelles', onclick: function () { self.zeroApify(); } }));
     if (a.present && d.admin) {
       var b = h('button.btn.petit#occ-apify-lire', { type: 'button', text: a.enCours ? 'Relever la lecture' : 'Lire maintenant', onclick: function () { self.lireApify(a.enCours ? 'relever' : 'lancer', b); } });
       boutons.push(b);
@@ -410,6 +413,66 @@
       }
     }
     if (boutons.length) el.appendChild(h('div.occ-apify-actions', boutons));
+  };
+  function texteFiltresApify(a) {
+    var f = a.filtres;
+    if (!f) return 'Filtres : ceux de l\'outil (déployez Occasions.gs pour les filtres de recherche).';
+    var quoi = f.modeles && f.modeles.length ? f.modeles.join(', ') : (f.marques === 'nos' ? 'nos marques' : (f.marques === 'autres' ? 'les autres marques' : 'nos marques et les autres marques'));
+    var prix = f.prixMax ? AMX.fmtArgent(f.prixMin) + ' à ' + AMX.fmtArgent(f.prixMax) : AMX.fmtArgent(f.prixMin) + ' et plus';
+    return 'Filtres : ' + quoi + ' · ' + f.anneeMin + ' et plus · ' + AMX.fmtNombre(f.kmMax) + ' km au plus · ' + prix + ' · ' + AMX.fmtNombre(a.max || 0) + ' annonces au plus par lecture';
+  }
+  /* Fenêtre « Filtres des sites d'annonces » (direction) : ce que le robot cherche, où, et combien. */
+  Opportunites.prototype.filtresApify = function () {
+    var self = this, d = this.donnees || {}, p = d.params || {};
+    var nb = function (id, val, place, pas) { return h('input.saisie#' + id, { type: 'number', step: String(pas || 1), value: val ? String(val) : '', placeholder: place || '' }); };
+    var marques = h('select.saisie#occ-af-marques', [['toutes', 'Nos marques et les autres marques'], ['nos', 'Nos marques seulement'], ['autres', 'Les autres marques seulement']].map(function (x) { var op = h('option', { value: x[0], text: x[1] }); if ((p.apifyMarques || 'toutes') === x[0]) op.selected = true; return op; }));
+    var modeles = h('textarea.saisie#occ-af-modeles', { rows: 3, placeholder: 'Facultatif, un par ligne : « Toyota RAV4 », « Chevrolet Silverado 1500 », ou une marque seule (« Kia »). Vide = toutes les marques choisies ci-dessus.' });
+    modeles.value = (p.apifyModeles || []).join('\n');
+    var annee = nb('occ-af-annee', p.apifyAnneeMin, String(p.anneeMin || 2023) + ' (outil)'), km = nb('occ-af-km', p.apifyKmMax, AMX.fmtNombre(p.kmMax || 100000) + ' (outil)', 1000);
+    var pmin = nb('occ-af-prixmin', p.apifyPrixMin, AMX.fmtNombre(p.prixMin || 5000) + ' (outil)', 500), pmax = nb('occ-af-prixmax', p.apifyPrixMax, 'aucun', 500);
+    var rayon = nb('occ-af-rayon', p.apifyRayonKm, '0 = tout le Canada', 50), cp = h('input.saisie#occ-af-cp', { type: 'text', value: p.apifyCodePostal || 'H3B', placeholder: 'H3B' });
+    var vend = h('select.saisie#occ-af-vendeurs', [['any', 'Particuliers et concessionnaires'], ['private', 'Particuliers seulement'], ['dealer', 'Concessionnaires seulement']].map(function (x) { var op = h('option', { value: x[0], text: x[1] }); if ((p.apifyVendeurs || 'any') === x[0]) op.selected = true; return op; }));
+    var sites = {}, sitesEl = h('div.occ-apify-sites', Object.keys(SITES_ANNONCES).map(function (k) { var c = h('input', { type: 'checkbox' }); c.checked = (p.apifySources || Object.keys(SITES_ANNONCES)).indexOf(k) >= 0; sites[k] = c; return h('label.case', [c, ' ' + SITES_ANNONCES[k]]); }));
+    var max = nb('occ-af-max', p.apifyMax, '300', 25), parJour = nb('occ-af-parjour', p.apifyParJour, '1'), budget = nb('occ-af-budget', p.apifyBudgetMois, '30');
+    var cout = h('p.mini#occ-af-cout');
+    var majCout = function () { var m = num(max.value) || 0, j = num(parJour.value); j = j === null ? 1 : j; cout.textContent = 'Coût prévu : au plus ≈ ' + AMX.fmtNombre(Math.round(m * (p.apifyPrix1000 || 1.7) / 10) / 100) + ' $ US par lecture, ≈ ' + AMX.fmtNombre(Math.round(m * (p.apifyPrix1000 || 1.7) * j * 30 / 10) / 100) + ' $ US par mois à ' + j + ' lecture' + (j > 1 ? 's' : '') + ' par jour (Apify facture chaque véhicule rendu ; une annonce vue sur plusieurs sites compte une fois). Le forfait gratuit d\'Apify s\'arrête à 25 véhicules par lecture.'; };
+    [max, parJour].forEach(function (x) { x.addEventListener('input', majCout); }); majCout();
+    var champ = function (titre, el) { return h('label', [h('span', { text: titre }), el]); };
+    var corps = h('div', [
+      h('div.section-titre', 'Quoi chercher'),
+      h('div.occ-reglages', [champ('Marques', marques), champ('Année-modèle minimale', annee), champ('Kilométrage maximal (km)', km), champ('Prix minimal ($)', pmin), champ('Prix maximal ($)', pmax)]),
+      h('label.occ-prov', [h('span', 'Seulement ces modèles'), modeles]),
+      h('div.section-titre', { style: { marginTop: '14px' } }, 'Où et chez qui'),
+      h('div.occ-reglages', [champ('Rayon (km, 0 = tout le Canada)', rayon), champ('Centre du rayon (code postal)', cp), champ('Vendeurs', vend)]),
+      h('div.occ-prov', [h('span', 'Sites'), sitesEl]),
+      h('div.section-titre', { style: { marginTop: '14px' } }, 'Combien'),
+      h('div.occ-reglages', [champ('Annonces au plus par lecture', max), champ('Lectures par jour (0 = arrêt)', parJour), champ('Dépense permise par mois ($ US)', budget)]),
+      cout,
+      h('p.mini.doux', 'Une case vide reprend le réglage de l\'outil. Les modèles exclus de l\'outil restent exclus. Après un changement de filtres, « Repartir à zéro » fait rendre à la lecture suivante toutes les annonces qui correspondent, pas seulement les nouvelles.')
+    ]);
+    AMX.modale({ titre: 'Filtres des sites d\'annonces', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+      var v = function (el) { var x = num(el.value); return x === null ? 0 : x; };
+      var params = { apifyMarques: marques.value, apifyModeles: modeles.value, apifyAnneeMin: v(annee), apifyKmMax: v(km), apifyPrixMin: v(pmin), apifyPrixMax: v(pmax),
+        apifyRayonKm: v(rayon), apifyCodePostal: cp.value, apifyVendeurs: vend.value, apifySources: Object.keys(sites).filter(function (k) { return sites[k].checked; }),
+        apifyMax: num(max.value) === null ? (p.apifyMax || 300) : num(max.value), apifyParJour: num(parJour.value) === null ? (p.apifyParJour || 1) : num(parJour.value), apifyBudgetMois: num(budget.value) === null ? (p.apifyBudgetMois || 30) : num(budget.value) };
+      if (!params.apifySources.length) { AMX.toast('Cochez au moins un site.', 'attention'); return false; }
+      return AMX.post({ action: 'occasionsParams', params: params }).then(function (r) {
+        if (!r || r.ok === false || r.refuse) { AMX.toast((r && r.erreur) || 'Refusé', 'erreur'); return false; }
+        if (!r.params || !('apifyMarques' in r.params)) { AMX.toast('Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).', 'erreur'); return false; }
+        AMX.toast('Filtres enregistrés : ils servent à la prochaine lecture.', 'ok'); self.charger(true); return true;
+      }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+    } }] });
+  };
+  Opportunites.prototype.zeroApify = function () {
+    var self = this;
+    AMX.confirmer('Repartir à zéro ?', 'La prochaine lecture rendra toutes les annonces qui correspondent aux filtres (jusqu\'au maximum par lecture), pas seulement les nouvelles. Utile après un changement de filtres ou de forfait Apify.', { ok: 'Repartir à zéro' }).then(function (oui) {
+      if (!oui) return;
+      AMX.post({ action: 'occasionsApify', mode: 'zero' }, { secours: false }).then(function (r) {
+        if (!r || r.refuse || r.ok === false) { AMX.toast((r && r.erreur) || 'Refusé', 'erreur'); return; }
+        if (!r.zero) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).');
+        AMX.toast('C\'est fait : la prochaine lecture repart de zéro.', 'ok'); self.charger(true);
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+    });
   };
   Opportunites.prototype.lireApify = function (mode, b) {
     var self = this;
@@ -634,8 +697,6 @@
     ['topParMarque', 'Vue « meilleures par marque » : annonces par marque', '', 1],
     ['autresTop', 'Autres marques : nombre de meilleures montrées', '', 1], ['autresPrixMax', 'Autres marques : prix maximal', '$', 1000],
     ['autresBudgetMois', 'Autres marques : appels MarketCheck par mois', 'appels', 50], ['autresNMin', 'Autres marques : annonces minimum pour balayer un modèle', '', 1],
-    ['apifyParJour', 'Sites d\'annonces : lectures par jour (0 = arrêt)', '', 1], ['apifyMax', 'Sites d\'annonces : annonces au plus par lecture', '', 25],
-    ['apifyRayonKm', 'Sites d\'annonces : rayon (0 = tout le Canada)', 'km', 50], ['apifyBudgetMois', 'Sites d\'annonces : dépense permise par mois', '$ US', 1],
     ['budgetMois', 'Appels MarketCheck par mois (outil)', 'appels', 50], ['garderParUnite', 'Annonces gardées par modèle-année', '', 1], ['olParPassage', 'Prévisions OpenLane par passage', '', 1]
   ];
   Opportunites.prototype.reglages = function () {
@@ -650,22 +711,17 @@
     exclus.value = (p.modelesExclus || []).join('\n');
     var autresM = h('textarea.saisie#occ-autres-marques', { rows: 3, placeholder: 'Une par ligne : Toyota, Honda, Ford…' });
     autresM.value = (p.autresMarques || []).join('\n');
-    var cpA = h('input.saisie#occ-apify-cp', { type: 'text', value: p.apifyCodePostal || 'H3B', placeholder: 'H3B', style: { maxWidth: '120px' } });
-    var vendA = h('select.saisie#occ-apify-vendeurs', [['any', 'Particuliers et concessionnaires'], ['private', 'Particuliers seulement'], ['dealer', 'Concessionnaires seulement']].map(function (x) { var op = h('option', { value: x[0], text: x[1] }); if ((p.apifyVendeurs || 'any') === x[0]) op.selected = true; return op; }));
-    var sitesA = {}, sitesEl = h('div.occ-apify-sites', Object.keys(SITES_ANNONCES).map(function (k) { var c = h('input', { type: 'checkbox' }); c.checked = (p.apifySources || Object.keys(SITES_ANNONCES)).indexOf(k) >= 0; sitesA[k] = c; return h('label.case', [c, ' ' + SITES_ANNONCES[k]]); }));
     var marques = h('p.mini', { text: 'Marques suivies : ' + Object.keys(p.marques || {}).map(function (m) { return m + ' → ' + (p.marques[m] || []).map(function (c) { return COURTS[c] || c; }).join(', '); }).join(' · ') });
     var corps = h('div', [grille, h('label.occ-prov', [h('span', 'Provinces (sigles, séparés par des virgules)'), prov]),
       h('label.occ-prov', [h('span', 'Modèles à ne plus chercher (balayage, DealerSource et liste)'), exclus]),
       h('label.occ-prov', [h('span', 'Autres marques cherchées (vers la concession la plus proche)'), autresM]), marques,
-      h('div.occ-prov', [h('span', 'Sites d\'annonces (Apify) : centre du rayon (code postal), vendeurs, sites'), h('div.occ-apify-actions', [cpA, vendA]), sitesEl]),
+      h('p.mini', 'Les sites d\'annonces (AutoTrader.ca, Kijiji, CarGurus.ca, Carpages.ca) ont leurs propres filtres : carte « Sources des annonces » › « Filtres de recherche ».'),
       h('p.mini.doux', 'Bon achat = prix demandé égal ou plus bas que la prévision de gros OpenLane. Rendu = prévision OpenLane − (prix + transport + frais) ; « rentable » = bon achat dont le rendu atteint le profit minimal. Le détail (prix médian du modèle-année au Canada, toutes versions, ajusté au km, au plus le gros OpenLane + le % indiqué) est indicatif. Un prix sous le % indiqué de la prévision OpenLane est marqué « à vérifier » (acompte, paiement ou erreur). Une année ou un km changé relance la découverte des modèles au prochain passage.')]);
     AMX.modale({ titre: 'Réglages — opportunités d\'achat', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
       var params = {}; Object.keys(champs).forEach(function (k) { var v = num(champs[k].value); if (v !== null) params[k] = v; });
       params.provinces = prov.value;
       params.modelesExclus = exclus.value;
       params.autresMarques = autresM.value;
-      params.apifyCodePostal = cpA.value; params.apifyVendeurs = vendA.value;
-      params.apifySources = Object.keys(sitesA).filter(function (k) { return sitesA[k].checked; });
       return AMX.post({ action: 'occasionsParams', params: params }).then(function (r) {
         if (!r || r.ok === false || r.refuse) { AMX.toast((r && r.erreur) || 'Refusé', 'erreur'); return false; }
         if (!r.params) { AMX.toast('Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).', 'erreur'); return false; }

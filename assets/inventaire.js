@@ -908,6 +908,14 @@
       blocFicheEblock = h('div.bloc.cache', [h('h3', ['Fiche eBlock']), zoneEb]);
       AMX.eblockFiche(v.vin, zoneEb, { maxPieces: 6 }).then(function (achats) { if (achats && achats.length && blocFicheEblock.isConnected) { ficheEblockLa = true; blocFicheEblock.classList.remove('cache'); if (blocEblock) blocEblock.classList.add('cache'); } });
     }
+    // Fiche Manheim (24 oct., manheim.js) : photos, cote CR, dommages, pneus — montrée seulement si le véhicule a été vu sur
+    // Manheim (achats de BMW Sherbrooke sur la place de marché BMW Financial Services, ou annonce disponible).
+    var blocManheim = null;
+    if (AMX.manheim) {
+      var zoneMh = h('div');
+      blocManheim = h('div.bloc.cache', [h('h3', ['Fiche Manheim']), zoneMh]);
+      AMX.manheim.bloc(v.vin, zoneMh).then(function (la) { if (la && blocManheim.isConnected) blocManheim.classList.remove('cache'); });
+    }
     // Valeurs OpenLane (9 oct.) : ventes comparables, prévision 30-60-90 j, ajusté au km — ou le bouton pour les demander.
     var blocOpenlane = null;
     if (typeof AMX.openlaneBloc === 'function') {
@@ -1066,7 +1074,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

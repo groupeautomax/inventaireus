@@ -103,7 +103,7 @@
     this.surCie = function () { self.compagnie = AMX.compagnieChoisie('inventaire') || ''; self.rendre(); };
     document.addEventListener('amx:compagnie', this.surCie);
   }
-  Opportunites.prototype.filtresDefaut = function () { return { q: '', marque: '', statut: '', source: '', province: '', cote: '', groupe: groupeMemo(), vue: vueMemo(), modeles: modelesMemo(), tri: AMX.memo.lire('occ_tri', 'score') }; };
+  Opportunites.prototype.filtresDefaut = function () { return { q: '', marque: '', statut: '', source: '', province: '', cote: '', prixMax: 0, kmMax: 0, anneeMin: 0, distMax: 0, groupe: groupeMemo(), vue: vueMemo(), modeles: modelesMemo(), tri: AMX.memo.lire('occ_tri', 'score') }; };
   Opportunites.prototype.demonter = function () { this.generation++; document.removeEventListener('amx:compagnie', this.surCie); };
   Opportunites.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
@@ -124,7 +124,12 @@
     ]);
     this.elCies = h('div.barre-cies');
     this.elSources = this.construireSources();
-    this.elQ = h('input.saisie#occ-recherche', { type: 'search', placeholder: 'Modèle, version, NIV, vendeur, ville…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.f.q = e.target.value; self.limite = LIMITE; self.rafraichir(); }, 150) });
+    this.elSuggestions = h('datalist#occ-suggestions');
+    this.elQ = h('input.saisie#occ-recherche', { type: 'search', list: 'occ-suggestions', placeholder: 'Chercher : modèle, version, NIV, vendeur, ville… (Entrée = voir la liste)', autocomplete: 'off',
+      onkeydown: function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); self.f.q = self.elQ.value; self.rafraichir(); self.elPortee.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        else if (e.key === 'Escape' && self.elQ.value) { e.stopPropagation(); self.elQ.value = ''; self.f.q = ''; self.limite = LIMITE; self.rafraichir(); }
+      }, oninput: AMX.debounce(function (e) { self.f.q = e.target.value; self.limite = LIMITE; self.rafraichir(); }, 150) });
     this.elMarques = h('div.occ-pastilles#occ-marques');
     this.elStatuts = h('div.segment#occ-statuts');
     this.elSeul = h('div.segment#occ-vue');
@@ -134,9 +139,12 @@
     this.elProv = h('select.saisie#occ-province', { onchange: function () { self.f.province = self.elProv.value; self.rafraichir(); } });
     this.elCote = h('select.saisie#occ-cote', { onchange: function () { self.f.cote = self.elCote.value; self.rafraichir(); } }, FILTRES_COTE.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
     this.elTri = h('select.saisie#occ-tri', { onchange: function () { self.f.tri = self.elTri.value; AMX.memo.ecrire('occ_tri', self.f.tri); self.rafraichir(); } }, TRIS.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
+    this.construirePlus();
+    this.construireRecherches();
     var filtres = h('div.carte.occ-filtres', [h('div.carte-corps', [
-      h('div.occ-ligne', [this.elGroupe, h('div.recherche', [h('span', { html: I.recherche }), this.elQ]), this.elSeul, this.elStatuts]),
-      h('div.occ-ligne', [this.elMarques, this.elModelesEnv, h('label.occ-select', [h('span', 'Source'), this.elSource]), h('label.occ-select', [h('span', 'Province'), this.elProv]), h('label.occ-select', [h('span', 'Cote CarGurus'), this.elCote]), h('label.occ-select', [h('span', 'Trier par'), this.elTri])])
+      h('div.occ-ligne', [this.elGroupe, h('div.recherche', [h('span', { html: I.recherche }), this.elQ, this.elSuggestions]), this.elPlusEnv, this.elModelesEnv, this.elRechEnv, h('label.occ-select', [h('span', 'Trier par'), this.elTri])]),
+      h('div.occ-ligne', [this.elSeul, this.elStatuts]),
+      h('div.occ-ligne', [this.elMarques])
     ])]);
     this.elPortee = h('div.portee-chiffres');
     this.elKpis = h('div.kpis.occ-kpis');
@@ -164,6 +172,109 @@
     });
     this.elModelesEnv = h('div.inv2-plus-env.occ-modeles-env', [this.btnModeles, this.popModeles]);
   };
+  /* « Filtres » : source, province, cote CarGurus, prix, km, année, distance — dans un panneau, pour une barre plus simple. */
+  Opportunites.prototype.construirePlus = function () {
+    var self = this;
+    var champNb = function (id, place, pas, cle) {
+      return h('input.saisie#' + id, { type: 'number', min: '0', step: String(pas), placeholder: place, oninput: AMX.debounce(function (e) { var v = num(e.target.value); self.f[cle] = v && v > 0 ? v : 0; self.limite = LIMITE; self.rafraichir(); }, 250) });
+    };
+    this.elPrixMax = champNb('occ-prixmax', 'aucun', 1000, 'prixMax');
+    this.elKmMax = champNb('occ-kmmax', 'aucun', 5000, 'kmMax');
+    this.elDistMax = champNb('occ-distmax', 'aucune', 50, 'distMax');
+    this.elAnneeMin = h('select.saisie#occ-anneemin', { onchange: function () { self.f.anneeMin = num(self.elAnneeMin.value) || 0; self.limite = LIMITE; self.rafraichir(); } });
+    this.btnPlus = h('button.btn.inv2-plus#occ-plus', { type: 'button', 'aria-expanded': 'false' });
+    var ligne = function (titre, el) { return h('label.occ-plus-champ', [h('span', { text: titre }), el]); };
+    this.popPlus = h('div.inv2-pop.occ-pop-plus', { hidden: true, role: 'dialog', 'aria-label': 'Filtres' }, [
+      h('div.occ-plus-grille', [ligne('Prix demandé maximal ($)', this.elPrixMax), ligne('Kilométrage maximal', this.elKmMax), ligne('Année-modèle minimale', this.elAnneeMin),
+        ligne('Distance maximale (km de route)', this.elDistMax), ligne('Source', this.elSource), ligne('Province', this.elProv), ligne('Cote CarGurus', this.elCote)]),
+      h('div.occ-mod-pied', [h('button.btn.petit.fantome', { type: 'button', text: 'Effacer ces filtres', onclick: function () {
+        ['prixMax', 'kmMax', 'anneeMin', 'distMax'].forEach(function (k) { self.f[k] = 0; }); self.f.source = ''; self.f.province = ''; self.f.cote = ''; self.limite = LIMITE; self.synchroniserChamps(); self.rafraichir();
+      } })])
+    ]);
+    var dehors = function (e) { if (!self.elPlusEnv.contains(e.target)) { self.popPlus.hidden = true; self.btnPlus.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); } };
+    this.btnPlus.addEventListener('click', function () {
+      self.popPlus.hidden = !self.popPlus.hidden; self.btnPlus.setAttribute('aria-expanded', self.popPlus.hidden ? 'false' : 'true');
+      if (!self.popPlus.hidden) { document.addEventListener('mousedown', dehors, true); self.elPrixMax.focus(); }
+    });
+    this.elPlusEnv = h('div.inv2-plus-env.occ-plus-env', [this.btnPlus, this.popPlus]);
+  };
+  Opportunites.prototype.nbPlus = function () { var f = this.f; return ['prixMax', 'kmMax', 'anneeMin', 'distMax', 'source', 'province', 'cote'].filter(function (k) { return !!f[k]; }).length; };
+  Opportunites.prototype.synchroniserChamps = function () {
+    var f = this.f, val = function (el, v) { var t = v ? String(v) : ''; if (el.value !== t) el.value = t; };
+    if (this.elQ.value !== (f.q || '')) this.elQ.value = f.q || '';
+    val(this.elPrixMax, f.prixMax); val(this.elKmMax, f.kmMax); val(this.elDistMax, f.distMax);
+    this.elAnneeMin.value = f.anneeMin ? String(f.anneeMin) : '';
+    this.elSource.value = f.source || ''; this.elCote.value = f.cote || ''; this.elTri.value = f.tri;
+    if ([].some.call(this.elProv.options, function (o) { return o.value === (f.province || ''); })) this.elProv.value = f.province || '';
+  };
+  /* « Mes recherches » : la recherche et les filtres en cours, gardés sous un nom sur cet appareil, rappelés d'un clic. */
+  var CHAMPS_RECHERCHE = ['q', 'marque', 'statut', 'source', 'province', 'cote', 'prixMax', 'kmMax', 'anneeMin', 'distMax', 'groupe', 'vue', 'tri', 'modeles'];
+  function recherchesMemo() { try { var l = JSON.parse(AMX.memo.lire('occ_recherches', '') || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
+  function recherchesEcrire(l) { try { AMX.memo.ecrire('occ_recherches', JSON.stringify(l.slice(0, 20))); } catch (e) {} }
+  Opportunites.prototype.construireRecherches = function () {
+    var self = this;
+    this.btnRech = h('button.btn.inv2-plus#occ-mes-recherches', { type: 'button', 'aria-expanded': 'false', text: 'Mes recherches' });
+    this.elRechListe = h('div.occ-rech-liste');
+    this.elRechNom = h('input.saisie#occ-rech-nom', { type: 'text', placeholder: 'Nom de cette recherche', maxlength: '60',
+      onkeydown: function (e) { if (e.key === 'Enter') { e.preventDefault(); self.enregistrerRecherche(); } } });
+    this.popRech = h('div.inv2-pop.occ-pop-rech', { hidden: true, role: 'dialog', 'aria-label': 'Mes recherches' }, [
+      this.elRechListe,
+      h('div.occ-rech-nouvelle', [this.elRechNom, h('button.btn.petit.primaire#occ-rech-garder', { type: 'button', text: 'Garder', onclick: function () { self.enregistrerRecherche(); } })]),
+      h('p.mini.doux', 'Gardées sur cet appareil.')
+    ]);
+    var dehors = function (e) { if (!self.elRechEnv.contains(e.target)) { self.popRech.hidden = true; self.btnRech.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); } };
+    this.btnRech.addEventListener('click', function () {
+      self.popRech.hidden = !self.popRech.hidden; self.btnRech.setAttribute('aria-expanded', self.popRech.hidden ? 'false' : 'true');
+      if (!self.popRech.hidden) { self.rendreRecherches(); document.addEventListener('mousedown', dehors, true); }
+    });
+    this.elRechEnv = h('div.inv2-plus-env.occ-rech-env', [this.btnRech, this.popRech]);
+  };
+  Opportunites.prototype.rendreRecherches = function () {
+    var self = this, l = recherchesMemo();
+    AMX.vider(this.elRechListe);
+    if (!l.length) this.elRechListe.appendChild(h('p.mini.doux', 'Aucune recherche gardée. Réglez vos filtres, donnez un nom ci-dessous et cliquez « Garder ».'));
+    l.forEach(function (r, i) {
+      self.elRechListe.appendChild(h('div.occ-rech-item', [
+        h('button.lien.occ-rech-appliquer', { type: 'button', text: r.nom, title: r.resume || '', onclick: function () { self.appliquerRecherche(r); self.popRech.hidden = true; self.btnRech.setAttribute('aria-expanded', 'false'); } }),
+        h('button.lien.occ-rech-suppr', { type: 'button', 'aria-label': 'Retirer « ' + r.nom + ' »', html: '&times;', onclick: function () { var l2 = recherchesMemo(); l2.splice(i, 1); recherchesEcrire(l2); self.rendreRecherches(); } })
+      ]));
+    });
+    if (!this.elRechNom.value) this.elRechNom.value = this.resumeFiltres().slice(0, 60);
+  };
+  Opportunites.prototype.enregistrerRecherche = function () {
+    var nom = String(this.elRechNom.value || '').trim() || this.resumeFiltres().slice(0, 60) || 'Ma recherche';
+    var f = this.f, garde = {}; CHAMPS_RECHERCHE.forEach(function (k) { garde[k] = f[k]; });
+    var l = recherchesMemo().filter(function (r) { return r.nom !== nom; });
+    l.unshift({ nom: nom, f: JSON.parse(JSON.stringify(garde)), resume: this.resumeFiltres() });
+    recherchesEcrire(l); this.elRechNom.value = '';
+    AMX.toast('Recherche gardée : « ' + nom + ' »', 'ok'); this.rendreRecherches();
+  };
+  Opportunites.prototype.appliquerRecherche = function (r) {
+    var self = this, d = this.filtresDefaut();
+    CHAMPS_RECHERCHE.forEach(function (k) { self.f[k] = (r.f && r.f[k] !== undefined) ? r.f[k] : d[k]; });
+    if (!this.f.modeles || !Array.isArray(this.f.modeles.liste)) this.f.modeles = { mode: 'exclure', liste: [], noms: {} };
+    try { AMX.memo.ecrire('occ_modeles', JSON.stringify(this.f.modeles)); AMX.memo.ecrire('occ_groupe', this.f.groupe); AMX.memo.ecrire('occ_tri', this.f.tri); } catch (e) {}
+    this.limite = LIMITE; this.rendre();
+    AMX.toast('Recherche « ' + r.nom + ' » appliquée', 'ok');
+  };
+  /* Les filtres actifs, chacun avec de quoi le retirer (puces cliquables de « Chiffres et liste »). */
+  Opportunites.prototype.filtresActifs = function () {
+    var self = this, f = this.f, l = [];
+    var ajout = function (t, retirer) { l.push({ t: t, retirer: function () { retirer(); self.limite = LIMITE; self.synchroniserChamps(); self.rafraichir(); } }); };
+    if (f.q) ajout('« ' + f.q + ' »', function () { f.q = ''; });
+    if (f.marque) ajout(nomMarque(f.marque), function () { f.marque = ''; });
+    if (f.modeles && f.modeles.liste.length) ajout(this.texteModeles(), function () { f.modeles = { mode: 'exclure', liste: [], noms: {} }; AMX.memo.ecrire('occ_modeles', ''); });
+    if (f.prixMax) ajout(AMX.fmtArgent(f.prixMax) + ' au plus', function () { f.prixMax = 0; });
+    if (f.kmMax) ajout(AMX.fmtNombre(f.kmMax) + ' km au plus', function () { f.kmMax = 0; });
+    if (f.anneeMin) ajout(f.anneeMin + ' et plus', function () { f.anneeMin = 0; });
+    if (f.distMax) ajout('à ' + AMX.fmtNombre(f.distMax) + ' km au plus', function () { f.distMax = 0; });
+    if (f.source) ajout(SOURCES.filter(function (s) { return s[0] === f.source; })[0][1], function () { f.source = ''; });
+    if (f.province) ajout(f.province, function () { f.province = ''; });
+    if (f.cote) ajout(FILTRES_COTE.filter(function (x) { return x[0] === f.cote; })[0][1], function () { f.cote = ''; });
+    if (f.statut) ajout(STATUTS.filter(function (s) { return s[0] === f.statut; })[0][1], function () { f.statut = ''; });
+    return l;
+  };
+  Opportunites.prototype.resumeFiltres = function () { return this.filtresActifs().map(function (x) { return x.t; }).join(' · '); };
   Opportunites.prototype.ecrireModeles = function () {
     var m = this.f.modeles;
     try { AMX.memo.ecrire('occ_modeles', JSON.stringify({ mode: m.mode, liste: m.liste, noms: m.noms })); } catch (e) {}
@@ -322,6 +433,10 @@
       if (sauf !== 'source' && f.source && (f.source === 'particulier' ? !estParticulier(o) : (o.source || 'marketcheck') !== f.source)) return false;
       if (sauf !== 'province' && f.province && String(o.province || '').toUpperCase() !== f.province) return false;
       if (sauf !== 'cote' && f.cote) { if (f.cote === 'sans' ? !!COTES[o.coteCg] : rangCote(o) < COTES[f.cote].r) return false; }
+      if (f.prixMax && !(num(o.prix) <= f.prixMax)) return false;
+      if (f.kmMax && nb(num(o.km)) && num(o.km) > f.kmMax) return false;
+      if (f.anneeMin && !(num(o.annee) >= f.anneeMin)) return false;
+      if (f.distMax) { var kd = self.calc(o); if (!kd || !nb(kd.distance) || kd.distance > f.distMax) return false; }
       if (sauf !== 'q' && f.q && !AMX.correspond([o.annee, o.marque, o.modele, o.version, o.vin, o.vendeur, o.ville, o.province, o.couleur, o.typeInv], f.q)) return false;
       return true;
     });
@@ -367,8 +482,16 @@
     AMX.vider(this.elProv); this.elProv.appendChild(h('option', { value: '', text: 'Tout le Canada' }));
     Object.keys(provs).sort().forEach(function (x) { self.elProv.appendChild(h('option', { value: x, text: x })); });
     this.elProv.value = provs[pv] ? pv : ''; this.f.province = this.elProv.value;
-    this.elSource.value = this.f.source; this.elTri.value = this.f.tri; this.elCote.value = this.f.cote || '';
-    if (this.elQ.value !== this.f.q) this.elQ.value = this.f.q;
+    var annees = {}; (d.occasions || []).forEach(function (o) { var a = num(o.annee); if (a) annees[a] = true; });
+    AMX.vider(this.elAnneeMin); this.elAnneeMin.appendChild(h('option', { value: '', text: 'Toutes' }));
+    Object.keys(annees).sort().forEach(function (a) { self.elAnneeMin.appendChild(h('option', { value: a, text: a + ' et plus' })); });
+    // Suggestions de la recherche : les modèles présents (marque + modèle), puis les villes.
+    var sugg = {}, villes = {};
+    (d.occasions || []).forEach(function (o) { var mm = (nomMarque(o.marque) + ' ' + (o.modele || '')).trim(); if (mm) sugg[mm] = (sugg[mm] || 0) + 1; if (o.ville) villes[o.ville] = true; });
+    AMX.vider(this.elSuggestions);
+    Object.keys(sugg).sort(function (a, b) { return sugg[b] - sugg[a]; }).slice(0, 150).concat(Object.keys(villes).sort().slice(0, 80))
+      .forEach(function (t) { self.elSuggestions.appendChild(h('option', { value: t })); });
+    this.synchroniserChamps();
     this.rafraichir();
   };
 
@@ -557,18 +680,20 @@
     this.rendreModeles();
     // Liste filtrée
     var liste = this.trier(this.filtrer());
-    var actifs = [];
-    if (f.q) actifs.push('« ' + f.q + ' »');
-    if (f.marque) actifs.push(nomMarque(f.marque));
-    if (f.modeles && f.modeles.liste.length) actifs.push(this.texteModeles());
-    if (f.source) actifs.push(SOURCES.filter(function (s) { return s[0] === f.source; })[0][1]);
-    if (f.province) actifs.push(f.province);
-    if (f.cote) actifs.push(FILTRES_COTE.filter(function (x) { return x[0] === f.cote; })[0][1]);
-    if (f.statut) actifs.push(STATUTS.filter(function (s) { return s[0] === f.statut; })[0][1]);
+    var actifsObj = this.filtresActifs(), actifs = actifsObj.map(function (x) { return x.t; });
+    var nP = this.nbPlus();
+    this.btnPlus.innerHTML = I.filtre ? I.filtre + '<span>Filtres' + (nP ? ' · ' + nP : '') + '</span>' : 'Filtres' + (nP ? ' · ' + nP : '');
+    this.btnPlus.classList.toggle('actif', nP > 0);
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['annonce', 'annonces'], contexte: [this.compagnie ? 'transport vers ' + (COURTS[this.compagnie] || this.compagnie) : (f.groupe === 'autres' ? 'concession la plus proche' : 'concession la plus avantageuse'),
         f.groupe === 'autres' ? (f.vue === 'bons' ? 'autres marques · bons achats' : 'autres marques · les ' + (p.autresTop || 50) + ' meilleures, ' + AMX.fmtArgent(p.autresPrixMax || 60000) + ' au plus') :
         (f.vue === 'top' ? 'bons achats + ' + ((p.topParMarque || 20)) + ' meilleures par marque' : (f.vue === 'bons' ? 'bons achats (prix ≤ gros OpenLane)' : 'toutes les annonces'))],
       filtres: actifs, effacer: function () { var v = f.vue, t = f.tri, g = f.groupe; self.f = self.filtresDefaut(); self.f.vue = v; self.f.tri = t; self.f.groupe = g; self.f.modeles = { mode: 'exclure', liste: [], noms: {} }; AMX.memo.ecrire('occ_modeles', ''); self.elQ.value = ''; self.rendre(); } });
+    // Chaque filtre de « Chiffres et liste » devient une puce qu'on retire d'un clic.
+    [].forEach.call(this.elPortee.querySelectorAll('span.filtre'), function (sp, i) {
+      var a = actifsObj[i]; if (!a) return;
+      var b = h('button.filtre.occ-puce-filtre', { type: 'button', title: 'Retirer ce filtre', 'aria-label': 'Retirer le filtre ' + a.t, onclick: a.retirer }, [h('span', { text: a.t }), h('span.x', { html: '&times;' })]);
+      sp.parentNode.replaceChild(b, sp);
+    });
     // Une concession choisie en haut ne voit que les marques qu'elle vend (24 oct. : « je ne vois aucun BMW » — Hawkesbury
     // était choisie). On le dit, avec un bouton pour voir toutes les concessions.
     if (this.compagnie) {
@@ -791,6 +916,14 @@
       '.occ-autres { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; padding: 6px 10px; border-radius: 8px; background: var(--ambre-bg, #FFF4E0); color: var(--ambre); font-size: 13px; }',
       '.occ-modeles-env { margin-left: 0; }',
       '.occ-pop-modeles { width: 320px; left: 0; right: auto; }',
+      '.occ-pop-plus { width: 360px; left: 0; right: auto; } .occ-plus-grille { display: grid; gap: 10px; } .occ-plus-champ { display: grid; gap: 4px; font-size: 12.5px; color: var(--encre-2); } .occ-plus-champ .saisie { width: 100%; }',
+      '.occ-pop-rech { width: 320px; left: 0; right: auto; } .occ-rech-liste { display: grid; gap: 4px; max-height: 260px; overflow: auto; margin-bottom: 10px; }',
+      '.occ-rech-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; } .occ-rech-item:hover { background: var(--fond); }',
+      '.occ-rech-appliquer { text-align: left; font-weight: 600; } .occ-rech-suppr { font-size: 18px; line-height: 1; color: var(--encre-3); } .occ-rech-nouvelle { display: flex; gap: 6px; }',
+      '.occ-rech-nouvelle .saisie { flex: 1; min-width: 0; }',
+      '.portee-chiffres .occ-puce-filtre { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border: 1px solid var(--bordure); background: var(--vert-clair); color: var(--vert-fonce); border-radius: 999px; padding: 2px 6px 2px 10px; font: inherit; font-size: 12.5px; }',
+      '.portee-chiffres .occ-puce-filtre .x { font-size: 15px; line-height: 1; } .portee-chiffres .occ-puce-filtre:hover { border-color: var(--vert-fonce); }',
+      '#occ-plus.actif { border-color: var(--vert-fonce); color: var(--vert-fonce); }',
       '.occ-mode { display: flex; }',
       '.occ-mode button { flex: 1 1 0; }',
       '.occ-mod-liste { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin: 0 -4px; padding: 0 4px; }',

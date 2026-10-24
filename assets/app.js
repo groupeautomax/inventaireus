@@ -800,6 +800,7 @@
       { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' }
     ] },
     { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
+      { id: 'opportunites', titre: 'Opportunités d\'achat', de: 'outils', onglet: 'opportunites' },   /* 24 oct. : Occasions.gs */
       { id: 'eblock', titre: 'Fiches eBlock', de: 'outils', onglet: 'eblock' },
       { id: 'openlane', titre: 'Valeurs OpenLane', de: 'outils', onglet: 'openlane' },
       { id: 'carfax', titre: 'Import CARFAX', de: 'outils', onglet: 'carfax' },

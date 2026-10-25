@@ -52,7 +52,8 @@
   function charger(force) {
     if (!force && cache.rep && Date.now() - cache.quand < 5 * 60000) return Promise.resolve(cache.rep);
     if (cache.promesse) return cache.promesse;
-    cache.promesse = AMX.get({ occasionsMarche: 1 }, { gz: true, copie: 'occ_marche', secours: false, delai: 90000 }).then(function (d) {
+    // Sans les annonces (10 000 depuis le 25 oct.) : l'onglet Concurrents les demande à part, quand il s'ouvre.
+    cache.promesse = AMX.get({ occasionsMarche: 1, sansAnnonces: 1 }, { gz: true, copie: 'occ_marche', secours: false, delai: 90000 }).then(function (d) {
       cache.promesse = null;
       if (d && d.refuse) return d;
       if (!d || d.ok === false) throw new Error((d && d.erreur) || 'Réponse inattendue du serveur');
@@ -62,6 +63,26 @@
       return d;
     }, function (e) { cache.promesse = null; throw e; });
     return cache.promesse;
+  }
+  /* Annonces des concurrents (onglet Concurrents) : demandées à part, gardées pour la lecture du marché en cours. */
+  var cacheA = { le: '', annonces: null, promesse: null };
+  function annonces(d) {
+    if (d && Array.isArray(d.annonces)) return Promise.resolve(d.annonces);          // ancien script : déjà dans la réponse
+    var le = (d && d.le) || '';
+    if (cacheA.annonces && cacheA.le === le) return Promise.resolve(cacheA.annonces);
+    if (cacheA.promesse) return cacheA.promesse;
+    cacheA.promesse = AMX.get({ occasionsMarche: 1, annoncesSeules: 1 }, { gz: true, copie: 'occ_marche_annonces', secours: false, delai: 90000 }).then(function (r) {
+      cacheA.promesse = null;
+      if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Réponse inattendue du serveur');
+      if (!Array.isArray(r.annonces)) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (OccMarche.gs).');
+      cacheA.annonces = r.annonces; cacheA.le = r.le || le;
+      return r.annonces;
+    }, function (e) { cacheA.promesse = null; throw e; });
+    return cacheA.promesse;
+  }
+  function annoncesEnMain(d) {
+    if (d && Array.isArray(d.annonces)) return d.annonces;
+    return cacheA.annonces && cacheA.le === ((d && d.le) || '') ? cacheA.annonces : null;
   }
   /* Le registre Detail fait foi : un véhicule supprimé, vendu ou transféré depuis la lecture du marché n'y est plus.
      Sans registre en mémoire, la liste du serveur reste telle quelle (le serveur la filtre déjà depuis le 25 oct.). */
@@ -86,7 +107,8 @@
     var e = d.etat || {};
     if (!d.le) return e.enCours ? 'Première lecture du marché en cours chez Apify (lancée ' + AMX.fmtDate(e.enCours.le, true) + ').' : 'Pas encore lu : la première lecture part ' + (e.jour === 1 ? 'lundi' : 'le jour prévu') + ' à partir de 6 h.';
     var dn = e.derniere || {};
-    return 'Lecture du ' + AMX.fmtDate(d.le, true) + ' · ' + AMX.fmtNombre((d.annonces || []).length) + ' annonces de concessionnaires' + (dn.vendeurs ? ' (' + AMX.fmtNombre(dn.vendeurs) + ' concessionnaires)' : '') + ' dans ' + (d.rayon || 200) + ' km de ' + (d.centre || 'Montréal') +
+    var nA = Array.isArray(d.annonces) ? d.annonces.length : (d.nAnnonces || 0);
+    return 'Lecture du ' + AMX.fmtDate(d.le, true) + ' · ' + AMX.fmtNombre(nA) + ' annonces de concessionnaires' + (dn.vendeurs ? ' (' + AMX.fmtNombre(dn.vendeurs) + ' concessionnaires)' : '') + ' dans ' + (d.rayon || 200) + ' km de ' + (d.centre || 'Montréal') +
       (e.enCours ? ' · nouvelle lecture en cours' : '');
   }
   function lancer(bouton, apres) {
@@ -298,12 +320,24 @@
     });
   };
   VueConcurrents.prototype.rendre = function (d) {
-    this.d = d; this._cle = null;
+    var self = this;
+    this._cle = null;
     this.elEtat.textContent = texteLecture(d) + ' — parmi les modèles que nous avons en stock.';
-    this.rafraichir();
+    var a = annoncesEnMain(d);
+    this.d = a ? Object.assign({}, d, { annonces: a }) : d;
+    this.pret = !!a || !(d && d.le);
+    if (this.pret) { this.rafraichir(); return; }
+    // Les annonces ne viennent que si l'onglet est ouvert (la page À acheter ne les attend pas).
+    if (this.page && this.page.onglet !== 'concurrents') return;
+    AMX.vider(this.elKpis); AMX.vider(this.elRayons); AMX.vider(this.elListe);
+    this.elListe.appendChild(AMX.chargeur ? AMX.chargeur('Annonces des concurrents', { compact: true }) : h('div.vide', { text: 'Chargement des annonces…' }));
+    annonces(d).then(function () { if (self.d === d) { self.rendre(d); if (self.page && self.page.rendreOnglets) self.page.rendreOnglets(); } }, function (e) {
+      if (self.d !== d) return;
+      AMX.vider(self.elListe); self.elListe.appendChild(h('div.vide', [h('h3', 'Annonces des concurrents indisponibles'), h('div', { text: AMX.erreurTexte(e) })]));
+    });
   };
   VueConcurrents.prototype.rafraichir = function () {
-    var self = this, f = this.f; if (!this.d) return;
+    var self = this, f = this.f; if (!this.d || this.pret === false) return;
     AMX.vider(this.elRayons);
     var pour = this.filtrer('rayon');
     RAYONS.forEach(function (r) {
@@ -374,7 +408,7 @@
     copie().then(function (d) { if (d && !cache.quand) poser(d); return charger(false); }).then(function (d) { if (d && !d.refuse) poser(d); }).catch(function () { if (!cache.rep) { AMX.vider(conteneur); conteneur.appendChild(h('div.mini.doux', { text: 'Prix du marché indisponibles pour l\'instant.' })); } });
   }
 
-  AMX.occMarche = { charger: charger, copie: copie, vehiculesActuels: vehiculesActuels, enCache: function () { return cache.rep; }, copieLe: function () { return cache.copieLe; }, vider: function () { cache.rep = null; cache.quand = 0; },
+  AMX.occMarche = { charger: charger, copie: copie, vehiculesActuels: vehiculesActuels, enCache: function () { return cache.rep; }, copieLe: function () { return cache.copieLe; }, vider: function () { cache.rep = null; cache.quand = 0; cacheA.annonces = null; cacheA.le = ''; }, annonces: annonces,
     VueMarche: VueMarche, VueConcurrents: VueConcurrents, bloc: bloc, lancer: lancer, texteLecture: texteLecture };
 
   function injecterCss() {

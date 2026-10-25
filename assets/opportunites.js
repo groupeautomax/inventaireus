@@ -200,7 +200,7 @@
     var compte = {
       acheter: d && d.occasions ? d.occasions.filter(function (o) { return !o.autre && self.estOpp(o) && o.statut !== 'ecartee' && o.statut !== 'achetee'; }).length : null,
       marche: dm && dm.vehicules ? (AMX.occMarche.vehiculesActuels ? AMX.occMarche.vehiculesActuels(dm) : dm.vehicules).filter(function (v) { return v.verdict === 'cher' && (!cie || v.compagnie === cie); }).length : null,
-      concurrents: this.vueConc && this.vueConc.d ? this.vueConc.filtrer().length : null
+      concurrents: this.vueConc && this.vueConc.d && this.vueConc.pret ? this.vueConc.filtrer().length : null
     };
     var sous = { acheter: 'bons achats', marche: 'trop chers', concurrents: 'voisins' };
     AMX.vider(this.elOnglets);
@@ -1073,7 +1073,7 @@
       });
       n = lignes.length; nom = 'prix-du-marche';
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignes), 'Prix du marché');
-    } else if (this.onglet === 'concurrents' && this.vueConc && this.vueConc.d) {
+    } else if (this.onglet === 'concurrents' && this.vueConc && this.vueConc.d && this.vueConc.pret) {
       var lc = [];
       this.vueConc.filtrer().forEach(function (g) {
         g.l.forEach(function (c) { lc.push({ 'Concessionnaire': g.nom, 'Ville': g.ville, 'Province': g.pr, 'Distance (km)': g.dist, 'De': COURTS[g.versCie] || g.versCie, 'Année': c.a, 'Marque': c.m, 'Modèle': c.mo, 'Version': c.ve, 'Km': c.k, 'Prix': c.p, 'En ligne (j)': c.j, 'Annonce': c.l }); });

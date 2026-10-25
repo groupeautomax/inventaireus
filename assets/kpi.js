@@ -17,7 +17,10 @@
    précédente, ou au composite du groupe constructeur (24 oct. : VW Brossard et
    Hyundai Longueuil contre le concessionnaire moyen de leur groupe, aux lignes
    de l'état financier constructeur, comme dans l'analyse de Mustafa), au mois
-   ou au cumul. Le groupe additionne les concessions ; un
+   ou au cumul. 25 oct. : en mode composite, seuls les indicateurs, départements
+   et concessions qui ont la paire concession / groupe sont listés ; les mois
+   sans état du groupe VW se comparent au bulletin VW Canada (moyenne de la
+   région Québec, cumul seulement). Le groupe additionne les concessions ; un
    ratio est recalculé à partir des sommes, jamais moyenné. Les écarts se
    comptent sur les concessions qui ont les deux chiffres.
 
@@ -65,7 +68,6 @@
     composite: { i: 3, bouton: 'Composite du groupe', vs: 'composite', col: 'Composite', legende: 'Composite du groupe', au: 'du composite', sans: 'pas de composite', sansDans: '' }
   };
   function cleBase(v) { return BASES[v] ? v : 'budget'; }
-  var COMPOSITE_METRIQUES = { units: 1, profit_brut: 1, total_depenses: 1, profit_departemental: 1 };
 
   AMX.icones.kpi = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>';
 
@@ -137,6 +139,22 @@
   /* Composite : [concession, groupe] du bloc « x » de la période, ou null. */
   Moteur.prototype.paireComposite = function (c, p, k) { var x = this.periode(c, p), b = x && x.x && x.x[this.mode]; return (b && b[k]) || null; };
   Moteur.prototype.blocComposite = function (c, p) { var x = this.periode(c, p); return (x && x.x) || null; };
+  /* 25 oct. (Maxime : « inutile de montrer des lignes comparatives avec les données des composites si tu n'as pas les
+     données ») : une ligne ne s'affiche en mode composite que si la concession ET son groupe ont un chiffre. */
+  function paireComplete(t) { return !!(t && nb(t[0]) && nb(t[1])); }
+  Moteur.prototype.aPaire = function (c, p, k) { return paireComplete(this.paireComposite(c, p, k)); };
+  Moteur.prototype.aPaireDep = function (c, p, dep, met) { var b = this.blocComposite(c, p), s = b && b['d' + this.mode]; return paireComplete(s && s[dep] && s[dep][met]); };
+  /* Concessions de la liste qui ont un composite pour la période et le mode (au moins un indicateur visible). */
+  Moteur.prototype.ciesComposite = function (cies, p) {
+    var self = this;
+    return cies.filter(function (c) { var b = self.blocComposite(c, p), s = b && b[self.mode]; return !!s && Object.keys(s).some(function (k) { return groupeDe(self.lib, k) !== 'cache' && paireComplete(s[k]); }); });
+  };
+  /* Valeur d'un ensemble en mode composite : seulement si chaque concession a sa comparaison (sinon null : pas de ligne). */
+  Moteur.prototype.valeurEnsemble = function (cies, p, k, dep) {
+    if (cies.length < 2) return null;
+    var v = dep ? this.valeurDep(cies, p, dep, k) : this.valeur(cies, p, k);
+    return (nb(v.r) && nb(v.c) && v.paires === cies.length) ? v : null;
+  };
   /* Avec un composite, le réel est la concession lue dans son état constructeur (mêmes lignes que le groupe, comme dans
      l'analyse de Mustafa) et le comparatif, le concessionnaire moyen du groupe (indice 3). Sans composite : le réel du
      Réalisé, sans comparatif. */
@@ -344,36 +362,52 @@
     var d = this.donnees;
     return this.cies().some(function (c) { var ps = (d.concessions[c] || {}).periodes || {}; return Object.keys(ps).some(function (p) { return ps[p] && ps[p].x; }); });
   };
-  /* Mois qui ont un composite, par concession de la sélection (les plus récents d'abord). */
-  Kpi.prototype.moisComposite = function () {
+  /* Mois qui ont un composite pour le mode choisi (mois ou cumul), par concession de la sélection (les plus récents d'abord).
+     25 oct. : les bulletins VW ne donnent que le cumul ; un mois « bulletin » n'est donc offert qu'au cumul. */
+  Kpi.prototype.moisComposite = function (m) {
     var d = this.donnees, out = {};
-    this.cies().forEach(function (c) { var ps = (d.concessions[c] || {}).periodes || {}; Object.keys(ps).sort().reverse().forEach(function (p) { if (ps[p] && ps[p].x) (out[c] = out[c] || []).push(p); }); });
+    this.cies().forEach(function (c) { var ps = (d.concessions[c] || {}).periodes || {}; Object.keys(ps).sort().reverse().forEach(function (p) { if (m.ciesComposite([c], p).length) (out[c] = out[c] || []).push(p); }); });
     return out;
   };
   function nomGroupeComposite(b) { return (b.gl || b.g || 'groupe') + (b.n ? ' · ' + b.n + ' concessions' : ''); }
-  /* L'avis en tête des vues : contre quoi chaque concession est comparée, et d'où viennent ses chiffres. */
+  function estBulletin(b) { return !!(b && b.t === 'bulletin'); }
+  function deMois(p) { return (/^[aeiouyéèêàâîô]/i.test(moisLib(p)) ? 'd\'' : 'de ') + moisLib(p); }
+  /* L'avis en tête des vues : contre quoi chaque concession est comparée, d'où viennent ses chiffres, et — une seule fois —
+     les concessions qui n'ont pas de composite pour la période (leurs lignes ne sont pas listées). */
   Kpi.prototype.avisComposite = function (m, p) {
-    var self = this, cies = this.ciesAvec(p), avec = [], sans = [];
-    cies.forEach(function (c) { var b = m.blocComposite(c, p); if (b) avec.push([c, b]); else sans.push(c); });
-    var lignes = avec.map(function (x) {
-      var b = x[1];
-      return h('li', [h('b', { text: nomCie(x[0]) }), ' contre le concessionnaire moyen de son groupe : ', h('b', { text: nomGroupeComposite(b) }),
+    var self = this, cies = this.ciesAvec(p), avec = m.ciesComposite(cies, p), cumulSeul = [], sans = [];
+    cies.forEach(function (c) { if (avec.indexOf(c) >= 0) return; var b = m.blocComposite(c, p); if (b && b.c && m.mode === 'm') cumulSeul.push(c); else sans.push(c); });
+    var lignes = avec.map(function (c) {
+      var b = m.blocComposite(c, p);
+      if (estBulletin(b)) return h('li', [h('b', { text: nomCie(c) }), ' contre la moyenne de sa région : ', h('b', { text: nomGroupeComposite(b) }),
+        h('span.mini', { text: ' — ' + (b.src || 'bulletin du constructeur') + (b.f ? ' · ' + b.f : '') })]);
+      return h('li', [h('b', { text: nomCie(c) }), ' contre le concessionnaire moyen de son groupe : ', h('b', { text: nomGroupeComposite(b) }),
         h('span.mini', { text: ' — ' + (b.src || 'état du groupe constructeur') + (b.f ? ' · concession : ' + b.f : '') })]);
     });
+    var bulletins = avec.filter(function (c) { return estBulletin(m.blocComposite(c, p)); });
+    var etats = avec.filter(function (c) { return !estBulletin(m.blocComposite(c, p)); });
+    // Où trouver l'état complet du groupe quand on regarde un mois « bulletin »
+    var moisEtat = function (c) { var ps = (self.donnees.concessions[c] || {}).periodes || {}; return Object.keys(ps).filter(function (q) { var b = ps[q].x; return b && !estBulletin(b); }).sort().reverse(); };
     var AVEC_COMPOSITE = { VW: 1, HYUNDAI: 1 };
     var sansMarque = sans.filter(function (c) { return !AVEC_COMPOSITE[c]; }), sansMois = sans.filter(function (c) { return AVEC_COMPOSITE[c]; });
-    var autres = this.moisComposite(), offres = [];
-    if (!avec.length) Object.keys(autres).forEach(function (c) { autres[c].slice(0, 4).forEach(function (q) { offres.push([c, q]); }); });
+    var autres = this.moisComposite(m), offres = [];
+    if (!avec.length || sansMois.length || cumulSeul.length) Object.keys(autres).forEach(function (c) { autres[c].forEach(function (q) { if (q !== p) offres.push(q); }); });
     var vus = {};
-    offres = offres.filter(function (o) { if (vus[o[1]]) return false; vus[o[1]] = true; return true; }).sort(function (a, b) { return a[1] < b[1] ? 1 : -1; });
-    return h('div.carte.kpi-composite#kpi-composite', [h('div.carte-entete', [h('h2', ['Composite du groupe', h('span.sous', { text: moisLib(p) + (this.mode === 'c' ? ' · cumul' : '') + ' · comme dans l\'analyse des états financiers de Mustafa' })])]),
+    offres = offres.filter(function (q) { if (vus[q]) return false; vus[q] = true; return true; }).sort().reverse().slice(0, 10);
+    var periode = this.mode === 'c' ? 'au cumul de ' + moisLib(p) : 'en ' + moisLib(p);
+    return h('div.carte.kpi-composite#kpi-composite', [h('div.carte-entete', [h('h2', ['Composite du groupe', h('span.sous', { text: moisLib(p) + (this.mode === 'c' ? ' · cumul' : '') + ' · seulement les indicateurs que le constructeur donne aussi pour le groupe' })])]),
       h('div.carte-corps', [
         avec.length ? h('ul', lignes) : null,
-        avec.length ? h('p.mini', { text: 'Les chiffres de la concession sont ceux de son état financier constructeur, aux mêmes lignes que ceux du groupe : ils peuvent différer un peu du Réalisé (le chiffre du Réalisé est rappelé sous le réel quand il diffère).' }) : null,
-        sansMarque.length ? h('p.mini', { text: sansMarque.map(nomCie).join(', ') + ' : pas de composite — seules VW Brossard et Hyundai Longueuil en ont un. Le réel du Réalisé est montré sans comparatif.' }) : null,
-        sansMois.length ? h('p.mini', { text: sansMois.map(nomCie).join(', ') + ' : l\'état du groupe ' + (/^[aeiouyéèêàâîô]/i.test(moisLib(p)) ? 'd\'' : 'de ') + moisLib(p) + ' n\'est pas dans le Drive' + (avec.length ? ' — le réel du Réalisé est montré sans comparatif.' : '.') }) : null,
-        offres.length ? h('div.kpi-composite-mois', [h('span.mini', 'Mois avec composite : ')].concat(offres.map(function (o) {
-          return h('button.btn.fantome.petit', { type: 'button', text: moisLib(o[1], true), onclick: function () { self.mois = o[1]; self.rendre(); } });
+        etats.length ? h('p.mini', { text: 'Les chiffres de la concession sont ceux de son état financier constructeur, aux mêmes lignes que ceux du groupe : ils peuvent différer un peu du Réalisé (le chiffre du Réalisé est rappelé sous le réel quand il diffère).' }) : null,
+        bulletins.length ? h('p.mini', { text: 'Bulletin VW Canada : il ne donne que le cumul de l\'année, et seulement deux indicateurs du tableau de bord (unités neuves vendues, F&I par véhicule d\'occasion au détail — ce dernier vient du bulletin du mois suivant, qui a un mois de retard). L\'état du groupe A, avec tous les indicateurs, est dans le Drive pour : ' +
+          (bulletins.map(moisEtat)[0] || []).map(function (q) { return moisLib(q); }).join(', ') + '.' }) : null,
+        cumulSeul.length ? h('p.mini', [document.createTextNode(cumulSeul.map(nomCie).join(', ') + ' : pour ' + moisLib(p) + ', seul le cumul de l\'année se compare (bulletin VW Canada). '),
+          h('button.btn.fantome.petit', { type: 'button', text: 'Voir le cumul', onclick: function () { self.mode = 'c'; AMX.memo.ecrire('kpi_mode', 'c'); self.rendre(); } })]) : null,
+        sansMarque.length ? h('p.mini', { text: sansMarque.map(nomCie).join(', ') + ' : pas de composite — seules VW Brossard et Hyundai Longueuil en ont un. ' + (sansMarque.length > 1 ? 'Leurs lignes ne sont' : 'Ses lignes ne sont') + ' pas listées ici (le réel est dans les tuiles du sommaire).' }) : null,
+        sansMois.length ? h('p.mini', { text: sansMois.map(nomCie).join(', ') + ' : pas de composite ' + periode + ' (ni état du groupe ni bulletin dans le Drive).' }) : null,
+        offres.length ? h('div.kpi-composite-mois', [h('span.mini', 'Mois avec composite' + (this.mode === 'c' ? ' (cumul)' : '') + ' : ')].concat(offres.map(function (q) {
+          var etat = Object.keys(autres).some(function (c) { var b = m.blocComposite(c, q); return b && !estBulletin(b); });
+          return h('button.btn.fantome.petit', { type: 'button', text: moisLib(q, true) + (etat ? '' : ' · bulletin'), title: etat ? 'État du groupe constructeur' : 'Bulletin VW Canada (cumul seulement)', onclick: function () { self.mois = q; self.rendre(); } });
         }))) : null
       ])]);
   };
@@ -406,7 +440,8 @@
 
     // Tableau des concessions (avec le groupe) — seulement s'il y en a plusieurs
     var toutes = this.cies();
-    if (toutes.length > 1) {
+    if (m.composite && toutes.length > 1) this.tableauComposite(m, p);
+    else if (toutes.length > 1) {
       var corps = toutes.map(function (c) {
         var a = self.donnees.concessions[c].periodes[p];
         if (!a || !a[self.mode]) return h('tr', [h('td', { text: nomCie(c) }), h('td.mini', { colSpan: TABLEAU.length, text: 'Aucun chiffre pour ' + moisLib(p) + ' — dernier mois reçu : ' + moisLib(Object.keys(self.donnees.concessions[c].periodes).sort().pop()) })]);
@@ -423,6 +458,26 @@
     rangee.appendChild(this.carteTendance(m, p, this.tendance));
     this.elCorps.appendChild(rangee);
     this.elCorps.appendChild(this.carteSources(p));
+  };
+
+  /* Composite (25 oct.) : seulement les concessions qui ont un composite pour la période, et seulement les colonnes
+     qu'au moins une d'elles peut comparer. Une case sans comparaison reste vide (—). */
+  Kpi.prototype.tableauComposite = function (m, p) {
+    var self = this, avec = m.ciesComposite(this.ciesAvec(p), p);
+    if (!avec.length) return;
+    var cols = TABLEAU.filter(function (t) { return avec.some(function (c) { return m.aPaire(c, p, t[0]); }); });
+    if (!cols.length) return;
+    var vide = function () { return h('td.num.mini', { text: '—' }); };
+    var corps = avec.map(function (c) {
+      return h('tr.cliquable', { 'data-cie': c, onclick: function () { AMX.choisirCompagnie(c); self.compagnie = c; self.mois = ''; self.rendre(); } },
+        [h('td', { text: nomCie(c) })].concat(cols.map(function (t) { return m.aPaire(c, p, t[0]) ? cellule(m, t[0], m.valeur([c], p, t[0]), true) : vide(); })));
+    });
+    if (avec.length > 1) corps.push(h('tr.total', [h('td', { text: 'Ensemble (' + avec.length + ' concessions)' })].concat(cols.map(function (t) {
+      var v = m.valeurEnsemble(avec.filter(function (c) { return m.aPaire(c, p, t[0]); }), p, t[0]);
+      return v ? cellule(m, t[0], v, true) : vide();
+    }))));
+    this.elCorps.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', ['Concessions avec composite', h('span.sous', { text: moisLib(p) + (this.mode === 'c' ? ' · cumul' : '') + ' · réel de l\'état constructeur, écart vs le composite de son groupe · touchez une ligne pour la voir seule' })])]),
+      h('div.carte-corps.kpi-defile', [h('table.tableau.kpi-tab#kpi-concessions', [h('thead', [h('tr', [h('th', 'Concession')].concat(cols.map(function (t) { return h('th.num', { text: t[1] }); })))]), h('tbody', corps)])])]));
   };
 
   Kpi.prototype.carteFaits = function (m, p, toutes) {
@@ -515,7 +570,7 @@
       var lien = x.di ? h('a', { href: 'https://drive.google.com/file/d/' + encodeURIComponent(x.di) + '/view', target: '_blank', rel: 'noopener', text: x.f || 'Fichier' }) : h('span', { text: x.f || 'Fichier' });
       return h('li' + (x.di ? '' : '.hors'), [h('b', { text: nomCie(c) }), ' — ', lien, h('span.mini', { text: ' · ' + (FORMATS_SOURCE[x.t] || x.t || '') + (x.dt ? ' · modifié le ' + AMX.fmtDate(x.dt) : '') }),
         x.di ? null : h('span.puce.attention', { text: 'Déposé à la main — pas trouvé dans le Drive' }),
-        x.x ? h('div.mini', { text: 'Composite : ' + nomGroupeComposite(x.x) + ' — ' + (x.x.src || '') + (x.x.f ? ' · état de la concession : ' + x.x.f : '') }) : null]);
+        x.x ? h('div.mini', { text: 'Composite : ' + nomGroupeComposite(x.x) + ' — ' + (x.x.src || '') + (x.x.f ? (estBulletin(x.x) ? ' · ' : ' · état de la concession : ') + x.x.f : '') }) : null]);
     });
     return h('div.carte.kpi-sources', [h('div.carte-entete', [h('h2', ['Sources des chiffres', h('span.sous', { text: moisLib(p) + ' · fichiers lus dans les Drive partagés des concessions · tableau de bord du ' + AMX.fmtDate(d.genereLe, true) + ', reçu par ScanAutomax le ' + AMX.fmtDate(d.recuLe, true) })])]),
       h('div.carte-corps', [h('ul', lignes)])]);
@@ -523,6 +578,7 @@
 
   /* ------------------------------ Indicateurs ------------------------------ */
   Kpi.prototype.rendreIndicateurs = function (m, p) {
+    if (m.composite) return this.rendreIndicateursComposite(m, p);
     var self = this, cies = this.ciesAvec(p), plusieurs = cies.length > 1, lb = libBase(this.base);
     this.elCorps.appendChild(this.carteTendance(m, p, this.tendance));
     var cles = {}; cies.forEach(function (c) { var x = self.donnees.concessions[c].periodes[p][self.mode] || {}; Object.keys(x).forEach(function (k) { cles[k] = true; }); });
@@ -556,8 +612,111 @@
       h('div.carte-corps.kpi-defile', [h('table.tableau.kpi-tab#kpi-indicateurs', [h('thead', [h('tr', tete)]), h('tbody', corps)])])]));
   };
 
+  /* Rangées d'une mesure en mode composite (25 oct.) : seulement les concessions qui ont la paire concession / groupe.
+     Plusieurs : une ligne « ensemble » quand elle se compare (sinon le libellé seul), puis une ligne par concession ;
+     une seule : une ligne, avec le nom de la concession si la sélection en compte plusieurs.
+     `o` = { lib, cies, plusieurs, valeur(cies), cellules(v, gras), attrs(c), total } */
+  function rangeesComposite(o) {
+    var lignes = [], n = o.cies.length;
+    if (!n) return lignes;
+    var attrs = function (c) { return o.attrs ? o.attrs(c) : {}; };
+    var cls = function (base) { return 'tr' + (o.total ? '.total' : '') + base; };
+    if (n === 1) {
+      var c0 = o.cies[0];
+      lignes.push(h(cls(o.plusieurs ? '.kpi-ind' : '') + (o.actif ? '.actif' : '') + (o.clic ? '.cliquable' : ''), Object.assign({ 'data-cie': c0 }, attrs(c0)), [h('td', o.plusieurs ? [h('b', { text: o.lib }), h('span.kpi-groupe-mot', ' · ' + (COURTS[c0] || c0))] : [document.createTextNode(o.lib)])].concat(o.cellules(o.valeur([c0]), true))));
+      return lignes;
+    }
+    var ens = o.ensemble();
+    lignes.push(h(cls('.kpi-ind') + (o.actif ? '.actif' : '') + (o.clic ? '.cliquable' : ''), attrs(null), [h('td', [h('b', { text: o.lib }), h('span.kpi-groupe-mot', ens ? ' · ensemble' : '')])]
+      .concat(ens ? o.cellules(ens, true) : [h('td.mini', { colSpan: o.nbCols, text: 'pas d\'ensemble : un des composites ne donne que le ratio, pas ses composantes' })])));
+    o.cies.forEach(function (c) {
+      lignes.push(h('tr.kpi-cie' + (o.actif ? '.actif' : '') + (o.clic ? '.cliquable' : ''), Object.assign({ 'data-cie': c }, attrs(c)), [h('td', [h('i.kpi-pt.' + ((AMX.COULEUR_COMPAGNIE || {})[c] || 'gris')), document.createTextNode(COURTS[c] || c)])].concat(o.cellules(o.valeur([c]), false))));
+    });
+    return lignes;
+  }
+
+  /* Indicateurs, mode composite (25 oct.) : seulement les indicateurs que la concession ET son groupe ont pour la période. */
+  Kpi.prototype.rendreIndicateursComposite = function (m, p) {
+    var self = this, cies = m.ciesComposite(this.ciesAvec(p), p), plusieurs = this.ciesAvec(p).length > 1;
+    this.elCorps.appendChild(this.carteTendance(m, p, this.tendance));
+    if (!cies.length) { this.elCorps.appendChild(this.videComposite(m, p, 'indicateur')); return; }
+    var cles = {};
+    cies.forEach(function (c) { var b = m.blocComposite(c, p)[self.mode] || {}; Object.keys(b).forEach(function (k) { if (m.aPaire(c, p, k)) cles[k] = true; }); });
+    var tete = [h('th', plusieurs ? 'Indicateur · concession' : 'Indicateur'), h('th.num', 'Réel'), h('th.num', { text: m.B.col }), h('th.num', 'Écart'), h('th.num', 'Écart %')];
+    var corps = [], n = 0;
+    var ordre = ORDRE_UNITE.concat(Object.keys(m.lib).filter(function (x) { return ORDRE_UNITE.indexOf(x) < 0; }));
+    GROUPES.forEach(function (g) {
+      var ks = Object.keys(cles).filter(function (k) { return groupeDe(m.lib, k) === g[0]; });
+      if (!ks.length) return;
+      corps.push(h('tr.groupe', [h('td', { colSpan: tete.length, text: g[1] })]));
+      ks.sort(function (a, b) { return (g[0] === 'unite' || g[0] === 'apv') ? ordre.indexOf(a) - ordre.indexOf(b) : m.libelle(a).localeCompare(m.libelle(b), 'fr'); });
+      ks.forEach(function (k) {
+        var avec = cies.filter(function (c) { return m.aPaire(c, p, k); });
+        var choisir = function () { self.tendance = k; self.rendre(); var t = document.getElementById('kpi-tendance'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
+        n++;
+        corps = corps.concat(rangeesComposite({ lib: m.libelle(k), cies: avec, plusieurs: plusieurs, nbCols: 4, clic: true, actif: k === self.tendance,
+          attrs: function () { return { 'data-cle': k, onclick: choisir }; },
+          valeur: function (cs) { return m.valeur(cs, p, k); }, ensemble: function () { return m.valeurEnsemble(avec, p, k); },
+          cellules: function (x, gras) {
+            var ton = m.ton(k, x.ecart) || 'neutre';
+            return [h('td.num', [gras ? h('b', { text: m.format(k, x.r) }) : document.createTextNode(m.format(k, x.r)), noteRealise(m, k, x)]), h('td.num', { text: m.format(k, x.c) }),
+              h('td.num.' + ton, { text: m.formatEcart(k, x.ecart) }), h('td.num.' + ton, { text: nb(x.ecartPct) && (m.lib[k] || {}).f !== 'percent' ? signe(pct(x.ecartPct)) : '—' })];
+          } }));
+      });
+    });
+    this.elCorps.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', ['Indicateurs', h('span.sous', { text: moisLib(p) + (this.mode === 'c' ? ' · cumul' : '') + ' · ' + n + ' indicateur' + (n > 1 ? 's' : '') + ' que le composite donne aussi · touchez une ligne pour sa courbe' })])]),
+      h('div.carte-corps.kpi-defile', [h('table.tableau.kpi-tab#kpi-indicateurs', [h('thead', [h('tr', tete)]), h('tbody', corps)])])]));
+  };
+
+  /* Aucun composite pour la période (le détail des raisons est dans l'avis en tête). */
+  Kpi.prototype.videComposite = function (m, p, quoi) {
+    var bulletinMois = m.mode === 'm' && this.ciesAvec(p).some(function (c) { var b = m.blocComposite(c, p); return b && b.c; });
+    return h('div.vide.kpi-vide-composite', [h('h3', 'Aucun ' + quoi + ' à comparer au composite pour ' + moisLib(p) + (this.mode === 'c' ? ' (cumul)' : '')),
+      h('div', { text: bulletinMois ? 'Le bulletin VW ne donne que le cumul de l\'année : passez au cumul, ou choisissez un mois avec composite ci-dessus.' : 'Choisissez un des mois avec composite ci-dessus.' })]);
+  };
+
+  /* Départements, mode composite (25 oct.) : seulement les départements et les mesures que l'état du groupe donne aussi. */
+  Kpi.prototype.rendreDepartementsComposite = function (m, p) {
+    var self = this, cies = this.ciesAvec(p), plusieurs = cies.length > 1, lb = libBase(this.base);
+    var avec = cies.filter(function (c) { var b = m.blocComposite(c, p), s = b && b['d' + self.mode]; return !!s && Object.keys(s).some(function (dep) { return Object.keys(s[dep]).some(function (met) { return m.aPaireDep(c, p, dep, met); }); }); });
+    if (!avec.length) {
+      var bulletin = cies.some(function (c) { return estBulletin(m.blocComposite(c, p)); });
+      this.elCorps.appendChild(bulletin ? h('div.vide.kpi-vide-composite', [h('h3', 'Pas de composite par département pour ' + moisLib(p)), h('div', { text: 'Le bulletin VW Canada ne détaille pas les départements : seul l\'état du groupe A le fait (voir les mois avec composite ci-dessus).' })]) : this.videComposite(m, p, 'département'));
+      return;
+    }
+    var noms = {}; avec.forEach(function (c) { Object.keys(m.blocComposite(c, p)['d' + self.mode] || {}).forEach(function (n) { if (!DEPTS_CACHES[n]) noms[n] = true; }); });
+    var liste = DEPTS.filter(function (n) { return noms[n]; }).concat(Object.keys(noms).filter(function (n) { return DEPTS.indexOf(n) < 0; }).sort());
+    var grille = h('div.kpi-deps');
+    liste.forEach(function (dep) {
+      var tete = [h('th', plusieurs ? 'Ligne · concession' : ''), h('th.num', 'Réel'), h('th.num', { text: m.B.col }), h('th.num', 'Écart')];
+      // Le profit du département porte le nom de l'analyse ; s'il diffère d'un constructeur à l'autre, un nom commun.
+      var libs = {};
+      avec.forEach(function (c) { var b = m.blocComposite(c, p); if (m.aPaireDep(c, p, dep, 'profit_departemental') && b && b.pl && b.pl[dep]) libs[b.pl[dep]] = 1; });
+      var libProfit = Object.keys(libs).length === 1 ? Object.keys(libs)[0] : (Object.keys(libs).length ? 'Profit du département (selon le constructeur)' : null);
+      var lignes = [];
+      DEP_METRIQUES.forEach(function (mt) {
+        var cs = avec.filter(function (c) { return m.aPaireDep(c, p, dep, mt[0]); });
+        if (!cs.length) return;
+        var fmt = function (x) { return mt[2] === 'volume' ? (nb(x) ? AMX.fmtNombre(Math.round(x)) : '—') : argent(x); };
+        var tonDe = function (x) { return !nb(x.ecart) || Math.abs(x.ecart) < 1e-9 ? 'neutre' : ((x.ecart > 0) !== !!MOINS_MIEUX[mt[0]] ? 'pos' : 'neg'); };
+        var total = mt[0] === 'profit_departemental', lib = total && libProfit ? libProfit : mt[1];
+        lignes = lignes.concat(rangeesComposite({ lib: lib, cies: cs, plusieurs: plusieurs, nbCols: 3, total: total,
+          valeur: function (x) { return m.valeurDep(x, p, dep, mt[0]); }, ensemble: function () { return m.valeurEnsemble(cs, p, mt[0], dep); },
+          cellules: function (x, gras) { return [h('td.num', [gras ? h('b', { text: fmt(x.r) }) : document.createTextNode(fmt(x.r))]), h('td.num', { text: fmt(x.c) }), h('td.num.' + tonDe(x), { text: nb(x.ecart) ? signe(fmt(x.ecart)) : '—' })]; } }));
+      });
+      if (!lignes.length) return;
+      var csNet = avec.filter(function (c) { return m.aPaireDep(c, p, dep, 'profit_departemental'); });
+      var net = csNet.length === 1 ? m.valeurDep(csNet, p, dep, 'profit_departemental') : m.valeurEnsemble(csNet, p, 'profit_departemental', dep);
+      grille.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', [dep, h('span.sous', { text: net ? (libProfit ? libProfit.toLowerCase() : 'profit départemental') + ' ' + argent(net.r) + (nb(net.ecart) ? ' · ' + signe(argent(net.ecart)) + ' vs ' + lb : '') : '' })])]),
+        h('div.carte-corps.kpi-defile', [h('table.tableau.kpi-tab', { 'data-dep': dep }, [h('thead', [h('tr', tete)]), h('tbody', lignes)])])]));
+    });
+    this.elCorps.appendChild(h('p.mini.kpi-note', { text: moisLib(p) + (this.mode === 'c' ? ' (cumul)' : '') + ' · seulement les lignes que l\'état du groupe constructeur donne aussi · dépenses en montants positifs : un écart négatif sur une dépense est une bonne nouvelle (en vert).' }));
+    this.elCorps.appendChild(grille);
+  };
+
   /* ------------------------------ Départements ------------------------------ */
   Kpi.prototype.rendreDepartements = function (m, p) {
+    if (m.composite) return this.rendreDepartementsComposite(m, p);
     var self = this, cies = this.ciesAvec(p), plusieurs = cies.length > 1, lb = libBase(this.base);
     var noms = {}; cies.forEach(function (c) { var x = self.donnees.concessions[c].periodes[p]['d' + self.mode] || {}; Object.keys(x).forEach(function (n) { if (!DEPTS_CACHES[n]) noms[n] = true; }); });
     var liste = DEPTS.filter(function (n) { return noms[n]; }).concat(Object.keys(noms).filter(function (n) { return DEPTS.indexOf(n) < 0; }).sort());
@@ -570,7 +729,6 @@
       if (m.composite) cies.forEach(function (c) { var b = m.blocComposite(c, p); if (!libProfit && b && b.pl && b.pl[dep]) libProfit = b.pl[dep]; });
       var lignes = [];
       DEP_METRIQUES.forEach(function (mt) {
-        if (m.composite && !COMPOSITE_METRIQUES[mt[0]]) return;
         var v = m.valeurDep(cies, p, dep, mt[0]); if (!nb(v.r)) return;
         var fmt = function (x) { return mt[2] === 'volume' ? (nb(x) ? AMX.fmtNombre(Math.round(x)) : '—') : argent(x); };
         var tonDe = function (x) { return !nb(x.ecart) || Math.abs(x.ecart) < 1e-9 ? 'neutre' : ((x.ecart > 0) !== !!MOINS_MIEUX[mt[0]] ? 'pos' : 'neg'); };
@@ -603,9 +761,10 @@
       cies.forEach(function (c) {
         var x = (d.concessions[c].periodes[p] || {})[mode] || {};
         var bx = ((d.concessions[c].periodes[p] || {}).x || {}), cx = bx[mode] || {};
-        Object.keys(x).forEach(function (k) {
+        // 25 oct. : aussi les indicateurs que seul le composite donne ce mois-là (ex. après-vente client de Hyundai avant 2026-09)
+        Object.keys(x).concat(Object.keys(cx).filter(function (k) { return !(k in x); })).forEach(function (k) {
           if (groupeDe(m.lib, k) === 'cache') return;
-          var t = m.brut(c, p, k), q = cx[k], neg = NEGATIFS[k] ? -1 : 1;
+          var t = m.brut(c, p, k) || [null, null, null], q = cx[k], neg = NEGATIFS[k] ? -1 : 1;
           lignes.push({ 'Concession': nomCie(c), 'Mois': p, 'Période': mode === 'c' ? 'Cumul' : 'Mois', 'Groupe': (GROUPES.filter(function (g) { return g[0] === groupeDe(m.lib, k); })[0] || [0, ''])[1], 'Indicateur': m.libelle(k), 'Clé': k, 'Réel': t[0], 'Budget': t[1], 'Année précédente': t[2],
             'Composite — concession (état constructeur)': q && nb(q[0]) ? neg * q[0] : null, 'Composite — moyenne du groupe': q && nb(q[1]) ? neg * q[1] : null, 'Groupe du composite': q ? nomGroupeComposite(bx) : '' });
         });

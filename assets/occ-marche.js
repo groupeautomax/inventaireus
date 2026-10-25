@@ -17,7 +17,8 @@
   var h = AMX.h, I = AMX.icones;
   var COURTS = { STM: 'Ste Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil' };
   var VERDICTS = [['cher', 'Trop chers', 'Trop cher', 'rouge'], ['marche', 'Dans le marché', 'Dans le marché', 'vert'], ['bas', 'Pas assez chers', 'Pas assez cher', 'bleu'],
-    ['inconnu', 'Sans prix affiché', 'Prix affiché introuvable', 'gris'], ['peu', 'Peu de comparables', 'Peu de comparables', 'gris'], ['tous', 'Tous', '', '']];
+    ['inconnu', 'Sans prix affiché', 'Prix affiché introuvable', 'gris'], ['peu', 'Peu de comparables', 'Peu d\'annonces de la même version', 'gris'],
+    ['version', 'Version à préciser', 'Version à préciser (Analyse usagé)', 'ambre'], ['tous', 'Tous', '', '']];   /* 25 oct. : comparé seulement à la même version */
   var V_LIB = {}; VERDICTS.forEach(function (v) { V_LIB[v[0]] = { t: v[2], c: v[3] }; });
   var TRIS_M = [['ecart', 'Écart au marché'], ['jours', 'Jours en stock'], ['comps', 'Nombre de comparables'], ['modele', 'Modèle']];
   var RAYONS = [[25, '25 km'], [50, '50 km'], [100, '100 km'], [0, 'Tout le rayon lu']];
@@ -41,7 +42,7 @@
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
   }
   function nomMarque(m) { var x = String(m || '').replace(/-/g, ' '); if (/^(gmc|bmw|ram|mini)$/i.test(x)) return x.toUpperCase(); return x.replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
-  function vehicule(v) { return [v.annee, nomMarque(v.marque), v.modele, v.version].filter(Boolean).join(' '); }
+  function vehicule(v) { return [v.annee, nomMarque(v.marque), v.modele, v.versionLibelle || v.version].filter(Boolean).join(' '); }
   function cleVendeur(nom) { return String(nom || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/\b(inc|ltee|ltd|limitee|enr|the)\b/g, '').replace(/\s+/g, ' ').trim(); }
   function puceVerdict(v, grand) { var x = V_LIB[v] || V_LIB.peu; return h('span.puce.occm-v.' + (x.c || 'gris') + (grand ? '.grand' : ''), { text: x.t }); }
   function lien(url, texte) { return /^https:\/\//.test(url || '') ? h('a', { href: url, target: '_blank', rel: 'noopener', text: texte || 'Annonce ↗' }) : null; }
@@ -168,7 +169,7 @@
     var pour = this.filtrer('verdict');
     VERDICTS.forEach(function (v) {
       var n = v[0] === 'tous' ? pour.length : pour.filter(function (x) { return x.verdict === v[0]; }).length;
-      if (!n && v[0] !== 'tous' && f.verdict !== v[0] && (v[0] === 'peu' || v[0] === 'inconnu')) return;
+      if (!n && v[0] !== 'tous' && f.verdict !== v[0] && (v[0] === 'peu' || v[0] === 'inconnu' || v[0] === 'version')) return;
       self.elVerdicts.appendChild(h('button' + (f.verdict === v[0] ? '.actif' : ''), { type: 'button', 'data-verdict': v[0], onclick: function () { f.verdict = v[0]; AMX.memo.ecrire('occm_verdict', v[0]); self.limite = LIMITE; self.rafraichir(); } },
         [v[3] ? h('i.pt.' + v[3]) : null, v[1] + ' ', h('b', { text: String(n) })]));
     });
@@ -382,7 +383,7 @@
     s.textContent = [
       '.occm-etat { font-size: 13px; color: var(--encre-3); margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }',
       '.occm-verdicts .pt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }',
-      '.occm-verdicts .pt.rouge { background: var(--rouge); } .occm-verdicts .pt.vert { background: var(--vert); } .occm-verdicts .pt.bleu { background: var(--bleu); } .occm-verdicts .pt.gris { background: var(--encre-4); }',
+      '.occm-verdicts .pt.rouge { background: var(--rouge); } .occm-verdicts .pt.vert { background: var(--vert); } .occm-verdicts .pt.bleu { background: var(--bleu); } .occm-verdicts .pt.gris { background: var(--encre-4); } .occm-verdicts .pt.ambre { background: var(--ambre); }',
       '.occm-liste { background: var(--carte, #fff); border: 1px solid var(--trait); border-radius: 12px; overflow: hidden; }',
       '.occm-rangee, .occc-rangee { display: grid; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--trait); align-items: start; font-size: 13.5px; }',
       '.occm-rangee { grid-template-columns: minmax(230px, 2.2fr) 130px minmax(150px, 1.2fr) 160px minmax(120px, 1fr) 110px; }',
@@ -391,7 +392,7 @@
       '.occm-rangee.v-cher { box-shadow: inset 3px 0 0 var(--rouge); } .occm-rangee.v-bas { box-shadow: inset 3px 0 0 var(--bleu); } .occm-rangee.v-marche { box-shadow: inset 3px 0 0 var(--vert); }',
       '.occm-notre b, .occm-marche b { font-size: 15px; } .occm .pos, .occm-bloc .pos { color: var(--vert-fonce); } .occm .neg, .occm-bloc .neg { color: var(--rouge); } .occm .bleu, .occm-bloc .bleu { color: var(--bleu); } .occm .doux, .occm-bloc .doux { color: var(--encre-3); }',
       '.occm-ecart { display: grid; gap: 3px; justify-items: start; }',
-      '.puce.occm-v.rouge { background: #FEE2E2; color: #991B1B; } .puce.occm-v.vert { background: var(--vert-clair); color: var(--vert-fonce); } .puce.occm-v.bleu { background: var(--bleu-bg, #E6F0FB); color: var(--bleu); } .puce.occm-v.gris { background: var(--fond); color: var(--encre-3); }',
+      '.puce.occm-v.rouge { background: #FEE2E2; color: #991B1B; } .puce.occm-v.vert { background: var(--vert-clair); color: var(--vert-fonce); } .puce.occm-v.bleu { background: var(--bleu-bg, #E6F0FB); color: var(--bleu); } .puce.occm-v.gris { background: var(--fond); color: var(--encre-3); } .puce.occm-v.ambre { background: #FFF4DB; color: var(--ambre); }',
       '.puce.occm-v.grand { font-size: 13px; padding: 3px 10px; }',
       '.occm-comps { grid-column: 1 / -1; background: var(--fond); border-radius: 8px; padding: 8px 10px; overflow-x: auto; }',
       '.occm-table { width: 100%; border-collapse: collapse; font-size: 13px; } .occm-table th { text-align: left; font-size: 12px; color: var(--encre-3); font-weight: 600; padding: 4px 8px; }',

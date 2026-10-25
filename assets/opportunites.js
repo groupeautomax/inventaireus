@@ -199,7 +199,7 @@
     var self = this, d = this.donnees, dm = AMX.occMarche && AMX.occMarche.enCache(), cie = this.compagnie;
     var compte = {
       acheter: d && d.occasions ? d.occasions.filter(function (o) { return !o.autre && self.estOpp(o) && o.statut !== 'ecartee' && o.statut !== 'achetee'; }).length : null,
-      marche: dm && dm.vehicules ? dm.vehicules.filter(function (v) { return v.verdict === 'cher' && (!cie || v.compagnie === cie); }).length : null,
+      marche: dm && dm.vehicules ? (AMX.occMarche.vehiculesActuels ? AMX.occMarche.vehiculesActuels(dm) : dm.vehicules).filter(function (v) { return v.verdict === 'cher' && (!cie || v.compagnie === cie); }).length : null,
       concurrents: this.vueConc && this.vueConc.d ? this.vueConc.filtrer().length : null
     };
     var sous = { acheter: 'bons achats', marche: 'trop chers', concurrents: 'voisins' };

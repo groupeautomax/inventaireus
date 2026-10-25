@@ -62,6 +62,16 @@
     }, function (e) { cache.promesse = null; throw e; });
     return cache.promesse;
   }
+  /* Le registre Detail fait foi : un véhicule supprimé, vendu ou transféré depuis la lecture du marché n'y est plus.
+     Sans registre en mémoire, la liste du serveur reste telle quelle (le serveur la filtre déjà depuis le 25 oct.). */
+  var STOCK_DETAIL = ['achete', 'transitqc', 'stock'];
+  function vehiculesActuels(d) {
+    var l = (d && d.vehicules) || [], reg = AMX.inventaire && AMX.inventaire.enCache ? AMX.inventaire.enCache('DETAIL') : null;
+    if (!Array.isArray(reg) || !reg.length) return l;
+    var ok = {};
+    reg.forEach(function (r) { if (r && r.vin && STOCK_DETAIL.indexOf(String(r.statut || '')) >= 0) ok[String(r.vin).toUpperCase()] = true; });
+    return l.filter(function (v) { return v && ok[String(v.vin || '').toUpperCase()]; });
+  }
   /* La copie du navigateur d'abord (affichage immédiat), sans attendre le serveur. */
   function copie() {
     if (cache.rep) return Promise.resolve(cache.rep);
@@ -117,7 +127,7 @@
   };
   VueMarche.prototype.vehicules = function () {
     var d = this.d || {}, cie = this.page.compagnie;
-    return (d.vehicules || []).filter(function (v) { return !cie || v.compagnie === cie; });
+    return vehiculesActuels(d).filter(function (v) { return !cie || v.compagnie === cie; });
   };
   VueMarche.prototype.filtrer = function (sauf) {
     var f = this.f;
@@ -185,7 +195,7 @@
   VueMarche.prototype.rendreListe = function (liste) {
     var self = this;
     AMX.vider(this.elListe);
-    if (!this.d.le && !(this.d.vehicules || []).some(function (v) { return v.n; })) {
+    if (!this.d.le && !vehiculesActuels(this.d).some(function (v) { return v.n; })) {
       this.elListe.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Pas encore de prix du marché'), h('div', { text: 'La lecture des annonces des concessionnaires se fait une fois par semaine (le lundi, à partir de 6 h). Un administrateur peut la lancer tout de suite avec « Lire maintenant ».' })]));
       return;
     }
@@ -363,7 +373,7 @@
     copie().then(function (d) { if (d && !cache.quand) poser(d); return charger(false); }).then(function (d) { if (d && !d.refuse) poser(d); }).catch(function () { if (!cache.rep) { AMX.vider(conteneur); conteneur.appendChild(h('div.mini.doux', { text: 'Prix du marché indisponibles pour l\'instant.' })); } });
   }
 
-  AMX.occMarche = { charger: charger, copie: copie, enCache: function () { return cache.rep; }, copieLe: function () { return cache.copieLe; }, vider: function () { cache.rep = null; cache.quand = 0; },
+  AMX.occMarche = { charger: charger, copie: copie, vehiculesActuels: vehiculesActuels, enCache: function () { return cache.rep; }, copieLe: function () { return cache.copieLe; }, vider: function () { cache.rep = null; cache.quand = 0; },
     VueMarche: VueMarche, VueConcurrents: VueConcurrents, bloc: bloc, lancer: lancer, texteLecture: texteLecture };
 
   function injecterCss() {

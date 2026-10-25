@@ -227,7 +227,9 @@
     if (AMX.occMarche && !this.marche) AMX.occMarche.copie().then(function (d) { if (d && !self.marche) { self.marche = d; fin(); } });
     if (AMX.occMarche) AMX.occMarche.charger(force).then(function (d) { if (d && d.refuse) { self.erreurs.marche = d.erreur; } else self.marche = d; delete self.erreurs.marche; fin(); }, function (e) { self.erreurs.marche = AMX.erreurTexte(e); fin(); });
     chargerAnalyse(force).then(function (d) { if (d && d.refuse) self.erreurs.analyse = d.erreur; else { self.d = d; delete self.erreurs.analyse; } fin(); }, function (e) { self.erreurs.analyse = AMX.erreurTexte(e); fin(); });
-    AMX.inventaire.lire('DETAIL', force).then(function (l) { self.detail = l || []; fin(); }, function () { self.detail = self.detail || []; fin(); });
+    // Le registre Detail fait foi : une fois lu, un véhicule supprimé, vendu ou transféré n'est plus dans l'analyse,
+    // même si la lecture du marché (calculée plus tôt sur le serveur) l'a encore.
+    AMX.inventaire.lire('DETAIL', force).then(function (l) { self.detail = l || []; self.detailOk = Array.isArray(l); self._cle = null; fin(); }, function () { self.detail = self.detail || []; fin(); });
     if (AMX.openlane && AMX.openlane.charger) AMX.openlane.charger(false).then(fin, function () {});
     if (AMX.manheim && AMX.manheim.charger) AMX.manheim.charger(false).then(function () { self._cle = null; fin(); }, function () {});
     // Nos ventes : le Livre des ventes complet (copie du navigateur d'abord), si la personne y a accès.
@@ -269,7 +271,7 @@
   VueAnalyse.prototype.p = function () { return params(this.d); };
   /* Tous nos usagés au détail : le registre Detail (en stock, acheté, transit) et ce que le Prix du marché en sait. */
   VueAnalyse.prototype.base = function () {
-    var self = this, cle = [this.d ? this.d.genereLe : '', this.marche ? this.marche.calculeLe || this.marche.le : '', this.detail ? this.detail.length : -1, this.livre ? this.livre.length : -1, AMX.inventaire.quand ? AMX.inventaire.quand('DETAIL') : 0,
+    var self = this, cle = [this.detailOk ? 1 : 0, this.d ? this.d.genereLe : '', this.marche ? this.marche.calculeLe || this.marche.le : '', this.detail ? this.detail.length : -1, this.livre ? this.livre.length : -1, AMX.inventaire.quand ? AMX.inventaire.quand('DETAIL') : 0,
       AMX.openlane && AMX.openlane.enCache && AMX.openlane.enCache() ? Object.keys(AMX.openlane.enCache()).length : 0].join('|');
     if (this._cle === cle && this._base) return this._base;
     var p = this.p(), maintenant = Date.now(), mParVin = {};
@@ -281,7 +283,8 @@
       if (AMX.codesPour) { var codes = AMX.codesPour('inventaire'); if (Array.isArray(codes) && codes.indexOf(String(r.compagnie || '').toUpperCase()) < 0) return; }
       vus[vin] = true; out.push(analyser(r, mParVin[vin] || null, ctx));
     });
-    Object.keys(mParVin).forEach(function (vin) { if (!vus[vin]) { vus[vin] = true; out.push(analyser(null, mParVin[vin], ctx)); } });
+    // Véhicules connus du marché seulement : seulement quand le registre n'a pas pu être lu (repli).
+    if (!this.detailOk) Object.keys(mParVin).forEach(function (vin) { if (!vus[vin]) { vus[vin] = true; out.push(analyser(null, mParVin[vin], ctx)); } });
     this._cle = cle; this._base = out; this._ctx = ctx;
     void self;
     return out;
@@ -585,7 +588,7 @@
   };
 
   /* Pour les tests et l'Accueil. */
-  AMX.analyseUsage = { analyser: analyser, conseil: conseil, cleModele: cleModele, trancheDe: trancheDe, libTranche: libTranche, ventesDe: ventesDe, charger: chargerAnalyse, DEFAUTS: DEFAUTS };
+  AMX.analyseUsage = { Vue: VueAnalyse, analyser: analyser, conseil: conseil, cleModele: cleModele, trancheDe: trancheDe, libTranche: libTranche, ventesDe: ventesDe, charger: chargerAnalyse, DEFAUTS: DEFAUTS };
 
   function injecterCss() {
     if (document.getElementById('css-anu')) return;

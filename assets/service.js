@@ -56,7 +56,10 @@
   var cache = { reponse: null, quand: 0 };
   var promesse = null;
   // v=39 : avance depuis le cache local (affichage immédiat, rafraîchi en arrière-plan).
-  (function () { var o = AMX.cacheLocal && AMX.cacheLocal.lire('service', 7 * 86400000); if (o && o.donnees && Array.isArray(o.donnees.suivis)) { cache.reponse = o.donnees; cache.quand = 0; } })();
+  // 25 oct. : un suivi encore « en cours » dont le véhicule n'est plus au registre Detail (supprimé, transféré) ne
+  // s'affiche plus — le registre fait foi. Les suivis terminés ou refusés restent (historique).
+  function sansSupprimes(d) { if (d && Array.isArray(d.suivis)) d.suivis = d.suivis.filter(function (s) { return !(s && s.statut === 'encours' && s.dansRegistre === false); }); return d; }
+  (function () { var o = AMX.cacheLocal && AMX.cacheLocal.lire('service', 7 * 86400000); if (o && o.donnees && Array.isArray(o.donnees.suivis)) { cache.reponse = sansSupprimes(o.donnees); cache.quand = 0; } })();
   function sauverService() { if (AMX.cacheLocal && cache.reponse) AMX.cacheLocal.ecrire('service', cache.reponse); }
   AMX.service = {
     etapes: function () { return (cache.reponse && cache.reponse.etapes) || ETAPES; },
@@ -67,6 +70,7 @@
       // force (bouton Rafraîchir, après une écriture) : frais=1 saute le cache serveur (120 s).
       promesse = AMX.get(force ? { service: 1, tout: 1, frais: 1 } : { service: 1, tout: 1 }).then(function (d) {
         AMX.verifier(d, 'Suivi service indisponible');
+        sansSupprimes(d);
         cache.reponse = d; cache.quand = Date.now(); promesse = null;
         sauverService();
         document.dispatchEvent(new CustomEvent('amx:service'));

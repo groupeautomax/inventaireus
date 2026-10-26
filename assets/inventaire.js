@@ -217,6 +217,7 @@
 
     this.construire();
     this.charger();
+    this.contratsDemandes(ctx);
     AMX.carfax.charger().then(function () { self.rendre(); }).catch(function () {});
     this.surCarfax = function () { self.rendre(); };
     document.addEventListener('amx:carfax', this.surCarfax);
@@ -251,7 +252,20 @@
     if (this.observateur) this.observateur.disconnect();
   };
 
+  /* 26 oct. : ?contrats=1 (lien de l'Accueil) ouvre la fenêtre « Contrats d'achat reçus » (achats-auto.js). */
+  Registre.prototype.contratsDemandes = function (ctx) {
+    var self = this;
+    if (!ctx.params.contrats || this.contratsVu || !AMX.achatsAuto || !AMX.achatsAuto.contrats) return;
+    this.contratsVu = true;
+    setTimeout(function () { if (!self.detruit) self.ouvrirContrats(); }, 0);
+  };
+  Registre.prototype.ouvrirContrats = function () {
+    var self = this;
+    AMX.achatsAuto.contrats.ouvrir({ apres: function () { if (!self.detruit) self.charger(true); }, onFermer: function () { self.contratsVu = false; } });
+  };
+
   Registre.prototype.naviguer = function (ctx) {
+    this.contratsDemandes(ctx);
     if (ctx.onglet !== this.onglet) {
       this.onglet = ctx.onglet; this.cfg = FEUILLES[ctx.onglet] || FEUILLES.us;
       this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || '';
@@ -288,6 +302,7 @@
           h('button.btn', { html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
           h('button.btn', { html: I.scan + '<span>Actions en lot</span>', onclick: function () { self.modaleLot('ajout'); } }),
           h('button.btn', { html: (I.corbeille) + '<span>Usagés effacés</span>', onclick: function () { AMX.inventaire.effaces(); } }),
+          (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) ? h('button.btn', { html: (I.courriel) + '<span>Contrats d\'achat reçus</span>', onclick: function () { self.ouvrirContrats(); } }) : null,
           this.sel.bouton,
           AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null
         ])
@@ -372,7 +387,8 @@
       { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } },
       { texte: 'Actions en lot', icone: I.scan, action: function () { self.modaleLot('ajout'); } },
       { texte: 'Usagés effacés', icone: I.corbeille, action: function () { AMX.inventaire.effaces(); } },
-      (AMX.achatsAuto && AMX.achatsAuto.peutLire()) ? { texte: 'Lire les achats OPENLANE', icone: I.rafraichir, action: function () { AMX.achatsAuto.lireOpenlane(AMX.compagnieChoisie('inventaire') || '').then(function () { self.charger(true); }).catch(function () {}); } } : null
+      (AMX.achatsAuto && AMX.achatsAuto.peutLire()) ? { texte: 'Lire les achats OPENLANE', icone: I.rafraichir, action: function () { AMX.achatsAuto.lireOpenlane(AMX.compagnieChoisie('inventaire') || '').then(function () { self.charger(true); }).catch(function () {}); } } : null,
+      (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) ? { texte: 'Contrats d\'achat reçus (courriel)', icone: I.courriel, action: function () { self.ouvrirContrats(); } } : null
     ].filter(Boolean));
     this.conteneur.appendChild(h('div.page.inv2', [
       h('div.entete-page.inv2-tete', [

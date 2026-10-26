@@ -122,7 +122,7 @@
 
   /* ------------------------------- La vue -------------------------------- */
   var EVENEMENTS = ['amx:profil', 'amx:accueil-depart', 'amx:eblock', 'amx:openlane', 'amx:demandes', 'amx:suggestions', 'amx:service', 'amx:inventaire',
-    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
+    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto', 'amx:contrats'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
   function Accueil(conteneur, ctx) {
     injecterCss();
     var self = this;
@@ -293,10 +293,12 @@
     var self = this, relancer = function () { self.sur(); }, rien = function () { self.sur(); };
     if (voit('ventes') && AMX.ventes && AMX.ventes.charger) AMX.ventes.charger(cie, '').then(relancer, rien);
     if (voit('inventaire') && AMX.achatsAuto) AMX.achatsAuto.charger().then(relancer, rien);
+    if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) AMX.achatsAuto.contrats.charger().then(relancer, rien);
     if (ongletVoit('service', 'rendezvous') && AMX.rdv) AMX.rdv.charger(cieSvc, jourLocal(), jourLocal()).then(relancer, rien);
     if (ongletVoit('service', 'texto') && AMX.texto) AMX.texto.charger(cieSvc).then(relancer, rien);
     if (voit('avis') && AMX.avis) AMX.avis.charger().then(relancer, rien);
     if (ongletVoit('offres', 'recues')) chargerOffres().then(relancer, rien);
+    if (voit('outils') && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);
   };
 
   function aFaire() {
@@ -316,7 +318,17 @@
     if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.enCache()) {
       var nAuto = AMX.achatsAuto.compte(cie);
       if (nAuto) { var pr = AMX.achatsAuto.parRegistre(cie), regA = Object.keys(pr).sort(function (a, b) { return pr[b] - pr[a]; })[0] || 'DETAIL';
-        out.push({ ton: 'violet', n: nAuto, titre: 'Achats entrés automatiquement au registre, à confirmer', detail: 'lus sur GM Financial DealerSource, Manheim ou OPENLANE', href: AMX.inventaire.lien(regA.toLowerCase(), { alerte: 'auto' }), ic: 'inventaire' }); }
+        out.push({ ton: 'violet', n: nAuto, titre: 'Achats entrés automatiquement au registre, à confirmer', detail: 'lus sur GM Financial DealerSource, Manheim, OPENLANE ou un contrat reçu par courriel', href: AMX.inventaire.lien(regA.toLowerCase(), { alerte: 'auto' }), ic: 'inventaire' }); }
+    }
+    // 26 oct. : contrats d'achat reçus par courriel qu'Einstein AI n'a pas pu entrer seul (AchatsCourriel.gs) — à vérifier
+    if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.contrats.enCache()) {
+      var cv = AMX.achatsAuto.contrats.aVerifier(cie);
+      if (cv.length) out.push({ ton: 'ambre', n: cv.length, titre: 'Contrats d\'achat reçus par courriel, à vérifier', detail: cv.slice(0, 2).map(function (c) { return c.raison || c.fichier; }).join(' · ') + (cv.length > 2 ? '…' : ''), href: AMX.inventaire.lien('detail', { contrats: 1 }), ic: 'inventaire' });
+    }
+    // 26 oct. : clients d'évaluation dont la date de relance est passée (registre des évaluations, concession choisie)
+    if (voit('outils') && AMX.evaluations && AMX.evaluations.enCache()) {
+      var aRel = AMX.evaluations.aRelancerPour(AMX.compagnieChoisie('evaluations'));
+      if (aRel.length) out.push({ ton: 'ambre', n: aRel.length, titre: 'Clients d\'évaluation à relancer', detail: aRel.slice(0, 3).map(function (r) { return (r.suivi && r.suivi.client) || [r.annee, r.marque, r.modele].filter(Boolean).join(' '); }).join(' · ') + (aRel.length > 3 ? '…' : ''), href: AMX.lien('outils', 'evaluations', { suivi: 'relancer' }), ic: 'outils' });
     }
     // Neufs : RDR à compléter chez le constructeur
     var rdr = AMX.neufs && AMX.neufs.aFaireConstructeur ? AMX.neufs.aFaireConstructeur() : null;

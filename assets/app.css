@@ -818,6 +818,22 @@ html.ui2 .cote {
   background: var(--carte); border-right: 1px solid var(--ligne); color: var(--encre-2);
 }
 @media (max-width: 860px) { html.ui2 .cote { display: none; } }
+/* 26 oct. : menu de gauche caché pendant le travail (ordinateur avec souris) ; il glisse au bord gauche de l'écran. */
+.cote-ouvrir, #cote-bord { display: none; }
+@media (min-width: 861px) and (hover: hover) and (pointer: fine) {
+  html.ui2.cote-auto #appli.pret { grid-template-columns: minmax(0, 1fr); }
+  html.ui2.cote-auto #barre, html.ui2.cote-auto #sous-barre, html.ui2.cote-auto #vue { grid-column: 1; }
+  html.ui2.cote-auto #cote { position: fixed; left: 0; top: 0; bottom: 0; height: auto; width: var(--cote-l); z-index: 70;
+    transform: translateX(-100%); box-shadow: none; transition: transform .18s ease, box-shadow .18s ease; }
+  html.ui2.cote-auto #cote.visible, html.ui2.cote-auto #cote:focus-within { transform: none; box-shadow: 0 0 28px rgba(0, 0, 0, .18); }
+  html.ui2.cote-auto #cote-bord { display: block; position: fixed; left: 0; top: 0; bottom: 0; width: 8px; z-index: 69; }
+  html.ui2.cote-auto .barre > .marque { display: flex; }
+  html.ui2.cote-auto .cote-ouvrir { display: inline-grid; place-items: center; width: 36px; height: 36px; flex: none; margin-left: -6px;
+    border: 0; background: none; border-radius: 8px; color: var(--encre-2); cursor: pointer; }
+  html.ui2.cote-auto .cote-ouvrir:hover { background: var(--gris-bg); color: var(--encre); }
+  .cote-ouvrir svg { width: 20px; height: 20px; display: block; }
+}
+@media (prefers-reduced-motion: reduce) { html.ui2.cote-auto #cote { transition: none; } }
 .cote-marque { display: block; padding: 4px 10px 12px; }
 .cote-marque img { height: 34px; width: auto; display: block; }
 .cote-liste, .cote-onglets { list-style: none; margin: 0; padding: 0; }

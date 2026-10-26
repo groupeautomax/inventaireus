@@ -1166,7 +1166,49 @@
     var cote = document.getElementById('cote');
     if (!AMX.ui2()) { if (cote) cote.remove(); return; }
     if (!cote) { cote = h('nav#cote.cote', { 'aria-label': 'Navigation principale' }); app.insertBefore(cote, app.firstChild); }
+    brancherCoteAuto(cote);
     majCote();
+  }
+
+  /* 26 oct. (Maxime : « le menu de gauche : cache-le quand on travaille la page principale et fais-le réapparaître quand
+     l'utilisateur envoie son curseur à gauche ») : en ui2, sur un ordinateur avec souris, la barre latérale est cachée et la
+     page prend toute la largeur ; le menu glisse quand le curseur touche le bord gauche de l'écran (bande #cote-bord), au
+     bouton ☰ de la barre du haut ou au clavier (Tab), et repart quand le curseur le quitte, après un clic dans la page ou
+     avec Échap. « Garder le menu affiché » (bas du menu) l'épingle comme avant (mémo cote_epingle, par appareil).
+     Sur tablette ou écran tactile (pas de survol), le menu reste affiché : tout est dans le CSS (hover: hover). */
+  var COTE_MEMO = 'cote_epingle', coteMinuterie = null;
+  function coteEpingle() { return AMX.memo.lire(COTE_MEMO, '') === '1'; }
+  function coteAuto() { var de = document.documentElement; de.classList.toggle('cote-auto', !!AMX.ui2() && !coteEpingle()); return de.classList.contains('cote-auto'); }
+  function coteMontrer() { var c = document.getElementById('cote'); if (!c) return; clearTimeout(coteMinuterie); c.classList.add('visible'); }
+  function coteCacher(delai) {
+    var c = document.getElementById('cote'); if (!c) return;
+    clearTimeout(coteMinuterie);
+    coteMinuterie = setTimeout(function () { if (!c.matches(':hover') && !c.contains(document.activeElement)) c.classList.remove('visible'); }, delai === undefined ? 350 : delai);
+  }
+  function brancherCoteAuto(cote) {
+    coteAuto();
+    var barre = document.getElementById('barre');
+    if (barre && !barre.querySelector('.cote-ouvrir')) {
+      barre.insertBefore(h('button.cote-ouvrir', { type: 'button', 'aria-label': 'Afficher le menu', title: 'Menu (ou amenez le curseur au bord gauche de l\'écran)',
+        html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+        onclick: function (e) { e.stopPropagation(); var c = document.getElementById('cote'); if (c && c.classList.contains('visible')) c.classList.remove('visible'); else coteMontrer(); } }), barre.firstChild);
+    }
+    if (cote._auto) return;
+    cote._auto = true;
+    var bord = document.getElementById('cote-bord');
+    if (!bord) { bord = h('div#cote-bord', { 'aria-hidden': 'true' }); document.body.appendChild(bord); }
+    bord.addEventListener('mouseenter', function () { if (coteAuto()) coteMontrer(); });
+    cote.addEventListener('mouseenter', function () { if (coteAuto()) coteMontrer(); });
+    cote.addEventListener('mouseleave', function () { if (coteAuto()) coteCacher(); });
+    cote.addEventListener('focusin', function () { if (coteAuto()) coteMontrer(); });
+    cote.addEventListener('focusout', function () { if (coteAuto()) coteCacher(0); });
+    // Un lien choisi : la page change, le menu repart tout de suite.
+    cote.addEventListener('click', function (e) {
+      if (!coteAuto() || !e.target.closest('a')) return;
+      setTimeout(function () { var a = document.activeElement; if (a && cote.contains(a) && a.blur) a.blur(); cote.classList.remove('visible'); }, 0);
+    });
+    document.addEventListener('mousedown', function (e) { if (coteAuto() && cote.classList.contains('visible') && !cote.contains(e.target) && !(e.target.closest && e.target.closest('.cote-ouvrir'))) cote.classList.remove('visible'); }, true);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && coteAuto() && cote.classList.contains('visible')) { cote.classList.remove('visible'); var a = document.activeElement; if (a && cote.contains(a) && a.blur) a.blur(); } });
   }
   function majCote() {
     var cote = document.getElementById('cote'); if (!cote || !AMX.ui2()) return;
@@ -1197,6 +1239,9 @@
     cote.appendChild(liste);
     cote.appendChild(h('div.cote-pied', [
       h('button.cote-palette', { type: 'button', onclick: function () { AMX.palette(); } }, [h('span', { html: ICONES.recherche }), h('span', 'Aller à…'), h('kbd', { text: /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K' })]),
+      h('button.cote-epingle', { type: 'button', text: coteEpingle() ? 'Cacher le menu automatiquement' : 'Garder le menu affiché',
+        title: coteEpingle() ? 'Le menu se cache quand vous travaillez dans la page ; amenez le curseur au bord gauche pour le revoir.' : 'Le menu reste toujours visible à gauche.',
+        onclick: function () { AMX.memo.ecrire(COTE_MEMO, coteEpingle() ? '' : '1'); coteAuto(); var c = document.getElementById('cote'); if (c) c.classList.remove('visible'); majCote(); } }),
       h('button.cote-bascule', { type: 'button', text: 'Revenir à l\'ancienne interface', onclick: function () { AMX.basculerInterface(false); } })
     ]));
     cote.scrollTop = defile;

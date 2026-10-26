@@ -536,7 +536,7 @@
     if (sauf !== 'drapeau' && f.drapeau === 'erreur' && v.livre !== 'erreur') return false;
     if (sauf !== 'drapeau' && f.drapeau === 'rdr' && !this.estRdr(v)) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'sansRdr' && !this.sansRdr(v)) return false;
-    if (q && !AMX.correspond([v.client, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin], q)) return false;   /* v138 : AMX.correspond */
+    if (q && !AMX.correspond([v.client, v.noClient, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin], q)) return false;   /* v138 : AMX.correspond */
     return true;
   };
   VueVentes.prototype.visibles = function () {
@@ -774,7 +774,7 @@
           h('td', (dateLivraisonOk(v) ? [h('div', { text: AMX.fmtDateCourte(v.dateLivraison) }), v.dateVente ? h('div.sous', { text: 'vendue ' + AMX.fmtDateCourte(v.dateVente) }) : null] : [h('div', { text: AMX.fmtDateCourte(v.dateVente) }), h('div.sous', { text: 'date de vente', title: 'Pas de date de livraison inscrite : la vente compte dans le mois de sa date de vente' })])
             .concat([v.dateRdr ? h('div.sous.rdr', { text: 'RDR ' + AMX.fmtDateCourte(v.dateRdr) + (v.codeRdr ? ' · ' + v.codeRdr : ''), title: 'Date RDR inscrite au livre' }) : (self.sansRdr(v) ? h('div.sous.rdr.manque', { text: 'sans RDR', title: 'Neuf livré sans Date RDR au livre' }) : null)])),
           h('td.vehicule', [h('div.nom', { text: vehiculeTexte(v) || '(véhicule à préciser)' }), h('div.vin', { text: [v.stock ? '# ' + v.stock : '', v.vin].filter(Boolean).join(' · ') })]),
-          h('td', [h('div', { text: v.client || v.venduA || '—' }), v.type === 'wholesale' && v.acheteDe ? h('div.sous', { text: 'acheté de ' + v.acheteDe }) : (v.echangeStock || v.echangeModele || v.echangeVin ? h('div.sous', { text: 'échange ' + ([v.echangeStock, v.echangeModele].filter(Boolean).join(' ') || v.echangeVin) + (v.echangeEvaluation !== undefined && v.echangeEvaluation !== null ? ' · évalué' : '') }) : null)]),
+          h('td', [h('div', { text: v.client || v.venduA || '—' }), v.noClient ? h('div.sous', { text: 'No client ' + v.noClient }) : null, v.type === 'wholesale' && v.acheteDe ? h('div.sous', { text: 'acheté de ' + v.acheteDe }) : (v.echangeStock || v.echangeModele || v.echangeVin ? h('div.sous', { text: 'échange ' + ([v.echangeStock, v.echangeModele].filter(Boolean).join(' ') || v.echangeVin) + (v.echangeEvaluation !== undefined && v.echangeEvaluation !== null ? ' · évalué' : '') }) : null)]),
           h('td', [h('span.badge.' + (v.type === 'neuf' ? 'vert' : (v.type === 'usage' ? 'bleu' : 'ambre')) + '.sans-point', { text: TYPES[v.type] || v.type }), h('div.sous', { text: libCategorie(v.type, v.categorie) + (v.paiement ? ' · ' + libPaiement(v.paiement) : '') })]),
           h('td', { text: v.conseiller || '—' }),
           h('td', [h('div', { text: v.directeur || '—' }), prd.length ? h('div.sous', { text: pluriel(prd.length, 'produit'), title: prd.map(function (p) { return p.libelle + (p.montant !== null ? ' ' + argent(p.montant) : ''); }).join(', ') }) : null])
@@ -811,7 +811,7 @@
   VueVentes.prototype.exporter = function () {
     var d = cache.rep, liste = this.visibles(), montants = !!(d && d.montants), defs = AMX.ventes.produits();
     var lignes = liste.map(function (v) {
-      var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Catégorie': libCategorie(v.type, v.categorie), 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
+      var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Catégorie': libCategorie(v.type, v.categorie), 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'No client (DMS)': v.noClient || '', 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
       o['Mois (livraison)'] = moisDeVente(v); o['Mois selon'] = dateLivraisonOk(v) ? 'livraison' : 'vente';
       o['F&I à inscrire'] = besoinFI(v) ? 'oui' : '';
       if (montants) { o['Front estimé'] = frontE(v); o['Front comptable'] = frontC(v); o['Écart front'] = ecartEC(frontE(v), frontC(v)); o['F&I estimé'] = fiE(v); o['F&I comptable'] = fiC(v); o['Écart F&I'] = ecartEC(fiE(v), fiC(v)); o['Profit estimé (total)'] = estimeDe(v); o['Profit comptable (total)'] = comptableDe(v); o['Écart (total)'] = ecartDe(v); o['Prix de vente'] = v.prixVente; o['Profit front prévu'] = v.profitPrevu; o['Profit F&I prévu'] = v.profitFIPrevu; o.Accessoires = v.accessoires; o['Valeur échange accordée'] = v.echangeValeur; o['Évaluation échange'] = v.echangeEvaluation; o['Over / under'] = v.overUnder; o['Profit front réel'] = v.profitReel; o['Profit F&I réel'] = v.profitFIReel; var prd = produitsDe(v); defs.forEach(function (p) { o[p[1]] = prd[p[0]] === undefined ? '' : prd[p[0]]; }); }
@@ -963,7 +963,7 @@
     corps.appendChild(dl([
       ['Concession', AMX.COMPAGNIES_TOUTES[v.compagnie] || v.compagnie], ['Type', (TYPES[v.type] || v.type) + ' · ' + libCategorie(v.type, v.categorie)], ['Date de vente', AMX.fmtDate(v.dateVente)], ['Livraison', v.dateLivraison ? AMX.fmtDate(v.dateLivraison) : '—'],
       v.dateRdr ? ['Date RDR', AMX.fmtDate(v.dateRdr) + (v.codeRdr ? ' · code ' + v.codeRdr : '')] : (v.type === 'neuf' && v.statut !== 'annulee' ? ['Date RDR', h('span.puce' + (dateLivraisonOk(v) ? '.alerte' : ''), { text: 'pas inscrite au livre' })] : null),
-      [ws ? 'Vendu à' : 'Client', v.client || v.venduA || '—'], v.telephone ? ['Téléphone', AMX.telephoneTexte ? AMX.telephoneTexte(v.telephone) : v.telephone] : null, v.courriel ? ['Courriel', v.courriel] : null,
+      [ws ? 'Vendu à' : 'Client', v.client || v.venduA || '—'], v.noClient ? ['No client (DMS)', v.noClient] : null, v.telephone ? ['Téléphone', AMX.telephoneTexte ? AMX.telephoneTexte(v.telephone) : v.telephone] : null, v.courriel ? ['Courriel', v.courriel] : null,
       ws ? ['Acheté de', v.acheteDe || '—'] : null, ['Véhicule', vehiculeTexte(v) || '—'], ['# Stock', v.stock || '—'], ['NIV', v.vin || '—'], ['Conseiller', v.conseiller || '—'],
       montants ? ['Prix de vente', argent(v.prixVente)] : null, montants && ws ? ['Coûtant', argent(v.coutant)] : null, ['Paiement', libPaiement(v.paiement) || '—'],
       montants ? ['Front estimé (voiture)', argent(frontE(v))] : null, montants ? ['Front comptable', frontC(v) === null ? 'pas encore inscrit' : argent(frontC(v))] : null,
@@ -989,10 +989,13 @@
       ['Produits', prd.length ? h('div.produits', prd.map(function (p) { return h('span.puce.info', { text: p.libelle + (montants && p.montant !== null ? ' · ' + argent(p.montant) : '') }); })) : (v.statut === 'declaree' ? 'en attente du F&I' : '—')],
       v.statut === 'declaree' || v.fiAviseLe ? ['F&I prévenu', v.fiAviseLe ? AMX.fmtDate(v.fiAviseLe, true) + (v.fiAvises ? ' → ' + v.fiAvises : '') + (v.fiRappelLe ? ' · rappel le ' + AMX.fmtDate(v.fiRappelLe, true) : (v.statut === 'declaree' ? ' · rappel après 24 h' : '')) : 'aucun courriel parti (pas de destinataire F&I)'] : null
     ]));
-    /* 26 oct. : ce que la comptabilité a inscrit dans les colonnes vertes du livre (lu à chaque relecture) */
-    corps.appendChild(h('h4', 'Comptabilité'));
-    var compta = Array.isArray(v.compta) ? v.compta : [];
-    if (compta.length) corps.appendChild(dl(compta.map(function (x) { return [x[0], texteCompta(x[1])]; }).concat(v.comptaLe ? [['Inscrite dans ScanAutomax', (v.comptaParNom || v.comptaPar || '') + ' · ' + AMX.fmtDate(v.comptaLe, true)]] : [])));
+    /* 26 oct. : ce que la comptabilité a inscrit dans les colonnes vertes du livre (lu à chaque relecture).
+       Montré seulement à qui voit les montants ou a le droit « Ventes — comptabilité » (Maxime, 26 oct.). */
+    var voitCompta = montants || AMX.ventes.peutCompta();
+    if (voitCompta) corps.appendChild(h('h4', 'Comptabilité'));
+    var compta = voitCompta && Array.isArray(v.compta) ? v.compta : [];
+    if (!voitCompta) { /* rien */ }
+    else if (compta.length) corps.appendChild(dl(compta.map(function (x) { return [x[0], texteCompta(x[1])]; }).concat(v.comptaLe ? [['Inscrite dans ScanAutomax', (v.comptaParNom || v.comptaPar || '') + ' · ' + AMX.fmtDate(v.comptaLe, true)]] : [])));
     else corps.appendChild(h('p.ventes-aide', { text: v.livre === 'ecrit' ? 'Rien d\'inscrit encore dans les colonnes vertes du livre.' : 'La vente n\'est pas encore au livre.' }));
     corps.appendChild(h('h4', 'Livre et suivi'));
     corps.appendChild(dl([
@@ -1245,6 +1248,8 @@
     var inModele = h('input.saisie#vente-modele', { type: 'text', placeholder: 'Modèle', value: vehicule.modele });
     var inVersion = h('input.saisie#vente-version', { type: 'text', placeholder: 'Version', value: vehicule.version });
     var inClient = h('input.saisie#vente-client', { type: 'text', placeholder: 'Nom du client', value: v.client || '' });
+    /* 26 oct. (Maxime) : le numéro de client du DMS, tapé par qui remplit la fiche de vente. */
+    var inNoClient = h('input.saisie#vente-noclient', { type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: 'ex. 123456', maxlength: '30', value: v.noClient || '' });
     var inTel = h('input.saisie#vente-telephone', { type: 'tel', placeholder: '514 555-0147', value: v.telephone || '' });
     var inCourriel = h('input.saisie#vente-courriel', { type: 'email', placeholder: 'courriel (facultatif)', value: v.courriel || '' });
     var inDate = h('input.saisie#vente-date', { type: 'date', value: v.dateVente || isoLocal(new Date()) });
@@ -1307,7 +1312,7 @@
     var inRdr = h('input.saisie#vente-rdr', { type: 'date', value: v.dateRdr || '' }), inCodeRdr = h('input.saisie#vente-code-rdr', { type: 'text', maxlength: '12', placeholder: 'Code', value: v.codeRdr || '' });
     var champRdr = champ('vente-rdr', 'Date RDR', inRdr), champCodeRdr = champ('vente-code-rdr', 'Code RDR', inCodeRdr);   /* 26 oct. : la Date RDR va au livre (compteur des RDR du mois) */
     var blocWholesale = h('div.grille', [champ('vente-vendua', 'Vendu à', inVenduA, 'large'), champ('vente-achetede', 'Acheté de', inAcheteDe), champ('vente-acheteur', 'Acheteur interne', inAcheteur), champ('vente-coutant', 'Coûtant', inCoutant)]);
-    var blocClient = h('div.grille', [champ('vente-client', 'Client', inClient, 'large'), champ('vente-telephone', 'Téléphone', inTel), champ('vente-courriel', 'Courriel', inCourriel)]);
+    var blocClient = h('div.grille', [champ('vente-client', 'Client', inClient, 'large'), champ('vente-noclient', 'No client (DMS)', inNoClient), champ('vente-telephone', 'Téléphone', inTel), champ('vente-courriel', 'Courriel', inCourriel)]);
     var blocEchange = h('div', [
       h('div.ventes-vehicule', [champ('vente-echange-vin', 'NIV de l\'échange', inEchVin), btnEval]),
       elEval,
@@ -1427,7 +1432,7 @@
         var echVin = inEchVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (echVin && echVin.length !== 17) { AMX.toast('Le NIV de l\'échange a 17 caractères (ou laissez-le vide).', 'erreur'); inEchVin.focus(); return false; }
         var corpsEnvoi = { compagnie: compagnie, type: type, vin: vin, stock: stock, annee: inAnnee.value.trim(), marque: inMarque.value.trim(), modele: inModele.value.trim(), version: inVersion.value.trim(),
-          client: inClient.value.trim(), telephone: inTel.value.trim(), courriel: inCourriel.value.trim(), dateVente: inDate.value, dateLivraison: inLivraison.value, categorie: selCat.value, conseiller: inConseiller.value.trim(),
+          client: inClient.value.trim(), noClient: type === 'wholesale' ? undefined : inNoClient.value.replace(/\s+/g, ''), telephone: inTel.value.trim(), courriel: inCourriel.value.trim(), dateVente: inDate.value, dateLivraison: inLivraison.value, categorie: selCat.value, conseiller: inConseiller.value.trim(),
           prixVente: inPrix.value.trim(), paiement: selPaiement.value, profitPrevu: inFront.value.trim(), accessoires: inAccess.value.trim(), overUnder: inOver.value.trim(),
           echangeStock: inEchStock.value.trim(), echangeModele: inEchModele.value.trim(), echangeVin: echVin, echangeKm: inEchKm.value.trim(), echangeValeur: inEchValeur.value.trim(), echangeEvaluation: inEchEval.value.trim(), echangeEvalLe: evalMeta.le, echangeEvalPar: evalMeta.par,
           dateRdr: type === 'wholesale' ? '' : inRdr.value, codeRdr: type === 'wholesale' ? '' : inCodeRdr.value.trim(),

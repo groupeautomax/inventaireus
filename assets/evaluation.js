@@ -142,6 +142,27 @@
     var inp = h('input' + (opts.mono ? '.mono' : ''), attrs);
     return { el: h('div.champ', [h('label', { 'for': id, text: libelle }), inp]), input: inp };
   }
+  /* 26 oct. (Gabriel, BMW Sherbrooke) : « un onglet pour les TRIM, pour séparer les coupés, 4 portes, cabriolets… » — Maxime :
+     « applicable partout ». La carrosserie choisie filtre les annonces de MarketCheck (body_type / doors) et les comparables. */
+  var STYLES = [['', 'Toutes'], ['coupe', 'Coupé (2 portes)'], ['berline', 'Berline (4 portes)'], ['grancoupe', 'Gran Coupé (4 portes, hayon)'], ['cabriolet', 'Cabriolet'],
+    ['hayon', 'Hatchback'], ['familiale', 'Familiale'], ['vus', 'VUS'], ['vuscoupe', 'VUS coupé (X4, X6, GLC coupé…)'], ['camionnette', 'Camionnette'], ['fourgonnette', 'Fourgonnette']];
+  /* Le texte du décodeur (vPIC / MarketCheck) ou d'une annonce → un code de STYLES ('' = on ne sait pas). */
+  function styleDe(carrosserie, portes, version, modele) {
+    var t = (String(carrosserie || '') + ' ' + String(version || '') + ' ' + String(modele || '')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    var n = Number(portes) || 0;
+    if (/gran\s*coupe/.test(t)) return 'grancoupe';
+    if (/convertible|cabriolet|roadster|spyder|spider/.test(t)) return 'cabriolet';
+    var mod = String(modele || '').toLowerCase();
+    if (/^(x2|x4|x6)\b/.test(mod) || (/\b(glc|gle|q3|q4|q5|q8|cayenne|e-tron|eqc|eqe suv)\b/.test(mod) && /coupe|sportback/.test(t))) return 'vuscoupe';
+    if (/pickup|pick-up|camionnette|crew cab|double cab/.test(t)) return 'camionnette';
+    if (/minivan|fourgon|\bvan\b|cargo/.test(t)) return 'fourgonnette';
+    if (/sport utility|\bsuv\b|vus|multi-purpose|crossover/.test(t)) return 'vus';
+    if (/wagon|familiale|estate|allroad|sportwagen|alltrack/.test(t)) return 'familiale';
+    if (/coupe/.test(t)) return n >= 4 ? 'grancoupe' : 'coupe';
+    if (/hatchback|liftback|hayon/.test(t)) return (n === 4 || /\b[2468]\s*series\b|\bserie\s*[2468]\b|\bi4\b/.test(t)) ? 'grancoupe' : 'hayon';
+    if (/sedan|saloon|berline/.test(t)) return 'berline';
+    return '';
+  }
   function lienMarketGuide(vin) { return 'https://app.eblock.com/my-market-guide?soldWithinDays=90&vin=' + encodeURIComponent(vin); }
 
   // NHTSA : marque / modèle / année / version (null si rien ou injoignable).
@@ -152,7 +173,7 @@
       .then(function (d) {
         var r = (d && d.Results || [])[0];
         if (!r) return null;
-        return { make: r.Make || '', model: r.Model || '', year: r.ModelYear || '', trim: r.Trim || r.Series || '' };
+        return { make: r.Make || '', model: r.Model || '', year: r.ModelYear || '', trim: r.Trim || r.Series || '', carrosserie: r.BodyClass || '', portes: r.Doors || '' };
       })
       .catch(function () { return null; });
   }
@@ -474,6 +495,8 @@
     var cMarque = champ('e-marque', 'Marque');
     var cModele = champ('e-modele', 'Modèle');
     var cVersion = champ('e-version', 'Version', { placeholder: 'LT, SLE, Limited…' });
+    this.elStyle = h('select#e-style', { title: 'Carrosserie : seules les annonces de la même carrosserie servent de comparables' }, STYLES.map(function (x) { return h('option', { value: x[0], text: x[1] }); }));
+    var cStyle = h('div.champ', [h('label', { 'for': 'e-style', text: 'Carrosserie' }), this.elStyle]);
     var cKm = champ('e-km', 'Kilométrage', { type: 'number', inputmode: 'numeric' });
     var cTaux = champ('e-taux-km', 'Ajustement $/km', { type: 'number', step: '0.01', value: '0.10' });
     var concessionsEval = AMX.concessionsPour('evaluations');   // portée du domaine « évaluations » (accès supplémentaires compris)
@@ -492,7 +515,7 @@
     this.elEchange = h('div.eval-sous-vehicule#eval-vente-echange');
     this.echangeVin = '';
     var vehicule = h('div.carte#sec-vehicule', [h('div.carte-corps', [
-      h('div.grille.eval-grille-vehicule', [cNiv.el, cAnnee.el, cMarque.el, cModele.el, cVersion.el, cKm.el, cConcession, cTaux.el]),
+      h('div.grille.eval-grille-vehicule', [cNiv.el, cAnnee.el, cMarque.el, cModele.el, cVersion.el, cStyle, cKm.el, cConcession, cTaux.el]),
       (AMX.ui2 && AMX.ui2()) ? h('div.eval-decoder', [this.btnDecoder]) : null,
       h('div.eval-sous-vehicule', [this.elContexte, this.elLiens]),
       this.elTorque,
@@ -538,6 +561,8 @@
     this.elKm.addEventListener('change', function () { self.rendreOpenlane(); });
     this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
+    // La carrosserie change la recherche MarketCheck : on relance l'analyse du pays affiché.
+    this.elStyle.addEventListener('change', function () { self.styleManuel = true; self.analyses = {}; self.planifierAuto(); if (self.parametresPrets()) self.analyser(self.pays, false); else self.rendreMarche(); });
     this.elConcession.addEventListener('change', function () { AMX.memo.ecrire('eval_concession', self.elConcession.value); self.oublierAnalyses(); });
     if (concessionsEval[AMX.memo.lire('eval_concession', '')]) this.elConcession.value = AMX.memo.lire('eval_concession', '');
     // Toute modification des prix ou du véhicule est conservée d'office (1,5 s après la dernière frappe).
@@ -1436,6 +1461,7 @@
   Evaluation.prototype.parametres = function (pays) {
     var vin = this.elNiv.value.trim().toUpperCase();
     var p = { marche: 1, pays: pays, portee: this.portee[pays], annee: this.elAnnee.value.trim(), marque: this.elMarque.value.trim(), modele: this.elModele.value.trim(), version: this.elVersion.value.trim(), km: this.elKm.value.trim(), concession: this.elConcession.value };
+    if (this.elStyle.value) p.carrosserie = this.elStyle.value;
     if (this.portee[pays] === 'etat') p.etat = this.etats[pays];
     if (/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) p.vin = vin;
     return p;
@@ -1490,6 +1516,9 @@
       return Object.assign({}, x, { ajuste: Math.round(ajuste) });
     });
     if (this.filtres.memeVersion && version) liste = liste.filter(function (x) { return String(x.version || '').toLowerCase().indexOf(version) >= 0; });
+    var st = this.elStyle.value;
+    var modEval = this.elModele.value;
+    if (st) liste = liste.filter(function (x) { var s2 = styleDe(x.style, x.portes, x.version, x.modele || modEval); return !s2 || s2 === st || (st === 'grancoupe' && s2 === 'berline') || (st === 'berline' && s2 === 'grancoupe'); });
     if (this.filtres.kmProche && kmV !== null) liste = liste.filter(function (x) { return x.km === null || x.km === undefined || Math.abs(x.km - kmV) <= TOLERANCE_KM; });
     var tri = this.filtres.tri;
     liste.sort(function (p, q) {
@@ -1635,7 +1664,7 @@
       lignes.push(h('tr', [
         h('td.num', { text: String(lignes.length + 1) }),
         h('td.sous', [h('div', { text: x.concession || '—' }), h('span.mini', { text: [x.ville, x.province].filter(Boolean).join(', ') + (x.certifie ? ' · certifié' : '') })]),
-        h('td', { text: x.version || '—' }),
+        h('td', [h('div', { text: x.version || '—' }), x.style ? h('span.mini', { text: (STYLES.filter(function (y) { return y[0] === styleDe(x.style, x.portes, x.version, x.modele || self.elModele.value); })[0] || [, x.style])[1] }) : null]),
         h('td.num', { text: x.annee || '—' }),
         h('td.num', { text: fmtKm(x.km) }),
         h('td.num', { text: fmt(x.prix) }),
@@ -1696,7 +1725,7 @@
     var us = this.usCollecter();
     var sv = this.collecterSuivi();
     return {
-      marque: this.elMarque.value, modele: this.elModele.value, annee: this.elAnnee.value, version: this.elVersion.value,
+      marque: this.elMarque.value, modele: this.elModele.value, annee: this.elAnnee.value, version: this.elVersion.value, carrosserie: this.elStyle.value,
       km: this.elKm.value, tauxKm: this.elTaux.value, prixVente: this.elPrix.value, prixAchat: this.elAchat.value, frais: this.elFrais.value, prixPaye: this.elPaye.value, recon: this.elRecon.value, marge: this.elMarge.value, concession: this.elConcession.value,
       comparables: this.comparablesCharges || [],
       marche: marche,
@@ -1717,6 +1746,7 @@
     if (data.modele) this.elModele.value = data.modele;
     if (data.annee) this.elAnnee.value = data.annee;
     if (data.version) this.elVersion.value = data.version;
+    if (data.carrosserie !== undefined) { this.elStyle.value = data.carrosserie || ''; this.styleManuel = !!data.carrosserie; }
     if (data.km) this.elKm.value = data.km;
     if (data.tauxKm) this.elTaux.value = data.tauxKm;
     if (data.prixVente) this.elPrix.value = data.prixVente;
@@ -1762,6 +1792,7 @@
   Evaluation.prototype.reinitialiser = function () {
     var self = this;
     ['elMarque', 'elModele', 'elAnnee', 'elVersion', 'elKm', 'elPrix', 'elPaye', 'elRecon', 'elAchat', 'elFrais'].forEach(function (k) { self[k].value = ''; });
+    this.elStyle.value = ''; this.styleManuel = false;
     this.ficheSource = '';
     this.comparablesCharges = [];
     this.derniereSauvegarde = null;
@@ -1838,7 +1869,7 @@
     btn.classList.add('occupe');
     this.etat('Décodage du véhicule…');
     var serveur = AMX.get({ decoder: vin }).then(function (d) {
-      if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, source: 'serveur' };
+      if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, carrosserie: d.carrosserie, portes: d.portes, source: 'serveur' };
       return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; });
     }).catch(function () { return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; }); });
     var fiche = AMX.ficheDe(vin).catch(function () { return null; });
@@ -1850,6 +1881,7 @@
         if (r.model) self.elModele.value = r.model;
         if (r.year) self.elAnnee.value = r.year;
         if (r.trim) self.elVersion.value = r.trim;
+        if (!self.styleManuel) self.elStyle.value = styleDe(r.carrosserie, r.portes, r.trim, r.model);
       }
       // La fiche d'achat complète ce qui manque (et donne le km).
       if (!self.elMarque.value.trim() && f['f-marque']) self.elMarque.value = f['f-marque'];
@@ -2439,5 +2471,6 @@
 
   AMX.vues = AMX.vues || {};
   AMX.vues.Evaluation = Evaluation;
+  Evaluation.styleDe = styleDe; Evaluation.STYLES = STYLES;   /* tests */
   AMX.vues.RegistreEvaluations = Registre;
 })();

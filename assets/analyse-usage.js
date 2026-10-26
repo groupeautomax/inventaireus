@@ -117,8 +117,13 @@
     var n = m && m.notre;
     a.prix = n && nb(n.prix) ? n.prix : null; a.source = n ? n.source || 'annonce' : ''; a.site = n ? n.site : ''; a.lien = n ? n.lien : ''; a.prixLe = n ? n.le : '';
     a.avant = n && nb(n.avant) ? n.avant : null; a.changeLe = n ? n.changeLe || '' : ''; a.vuLe = n ? n.vuLe || '' : '';
-    a.joursPrix = a.changeLe ? joursEntre(a.changeLe, maintenant) : (a.vuLe ? joursEntre(a.vuLe, maintenant) : null);
-    a.joursPrixDepuisVu = !a.changeLe && !!a.vuLe;
+    // 26 oct. : « Since » de D2C (jours depuis le dernier prix inscrit sur le site) d'abord, sinon notre historique.
+    a.joursPrixD2c = !!(n && nb(n.joursPrix));
+    a.joursPrix = a.joursPrixD2c ? n.joursPrix : (a.changeLe ? joursEntre(a.changeLe, maintenant) : (a.vuLe ? joursEntre(a.vuLe, maintenant) : null));
+    a.joursPrixDepuisVu = !a.joursPrixD2c && !a.changeLe && !!a.vuLe;
+    var px = AMX.prixDetail && AMX.prixDetail.attente ? AMX.prixDetail.attente(a.vin) : null;
+    a.prixAttente = px ? px.prix : null;
+    a.prixEcrase = !!(AMX.prixDetail && AMX.prixDetail.ecrase && AMX.prixDetail.ecrase(AMX.prixDetail.dernier(a.vin)));
     a.med = m && nb(m.mediane) ? m.mediane : null; a.n = m ? m.n || 0 : 0; a.elargi = !!(m && m.elargi); a.rang = m && nb(m.rang) ? m.rang : null;
     a.p25 = m ? m.p25 : null; a.p75 = m ? m.p75 : null; a.joursMed = m ? m.joursMed : null; a.comps = (m && m.comps) || [];
     a.ptm = nb(a.prix) && nb(a.med) && a.med > 0 ? Math.round(a.prix / a.med * 1000) / 10 : null;
@@ -154,14 +159,37 @@
     if (a.ptm < c - tol) return { code: 'monter', titre: 'Monter à ' + argent(a.prixCible), montant: a.ecartCible, court: signe(a.ecartCible), detail: signe(a.ecartCible) + ' · ' + pct(a.ptm) + ' du marché, visé ' + pct(c) + ' à ' + a.jours + ' j' };
     return { code: 'ok', titre: 'Bien placé', court: '', detail: pct(a.ptm) + ' du marché (visé ' + pct(c) + ')' + (nb(a.rang) ? ' · ' + rangTexte(a.rang, a.n + 1) : '') };
   }
+  /* Filtres « Prix » (26 oct.) : prix inchangé depuis 15 jours, plus vieux des identiques, prix à inscrire sur le site. */
+  var FILTRES_PRIX = [['15', 'Prix inchangé 15 j +', 'ambre'], ['vieux', 'Plus vieux des identiques', 'rouge'], ['attente', 'À inscrire sur le site', 'bleu']];
+  function testPrix(a, c) {
+    if (c === '15') return nb(a.joursPrix) && a.joursPrix >= 15 && !nb(a.prixAttente);
+    if (c === 'vieux') return !!a.plusVieux;
+    if (c === 'attente') return nb(a.prixAttente);
+    return true;
+  }
+  /* Plusieurs identiques (même concession, année, modèle et version connue) : le plus vieux en stock est à baisser en premier. */
+  function marquerIdentiques(liste, p) {
+    var groupes = {};
+    liste.forEach(function (a) { if (!a.version || !a.annee) return; var k = [a.compagnie, a.annee, a.marque, a.modele, a.version].join('|'); (groupes[k] = groupes[k] || []).push(a); });
+    Object.keys(groupes).forEach(function (k) {
+      var g = groupes[k]; if (g.length < 2) return;
+      g.sort(function (x, y) { return (y.jours || 0) - (x.jours || 0); });
+      g.forEach(function (a, i) { a.identiques = g.length; a.plusVieux = i === 0; a.alertes = alertes(a, p); });
+    });
+    return liste;
+  }
   function alertes(a, p) {
     var l = [];
     if (voitCouts() && a.coutIllisible) l.push({ t: 'Coût illisible au registre', c: 'rouge', title: 'La cellule « Coût » du registre contient « ' + String(a.coutIllisible).slice(0, 40) + ' » (Sheets l\'a transformée en date) : retapez le coût dans Usagé.' });
     if (voitCouts() && nb(a.ctm) && a.ctm > p.ctmMax) l.push({ t: 'Coût élevé : ' + pct(a.ctm) + ' du marché', c: 'rouge', title: 'Notre coût dépasse ' + p.ctmMax + ' % de la médiane du marché : peu de place pour le prix.' });
+    if (nb(a.prixAttente)) l.push({ t: 'Nouveau prix ' + argent(a.prixAttente) + ' à inscrire sur le site', c: 'bleu', title: 'Enregistré dans ScanAutomax, pas encore inscrit dans D2C : cliquez le favori « Automax → D2C (prix) » dans D2C Media.' });
+    if (a.prixEcrase) l.push({ t: 'Prix revenu à l\'ancien sur le site', c: 'ambre', title: 'Le prix inscrit dans D2C a été remis par le feed du DMS : changez-le aussi dans le DMS.' });
+    // 26 oct. (Louis Prassinos) : un prix se revoit aux 15 jours ; parmi des identiques, le plus vieux baisse en premier.
+    if (a.plusVieux) l.push({ t: 'Plus vieux de ' + a.identiques + ' identiques', c: 'rouge', title: a.identiques + ' ' + (a.nom || '') + ' ' + (a.version || '') + ' en stock : baisser celui-ci en premier.' });
+    if (nb(a.joursPrix) && a.joursPrix >= 15 && !nb(a.prixAttente)) l.push({ t: 'Prix inchangé ' + a.joursPrix + ' j', c: (a.action.code === 'ok' || a.action.code === 'monter') ? 'gris' : 'ambre', title: a.joursPrixD2c ? 'Depuis le dernier prix inscrit dans D2C.' : (a.joursPrixDepuisVu ? 'Même prix depuis qu\'on le lit dans D2C.' : 'Dernier changement le ' + AMX.fmtDate(a.changeLe)) });
     if (nb(a.mds) && a.mds > p.mdsHaut) l.push({ t: 'Offre abondante (MDS ' + a.mds + ' j)', c: 'ambre', title: a.mdsActifs + ' en vente pour ' + a.mdsVendus + ' vendus en 45 jours autour de la concession (MarketCheck).' });
     else if (a.mdsLu && a.mds === null && nb(a.mdsActifs) && a.mdsActifs > 0) l.push({ t: 'Aucune vente en 45 j au marché', c: 'ambre', title: a.mdsActifs + ' en vente, aucun vendu en 45 jours (MarketCheck).' });
     else if (nb(a.mds) && a.mds < p.mdsBas) l.push({ t: 'Forte demande (MDS ' + a.mds + ' j)', c: 'vert', title: a.mdsActifs + ' en vente pour ' + a.mdsVendus + ' vendus en 45 jours (MarketCheck).' });
-    if (nb(a.joursPrix) && a.joursPrix >= 21 && nb(a.jours) && a.jours > 30 && a.action.code !== 'ok' && a.action.code !== 'monter') l.push({ t: 'Prix inchangé ' + a.joursPrix + ' j', c: 'gris', title: a.joursPrixDepuisVu ? 'Même prix depuis qu\'on le lit dans D2C.' : 'Dernier changement le ' + AMX.fmtDate(a.changeLe) });
     if (a.elargi) l.push({ t: 'Marché élargi', c: 'gris', title: 'Moins de 3 comparables à l\'année ± 1 et km ± 30 000 : élargi à l\'année ± 2, tout km.' });
     return l;
   }
@@ -211,10 +239,13 @@
     injecterCss();
     this.conteneur = conteneur; this.compagnie = AMX.compagnieChoisie('inventaire');
     this.d = null; this.marche = null; this.detail = null; this.ouverts = {}; this.limite = LIMITE; this.erreurs = {};
-    this.f = { q: (ctx && ctx.params && ctx.params.q) || '', action: (ctx && ctx.params && ctx.params.action) || AMX.memo.lire('anu_action', '') || '', tranche: '', tri: AMX.memo.lire('anu_tri', 'priorite') };
+    this.f = { q: (ctx && ctx.params && ctx.params.q) || '', action: (ctx && ctx.params && ctx.params.action) || AMX.memo.lire('anu_action', '') || '', tranche: '', tri: AMX.memo.lire('anu_tri', 'priorite'),
+      prix: (ctx && ctx.params && (ctx.params.prix15 === '1' || ctx.params.prix15 === 1)) ? '15' : '' };
     this.construire();
     this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.limite = LIMITE; self.rendre(); };
     this.surDonnees = function () { self.rendre(); };
+    this.surPrix = function () { var d = AMX.prixDetail && AMX.prixDetail.enCache(); self.pxdQuand = Date.now(); self._cle = null; self.rendre(); void d; };
+    window.addEventListener('amx:prixDetail', this.surPrix);
     // 26 oct. : le registre en mémoire change (suppression ici ou ailleurs, relecture du serveur) → l'analyse suit tout de suite.
     this.surInventaire = function (e) { if (e && e.detail && e.detail.feuille !== 'DETAIL') return; var l = AMX.inventaire.enCache('DETAIL'); if (!Array.isArray(l)) return; self.detail = l; self.detailOk = true; self._cle = null; self.rendre(); };
     document.addEventListener('amx:inventaire', this.surInventaire);
@@ -226,6 +257,7 @@
   VueAnalyse.prototype.demonter = function () {
     if (this.sel) this.sel.quitter();
     document.removeEventListener('amx:inventaire', this.surInventaire);
+    window.removeEventListener('amx:prixDetail', this.surPrix);
     document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:occmarche', this.surDonnees); document.removeEventListener('amx:openlane', this.surDonnees);
   };
   VueAnalyse.prototype.charger = function (force) {
@@ -244,6 +276,7 @@
     var vieux = !AMX.inventaire.quand || Date.now() - AMX.inventaire.quand('DETAIL') > 120000;
     AMX.inventaire.lire('DETAIL', force || vieux).then(function (l) { self.detail = l || []; self.detailOk = Array.isArray(l); self._cle = null; fin(); }, function () { self.detail = self.detail || []; fin(); });
     if (AMX.openlane && AMX.openlane.charger) AMX.openlane.charger(false).then(fin, function () {});
+    if (AMX.prixDetail) AMX.prixDetail.charger(force).then(function () { self.pxdQuand = Date.now(); self._cle = null; fin(); }, function () {});
     if (AMX.manheim && AMX.manheim.charger) AMX.manheim.charger(false).then(function () { self._cle = null; fin(); }, function () {});
     // Nos ventes : le Livre des ventes complet (copie du navigateur d'abord), si la personne y a accès.
     if (AMX.ventes && AMX.ventes.charger && (!AMX.sections.ventes || !AMX.sections.ventes.visible || AMX.sections.ventes.visible())) {
@@ -276,22 +309,25 @@
     this.elTri.value = this.f.tri;
     this.elActionsF = h('div.inv2-statuts#anu-actions', { role: 'group', 'aria-label': 'Conseil' });
     this.elTranches = h('div.inv2-statuts#anu-tranches', { role: 'group', 'aria-label': 'Âge' });
+    this.elPrixF = h('div.inv2-statuts#anu-prix', { role: 'group', 'aria-label': 'Prix' });
+    this.elPxd = h('div.anu-pxd');
     this.elFiltres = h('div.inv2-filtres.anu-filtres', [
       h('div.anu-ligne', [h('div.recherche.inv2-recherche', [h('span', { html: I.recherche }), this.elQ]), this.elTri]),
       h('div.anu-ligne', [h('span.anu-lib', 'Conseil'), this.elActionsF]),
-      h('div.anu-ligne', [h('span.anu-lib', 'Âge'), this.elTranches])]);
+      h('div.anu-ligne', [h('span.anu-lib', 'Âge'), this.elTranches]),
+      h('div.anu-ligne', [h('span.anu-lib', 'Prix'), this.elPrixF])]);
     this.elPortee = h('div.portee-chiffres');
     this.elKpis = h('div.kpis.anu-kpis');
     this.elProfil = h('div.carte.anu-profil');
     this.elCiesTable = h('div.carte.anu-cies');
     this.conteneur.appendChild(h('div.page.anu-page', [h('div.entete-page', [h('div', [h('h1', 'Analyse usagé'), this.elSous]), this.elActions]),
-      this.elCies, this.elFiltres, this.elPortee, this.elKpis, this.elProfil, this.elCiesTable, this.elListe]));
+      this.elCies, this.elPxd, this.elFiltres, this.elPortee, this.elKpis, this.elProfil, this.elCiesTable, this.elListe]));
   };
   VueAnalyse.prototype.p = function () { return params(this.d); };
   /* Tous nos usagés au détail : le registre Detail (en stock, acheté, transit) et ce que le Prix du marché en sait. */
   VueAnalyse.prototype.base = function () {
     var self = this, cle = [this.detailOk ? 1 : 0, this.d ? this.d.genereLe : '', this.marche ? this.marche.calculeLe || this.marche.le : '', this.detail ? this.detail.length : -1, this.livre ? this.livre.length : -1, AMX.inventaire.quand ? AMX.inventaire.quand('DETAIL') : 0,
-      AMX.openlane && AMX.openlane.enCache && AMX.openlane.enCache() ? Object.keys(AMX.openlane.enCache()).length : 0].join('|');
+      AMX.openlane && AMX.openlane.enCache && AMX.openlane.enCache() ? Object.keys(AMX.openlane.enCache()).length : 0, this.pxdQuand || 0].join('|');
     if (this._cle === cle && this._base) return this._base;
     var p = this.p(), maintenant = Date.now(), mParVin = {};
     ((this.marche && this.marche.vehicules) || []).forEach(function (m) { if (m && m.vin) mParVin[String(m.vin).toUpperCase()] = m; });
@@ -304,6 +340,7 @@
     });
     // Véhicules connus du marché seulement : seulement quand le registre n'a pas pu être lu (repli).
     if (!this.detailOk) Object.keys(mParVin).forEach(function (vin) { if (!vus[vin]) { vus[vin] = true; out.push(analyser(null, mParVin[vin], ctx)); } });
+    marquerIdentiques(out, p);
     this._cle = cle; this._base = out; this._ctx = ctx;
     void self;
     return out;
@@ -314,6 +351,7 @@
       if (cie && a.compagnie !== cie) return false;
       if (sauf !== 'action' && f.action && a.action.code !== f.action) return false;
       if (sauf !== 'tranche' && f.tranche !== '' && String(a.tranche) !== String(f.tranche)) return false;
+      if (sauf !== 'prix' && f.prix && !testPrix(a, f.prix)) return false;
       if (f.q && !AMX.correspond([a.stock, a.vin, a.nom, a.texte, a.version, a.versionTexte, COURTS[a.compagnie], a.action.titre], f.q)) return false;
       return true;
     });
@@ -353,6 +391,7 @@
     this.btnVersions.hidden = !(d && d.admin && !d.ancien);
     this.btnReglages.hidden = !peutRegler(d);
     this.btnMds.hidden = !(d && d.admin && !d.ancien && p.mdsActif);
+    if (AMX.prixDetail && AMX.prixDetail.peut() && AMX.prixDetail.enCache()) AMX.prixDetail.carte(this.elPxd, { compagnie: this.compagnie, siBesoin: true });
     if (!this.detail && !m) return;
     this.rafraichir();
   };
@@ -378,13 +417,22 @@
       var n = pourT.filter(function (x) { return x.tranche === i; }).length;
       pastille(self.elTranches, String(f.tranche) === String(i), libTranche(i, p.tranches), n, i >= p.tranches.length - 2 ? 'ambre' : '', function () { f.tranche = String(f.tranche) === String(i) ? '' : i; self.rafraichir(); });
     });
+    AMX.vider(this.elPrixF);
+    var pourP = this.filtrer('prix');
+    FILTRES_PRIX.forEach(function (x) {
+      var n = pourP.filter(function (a) { return testPrix(a, x[0]); }).length;
+      if (!n && f.prix !== x[0]) return;
+      pastille(self.elPrixF, f.prix === x[0], x[1], n, x[2], function () { f.prix = f.prix === x[0] ? '' : x[0]; self.limite = LIMITE; self.rafraichir(); });
+    });
+    this.elPrixF.parentNode.hidden = !this.elPrixF.childNodes.length;
     var liste = this.trier(this.filtrer());
     var actifs = [];
     if (f.q) actifs.push('« ' + f.q + ' »');
     if (f.action) actifs.push((A_LIB[f.action] || {}).t);
     if (f.tranche !== '') actifs.push(libTranche(Number(f.tranche), p.tranches));
+    if (f.prix) actifs.push(FILTRES_PRIX.filter(function (x) { return x[0] === f.prix; })[0][1]);
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['usagé', 'usagés'], contexte: [this.compagnie ? COURTS[this.compagnie] || this.compagnie : 'toutes les concessions', 'registre Detail'],
-      filtres: actifs, effacer: function () { f.q = ''; f.action = ''; f.tranche = ''; self.elQ.value = ''; AMX.memo.ecrire('anu_action', ''); self.rafraichir(); } });
+      filtres: actifs, effacer: function () { f.q = ''; f.action = ''; f.tranche = ''; f.prix = ''; self.elQ.value = ''; AMX.memo.ecrire('anu_action', ''); self.rafraichir(); } });
     this.rendreKpis(liste);
     this.rendreProfil(liste);
     this.rendreCies(liste);
@@ -488,7 +536,8 @@
       alerte ? h('div.anu-alertes', [h('span.puce.' + alerte.c, { text: alerte.t, title: alerte.title || '' })]) : null])]);
     var age = h('div.anu-age', [h('span.anu-jours.t' + Math.min(a.tranche, 5) + (a.tranche >= p.tranches.length - 2 ? '.vieux' : ''), { text: nb(a.jours) ? a.jours + ' j' : '—', title: a.dateAjout ? 'Entré au registre le ' + AMX.fmtDate(a.dateAjout) : '' })]);
     var prix = h('div.anu-prix', [nb(a.prix) ? h('b', { text: argent(a.prix) }) : h('span.doux', { text: '—' }),
-      nb(a.avant) && a.changeLe ? h('div.mini', { text: (a.prix < a.avant ? '↓ ' : '↑ ') + argent(Math.abs(a.prix - a.avant)), title: 'Changé il y a ' + (a.joursPrix || 0) + ' j (avant : ' + argent(a.avant) + ')' }) : null]);
+      nb(a.prixAttente) ? h('div.mini.bleu', { text: '→ ' + argent(a.prixAttente), title: 'Nouveau prix enregistré, à inscrire sur le site (favori D2C)' })
+        : (nb(a.avant) && a.changeLe ? h('div.mini', { text: (a.prix < a.avant ? '↓ ' : '↑ ') + argent(Math.abs(a.prix - a.avant)), title: 'Changé il y a ' + (a.joursPrix || 0) + ' j (avant : ' + argent(a.avant) + ')' }) : null)]);
     var marche = h('div.anu-marche', [nb(a.med) ? h('b', { text: argent(a.med) }) : h('span.doux', { text: '—' }),
       a.n ? h('div.mini', { text: a.n + ' annonce' + (a.n > 1 ? 's' : '') + (a.elargi ? ' (élargi)' : ''), title: nb(a.p25) ? 'Même version · moitié des annonces entre ' + argent(a.p25) + ' et ' + argent(a.p75) + ' (ajustées à notre km)' : 'Même version' }) : null]);
     var ecart = nb(a.ptm) ? a.ptm - a.cible : null, clsP = !nb(ecart) ? 'doux' : (ecart > p.tolerance ? 'neg' : (ecart < -p.tolerance ? 'bleu' : 'pos'));
@@ -500,14 +549,23 @@
     var menu = AMX.menuActions ? AMX.menuActions([
       { texte: ouvert ? 'Masquer les détails' : 'Détails et comparables', action: basculer },
       { texte: a.version ? 'Changer la version' : 'Préciser la version', action: function () { self.preciserVersion(a); } },
+      AMX.prixDetail && AMX.prixDetail.peut() ? { texte: 'Modifier le prix…', action: function () { self.modifierPrix(a); } } : null,
       { texte: 'Ouvrir dans Usagé', action: function () { AMX.inventaire.aller('DETAIL', { vin: a.vin }); } },
       a.manheim && AMX.manheim.ouvrir ? { texte: 'Fiche Manheim (photos, état)', action: function () { AMX.manheim.ouvrir(a.vin); } } : null,
       AMX.perm('supprimer') ? { texte: 'Supprimer du registre…', icone: I.corbeille, action: function () { AMX.inventaire.supprimer([a.vin], { feuille: 'DETAIL' }); } } : null
     ].filter(Boolean), { titre: 'Actions — ' + (a.stock || a.vin) }) : h('span');
     var r = h('div.anu-rangee.a-' + a.action.code + (ouvert ? '.ouvert' : ''), { 'data-vin': a.vin, onclick: function (e) { if (e.target.closest('a, button, .menu')) return; basculer(); } },
       [veh, age, prix, marche, ptm, conseilEl, h('div.anu-act', [menu])]);
-    if (ouvert) r.appendChild(details(a, p));
+    if (ouvert) {
+      var det = details(a, p);
+      if (AMX.prixDetail && AMX.prixDetail.peut()) det.insertBefore(h('div.anu-det-actions', [h('button.btn.petit' + ((a.action.code === 'baisser' || a.action.code === 'monter' || testPrix(a, '15') || a.plusVieux) ? '.primaire' : ''), { type: 'button', text: 'Modifier le prix…', onclick: function (e) { e.stopPropagation(); self.modifierPrix(a); } })]), det.firstChild);
+      r.appendChild(det);
+    }
     return r;
+  };
+  VueAnalyse.prototype.modifierPrix = function (a) {
+    var vise = (a.action.code === 'baisser' || a.action.code === 'monter') && nb(a.prixCible) ? a.prixCible : null;
+    AMX.prixDetail.modifier({ vin: a.vin, stock: a.stock, nom: [a.nom, a.version].filter(Boolean).join(' '), compagnie: a.compagnie, prix: a.prix }, { prixVise: vise });
   };
   /* Les détails d'un usagé : coût, profit, détention, gros, MDS, ventes, alertes, puis les annonces de la même version. */
   function details(a, p) {
@@ -662,7 +720,7 @@
   };
 
   /* Pour les tests et l'Accueil. */
-  AMX.analyseUsage = { Vue: VueAnalyse, analyser: analyser, details: details, conseil: conseil, cleModele: cleModele, trancheDe: trancheDe, libTranche: libTranche, ventesDe: ventesDe, charger: chargerAnalyse, DEFAUTS: DEFAUTS };
+  AMX.analyseUsage = { Vue: VueAnalyse, analyser: analyser, details: details, conseil: conseil, cleModele: cleModele, trancheDe: trancheDe, libTranche: libTranche, ventesDe: ventesDe, charger: chargerAnalyse, DEFAUTS: DEFAUTS, marquerIdentiques: marquerIdentiques, testPrix: testPrix };
 
   function injecterCss() {
     if (document.getElementById('css-anu')) return;
@@ -699,6 +757,7 @@
       'button.anu-version.manque { background: #FFF4DB; color: var(--ambre); cursor: pointer; } button.anu-version.manque:hover { text-decoration: underline; }',
       'button.anu-action { border: 0; cursor: pointer; font: inherit; }',
       '.anu-details { grid-column: 1 / -1; cursor: default; background: var(--blanc, #fff); border: 1px solid var(--trait); border-radius: 8px; padding: 10px 12px; }',
+      '.anu-det-actions { margin-bottom: 10px; } .anu-prix .mini.bleu { color: var(--bleu); font-weight: 600; }',
       '.anu-dets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 14px; margin-bottom: 10px; }',
       '.anu-det span { display: block; font-size: 12px; color: var(--encre-3); } .anu-det b { font-size: 14px; font-variant-numeric: tabular-nums; }',
       '.anu-versions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; }',

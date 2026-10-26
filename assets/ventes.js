@@ -90,6 +90,10 @@
       extra || null]);
   }
   function classeEcart(n) { return n === null || n === undefined || !n ? '' : (n > 0 ? '.ecart-plus' : '.ecart-moins'); }
+  /* 26 oct. (Claude Poulin, comptabilité BMW) : ajustements de profit imputés à un mois après celui de la vente. */
+  function ajFront(a) { return nombre(a.front) || 0; }
+  function ajFI(a) { return nombre(a.fi) || 0; }
+  function sommeAj(liste) { var t = { n: 0, front: 0, fi: 0 }; liste.forEach(function (a) { t.n++; t.front += ajFront(a); t.fi += ajFI(a); }); t.front = Math.round(t.front * 100) / 100; t.fi = Math.round(t.fi * 100) / 100; return t; }
   function compteTypes(liste) { var c = { neuf: 0, usage: 0, wholesale: 0 }; liste.forEach(function (v) { if (c[v.type] !== undefined) c[v.type]++; }); return c; }
   function pluriel(n, mot) { return n + ' ' + mot + (n > 1 ? 's' : ''); }
   function produitsDe(v) {
@@ -246,6 +250,7 @@
       '.ventes-page .ventes-comp { min-width: 250px; } .ventes-comp .titre { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); margin-bottom: 4px; }',
       '.ventes-rdr-comp h5 { margin: 12px 0 6px; font-size: 13px; } .ventes-rdr-portail .btn { margin-top: 6px; } .ventes-page .ventes-rdr-portail { min-width: 280px; }',
       '.ventes-moy-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; } .ventes-moy-table th, .ventes-moy-table td { padding: 3px 6px; white-space: nowrap; } .ventes-moy-table thead th { font-size: 12px; font-weight: 600; color: var(--encre-3); text-align: right; border-bottom: 1px solid var(--ligne); } .ventes-moy-table tbody th { text-align: left; font-weight: 600; color: var(--encre-2); } .ventes-moy-table td.num { text-align: right; font-weight: 700; } .ventes-moy-table tr.total th, .ventes-moy-table tr.total td { border-top: 1px solid var(--ligne); } .ventes-moy-table tr.prix td.doux { font-weight: 400; color: var(--encre-3); font-size: 12px; } .ventes-page .ventes-moy { min-width: 330px; }',
+      '.ventes-comp .cmp-aj { margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--ligne); } .ventes-table tr.ajustement td { background: var(--bleu-bg); } .ventes-table tr.ajustement .nom { font-style: italic; } .ventes-table td.num.avec-aj, .tableau td.num.avec-aj { text-decoration: underline dotted; }',
       '.ventes-comp .cmp-ligne { display: grid; grid-template-columns: 74px 1fr auto; gap: 8px; white-space: nowrap; font-size: 13px; align-items: baseline; } .ventes-comp .cmp-ligne .v { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; } .ventes-comp .cmp-ligne .n { font-size: 12px; color: var(--encre-3); }',
       '.ventes-table th.groupe-col { text-align: center; border-bottom: 1px solid var(--ligne); } .ventes-table th.debut-groupe, .ventes-table td.debut-groupe { border-left: 2px solid var(--ligne); }',
       '.ventes-recap th.groupe-col { text-align: center; } .ventes-recap th.debut-groupe, .ventes-recap td.debut-groupe { border-left: 2px solid var(--ligne); }',
@@ -547,6 +552,16 @@
     if (q && !AMX.correspond([v.client, v.noClient, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin], q)) return false;   /* v138 : AMX.correspond */
     return true;
   };
+  VueVentes.prototype.ajustementsVisibles = function () {
+    var d = cache.rep, f = this.filtres, q = f.recherche || '';
+    if (!d || !Array.isArray(d.ajustements) || f.drapeau || (f.etat && f.etat !== 'comptabilisee')) return [];
+    return d.ajustements.filter(function (a) {
+      if (a.annule) return false;
+      if (f.type && a.type !== f.type) return false;
+      if (q && !AMX.correspond([a.client, a.vin, a.stock, a.vehicule, a.venteId, a.id, a.raison], q)) return false;
+      return true;
+    });
+  };
   VueVentes.prototype.visibles = function () {
     var d = cache.rep, self = this; if (!d) return [];
     return d.ventes.filter(function (v) { return self.garde(v); });
@@ -655,8 +670,15 @@
             prixMoy !== null ? h('tr.prix', [h('th', { scope: 'row', text: 'Prix' }), cellule(prixMoy, prixL.length), h('td.num.doux', { colspan: '2', text: 'sur ' + prixL.length + ' prix' })]) : null])
         ])]);
       this.elKpis.insertBefore(carteMoy, this.elKpis.firstChild);
-      this.elKpis.appendChild(carteComparaison('ventes-kpi-front', 'Front (voiture)', cp.front));
-      this.elKpis.appendChild(carteComparaison('ventes-kpi-fi', 'F&I', cp.fi));
+      /* 26 oct. : les ajustements imputés à la période s'ajoutent au comptable (le profit balance avec les résultats du mois). */
+      var sa = sommeAj(this.ajustementsVisibles());
+      var extraAj = function (montant, compta, n) {
+        if (!sa.n || !montant) return null;
+        return h('div.cmp-aj', [h('div.cmp-ligne', { title: 'Ajustements imputés à la période (dossiers de mois précédents)' }, [h('span.l', { text: 'Ajust.' }), h('span.v' + classeEcart(montant), { text: signe(montant) }), h('span.n', { text: String(sa.n) })]),
+          h('div.cmp-ligne.total', { title: 'Comptable + ajustements' }, [h('span.l', { text: 'Avec ajust.' }), h('span.v', { text: argent(Math.round((compta + montant) * 100) / 100) }), h('span.n', { text: n ? String(n) : '' })])]);
+      };
+      this.elKpis.appendChild(carteComparaison('ventes-kpi-front', 'Front (voiture)', cp.front, extraAj(sa.front, cp.front.comptable, cp.front.nComptable)));
+      this.elKpis.appendChild(carteComparaison('ventes-kpi-fi', 'F&I', cp.fi, extraAj(sa.fi, cp.fi.comptable, cp.fi.nComptable)));
     }
     this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', c.etat.sansFI, c.etat.sansFI ? 'alerte' : ''));
     /* 26 oct. : compteur des RDR du mois (Date RDR du livre) */
@@ -754,9 +776,9 @@
   }
   VueVentes.prototype.rendreListe = function () {
     var self = this, d = cache.rep; if (!d) return;
-    var liste = this.visibles(), montants = !!d.montants;
+    var liste = this.visibles(), montants = !!d.montants, ajs = this.ajustementsVisibles();
     AMX.vider(this.elListe);
-    if (!liste.length) {
+    if (!liste.length && !ajs.length) {
       this.elListe.appendChild(h('div.carte', [h('div.ventes-vide', [h('div', { text: (this.filtres.etat || this.filtres.drapeau || this.filtres.type || this.filtres.recherche) ? 'Aucune vente pour ce filtre.' : 'Aucune vente inscrite pour cette période.' }),
         AMX.ventes.peutDeclarer() ? h('button.btn.primaire', { type: 'button', style: { marginTop: '10px' }, onclick: function () { AMX.ventes.declarer({ compagnie: self.compagnie }); } }, [AMX.svg('plus'), ' Inscrire une vente']) : null])]));
       return;
@@ -768,13 +790,18 @@
       .concat([thR('Livre'), thR('État'), thR('')]));
     var entete2 = montants ? h('tr', ['Estimé', 'Comptable', 'Écart', 'Estimé', 'Comptable', 'Écart'].map(function (t, i) { return h('th.num' + (i % 3 === 0 ? '.debut-groupe' : ''), { text: t, title: i % 3 === 2 ? 'Comptable − estimé' : (i % 3 === 0 ? 'Prévu' : 'Réel inscrit par la comptabilité') }); })) : null;
     var corps = h('tbody');
-    grouperParMois(liste).forEach(function (g) {
+    var groupes = grouperParMois(liste), parMoisG = {};
+    groupes.forEach(function (g) { parMoisG[g.mois] = g; g.ajustements = []; });
+    ajs.forEach(function (a) { var g = parMoisG[a.mois]; if (!g) { g = parMoisG[a.mois] = { mois: a.mois, libelle: moisLibelle(a.mois), ventes: [], ajustements: [] }; groupes.push(g); } g.ajustements.push(a); });
+    groupes.sort(function (x, y) { return String(y.mois).localeCompare(String(x.mois)); });
+    groupes.forEach(function (g) {
       var actives = g.ventes.filter(function (v) { return v.statut !== 'annulee'; }), attente = actives.filter(function (v) { return v.statut === 'declaree'; }).length;
       var cg = compteTypes(actives);
       var resume = pluriel(actives.length, 'vente') + ' (' + [cg.neuf ? pluriel(cg.neuf, 'neuf') : '', cg.usage ? cg.usage + ' usagé' + (cg.usage > 1 ? 's' : '') : '', cg.wholesale ? cg.wholesale + ' wholesale' : ''].filter(Boolean).join(' · ') + ')' + (attente ? ' · ' + attente + ' en attente du F&I' : '');
       var sansFIm = actives.filter(besoinFI).length;
       if (sansFIm) resume += ' · ' + sansFIm + ' F&I à inscrire';
       if (montants) { var cpm = cumulProfits(actives), q = function (nom, x) { return nom + ' : est. ' + (x.nEstime ? argent(x.estime) : '—') + ' · compta ' + (x.nComptable ? argent(x.comptable) : '—') + (x.nPaires ? ' · écart ' + signe(x.ecart) : ''); }; resume += ' · ' + q('front', cpm.front) + ' · ' + q('F&I', cpm.fi); }
+      if (g.ajustements.length) { var sg = sommeAj(g.ajustements); resume += ' · ' + pluriel(sg.n, 'ajustement') + (montants ? ' (front ' + signe(sg.front) + ', F&I ' + signe(sg.fi) + ')' : ''); }
       corps.appendChild(h('tr.groupe', { dataset: { mois: g.mois } }, [h('td', { colspan: String(colonnes) }, [h('span', { text: capitale(g.libelle) }), h('span.sous', { text: resume })])]));
       g.ventes.forEach(function (v) {
         var prd = produitsListe(v);
@@ -808,9 +835,26 @@
         tr.addEventListener('click', function () { ouvrirFiche(v); });
         corps.appendChild(tr);
       });
+      g.ajustements.forEach(function (a) { corps.appendChild(ligneAjustement(a, montants)); });
     });
     this.elListe.appendChild(h('div.ventes-defile', [h('table.tableau.ventes-table', [h('thead', [entete, entete2]), corps])]));   /* 22 oct. : 6 colonnes de profit → défilement horizontal au besoin */
   };
+  /* Une ligne d'ajustement : dans le mois où il est imputé ; un clic ouvre la vente d'origine. */
+  function ligneAjustement(a, montants) {
+    var tiret = function (cls) { return h('td.num' + (cls || ''), { text: '—' }); };
+    var tr = h('tr.cliquable.ajustement', { dataset: { aj: a.id }, title: 'Ajustement ' + a.id + ' de la vente ' + a.venteId + ' (livrée en ' + moisLibelle(a.moisVente) + ')' }, [
+      h('td', [h('div', { text: AMX.fmtDateCourte(a.date) }), h('div.sous', { text: 'ajustement' })]),
+      h('td.vehicule', [h('div.nom', { text: a.vehicule || '(véhicule)' }), h('div.vin', { text: [a.stock ? '# ' + a.stock : '', a.venteId + ' · ' + moisLibelle(a.moisVente)].filter(Boolean).join(' · ') })]),
+      h('td', { text: a.client || '—' }),
+      h('td', [h('span.badge.' + (a.type === 'neuf' ? 'vert' : (a.type === 'usage' ? 'bleu' : 'ambre')) + '.sans-point', { text: TYPES[a.type] || a.type }), h('div.sous', { text: a.categorieLibelle || libCategorie(a.type, a.categorie) })]),
+      h('td', { text: '—' }),
+      h('td', [h('div', { text: a.raison || '' }), h('div.sous', { text: 'par ' + String(a.par || '').split('@')[0] })])
+    ].concat(montants ? [tiret(), tiret('.debut-groupe'), h('td.num' + classeEcart(ajFront(a)), { text: ajFront(a) ? signe(ajFront(a)) : '—' }), tiret(), tiret('.debut-groupe'), h('td.num' + classeEcart(ajFI(a)), { text: ajFI(a) ? signe(ajFI(a)) : '—' }), tiret()] : [])
+      .concat([h('td', { text: '—' }), h('td.etat', [h('span.puce.info', { text: 'Ajustement ' + a.id })]),
+        h('td.actions', [AMX.ventes.peutCompta() ? h('button.btn.petit.fantome', { type: 'button', text: 'Annuler', title: 'Annuler cet ajustement', onclick: function (e) { e.stopPropagation(); annulerAjustement(a); } }) : null])]));
+    tr.addEventListener('click', function () { AMX.ventes.une(a.venteId).then(function (v) { if (v) ouvrirFiche(v); }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }); });
+    return tr;
+  }
   VueVentes.prototype.ouvrirId = function (id) {
     var d = cache.rep; var v = d ? d.ventes.filter(function (x) { return x.id === id; })[0] : null;
     if (v) { ouvrirFiche(v); return; }
@@ -877,7 +921,7 @@
     /* Par mois */
     var th = function (t, cls) { return h('th' + (cls ? '.' + cls : ''), { text: t }); };
     var tdN = function (a, type, mois) { return h('td.num' + (a.n ? '.cliquable' : '.vide'), { text: a.n ? String(a.n) : '·', onclick: a.n ? function (e) { e.stopPropagation(); aller(mois, type); } : null }); };
-    var tdM = function (x, vide) { return h('td.num' + (vide ? '.vide' : ''), { text: vide ? '·' : argent(x) }); };
+    var tdM = function (x, vide, aj) { return h('td.num' + (vide ? '.vide' : '') + (aj ? '.avec-aj' : ''), { text: vide ? '·' : argent(x), title: aj ? 'Dont ajustements : ' + signe(aj) + ' (dossiers de mois précédents)' : '' }); };
     var tdEcart = function (x, n, e, c) { return h('td.num' + (n ? classeEcart(x) : '.vide'), { text: n ? signe(x) : '·', title: n ? 'Comptable − estimé, sur ' + pluriel(n, 'vente') + ' qui ont les deux (estimé ' + argent(e) + ', comptable ' + argent(c) + ')' : '' }); };
     var comparer = montants && tot.frontEstime !== undefined;   /* script d'avant : front / F&I comme avant */
     var rs2 = comparer ? { rowspan: '2' } : {};
@@ -891,8 +935,8 @@
       var t = e.total || {}, tr = h('tr' + (cls ? '.' + cls : '') + (t.n ? '.cliquable' : '.mois-vide'), [
         h('td', { text: libelle }), tdN(e.neuf || {}, 'neuf', mois), tdN(e.usage || {}, 'usage', mois), tdN(e.wholesale || {}, 'wholesale', mois), tdN(t, '', mois)
       ].concat(comparer ? [
-        h('td.num.debut-groupe' + (t.nFrontEstime ? '' : '.vide'), { text: t.nFrontEstime ? argent(t.frontEstime) : '·' }), tdM(t.frontComptable, !t.nFrontComptable), tdEcart(t.ecartFront, t.nFrontPaires, t.frontPairesE, t.frontPairesC),
-        h('td.num.debut-groupe' + (t.nFIEstime ? '' : '.vide'), { text: t.nFIEstime ? argent(t.fiEstime) : '·' }), tdM(t.fiComptable, !t.nFIComptable), tdEcart(t.ecartFI, t.nFIPaires, t.fiPairesE, t.fiPairesC),
+        h('td.num.debut-groupe' + (t.nFrontEstime ? '' : '.vide'), { text: t.nFrontEstime ? argent(t.frontEstime) : '·' }), tdM(t.frontComptable, !t.nFrontComptable && !t.nAj, t.nAj ? t.ajFront : 0), tdEcart(t.ecartFront, t.nFrontPaires, t.frontPairesE, t.frontPairesC),
+        h('td.num.debut-groupe' + (t.nFIEstime ? '' : '.vide'), { text: t.nFIEstime ? argent(t.fiEstime) : '·' }), tdM(t.fiComptable, !t.nFIComptable && !t.nAj, t.nAj ? t.ajFI : 0), tdEcart(t.ecartFI, t.nFIPaires, t.fiPairesE, t.fiPairesC),
         h('td.num.debut-groupe' + (t.n ? '' : '.vide'), { text: t.n ? argent(t.profit / t.n) : '·' })
       ] : (montants ? [tdM(t.front, !t.n), tdM(t.fi, !t.n), tdM(t.profit, !t.n), tdM(t.n ? t.profit / t.n : 0, !t.n)] : [])).concat([
         h('td.num' + (t.prevu ? '' : '.vide'), { text: t.prevu ? String(t.prevu) : '·', title: 'Profit prévu seulement (réel pas encore inscrit par la comptabilité)' }),
@@ -959,7 +1003,9 @@
     var corps = h('div.ventes-fiche', [h('p.ventes-aide', 'Chargement de l\'historique…')]);
     var m = AMX.modale({ titre: (vehiculeTexte(v) || 'Vente') + (v.client || v.venduA ? ' — ' + (v.client || v.venduA) : ''), corps: corps, boutons: [{ texte: 'Fermer' }] });
     var poser = function (x) { AMX.vider(corps); remplirFiche(corps, x); m.boutons(boutonsFiche(x, m.fermer)); };
-    if (v.journal !== undefined) { poser(v); return m; }
+    var veutAj = (cache.rep && cache.rep.montants) || AMX.ventes.peutCompta();
+    if (v.journal !== undefined && (v.ajustements !== undefined || !veutAj)) { poser(v); return m; }
+    if (v.journal !== undefined) poser(v);   /* affichée tout de suite, puis complétée de ses ajustements */
     AMX.ventes.une(v.id).then(function (x) { if (x) { if (cache.rep) { var i = cache.rep.ventes.findIndex(function (y) { return y.id === x.id; }); if (i >= 0) cache.rep.ventes[i] = x; } poser(x); } else poser(v); }, function () { poser(v); });
     return m;
   }
@@ -1012,6 +1058,18 @@
       if (prdF.length) extraCompta.push(['Produits F&I confirmés', nConf + ' / ' + prdF.length + (v.fiConfirmeLe ? ' · ' + AMX.fmtDate(v.fiConfirmeLe) + (v.fiConfirmeParNom ? ' par ' + v.fiConfirmeParNom : '') : (nConf ? '' : ' — à confirmer par la comptabilité (fenêtre Comptabilité)'))]);
       if (extraCompta.length) corps.appendChild(dl(extraCompta));
     }
+    /* 26 oct. : ajustements de profit de cette vente (imputés à des mois suivants). */
+    var ajsV = Array.isArray(v.ajustements) ? v.ajustements : ((d && d.ajustements) || []).filter(function (a) { return a.venteId === v.id; });
+    if (voitCompta && ajsV.length) {
+      corps.appendChild(h('h4', 'Ajustements de profit'));
+      corps.appendChild(h('div.ventes-defile', [h('table.tableau.ventes-aj-table', [h('thead', [h('tr', ['Imputé à', 'Catégorie', 'Front', 'F&I', 'Raison', ''].map(function (t, i) { return h('th' + (i === 2 || i === 3 ? '.num' : ''), { text: t }); }))]),
+        h('tbody', ajsV.map(function (a) {
+          return h('tr' + (a.annule ? '.annulee' : ''), [h('td', [h('div', { text: capitale(moisLibelle(a.mois)) }), h('div.sous', { text: a.id + ' · ' + AMX.fmtDateCourte(a.date) })]), h('td', { text: (TYPES[a.type] || a.type) + ' · ' + (a.categorieLibelle || libCategorie(a.type, a.categorie)) }),
+            h('td.num' + classeEcart(ajFront(a)), { text: a.front === undefined ? '—' : signe(ajFront(a)) }), h('td.num' + classeEcart(ajFI(a)), { text: a.fi === undefined ? '—' : signe(ajFI(a)) }),
+            h('td', [h('div', { text: a.raison || '' }), h('div.sous', { text: (a.annule ? 'annulé' + (a.annuleRaison ? ' — ' + a.annuleRaison : '') + ' · ' : '') + 'par ' + String(a.par || '').split('@')[0] })]),
+            h('td', [!a.annule && AMX.ventes.peutCompta() ? h('button.btn.petit.fantome', { type: 'button', text: 'Annuler', onclick: function () { annulerAjustement(a); } }) : null])]);
+        }))])]));
+    }
     corps.appendChild(h('h4', 'Livre et suivi'));
     corps.appendChild(dl([
       ['Livre', v.livre === 'ecrit' ? (v.livreOnglet || '') + ' · ligne ' + v.livreLigne : (v.livre === 'erreur' ? 'PAS ÉCRITE — ' + (v.livreErreur || '') : 'pas encore écrite')],
@@ -1024,6 +1082,7 @@
     var boutons = [], ouverte = v.statut !== 'annulee', fiManque = v.statut === 'declaree' || besoinFI(v);
     /* 26 oct. : trois fenêtres — la vente (direction des ventes), le F&I (directeur commercial), la comptabilité. */
     if (ouverte && v.type !== 'wholesale' && AMX.ventes.peutCompleter()) boutons.push({ texte: fiManque ? 'Inscrire les profits F&I' : 'Profits F&I', classe: fiManque ? 'primaire' : '', action: function (f) { f(); AMX.ventes.fi(v); return false; } });
+    if (ouverte && AMX.ventes.peutCompta() && moisDeVente(v) && moisDeVente(v) < moisCourant()) boutons.push({ texte: 'Ajustement de profit…', title: 'Ajouter un ajustement de profit (front ou F&I) imputé au mois courant', action: function (f) { f(); ouvrirAjustement(v); return false; } });
     if (ouverte && v.livre === 'ecrit' && AMX.ventes.peutCompta()) boutons.push({ texte: 'Comptabilité', classe: v.statut !== 'comptabilisee' && !fiManque ? 'primaire' : '', action: function (f) { f(); AMX.ventes.compta(v); return false; } });
     if (ouverte && v.statut !== 'comptabilisee') {
       if (AMX.ventes.peutDeclarer() || AMX.ventes.peutCompleter()) boutons.push({ texte: 'Modifier la vente', action: function (f) { f(); AMX.ventes.modifier(v); return false; } });
@@ -1282,6 +1341,72 @@
     return AMX.post({ action: 'venteRenvoyer', id: v.id }, { delai: 90000 }).then(function (r) {
       verifierPost(r); AMX.ventes.poser(r.vente); AMX.toast(r.message || 'Renvoyée', r.livre && r.livre.ok ? 'ok' : 'erreur', 6000); return true;
     }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+  }
+  /* 26 oct. (Claude Poulin) : un ajustement de profit pour un dossier d'un mois déjà fermé, imputé au mois courant (ou à un mois
+     suivant la vente encore ouvert), dans la catégorie voulue (neuf, démo, courtoisie, flotte, usagé, wholesale). */
+  function ouvrirAjustement(v) {
+    injecterCss();
+    var mv = moisDeVente(v), mc = moisCourant(), options = [];
+    for (var d = new Date(); options.length < 3; d.setMonth(d.getMonth() - 1)) { var m = isoLocal(d).slice(0, 7); if (m <= mv) break; options.push(m); }
+    if (!options.length) { AMX.toast('Cette vente est du mois courant : corrigez directement son profit (Comptabilité).', 'attention', 6000); return; }
+    var selMois = h('select.saisie#aj-mois', options.map(function (m, i) { return h('option', { value: m, text: capitale(moisLibelle(m)) + (i === 0 ? ' (mois courant)' : '') }); }));
+    var selCat = h('select.saisie#aj-categorie');
+    Object.keys(TYPES).forEach(function (t) {
+      var og = h('optgroup', { label: TYPES[t] });
+      (CATEGORIES[t] || []).forEach(function (c) { og.appendChild(h('option', { value: t + '|' + c[0], text: TYPES[t] + ' — ' + c[1] })); });
+      selCat.appendChild(og);
+    });
+    selCat.value = v.type + '|' + (v.categorie || ((CATEGORIES[v.type] || [])[0] || [''])[0]);
+    var inFront = h('input.saisie#aj-front', { type: 'text', inputmode: 'decimal', placeholder: 'ex. −1 200 ou 350', autocomplete: 'off' });
+    var inFI = h('input.saisie#aj-fi', { type: 'text', inputmode: 'decimal', placeholder: 'ex. 250', autocomplete: 'off' });
+    var raison = h('textarea.saisie#aj-raison', { rows: '2', maxlength: '300', placeholder: 'Écart de coût, ristourne reçue, frais refacturés…' });
+    var apercu = h('div.ventes-aide');
+    var maj = function () { var f = nombre(inFront.value) || 0, g = nombre(inFI.value) || 0; apercu.textContent = (f || g) ? 'Total de l\'ajustement : ' + signe(Math.round((f + g) * 100) / 100) + ' — compté dans ' + moisLibelle(selMois.value) + ', pas dans ' + moisLibelle(mv) + '.' : 'Entrez un montant (négatif pour une baisse du profit).'; };
+    [inFront, inFI].forEach(function (x) { x.addEventListener('input', maj); }); selMois.addEventListener('change', maj); maj();
+    var champ = function (id, lib, el) { return h('div.champ', [h('label', { 'for': id, text: lib }), el]); };
+    var corps = h('div.ventes-form', [
+      h('p.ventes-aide', { text: (vehiculeTexte(v) || v.id) + (v.stock ? ' · # ' + v.stock : '') + ' — vente ' + v.id + ' livrée en ' + moisLibelle(mv) + '. Le profit de la vente ne change pas : l\'ajustement compte dans le mois choisi.' }),
+      h('div.grille.c2', [champ('aj-mois', 'Imputé à', selMois), champ('aj-categorie', 'Catégorie', selCat)]),
+      h('div.grille.c2', [champ('aj-front', 'Front (voiture) $', inFront), champ('aj-fi', 'F&I $', inFI)]),
+      champ('aj-raison', 'Raison', raison), apercu]);
+    AMX.modale({ titre: 'Ajustement de profit — ' + v.id, corps: corps, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer l\'ajustement', classe: 'primaire', action: function () {
+      var f = nombre(inFront.value), g = nombre(inFI.value), tc = selCat.value.split('|');
+      if (!f && !g) { AMX.toast('Entrez le montant (front, F&I ou les deux).', 'erreur'); inFront.focus(); return false; }
+      if (raison.value.trim().length < 3) { AMX.toast('Indiquez la raison de l\'ajustement.', 'erreur'); raison.focus(); return false; }
+      return AMX.post({ action: 'venteAjustement', venteId: v.id, front: f || 0, fi: g || 0, mois: selMois.value, type: tc[0], categorie: tc[1] || '', raison: raison.value.trim() }, { delai: 90000 }).then(function (r) {
+        verifierPost(r);
+        if (!r.ajustement) throw new Error(SCRIPT_PAS_A_JOUR);
+        if (cache.rep && cache.rep.ventes.some(function (x) { return x.id === r.vente.id; })) AMX.ventes.poser(r.vente);   /* la vente d'un autre mois n'entre pas dans la liste */
+        poserAjustement(r.ajustement);
+        AMX.toast('Ajustement ' + r.ajustement.id + ' imputé à ' + moisLibelle(r.ajustement.mois), 'ok');
+        return true;
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 6000); return false; });
+    } }] });
+    setTimeout(function () { try { inFront.focus(); } catch (e) {} }, 50);
+  }
+  /* Le nouvel ajustement entre dans la liste chargée si son mois en fait partie. */
+  function poserAjustement(a) {
+    var d = cache.rep; if (!d || !a) return;
+    var mois = String(cache.cle || '').split('|')[1] || '';
+    var dedans = mois === 'tout' || (/^\d{4}$/.test(mois) ? a.mois.slice(0, 4) === mois : (mois ? a.mois === mois : true));
+    if (!Array.isArray(d.ajustements)) d.ajustements = [];
+    d.ajustements = d.ajustements.filter(function (x) { return x.id !== a.id; });
+    if (dedans && !a.annule) d.ajustements.push(a);
+    cacheRecap.quand = 0;
+    document.dispatchEvent(new CustomEvent('amx:ventes'));
+  }
+  function annulerAjustement(a) {
+    var ta = h('textarea.saisie#aj-annule-raison', { rows: '2', placeholder: 'Doublon, montant erroné…' });
+    AMX.modale({ titre: 'Annuler l\'ajustement ' + a.id, corps: h('div.ventes-form', [h('p.ventes-aide', { text: (a.vehicule || a.venteId) + ' — front ' + signe(ajFront(a)) + ', F&I ' + signe(ajFI(a)) + ', imputé à ' + moisLibelle(a.mois) + '.' }), h('div.champ', [h('label', { 'for': 'aj-annule-raison', text: 'Pourquoi ?' }), ta])]),
+      boutons: [{ texte: 'Garder' }, { texte: 'Annuler l\'ajustement', classe: 'danger', action: function () {
+        return AMX.post({ action: 'venteAjustementAnnuler', id: a.id, raison: ta.value.trim() }, { delai: 90000 }).then(function (r) {
+          if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Le serveur a refusé.');
+          if (!r.ajustement) throw new Error(SCRIPT_PAS_A_JOUR);
+          poserAjustement(r.ajustement);
+          AMX.toast('Ajustement ' + a.id + ' annulé', 'ok');
+          return true;
+        }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+      } }] });
   }
   function modaleAnnuler(v) {
     var ta = h('textarea.saisie#vente-raison', { rows: '3', placeholder: 'Client désisté, refus de crédit, erreur de saisie…' });

@@ -86,7 +86,7 @@
     this.construire();
     this.chargerEtat();
   }
-  ImportD2c.prototype.demonter = function () { window.removeEventListener('message', this.surMessage); };
+  ImportD2c.prototype.demonter = function () { window.removeEventListener('message', this.surMessage); if (this.surPrix) window.removeEventListener('amx:prixDetail', this.surPrix); };
   ImportD2c.prototype.naviguer = function (ctx) { if (ctx && ctx.params && (ctx.params.auto === '1' || ctx.params.auto === 'true')) this.auto = true; };
   ImportD2c.prototype.marquer = function (etat) { this.el.dataset.etat = etat; };
 
@@ -110,6 +110,14 @@
         ])
       ])
     ]));
+    // 26 oct. : les prix de détail changés dans ScanAutomax, à inscrire sur le site par le favori « Automax → D2C (prix) ».
+    this.elPrix = h('div');
+    this.el.appendChild(this.elPrix);
+    if (AMX.prixDetail && AMX.prixDetail.peut()) {
+      AMX.prixDetail.charger().then(function () { AMX.prixDetail.carte(self.elPrix); }, function () {});
+      this.surPrix = function () { AMX.prixDetail.carte(self.elPrix); };
+      window.addEventListener('amx:prixDetail', this.surPrix);
+    }
     this.elEtat = h('div');
     this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [h('div.carte-entete', [h('h2', 'Dernier import par concession'), h('div.actions-ligne', [h('button.btn.fantome.petit', { text: 'Rafraîchir', onclick: function () { self.chargerEtat(true); } })])]), h('div.carte-corps', [this.elEtat])]));
     var cases = ['couts', 'km', 'carfax', 'neufs', 'usages'].map(function (k) {

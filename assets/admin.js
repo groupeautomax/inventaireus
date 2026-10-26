@@ -518,7 +518,8 @@
     this.elDemandes = this.construireDemandes();
     this.elIa = this.construireIa();
     this.elCf = (AMX.transport && AMX.transport.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : AMX.estAdmin())) ? AMX.transport.carteAdmin() : null;   /* 23 oct. : jetons Central Fleet (transport.js) */
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elCf, this.elIa, this.elParametres]), this.elPanneau]);
+    this.elRevue = (AMX.estProprietaire ? AMX.estProprietaire() : false) ? this.construireRevue() : null;   /* 26 oct. : compte de révision pour l'App Store (RevueApple.gs) */
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elCf, this.elRevue, this.elIa, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -1166,6 +1167,67 @@
     AMX.confirmer('Retirer la clé API', 'Einstein AI sera désactivé jusqu\'à ce qu\'une nouvelle clé soit collée. Pensez aussi à révoquer la clé dans console.anthropic.com si elle a fuité.', { ok: 'Retirer', danger: true }).then(function (ok) { if (ok) self.posterIa({ action: 'iaReglages', retirerCle: true }, 'Clé retirée.'); });
   };
 
+  /* ------------------- Révision Apple (26 oct., RevueApple.gs) ------------------
+     Pour publier l'app hors de TestFlight, l'examinateur d'Apple doit pouvoir se connecter. Le propriétaire crée un compte
+     ordinaire (rôle Utilisateur, une concession), puis lui donne ici un code fixe à six chiffres pour un nombre de jours :
+     pour ce compte, aucun code n'est envoyé et le code fixe sert. Routes : GET ?revueApple=1, POST action=revueApple. */
+  VueAdmin.prototype.construireRevue = function () {
+    var self = this;
+    this.elEtatRevue = h('div.petit.doux', { text: 'Chargement…' });
+    this.elCourrielRevue = h('input#adm-revue-courriel', { type: 'email', autocomplete: 'off', spellcheck: 'false', placeholder: 'revue-apple@…' });
+    this.elCodeRevue = h('input#adm-revue-code', { type: 'password', inputmode: 'numeric', autocomplete: 'new-password', maxlength: '6', placeholder: '6 chiffres' });
+    this.elJoursRevue = h('input#adm-revue-jours', { type: 'number', min: '1', max: '90', step: '1', value: '30' });
+    var voir = h('button.btn.petit.fantome', { type: 'button', text: 'Afficher', onclick: function () { var p = self.elCodeRevue.type === 'password'; self.elCodeRevue.type = p ? 'text' : 'password'; voir.textContent = p ? 'Masquer' : 'Afficher'; } });
+    this.btnRevue = h('button.btn.primaire#adm-revue-enregistrer', { type: 'button', html: I.ok + '<span>Enregistrer</span>', onclick: function () { self.enregistrerRevue(); } });
+    this.btnRevueRetirer = h('button.btn.danger.petit#adm-revue-retirer', { type: 'button', text: 'Arrêter la révision', onclick: function () { self.retirerRevue(); } });
+    var corps = [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Pour publier l\'app sur l\'App Store (non listée), l\'examinateur d\'Apple doit se connecter. Pour le compte choisi ici, aucun code n\'est envoyé : c\'est le code fixe ci-dessous qui sert, jusqu\'à la date de fin. Donnez ce compte et ce code à Apple dans les notes de révision.' }),
+      h('div.admin-export-grille', [
+        h('div.champ', [h('label', { 'for': 'adm-revue-courriel', text: 'Courriel du compte de révision' }), this.elCourrielRevue, h('div.mini.doux', { text: 'Créez-le d\'abord plus haut : rôle Utilisateur, une seule concession.' })]),
+        h('div.champ', [h('label', { 'for': 'adm-revue-code', text: 'Code fixe (6 chiffres)' }), h('div.ligne-cle', [this.elCodeRevue, voir]), h('div.mini.doux', { text: 'Laissez vide pour garder le code actuel.' })]),
+        h('div.champ', [h('label', { 'for': 'adm-revue-jours', text: 'Durée (jours)' }), this.elJoursRevue, h('div.mini.doux', { text: '90 jours au plus ; la révision s\'arrête d\'elle-même.' })])
+      ]),
+      h('div.ligne-cle', [this.btnRevue, this.btnRevueRetirer]),
+      this.elEtatRevue
+    ];
+    return h('div.carte.admin-parametres.admin-revue', [h('div.carte-entete', [h('h2', 'Révision Apple (App Store)')]), h('div.carte-corps', corps)]);
+  };
+  VueAdmin.prototype.chargerRevue = function () {
+    var self = this;
+    return AMX.get({ revueApple: 1 }).then(function (d) { if (!self.detruit) self.rendreRevue(d && d.ok && d.joursMax ? d : (d && d.refuse ? { refuse: true } : null)); }).catch(function () { if (!self.detruit) self.rendreRevue(null); });
+  };
+  VueAdmin.prototype.rendreRevue = function (d) {
+    AMX.vider(this.elEtatRevue);
+    if (!d) { this.elEtatRevue.appendChild(h('span.badge.ambre.sans-point', { text: 'Script pas à jour (RevueApple.gs) : redéployez-le' })); return; }
+    if (d.refuse) { this.elEtatRevue.appendChild(h('span.puce', { text: 'Réservé au propriétaire' })); return; }
+    if (d.courriel && !this.elCourrielRevue.value) this.elCourrielRevue.value = d.courriel;
+    this.btnRevueRetirer.style.display = d.present ? '' : 'none';
+    this.elEtatRevue.appendChild(d.actif
+      ? h('span.badge.vert.sans-point', { text: 'Révision en cours : ' + d.courriel + ' jusqu\'au ' + AMX.fmtDate(d.jusqua) })
+      : (d.present ? h('span.badge.ambre.sans-point', { text: 'Révision terminée le ' + AMX.fmtDate(d.jusqua) + ' (' + d.courriel + ')' }) : h('span.puce', { text: 'Aucun compte de révision' })));
+  };
+  VueAdmin.prototype.posterRevue = function (corps, message) {
+    var self = this;
+    this.btnRevue.classList.add('occupe');
+    return AMX.post(corps).then(function (r) {
+      self.btnRevue.classList.remove('occupe');
+      if (r && r.vehicules && !r.joursMax) throw new Error('le script n\'est pas à jour (RevueApple.gs)');
+      if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'refusé');
+      self.elCodeRevue.value = '';
+      self.rendreRevue(r);
+      AMX.toast(message, 'ok', 7000);
+    }).catch(function (e) { self.btnRevue.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(e), 'erreur', 9000); });
+  };
+  VueAdmin.prototype.enregistrerRevue = function () {
+    var c = this.elCourrielRevue.value.trim(), code = this.elCodeRevue.value.trim();
+    if (code && !/^\d{6}$/.test(code)) { AMX.toast('Le code doit avoir exactement six chiffres.', 'erreur'); return; }
+    this.posterRevue({ action: 'revueApple', courriel: c, code: code, jours: this.elJoursRevue.value }, 'Compte de révision enregistré.');
+  };
+  VueAdmin.prototype.retirerRevue = function () {
+    var self = this;
+    AMX.confirmer('Arrêter la révision', 'Le compte de révision n\'aura plus de code fixe : il faudra un code reçu par courriel, comme tout le monde.', { ok: 'Arrêter', danger: true }).then(function (ok) { if (ok) self.posterRevue({ action: 'revueApple', retirer: true }, 'Révision arrêtée.'); });
+  };
+
   VueAdmin.prototype.charger = function (manuel) {
     var self = this, gen = ++this.generation;
     this.enChargement = true;
@@ -1178,6 +1240,7 @@
     this.chargerExport();
     this.chargerDemandes();
     this.chargerIa();
+    if (this.elRevue) this.chargerRevue();
     return AMX.get('utilisateurs=1').then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;

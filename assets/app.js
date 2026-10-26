@@ -1638,6 +1638,40 @@
      de chaque NIV est retrouvé en mémoire, une confirmation (taper SUPPRIMER), puis deleteByVinBulk par registre (droit
      « Supprimer »). La liste en mémoire est mise à jour (événement amx:inventaire) : chaque page le retire tout de suite.
      opts.feuille = registre par défaut d'un NIV absent de la mémoire. Renvoie la liste des NIV supprimés (null si annulé). */
+  /* 26 oct. : les usagés effacés à la main que le DMS et D2C ne rajoutent plus (Supprimes.gs) — liste et « Laisser revenir ». */
+  AMX.inventaire.effaces = function () {
+    var corps = h('div', [h('p.doux', { text: 'Lecture…' })]);
+    var m = AMX.modale({ titre: 'Usagés effacés', corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer' }] });
+    var dessiner = function (r) {
+      AMX.vider(corps);
+      corps.appendChild(h('p.doux.petit', { style: { marginTop: 0 }, text: 'Un usagé effacé du registre n\'est pas rajouté par la relecture du DMS, de la Synchro ou de D2C pendant ' + (r.jours || 365) + ' jours. Il revient seulement sous un nouveau # stock (repris plus tard en échange) ou si on l\'ajoute à la main.' }));
+      if (!r.supprimes.length) { corps.appendChild(h('p', { text: 'Aucun usagé effacé pour l\'instant.' })); return; }
+      var tb = h('tbody');
+      r.supprimes.forEach(function (x) {
+        var lever = r.peutLever ? h('button.btn.petit', { type: 'button', text: 'Laisser revenir', onclick: function () {
+          lever.classList.add('occupe');
+          AMX.post({ action: 'usageSupprimeLever', vin: x.vin }).then(function (y) { if (!y || y.refuse || y.ok === false) throw new Error((y && y.erreur) || 'Refusé'); AMX.toast(y.message || 'Fait', 'ok', 6000); charger(); }, function (e) { lever.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+        } }) : null;
+        tb.appendChild(h('tr', [
+          h('td', [h('b', { text: x.modele || '—' }), h('span.sous.mono', { style: { display: 'block' }, text: x.vin + (x.stock ? ' · #' + x.stock : '') })]),
+          h('td', { text: ((AMX.COMPAGNIES_TOUTES || {})[x.compagnie] || x.compagnie || '—') + (x.registre ? ' · ' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(x.registre) : x.registre) : '') }),
+          h('td', [h('span', { text: AMX.fmtDate(x.le, true) }), h('span.sous', { style: { display: 'block' }, text: x.par || '' })]),
+          h('td', { text: x.revu ? 'Proposé de nouveau par ' + x.revuPar + ' le ' + AMX.fmtDateCourte(String(x.revu).slice(0, 10)) : '—' }),
+          h('td', [lever])
+        ]));
+      });
+      corps.appendChild(h('div', { style: { overflowX: 'auto' } }, [h('table.tableau', [h('thead', [h('tr', ['Véhicule', 'Concession', 'Effacé le', 'Depuis', ''].map(function (t) { return h('th', { text: t }); }))]), tb])]));
+    };
+    var charger = function () {
+      AMX.get({ usagesSupprimes: 1 }, { secours: false }).then(function (r) {
+        if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Refusé');
+        if (!Array.isArray(r.supprimes)) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (Supprimes.gs).');
+        dessiner(r);
+      }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('p', { text: AMX.erreurTexte(e) })); });
+    };
+    charger();
+    return m;
+  };
   AMX.inventaire.supprimer = function (vins, opts) {
     opts = opts || {};
     if (!AMX.perm('supprimer')) { AMX.toast('Supprimer des véhicules demande le droit « Supprimer » (Admin › Droits).', 'attention', 7000); return Promise.resolve(null); }
@@ -1652,7 +1686,7 @@
     var n = liste.length;
     var noms = liste.slice(0, 6).map(function (v) { return (v.modele || v.vin) + (v.stock ? ' (# ' + v.stock + ')' : ''); }).join(' · ') + (n > 6 ? ' · et ' + (n - 6) + ' autre' + (n - 6 > 1 ? 's' : '') : '');
     var titre = n > 1 ? 'Supprimer ' + n + ' véhicules' : 'Supprimer le véhicule';
-    var message = noms + '. Retiré' + (n > 1 ? 's' : '') + ' du registre pour de bon — et donc de l\'analyse, du prix du marché et du suivi service. Tapez SUPPRIMER pour confirmer.';
+    var message = noms + '. Retiré' + (n > 1 ? 's' : '') + ' du registre pour de bon — et donc de l\'analyse, du prix du marché et du suivi service. La relecture du DMS ou de D2C ne ' + (n > 1 ? 'les' : 'le') + ' rajoutera pas (sauf sous un nouveau # stock). Tapez SUPPRIMER pour confirmer.';
     return AMX.confirmerSaisie(titre, message, 'SUPPRIMER', { ok: n > 1 ? 'Supprimer les ' + n : 'Supprimer', danger: true }).then(function (ok) {
       if (!ok) return null;
       var feuilles = Object.keys(par), faits = [], refus = [], introuvables = [];

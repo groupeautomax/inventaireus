@@ -143,6 +143,7 @@
     if (t.joursTransit !== '' && t.joursTransit !== undefined && !t.livraison) l.push(['Transit', t.joursTransit + ' j']);
     if (t.cueillette) l.push(['Cueilli le', jour(t.cueillette)]); else if (t.cueilletteEstimee) l.push(['Cueillette prévue', jour(t.cueilletteEstimee)]); else if (t.dateSouhaitee) l.push(['Souhaitée le', jour(t.dateSouhaitee)]);
     if (t.livraison) l.push(['Livré le', jour(t.livraison)]); else if (t.livraisonEstimee) l.push(['Livraison prévue', jour(t.livraisonEstimee)]);
+    if (t.consignes && t.consignes.release) l.push(['Release', t.consignes.release + (t.consignes.refusees || t.consignes.lues === 'non' ? ' (à donner à Central Fleet)' : '')]);
     if (t.facture) l.push(['Facture', t.facture + ' · ' + argent(t.totalFacture) + ' taxes incl.' + (t.statutFacture === 'paid' ? ' · payée' : (t.echeance ? ' · échéance ' + jour(t.echeance) : ''))]);
     return h('div.faits', l.map(function (x) { return h('span', [x[0] + ' : ', h('b', { text: x[1] })]); }));
   }
@@ -213,6 +214,13 @@
         var depAdr = saisie(dep.adresse, { placeholder: 'Adresse civique (encan, vendeur…)' }), depVille = saisie(dep.ville), depProv = province(dep.province || 'QC');
         var arrAdr = saisie(arr.adresse), arrVille = saisie(arr.ville), arrProv = province(arr.province || (cie0 === 'HAWKS' ? 'ON' : 'QC'));
         var date = saisie('', { type: 'date' }), note = saisie('', { placeholder: 'Pour nous seulement (pas envoyé à Central Fleet)' });
+        // 26 oct. : le release — consignes de cueillette envoyées à Central Fleet (no de release, heures, contact sur place).
+        var cs = p.consignes || {}, rel = p.release || null;
+        var csContact = saisie(cs.contact, { placeholder: 'Nom ou service' }), csTel = saisie(cs.telephone, { inputmode: 'tel' });
+        var csInstr = h('textarea.saisie', { rows: '2', maxlength: '500', placeholder: 'Release # …, heures du lot, porte à utiliser…' }); csInstr.value = cs.instructions || '';
+        var avisRelease = null;
+        if (rel && rel.recu) avisRelease = h('p.avis', { style: { background: 'var(--vert-clair)', borderColor: 'var(--vert)', color: 'var(--vert-fonce)' }, text: 'Release reçu le ' + jour(rel.recu) + (rel.no ? ' — no ' + rel.no : '') + ' : le véhicule peut être cueilli.' });
+        else if (rel) avisRelease = h('p.avis', { text: (rel.paye ? 'Payé, mais le release n\'est pas encore reçu' : 'Ni payé ni release reçu') + ' : sans release, le transporteur ne pourra pas sortir le véhicule du lot (déplacement à vide possible). Vous pouvez demander le prix quand même ; déposez le release dans la fiche d\'achat dès qu\'il arrive.' });
         var test = h('input', { type: 'checkbox' });
         selCie.addEventListener('change', function () { var l = liv(selCie.value); if (!arrVille.value || arrVille.dataset.auto) { arrAdr.value = l.adresse || ''; arrVille.value = l.ville || ''; arrProv.value = l.province || ''; arrVille.dataset.auto = '1'; } });
         if (!p.arrivee) arrVille.dataset.auto = '1';
@@ -221,8 +229,10 @@
           h('div.grille', [champ('Concession qui paie le transport', selCie)]),
           h('h4', 'Véhicule'),
           h('div.grille', [champ('NIV (17 caractères)', vin), champ('Année', annee), champ('Marque', marque), champ('Modèle', modele), champ('# stock (pour nous)', stock), champ('Type', type), champ('État', etat), champ('Transport', couvert)]),
+          avisRelease,
           h('h4', 'Cueillette'),
           h('div.grille', [champ('Adresse', depAdr), champ('Ville', depVille), champ('Province ou État', depProv, '2 lettres : QC, ON, NY…')]),
+          h('div.grille', { style: { marginTop: '10px' } }, [champ('Contact sur place', csContact), champ('Téléphone sur place', csTel), champ('Consignes de cueillette (envoyées à Central Fleet)', csInstr)]),
           h('h4', 'Livraison'),
           h('div.grille', [champ('Adresse', arrAdr), champ('Ville', arrVille), champ('Province ou État', arrProv)]),
           h('div.grille', { style: { marginTop: '10px' } }, [champ('Cueillette souhaitée le', date), champ('Note', note)]),
@@ -234,7 +244,8 @@
               vehicules: [{ vin: vin.value.trim().toUpperCase(), annee: annee.value.trim(), marque: marque.value.trim(), modele: modele.value.trim(), stock: stock.value.trim(), typeVehicule: type.value, etatVehicule: etat.value, typeTransport: couvert.value }],
               depart: { adresse: depAdr.value.trim(), ville: depVille.value.trim(), province: depProv.value.trim().toUpperCase() },
               arrivee: { adresse: arrAdr.value.trim(), ville: arrVille.value.trim(), province: arrProv.value.trim().toUpperCase() },
-              dateSouhaitee: date.value };
+              dateSouhaitee: date.value,
+              consignes: { contact: csContact.value.trim(), telephone: csTel.value.trim(), instructions: csInstr.value.trim(), release: (cs.release || (rel && rel.no) || '') } };
             if (corpsPost.vehicules[0].vin.length !== 17) { AMX.toast('Le NIV doit avoir 17 caractères.', 'erreur'); return false; }
             if (!corpsPost.depart.ville || !/^[A-Z]{2}$/.test(corpsPost.depart.province) || !corpsPost.arrivee.ville || !/^[A-Z]{2}$/.test(corpsPost.arrivee.province)) { AMX.toast('Ville et province (2 lettres) de cueillette et de livraison obligatoires.', 'erreur'); return false; }
             // Jamais de requête de secours ni de rejeu : une demande créée deux fois serait un doublon chez Central Fleet.
@@ -243,6 +254,7 @@
               if (!r || r.refuse || r.ok === false) { AMX.toast((r && r.erreur) || 'Demande refusée', r && (r.code === 'DEJA' || r.code === 'INCERTAIN') ? 'attention' : 'erreur', 10000); if (r && r.transport) AMX.transport.poser([r.transport]); return false; }
               AMX.transport.poser(r.transports || []);
               AMX.toast(r.message || 'Demande envoyée à Central Fleet', 'ok', 8000);
+              if (r.avertissement) AMX.toast(r.avertissement, 'attention', 14000);
               m.modifie(false); resoudre(r); fermer(); return false;
             }, function (e) { AMX.toast('Réponse incertaine (' + AMX.erreurTexte(e) + ') : rien n\'a été renvoyé. Actualisez Inventaire › Transports dans quelques minutes avant de redemander.', 'attention', 12000); return false; });
           } }] });
@@ -272,15 +284,91 @@
     injecterCss();
     this.conteneur = conteneur; this.compagnie = AMX.compagnieChoisie('inventaire');
     this.filtres = { groupe: '', recherche: '' };
+    this.filtresRel = { etat: '', recherche: '' };
+    this.vue = (ctx && ctx.params && ctx.params.vue === 'releases') || AMX.memo.lire('tr_vue', '') === 'releases' ? 'releases' : 'transports';
     this.construire();
     this.sur = function () { self.rendre(); AMX.rafraichirSousBarre(); };
     this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.rendre(); };
+    this.surRel = function () { if (self.vue === 'releases') self.rendreReleases(); };
     document.addEventListener('amx:transports', this.sur);
+    document.addEventListener('amx:releases', this.surRel);
     document.addEventListener('amx:compagnie', this.surCie);
     AMX.transport.charger(false).then(function () { self.rendre(); }, function (e) { self.elSous.textContent = AMX.erreurTexte(e); AMX.vider(self.elListe); self.elListe.appendChild(h('div.carte', [h('div.vide', { text: AMX.erreurTexte(e) })])); });
     void ctx;
   }
-  VueTransports.prototype.demonter = function () { document.removeEventListener('amx:transports', this.sur); document.removeEventListener('amx:compagnie', this.surCie); };
+  VueTransports.prototype.demonter = function () { document.removeEventListener('amx:transports', this.sur); document.removeEventListener('amx:releases', this.surRel); document.removeEventListener('amx:compagnie', this.surCie); };
+  VueTransports.prototype.rendreVues = function () {
+    var self = this, d = AMX.release && AMX.release.enCache();
+    AMX.vider(this.elVues);
+    var nRel = d ? d.releases.filter(function (x) { return (!self.compagnie || x.compagnie === self.compagnie) && x.etat !== 'transport'; }).length : null;
+    [['transports', 'Transports Central Fleet'], ['releases', 'Achats à aller chercher' + (nRel ? ' (' + nRel + ')' : '')]].forEach(function (v) {
+      self.elVues.appendChild(h('button' + (self.vue === v[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': self.vue === v[0] ? 'true' : 'false', text: v[1], onclick: function () { self.vue = v[0]; AMX.memo.ecrire('tr_vue', v[0]); self.rendre(); } }));
+    });
+    this.zoneTr.classList.toggle('cache', this.vue !== 'transports');
+    this.zoneRel.classList.toggle('cache', this.vue !== 'releases');
+  };
+  /* Les achats à aller chercher : au registre (Acheté, Transit QC), pas un échange, avec une fiche d'achat ou un achat
+     Manheim / eBlock / Opportunités. Filtres d'abord, la liste suit (Release.gs, ?releases=1). */
+  VueTransports.prototype.construireReleases = function () {
+    var self = this, f = this.filtresRel;
+    if (this.relConstruit) return; this.relConstruit = true;
+    this.relRech = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, lieu, no de release…', 'aria-label': 'Chercher un achat', oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendreReleases(); }, 120) });
+    this.relPastilles = h('div.inv2-statuts', { role: 'group', 'aria-label': 'État du release' });
+    this.relPortee = h('div.portee-chiffres');
+    this.relListe = h('div');
+    this.zoneRel.appendChild(h('div.inv2-filtres', [h('div.recherche.inv2-recherche', [h('span', { html: AMX.icones.recherche }), this.relRech]), this.relPastilles]));
+    this.zoneRel.appendChild(this.relPortee);
+    this.zoneRel.appendChild(this.relListe);
+  };
+  VueTransports.prototype.rendreReleases = function () {
+    var self = this, f = this.filtresRel;
+    this.construireReleases();
+    if (!AMX.release) { AMX.vider(this.relListe); this.relListe.appendChild(h('div.carte', [h('div.vide', { text: 'release.js n\'est pas chargé.' })])); return; }
+    var d = AMX.release.enCache();
+    if (!d) {
+      AMX.vider(this.relListe); this.relListe.appendChild(AMX.chargeur ? AMX.chargeur('Achats à aller chercher', { compact: true }) : h('p.doux', 'Lecture…'));
+      AMX.release.charger().then(function () { self.rendreVues(); self.rendreReleases(); }, function (e) { AMX.vider(self.relListe); self.relListe.appendChild(h('div.carte', [h('div.vide', { style: { padding: '24px' }, text: AMX.erreurTexte(e) })])); });
+      return;
+    }
+    var base = d.releases.filter(function (x) { return (!self.compagnie || x.compagnie === self.compagnie) && (!f.recherche || AMX.correspond([x.vin, x.stock, x.modele, x.lieu, x.ville, x.no, x.source], f.recherche)); });
+    AMX.vider(this.relPastilles);
+    [['', 'Tous']].concat(Object.keys(AMX.release.ETATS).map(function (k) { return [k, AMX.release.ETATS[k].libelle]; })).forEach(function (g) {
+      var n = g[0] ? base.filter(function (x) { return x.etat === g[0]; }).length : base.length, actif = f.etat === g[0];
+      if (g[0] && !n && !actif) return;
+      self.relPastilles.appendChild(h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', title: g[0] ? AMX.release.ETATS[g[0]].aide : '', onclick: function () { f.etat = g[0]; self.rendreReleases(); } }, [h('span', { text: g[1] }), h('b', { text: String(n) })]));
+    });
+    var liste = f.etat ? base.filter(function (x) { return x.etat === f.etat; }) : base;
+    AMX.porteeChiffres(this.relPortee, { n: liste.length, unite: ['achat', 'achats'], contexte: [this.compagnie ? nomCie(this.compagnie) : 'toutes les concessions'],
+      filtres: [f.etat ? AMX.release.ETATS[f.etat].libelle : '', f.recherche.trim() ? '« ' + f.recherche.trim() + ' »' : ''],
+      effacer: function () { f.etat = ''; f.recherche = ''; self.relRech.value = ''; self.rendreReleases(); } });
+    AMX.vider(this.relListe);
+    if (!liste.length) { this.relListe.appendChild(h('div.carte', [h('div.vide', { style: { padding: '28px', textAlign: 'center' }, text: base.length ? 'Aucun achat pour ce filtre.' : 'Aucun achat à aller chercher : les véhicules « Acheté » du registre qui ont une fiche d\'achat (ou un achat Manheim, eBlock, DealerSource) apparaissent ici.' })])); return; }
+    var corps = h('tbody');
+    liste.forEach(function (x) {
+      var demander = (!x.transport || !x.transport.ouvert) && d.peutEcrire ? h('button.btn.petit' + (x.etat === 'pret' ? '.primaire' : ''), { type: 'button', text: 'Demander le transport', onclick: function (e) { e.stopPropagation(); self.demanderDepuisRelease(x); } }) : null;
+      var tr = h('tr.rangee', [
+        h('td', [h('b', { text: x.modele || '—' }), h('span.sous.mono', { text: x.vin + (x.stock ? ' · #' + x.stock : '') })]),
+        h('td', [h('span', { text: nomCie(x.compagnie) }), h('span.sous', { text: (x.registre === 'DETAIL' ? 'Detail' : x.registre === 'CAN' ? 'Canada' : 'É.-U.') + (x.jours !== null && x.jours !== undefined ? ' · acheté il y a ' + x.jours + ' j' : '') })]),
+        h('td', [h('span', { text: x.lieu || x.source || '—' }), h('span.sous', { text: [x.ville, x.province].filter(Boolean).join(', ') })]),
+        h('td', { text: x.paye === 'oui' ? 'oui' : (x.paye ? jour(x.paye) : '—') }),
+        h('td', [h('span', { text: x.recu ? jour(x.recu) : '—' }), h('span.sous.mono', { text: [x.no ? '# ' + x.no : '', x.doc ? 'document' : ''].filter(Boolean).join(' · ') })]),
+        h('td', [AMX.release.badge(x.etat), x.transport ? h('span.sous.mono', { text: x.transport.id }) : null]),
+        h('td', [demander])
+      ]);
+      tr.addEventListener('click', function () { AMX.release.modale(x.vin, { titre: x.modele, onEnregistre: function () { AMX.release.vider(); self.rendreReleases(); self.rendreVues(); } }); });
+      corps.appendChild(tr);
+    });
+    this.relListe.appendChild(h('div.carte', [h('div', { style: { overflowX: 'auto' } }, [h('table.tableau.rel-table', [h('thead', [h('tr', ['Véhicule', 'Concession', 'Où le cueillir', 'Payé', 'Release', 'État', ''].map(function (t) { return h('th', { text: t }); }))]), corps])])]));
+  };
+  /** « Demander le transport » depuis un achat : le release donne le lieu de cueillette et les consignes. */
+  VueTransports.prototype.demanderDepuisRelease = function (x) {
+    var self = this, mots = String(x.modele || '').trim().split(/\s+/), an = /^\d{4}$/.test(mots[mots.length - 1] || '') ? mots.pop() : '';
+    AMX.release.vin(x.vin).then(function (d) {
+      var r = d.release || {};
+      return AMX.transport.demander({ vin: x.vin, compagnie: x.compagnie, stock: x.stock, annee: an, marque: mots.shift() || '', modele: mots.join(' '),
+        depart: { adresse: r.adresse, ville: r.ville || x.ville, province: r.province || x.province }, consignes: AMX.release.consignes(r), release: { recu: r.recu, paye: r.paye, no: r.no } });
+    }).then(function (rep) { if (rep && rep.transports) { AMX.release.vider(); self.rendreReleases(); self.rendreVues(); } }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+  };
   VueTransports.prototype.construire = function () {
     var self = this;
     this.elSous = h('p', 'Chargement…');
@@ -298,7 +386,11 @@
     this.elPastilles = h('div.inv2-statuts', { role: 'group', 'aria-label': 'État du transport' });
     this.elFiltres.appendChild(h('div.recherche.inv2-recherche', [h('span', { html: AMX.icones.recherche }), this.rech]));
     this.elFiltres.appendChild(this.elPastilles);
-    this.conteneur.appendChild(h('div.page.tr-page', [h('div.entete-page', [h('div', [h('h1', 'Transports'), this.elSous]), this.elActions]), this.elCies, this.elFiltres, this.elPortee, this.elKpis, this.elListe]));
+    // 26 oct. : deux vues — les transports Central Fleet, et les achats à aller chercher (release : à payer → attendu → prêt).
+    this.elVues = h('div.segment.tr-vues', { role: 'group', 'aria-label': 'Vue' });
+    this.zoneTr = h('div', [this.elFiltres, this.elPortee, this.elKpis, this.elListe]);
+    this.zoneRel = h('div.cache');
+    this.conteneur.appendChild(h('div.page.tr-page', [h('div.entete-page', [h('div', [h('h1', 'Transports'), this.elSous]), this.elActions]), this.elCies, this.elVues, this.zoneTr, this.zoneRel]));
   };
   VueTransports.prototype.base = function (sauf) {
     var d = AMX.transport.enCache(), self = this, f = this.filtres; if (!d) return [];
@@ -313,6 +405,8 @@
   VueTransports.prototype.rendre = function () {
     var self = this, d = AMX.transport.enCache();
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.compagnie, onchange: function (c) { self.compagnie = c; self.rendre(); } });
+    this.rendreVues();
+    if (this.vue === 'releases') this.rendreReleases();
     if (!d) return;
     var branchees = Object.keys(d.branches || {}).filter(function (c) { return d.branches[c]; });
     this.elSous.textContent = branchees.length ? 'Central Fleet branché : ' + branchees.map(nomCie).join(', ') + ' · suivi automatique (prix aux 15 min, transports aux 30 min, factures 2 fois par jour)' : 'Central Fleet n\'est branché pour aucune concession : le propriétaire colle les jetons dans Admin › Central Fleet.';

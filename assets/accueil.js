@@ -122,7 +122,7 @@
 
   /* ------------------------------- La vue -------------------------------- */
   var EVENEMENTS = ['amx:profil', 'amx:accueil-depart', 'amx:eblock', 'amx:openlane', 'amx:demandes', 'amx:suggestions', 'amx:service', 'amx:inventaire',
-    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
+    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
   function Accueil(conteneur, ctx) {
     injecterCss();
     var self = this;
@@ -292,6 +292,7 @@
     this.aFaireCle = cle; this.aFaireLe = Date.now();
     var self = this, relancer = function () { self.sur(); }, rien = function () { self.sur(); };
     if (voit('ventes') && AMX.ventes && AMX.ventes.charger) AMX.ventes.charger(cie, '').then(relancer, rien);
+    if (voit('inventaire') && AMX.achatsAuto) AMX.achatsAuto.charger().then(relancer, rien);
     if (ongletVoit('service', 'rendezvous') && AMX.rdv) AMX.rdv.charger(cieSvc, jourLocal(), jourLocal()).then(relancer, rien);
     if (ongletVoit('service', 'texto') && AMX.texto) AMX.texto.charger(cieSvc).then(relancer, rien);
     if (voit('avis') && AMX.avis) AMX.avis.charger().then(relancer, rien);
@@ -310,6 +311,12 @@
       var r1 = somme('retard'), r2 = somme('retardAchat');
       if (r1) out.push({ ton: 'rouge', n: r1, titre: 'Registre d\'immatriculation non reçu depuis 10 jours et plus', detail: detail('retard'), href: AMX.inventaire.lien(pire('retard').id, { alerte: 'retard' }), ic: 'inventaire' });
       if (r2) out.push({ ton: 'ambre', n: r2, titre: 'Achetés depuis 7 jours et plus, pas encore en stock', detail: detail('retardAchat'), href: AMX.inventaire.lien(pire('retardAchat').id, { alerte: 'retardAchat' }), ic: 'inventaire' });
+    }
+    // 26 oct. : achats entrés automatiquement au registre (GM Financial, Manheim), à confirmer — violet
+    if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.enCache()) {
+      var nAuto = AMX.achatsAuto.compte(cie);
+      if (nAuto) { var pr = AMX.achatsAuto.parRegistre(cie), regA = Object.keys(pr).sort(function (a, b) { return pr[b] - pr[a]; })[0] || 'DETAIL';
+        out.push({ ton: 'violet', n: nAuto, titre: 'Achats entrés automatiquement au registre, à confirmer', detail: 'lus sur GM Financial DealerSource, Manheim ou OPENLANE', href: AMX.inventaire.lien(regA.toLowerCase(), { alerte: 'auto' }), ic: 'inventaire' }); }
     }
     // Neufs : RDR à compléter chez le constructeur
     var rdr = AMX.neufs && AMX.neufs.aFaireConstructeur ? AMX.neufs.aFaireConstructeur() : null;

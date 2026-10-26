@@ -402,6 +402,22 @@
       this.sousExport
     ]);
 
+    // 26 oct. : le release — payé, release reçu, où cueillir. Avant de demander le transport à Central Fleet
+    // (release.js, Release.gs) : ces champs partent avec la demande (lieu de cueillette, no de release, contact, heures).
+    this.elReleaseEtat = h('span.noprint');
+    this.elReleaseSug = h('div.noprint.rel-sug');
+    this.elReleaseOutils = h('div.noprint.rel-doc');
+    var release = carte(h('div.carte-entete-ligne', [h('h2', 'Release et cueillette'), this.elReleaseEtat]), [
+      this.elReleaseSug,
+      h('div.achat-pile', [
+        h('div.grille.c4', [date('f-releasepaye', 'Payé le'), date('f-releaserecu', 'Release reçu le'), champ('f-releaseno', 'No de release / gate pass', { mono: true }), champ('f-releaselieu', 'Lieu de cueillette (encan, concession)')]),
+        h('div.grille.c4', [champ('f-releaseadresse', 'Adresse de cueillette'), champ('f-releaseville', 'Ville'), champ('f-releaseprov', 'Province ou État', { placeholder: 'QC' }), champ('f-releasecp', 'Code postal')]),
+        h('div.grille.c4', [champ('f-releaseheures', 'Heures de cueillette'), champ('f-releasecontact', 'Contact sur place'), champ('f-releasetel', 'Téléphone sur place'), champ('f-releasenote', 'Instructions (envoyées à Central Fleet)')])
+      ]),
+      h('input#f-releasepdf', { type: 'hidden' }), h('input#f-releasepdfnom', { type: 'hidden' }), h('input#f-releasesource', { type: 'hidden' }),
+      h('div.rel-bas', [this.elReleaseOutils, caseA('f-releaseinutile', 'Déjà chez nous : pas de release ni de transport')])
+    ]);
+
     // Livraison
     // 23 oct. : le transport par Central Fleet (transport.js) — la demande part d'ici, le prix et les dates reviennent ici.
     this.elTransport = h('div.noprint.achat-transport', { style: { marginTop: '12px' } });
@@ -410,7 +426,7 @@
       this.elTransport
     ]);
 
-    this.elFiche = h('div.achat-fiche', [identification, provenance, couts, statut, vente, livraison]);
+    this.elFiche = h('div.achat-fiche', [identification, provenance, couts, statut, vente, release, livraison]);
     var note = h('p.doux.petit.noprint.achat-note', 'Le coûtant total additionne tous les champs de coûts et les PAD cochés. Le prix de vente retenu dépend de la destination : prix de vente estimé (É.-U.), wholesale (Canada) ou prix détail (Detail).');
 
     this.elPage = h('div.page.etroite.achat-page', [entete, lookup, this.elEval, this.elVerrou, resume, this.elFiche, note]);
@@ -420,6 +436,11 @@
     this.elFiche.addEventListener('input', function (e) { self.recalculer(); if (e.target && (e.target.id === 'f-eblock' || e.target.id === 'f-dommages')) self.rendreEblock(); });
     this.elFiche.addEventListener('change', function (e) {
       if (e.target && e.target.id === 'f-destination') self.basculerExport(); else self.recalculer();
+      if (e.target && /^f-release|^c-vehiculepaye$/.test(e.target.id)) {
+        if (e.target.id === 'f-releasepaye' && e.target.value && el('c-vehiculepaye')) el('c-vehiculepaye').checked = true;
+        if (e.target.id === 'f-releaseprov') e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+        self.rendreReleaseEtat();
+      }
     });
     var niv = el('f-niv');
     niv.addEventListener('blur', function () {
@@ -693,9 +714,72 @@
       if (change) self.recalculer();
     };
     // Ce que la fiche contient AU MOMENT du clic (le décodeur remplit marque, modèle et année après l'ouverture).
-    var prefill = function () { return { compagnie: String(valeur('f-compagnie') || '').toUpperCase(), stock: valeur('f-stock'), annee: valeur('f-annee'), marque: valeur('f-marque'), modele: valeur('f-modele'),
-      carrosserie: self.decode && self.decode.carrosserie, depart: { ville: valeur('f-villeprovenance') } }; };
+    var prefill = function () {
+      var rel = { no: valeur('f-releaseno'), lieu: valeur('f-releaselieu'), heures: valeur('f-releaseheures'), contact: valeur('f-releasecontact'), telephone: valeur('f-releasetel'), note: valeur('f-releasenote') };
+      var paye = valeur('f-releasepaye') || (el('c-vehiculepaye') && el('c-vehiculepaye').checked ? 'oui' : '');
+      return { compagnie: String(valeur('f-compagnie') || '').toUpperCase(), stock: valeur('f-stock'), annee: valeur('f-annee'), marque: valeur('f-marque'), modele: valeur('f-modele'),
+        carrosserie: self.decode && self.decode.carrosserie,
+        // 26 oct. : le release donne le lieu de cueillette et les consignes (no de release, heures, contact).
+        depart: { adresse: valeur('f-releaseadresse'), ville: valeur('f-releaseville') || valeur('f-villeprovenance'), province: valeur('f-releaseprov') },
+        consignes: AMX.release ? AMX.release.consignes(rel) : null, release: { recu: valeur('f-releaserecu'), paye: paye, no: rel.no } };
+    };
     AMX.transport.bloc(vin, zone, Object.assign(prefill(), { prefill: prefill, onDemande: remplir, onInfos: remplir }));
+  };
+  /* 26 oct. : bloc « Release et cueillette ». Le document (PDF ou photo) part tout de suite au serveur (Drive, privé) ;
+     les champs s'enregistrent avec la fiche. Manheim, eBlock et les Opportunités d'achat proposent le lieu ; un PDF de
+     release est lu dans le navigateur pour proposer le no, l'adresse et le téléphone. Rien n'écrase une case remplie. */
+  Fiche.prototype.rendreReleaseEtat = function () {
+    if (!this.elReleaseEtat) return;
+    AMX.vider(this.elReleaseEtat);
+    var inutile = el('f-releaseinutile') && el('f-releaseinutile').checked, recu = valeur('f-releaserecu'), paye = valeur('f-releasepaye') || (el('c-vehiculepaye') && el('c-vehiculepaye').checked);
+    var etat = inutile ? ['Déjà chez nous', 'gris'] : recu ? ['Release reçu — prêt à transporter', 'vert'] : paye ? ['Payé — release attendu', 'ambre'] : ['À payer', 'gris'];
+    this.elReleaseEtat.appendChild(h('span.badge.' + etat[1], { text: etat[0] }));
+  };
+  Fiche.prototype.rendreRelease = function (vin) {
+    var self = this;
+    if (!this.elReleaseOutils) return;
+    vin = String(vin || '').trim().toUpperCase();
+    this.rendreReleaseEtat();
+    AMX.vider(this.elReleaseOutils); AMX.vider(this.elReleaseSug);
+    if (!AMX.release || vin.length !== 17) return;
+    var poser = function (id, x) { var e = el(id); if (!x || !e || String(e.value || '').trim()) return false; e.value = x; return true; };
+    var remplir = function (s, quoi) {
+      var n = 0;
+      [['lieu', 'f-releaselieu'], ['adresse', 'f-releaseadresse'], ['ville', 'f-releaseville'], ['province', 'f-releaseprov'], ['codePostal', 'f-releasecp'], ['telephone', 'f-releasetel'], ['contact', 'f-releasecontact'], ['no', 'f-releaseno']]
+        .forEach(function (c) { if (poser(c[1], s[c[0]])) n++; });
+      if (s.source) poser('f-releasesource', s.source);
+      if (n) AMX.toast(n + ' champ' + (n > 1 ? 's' : '') + ' du release rempli' + (n > 1 ? 's' : '') + ' depuis ' + quoi + ' — vérifiez, puis enregistrez la fiche.', 'ok', 7000);
+      if (s.vin && s.vin !== vin) AMX.toast('Attention : le document mentionne le NIV ' + s.vin + ', pas ' + vin + '.', 'attention', 10000);
+      self.rendreReleaseEtat();
+    };
+    var inp = h('input', { type: 'file', accept: 'application/pdf,image/*', style: { display: 'none' } });
+    inp.addEventListener('change', function () {
+      var f = inp.files && inp.files[0]; inp.value = ''; if (!f) return;
+      if (self.verrouillee) { AMX.toast('Dossier comptabilisé : déverrouillez la fiche d\'abord.', 'attention'); return; }
+      AMX.toast('Envoi du release…', 'info');
+      AMX.release.lireDocument(f).then(function (lu) { remplir(lu, 'le document'); });
+      AMX.release.deposer(vin, f).then(function (d) {
+        val('f-releasepdf', d.pdfId || ''); val('f-releasepdfnom', d.pdfNom || f.name);
+        poser('f-releaserecu', d.release && d.release.recu); poser('f-releasesource', 'pdf');
+        AMX.toast((d.message || 'Release déposé') + ' Enregistrez la fiche pour garder les autres champs.', 'ok', 8000);
+        self.rendreRelease(vin);
+      }, function (e) { AMX.toast('Release : ' + AMX.erreurTexte(e), 'erreur', 9000); });
+    });
+    this.elReleaseOutils.appendChild(inp);
+    if (valeur('f-releasepdf')) this.elReleaseOutils.appendChild(h('button.btn.petit', { type: 'button', html: AMX.icones.externe + '<span>Voir le release' + (valeur('f-releasepdfnom') ? ' (' + AMX.esc(valeur('f-releasepdfnom')) + ')' : '') + '</span>', onclick: function () { AMX.release.ouvrirDoc(vin); } }));
+    if (AMX.perm('ficheAchat') || AMX.perm('changerStatut')) this.elReleaseOutils.appendChild(h('button.btn.petit', { type: 'button', html: AMX.icones.plus + '<span>' + (valeur('f-releasepdf') ? 'Remplacer le document' : 'Déposer le release (PDF ou photo)') + '</span>', onclick: function () { inp.click(); } }));
+    // Où est le véhicule, selon Manheim, eBlock, les Opportunités d'achat ou la fiche.
+    AMX.release.vin(vin).then(function (d) {
+      if (vin !== String(self.vinCourant || '').toUpperCase()) return;
+      AMX.vider(self.elReleaseSug);
+      var sug = (d.suggestions || []).filter(function (s) { return s.source !== 'fiche'; });
+      if (!sug.length) return;
+      self.elReleaseSug.appendChild(h('span.doux.petit', { text: 'Où est le véhicule, selon :' }));
+      sug.forEach(function (s) {
+        var t = [s.lieu, [s.ville, s.province].filter(Boolean).join(', '), s.codePostal].filter(Boolean).join(' · ') + (s.paiement ? ' · paiement : ' + s.paiement : '');
+        self.elReleaseSug.appendChild(h('button.btn.petit.fantome', { type: 'button', title: 'Remplir les cases vides du release', onclick: function () { remplir(s, s.libelle); } }, [h('b', { text: s.libelle + ' : ' }), h('span', { text: t })]));
+      });
+    }).catch(function () {});
   };
   Fiche.prototype.charger = function (vin) {
     var self = this;
@@ -728,6 +812,7 @@
       self.appliquerPrerempli();
       if (typeof AMX.eblockFiche === 'function') AMX.eblockFiche(vin, self.elFicheEblock);
       self.rendreTransport(vin);
+      self.rendreRelease(vin);
       if (typeof AMX.openlaneBloc === 'function') { AMX.vider(self.elOpenlane); var zoneOl = h('div'); self.elOpenlane.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Valeurs OpenLane')); self.elOpenlane.appendChild(zoneOl); AMX.openlaneBloc(vin, zoneOl, { km: AMX.kmValide(valeur('f-km')) || undefined, source: 'achat', compagnie: String(valeur('f-compagnie') || '').toUpperCase(), previsionComplete: true }).catch(function () {}); }
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];

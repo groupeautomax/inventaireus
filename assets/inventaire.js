@@ -14,6 +14,9 @@
   'use strict';
   var h = AMX.h, esc = AMX.esc, I = AMX.icones;
 
+  /* 26 oct. : « auto » = achats entrés automatiquement (AchatsAuto.gs), pas encore confirmés — en violet. */
+  function alerteValide(a) { return a === 'retard' || a === 'retardAchat' || a === 'auto'; }
+  function estAuto(v) { return !!(AMX.achatsAuto && v && AMX.achatsAuto.entree(v.vin)); }
   var FEUILLES = {
     us:     { feuille: 'US',     titre: 'É.-U.',  statuts: ['achete', 'transitqc', 'stock', 'transit', 'manheimpa', 'arrive', 'comptabilise'], importateur: true,  suivant: { achete: 'transitqc', transitqc: 'stock', stock: 'transit', transit: 'arrive', arrive: 'comptabilise' }, transferts: ['DETAIL', 'CAN'] },
     can:    { feuille: 'CAN',    titre: 'Canada', statuts: ['achete', 'transitqc', 'stock', 'transit', 'arrive', 'comptabilise'],              importateur: false, suivant: { achete: 'transitqc', transitqc: 'stock', stock: 'transit', transit: 'arrive', arrive: 'comptabilise' }, transferts: ['DETAIL', 'US'] },
@@ -204,7 +207,7 @@
     this.selection = ctx.params.vin || '';
     this.ecritures = 0; this.generation = 0;
     this.filtres = this.filtresDefaut();
-    if (ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') this.filtres.alerte = ctx.params.alerte;
+    if (alerteValide(ctx.params.alerte)) this.filtres.alerte = ctx.params.alerte;
     this.tri = AMX.memo.lire('inv_tri', 'maj');
     this.observateur = null;
     this.ui2 = !!(AMX.ui2 && AMX.ui2());   /* v131 : nouvelle interface (page refaite) */
@@ -221,6 +224,7 @@
     if (AMX.eblock) { AMX.eblock.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:eblock', this.surCarfax); }
     if (AMX.openlane) { AMX.openlane.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:openlane', this.surCarfax); }
     if (AMX.demandes) { AMX.demandes.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:demandes', this.surCarfax); }
+    if (AMX.achatsAuto) { AMX.achatsAuto.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:achatsAuto', this.surCarfax); }
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
     this.surVisible = function () { if (!document.hidden) self.rafraichir(); };
     document.addEventListener('visibilitychange', this.surVisible);
@@ -241,6 +245,7 @@
     document.removeEventListener('amx:carfax', this.surCarfax);
     document.removeEventListener('amx:eblock', this.surCarfax);
     document.removeEventListener('amx:openlane', this.surCarfax);
+    document.removeEventListener('amx:achatsAuto', this.surCarfax);
     document.removeEventListener('amx:compagnie', this.surCie);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
@@ -250,10 +255,10 @@
     if (ctx.onglet !== this.onglet) {
       this.onglet = ctx.onglet; this.cfg = FEUILLES[ctx.onglet] || FEUILLES.us;
       this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || '';
-      if (ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') this.filtres.alerte = ctx.params.alerte;
+      if (alerteValide(ctx.params.alerte)) this.filtres.alerte = ctx.params.alerte;
       this.vehicules = AMX.inventaire.enCache(this.cfg.feuille) || [];
       this.construire(); this.charger();
-    } else if ((ctx.params.alerte === 'retard' || ctx.params.alerte === 'retardAchat') && ctx.params.alerte !== this.filtres.alerte) {
+    } else if ((alerteValide(ctx.params.alerte)) && ctx.params.alerte !== this.filtres.alerte) {
       this.filtres.alerte = ctx.params.alerte; this.filtres.recherche = ''; this.construireRail(); this.rendre();
     } else if (ctx.params.vin && ctx.params.vin !== this.selection) {
       this.selection = ctx.params.vin; this.filtres.recherche = ''; this.rendre();
@@ -282,6 +287,7 @@
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
           h('button.btn', { html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
           h('button.btn', { html: I.scan + '<span>Actions en lot</span>', onclick: function () { self.modaleLot('ajout'); } }),
+          h('button.btn', { html: (I.corbeille) + '<span>Usagés effacés</span>', onclick: function () { AMX.inventaire.effaces(); } }),
           this.sel.bouton,
           AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null
         ])
@@ -364,8 +370,10 @@
     var menu = AMX.menuActions([
       { texte: 'Rafraîchir', icone: I.rafraichir, action: function () { self.charger(true); } },
       { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } },
-      { texte: 'Actions en lot', icone: I.scan, action: function () { self.modaleLot('ajout'); } }
-    ]);
+      { texte: 'Actions en lot', icone: I.scan, action: function () { self.modaleLot('ajout'); } },
+      { texte: 'Usagés effacés', icone: I.corbeille, action: function () { AMX.inventaire.effaces(); } },
+      (AMX.achatsAuto && AMX.achatsAuto.peutLire()) ? { texte: 'Lire les achats OPENLANE', icone: I.rafraichir, action: function () { AMX.achatsAuto.lireOpenlane(AMX.compagnieChoisie('inventaire') || '').then(function () { self.charger(true); }).catch(function () {}); } } : null
+    ].filter(Boolean));
     this.conteneur.appendChild(h('div.page.inv2', [
       h('div.entete-page.inv2-tete', [
         h('div.inv2-titre', [h('h1', 'Usagé'), this.elRegistres, h('p#inv-etat.inv2-etat', { text: 'Chargement…' })]),
@@ -444,6 +452,8 @@
     this.elKpis.appendChild(kpi(String(liste.length), liste.length > 1 ? 'Véhicules' : 'Véhicule', { classe: 'neutre.inv2-fixe', sous: sA.texte + ' de coût', titre: sA.detail }));
     this.elKpis.appendChild(kpi(String(retard), 'Registre 10 j+', { classe: retard ? 'alerte' : 'neutre', sous: retard ? 'non reçu — à relancer' : 'tout est reçu', actif: f.alerte === 'retard', onclick: clic('retard') }));
     this.elKpis.appendChild(kpi(String(retardAchat), 'Achat 7 j+', { classe: retardAchat ? 'attention' : 'neutre', sous: retardAchat ? 'pas encore en stock' : 'aucun retard', actif: f.alerte === 'retardAchat', onclick: clic('retardAchat') }));
+    var nAuto = sansAlerte.filter(estAuto).length;
+    if (nAuto || f.alerte === 'auto') this.elKpis.appendChild(kpi(String(nAuto), 'Entrés automatiquement', { classe: 'auto', sous: 'achats à confirmer', actif: f.alerte === 'auto', onclick: clic('auto') }));
     this.elKpis.appendChild(kpi(coutMoy === null ? '—' : AMX.fmtArgent(coutMoy, 0), 'Coût moyen', { classe: 'neutre.inv2-fixe', sous: ageMoy === null ? '' : 'âge moyen ' + ageMoy + ' j depuis l\'achat', titre: avecCout.length + ' véhicule(s) avec un coût' + (liste.length - avecCout.length ? ', ' + (liste.length - avecCout.length) + ' sans coût' : '') }));
     this.rendreRegistres();
     this.rendrePorteeUi2(liste);
@@ -458,6 +468,7 @@
     else if (f.statuts) filtres.push(f.statuts.map(function (s) { return AMX.statut(s, cfg.feuille).libelle; }).join(' + '));
     if (f.alerte === 'retard') filtres.push('Registre non reçu 10 j+');
     if (f.alerte === 'retardAchat') filtres.push('Achat 7 j+, pas en stock');
+    if (f.alerte === 'auto') filtres.push('Entrés automatiquement, à confirmer');
     if (!t) {
       if (f.origine) filtres.push('Origine : ' + f.origine);
       if (f.rappel) filtres.push({ oui: 'Rappel ouvert', non: 'Aucun rappel', inconnu: 'Rappel non vérifié' }[f.rappel] || f.rappel);
@@ -580,7 +591,7 @@
   // véhicules ACTIFS en retard, le même compte que l'Accueil (AMX.inventaire.alertes).
   Registre.prototype.filtrer = function (sauf) {
     var f = this.filtres, cfg = this.cfg, alerte = sauf === 'alerte' ? '' : f.alerte;
-    var gardeAlerte = function (v) { return alerte === 'retard' ? enRetardRegistre(v) : (alerte === 'retardAchat' ? enRetardAchat(v) : true); };
+    var gardeAlerte = function (v) { return alerte === 'retard' ? enRetardRegistre(v) : (alerte === 'retardAchat' ? enRetardAchat(v) : (alerte === 'auto' ? estAuto(v) : true)); };
     if (f.recherche && f.recherche.trim()) return trier(this.rechercherPartout(f.recherche.trim().toLowerCase()).filter(gardeAlerte), this.tri);
     var actifs = cfg.statuts.filter(function (s) { return s !== 'arrive' && s !== 'comptabilise'; });
     var statuts = f.statuts || actifs;
@@ -645,6 +656,8 @@
     var sansAlerte = this.filtrer('alerte'), retard = sansAlerte.filter(enRetardRegistre).length, retardAchat = sansAlerte.filter(enRetardAchat).length;
     if (retard) this.elKpis.appendChild(kpi(retard, 'Registre 10 j+', { classe: 'alerte', sous: 'non reçu', actif: f.alerte === 'retard', onclick: function () { f.alerte = f.alerte === 'retard' ? '' : 'retard'; self.rendre(); } }));
     if (retardAchat) this.elKpis.appendChild(kpi(retardAchat, 'Achat 7 j+', { classe: 'attention', sous: 'pas encore en stock', actif: f.alerte === 'retardAchat', onclick: function () { f.alerte = f.alerte === 'retardAchat' ? '' : 'retardAchat'; self.rendre(); } }));
+    var nAuto2 = sansAlerte.filter(estAuto).length;
+    if (nAuto2) this.elKpis.appendChild(kpi(nAuto2, 'Entrés automatiquement', { classe: 'auto', sous: 'achats à confirmer', actif: f.alerte === 'auto', onclick: function () { f.alerte = f.alerte === 'auto' ? '' : 'auto'; self.rendre(); } }));
     void tousActifs;
     this.rendreValeur();
   };
@@ -687,6 +700,7 @@
     var puces = [];
     if (f.alerte === 'retard') puces.push(['Registre non reçu 10 j+', function () { f.alerte = ''; }]);
     if (f.alerte === 'retardAchat') puces.push(['Pas en stock 7 j+', function () { f.alerte = ''; }]);
+    if (f.alerte === 'auto') puces.push(['Entrés automatiquement', function () { f.alerte = ''; }]);
     if (f.statuts && f.statuts.length === 1) puces.push([AMX.statut(f.statuts[0], this.cfg.feuille).libelle, function () { f.statuts = null; }]);
     else if (f.statuts && f.statuts.length === this.cfg.statuts.length) puces.push(['Vendus et comptabilisés inclus', function () { f.statuts = null; }]);
     if (f.compagnie) puces.push([AMX.COMPAGNIES[f.compagnie] || f.compagnie, function () { f.compagnie = ''; AMX.choisirCompagnie(''); }]);
@@ -744,7 +758,7 @@
     var reg = registreDe(v), regInfo = REGISTRE[reg] || REGISTRE.non;
     var retard = enRetardRegistre(v), retardA = enRetardAchat(v);
     var jours = AMX.joursDepuis(v.dateAjout);
-    var cls = 'div.ligne' + (retard ? '.retard' : (retardA ? '.retard-achat' : '')) + (v.statut === 'comptabilise' ? '.verrouille' : '') + (this.selection && String(v.vin).toUpperCase() === String(this.selection).toUpperCase() ? '.actif' : '');
+    var cls = 'div.ligne' + (retard ? '.retard' : (retardA ? '.retard-achat' : '')) + (estAuto(v) ? '.achat-auto' : '') + (v.statut === 'comptabilise' ? '.verrouille' : '') + (this.selection && String(v.vin).toUpperCase() === String(this.selection).toUpperCase() ? '.actif' : '');
     // Sans photo : le logo du constructeur (voir AMX.logoMarque) ; avec photos,
     // le logo tient lieu de repli jusqu'à ce que la miniature charge.
     var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })]) : h('div.vignette', { title: 'Aucune photo' }, [AMX.logoMarque(marque(v))]);
@@ -753,6 +767,8 @@
       ? h('span.puce.alerte.rappel-puce', { text: 'Rappel', title: 'Rappel ouvert — cliquez pour le détail', onclick: function (e) { e.stopPropagation(); self.rappelsOuverts = true; self.selectionner(v.vin); } })
       : (v.rappel === 'non' ? h('span.puce.ok', { text: 'Sans rappel', title: 'Aucun rappel ouvert (NHTSA)' }) : h('span.puce', { text: 'Rappel ?', title: 'Rappel non vérifié' }));
     var indicateurs = [
+      // 26 oct. : entré automatiquement depuis un portail (GMF, Manheim), à confirmer — violet.
+      AMX.achatsAuto ? AMX.achatsAuto.puce(v.vin) : null,
       puceRappel,
       h('span.puce' + (reg === 'oui-bon' ? '.ok' : (reg === 'oui-mauvais' ? '.attention' : (retard ? '.alerte' : ''))), { text: reg === 'non' ? (retard ? 'Registre · ' + jours + ' j' : 'Registre à recevoir') : regInfo.libelle }),
       v.ficheExiste ? h('span.puce' + (v.ficheStockRempli ? '.ok' : '.attention'), { text: v.ficheStockRempli ? 'Fiche ✓' : 'Fiche sans stock' }) : null,
@@ -1062,8 +1078,26 @@
     var blocTransport = null;
     if (AMX.transport && (['arrive', 'comptabilise'].indexOf(v.statut) < 0 || AMX.transport.parVin(v.vin).length)) {
       var zoneTr = h('div'), mots = String(v.modele || '').trim().split(/\s+/), anTr = /^\d{4}$/.test(mots[mots.length - 1] || '') ? mots.pop() : '';
-      blocTransport = h('div.bloc.inv-transport', [h('h3', 'Transport (Central Fleet)'), zoneTr]);
-      AMX.transport.bloc(v.vin, zoneTr, { compagnie: v.compagnie, stock: v.stock, annee: anTr, marque: mots.shift() || '', modele: mots.join(' ') });
+      // 26 oct. : le release (payé, release reçu, où cueillir) — ses données partent avec la demande Central Fleet.
+      var zoneRel = h('div.inv-release'), ctxTr = { compagnie: v.compagnie, stock: v.stock, annee: anTr, marque: mots.shift() || '', modele: mots.join(' ') };
+      if (AMX.release && ['achete', 'transitqc'].indexOf(v.statut) >= 0) {
+        var dessinerRel = function (r) {
+          AMX.vider(zoneRel); ctxTr.releaseLu = r || {};
+          if (r && r.inutile) { zoneRel.appendChild(h('p.doux.petit', { text: 'Déjà chez nous : pas de release ni de transport.' })); return; }
+          var etat = r && r.recu ? 'pret' : (r && r.paye ? 'attente' : 'apayer');
+          zoneRel.appendChild(h('div.actions-ligne', { style: { alignItems: 'center', marginBottom: '8px' } }, [AMX.release.badge(etat),
+            h('span.doux.petit', { text: [r && r.recu ? 'reçu le ' + AMX.fmtDateCourte(r.recu) : '', r && r.no ? '# ' + r.no : '', r && (r.lieu || r.ville) ? [r.lieu, r.ville].filter(Boolean).join(', ') : ''].filter(Boolean).join(' · ') }),
+            h('button.btn.petit', { type: 'button', text: 'Release…', onclick: function () { AMX.release.modale(v.vin, { titre: v.modele, onEnregistre: dessinerRel }); } })]));
+        };
+        zoneRel.appendChild(h('p.doux.petit', { text: 'Lecture du release…' }));
+        AMX.release.vin(v.vin).then(function (d) { dessinerRel(d.release); }, function () { AMX.vider(zoneRel); });
+        ctxTr.prefill = function () {
+          var r = ctxTr.releaseLu; if (!r) return {};
+          return { depart: { adresse: r.adresse, ville: r.ville, province: r.province }, consignes: AMX.release.consignes(r), release: { recu: r.recu, paye: r.paye, no: r.no } };
+        };
+      }
+      blocTransport = h('div.bloc.inv-transport', [h('h3', 'Transport (Central Fleet)'), zoneRel, zoneTr]);
+      AMX.transport.bloc(v.vin, zoneTr, ctxTr);
     }
     var blocLiens = h('div.bloc', [h('h3', ['Rapports', h('button.btn.petit.fantome', { type: 'button', text: lienCfx ? 'lien CARFAX…' : 'coller un lien CARFAX…', onclick: function () { zoneCfx.classList.toggle('cache'); if (!zoneCfx.classList.contains('cache')) { champCfx.focus(); champCfx.select(); } } })]),
       h('div.actions-ligne', [
@@ -1087,7 +1121,7 @@
       (peutStock || peutMontants) && !verrouille ? h('button.btn', { html: I.outils + '<span>Modifier (stock, km, coût)…</span>', onclick: modifierInfos }) : null,
       peutStatut && !verrouille ? selTransfert : null,
       peutSupprimer ? h('button.btn.danger', { html: I.corbeille + '<span>Supprimer</span>', onclick: function () {
-        AMX.confirmerSaisie('Supprimer définitivement', 'Suppression de ' + v.vin + (v.stock ? ' (stock ' + v.stock + ')' : '') + '. Cette action est irréversible. Retapez le VIN complet pour confirmer.', v.vin, { ok: 'Supprimer', danger: true }).then(function (ok) {
+        AMX.confirmerSaisie('Supprimer définitivement', 'Suppression de ' + v.vin + (v.stock ? ' (stock ' + v.stock + ')' : '') + '. Cette action est irréversible, et la relecture du DMS ou de D2C ne le rajoutera pas (sauf sous un nouveau # stock). Retapez le VIN complet pour confirmer.', v.vin, { ok: 'Supprimer', danger: true }).then(function (ok) {
           if (ok) self.ecrire({ action: 'delete', id: v.id }, 'Véhicule supprimé').then(function () { self.selectionner(''); });
         });
       } }) : null
@@ -1102,7 +1136,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
+      AMX.achatsAuto ? AMX.achatsAuto.bloc(v.vin) : null, blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

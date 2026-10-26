@@ -73,7 +73,11 @@
      nos marques (chacune vers ses concessions) et les autres marques (les 50 meilleures, vers la concession la plus proche). */
   function groupeMemo() { return AMX.memo.lire('occ_groupe', '') === 'autres' ? 'autres' : 'nos'; }
   var VUES_AUTRES = [['top', 'Les 50 meilleures'], ['bons', 'Bons achats'], ['suivies', 'Suivies']];
-  var ONGLETS = [['acheter', 'À acheter'], ['marche', 'Prix du marché'], ['concurrents', 'Concurrents']];
+  /* 26 oct. (Maxime : « le but est de rechercher les véhicules les moins chers à acheter, et non d'analyser les concurrents ;
+     les opportunités de marché, on les a déjà ») : la page n'a plus que « À acheter ». Le prix du marché de nos usagés est dans
+     Inventaire › Analyse usagé (et le bloc du panneau Usagé) ; la lecture du marché du lundi continue pour eux. */
+  // 26 oct. (suite, Maxime : « cache les sources et mets-les sous un onglet à droite ») : l'onglet « Sources », à droite.
+  var ONGLETS = [['acheter', 'À acheter'], ['sources', 'Sources']];
   /* Âge lisible d'une date : « il y a 12 min », « il y a 3 h », sinon la date. */
   function ilYa(iso) {
     if (!iso) return '';
@@ -129,6 +133,8 @@
   Opportunites.prototype.demonter = function () { this.generation++; document.removeEventListener('amx:compagnie', this.surCie); if (this.vueMarche && this.vueMarche.demonter) this.vueMarche.demonter(); };
   Opportunites.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
+    // Anciennes adresses (avant le 26 oct.) : « Prix du marché » mène à l'Analyse usagé, « Concurrents » à la page elle-même.
+    if (p.onglet === 'marche') { AMX.aller('analyse', '', p.q ? { q: p.q } : {}); return; }
     if (p.onglet && ONGLETS.some(function (o) { return o[0] === p.onglet; })) {
       this.montrer(p.onglet);
       if (p.q && p.onglet === 'marche' && this.vueMarche) { this.vueMarche.f.q = String(p.q); this.vueMarche.f.verdict = 'tous'; this.vueMarche.elQ.value = String(p.q); this.vueMarche.rafraichir(); }
@@ -142,17 +148,20 @@
   Opportunites.prototype.construire = function () {
     var self = this;
     this.elEtat = h('p.occ-etat', { text: 'Chargement des opportunités…' });
-    this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); if (self.onglet !== 'acheter') self.chargerMarche(true); } });
+    this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); if (self.onglet === 'marche' || self.onglet === 'concurrents') self.chargerMarche(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
     this.btnReglages = h('button.btn', { type: 'button', text: 'Réglages', onclick: function () { self.reglages(); } });
     this.btnBalayer = h('button.btn', { type: 'button', text: 'Balayer maintenant', title: 'Un passage tout de suite, dans le budget d\'appels du jour', onclick: function () { self.balayer(); } });
     this.btnSourcesTout = h('button.btn', { type: 'button', text: 'Sources des données', onclick: function () { self.sourcesModale(''); } });
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Opportunités d\'achat'), this.elEtat]),
-      h('div.actions', [AMX.menuActions([{ bouton: this.btnRafraichir }, { bouton: this.btnExport }, { bouton: this.btnSourcesTout }, { bouton: this.btnBalayer }], { titre: 'Autres actions' }), this.btnReglages])
+      h('div.actions', [AMX.menuActions([{ bouton: this.btnRafraichir }, { bouton: this.btnExport }, { bouton: this.btnBalayer }], { titre: 'Autres actions' }), this.btnReglages])
     ]);
     // Sources : une ligne de pastilles (état et fraîcheur) ; le détail s'ouvre d'un clic.
-    this.elSrc = h('div.occ-src', { role: 'group', 'aria-label': 'Sources des données' });
+    // 26 oct. (Maxime : « cache les sources ») : la rangée de pastilles n'est plus montrée ; l'état et les gestes de chaque
+    // source (filtres et clé Apify, favoris DealerSource et Manheim, lecture du marché pour l'Analyse usagé) restent dans le
+    // menu « … » › Sources des données.
+    this.elSrc = h('div.occ-src', { role: 'group', 'aria-label': 'Sources des données', hidden: true });
     this.elCies = h('div.barre-cies');
     this.elOnglets = h('div.occ-onglets', { role: 'tablist', 'aria-label': 'Vues' });
     this.elSuggestions = h('datalist#occ-suggestions');
@@ -183,17 +192,21 @@
     this.elPanAcheter = h('div.occ-pan#occ-pan-acheter', { role: 'tabpanel' }, [filtres, this.elPortee, this.elCouverture, this.elKpis, this.elListe]);
     this.elPanMarche = h('div.occ-pan#occ-pan-marche', { role: 'tabpanel', hidden: true });
     this.elPanConc = h('div.occ-pan#occ-pan-concurrents', { role: 'tabpanel', hidden: true });
-    this.el = h('div.page.occ-page', [entete, this.elSrc, this.elCies, this.elOnglets, this.elPanAcheter, this.elPanMarche, this.elPanConc]);
+    this.corpsSourcesOnglet = h('div.occ-src-modale.occ-src-onglet');
+    this.elPanSources = h('div.occ-pan#occ-pan-sources', { role: 'tabpanel', hidden: true }, [this.corpsSourcesOnglet]);
+    this.el = h('div.page.occ-page', [entete, this.elSrc, this.elCies, this.elOnglets, this.elPanAcheter, this.elPanMarche, this.elPanConc, this.elPanSources]);
     this.conteneur = null;
   };
 
   /* ------------------------------ Onglets ------------------------------ */
   Opportunites.prototype.montrer = function (onglet) {
     if (!ONGLETS.some(function (o) { return o[0] === onglet; })) onglet = 'acheter';
-    this.onglet = onglet; AMX.memo.ecrire('occ_onglet', onglet);
+    this.onglet = onglet; if (onglet !== 'sources') AMX.memo.ecrire('occ_onglet', onglet);
     this.elPanAcheter.hidden = onglet !== 'acheter'; this.elPanMarche.hidden = onglet !== 'marche'; this.elPanConc.hidden = onglet !== 'concurrents';
+    this.elPanSources.hidden = onglet !== 'sources';
     this.rendreOnglets();
-    if (onglet !== 'acheter') this.chargerMarche(false);
+    if (onglet === 'sources') this.remplirSources(this.corpsSourcesOnglet, this.sourceFocus || '');
+    if (onglet === 'marche' || onglet === 'concurrents') this.chargerMarche(false);
   };
   Opportunites.prototype.rendreOnglets = function () {
     var self = this, d = this.donnees, dm = AMX.occMarche && AMX.occMarche.enCache(), cie = this.compagnie;
@@ -203,10 +216,16 @@
       concurrents: this.vueConc && this.vueConc.d && this.vueConc.pret ? this.vueConc.filtrer().length : null
     };
     var sous = { acheter: 'bons achats', marche: 'trop chers', concurrents: 'voisins' };
+    var rangEtat = { rouge: 4, ambre: 3, bleu: 2, vert: 1, gris: 0 }, pire = 'gris', nbProb = 0;
+    if (d) this.sourcesEtat().forEach(function (x) { if (rangEtat[x.etat] > rangEtat[pire]) pire = x.etat; if (x.etat === 'rouge' || x.etat === 'ambre') nbProb++; });
     AMX.vider(this.elOnglets);
+    this.elOnglets.hidden = ONGLETS.length < 2;   // un seul onglet : pas de barre d'onglets
+    if (this.elOnglets.hidden) return;
     ONGLETS.forEach(function (o) {
       self.elOnglets.appendChild(h('button.occ-onglet' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', 'data-onglet': o[0],
-        onclick: function () { self.montrer(o[0]); } }, [h('span', { text: o[1] }), compte[o[0]] !== null ? h('b', { text: AMX.fmtNombre(compte[o[0]]) + ' ' + sous[o[0]] }) : null]));
+        title: o[0] === 'sources' ? (nbProb ? nbProb + ' source(s) à surveiller' : 'Toutes les sources sont à jour') : '',
+        onclick: function () { self.sourceFocus = ''; self.montrer(o[0]); } }, o[0] === 'sources' ? [h('i.pt.' + pire), h('span', { text: o[1] })]
+        : [h('span', { text: o[1] }), compte[o[0]] !== null ? h('b', { text: AMX.fmtNombre(compte[o[0]]) + ' ' + sous[o[0]] }) : null]));
     });
   };
   Opportunites.prototype.chargerMarche = function (force) {
@@ -583,14 +602,14 @@
         [h('i.pt'), h('span.n', { text: x.nom }), h('span.t', { text: x.texte })]));
     });
     if (this.corpsSources && this.corpsSources.isConnected) this.remplirSources(this.corpsSources, this.sourceFocus);
+    if (this.onglet === 'sources' && this.corpsSourcesOnglet) this.remplirSources(this.corpsSourcesOnglet, this.sourceFocus || '');
+    if (this.elOnglets) this.rendreOnglets();
   };
+  // 26 oct. : les sources ne s'ouvrent plus dans une fenêtre mais dans l'onglet « Sources » (focus = la source à montrer).
   Opportunites.prototype.sourcesModale = function (focus) {
-    var self = this;
     this.sourceFocus = focus || '';
-    this.corpsSources = h('div.occ-src-modale');
-    this.remplirSources(this.corpsSources, this.sourceFocus);
-    AMX.modale({ titre: 'Sources des données', corps: this.corpsSources, large: true, proteger: false, onFermer: function () { self.corpsSources = null; } });
-    var cible = this.corpsSources.querySelector('.occ-src-bloc.focus');
+    this.montrer('sources');
+    var cible = this.corpsSourcesOnglet.querySelector('.occ-src-bloc.focus');
     if (cible) setTimeout(function () { cible.scrollIntoView({ block: 'nearest' }); }, 30);
   };
   Opportunites.prototype.remplirSources = function (el, focus) {
@@ -646,7 +665,7 @@
     // 5. Marché hebdomadaire
     var m = d.marche, md = (m && m.derniere) || {};
     var bLire = m && d.admin && !m.enCours ? h('button.btn.petit#occ-marche-lire', { type: 'button', text: 'Lire maintenant', onclick: function () { AMX.occMarche && AMX.occMarche.lancer(bLire, function () { self.charger(true); self.chargerMarche(true); }); } }) : null;
-    el.appendChild(blocSrc('marche', 'Prix du marché et concurrents (Apify)', 'automatique, le lundi', !m ? ['Le script n\'est pas à jour : créez OccMarche.gs dans l\'éditeur et déployez.'] : [
+    el.appendChild(blocSrc('marche', 'Lecture du marché (Apify) — pour Inventaire › Analyse usagé', 'automatique, le lundi', !m ? ['Le script n\'est pas à jour : créez OccMarche.gs dans l\'éditeur et déployez.'] : [
       md.le ? 'Dernière lecture ' + AMX.fmtDate(md.le, true) + ' : ' + AMX.fmtNombre(md.gardees || 0) + ' annonces de ' + AMX.fmtNombre(md.vendeurs || 0) + ' concessionnaires (' + AMX.fmtNombre(md.lignes || 0) + ' modèles de notre stock).' : 'Pas encore lu : la première lecture part lundi à partir de 6 h.',
       'Concessionnaires seulement, ' + m.rayon + ' km autour de ' + m.centre + ' · ≈ ' + AMX.fmtNombre(m.estime || 0) + ' $ US par lecture · ' + AMX.fmtNombre(Math.round((m.depense || 0) * 100) / 100) + ' / ' + AMX.fmtNombre(m.budget || 0) + ' $ US ce mois-ci.',
       m.erreur ? 'Erreur : ' + m.erreur : ''
@@ -1136,7 +1155,7 @@
       '.occ-liste { background: var(--carte, #fff); border: 1px solid var(--trait); border-radius: 12px; overflow: hidden; }',
       '.occ-rangee { display: grid; grid-template-columns: minmax(230px, 2.2fr) minmax(220px, 2fr) 130px 160px 140px 140px; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--trait); align-items: start; font-size: 13.5px; }',
       '.occ-etat { margin: 2px 0 0; color: var(--encre-3); font-size: 13px; }',
-      '.occ-src { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 12px; }',
+      '.occ-src { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 12px; }', '.occ-src[hidden] { display: none; }', '.occ-onglet[data-onglet="sources"] { margin-left: auto; align-items: center; } .occ-onglet[data-onglet="sources"] .pt { margin-right: 2px; }', '.occ-pan[hidden] { display: none; }',
       '.occ-src-l { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); margin-right: 2px; }',
       '.occ-src-puce { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--trait); background: var(--carte, #fff); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 12.5px; cursor: pointer; color: var(--encre-2); }',
       '.occ-src-puce:hover { border-color: var(--encre-4); } .occ-src-puce .n { font-weight: 600; color: var(--encre-1); } .occ-src-puce .t { color: var(--encre-3); }',

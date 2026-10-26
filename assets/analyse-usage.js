@@ -501,7 +501,6 @@
       { texte: ouvert ? 'Masquer les détails' : 'Détails et comparables', action: basculer },
       { texte: a.version ? 'Changer la version' : 'Préciser la version', action: function () { self.preciserVersion(a); } },
       { texte: 'Ouvrir dans Usagé', action: function () { AMX.inventaire.aller('DETAIL', { vin: a.vin }); } },
-      { texte: 'Prix du marché (Opportunités)', action: function () { AMX.aller('outils', 'opportunites', { onglet: 'marche', q: a.stock || a.vin }); } },
       a.manheim && AMX.manheim.ouvrir ? { texte: 'Fiche Manheim (photos, état)', action: function () { AMX.manheim.ouvrir(a.vin); } } : null,
       AMX.perm('supprimer') ? { texte: 'Supprimer du registre…', icone: I.corbeille, action: function () { AMX.inventaire.supprimer([a.vin], { feuille: 'DETAIL' }); } } : null
     ].filter(Boolean), { titre: 'Actions — ' + (a.stock || a.vin) }) : h('span');

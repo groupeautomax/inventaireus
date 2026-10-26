@@ -1,5 +1,7 @@
 /* =========================================================================
-   Outils › Opportunités d'achat › « Prix du marché » et « Concurrents » (24 octobre 2026) — AMX.occMarche
+   Lecture hebdomadaire du marché (24 octobre 2026) — AMX.occMarche. Depuis le 26 oct., les onglets « Prix du marché » et
+   « Concurrents » ne sont plus montrés dans Opportunités d'achat (VueMarche / VueConcurrents restent pour un retour) : les
+   données servent à Inventaire › Analyse usagé et au bloc « Prix du marché » du panneau Usagé.
 
    Maxime (24 oct.) : « 1-2 c'est bon » — une lecture par semaine (le lundi) des annonces des concessionnaires dans
    200 km de Montréal, pour les modèles de nos usagés en stock (serveur : OccMarche.gs, robot Apify). Deux onglets de la
@@ -408,7 +410,7 @@
           nb(v.mediane) ? h('span', [h('span.doux', { text: 'Marché ' }), h('b', { text: argent(v.mediane) }), h('span.doux', { text: ' (' + texteComps(v) + ', ajusté au km)' })]) : null,
           nb(v.ecartPct) ? h('span.' + (v.verdict === 'cher' ? 'neg' : (v.verdict === 'bas' ? 'bleu' : 'doux')), { text: pct(v.ecartPct) + (nb(v.rang) ? ' · ' + rangTexte(v.rang, v.n + 1) : '') }) : null]),
         nb(v.joursMed) ? h('div.mini.doux', { text: 'Les annonces comparables sont en ligne depuis ' + v.joursMed + ' j (médiane) · lecture du ' + AMX.fmtDate(d.le) }) : null,
-        h('button.lien', { type: 'button', text: 'Voir les comparables ›', onclick: function () { AMX.aller('outils', 'opportunites', { onglet: 'marche', q: v.stock || v.vin }); } })
+        h('button.lien', { type: 'button', text: 'Voir les comparables ›', onclick: function () { AMX.aller('analyse', '', { q: v.stock || v.vin }); } })   // 26 oct. : dans l'Analyse usagé
       ]));
     };
     if (cache.rep) { poser(cache.rep); if (Date.now() - cache.quand < 5 * 60000) return; }

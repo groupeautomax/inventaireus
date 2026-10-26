@@ -126,7 +126,7 @@
     document.addEventListener('amx:compagnie', this.surCie);
   }
   Opportunites.prototype.filtresDefaut = function () { return { q: '', marque: '', statut: '', source: '', province: '', cote: '', prixMax: 0, kmMax: 0, anneeMin: 0, distMax: 0, groupe: groupeMemo(), vue: vueMemo(), modeles: modelesMemo(), tri: AMX.memo.lire('occ_tri', 'score') }; };
-  Opportunites.prototype.demonter = function () { this.generation++; document.removeEventListener('amx:compagnie', this.surCie); };
+  Opportunites.prototype.demonter = function () { this.generation++; document.removeEventListener('amx:compagnie', this.surCie); if (this.vueMarche && this.vueMarche.demonter) this.vueMarche.demonter(); };
   Opportunites.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
     if (p.onglet && ONGLETS.some(function (o) { return o[0] === p.onglet; })) {

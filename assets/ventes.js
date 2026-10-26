@@ -207,7 +207,11 @@
     // Ouvrir la fenêtre « Inscrire une vente » depuis n'importe quelle page (ligne d'un neuf, panneau d'un usagé) :
     // prefill = { compagnie, type, vin, stock, annee, marque, modele, version, modeleTexte, coutant, echangeVin }.
     declarer: function (prefill) { return ouvrirFormulaire(prefill || {}, null); },
-    completer: function (v) { return ouvrirFormulaire({}, v); },
+    modifier: function (v) { return ouvrirFormulaire({}, v); },   /* 26 oct. : la vente, le F&I et la comptabilité ont chacun leur fenêtre */
+    completer: function (v) { return ouvrirFI(v); },
+    fi: function (v) { return ouvrirFI(v); },
+    compta: function (v) { return ouvrirCompta(v); },
+    peutCompta: function () { var p = AMX.session && AMX.session.perms; if (cache.rep && cache.rep.peutCompta !== undefined) return !!cache.rep.peutCompta; return !!(p && p.ventesCompta) || AMX.estAdmin(); },
     annuler: function (v) { return modaleAnnuler(v); },
     ouvrir: function (v) { return ouvrirFiche(v); },
     monter: function (conteneur, ctx) { return new VueVentes(conteneur, ctx); }
@@ -218,7 +222,7 @@
     var s = document.createElement('style');
     s.id = 'css-ventes';
     s.textContent = [
-      '.ventes-page .kpis { margin-bottom: 12px; }',
+      '.ventes-page .kpis { margin-bottom: 12px; flex-wrap: wrap; overflow: visible; } .ventes-page .kpis > .kpi { border-bottom: 1px solid var(--ligne); margin-bottom: -1px; }',   /* 26 oct. : les cartes passent à la ligne au lieu de défiler de côté */
       '.ventes-filtres { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }',
       '.ventes-filtres input { height: 32px; min-width: 220px; }',
       '.ventes-fi-ligne { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--encre-3); margin: -4px 0 12px; }',
@@ -233,6 +237,8 @@
       '.ventes-page .ecart-plus { color: var(--vert); } .ventes-page .ecart-moins { color: var(--rouge); }',
       '.ventes-page .ventes-defile { overflow-x: auto; } .ventes-table td.num, .ventes-table th.num { white-space: nowrap; } .ventes-table td.vehicule { min-width: 170px; }',
       '.ventes-page .ventes-comp { min-width: 250px; } .ventes-comp .titre { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); margin-bottom: 4px; }',
+      '.ventes-rdr-comp h5 { margin: 12px 0 6px; font-size: 13px; } .ventes-rdr-portail .btn { margin-top: 6px; } .ventes-page .ventes-rdr-portail { min-width: 280px; }',
+      '.ventes-moy-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; } .ventes-moy-table th, .ventes-moy-table td { padding: 3px 6px; white-space: nowrap; } .ventes-moy-table thead th { font-size: 12px; font-weight: 600; color: var(--encre-3); text-align: right; border-bottom: 1px solid var(--ligne); } .ventes-moy-table tbody th { text-align: left; font-weight: 600; color: var(--encre-2); } .ventes-moy-table td.num { text-align: right; font-weight: 700; } .ventes-moy-table tr.total th, .ventes-moy-table tr.total td { border-top: 1px solid var(--ligne); } .ventes-moy-table tr.prix td.doux { font-weight: 400; color: var(--encre-3); font-size: 12px; } .ventes-page .ventes-moy { min-width: 330px; }',
       '.ventes-comp .cmp-ligne { display: grid; grid-template-columns: 74px 1fr auto; gap: 8px; white-space: nowrap; font-size: 13px; align-items: baseline; } .ventes-comp .cmp-ligne .v { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; } .ventes-comp .cmp-ligne .n { font-size: 12px; color: var(--encre-3); }',
       '.ventes-table th.groupe-col { text-align: center; border-bottom: 1px solid var(--ligne); } .ventes-table th.debut-groupe, .ventes-table td.debut-groupe { border-left: 2px solid var(--ligne); }',
       '.ventes-recap th.groupe-col { text-align: center; } .ventes-recap th.debut-groupe, .ventes-recap td.debut-groupe { border-left: 2px solid var(--ligne); }',
@@ -276,6 +282,13 @@
       '.ventes-recap tr.cliquable:hover td { background: var(--carte-2); }',
       '.ventes-recap td .sous, .ventes-recap th .sous { font-size: 12px; color: var(--encre-3); font-weight: 400; }',
       '.ventes-recap .annee { display: flex; gap: 8px; align-items: center; }',
+      /* 26 oct. : fenêtres F&I et Comptabilité, Date RDR */
+      '.ventes-resume { margin: 0 0 12px; padding: 8px 12px; background: var(--fond); border-radius: 8px; font-size: 13px; color: var(--encre-2); }',
+      '.compta-grille { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }',
+      '.compta-champ.calcule .saisie.fixe { color: var(--encre-3); font-style: italic; }',
+      '.compta-champ.compta-case { display: flex; align-items: flex-end; } .compta-champ.compta-case label.case { font-size: 13.5px; color: var(--encre); font-weight: 600; }',
+      '.compta-puces { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; } .compta-puces .btn.actif { background: var(--vert-clair); border-color: var(--vert); color: var(--vert-fonce); }',
+      '.ventes-table .sous.rdr { color: var(--vert-fonce); } .ventes-table .sous.rdr.manque { color: var(--ambre); font-weight: 600; }',
       '@media (max-width: 760px) { .ventes-table th:nth-child(5), .ventes-table td:nth-child(5), .ventes-table th:nth-child(6), .ventes-table td:nth-child(6) { display: none; } .ventes-produits { grid-template-columns: 1fr; } }'
     ].join('\n');
     document.head.appendChild(s);
@@ -521,6 +534,8 @@
     if (sauf !== 'type' && f.type && v.type !== f.type) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'sansFI' && !besoinFI(v)) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'erreur' && v.livre !== 'erreur') return false;
+    if (sauf !== 'drapeau' && f.drapeau === 'rdr' && !this.estRdr(v)) return false;
+    if (sauf !== 'drapeau' && f.drapeau === 'sansRdr' && !this.sansRdr(v)) return false;
     if (q && !AMX.correspond([v.client, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin], q)) return false;   /* v138 : AMX.correspond */
     return true;
   };
@@ -532,24 +547,30 @@
      d'avant (?etat=sansFI, depuis l'Accueil ou le récapitulatif) est remise dans `drapeau`. */
   VueVentes.prototype.normaliserFiltres = function () {
     var f = this.filtres;
-    if (f.etat === 'sansFI' || f.etat === 'erreur') { f.drapeau = f.etat; f.etat = ''; }
-    if (f.drapeau !== 'sansFI' && f.drapeau !== 'erreur') f.drapeau = '';
+    if (f.etat === 'sansFI' || f.etat === 'erreur' || f.etat === 'rdr' || f.etat === 'sansRdr') { f.drapeau = f.etat; f.etat = ''; }
+    if (['sansFI', 'erreur', 'rdr', 'sansRdr'].indexOf(f.drapeau) < 0) f.drapeau = '';
   };
+  /* 26 oct. (Maxime : « il faut aussi un compteur de RDR du mois et la date est dans le livre des ventes ») : la Date RDR vient du
+     livre. « RDR du mois » = Date RDR dans le mois affiché ; « sans RDR » = neuf livré dans le mois sans Date RDR, seulement pour
+     les concessions qui inscrivent leurs RDR (le serveur les nomme dans rdr.cies). */
+  VueVentes.prototype.moisRdr = function () { return /^\d{4}-\d{2}$/.test(String(this.periode || '')) ? this.periode : ''; };
+  VueVentes.prototype.estRdr = function (v) { var m = this.moisRdr(); return !!m && v.statut !== 'annulee' && String(v.dateRdr || '').slice(0, 7) === m; };
+  VueVentes.prototype.sansRdr = function (v) { var m = this.moisRdr(), d = cache.rep, cies = d && d.rdr && d.rdr.cies ? d.rdr.cies : []; return !!m && v.statut !== 'annulee' && v.type === 'neuf' && !v.dateRdr && dateLivraisonOk(v) && moisDeVente(v) === m && cies.indexOf(v.compagnie) >= 0; };
   /* Les nombres des pastilles : état (sans le filtre d'état), type (sans le filtre de type), F&I à inscrire / pas au livre
      (sans ce drapeau) — chaque nombre est ce qu'on verra en cliquant. */
   VueVentes.prototype.compteurs = function () {
-    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 };
+    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0, rdr: 0, sansRdr: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 };
     if (!d) return { etat: e, type: t };
     d.ventes.forEach(function (v) {
       if (self.garde(v, 'etat')) { e['']++; if (e[v.statut] !== undefined) e[v.statut]++; }
       if (self.garde(v, 'type')) { t['']++; if (t[v.type] !== undefined) t[v.type]++; }
-      if (self.garde(v, 'drapeau')) { if (v.livre === 'erreur') e.erreur++; if (besoinFI(v)) e.sansFI++; }
+      if (self.garde(v, 'drapeau')) { if (v.livre === 'erreur') e.erreur++; if (besoinFI(v)) e.sansFI++; if (self.estRdr(v)) e.rdr++; if (self.sansRdr(v)) e.sansRdr++; }
     });
     return { etat: e, type: t };
   };
   var ETATS_VENTE = [['', 'Toutes'], ['declaree', 'Attente F&I'], ['completee', 'Au livre'], ['comptabilisee', 'Comptabilisées'], ['annulee', 'Annulées']];
   var TYPES_VENTE = [['', 'Tous'], ['neuf', 'Neufs'], ['usage', 'Usagés'], ['wholesale', 'Wholesale']];
-  function libelleEtatVente(e) { if (e === 'sansFI') return 'F&I à inscrire'; if (e === 'erreur') return 'Pas au livre'; for (var i = 0; i < ETATS_VENTE.length; i++) if (ETATS_VENTE[i][0] === e) return ETATS_VENTE[i][1]; return e; }
+  function libelleEtatVente(e) { if (e === 'sansFI') return 'F&I à inscrire'; if (e === 'erreur') return 'Pas au livre'; if (e === 'rdr') return 'RDR du mois'; if (e === 'sansRdr') return 'Neufs livrés sans RDR'; for (var i = 0; i < ETATS_VENTE.length; i++) if (ETATS_VENTE[i][0] === e) return ETATS_VENTE[i][1]; return e; }
   /* La barre de filtres, dessinée une fois par rendu : la recherche garde le curseur, les nombres changent sur place. */
   VueVentes.prototype.rendreFiltres = function () {
     var self = this, ui2 = AMX.ui2 && AMX.ui2();
@@ -592,7 +613,7 @@
     AMX.vider(this.elKpis);
     if (!d) return;
     var kpi = function (etat, libelle, valeur, cls) {
-      var champ = (etat === 'sansFI' || etat === 'erreur') ? 'drapeau' : 'etat', actif = self.filtres[champ] === etat;
+      var champ = (etat === 'sansFI' || etat === 'erreur' || etat === 'rdr' || etat === 'sansRdr') ? 'drapeau' : 'etat', actif = self.filtres[champ] === etat;
       return h('div.kpi' + (cls ? '.' + cls : '') + (actif ? '.actif' : ''), { role: 'button', tabindex: '0', 'data-etat': etat, 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres[champ] = actif ? '' : etat; self.rendre(); } }, [h('div.valeur', { text: String(valeur || 0) }), h('div.libelle', { text: libelle })]);
     };
     /* v133 : en ui2, les états sont des pastilles dans la barre de filtres ; ici, l'ancienne interface garde ses tuiles. */
@@ -610,17 +631,97 @@
       var cp = cumulProfits(actives);
       var moy = function (q) { return { e: q.nEstime ? q.estime / q.nEstime : null, c: q.nComptable ? q.comptable / q.nComptable : null }; };
       var prixL = actives.map(function (v) { return nombre(v.prixVente); }).filter(function (x) { return x !== null && x > 0; });
-      var rangee = function (l, m) { return h('div.cmp-ligne', [h('span.l', { text: l }), h('span.v', { text: m.e === null ? '—' : argent(Math.round(m.e)) }), h('span.n', { text: m.c === null ? '' : 'compta ' + argent(Math.round(m.c)) })]); };
+      /* 26 oct. (Maxime : « aligne bien les colonnes des moyennes … un petit tableau avec des colonnes verticales ») : un tableau
+         Estimé · Comptable · Écart ; l'écart moyen est pris sur les ventes qui ont les deux (estimé et comptable). */
+      var cellule = function (x, n, cls) { return h('td.num' + (cls || ''), { text: x === null ? '—' : argent(Math.round(x)), title: n ? 'sur ' + pluriel(n, 'vente') : '' }); };
+      var rangee = function (l, q, cls) {
+        var e = q.nEstime ? q.estime / q.nEstime : null, c = q.nComptable ? q.comptable / q.nComptable : null, d = q.nPaires ? q.ecart / q.nPaires : null;
+        return h('tr' + (cls || ''), [h('th', { scope: 'row', text: l }), cellule(e, q.nEstime), cellule(c, q.nComptable), h('td.num' + (d === null ? '' : classeEcart(d)), { text: d === null ? '—' : signe(Math.round(d)), title: q.nPaires ? 'comptable − estimé, sur ' + pluriel(q.nPaires, 'vente') + ' qui ont les deux' : '' })]);
+      };
+      var prixMoy = prixL.length ? prixL.reduce(function (a, b) { return a + b; }, 0) / prixL.length : null;
       var titreMoy = 'Moyennes par unité · ' + pluriel(actives.length, 'vente');
       var carteMoy = h('div.kpi.neutre.ventes-comp.ventes-moy#ventes-kpi-moyennes', { title: nAnnulees ? nAnnulees + ' vente(s) annulée(s) exclue(s) des montants' : '' }, [h('div.titre', { text: titreMoy }),
-        rangee('Front', moy(cp.front)), rangee('F&I', moy(cp.fi)), rangee('Total', moy(cp)),
-        prixL.length ? h('div.cmp-ligne', [h('span.l', { text: 'Prix' }), h('span.v', { text: argent(Math.round(prixL.reduce(function (a, b) { return a + b; }, 0) / prixL.length)) }), h('span.n', { text: 'sur ' + prixL.length })]) : null]);
+        h('table.ventes-moy-table', [
+          h('thead', [h('tr', [h('th', { text: '' }), h('th.num', { text: 'Estimé' }), h('th.num', { text: 'Comptable' }), h('th.num', { text: 'Écart' })])]),
+          h('tbody', [rangee('Front', cp.front), rangee('F&I', cp.fi), rangee('Total', cp, '.total'),
+            prixMoy !== null ? h('tr.prix', [h('th', { scope: 'row', text: 'Prix' }), cellule(prixMoy, prixL.length), h('td.num.doux', { colspan: '2', text: 'sur ' + prixL.length + ' prix' })]) : null])
+        ])]);
       this.elKpis.insertBefore(carteMoy, this.elKpis.firstChild);
       this.elKpis.appendChild(carteComparaison('ventes-kpi-front', 'Front (voiture)', cp.front));
       this.elKpis.appendChild(carteComparaison('ventes-kpi-fi', 'F&I', cp.fi));
     }
     this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', c.etat.sansFI, c.etat.sansFI ? 'alerte' : ''));
+    /* 26 oct. : compteur des RDR du mois (Date RDR du livre) */
+    if (this.moisRdr() && d.rdr) {
+      var tuileRdr = kpi('rdr', 'RDR — ' + moisLibelle(this.moisRdr()), c.etat.rdr, '');
+      tuileRdr.id = 'ventes-kpi-rdr';
+      if (d.rdr.mois === this.moisRdr() && d.rdr.n !== c.etat.rdr && !this.filtres.type && !this.filtres.recherche && !this.filtres.etat) tuileRdr.appendChild(h('div.sous', { text: d.rdr.n + ' au total (dont des ventes livrées un autre mois)' }));
+      this.elKpis.appendChild(tuileRdr);
+      if (c.etat.sansRdr || this.filtres.drapeau === 'sansRdr') { var tuileSans = kpi('sansRdr', 'Neufs livrés sans RDR', c.etat.sansRdr, c.etat.sansRdr ? 'alerte' : ''); tuileSans.id = 'ventes-kpi-sans-rdr'; this.elKpis.appendChild(tuileSans); }
+      var cartePortail = this.cartePortailRdr(); if (cartePortail) this.elKpis.appendChild(cartePortail);
+    }
   };
+  /* 26 oct. (Maxime : « corroborer les RDR dans S-Gate avec le compteur pour BMW et Global Connect pour Hawks et STM ») : les RDR du
+     livre et ceux des portails (POST venteRdrComparer), par concession, pour le mois affiché. */
+  var RDR_CIES = ['BMW', 'STM', 'HAWKS'];
+  var cacheRdrP = { cle: '', rep: null, quand: 0, promesse: null, erreur: '' };
+  VueVentes.prototype.chargerRdrPortail = function (force) {
+    var self = this, m = this.moisRdr(), cie = this.compagnie || '';
+    if (!m || (cie && RDR_CIES.indexOf(cie) < 0)) return;
+    var cle = cie + '|' + m;
+    if (!force && cacheRdrP.cle === cle && (cacheRdrP.rep || cacheRdrP.promesse || cacheRdrP.erreur) && Date.now() - cacheRdrP.quand < 5 * 60000) return;
+    cacheRdrP.cle = cle; cacheRdrP.rep = null; cacheRdrP.erreur = ''; cacheRdrP.quand = Date.now();
+    cacheRdrP.promesse = AMX.post({ action: 'venteRdrComparer', compagnie: cie, mois: m }, { delai: 90000 }).then(function (r) {
+      if (cacheRdrP.cle !== cle) return;
+      cacheRdrP.promesse = null;
+      if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Comparaison refusée.');
+      if (!r.cies) throw new Error(SCRIPT_PAS_A_JOUR);
+      cacheRdrP.rep = r; if (!self.detruit) self.rendreKpis();
+    }).catch(function (e) { if (cacheRdrP.cle !== cle) return; cacheRdrP.promesse = null; cacheRdrP.erreur = AMX.erreurTexte(e); if (!self.detruit) self.rendreKpis(); });
+  };
+  VueVentes.prototype.cartePortailRdr = function () {
+    var self = this, m = this.moisRdr(), cie = this.compagnie || '';
+    if (!m || (cie && RDR_CIES.indexOf(cie) < 0)) return null;
+    this.chargerRdrPortail(false);
+    var cle = cie + '|' + m, r = cacheRdrP.cle === cle ? cacheRdrP.rep : null;
+    var carte = h('div.kpi.neutre.ventes-comp.ventes-rdr-portail#ventes-kpi-rdr-portail', [h('div.titre', { text: 'RDR — livre et portails' })]);
+    if (!r) { carte.appendChild(h('div.n', { text: cacheRdrP.cle === cle && cacheRdrP.erreur ? cacheRdrP.erreur : 'Comparaison avec S-Gate et Global Connect…' })); return carte; }
+    var codes = Object.keys(r.cies);
+    if (!codes.length) return null;
+    var ecartsTotal = 0;
+    var corps = h('tbody', codes.map(function (c) {
+      var x = r.cies[c], e = x.portailSeul.length + x.livreSeul.length + x.autreMois.length; ecartsTotal += e;
+      return h('tr', [h('th', { scope: 'row', text: ({ BMW: 'BMW', STM: 'Ste Marie', HAWKS: 'Hawkesbury' })[c] || c, title: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + x.portail + (x.lu ? ', lu le ' + AMX.fmtDate(x.lu, true) : ', jamais lu') }), h('td.num', { text: String(x.livre) }), h('td.num', { text: String(x.constructeur) }), h('td.num' + (e ? '.ecart-moins' : '.ecart-plus'), { text: e ? String(e) : '✓' })]);
+    }));
+    carte.appendChild(h('table.ventes-moy-table', [h('thead', [h('tr', [h('th', { text: '' }), h('th.num', { text: 'Livre' }), h('th.num', { text: 'Portail' }), h('th.num', { text: 'Écarts' })])]), corps]));
+    carte.appendChild(h('button.btn.petit#ventes-rdr-comparer', { type: 'button', text: ecartsTotal === 1 ? 'Voir l\'écart' : (ecartsTotal ? 'Voir les ' + ecartsTotal + ' écarts' : 'Voir le détail'), onclick: function (ev) { ev.stopPropagation(); ouvrirComparaisonRdr(r); } }));
+    return carte;
+  };
+  function ouvrirComparaisonRdr(r) {
+    var corps = h('div.ventes-form.ventes-rdr-comp');
+    var ouvrir = function (id) { return h('a', { href: '#', text: id, onclick: function (e) { e.preventDefault(); AMX.ventes.une(id).then(function (v) { ouvrirFiche(v); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); }); } }); };
+    var tableau = function (titre, entetes, lignes) {
+      if (!lignes.length) return null;
+      return h('div', [h('h5', { text: titre + ' (' + lignes.length + ')' }), h('div.ventes-defile', [h('table.tableau.ventes-table', [h('thead', [h('tr', entetes.map(function (t) { return h('th', { text: t }); }))]), h('tbody', lignes)])])]);
+    };
+    Object.keys(r.cies).forEach(function (c) {
+      var x = r.cies[c];
+      corps.appendChild(h('h4', { text: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + x.portail }));
+      corps.appendChild(h('p.ventes-aide', { text: capitale(r.moisLibelle) + ' : ' + x.livre + ' RDR au livre, ' + x.constructeur + ' RDR au portail, ' + x.deux + ' des deux côtés.' + (x.lu ? ' Portail lu le ' + AMX.fmtDate(x.lu, true) + ' (favori « Automax ← Constructeur »).' : ' Le portail n\'a jamais été lu : lancez le favori « Automax ← Constructeur ».') }));
+      var t1 = tableau('Au portail, pas au livre', ['Date RDR', 'Véhicule', 'NIV', 'Au livre'], x.portailSeul.map(function (y) {
+        return h('tr', [h('td', { text: AMX.fmtDateCourte(y.date) }), h('td', { text: y.vehicule + (y.type ? ' · ' + y.type : '') }), h('td.mono', { text: y.vin }), h('td', y.vente ? [ouvrir(y.vente.id), h('span', { text: ' · ' + (y.vente.dateRdr ? 'Date RDR ' + AMX.fmtDateCourte(y.vente.dateRdr) : 'Date RDR manquante') + (y.vente.client ? ' · ' + y.vente.client : '') })] : [h('span.puce.alerte', { text: 'aucune vente au livre' })])]);
+      }));
+      var t2 = tableau('Au livre, pas au portail', ['Date RDR', 'Vente', 'Véhicule', 'Client'], x.livreSeul.map(function (y) {
+        return h('tr', [h('td', { text: AMX.fmtDateCourte(y.dateRdr) }), h('td', [ouvrir(y.id), y.stock ? h('span', { text: ' · # ' + y.stock }) : null]), h('td', { text: y.vehicule + (y.sansNiv ? ' · sans NIV au livre' : '') }), h('td', { text: y.client })]);
+      }));
+      var t3 = tableau('Pas le même mois', ['Vente', 'Date RDR au livre', 'Au portail', 'Véhicule'], x.autreMois.map(function (y) {
+        return h('tr', [h('td', [ouvrir(y.id)]), h('td', { text: AMX.fmtDateCourte(y.dateRdr) }), h('td', { text: AMX.fmtDateCourte(y.datePortail) }), h('td', { text: y.vehicule })]);
+      }));
+      if (!t1 && !t2 && !t3) corps.appendChild(h('p.ventes-aide', { text: 'Aucun écart : le livre et le portail concordent.' }));
+      [t1, t2, t3].forEach(function (t) { if (t) corps.appendChild(t); });
+    });
+    AMX.modale({ titre: 'RDR de ' + r.moisLibelle + ' — livre et portails', corps: corps, large: true, boutons: [{ texte: 'Fermer' }] });
+  }
   /* Les ventes par mois afférent (la date inscrite), dans l'ordre de la liste (la plus récente d'abord). */
   function grouperParMois(liste) {
     var groupes = [], par = {};
@@ -670,7 +771,8 @@
       g.ventes.forEach(function (v) {
         var prd = produitsListe(v);
         var tr = h('tr.cliquable' + (v.statut === 'annulee' ? '.annulee' : ''), { dataset: { id: v.id } }, [
-          h('td', dateLivraisonOk(v) ? [h('div', { text: AMX.fmtDateCourte(v.dateLivraison) }), v.dateVente ? h('div.sous', { text: 'vendue ' + AMX.fmtDateCourte(v.dateVente) }) : null] : [h('div', { text: AMX.fmtDateCourte(v.dateVente) }), h('div.sous', { text: 'date de vente', title: 'Pas de date de livraison inscrite : la vente compte dans le mois de sa date de vente' })]),
+          h('td', (dateLivraisonOk(v) ? [h('div', { text: AMX.fmtDateCourte(v.dateLivraison) }), v.dateVente ? h('div.sous', { text: 'vendue ' + AMX.fmtDateCourte(v.dateVente) }) : null] : [h('div', { text: AMX.fmtDateCourte(v.dateVente) }), h('div.sous', { text: 'date de vente', title: 'Pas de date de livraison inscrite : la vente compte dans le mois de sa date de vente' })])
+            .concat([v.dateRdr ? h('div.sous.rdr', { text: 'RDR ' + AMX.fmtDateCourte(v.dateRdr) + (v.codeRdr ? ' · ' + v.codeRdr : ''), title: 'Date RDR inscrite au livre' }) : (self.sansRdr(v) ? h('div.sous.rdr.manque', { text: 'sans RDR', title: 'Neuf livré sans Date RDR au livre' }) : null)])),
           h('td.vehicule', [h('div.nom', { text: vehiculeTexte(v) || '(véhicule à préciser)' }), h('div.vin', { text: [v.stock ? '# ' + v.stock : '', v.vin].filter(Boolean).join(' · ') })]),
           h('td', [h('div', { text: v.client || v.venduA || '—' }), v.type === 'wholesale' && v.acheteDe ? h('div.sous', { text: 'acheté de ' + v.acheteDe }) : (v.echangeStock || v.echangeModele || v.echangeVin ? h('div.sous', { text: 'échange ' + ([v.echangeStock, v.echangeModele].filter(Boolean).join(' ') || v.echangeVin) + (v.echangeEvaluation !== undefined && v.echangeEvaluation !== null ? ' · évalué' : '') }) : null)]),
           h('td', [h('span.badge.' + (v.type === 'neuf' ? 'vert' : (v.type === 'usage' ? 'bleu' : 'ambre')) + '.sans-point', { text: TYPES[v.type] || v.type }), h('div.sous', { text: libCategorie(v.type, v.categorie) + (v.paiement ? ' · ' + libPaiement(v.paiement) : '') })]),
@@ -682,15 +784,16 @@
           h('td.num.front-comptable', frontC(v) !== null ? { text: argent(frontC(v)) } : [h('span', '—'), v.statut !== 'annulee' ? h('div.sous', 'pas inscrit') : null]),
           h('td.num.front-ecart' + classeEcart(ecartEC(frontE(v), frontC(v))), { text: ecartEC(frontE(v), frontC(v)) === null ? '—' : signe(ecartEC(frontE(v), frontC(v))) }),
           /* Le bouton « Inscrire » se trouve là où le F&I estimé manque (Maxime, 22 oct.). */
-          h('td.num.debut-groupe.fi-estime', besoinFI(v) ? [AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Inscrire', title: 'Inscrire le profit F&I estimé et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.completer(v); } }) : h('span.puce.alerte', { text: 'à inscrire', title: 'Profit F&I estimé pas encore inscrit' })] : { text: v.type === 'wholesale' && fiE(v) === null ? '·' : argent(fiE(v)) }),
+          h('td.num.debut-groupe.fi-estime', besoinFI(v) ? [AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Inscrire', title: 'Inscrire le profit F&I estimé et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.fi(v); } }) : h('span.puce.alerte', { text: 'à inscrire', title: 'Profit F&I estimé pas encore inscrit' })] : { text: v.type === 'wholesale' && fiE(v) === null ? '·' : argent(fiE(v)) }),
           h('td.num.fi-comptable', { text: v.type === 'wholesale' && fiC(v) === null ? '·' : argent(fiC(v)) }),
           h('td.num.fi-ecart' + classeEcart(ecartEC(fiE(v), fiC(v))), { text: ecartEC(fiE(v), fiC(v)) === null ? '—' : signe(ecartEC(fiE(v), fiC(v))) })
         ] : []).concat([
           h('td', [puceLivre(v)]),
           h('td.etat', [puceEtat(v), v.importee ? h('div.sous', { text: 'importée du livre', title: 'Ligne lue dans le livre de la comptabilité' }) : null]),
           h('td.actions', [
-            v.statut === 'declaree' && !(montants && besoinFI(v)) && AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Profits F&I', title: 'Inscrire le profit F&I et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.completer(v); } }) : null,
-            !montants && besoinFI(v) && v.statut !== 'declaree' && AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Profits F&I', title: 'Inscrire le profit F&I estimé et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.completer(v); } }) : null,
+            v.statut === 'declaree' && !(montants && besoinFI(v)) && AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Profits F&I', title: 'Inscrire le profit F&I et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.fi(v); } }) : null,
+            !montants && besoinFI(v) && v.statut !== 'declaree' && AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Profits F&I', title: 'Inscrire le profit F&I estimé et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.fi(v); } }) : null,
+            v.livre === 'ecrit' && v.statut !== 'annulee' && AMX.ventes.peutCompta() ? h('button.btn.petit.ventes-compta' + (v.statut !== 'comptabilisee' ? '.primaire' : ''), { type: 'button', text: 'Compta', title: 'Inscrire la comptabilité (colonnes vertes du livre)', onclick: function (e) { e.stopPropagation(); AMX.ventes.compta(v); } }) : null,
             v.livre === 'erreur' && (AMX.ventes.peutDeclarer() || AMX.ventes.peutCompleter()) ? h('button.btn.petit.ventes-renvoyer', { type: 'button', text: 'Renvoyer au livre', onclick: function (e) { e.stopPropagation(); renvoyer(v); } }) : null
           ])
         ]));
@@ -859,6 +962,7 @@
     corps.appendChild(h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' } }, [puceEtat(v), puceLivre(v), h('span.puce.mono', { text: v.id }), v.importee ? h('span.puce', { text: 'importée du livre', title: 'Ligne lue dans le livre de la comptabilité' }) : null, h('span.puce', { text: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), title: 'Mois afférent (date de vente inscrite)' })]));
     corps.appendChild(dl([
       ['Concession', AMX.COMPAGNIES_TOUTES[v.compagnie] || v.compagnie], ['Type', (TYPES[v.type] || v.type) + ' · ' + libCategorie(v.type, v.categorie)], ['Date de vente', AMX.fmtDate(v.dateVente)], ['Livraison', v.dateLivraison ? AMX.fmtDate(v.dateLivraison) : '—'],
+      v.dateRdr ? ['Date RDR', AMX.fmtDate(v.dateRdr) + (v.codeRdr ? ' · code ' + v.codeRdr : '')] : (v.type === 'neuf' && v.statut !== 'annulee' ? ['Date RDR', h('span.puce' + (dateLivraisonOk(v) ? '.alerte' : ''), { text: 'pas inscrite au livre' })] : null),
       [ws ? 'Vendu à' : 'Client', v.client || v.venduA || '—'], v.telephone ? ['Téléphone', AMX.telephoneTexte ? AMX.telephoneTexte(v.telephone) : v.telephone] : null, v.courriel ? ['Courriel', v.courriel] : null,
       ws ? ['Acheté de', v.acheteDe || '—'] : null, ['Véhicule', vehiculeTexte(v) || '—'], ['# Stock', v.stock || '—'], ['NIV', v.vin || '—'], ['Conseiller', v.conseiller || '—'],
       montants ? ['Prix de vente', argent(v.prixVente)] : null, montants && ws ? ['Coûtant', argent(v.coutant)] : null, ['Paiement', libPaiement(v.paiement) || '—'],
@@ -885,6 +989,11 @@
       ['Produits', prd.length ? h('div.produits', prd.map(function (p) { return h('span.puce.info', { text: p.libelle + (montants && p.montant !== null ? ' · ' + argent(p.montant) : '') }); })) : (v.statut === 'declaree' ? 'en attente du F&I' : '—')],
       v.statut === 'declaree' || v.fiAviseLe ? ['F&I prévenu', v.fiAviseLe ? AMX.fmtDate(v.fiAviseLe, true) + (v.fiAvises ? ' → ' + v.fiAvises : '') + (v.fiRappelLe ? ' · rappel le ' + AMX.fmtDate(v.fiRappelLe, true) : (v.statut === 'declaree' ? ' · rappel après 24 h' : '')) : 'aucun courriel parti (pas de destinataire F&I)'] : null
     ]));
+    /* 26 oct. : ce que la comptabilité a inscrit dans les colonnes vertes du livre (lu à chaque relecture) */
+    corps.appendChild(h('h4', 'Comptabilité'));
+    var compta = Array.isArray(v.compta) ? v.compta : [];
+    if (compta.length) corps.appendChild(dl(compta.map(function (x) { return [x[0], texteCompta(x[1])]; }).concat(v.comptaLe ? [['Inscrite dans ScanAutomax', (v.comptaParNom || v.comptaPar || '') + ' · ' + AMX.fmtDate(v.comptaLe, true)]] : [])));
+    else corps.appendChild(h('p.ventes-aide', { text: v.livre === 'ecrit' ? 'Rien d\'inscrit encore dans les colonnes vertes du livre.' : 'La vente n\'est pas encore au livre.' }));
     corps.appendChild(h('h4', 'Livre et suivi'));
     corps.appendChild(dl([
       ['Livre', v.livre === 'ecrit' ? (v.livreOnglet || '') + ' · ligne ' + v.livreLigne : (v.livre === 'erreur' ? 'PAS ÉCRITE — ' + (v.livreErreur || '') : 'pas encore écrite')],
@@ -894,16 +1003,181 @@
     if (v.journal && v.journal.length) corps.appendChild(h('div.journal', [h('b', 'Historique'), h('ul', { style: { margin: '4px 0 0', paddingLeft: '16px' } }, v.journal.slice().reverse().map(function (j) { return h('li', { text: AMX.fmtDate(j.le, true) + ' — ' + j.quoi + (j.par ? ' (' + j.par + ')' : '') }); }))]));
   }
   function boutonsFiche(v, fermer) {
-    var boutons = [];
-    if (v.statut !== 'annulee' && v.statut !== 'comptabilisee') {
-      if (AMX.ventes.peutCompleter()) boutons.push({ texte: v.statut === 'declaree' || besoinFI(v) ? 'Inscrire les profits F&I' : 'Modifier', classe: 'primaire', action: function (f) { f(); AMX.ventes.completer(v); return false; } });
-      else if (AMX.ventes.peutDeclarer()) boutons.push({ texte: 'Modifier', action: function (f) { f(); AMX.ventes.completer(v); return false; } });
+    var boutons = [], ouverte = v.statut !== 'annulee', fiManque = v.statut === 'declaree' || besoinFI(v);
+    /* 26 oct. : trois fenêtres — la vente (direction des ventes), le F&I (directeur commercial), la comptabilité. */
+    if (ouverte && v.type !== 'wholesale' && AMX.ventes.peutCompleter()) boutons.push({ texte: fiManque ? 'Inscrire les profits F&I' : 'Profits F&I', classe: fiManque ? 'primaire' : '', action: function (f) { f(); AMX.ventes.fi(v); return false; } });
+    if (ouverte && v.livre === 'ecrit' && AMX.ventes.peutCompta()) boutons.push({ texte: 'Comptabilité', classe: v.statut !== 'comptabilisee' && !fiManque ? 'primaire' : '', action: function (f) { f(); AMX.ventes.compta(v); return false; } });
+    if (ouverte && v.statut !== 'comptabilisee') {
+      if (AMX.ventes.peutDeclarer() || AMX.ventes.peutCompleter()) boutons.push({ texte: 'Modifier la vente', action: function (f) { f(); AMX.ventes.modifier(v); return false; } });
       if (v.livre === 'erreur') boutons.push({ texte: 'Renvoyer au livre', action: function (f) { f(); renvoyer(v); return false; } });
       if (AMX.ventes.peutCompleter() || AMX.ventes.peutDeclarer()) boutons.push({ texte: 'Annuler la vente…', classe: 'danger fantome', action: function (f) { f(); modaleAnnuler(v); return false; } });
     }
     if (v.livreUrl) boutons.push({ texte: 'Ouvrir le livre', action: function () { window.open(v.livreUrl, '_blank', 'noopener'); return false; } });
     boutons.push({ texte: 'Fermer' });
     return boutons;
+  }
+
+  /* ------------------------------ F&I : sa propre fenêtre (26 oct.) ------------------------------ */
+  /* Maxime, 26 oct. : « la boîte d'inscription des données de la vente ne doit pas être la même que le F&I ». Le directeur
+     commercial n'inscrit ici que son profit F&I, les pneus et les produits ; la vente se modifie dans sa propre fenêtre. */
+  function resumeVente(v, montants) {
+    var bouts = [vehiculeTexte(v) || '(véhicule)', v.stock ? '# ' + v.stock : '', v.client || v.venduA || '', v.conseiller ? 'conseiller ' + v.conseiller : '', v.dateVente ? 'vendue ' + AMX.fmtDateCourte(v.dateVente) : ''];
+    if (montants && nombre(v.prixVente) !== null) bouts.push('prix ' + argent(nombre(v.prixVente)));
+    if (montants && frontE(v) !== null) bouts.push('front prévu ' + argent(frontE(v)));
+    return h('p.ventes-resume', { text: v.id + ' · ' + bouts.filter(Boolean).join(' · ') });
+  }
+  function ouvrirFI(v) {
+    injecterCss();
+    if (!AMX.ventes.peutCompleter()) { AMX.toast('Le profit F&I est réservé au directeur commercial (droit « Ventes — F&I »).', 'erreur'); return null; }
+    var rep = cache.rep, montants = rep && rep.montants !== undefined ? !!rep.montants : AMX.ventes.montants();
+    var val = function (x) { return x === undefined || x === null ? '' : x; };
+    var defsProduits = AMX.ventes.produits(), produitsInit = produitsDe(v);
+    var inDirecteur = h('input.saisie#vente-directeur', { type: 'text', list: 'vente-directeurs-fi', placeholder: 'Directeur commercial', value: v.directeur || (AMX.ventes.estFI() ? (AMX.session.nom || '') : ''), autocomplete: 'off' });
+    var dlDirecteurs = h('datalist#vente-directeurs-fi');
+    var nomsD = {};
+    if (rep) { ((rep.personnes && rep.personnes.directeurs) || []).forEach(function (p) { nomsD[p.nom] = 1; }); ((rep.nomsConnus && rep.nomsConnus.directeurs) || []).forEach(function (n) { nomsD[n] = 1; }); if (rep.fi && rep.fi.noms) rep.fi.noms.forEach(function (n) { nomsD[n] = 1; }); }
+    Object.keys(nomsD).sort().forEach(function (n) { dlDirecteurs.appendChild(h('option', { value: n })); });
+    var inFI = h('input.saisie#vente-fi', { type: 'text', inputmode: 'decimal', placeholder: '0,00 $', value: val(v.profitFIPrevu) });
+    var pneus = v.pneus || '';
+    var segPneus = h('div.segment.bloc#vente-pneus', [['', '—'], ['oui', 'Oui'], ['non', 'Non']].map(function (p) { return h('button' + (pneus === p[0] ? '.actif' : ''), { type: 'button', 'data-pneus': p[0], text: p[1], onclick: function () { poserPneus(p[0]); } }); }));
+    function poserPneus(x) { pneus = x; segPneus.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.pneus === x); }); }
+    var produits = {};
+    var elProduits = h('div.ventes-produits', defsProduits.map(function (p) {
+      var coche = produitsInit[p[0]] !== undefined && produitsInit[p[0]] !== null && produitsInit[p[0]] !== '' && produitsInit[p[0]] !== false;
+      var cb = h('input', { type: 'checkbox', id: 'vente-prod-' + p[0], checked: coche ? 'checked' : undefined });
+      var mt = h('input.saisie', { type: 'text', id: 'vente-prod-' + p[0] + '-montant', inputmode: 'decimal', placeholder: '$', value: coche && typeof produitsInit[p[0]] === 'number' ? produitsInit[p[0]] : '' });
+      var ligne = h('div.ventes-produit' + (coche ? '.coche' : ''), [cb, h('label', { 'for': 'vente-prod-' + p[0], text: p[1] }), mt]);
+      cb.addEventListener('change', function () { ligne.classList.toggle('coche', cb.checked); if (p[0] === 'pneusJantes' && cb.checked && !pneus) poserPneus('oui'); majTotalFI(); });
+      mt.addEventListener('input', function () { if (mt.value.trim() && !cb.checked) { cb.checked = true; ligne.classList.add('coche'); if (p[0] === 'pneusJantes' && !pneus) poserPneus('oui'); } majTotalFI(); });
+      produits[p[0]] = { cb: cb, mt: mt };
+      return ligne;
+    }));
+    var elTotalFI = h('div.ventes-total-fi');
+    var fiTouche = !!val(v.profitFIPrevu);
+    inFI.addEventListener('input', function () { fiTouche = true; majTotalFI(); });
+    function lireProduits() { var o = {}; Object.keys(produits).forEach(function (c) { if (!produits[c].cb.checked) return; var n = nombre(produits[c].mt.value); o[c] = n === null ? true : n; }); return o; }
+    function majTotalFI() {
+      var o = lireProduits(), n = 0, t = 0; Object.keys(o).forEach(function (c) { n++; if (typeof o[c] === 'number') t += o[c]; });
+      AMX.vider(elTotalFI);
+      if (!n) { elTotalFI.appendChild(h('span', 'Aucun produit coché.')); return; }
+      elTotalFI.appendChild(h('span', { text: pluriel(n, 'produit') + ' · montants inscrits : ' + argent(t) }));
+      if (t && nombre(inFI.value) !== t) elTotalFI.appendChild(h('button.btn.petit#vente-fi-somme', { type: 'button', text: 'Profit F&I = ' + argent(t), onclick: function () { inFI.value = String(Math.round(t * 100) / 100); fiTouche = true; majTotalFI(); } }));
+      if (!fiTouche && t) inFI.value = String(Math.round(t * 100) / 100);
+    }
+    var champ = function (id, libelle, el) { return h('div.champ', [h('label', { 'for': id, text: libelle }), el]); };
+    var corps = h('div.ventes-form.ventes-fi-form', [
+      resumeVente(v, montants),
+      h('div.grille', [champ('vente-directeur', 'Directeur commercial', inDirecteur), champ('vente-fi', 'Profit F&I prévu', inFI), champ('vente-pneus', 'Pneus vendus', segPneus)]),
+      h('p.ventes-aide', 'Produits vendus — cochez et inscrivez le montant quand vous l\'avez ; la somme propose le profit F&I.'),
+      elProduits, elTotalFI, dlDirecteurs
+    ]);
+    majTotalFI();
+    return AMX.modale({
+      titre: 'Profits F&I — ' + v.id, corps: corps, large: true,
+      boutons: [{ texte: 'Annuler' }, { texte: v.statut === 'declaree' || besoinFI(v) ? 'Inscrire les profits F&I' : 'Enregistrer', classe: 'primaire', action: function () {
+        return AMX.post({ action: 'venteCompleter', id: v.id, directeur: inDirecteur.value.trim(), profitFIPrevu: inFI.value.trim(), pneus: pneus, produits: lireProduits() }, { delai: 90000 }).then(function (r) {
+          verifierPost(r); AMX.ventes.poser(r.vente);
+          AMX.toast(r.message || 'Profits F&I inscrits', r.livre && r.livre.ok === false ? 'erreur' : 'ok', 8000);
+          return true;
+        }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+      } }]
+    });
+  }
+
+  /* ------------------------------ Comptabilité : les colonnes vertes du livre (26 oct.) ------------------------------ */
+  /* Maxime, 26 oct. : « ajouter l'inscription des données de la comptabilité … ne pas oublier la date du déboursé et tout le
+     reste ; la comptabilité est en vert dans le fichier ». Les colonnes viennent du livre de la concession (venteComptaLire) :
+     chacune avec son genre (case, date, montant, oui/non, liste, texte) ; une colonne calculée par une formule est montrée sans
+     être modifiable. Seules les cases changées partent (venteCompta), au livre d'abord, puis chez nous. */
+  function texteCompta(x) {
+    if (x === true) return 'Oui';
+    if (typeof x === 'number') return argent(x);
+    var s = String(x === null || x === undefined ? '' : x);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return AMX.fmtDate(s);
+    if (/^oui$/i.test(s)) return 'Oui';
+    return s;
+  }
+  function champCompta(col, lecture) {
+    var id = 'compta-c' + col.c, init = col.valeur, el, lire;
+    if (lecture || col.formule) {
+      var t = col.genre === 'case' ? (col.valeur ? 'Oui' : 'Non') : (col.valeur === '' ? '—' : texteCompta(col.valeur));
+      return { el: h('div.champ.compta-champ' + (col.formule ? '.calcule' : ''), [h('label', { text: col.entete }), h('div.saisie.fixe', { text: t + (col.formule ? ' · calculée dans le livre' : '') })]), change: function () { return false; } };
+    }
+    if (col.genre === 'case') {
+      var cb = h('input', { type: 'checkbox', id: id, checked: col.valeur ? 'checked' : undefined });
+      return { el: h('div.champ.compta-champ.compta-case', [h('label.case', { 'for': id }, [cb, h('span', { text: col.entete })])]), change: function () { return cb.checked !== !!init; }, valeur: function () { return cb.checked; } };
+    }
+    if (col.genre === 'ouinon') {
+      var on = /^oui$/i.test(String(init)) ? 'oui' : (/^non$/i.test(String(init)) ? 'non' : ''), choix = on;
+      var seg = h('div.segment.bloc', [['', '—'], ['oui', 'Oui'], ['non', 'Non']].map(function (p) { return h('button' + (choix === p[0] ? '.actif' : ''), { type: 'button', 'data-v': p[0], text: p[1], onclick: function () { choix = p[0]; seg.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.v === choix); }); } }); }));
+      seg.id = id;
+      return { el: h('div.champ.compta-champ', [h('label', { 'for': id, text: col.entete }), seg]), change: function () { return choix !== on; }, valeur: function () { return choix; } };
+    }
+    if (col.genre === 'liste') {
+      var sel = h('select.saisie', { id: id }, [h('option', { value: '', text: '—' })].concat(col.options.map(function (o) { return h('option', { value: o, text: o, selected: String(init) === o ? 'selected' : undefined }); })));
+      return { el: h('div.champ.compta-champ', [h('label', { 'for': id, text: col.entete }), sel]), change: function () { return sel.value !== String(init || ''); }, valeur: function () { return sel.value; } };
+    }
+    if (col.genre === 'date' || col.genre === 'dateTexte') {
+      var estDate = /^\d{4}-\d{2}-\d{2}$/.test(String(init)), texte = estDate ? '' : String(init || '');
+      var inp = h('input.saisie', { type: 'date', id: id, value: estDate ? init : '' });
+      var puces = col.genre === 'dateTexte' && col.options.length ? h('div.compta-puces', col.options.map(function (o) {
+        return h('button.btn.petit' + (texte === o ? '.actif' : ''), { type: 'button', text: o, title: 'Inscrire « ' + o + ' » au lieu d\'une date', onclick: function () { texte = texte === o ? '' : o; if (texte) inp.value = ''; puces.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.textContent === texte); }); } });
+      })) : null;
+      inp.addEventListener('input', function () { if (inp.value) { texte = ''; if (puces) puces.querySelectorAll('button').forEach(function (b) { b.classList.remove('actif'); }); } });
+      var courant = function () { return inp.value || texte; };
+      return { el: h('div.champ.compta-champ', [h('label', { 'for': id, text: col.entete }), inp, puces]), change: function () { return courant() !== String(init || ''); }, valeur: courant };
+    }
+    var saisie = h('input.saisie', { type: 'text', id: id, inputmode: col.genre === 'montant' ? 'decimal' : 'text', placeholder: col.genre === 'montant' ? '0,00 $' : '', value: init === '' || init === null || init === undefined ? '' : String(init) });
+    return { el: h('div.champ.compta-champ', [h('label', { 'for': id, text: col.entete }), saisie]), change: function () { return saisie.value.trim() !== (init === null || init === undefined ? '' : String(init)); }, valeur: function () { return saisie.value.trim(); } };
+  }
+  function ouvrirCompta(v) {
+    injecterCss();
+    var rep = cache.rep, montants = rep && rep.montants !== undefined ? !!rep.montants : AMX.ventes.montants();
+    var corps = h('div.ventes-form.ventes-compta', [resumeVente(v, montants), h('p.ventes-aide#compta-chargement', { text: 'Lecture de la ligne ' + (v.livreLigne || '') + ' dans le livre de la concession…' })]);
+    var m = AMX.modale({ titre: 'Comptabilité — ' + v.id, corps: corps, large: true, boutons: [{ texte: 'Fermer' }] });
+    var champs = [];
+    function dessiner(r) {
+      AMX.vider(corps);
+      corps.appendChild(resumeVente(r.vente || v, montants));
+      corps.appendChild(h('p.ventes-aide', [h('span', { text: (r.titre || 'Livre des ventes') + ' › ' + r.onglet + ', ligne ' + r.ligne + ' — les colonnes vertes de la comptabilité. ' }), r.livreUrl ? h('a', { href: r.livreUrl, target: '_blank', rel: 'noopener', text: 'Ouvrir le livre' }) : null]));
+      if (!r.colonnes.length) { corps.appendChild(h('p.ventes-aide.alerte', { text: 'Aucune colonne verte reconnue dans cet onglet du livre.' })); return; }
+      champs = [];
+      var sections = [];
+      r.colonnes.forEach(function (col) { var s = sections.filter(function (x) { return x.nom === col.section; })[0]; if (!s) { s = { nom: col.section, cols: [] }; sections.push(s); } s.cols.push(col); });
+      sections.forEach(function (s) {
+        corps.appendChild(h('h4', { text: s.nom }));
+        var grille = h('div.grille.compta-grille');
+        s.cols.forEach(function (col) { var c = champCompta(col, !r.peutEcrire); c.col = col; champs.push(c); grille.appendChild(c.el); });
+        corps.appendChild(grille);
+      });
+      if (!r.peutEcrire) corps.appendChild(h('p.ventes-aide', { text: 'Lecture seule : inscrire la comptabilité demande le droit « Ventes — comptabilité » (Admin › Droits).' }));
+      m.boutons(r.peutEcrire ? [{ texte: 'Fermer' }, { texte: 'Inscrire au livre', classe: 'primaire', action: enregistrer }] : [{ texte: 'Fermer' }]);
+    }
+    function enregistrer() {
+      var envoi = champs.filter(function (c) { return c.change(); }).map(function (c) { return { c: c.col.c, entete: c.col.entete, valeur: c.valeur() }; });
+      if (!envoi.length) { AMX.toast('Rien n\'a changé.', 'info'); return false; }
+      return AMX.post({ action: 'venteCompta', id: v.id, valeurs: envoi }, { delai: 90000, secours: false }).then(function (r) {
+        if (r && r.vente) AMX.ventes.poser(r.vente);
+        if (r && r.ok === false && !r.vente) { verifierPost(r); }
+        if (r && r.vehicules && !r.vente) throw new Error(SCRIPT_PAS_A_JOUR);
+        var refus = (r && r.refusees) || [];
+        AMX.toast(r.message || 'Inscrit au livre', refus.length ? 'attention' : 'ok', refus.length ? 12000 : 7000);
+        if (refus.length && Array.isArray(r.colonnes)) { dessiner({ titre: r.titre, onglet: lu.onglet, ligne: lu.ligne, livreUrl: lu.livreUrl, colonnes: r.colonnes, peutEcrire: true, vente: r.vente }); return false; }
+        return true;
+      }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+    }
+    var lu = {};
+    AMX.post({ action: 'venteComptaLire', id: v.id }, { delai: 90000, secours: false }).then(function (r) {
+      if (!r) throw new Error('Aucune réponse');
+      if (r.refuse) throw new Error(r.erreur || 'Accès refusé.');
+      if (r.ok === false) throw new Error(r.erreur || 'Le serveur a refusé.');
+      if (!Array.isArray(r.colonnes)) throw new Error(SCRIPT_PAS_A_JOUR);
+      lu = r; dessiner(r);
+    }).catch(function (e) {
+      AMX.vider(corps); corps.appendChild(resumeVente(v, montants));
+      corps.appendChild(h('p.ventes-aide.alerte', { text: AMX.erreurTexte(e) }));
+    });
+    return m;
   }
 
   /* ------------------------------ Actions ------------------------------ */
@@ -1030,6 +1304,8 @@
       if (!fiTouche && t) inFI.value = String(Math.round(t * 100) / 100);
     }
     var champ = function (id, libelle, el, cls) { return h('div.champ' + (cls ? '.' + cls : ''), [h('label', { 'for': id, text: libelle }), el]); };
+    var inRdr = h('input.saisie#vente-rdr', { type: 'date', value: v.dateRdr || '' }), inCodeRdr = h('input.saisie#vente-code-rdr', { type: 'text', maxlength: '12', placeholder: 'Code', value: v.codeRdr || '' });
+    var champRdr = champ('vente-rdr', 'Date RDR', inRdr), champCodeRdr = champ('vente-code-rdr', 'Code RDR', inCodeRdr);   /* 26 oct. : la Date RDR va au livre (compteur des RDR du mois) */
     var blocWholesale = h('div.grille', [champ('vente-vendua', 'Vendu à', inVenduA, 'large'), champ('vente-achetede', 'Acheté de', inAcheteDe), champ('vente-acheteur', 'Acheteur interne', inAcheteur), champ('vente-coutant', 'Coûtant', inCoutant)]);
     var blocClient = h('div.grille', [champ('vente-client', 'Client', inClient, 'large'), champ('vente-telephone', 'Téléphone', inTel), champ('vente-courriel', 'Courriel', inCourriel)]);
     var blocEchange = h('div', [
@@ -1040,12 +1316,14 @@
     var titreEchange = h('h4', 'Échange (s\'il y en a un)'), pEchange = h('p.ventes-aide', { text: 'L\'échange entre à l\'inventaire par sa fiche d\'achat (Inventaire › Fiche d\'achat) ; ici on le lie à son évaluation. Over / under = valeur accordée − évaluation, calculé si vous ne le tapez pas.' });
     var fiDest = rep && rep.fi ? rep.fi : null;
     var texteFI = !fiDest ? 'Le F&I (directeur commercial) recevra un courriel pour inscrire son profit F&I et les produits — rappel après 24 h.' : (fiDest.courriels && fiDest.courriels.length ? 'Le F&I recevra un courriel pour inscrire son profit F&I et les produits (rappel après 24 h) : ' + (fiDest.noms && fiDest.noms.length ? fiDest.noms : fiDest.courriels).join(', ') + '.' : 'Aucun destinataire F&I pour cette concession : personne ne sera prévenu (Admin › droit « Ventes — F&I »).');
-    var sectionFI = peutCompleter ? h('div', [
+    var sectionFIAncienne = false ? h('div', [
       h('h4.fi', 'F&I — directeur commercial'),
       h('div.grille', [champ('vente-directeur', 'Directeur commercial', inDirecteur), champ('vente-fi', 'Profit F&I prévu', inFI), champ('vente-pneus', 'Pneus vendus', segPneus)]),
       h('p.ventes-aide', 'Produits vendus — cochez et inscrivez le montant quand vous l\'avez ; la somme propose le profit F&I.'),
       elProduits, elTotalFI
-    ]) : h('p.ventes-aide' + (!fiDest || (fiDest.courriels && fiDest.courriels.length) ? '.fi' : '.alerte') + '#vente-avis-fi', { text: texteFI });
+    ]) : null;
+    /* 26 oct. : le F&I n'est plus dans cette fenêtre (« Profits F&I » a la sienne) ; à l'inscription, on dit seulement qui sera prévenu. */
+    var sectionFI = edition ? null : h('p.ventes-aide' + (!fiDest || (fiDest.courriels && fiDest.courriels.length) ? '.fi' : '.alerte') + '#vente-avis-fi', { text: texteFI });
     var corps = h('div.ventes-form', [
       edition ? h('p.ventes-aide', { text: v.id + ' · ' + (TYPES[v.type] || v.type) + ' · ' + (v.importee ? 'importée du livre' : 'inscrite par ' + (v.declareParNom || v.declarePar || '')) + (v.livre === 'ecrit' ? ' · au livre ligne ' + v.livreLigne : '') + ' · ' + capitale(v.moisLibelle || moisLibelle(moisDeVente(v))) }) : null,
       h('div.grille', [champ('vente-compagnie', 'Concession', selCie), champ('vente-type', 'Type de vente', segType)]),
@@ -1054,7 +1332,7 @@
       edition ? null : elTrouve,
       h('div.grille', [champ('vente-vin', 'NIV', inVin), champ('vente-stock', '# Stock', inStock), champ('vente-annee', 'Année', inAnnee), champ('vente-marque', 'Marque', inMarque), champ('vente-modele', 'Modèle', inModele), champ('vente-version', 'Version', inVersion)]),
       h('h4', 'Vente — direction des ventes'),
-      h('div.grille', [champ('vente-date', 'Date de vente', inDate), champ('vente-livraison', 'Livraison (prévue)', inLivraison), champ('vente-categorie', 'Catégorie', selCat), champ('vente-conseiller', 'Conseiller', inConseiller), champ('vente-prix', 'Prix de vente', inPrix), champ('vente-paiement', 'Mode de paiement', selPaiement), champ('vente-front', 'Profit front prévu', inFront), champ('vente-accessoires', 'Accessoires ($)', inAccess)]),
+      h('div.grille', [champ('vente-date', 'Date de vente', inDate), champ('vente-livraison', 'Livraison (prévue)', inLivraison), champRdr, champCodeRdr, champ('vente-categorie', 'Catégorie', selCat), champ('vente-conseiller', 'Conseiller', inConseiller), champ('vente-prix', 'Prix de vente', inPrix), champ('vente-paiement', 'Mode de paiement', selPaiement), champ('vente-front', 'Profit front prévu', inFront), champ('vente-accessoires', 'Accessoires ($)', inAccess)]),
       dlConseillers, dlDirecteurs,
       h('h4#vente-titre-client', 'Client'),
       blocClient, blocWholesale,
@@ -1073,6 +1351,7 @@
       blocWholesale.style.display = ws ? '' : 'none'; blocClient.style.display = ws ? 'none' : '';
       corps.querySelector('#vente-titre-client').textContent = ws ? 'Acheteur (wholesale)' : 'Client';
       titreEchange.style.display = ws ? 'none' : ''; blocEchange.style.display = ws ? 'none' : ''; pEchange.style.display = ws ? 'none' : '';
+      champRdr.style.display = ws ? 'none' : ''; champCodeRdr.style.display = ws || String(selCie.value || cie).toUpperCase() !== 'STM' ? 'none' : '';   /* le code RDR : seulement le livre de Ste-Marie */
     }
     function rendrePersonnes(d) {
       AMX.vider(dlConseillers); AMX.vider(dlDirecteurs);
@@ -1125,18 +1404,18 @@
     inEchVin.addEventListener('input', function () { var vin = inEchVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(); if (vin.length === 17) chercherEvaluation(vin, false); });
     inEchVin.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); chercherEvaluation(inEchVin.value, true); } });
     rendreCategories(); rendreWholesale(); rendrePersonnes(rep); majTotalFI();
-    selCie.addEventListener('change', function () { cie = selCie.value; AMX.ventes.charger(cie, moisDe('')).then(rendrePersonnes, function () {}); });
+    selCie.addEventListener('change', function () { cie = selCie.value; rendreWholesale(); AMX.ventes.charger(cie, moisDe('')).then(rendrePersonnes, function () {}); });
     inRecherche.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); trouver(inRecherche.value); } });
     if (!rep && cie) AMX.ventes.charger(cie, moisDe('')).then(function (d) { rendrePersonnes(d); }, function () {});
     if (!edition && (vehicule.vin || vehicule.stock) && !vehicule.modele) setTimeout(function () { trouver(vehicule.vin || vehicule.stock); }, 30);
     if (inEchVin.value.replace(/[^A-Za-z0-9]/g, '').length === 17 && (!edition || !val(v.echangeEvaluation))) setTimeout(function () { chercherEvaluation(inEchVin.value, false); }, 40);
     else if (edition && val(v.echangeEvaluation) !== '') { elEval.className = 'ventes-trouve'; elEval.textContent = 'Évaluation liée : ' + argent(nombre(v.echangeEvaluation)) + (v.echangeEvalLe ? ' · évaluée le ' + AMX.fmtDate(v.echangeEvalLe) : '') + (v.echangeEvalPar ? ' par ' + String(v.echangeEvalPar).split('@')[0] : '') + ' — « Trouver l\'évaluation » la relit.'; }
 
-    var titre = edition ? (peutCompleter && v.statut === 'declaree' ? 'Inscrire les profits F&I — ' + v.id : 'Modifier la vente ' + v.id) : 'Inscrire une vente';
+    var titre = edition ? 'Modifier la vente ' + v.id : 'Inscrire une vente';
     var m = AMX.modale({
       titre: titre,
       corps: corps, large: true,
-      boutons: [{ texte: 'Annuler' }, { texte: edition ? (peutCompleter && v.statut === 'declaree' ? 'Inscrire les profits F&I' : 'Enregistrer') : 'Inscrire la vente', classe: 'primaire', action: function (fermer, btn) {
+      boutons: [{ texte: 'Annuler' }, { texte: edition ? 'Enregistrer' : 'Inscrire la vente', classe: 'primaire', action: function (fermer, btn) {
         var compagnie = (selCie.value || cie || '').toUpperCase();
         if (!compagnie) { AMX.toast('Choisissez la concession.', 'erreur'); selCie.focus(); return false; }
         var vin = inVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(), stock = inStock.value.trim().toUpperCase();
@@ -1151,8 +1430,9 @@
           client: inClient.value.trim(), telephone: inTel.value.trim(), courriel: inCourriel.value.trim(), dateVente: inDate.value, dateLivraison: inLivraison.value, categorie: selCat.value, conseiller: inConseiller.value.trim(),
           prixVente: inPrix.value.trim(), paiement: selPaiement.value, profitPrevu: inFront.value.trim(), accessoires: inAccess.value.trim(), overUnder: inOver.value.trim(),
           echangeStock: inEchStock.value.trim(), echangeModele: inEchModele.value.trim(), echangeVin: echVin, echangeKm: inEchKm.value.trim(), echangeValeur: inEchValeur.value.trim(), echangeEvaluation: inEchEval.value.trim(), echangeEvalLe: evalMeta.le, echangeEvalPar: evalMeta.par,
+          dateRdr: type === 'wholesale' ? '' : inRdr.value, codeRdr: type === 'wholesale' ? '' : inCodeRdr.value.trim(),
           note: inNote.value.trim(), venduA: inVenduA.value.trim(), acheteDe: inAcheteDe.value.trim(), acheteur: inAcheteur.value.trim(), coutant: inCoutant.value.trim(), source: 'site' };
-        if (peutCompleter) Object.assign(corpsEnvoi, { directeur: inDirecteur.value.trim(), profitFIPrevu: inFI.value.trim(), pneus: pneus, produits: lireProduits() });
+        /* 26 oct. : le F&I s'inscrit dans sa propre fenêtre — rien du F&I ne part d'ici. */
         corpsEnvoi.action = edition ? 'venteCompleter' : 'venteDeclarer';
         if (edition) corpsEnvoi.id = v.id;
         if (prefill.forcer) corpsEnvoi.forcer = true;

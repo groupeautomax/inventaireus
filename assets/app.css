@@ -1059,3 +1059,23 @@ html.ui2 .neufs-table td, html.ui2 .neufs-table th { padding-left: 7px; padding-
 html.ui2 .neufs-table td.dispo-cell { white-space: normal; max-width: 150px; }
 html.ui2 .neufs-table td .dispo, html.ui2 .neufs-table td .badge { white-space: normal; text-align: left; line-height: 1.25; }
 html.ui2 .neufs-table td.vehicule { min-width: 210px; }
+
+/* 26 oct. — mode « Sélectionner » (AMX.modeSelection) : clic ou glisser sur les lignes, barre d'actions en bas. */
+.mode-selection { user-select: none; -webkit-user-select: none; }
+.mode-selection [data-vin] { cursor: pointer; position: relative; padding-left: 38px !important; }
+.mode-selection [data-vin][data-vin]::before { content: ''; position: absolute; left: 10px; top: 50%; bottom: auto; width: 18px; height: 18px; margin-top: -9px; box-sizing: border-box;
+  border: 2px solid var(--encre-4); border-radius: 5px; background: var(--fond-carte, #fff); z-index: 2; }
+.mode-selection [data-vin].choisie { background: var(--vert-clair) !important; box-shadow: inset 3px 0 0 var(--vert); }
+.mode-selection [data-vin][data-vin].choisie::before { border-color: var(--vert); background: var(--vert) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center / 12px no-repeat; }
+.bouton-selection.actif { background: var(--vert-clair); border-color: var(--vert); color: var(--vert-fonce); }
+.barre-selection { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 60; display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap;
+  justify-content: center; max-width: calc(100% - 32px); padding: 10px 12px 10px 16px; background: var(--fond-carte, #fff); border: 1px solid var(--trait);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(20, 26, 31, .22); }
+.barre-selection-compte { font-size: 14px; color: var(--encre-2); }
+.barre-selection-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+body.avec-barre-selection #vue { padding-bottom: 110px; }
+body.avec-barre-selection #maxai-bulle { display: none; }
+@media (max-width: 860px) {
+  .barre-selection { left: 8px; right: 8px; transform: none; max-width: none; bottom: calc(68px + env(safe-area-inset-bottom)); }
+  body.avec-barre-selection #vue { padding-bottom: calc(180px + env(safe-area-inset-bottom)); }
+}

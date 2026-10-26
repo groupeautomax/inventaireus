@@ -142,12 +142,20 @@
       TRIS_M.map(function (t) { return h('option', { value: t[0], text: 'Tri : ' + t[1] }); }));
     this.elTri.value = this.f.tri;
     this.elPortee = h('div.portee-chiffres'); this.elKpis = h('div.kpis.occ-kpis'); this.elListe = h('div.occm-liste');
+    // 26 oct. : « Sélectionner » puis Supprimer (droit « Supprimer ») ; un usagé supprimé ailleurs disparaît d'ici aussi.
+    this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.occm-rangee', actions: [
+      AMX.perm('supprimer') ? { texte: 'Supprimer', icone: I.corbeille, danger: true, action: function (vins, vider) {
+        AMX.inventaire.supprimer(vins, { feuille: 'DETAIL' }).then(function (faits) { if (faits) vider(); });
+      } } : null] });
+    this.surInventaire = function (e) { if (self.d && (!e || !e.detail || e.detail.feuille === 'DETAIL')) self.rafraichir(); };
+    document.addEventListener('amx:inventaire', this.surInventaire);
     this.el = h('div.occm', [this.elEtat,
       h('div.carte.occ-filtres', [h('div.carte-corps', [
-        h('div.occ-ligne', [h('div.recherche', [h('span', { html: I.recherche }), this.elQ]), this.elTri]),
+        h('div.occ-ligne', [h('div.recherche', [h('span', { html: I.recherche }), this.elQ]), this.elTri, this.sel.bouton]),
         h('div.occ-ligne', [this.elVerdicts])])]),
       this.elPortee, this.elKpis, this.elListe]);
   };
+  VueMarche.prototype.demonter = function () { if (this.sel) this.sel.quitter(); document.removeEventListener('amx:inventaire', this.surInventaire); };
   VueMarche.prototype.vehicules = function () {
     var d = this.d || {}, cie = this.page.compagnie;
     return vehiculesActuels(d).filter(function (v) { return !cie || v.compagnie === cie; });

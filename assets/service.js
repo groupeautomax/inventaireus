@@ -256,6 +256,9 @@
     // Demandes de travaux (8 oct.) : puces BT sur les lignes, bloc dans le panneau, KPI « au service ».
     this.surDemandes = function () { if (!self.detruit) self.rendre(); };
     document.addEventListener('amx:demandes', this.surDemandes);
+    // 26 oct. : un usagé effacé du registre Detail (ici ou ailleurs) quitte la liste tout de suite.
+    this.surInventaire = function (e) { if (!self.detruit && (!e || !e.detail || e.detail.feuille === 'DETAIL')) self.rendre(); };
+    document.addEventListener('amx:inventaire', this.surInventaire);
     AMX.demandes.charger().then(this.surDemandes).catch(function () {});
     // Achats eBlock : puce « eBlock · n dommages » sur les lignes, fiche dans le dossier (même cache que Fiches eBlock).
     this.surEblock = function () { if (!self.detruit) self.rendre(); };
@@ -267,7 +270,7 @@
   // La compagnie n'est PAS remise à zéro : c'est le choix du site (AMX.compagnieChoisie), gardé
   // d'un onglet et d'une page à l'autre tant que Maxime ne clique pas sur une autre concession.
   Suivi.prototype.filtresDefaut = function () { return { recherche: '', compagnie: AMX.compagnieChoisie('service'), etapes: null, retard: false }; };
-  Suivi.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); document.removeEventListener('amx:openlane', this.surEblock); document.removeEventListener('amx:demandes', this.surDemandes); };
+  Suivi.prototype.demonter = function () { this.detruit = true; if (this.sel) this.sel.quitter(); document.removeEventListener('amx:inventaire', this.surInventaire); clearInterval(this.minuterie); document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:service', this.surService); document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:eblock', this.surEblock); document.removeEventListener('amx:openlane', this.surEblock); document.removeEventListener('amx:demandes', this.surDemandes); };
   Suivi.prototype.naviguer = function (ctx) {
     if (ctx.onglet !== this.onglet) { this.onglet = ctx.onglet; this.filtres = this.filtresDefaut(); this.selection = ctx.params.vin || ''; this.construireRail(); this.rendre(); }
     else if (ctx.params.vin && ctx.params.vin !== this.selection) { this.selection = ctx.params.vin; this.rendre(); }
@@ -281,6 +284,7 @@
     this.elKpis = h('div.kpis');
     this.elRail = h('aside.rail');
     this.elListe = h('div');
+    this.creerSelection();
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
     this.elAgencement = h('div.agencement', [this.elRail, h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
@@ -293,7 +297,8 @@
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
           h('button.btn', { html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
           AMX.estAdmin() ? h('button.btn', { html: I.outils + '<span>Cibles</span>', onclick: function () { self.modaleCibles(); } }) : null,
-          AMX.estAdmin() ? h('button.btn', { title: 'Recopie les suivis dans l\'onglet « Service » des feuilles de concession (BMW)', html: I.externe + '<span>Feuilles</span>', onclick: function () { self.miroir(); } }) : null
+          AMX.estAdmin() ? h('button.btn', { title: 'Recopie les suivis dans l\'onglet « Service » des feuilles de concession (BMW)', html: I.externe + '<span>Feuilles</span>', onclick: function () { self.miroir(); } }) : null,
+          this.sel.bouton
         ])
       ]),
       this.elCies, this.elKpis, this.elAgencement
@@ -356,6 +361,7 @@
     this.elRail = h('div.inv2-filtres');
     this.elPortee = h('div.portee-chiffres');
     this.elListe = h('div');
+    this.creerSelection();
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
     this.elAgencement = h('div.agencement.sans-rail', [h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
@@ -371,7 +377,7 @@
     this.conteneur.appendChild(h('div.page.inv2', [
       h('div.entete-page.inv2-tete', [
         h('div.inv2-titre', [h('h1', 'Suivi service'), h('p#svc-etat.inv2-etat', { text: 'Chargement…' })]),
-        h('div.actions', [menu])
+        h('div.actions', [menu, this.sel.bouton])
       ]),
       /* v138 : filtres → « Chiffres et liste » → chiffres (calculés sur la liste filtrée) → liste */
       this.elRail, this.elPortee, this.elKpis, this.elAgencement
@@ -486,9 +492,32 @@
   };
 
   /* ------------------------------- Filtres -------------------------------- */
+  /* 26 oct. — Maxime : « effacer peu importe où je les vois ». « Sélectionner » puis Supprimer (droit « Supprimer ») : le véhicule
+     est retiré du registre Detail, donc du service, de l'Analyse usagé et du Prix du marché. */
+  Suivi.prototype.creerSelection = function () {
+    if (this.sel) this.sel.quitter();
+    this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.ligne', actions: [
+      AMX.perm('supprimer') ? { texte: 'Supprimer du registre', icone: I.corbeille, danger: true, action: function (vins, vider) {
+        AMX.inventaire.supprimer(vins, { feuille: 'DETAIL' }).then(function (faits) { if (faits) vider(); });
+      } } : null] });
+  };
+  /* Le registre Detail en mémoire fait foi : un suivi « en cours » dont le véhicule n'y est plus (effacé ici ou ailleurs) est caché
+     sans attendre le serveur. Seulement pour les concessions présentes dans ce registre (un accès « service » plus large que
+     l'inventaire ne cache rien). */
+  Suivi.prototype.absent = function (s) {
+    var reg = AMX.inventaire && AMX.inventaire.enCache ? AMX.inventaire.enCache('DETAIL') : null;
+    if (!Array.isArray(reg) || !reg.length || !s || s.statut !== 'encours') return false;
+    if (this._regRef !== reg) {
+      var vins = {}, cies = {};
+      reg.forEach(function (v) { if (v && v.vin) { vins[String(v.vin).toUpperCase()] = true; cies[String(v.compagnie || '').toUpperCase()] = true; } });
+      this._regRef = reg; this._regVins = vins; this._regCies = cies;
+    }
+    return !!this._regCies[String(s.compagnie || '').toUpperCase()] && !this._regVins[String(s.vin || '').toUpperCase()];
+  };
   Suivi.prototype.base = function () {
-    var f = this.filtres, o = this.onglet;
+    var f = this.filtres, o = this.onglet, self = this;
     return this.suivis.filter(function (s) {
+      if (self.absent(s)) return false;
       if (f.compagnie && String(s.compagnie || '').toUpperCase() !== f.compagnie) return false;
       if (o === 'termines') return s.statut !== 'encours';
       if (o === 'autoriser') return attendDirecteur(s);
@@ -503,7 +532,8 @@
     // en cours, direction, terminés, refusés — sans tenir compte de l'onglet, des étapes ni du
     // retard. Seule la compagnie choisie reste. La ligne dit où il en est.
     if (f.recherche && f.recherche.trim()) {
-      l = this.suivis.filter(function (s) { return !f.compagnie || String(s.compagnie || '').toUpperCase() === f.compagnie; });
+      var moi = this;
+      l = this.suivis.filter(function (s) { return !moi.absent(s) && (!f.compagnie || String(s.compagnie || '').toUpperCase() === f.compagnie); });
     } else {
       if (sauf !== 'etapes' && f.etapes && this.onglet !== 'termines') l = l.filter(function (s) { return f.etapes.indexOf(s.etapeCourante) >= 0; });
       if (sauf !== 'retard' && f.retard) l = l.filter(function (s) { return s.enRetard; });

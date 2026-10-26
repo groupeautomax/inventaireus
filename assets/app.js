@@ -1242,6 +1242,91 @@
     suivre();
     return env;
   };
+  /* 26 oct. — Maxime : « je veux le mode glisser et cliquer », « effacer plus d'un véhicule à la fois », « peu importe où je
+     les vois ». Mode « Sélectionner » d'une liste dont les lignes portent data-vin : un clic coche ou décoche une ligne, on
+     appuie et on glisse sur d'autres lignes pour les cocher d'un seul trait, Maj + clic coche tout l'intervalle (au doigt :
+     un toucher coche). Une barre en bas donne le nombre et les actions. La sélection (des NIV) survit aux redessins de la
+     liste (filtres, tri). o = { liste, selecteur ('.ligne'), tous: function () → NIV affichés, actions: [{ texte, icone,
+     danger, action: function (vins, vider) }] }. Renvoie { bouton, activer, quitter, actif, vins }. */
+  AMX.modeSelection = function (o) {
+    var sel = {}, actif = false, dernier = null, trait = null, obs = null, typePointeur = '';
+    var nb = function () { return Object.keys(sel).length; };
+    var lignes = function () { return Array.prototype.slice.call(o.liste.querySelectorAll(o.selecteur + '[data-vin]')); };
+    var elCompte = h('b'), elActions = h('div.barre-selection-actions');
+    var barre = h('div.barre-selection', { role: 'region', 'aria-label': 'Sélection' }, [h('div.barre-selection-compte', [elCompte]), elActions]);
+    var etiquette = h('span', { text: 'Sélectionner' });
+    var bouton = h('button.btn.bouton-selection', { type: 'button', title: 'Cocher plusieurs véhicules : cliquez, ou appuyez et glissez sur les lignes', onclick: function () { if (actif) quitter(); else activer(); } });
+    bouton.innerHTML = ICONES.check || ''; bouton.appendChild(etiquette);
+    function compte() {
+      var n = nb();
+      elCompte.textContent = n ? n + ' véhicule' + (n > 1 ? 's' : '') + ' sélectionné' + (n > 1 ? 's' : '') : 'Cliquez ou glissez sur les lignes pour les cocher';
+      elActions.querySelectorAll('[data-action]').forEach(function (b) { b.disabled = !n; var c = b.querySelector('.n'); if (c) c.textContent = n ? ' (' + n + ')' : ''; });
+    }
+    function appliquer() {
+      lignes().forEach(function (l) { l.classList.toggle('choisie', !!sel[l.dataset.vin]); });
+      AMX.vider(elActions);
+      var tous = (o.tous ? o.tous() : lignes().map(function (l) { return l.dataset.vin; })).filter(Boolean);
+      var tousCoches = tous.length > 0 && tous.every(function (v) { return sel[v]; });
+      elActions.appendChild(h('button.btn', { type: 'button', text: tousCoches ? 'Tout décocher' : 'Tout sélectionner (' + tous.length + ')', onclick: function () { if (tousCoches) sel = {}; else tous.forEach(function (v) { sel[v] = true; }); appliquer(); } }));
+      (o.actions || []).filter(Boolean).forEach(function (a, i) {
+        var b = h('button.btn' + (a.danger ? '.danger' : '.primaire'), { type: 'button', 'data-action': String(i), onclick: function () { a.action(Object.keys(sel), function () { sel = {}; appliquer(); }); } });
+        b.innerHTML = a.icone || ''; b.appendChild(h('span', { text: a.texte })); b.appendChild(h('span.n'));
+        elActions.appendChild(b);
+      });
+      elActions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Terminer', onclick: quitter }));
+      compte();
+    }
+    function ligneDe(e) { var l = e.target && e.target.closest ? e.target.closest(o.selecteur + '[data-vin]') : null; return l && o.liste.contains(l) ? l : null; }
+    function poser(l, etat) { if (etat) sel[l.dataset.vin] = true; else delete sel[l.dataset.vin]; l.classList.toggle('choisie', etat); }
+    // `dernier` est un NIV (la liste peut s'être redessinée entre deux clics).
+    function intervalle(vinA, b) { var l = lignes(), i = -1, j = l.indexOf(b); l.forEach(function (x, k) { if (x.dataset.vin === vinA) i = k; }); if (i < 0 || j < 0) return [b]; return l.slice(Math.min(i, j), Math.max(i, j) + 1); }
+    var surDown = function (e) {
+      typePointeur = e.pointerType || 'mouse';
+      if (!actif || typePointeur === 'touch' || e.button !== 0) return;      // au doigt : le toucher (click) coche, le glisser fait défiler
+      var l = ligneDe(e); if (!l || e.target.closest('input, select, textarea')) return;   // un lien de la ligne coche aussi (pas de départ de la page)
+      e.preventDefault();
+      if (e.shiftKey && dernier) intervalle(dernier, l).forEach(function (x) { poser(x, true); });
+      else { var etat = !sel[l.dataset.vin]; poser(l, etat); trait = { etat: etat }; }
+      dernier = l.dataset.vin; compte();
+    };
+    var surOver = function (e) { if (!actif || !trait) return; var l = ligneDe(e); if (!l) return; poser(l, trait.etat); dernier = l.dataset.vin; compte(); };
+    var surUp = function () { if (trait) { trait = null; appliquer(); } };
+    var surClic = function (e) {
+      if (!actif) return; var l = ligneDe(e); if (!l || e.target.closest('input, select, textarea')) return;
+      e.preventDefault(); e.stopPropagation();
+      if (typePointeur === 'touch' || e.detail === 0) { poser(l, !sel[l.dataset.vin]); dernier = l.dataset.vin; appliquer(); }   // doigt ou clavier
+    };
+    var surTouche = function (e) { if (actif && e.key === 'Escape' && !document.querySelector('.voile')) quitter(); };
+    function activer() {
+      if (actif) return;
+      actif = true; sel = {}; dernier = null; trait = null;
+      o.liste.classList.add('mode-selection'); bouton.classList.add('actif'); etiquette.textContent = 'Terminer la sélection';
+      o.liste.addEventListener('pointerdown', surDown, true);
+      o.liste.addEventListener('pointerover', surOver, true);
+      o.liste.addEventListener('click', surClic, true);
+      document.addEventListener('pointerup', surUp, true);
+      document.addEventListener('keydown', surTouche);
+      obs = new MutationObserver(function () { if (actif) appliquer(); });
+      obs.observe(o.liste, { childList: true, subtree: true });
+      document.body.appendChild(barre); document.body.classList.add('avec-barre-selection');
+      appliquer();
+    }
+    function quitter() {
+      if (!actif) return;
+      actif = false; trait = null; sel = {};
+      if (obs) obs.disconnect(); obs = null;
+      o.liste.removeEventListener('pointerdown', surDown, true);
+      o.liste.removeEventListener('pointerover', surOver, true);
+      o.liste.removeEventListener('click', surClic, true);
+      document.removeEventListener('pointerup', surUp, true);
+      document.removeEventListener('keydown', surTouche);
+      o.liste.classList.remove('mode-selection'); bouton.classList.remove('actif'); etiquette.textContent = 'Sélectionner';
+      lignes().forEach(function (l) { l.classList.remove('choisie'); });
+      if (barre.parentNode) barre.parentNode.removeChild(barre);
+      document.body.classList.remove('avec-barre-selection');
+    }
+    return { bouton: bouton, activer: activer, quitter: quitter, actif: function () { return actif; }, vins: function () { return Object.keys(sel); } };
+  };
   /* v135 : en ui2, seuls `garder` restent visibles dans l'en-tête ; les autres boutons de `liste` descendent dans « … » (ce
      sont toujours les mêmes boutons). Hors ui2, `liste` telle quelle. */
   AMX.actionsEntete = function (liste, garder) {
@@ -1496,7 +1581,55 @@
       return null;
     },
     nomFeuille: function (f) { return { US: 'É.-U.', CAN: 'Canada', DETAIL: 'Detail' }[f] || f; },
-    vider: function () { FEUILLES.forEach(function (f) { cache[f] = null; }); cache.quand = {}; AMX.cacheLocal.oublier('registres'); }
+    vider: function () { FEUILLES.forEach(function (f) { cache[f] = null; }); cache.quand = {}; AMX.cacheLocal.oublier('registres'); },
+    // 26 oct. : retirer des NIV de la liste en mémoire (après une suppression) sans relire le serveur.
+    retirer: function (feuille, vins) {
+      var k = {}; (vins || []).forEach(function (v) { k[String(v).toUpperCase()] = true; });
+      if (cache[feuille]) { poserFeuille(feuille, cache[feuille].filter(function (v) { return !k[String(v.vin).toUpperCase()]; })); sauverRegistres(); }
+    }
+  };
+  /* 26 oct. — Maxime : « je dois pouvoir effacer des inventaires peu importe où je les vois », « plus d'un véhicule à la
+     fois ». Une seule suppression pour toutes les pages (Usagé, Analyse usagé, Prix du marché, Suivi service) : le registre
+     de chaque NIV est retrouvé en mémoire, une confirmation (taper SUPPRIMER), puis deleteByVinBulk par registre (droit
+     « Supprimer »). La liste en mémoire est mise à jour (événement amx:inventaire) : chaque page le retire tout de suite.
+     opts.feuille = registre par défaut d'un NIV absent de la mémoire. Renvoie la liste des NIV supprimés (null si annulé). */
+  AMX.inventaire.supprimer = function (vins, opts) {
+    opts = opts || {};
+    if (!AMX.perm('supprimer')) { AMX.toast('Supprimer des véhicules demande le droit « Supprimer » (Admin › Droits).', 'attention', 7000); return Promise.resolve(null); }
+    var par = {}, liste = [], vus = {};
+    (vins || []).forEach(function (vin) {
+      var k = String(vin || '').toUpperCase(); if (!k || vus[k]) return; vus[k] = true;
+      var v = AMX.inventaire.parVin(k), f = (v && v._feuille) || opts.feuille || '';
+      if (!f) return;
+      (par[f] = par[f] || []).push(k); liste.push(v || { vin: k });
+    });
+    if (!liste.length) { AMX.toast('Aucun de ces véhicules n\'est au registre (déjà supprimés ?).', 'attention'); return Promise.resolve(null); }
+    var n = liste.length;
+    var noms = liste.slice(0, 6).map(function (v) { return (v.modele || v.vin) + (v.stock ? ' (# ' + v.stock + ')' : ''); }).join(' · ') + (n > 6 ? ' · et ' + (n - 6) + ' autre' + (n - 6 > 1 ? 's' : '') : '');
+    var titre = n > 1 ? 'Supprimer ' + n + ' véhicules' : 'Supprimer le véhicule';
+    var message = noms + '. Retiré' + (n > 1 ? 's' : '') + ' du registre pour de bon — et donc de l\'analyse, du prix du marché et du suivi service. Tapez SUPPRIMER pour confirmer.';
+    return AMX.confirmerSaisie(titre, message, 'SUPPRIMER', { ok: n > 1 ? 'Supprimer les ' + n : 'Supprimer', danger: true }).then(function (ok) {
+      if (!ok) return null;
+      var feuilles = Object.keys(par), faits = [], refus = [], introuvables = [];
+      var suite = Promise.resolve();
+      feuilles.forEach(function (f) {
+        suite = suite.then(function () {
+          return AMX.post({ action: 'deleteByVinBulk', sheet: f, vins: par[f] }, { secours: false }).then(function (d) {
+            if (!d || d.refuse || d.ok === false) { refus.push((d && (d.erreur || d.message)) || 'refusé'); return; }
+            var absents = d.notFound || [];
+            introuvables = introuvables.concat(absents);
+            if (Array.isArray(d.vehicules)) AMX.inventaire.remplacer(f, d.vehicules); else AMX.inventaire.retirer(f, par[f]);
+            faits = faits.concat(par[f].filter(function (v) { return absents.indexOf(v) < 0; }));
+          });
+        });
+      });
+      return suite.then(function () {
+        if (refus.length) AMX.toast('Suppression refusée : ' + refus[0], 'erreur', 8000);
+        if (faits.length) AMX.toast(faits.length + ' véhicule' + (faits.length > 1 ? 's' : '') + ' supprimé' + (faits.length > 1 ? 's' : '') + (introuvables.length ? ' · ' + introuvables.length + ' déjà absent' + (introuvables.length > 1 ? 's' : '') : ''), 'ok');
+        try { document.dispatchEvent(new CustomEvent('amx:supprimes', { detail: { vins: faits } })); } catch (e) {}
+        return faits;
+      }, function (e) { AMX.toast('Suppression : ' + AMX.erreurTexte(e) + ' — rechargez la page pour voir ce qui a été fait.', 'erreur', 9000); return null; });
+    });
   };
 
   /* ------------------------- Fiche d'achat (lecture) ---------------------- */

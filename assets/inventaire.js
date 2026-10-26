@@ -235,6 +235,7 @@
 
   Registre.prototype.demonter = function () {
     this.detruit = true;
+    if (this.sel) this.sel.quitter();
     clearInterval(this.minuterie);
     document.removeEventListener('visibilitychange', this.surVisible);
     document.removeEventListener('amx:carfax', this.surCarfax);
@@ -268,6 +269,7 @@
     this.elValeur = h('div.valeur-registres');
     this.elRail = h('aside.rail');
     this.elListe = h('div');
+    this.creerSelection();
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
     this.elAgencement = h('div.agencement', [this.elRail, h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
@@ -280,6 +282,7 @@
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
           h('button.btn', { html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
           h('button.btn', { html: I.scan + '<span>Actions en lot</span>', onclick: function () { self.modaleLot('ajout'); } }),
+          this.sel.bouton,
           AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null
         ])
       ]),
@@ -350,6 +353,7 @@
     this.elRail = h('div.inv2-filtres');
     this.elPortee = h('div.portee-chiffres');
     this.elListe = h('div');
+    this.creerSelection();
     this.elPanneau = h('aside.panneau');
     this.elOutils = h('div.outils-liste');
     this.elAgencement = h('div.agencement.sans-rail', [h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
@@ -365,7 +369,7 @@
     this.conteneur.appendChild(h('div.page.inv2', [
       h('div.entete-page.inv2-tete', [
         h('div.inv2-titre', [h('h1', 'Usagé'), this.elRegistres, h('p#inv-etat.inv2-etat', { text: 'Chargement…' })]),
-        h('div.actions', [menu, AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null])
+        h('div.actions', [menu, this.sel.bouton, AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null])
       ]),
       /* v138 (Maxime : « la recherche et les onglets avant les carrés ; les chiffres doivent représenter ce qu'on a choisi ») */
       this.elRail, this.elPortee, this.elKpis, this.elAgencement
@@ -762,7 +766,7 @@
       (cfg.feuille === 'DETAIL' && AMX.demandePuce) ? AMX.demandePuce(v.vin) : null,
       cfg.importateur && v.importateur ? h('span.puce', { text: v.importateur }) : null
     ];
-    var el = h(cls, { dataset: { id: v.id } }, [
+    var el = h(cls, { dataset: { id: v.id, vin: v.vin } }, [
       vignette,
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', { text: v.modele || '(modèle à préciser)' }),
@@ -779,6 +783,25 @@
     ]);
     el.addEventListener('click', function () { if (autreRegistre) AMX.inventaire.aller(autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
     return el;
+  };
+
+  /* 26 oct. — Maxime : « mode glisser et cliquer », « effacer plus d'un véhicule à la fois ». « Sélectionner » : cliquer ou
+     glisser sur les lignes, puis Supprimer (droit « Supprimer »). La suppression passe par AMX.inventaire.supprimer : le
+     véhicule disparaît aussi de l'Analyse usagé, du Prix du marché et du Suivi service. */
+  Registre.prototype.creerSelection = function () {
+    var self = this;
+    if (this.sel) this.sel.quitter();
+    this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.ligne', actions: [
+      AMX.perm('supprimer') ? { texte: 'Supprimer', icone: I.corbeille, danger: true, action: function (vins, vider) {
+        AMX.inventaire.supprimer(vins, { feuille: self.cfg.feuille }).then(function (faits) {
+          if (!faits) return;
+          vider();
+          if (faits.indexOf(String(self.selection || '').toUpperCase()) >= 0) self.selectionner('');
+          self.vehicules = AMX.inventaire.enCache(self.cfg.feuille) || self.vehicules;
+          self.construireRail(); self.rendre(); AMX.rafraichirSousBarre();
+        });
+      } } : null
+    ] });
   };
 
   Registre.prototype.selectionner = function (vin) {

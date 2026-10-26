@@ -215,12 +215,17 @@
     this.construire();
     this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.limite = LIMITE; self.rendre(); };
     this.surDonnees = function () { self.rendre(); };
+    // 26 oct. : le registre en mémoire change (suppression ici ou ailleurs, relecture du serveur) → l'analyse suit tout de suite.
+    this.surInventaire = function (e) { if (e && e.detail && e.detail.feuille !== 'DETAIL') return; var l = AMX.inventaire.enCache('DETAIL'); if (!Array.isArray(l)) return; self.detail = l; self.detailOk = true; self._cle = null; self.rendre(); };
+    document.addEventListener('amx:inventaire', this.surInventaire);
     document.addEventListener('amx:compagnie', this.surCie);
     document.addEventListener('amx:occmarche', this.surDonnees);
     document.addEventListener('amx:openlane', this.surDonnees);
     this.charger(false);
   }
   VueAnalyse.prototype.demonter = function () {
+    if (this.sel) this.sel.quitter();
+    document.removeEventListener('amx:inventaire', this.surInventaire);
     document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:occmarche', this.surDonnees); document.removeEventListener('amx:openlane', this.surDonnees);
   };
   VueAnalyse.prototype.charger = function (force) {
@@ -232,7 +237,12 @@
     chargerAnalyse(force).then(function (d) { if (d && d.refuse) self.erreurs.analyse = d.erreur; else { self.d = d; delete self.erreurs.analyse; } fin(); }, function (e) { self.erreurs.analyse = AMX.erreurTexte(e); fin(); });
     // Le registre Detail fait foi : une fois lu, un véhicule supprimé, vendu ou transféré n'est plus dans l'analyse,
     // même si la lecture du marché (calculée plus tôt sur le serveur) l'a encore.
-    AMX.inventaire.lire('DETAIL', force).then(function (l) { self.detail = l || []; self.detailOk = Array.isArray(l); self._cle = null; fin(); }, function () { self.detail = self.detail || []; fin(); });
+    // 26 oct. (P0512 effacé, encore affiché) : la copie du registre gardée dans le navigateur sert à l'affichage immédiat,
+    // mais elle peut dater de ce matin — plus de 2 minutes, on redemande le serveur (son cache est vidé à chaque écriture).
+    var enMain = AMX.inventaire.enCache('DETAIL');
+    if (Array.isArray(enMain) && !this.detailOk) { this.detail = enMain; this.detailOk = true; }
+    var vieux = !AMX.inventaire.quand || Date.now() - AMX.inventaire.quand('DETAIL') > 120000;
+    AMX.inventaire.lire('DETAIL', force || vieux).then(function (l) { self.detail = l || []; self.detailOk = Array.isArray(l); self._cle = null; fin(); }, function () { self.detail = self.detail || []; fin(); });
     if (AMX.openlane && AMX.openlane.charger) AMX.openlane.charger(false).then(fin, function () {});
     if (AMX.manheim && AMX.manheim.charger) AMX.manheim.charger(false).then(function () { self._cle = null; fin(); }, function () {});
     // Nos ventes : le Livre des ventes complet (copie du navigateur d'abord), si la personne y a accès.
@@ -249,8 +259,14 @@
     this.btnRafraichir = h('button.btn', { type: 'button', html: (I.rafraichir || '') + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); AMX.toast('Analyse relue', 'ok'); } });
     this.btnMds = h('button.btn', { type: 'button', html: (I.rafraichir || '') + '<span>Lire des MDS maintenant</span>', onclick: function (e) { self.lireMds(e.currentTarget); } });
     this.btnVersions = h('button.btn', { type: 'button', html: (I.rafraichir || '') + '<span>Décoder les versions manquantes</span>', onclick: function (e) { self.decoderVersions(e.currentTarget); } });
-    var actions = [this.btnRafraichir, this.btnMds, this.btnVersions, this.btnExport, this.btnReglages];
-    this.elActions = h('div.actions', AMX.actionsEntete ? AMX.actionsEntete(actions, [this.btnReglages]) : actions);
+    this.elListe = h('div.carte.anu-liste');
+    // 26 oct. : « Sélectionner » — cliquer ou glisser sur les usagés, puis Supprimer (droit « Supprimer »).
+    this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.anu-rangee', actions: [
+      AMX.perm('supprimer') ? { texte: 'Supprimer', icone: I.corbeille, danger: true, action: function (vins, vider) {
+        AMX.inventaire.supprimer(vins, { feuille: 'DETAIL' }).then(function (faits) { if (faits) vider(); });
+      } } : null] });
+    var actions = [this.btnRafraichir, this.btnMds, this.btnVersions, this.btnExport, this.sel.bouton, this.btnReglages];
+    this.elActions = h('div.actions', AMX.actionsEntete ? AMX.actionsEntete(actions, [this.sel.bouton, this.btnReglages]) : actions);
     this.elCies = h('div.barre-cies');
     this.elQ = h('input.saisie#anu-recherche', { type: 'search', placeholder: '# stock, modèle, NIV…', 'aria-label': 'Chercher un usagé', autocomplete: 'off', value: this.f.q,
       oninput: AMX.debounce(function (e) { self.f.q = e.target.value; self.limite = LIMITE; self.rafraichir(); }, 150),
@@ -268,7 +284,6 @@
     this.elKpis = h('div.kpis.anu-kpis');
     this.elProfil = h('div.carte.anu-profil');
     this.elCiesTable = h('div.carte.anu-cies');
-    this.elListe = h('div.carte.anu-liste');
     this.conteneur.appendChild(h('div.page.anu-page', [h('div.entete-page', [h('div', [h('h1', 'Analyse usagé'), this.elSous]), this.elActions]),
       this.elCies, this.elFiltres, this.elPortee, this.elKpis, this.elProfil, this.elCiesTable, this.elListe]));
   };
@@ -487,7 +502,8 @@
       { texte: a.version ? 'Changer la version' : 'Préciser la version', action: function () { self.preciserVersion(a); } },
       { texte: 'Ouvrir dans Usagé', action: function () { AMX.inventaire.aller('DETAIL', { vin: a.vin }); } },
       { texte: 'Prix du marché (Opportunités)', action: function () { AMX.aller('outils', 'opportunites', { onglet: 'marche', q: a.stock || a.vin }); } },
-      a.manheim && AMX.manheim.ouvrir ? { texte: 'Fiche Manheim (photos, état)', action: function () { AMX.manheim.ouvrir(a.vin); } } : null
+      a.manheim && AMX.manheim.ouvrir ? { texte: 'Fiche Manheim (photos, état)', action: function () { AMX.manheim.ouvrir(a.vin); } } : null,
+      AMX.perm('supprimer') ? { texte: 'Supprimer du registre…', icone: I.corbeille, action: function () { AMX.inventaire.supprimer([a.vin], { feuille: 'DETAIL' }); } } : null
     ].filter(Boolean), { titre: 'Actions — ' + (a.stock || a.vin) }) : h('span');
     var r = h('div.anu-rangee.a-' + a.action.code + (ouvert ? '.ouvert' : ''), { 'data-vin': a.vin, onclick: function (e) { if (e.target.closest('a, button, .menu')) return; basculer(); } },
       [veh, age, prix, marche, ptm, conseilEl, h('div.anu-act', [menu])]);

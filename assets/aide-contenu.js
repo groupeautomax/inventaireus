@@ -543,7 +543,7 @@
 
     nouveautes: [
       { date: '27 octobre 2026', titre: '« Usagé » devient « Occasion », menus « Actions »',
-        texte: 'Partout dans le site et l\'app, l\'inventaire usagé s\'appelle maintenant Occasion (Inventaire › Occasion, Analyse occasion). Les menus « … » sont devenus une pastille « Actions ». Dans les listes, « Sélectionner » est juste au-dessus des véhicules. Une pastille mauve « Courriel · à ajouter » signale les contrats d\'achat reçus par courriel qu\'il reste à ajouter. Un véhicule en stock sans photo a sa vignette en jaune avec une étoile et le nombre de jours depuis l\'achat (★ 16).',
+        texte: 'Partout dans le site et l\'app, l\'inventaire usagé s\'appelle maintenant Occasion (Inventaire › Occasion, Analyse occasion). Les menus « … » sont devenus une pastille « Actions ». Dans les listes, « Sélectionner » est juste au-dessus des véhicules. Une pastille mauve « Courriel · à ajouter » signale les contrats d\'achat reçus par courriel qu\'il reste à ajouter. Au registre Detail, un véhicule en stock sans photo a sa vignette en jaune avec une étoile et le nombre de jours depuis l\'achat (★ 16).',
         liens: [{ t: 'Occasion', s: 'inventaire', o: 'usage' }] },
       { date: '26 octobre 2026 (soir)', titre: 'Contrats d\'achat lus par courriel',
         texte: 'Transférez un contrat d\'achat (PDF, photo, ou la confirmation de l\'encan) à l\'adresse dédiée : Einstein AI le lit et le véhicule entre au registre en violet, avec sa fiche d\'achat, ou reste « À vérifier » avec la raison. Occasion › « … » › Contrats d\'achat reçus ; l\'Accueil compte ceux à vérifier.',

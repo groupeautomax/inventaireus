@@ -226,6 +226,8 @@
     if (AMX.openlane) { AMX.openlane.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:openlane', this.surCarfax); }
     if (AMX.demandes) { AMX.demandes.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:demandes', this.surCarfax); }
     if (AMX.achatsAuto) { AMX.achatsAuto.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:achatsAuto', this.surCarfax); }
+    // 27 oct. : pastille mauve « Courriel · à ajouter » — contrats d'achat reçus par courriel qu'il reste à vérifier et ajouter.
+    if (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) { AMX.achatsAuto.contrats.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:contrats', this.surCarfax); }
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
     this.surVisible = function () { if (!document.hidden) self.rafraichir(); };
     document.addEventListener('visibilitychange', this.surVisible);
@@ -247,6 +249,7 @@
     document.removeEventListener('amx:eblock', this.surCarfax);
     document.removeEventListener('amx:openlane', this.surCarfax);
     document.removeEventListener('amx:achatsAuto', this.surCarfax);
+    document.removeEventListener('amx:contrats', this.surCarfax);
     document.removeEventListener('amx:compagnie', this.surCie);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
@@ -258,6 +261,17 @@
     if (!ctx.params.contrats || this.contratsVu || !AMX.achatsAuto || !AMX.achatsAuto.contrats) return;
     this.contratsVu = true;
     setTimeout(function () { if (!self.detruit) self.ouvrirContrats(); }, 0);
+  };
+  /** Contrats reçus par courriel à vérifier puis ajouter (concession choisie ; sans concession : tous ceux qu'on voit). */
+  Registre.prototype.nContrats = function () {
+    var C = AMX.achatsAuto && AMX.achatsAuto.contrats;
+    return (C && C.enCache()) ? C.aVerifier(this.filtres.compagnie || '').length : 0;
+  };
+  Registre.prototype.pastilleContrats = function () {
+    var self = this, n = this.nContrats();
+    if (!n) return null;
+    return h('button.inv2-pastille.contrats', { type: 'button', title: n + ' véhicule' + (n > 1 ? 's' : '') + ' reçu' + (n > 1 ? 's' : '') + ' par courriel qu\'Einstein AI n\'a pas pu ajouter seul : à vérifier, puis ajouter au registre', onclick: function () { self.ouvrirContrats(); } },
+      [h('i', { style: { background: 'var(--violet)' } }), h('span', { text: 'Courriel · à ajouter' }), h('b', { text: String(n) })]);
   };
   Registre.prototype.ouvrirContrats = function () {
     var self = this;
@@ -432,6 +446,7 @@
       pastilles.appendChild(pastille(st.libelle, n, actif, st.couleur, function () { f.statuts = actif ? null : [s]; }));
     });
     pastilles.appendChild(pastille('Tous', base.length, !cherche && f.statuts && f.statuts.length === cfg.statuts.length, '', function () { f.statuts = cfg.statuts.slice(); }));
+    var pC = this.pastilleContrats(); if (pC) pastilles.appendChild(pC);
     // Filtres secondaires dans un menu déroulant
     var nbAutres = ['origine', 'rappel', 'importateur', 'registre'].filter(function (k) { return f[k]; }).length;
     var selectFiltre = function (libelle, cle, options) {
@@ -674,6 +689,8 @@
     if (retardAchat) this.elKpis.appendChild(kpi(retardAchat, 'Achat 7 j+', { classe: 'attention', sous: 'pas encore en stock', actif: f.alerte === 'retardAchat', onclick: function () { f.alerte = f.alerte === 'retardAchat' ? '' : 'retardAchat'; self.rendre(); } }));
     var nAuto2 = sansAlerte.filter(estAuto).length;
     if (nAuto2) this.elKpis.appendChild(kpi(nAuto2, 'Entrés automatiquement', { classe: 'auto', sous: 'achats à confirmer', actif: f.alerte === 'auto', onclick: function () { f.alerte = f.alerte === 'auto' ? '' : 'auto'; self.rendre(); } }));
+    var nC2 = this.nContrats();
+    if (nC2) this.elKpis.appendChild(kpi(nC2, 'Courriel · à ajouter', { classe: 'auto', sous: 'contrats reçus à vérifier', onclick: function () { self.ouvrirContrats(); } }));
     void tousActifs;
     this.rendreValeur();
   };

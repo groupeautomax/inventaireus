@@ -366,6 +366,8 @@
       '.contrat-carte p { margin: 4px 0; } .contrat-tete { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }',
       '.contrat-tete strong { flex: 1 1 260px; min-width: 0; } .contrat-raison { font-weight: 600; color: var(--encre-2); }',
       '.badge.violet { color: var(--violet); background: var(--violet-bg); border-color: var(--violet-bord); }',
+      '.inv2-pastille.contrats { border-color: var(--violet-bord); background: var(--violet-bg); color: var(--violet); font-weight: 600; }',
+      '.inv2-pastille.contrats b { color: var(--violet); } .inv2-pastille.contrats:hover { border-color: var(--violet); color: var(--violet); }',
       '.contrat-form .grille-champs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 12px; margin-top: 8px; }',
       '.contrat-form .champ { display: grid; gap: 4px; } .contrat-form .champ > span { font-size: 12px; color: var(--encre-3); }',
       '.contrats-modale .erreur, .contrat-form .erreur { color: var(--rouge); font-weight: 600; margin: 8px 0 0; }'

@@ -899,6 +899,9 @@
     var btnCfx = el('carfax-btn');
     if (btnCfx) { btnCfx.href = lienCfx || 'https://vhr.carfax.ca/fr/'; btnCfx.title = lienCfx ? 'Ouvrir le rapport CARFAX de ce véhicule' : 'Ouvrir Carfax'; }
     if (lienCfx) morceaux.push(h('a.puce.info.lien-puce', { href: lienCfx, target: '_blank', rel: 'noopener', text: 'CARFAX', title: 'Voir le rapport CARFAX' }));
+    // 27 oct. : sans rapport, « Commander le CARFAX » par l'API officielle (carfax-api.js) — Lookup d'abord, commande facturée confirmée.
+    else if (AMX.carfaxApi && /^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) morceaux.push(AMX.carfaxApi.bouton(vin, { classe: '.petit', compagnie: String(valeur('f-compagnie') || (v && v.compagnie) || '').toUpperCase(), reference: valeur('f-stock') || (v && v.stock) || '',
+      vehicule: [valeur('f-annee'), valeur('f-marque'), valeur('f-modele')].filter(Boolean).join(' ') || (v && v.modele) || '', source: 'achat' }));
     if (!morceaux.length) { this.elContexte.classList.add('cache'); return; }
     this.elContexte.classList.remove('cache');
     this.elContexte.appendChild(h('span.mono.doux', { text: vin }));

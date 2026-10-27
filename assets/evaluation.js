@@ -32,7 +32,7 @@
 
   var URL_NHTSA = 'https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/';
   var URL_TORQUE = 'https://dealer.torquemanagement.ca/vehicle-management/evaluations/list';
-  var URL_CARFAX_COMPTE = 'https://dealer.carfax.ca/';
+  var URL_CARFAX_COMPTE = 'https://portal.carfax.ca/vehicles';   /* 27 oct. : le portail a remplacé dealer.carfax.ca */
   var TOLERANCE_KM = 30000;
   var URL_MMR = 'https://mmr.manheim.com/';
 
@@ -1374,7 +1374,12 @@
     this.rendreOpenlane();
     AMX.vider(this.elLiens);
     var carfax = (vinOk && AMX.carfax && AMX.carfax.lien) ? AMX.carfax.lien(vin) : '';
-    this.elLiens.appendChild(h('a.btn.petit' + (carfax ? '' : ''), { href: carfax || URL_CARFAX_COMPTE, target: '_blank', rel: 'noopener', title: carfax ? 'Rapport CARFAX partagé de ce véhicule' : 'Mon compte CARFAX (aucun rapport partagé pour ce NIV)', html: I.externe + '<span>' + (carfax ? 'Rapport CARFAX' : 'CARFAX (compte)') + '</span>' }));
+    // 27 oct. : sans rapport, « Commander le CARFAX » par l'API officielle (carfax-api.js) ; sinon le compte CARFAX (secours).
+    var selfCfx = this;
+    if (!carfax && vinOk && AMX.carfaxApi) this.elLiens.appendChild(AMX.carfaxApi.bouton(vin, { classe: '.petit', source: 'evaluation',
+      compagnie: function () { return AMX.CONCESSION_COMPAGNIE[selfCfx.elConcession ? selfCfx.elConcession.value : ''] || ''; },
+      vehicule: function () { return [selfCfx.elAnnee.value, selfCfx.elMarque.value, selfCfx.elModele.value].filter(Boolean).join(' '); } }));
+    else this.elLiens.appendChild(h('a.btn.petit' + (carfax ? '' : ''), { href: carfax || URL_CARFAX_COMPTE, target: '_blank', rel: 'noopener', title: carfax ? 'Rapport CARFAX partagé de ce véhicule' : 'Mon compte CARFAX (aucun rapport partagé pour ce NIV)', html: I.externe + '<span>' + (carfax ? 'Rapport CARFAX' : 'CARFAX (compte)') + '</span>' }));
     this.elLiens.appendChild(h('a.btn.petit' + (vinOk ? '' : '.desactive'), { href: vinOk ? lienMarketGuide(vin) : '#', target: '_blank', rel: 'noopener', title: 'Valeurs d\'encan eBlock (vendus 90 jours) pour ce NIV', html: I.externe + '<span>eBlock Market Guide</span>' }));
     // OpenLane (9 oct. ; 22 oct. : Maxime « le lien OpenLane devrait s'ouvrir dans notre site ») : la fiche de valeurs du site, lue en direct au besoin.
     if (AMX.openlane && AMX.openlane.lienMarche) {

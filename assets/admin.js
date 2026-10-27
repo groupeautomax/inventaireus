@@ -518,8 +518,9 @@
     this.elDemandes = this.construireDemandes();
     this.elIa = this.construireIa();
     this.elCf = (AMX.transport && AMX.transport.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : AMX.estAdmin())) ? AMX.transport.carteAdmin() : null;   /* 23 oct. : jetons Central Fleet (transport.js) */
-    this.elRevue = (AMX.estProprietaire ? AMX.estProprietaire() : false) ? this.construireRevue() : null;   /* 26 oct. : compte de révision pour l'App Store (RevueApple.gs) */
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elCf, this.elRevue, this.elIa, this.elParametres]), this.elPanneau]);
+    this.elRevue = (AMX.estProprietaire ? AMX.estProprietaire() : false) ? this.construireRevue() : null;
+    this.elCfx2 = (AMX.carfaxApi && AMX.carfaxApi.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : false)) ? AMX.carfaxApi.carteAdmin() : null;   /* 27 oct. : clés de l'API CARFAX (carfax-api.js) */   /* 26 oct. : compte de révision pour l'App Store (RevueApple.gs) */
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elCf, this.elCfx2, this.elRevue, this.elIa, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);

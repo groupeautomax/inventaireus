@@ -1164,7 +1164,9 @@
     var blocLiens = h('div.bloc', [h('h3', ['Rapports', h('button.btn.petit.fantome', { type: 'button', text: lienCfx ? 'lien CARFAX…' : 'coller un lien CARFAX…', onclick: function () { zoneCfx.classList.toggle('cache'); if (!zoneCfx.classList.contains('cache')) { champCfx.focus(); champCfx.select(); } } })]),
       h('div.actions-ligne', [
         lienCfx ? h('a.btn.primaire', { href: lienCfx, target: '_blank', rel: 'noopener', html: I.externe + '<span>Rapport CARFAX</span>' })
-          : h('a.btn', { href: 'https://portal.carfax.ca/vehicles', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } }),
+          // 27 oct. : API officielle de CARFAX (carfax-api.js) — Lookup d'abord, puis commande facturée confirmée ; sinon le portail (secours).
+          : (AMX.carfaxApi ? AMX.carfaxApi.bouton(v.vin, { compagnie: v.compagnie, reference: v.stock, vehicule: v.modele, source: 'occasion' })
+            : h('a.btn', { href: 'https://portal.carfax.ca/vehicles', target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le VIN est copié) — ou Outils › Import CARFAX pour tout le compte', html: I.externe + '<span>Commander un CARFAX</span>', onclick: function () { AMX.copier(v.vin, 'VIN copié — collez-le dans « Commander les rapports »'); } })),
         sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null
       ]),
       zoneCfx

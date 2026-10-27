@@ -74,8 +74,8 @@
   function groupeMemo() { return AMX.memo.lire('occ_groupe', '') === 'autres' ? 'autres' : 'nos'; }
   var VUES_AUTRES = [['top', 'Les 50 meilleures'], ['bons', 'Bons achats'], ['suivies', 'Suivies']];
   /* 26 oct. (Maxime : « le but est de rechercher les véhicules les moins chers à acheter, et non d'analyser les concurrents ;
-     les opportunités de marché, on les a déjà ») : la page n'a plus que « À acheter ». Le prix du marché de nos usagés est dans
-     Inventaire › Analyse usagé (et le bloc du panneau Usagé) ; la lecture du marché du lundi continue pour eux. */
+     les opportunités de marché, on les a déjà ») : la page n'a plus que « À acheter ». Le prix du marché de nos occasions est dans
+     Inventaire › Analyse occasion (et le bloc du panneau Occasion) ; la lecture du marché du lundi continue pour eux. */
   // 26 oct. (suite, Maxime : « cache les sources et mets-les sous un onglet à droite ») : l'onglet « Sources », à droite.
   var ONGLETS = [['acheter', 'À acheter'], ['sources', 'Sources']];
   /* Âge lisible d'une date : « il y a 12 min », « il y a 3 h », sinon la date. */
@@ -133,7 +133,7 @@
   Opportunites.prototype.demonter = function () { this.generation++; document.removeEventListener('amx:compagnie', this.surCie); if (this.vueMarche && this.vueMarche.demonter) this.vueMarche.demonter(); };
   Opportunites.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
-    // Anciennes adresses (avant le 26 oct.) : « Prix du marché » mène à l'Analyse usagé, « Concurrents » à la page elle-même.
+    // Anciennes adresses (avant le 26 oct.) : « Prix du marché » mène à l'Analyse occasion, « Concurrents » à la page elle-même.
     if (p.onglet === 'marche') { AMX.aller('analyse', '', p.q ? { q: p.q } : {}); return; }
     if (p.onglet && ONGLETS.some(function (o) { return o[0] === p.onglet; })) {
       this.montrer(p.onglet);
@@ -159,7 +159,7 @@
     ]);
     // Sources : une ligne de pastilles (état et fraîcheur) ; le détail s'ouvre d'un clic.
     // 26 oct. (Maxime : « cache les sources ») : la rangée de pastilles n'est plus montrée ; l'état et les gestes de chaque
-    // source (filtres et clé Apify, favoris DealerSource et Manheim, lecture du marché pour l'Analyse usagé) restent dans le
+    // source (filtres et clé Apify, favoris DealerSource et Manheim, lecture du marché pour l'Analyse occasion) restent dans le
     // menu « … » › Sources des données.
     this.elSrc = h('div.occ-src', { role: 'group', 'aria-label': 'Sources des données', hidden: true });
     this.elCies = h('div.barre-cies');
@@ -666,7 +666,7 @@
     // 5. Marché hebdomadaire
     var m = d.marche, md = (m && m.derniere) || {};
     var bLire = m && d.admin && !m.enCours ? h('button.btn.petit#occ-marche-lire', { type: 'button', text: 'Lire maintenant', onclick: function () { AMX.occMarche && AMX.occMarche.lancer(bLire, function () { self.charger(true); self.chargerMarche(true); }); } }) : null;
-    el.appendChild(blocSrc('marche', 'Lecture du marché (Apify) — pour Inventaire › Analyse usagé', 'automatique, le lundi', !m ? ['Le script n\'est pas à jour : créez OccMarche.gs dans l\'éditeur et déployez.'] : [
+    el.appendChild(blocSrc('marche', 'Lecture du marché (Apify) — pour Inventaire › Analyse occasion', 'automatique, le lundi', !m ? ['Le script n\'est pas à jour : créez OccMarche.gs dans l\'éditeur et déployez.'] : [
       md.le ? 'Dernière lecture ' + AMX.fmtDate(md.le, true) + ' : ' + AMX.fmtNombre(md.gardees || 0) + ' annonces de ' + AMX.fmtNombre(md.vendeurs || 0) + ' concessionnaires (' + AMX.fmtNombre(md.lignes || 0) + ' modèles de notre stock).' : 'Pas encore lu : la première lecture part lundi à partir de 6 h.',
       'Concessionnaires seulement, ' + m.rayon + ' km autour de ' + m.centre + ' · ≈ ' + AMX.fmtNombre(m.estime || 0) + ' $ US par lecture · ' + AMX.fmtNombre(Math.round((m.depense || 0) * 100) / 100) + ' / ' + AMX.fmtNombre(m.budget || 0) + ' $ US ce mois-ci.',
       m.erreur ? 'Erreur : ' + m.erreur : ''
@@ -964,7 +964,7 @@
         { texte: 'Achetée', action: function () { self.statut(o, 'achetee'); } },
         o.statut ? { texte: 'Remettre à voir', action: function () { self.statut(o, ''); } } : null,
         { texte: 'Note…', action: function () { self.note(o); } }
-      ].filter(Boolean), { titre: 'Actions' })]);
+      ].filter(Boolean), { titre: 'Actions', petit: true })]);
     var r = h('div.occ-rangee' + (k.sousGros ? '.opp' : '') + (o.statut === 'ecartee' ? '.ecartee' : ''), { 'data-vin': o.vin }, [veh, vend, prix, gros, det, actions]);
     if (o.note) r.appendChild(h('div.occ-note', { text: 'Note : ' + o.note + (o.statutPar ? ' — ' + o.statutPar : '') }));
     return r;
@@ -1078,7 +1078,7 @@
     AMX.toast('Export Excel — ' + lignes.length + ' annonces', 'ok');
   };
 
-  /* Export des onglets « Prix du marché » (nos usagés filtrés) et « Concurrents » (concessionnaires filtrés, une ligne par annonce). */
+  /* Export des onglets « Prix du marché » (nos occasions filtrées) et « Concurrents » (concessionnaires filtrés, une ligne par annonce). */
   Opportunites.prototype.exporterMarche = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
     var wb = XLSX.utils.book_new(), n = 0, nom;

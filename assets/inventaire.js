@@ -147,8 +147,8 @@
     });
   };
 
-  // 11 oct. (Maxime : « un onglet Inventaire, puis Neufs et Usagé ») : une seule section « Inventaire » avec deux onglets dans
-  // la sous-barre — Neufs (assets/neufs.js, VueNeufs) et Usagé (les trois registres É.-U. / Canada / Detail, choisis par des
+  // 11 oct. (Maxime : « un onglet Inventaire, puis Neufs et Occasion ») : une seule section « Inventaire » avec deux onglets dans
+  // la sous-barre — Neufs (assets/neufs.js, VueNeufs) et Occasion (les trois registres É.-U. / Canada / Detail, choisis par des
   // pastilles dans la page et mémorisés). Anciennes adresses : #/neufs → #/inventaire/neufs ; #/inventaire/us|can|detail →
   // #/inventaire/usage?registre=… (app.js).
   var REGISTRE_DEFAUT = 'us';
@@ -164,7 +164,7 @@
     titre: 'Inventaire', icone: 'inventaire', ordre: 10,
     onglets: [
       { id: 'neufs', titre: 'Neufs', compteur: function () { return AMX.neufs && AMX.neufs.compteur ? AMX.neufs.compteur() : ''; } },
-      { id: 'usage', titre: 'Usagé', compteur: function () {
+      { id: 'usage', titre: 'Occasion', compteur: function () {
         var n = 0, charge = false;
         Object.keys(FEUILLES).forEach(function (id) { var l = AMX.inventaire.enCache(FEUILLES[id].feuille); if (l) { charge = true; n += l.filter(function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; }).length; } });
         return charge ? n : '';
@@ -175,7 +175,7 @@
     monter: function (conteneur, ctx) { return new VueInventaire(conteneur, ctx); }
   });
 
-  /* Enveloppe : monte la bonne vue selon l'onglet (Neufs ou Usagé) et change de vue quand l'onglet change. */
+  /* Enveloppe : monte la bonne vue selon l'onglet (Neufs ou Occasion) et change de vue quand l'onglet change. */
   function VueInventaire(conteneur, ctx) {
     this.conteneur = conteneur; this.enfant = null; this.type = '';
     this.monterEnfant(ctx);
@@ -309,15 +309,14 @@
     this.elCies = h('div.barre-cies');   /* 16 oct. : rangée de concessions sous l'en-tête, comme partout */
     var page = h('div.page', [
       h('div.entete-page', [
-        h('div', [h('h1', { text: 'Usagé — ' + this.cfg.titre }), h('p#inv-etat', { text: 'Chargement…' }), this.elRegistres = h('div.segment.choix-registre', { style: { marginTop: '8px' }, 'aria-label': 'Registre' })]),
+        h('div', [h('h1', { text: 'Occasion — ' + this.cfg.titre }), h('p#inv-etat', { text: 'Chargement…' }), this.elRegistres = h('div.segment.choix-registre', { style: { marginTop: '8px' }, 'aria-label': 'Registre' })]),
         h('div.actions', [
           h('button.btn.fantome.icone#inv-filtres-btn', { title: 'Filtres', html: I.filtre, onclick: function () { self.elRail.classList.toggle('ouvert'); } }),
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
           h('button.btn', { html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
           h('button.btn', { html: I.scan + '<span>Actions en lot</span>', onclick: function () { self.modaleLot('ajout'); } }),
-          h('button.btn', { html: (I.corbeille) + '<span>Usagés effacés</span>', onclick: function () { AMX.inventaire.effaces(); } }),
+          h('button.btn', { html: (I.corbeille) + '<span>Occasions effacées</span>', onclick: function () { AMX.inventaire.effaces(); } }),
           (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) ? h('button.btn', { html: (I.courriel) + '<span>Contrats d\'achat reçus</span>', onclick: function () { self.ouvrirContrats(); } }) : null,
-          this.sel.bouton,
           AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null
         ])
       ]),
@@ -377,7 +376,7 @@
     this.elRail.appendChild(grpAutres);
   };
 
-  /* ------------------- v131 : page Usagé refaite (nouvelle interface, html.ui2) -------------------
+  /* ------------------- v131 : page Occasion refaite (nouvelle interface, html.ui2) -------------------
      Rapport « Refonte ergonomique » : un en-tête avec UNE action principale et un menu « … », au plus quatre chiffres,
      une barre de filtres au-dessus de la liste (plus de volet de gauche), la concession dans la barre du haut du site. */
   Registre.prototype.construireUi2 = function () {
@@ -394,20 +393,20 @@
     this.elAgencement = h('div.agencement.sans-rail', [h('div.colonne-liste', [this.elOutils, this.elListe]), this.elPanneau]);
     this.elCies = h('div');
     this.elRegistres = h('div.segment.choix-registre', { 'aria-label': 'Registre' });
-    this.elRechercheUi2 = h('input.saisie', { type: 'search', placeholder: 'NIV, modèle, # stock — tous statuts, tous registres', value: this.filtres.recherche, 'aria-label': 'Chercher dans l\'usagé',
+    this.elRechercheUi2 = h('input.saisie', { type: 'search', placeholder: 'NIV, modèle, # stock — tous statuts, tous registres', value: this.filtres.recherche, 'aria-label': 'Chercher dans les occasions',
       oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; self.filtres.alerte = ''; self.construireFiltresUi2(); self.rendre(); }, 140) });
     var menu = AMX.menuActions([
       { texte: 'Rafraîchir', icone: I.rafraichir, action: function () { self.charger(true); } },
       { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } },
       { texte: 'Actions en lot', icone: I.scan, action: function () { self.modaleLot('ajout'); } },
-      { texte: 'Usagés effacés', icone: I.corbeille, action: function () { AMX.inventaire.effaces(); } },
+      { texte: 'Occasions effacées', icone: I.corbeille, action: function () { AMX.inventaire.effaces(); } },
       (AMX.achatsAuto && AMX.achatsAuto.peutLire()) ? { texte: 'Lire les achats OPENLANE', icone: I.rafraichir, action: function () { AMX.achatsAuto.lireOpenlane(AMX.compagnieChoisie('inventaire') || '').then(function () { self.charger(true); }).catch(function () {}); } } : null,
       (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) ? { texte: 'Contrats d\'achat reçus (courriel)', icone: I.courriel, action: function () { self.ouvrirContrats(); } } : null
     ].filter(Boolean));
     this.conteneur.appendChild(h('div.page.inv2', [
       h('div.entete-page.inv2-tete', [
-        h('div.inv2-titre', [h('h1', 'Usagé'), this.elRegistres, h('p#inv-etat.inv2-etat', { text: 'Chargement…' })]),
-        h('div.actions', [menu, this.sel.bouton, AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null])
+        h('div.inv2-titre', [h('h1', 'Occasion'), this.elRegistres, h('p#inv-etat.inv2-etat', { text: 'Chargement…' })]),
+        h('div.actions', [menu, AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null])
       ]),
       /* v138 (Maxime : « la recherche et les onglets avant les carrés ; les chiffres doivent représenter ce qu'on a choisi ») */
       this.elRail, this.elPortee, this.elKpis, this.elAgencement
@@ -728,6 +727,8 @@
     AMX.vider(this.elOutils);
     var sel = h('select.saisie', { onchange: function (e) { self.tri = e.target.value; AMX.memo.ecrire('inv_tri', self.tri); self.rendre(); } });
     [['maj', 'Dernière mise à jour'], ['achat', 'Achat récent'], ['achatAsc', 'Achat ancien'], ['statut', 'Statut'], ['modele', 'Modèle'], ['stock', '# stock'], ['cout', 'Coût']].forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: self.tri === o[0], text: 'Tri : ' + o[1] })); });
+    /* 27 oct. (Maxime : « le bouton Sélectionner devrait être juste en haut des stocks et de la case à cocher ») : au-dessus de la liste, à gauche. */
+    if (this.sel) this.elOutils.appendChild(this.sel.bouton);
     if (this.ui2) { this.elOutils.appendChild(h('span.espace')); this.elOutils.appendChild(sel); return; }
     var f = this.filtres;
     var puces = [];
@@ -794,7 +795,12 @@
     var cls = 'div.ligne' + (retard ? '.retard' : (retardA ? '.retard-achat' : '')) + (estAuto(v) ? '.achat-auto' : '') + (v.statut === 'comptabilise' ? '.verrouille' : '') + (this.selection && String(v.vin).toUpperCase() === String(this.selection).toUpperCase() ? '.actif' : '');
     // Sans photo : le logo du constructeur (voir AMX.logoMarque) ; avec photos,
     // le logo tient lieu de repli jusqu'à ce que la miniature charge.
-    var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })]) : h('div.vignette', { title: 'Aucune photo' }, [AMX.logoMarque(marque(v))]);
+    /* 27 oct. (Maxime : « mets une surbrillance ou une étoile avec un chiffre en jaune : le nombre de jours d'un véhicule en
+       stock qui est sans photo ») : vignette jaune et étoile avec les jours depuis l'achat (même âge que « Acheté le … · n j »). */
+    var sansPhoto = v.statut === 'stock' && !v.hasPhotos && (v._feuille || cfg.feuille) === 'DETAIL';   /* registre Detail seulement (Maxime, 27 oct.) */
+    var etoile = sansPhoto ? h('span.etoile-photo', { text: '★ ' + (jours === null || jours === undefined || isNaN(jours) ? '?' : jours) }) : null;
+    var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })])
+      : h('div.vignette' + (sansPhoto ? '.sans-photo' : ''), { title: sansPhoto ? 'En stock sans photo' + (jours >= 0 ? ' — ' + jours + ' jour' + (jours > 1 ? 's' : '') + ' depuis l\'achat' : '') : 'Aucune photo' }, [AMX.logoMarque(marque(v)), etoile]);
     // Rappels (8 oct., soir — Maxime) : rouge ou vert, pas le détail ; un clic sur la puce rouge ouvre le détail.
     var puceRappel = v.rappel === 'oui'
       ? h('span.puce.alerte.rappel-puce', { text: 'Rappel', title: 'Rappel ouvert — cliquez pour le détail', onclick: function (e) { e.stopPropagation(); self.rappelsOuverts = true; self.selectionner(v.vin); } })
@@ -836,7 +842,7 @@
 
   /* 26 oct. — Maxime : « mode glisser et cliquer », « effacer plus d'un véhicule à la fois ». « Sélectionner » : cliquer ou
      glisser sur les lignes, puis Supprimer (droit « Supprimer »). La suppression passe par AMX.inventaire.supprimer : le
-     véhicule disparaît aussi de l'Analyse usagé, du Prix du marché et du Suivi service. */
+     véhicule disparaît aussi de l'Analyse occasion, du Prix du marché et du Suivi service. */
   Registre.prototype.creerSelection = function () {
     var self = this;
     if (this.sel) this.sel.quitter();
@@ -1094,7 +1100,7 @@
     var blocActions = h('div.bloc.inv-actions', [h('h3', 'Actions'),
       h('div.actions-ligne', [
         // 21 oct. : déclarer la vente (ventes.js) — le script remplit le Livre des ventes (détail ou wholesale selon le registre).
-        (AMX.ventes && AMX.ventes.peutDeclarer() && ['comptabilise'].indexOf(v.statut) < 0) ? h('button.btn.primaire.inv-vendre', { type: 'button', title: 'Déclarer la vente de ce véhicule — ScanAutomax écrit la ligne dans le Livre des ventes', html: I.vente + '<span>Déclarer la vente</span>', onclick: function () { AMX.ventes.declarer({ compagnie: v.compagnie, type: cfg.feuille === 'DETAIL' ? 'usage' : 'wholesale', vin: v.vin, stock: v.stock, modeleTexte: v.modele, coutant: v.cout, source: 'Inventaire › Usagé › ' + cfg.titre, resterIci: true }); } }) : null,
+        (AMX.ventes && AMX.ventes.peutDeclarer() && ['comptabilise'].indexOf(v.statut) < 0) ? h('button.btn.primaire.inv-vendre', { type: 'button', title: 'Déclarer la vente de ce véhicule — ScanAutomax écrit la ligne dans le Livre des ventes', html: I.vente + '<span>Déclarer la vente</span>', onclick: function () { AMX.ventes.declarer({ compagnie: v.compagnie, type: cfg.feuille === 'DETAIL' ? 'usage' : 'wholesale', vin: v.vin, stock: v.stock, modeleTexte: v.modele, coutant: v.cout, source: 'Inventaire › Occasion › ' + cfg.titre, resterIci: true }); } }) : null,
         // 14 oct. (Maxime) : « un véhicule disponible à la vente doit pouvoir être envoyé à un acheteur inscrit, par texto et par courriel ».
         (AMX.offres && AMX.offres.envoyerAcheteurs && (AMX.perm('changerStatut') || AMX.perm('voirResultats')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0) ? h('button.btn', { type: 'button', title: 'Envoyer la page publique de ce véhicule à des acheteurs inscrits, par courriel et par texto (publié dans la vitrine si besoin)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(v.vin, { concession: AMX.COMPAGNIE_CONCESSION[String(v.compagnie || '').toUpperCase()] || '' }); } }) : null,
         // 26 oct. (Louis Prassinos) : changer le prix de détail — courriel aux vendeurs, puis inscrit sur le site par le favori D2C.

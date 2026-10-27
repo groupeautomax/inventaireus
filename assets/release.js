@@ -7,7 +7,7 @@
      - AMX.release.charger / vin / maj / deposer / ouvrirDoc : les routes ;
      - AMX.release.lireDocument(fichier) : lit un PDF de release dans le navigateur (pdf.js) et devine le no de release,
        l'adresse, le code postal, le téléphone et le NIV — toujours proposé, jamais imposé ;
-     - AMX.release.modale(vin, ctx) : la fenêtre « Release » (page Transports, panneau Usagé) ;
+     - AMX.release.modale(vin, ctx) : la fenêtre « Release » (page Transports, panneau Occasion) ;
      - AMX.release.consignes(r) : les consignes de cueillette envoyées avec la demande Central Fleet.
    Le document d'un release n'est jamais partagé par lien : il permet de sortir le véhicule du lot.
    ========================================================================= */

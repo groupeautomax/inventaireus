@@ -51,10 +51,10 @@
     av_tot_bt: ['av_tot', 'av_bt'], av_mo_bt: ['av_mo', 'av_bt'], av_pc_bt: ['av_pc', 'av_bt'], av_pb_bt: ['av_pb', 'av_bt'], av_pb_dollar: ['av_pb', 'av_tot'],
     av_marge_mo: ['av_mopb', 'av_mo'], av_pc_mo: ['av_pc', 'av_mo'], av_tot_bt_client: ['av_tot_client', 'av_bt_client'], av_mo_bt_client: ['av_mo_client', 'av_bt_client'],
     av_pb_bt_client: ['av_pb_client', 'av_bt_client'], av_h_bt: ['av_h', 'av_h_n'], av_elr: ['av_h_mo', 'av_h'], av_marge_pieces: ['av_pieces_pb', 'av_pieces_v'], av_carr_bt: ['av_carr_v', 'av_carr_n'] };
-  var TUILES = [['profit_net', 'Profit net'], ['pb_total', 'Profit brut'], ['ventes_nettes', 'Ventes nettes'], ['depenses', 'Dépenses'], ['unites_neuf', 'Unités neuves'], ['unites_usage', 'Unités usagées'], ['ebt_pct_profit_brut', 'EBT % du profit brut']];
+  var TUILES = [['profit_net', 'Profit net'], ['pb_total', 'Profit brut'], ['ventes_nettes', 'Ventes nettes'], ['depenses', 'Dépenses'], ['unites_neuf', 'Unités neuves'], ['unites_usage', 'Unités d\'occasion'], ['ebt_pct_profit_brut', 'EBT % du profit brut']];
   var TUILES_UNITE = [['pb_unite_total', 'Profit brut par unité vendue'], ['pn_unite', 'Profit net par unité vendue'], ['av_tot_bt', 'Vente par bon de travail'], ['av_pb_bt', 'Profit brut par BT'], ['av_pb_dollar', 'Profit brut par $ de vente de BT'], ['av_tot_bt_client', 'Vente par BT client']];
-  var TABLEAU = [['profit_net', 'Profit net'], ['pb_total', 'Profit brut'], ['ventes_nettes', 'Ventes nettes'], ['unites_neuf', 'Unités neuves'], ['unites_usage', 'Unités usagées'], ['ebt_pct_profit_brut', 'EBT % PB']];
-  var DEPTS = ['Véhicules neufs', 'Véhicules usagés', 'Service', 'Carrosserie', 'Pièces'];
+  var TABLEAU = [['profit_net', 'Profit net'], ['pb_total', 'Profit brut'], ['ventes_nettes', 'Ventes nettes'], ['unites_neuf', 'Unités neuves'], ['unites_usage', 'Unités d\'occasion'], ['ebt_pct_profit_brut', 'EBT % PB']];
+  var DEPTS = ['Véhicules neufs', 'Véhicules d\'occasion', 'Service', 'Carrosserie', 'Pièces'];
   var DEPTS_CACHES = { Boutique: 1 };
   var DEP_METRIQUES = [['units', 'Unités', 'volume'], ['units_flottes', 'Unités flottes', 'volume'], ['profit_brut', 'Profit brut', ''], ['total_variables', 'Dépenses variables', ''], ['total_personnel', 'Dépenses de personnel', ''],
     ['total_semifixes', 'Dépenses semi-fixes', ''], ['total_depenses', 'Total des dépenses', ''], ['autres_revenus', 'Autres revenus', ''], ['profit_departemental', 'Profit départemental', '']];

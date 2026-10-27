@@ -1,17 +1,17 @@
 /* =========================================================================
    Lecture hebdomadaire du marché (24 octobre 2026) — AMX.occMarche. Depuis le 26 oct., les onglets « Prix du marché » et
    « Concurrents » ne sont plus montrés dans Opportunités d'achat (VueMarche / VueConcurrents restent pour un retour) : les
-   données servent à Inventaire › Analyse usagé et au bloc « Prix du marché » du panneau Usagé.
+   données servent à Inventaire › Analyse occasion et au bloc « Prix du marché » du panneau Occasion.
 
    Maxime (24 oct.) : « 1-2 c'est bon » — une lecture par semaine (le lundi) des annonces des concessionnaires dans
-   200 km de Montréal, pour les modèles de nos usagés en stock (serveur : OccMarche.gs, robot Apify). Deux onglets de la
+   200 km de Montréal, pour les modèles de nos occasions en stock (serveur : OccMarche.gs, robot Apify). Deux onglets de la
    page Opportunités d'achat :
-     · Prix du marché : chacun de nos usagés au détail comparé aux annonces des concurrents (même modèle, année ± 1,
+     · Prix du marché : chacune de nos occasions au détail comparée aux annonces des concurrents (même modèle, année ± 1,
        km ± 30 000, prix ajusté à notre km) — médiane, rang de notre annonce (« 4e sur 15 »), écart, âge des annonces ;
        verdicts Trop cher / Dans le marché / Pas assez cher / Sans prix affiché / Peu de comparables.
      · Concurrents : les concessionnaires voisins (rayon autour de la concession choisie) — annonces, modèles, prix et
        âge médians, nouvelles de la semaine — parmi les modèles que nous avons en stock.
-   Et AMX.occMarche.bloc(vin, conteneur) : le bloc « Prix du marché » du panneau d'un usagé (inventaire.js).
+   Et AMX.occMarche.bloc(vin, conteneur) : le bloc « Prix du marché » du panneau d'une occasion (inventaire.js).
    Règle v138 : filtres → « Chiffres et liste » → chiffres sur la liste filtrée → liste. Données du serveur en textContent.
    ========================================================================= */
 (function () {
@@ -20,7 +20,7 @@
   var COURTS = { STM: 'Ste Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil' };
   var VERDICTS = [['cher', 'Trop chers', 'Trop cher', 'rouge'], ['marche', 'Dans le marché', 'Dans le marché', 'vert'], ['bas', 'Pas assez chers', 'Pas assez cher', 'bleu'],
     ['inconnu', 'Sans prix affiché', 'Prix affiché introuvable', 'gris'], ['peu', 'Peu de comparables', 'Peu d\'annonces de la même version', 'gris'],
-    ['version', 'Version à préciser', 'Version à préciser (Analyse usagé)', 'ambre'], ['tous', 'Tous', '', '']];   /* 25 oct. : comparé seulement à la même version */
+    ['version', 'Version à préciser', 'Version à préciser (Analyse occasion)', 'ambre'], ['tous', 'Tous', '', '']];   /* 25 oct. : comparé seulement à la même version */
   var V_LIB = {}; VERDICTS.forEach(function (v) { V_LIB[v[0]] = { t: v[2], c: v[3] }; });
   var TRIS_M = [['ecart', 'Écart au marché'], ['jours', 'Jours en stock'], ['comps', 'Nombre de comparables'], ['modele', 'Modèle']];
   var RAYONS = [[25, '25 km'], [50, '50 km'], [100, '100 km'], [0, 'Tout le rayon lu']];
@@ -126,7 +126,7 @@
     }).catch(function (e) { if (bouton) bouton.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(e), 'erreur'); });
   }
 
-  /* ------------------------------ Prix du marché (nos usagés) ------------------------------ */
+  /* ------------------------------ Prix du marché (nos occasions) ------------------------------ */
   function VueMarche(page) {
     injecterCss();
     this.page = page; this.d = null; this.ouverts = {}; this.limite = LIMITE;
@@ -144,7 +144,7 @@
       TRIS_M.map(function (t) { return h('option', { value: t[0], text: 'Tri : ' + t[1] }); }));
     this.elTri.value = this.f.tri;
     this.elPortee = h('div.portee-chiffres'); this.elKpis = h('div.kpis.occ-kpis'); this.elListe = h('div.occm-liste');
-    // 26 oct. : « Sélectionner » puis Supprimer (droit « Supprimer ») ; un usagé supprimé ailleurs disparaît d'ici aussi.
+    // 26 oct. : « Sélectionner » puis Supprimer (droit « Supprimer ») ; une occasion supprimée ailleurs disparaît d'ici aussi.
     this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.occm-rangee', actions: [
       AMX.perm('supprimer') ? { texte: 'Supprimer', icone: I.corbeille, danger: true, action: function (vins, vider) {
         AMX.inventaire.supprimer(vins, { feuille: 'DETAIL' }).then(function (faits) { if (faits) vider(); });
@@ -207,7 +207,7 @@
     });
     var liste = this.trier(this.filtrer());
     var actifs = []; if (f.q) actifs.push('« ' + f.q + ' »'); if (f.verdict && f.verdict !== 'tous') actifs.push(VERDICTS.filter(function (v) { return v[0] === f.verdict; })[0][1]);
-    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['usagé', 'usagés'], contexte: [this.page.compagnie ? COURTS[this.page.compagnie] || this.page.compagnie : 'toutes les concessions', 'registre Detail'],
+    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['occasion', 'occasions'], contexte: [this.page.compagnie ? COURTS[this.page.compagnie] || this.page.compagnie : 'toutes les concessions', 'registre Detail'],
       filtres: actifs, effacer: function () { f.q = ''; f.verdict = 'tous'; self.elQ.value = ''; self.rafraichir(); } });
     this.rendreKpis(liste);
     this.rendreListe(liste);
@@ -220,7 +220,7 @@
     var laisse = bas.reduce(function (s, v) { return s + (nb(v.ecart) ? -v.ecart : 0); }, 0);
     var jours = mediane(liste.map(function (v) { return v.joursMed; }).filter(nb));
     var tuile = function (val, lib, sous, cls) { return h('div.kpi.inv2-fixe' + (cls ? '.' + cls : ''), [h('div.valeur', { text: val }), h('div.libelle', { text: lib }), h('div.sous', { text: sous })]); };
-    this.elKpis.appendChild(tuile(AMX.fmtNombre(liste.length), 'Usagés', AMX.fmtNombre(avecPrix.length) + ' avec notre prix affiché'));
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(liste.length), 'Occasions', AMX.fmtNombre(avecPrix.length) + ' avec notre prix affiché'));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(chers.length), 'Trop chers', chers.length ? 'écart moyen ' + pct(moy(chers)) : 'au-dessus du marché + ' + ((this.d.etat || {}).seuilPct || 5) + ' %', chers.length ? 'neg' : ''));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(bas.length), 'Pas assez chers', bas.length ? '≈ ' + argent(laisse) + ' sous la médiane' : 'sous le marché − ' + ((this.d.etat || {}).seuilPct || 5) + ' %', bas.length ? 'bleu' : ''));
     this.elKpis.appendChild(tuile(nb(jours) ? jours + ' j' : '—', 'Âge des annonces', 'médiane chez les concurrents (mêmes modèles)'));
@@ -232,8 +232,8 @@
       this.elListe.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Pas encore de prix du marché'), h('div', { text: 'La lecture des annonces des concessionnaires se fait une fois par semaine (le lundi, à partir de 6 h). Un administrateur peut la lancer tout de suite avec « Lire maintenant ».' })]));
       return;
     }
-    if (!liste.length) { this.elListe.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucun usagé pour ces filtres'), h('div', { text: 'Essayez « Tous ».' })])); return; }
-    this.elListe.appendChild(h('div.occm-rangee.occ-tete', ['Usagé', 'Notre prix', 'Marché (ajusté au km)', 'Écart', 'Concurrents', ''].map(function (t) { return h('div', { text: t }); })));
+    if (!liste.length) { this.elListe.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune occasion pour ces filtres'), h('div', { text: 'Essayez « Tous ».' })])); return; }
+    this.elListe.appendChild(h('div.occm-rangee.occ-tete', ['Occasion', 'Notre prix', 'Marché (ajusté au km)', 'Écart', 'Concurrents', ''].map(function (t) { return h('div', { text: t }); })));
     liste.slice(0, this.limite).forEach(function (v) { self.elListe.appendChild(self.rangee(v)); });
     if (liste.length > this.limite) this.elListe.appendChild(h('button.btn.occ-plus', { type: 'button', text: 'Afficher ' + Math.min(LIMITE, liste.length - this.limite) + ' de plus', onclick: function () { self.limite += LIMITE; self.rafraichir(); } }));
   };
@@ -396,7 +396,7 @@
     return r;
   };
 
-  /* ------------------------------ Bloc du panneau d'un usagé (inventaire.js) ------------------------------ */
+  /* ------------------------------ Bloc du panneau d'une occasion (inventaire.js) ------------------------------ */
   function bloc(vin, conteneur, opts) {
     opts = opts || {};
     if (!conteneur) return;
@@ -410,7 +410,7 @@
           nb(v.mediane) ? h('span', [h('span.doux', { text: 'Marché ' }), h('b', { text: argent(v.mediane) }), h('span.doux', { text: ' (' + texteComps(v) + ', ajusté au km)' })]) : null,
           nb(v.ecartPct) ? h('span.' + (v.verdict === 'cher' ? 'neg' : (v.verdict === 'bas' ? 'bleu' : 'doux')), { text: pct(v.ecartPct) + (nb(v.rang) ? ' · ' + rangTexte(v.rang, v.n + 1) : '') }) : null]),
         nb(v.joursMed) ? h('div.mini.doux', { text: 'Les annonces comparables sont en ligne depuis ' + v.joursMed + ' j (médiane) · lecture du ' + AMX.fmtDate(d.le) }) : null,
-        h('button.lien', { type: 'button', text: 'Voir les comparables ›', onclick: function () { AMX.aller('analyse', '', { q: v.stock || v.vin }); } })   // 26 oct. : dans l'Analyse usagé
+        h('button.lien', { type: 'button', text: 'Voir les comparables ›', onclick: function () { AMX.aller('analyse', '', { q: v.stock || v.vin }); } })   // 26 oct. : dans l'Analyse occasion
       ]));
     };
     if (cache.rep) { poser(cache.rep); if (Date.now() - cache.quand < 5 * 60000) return; }

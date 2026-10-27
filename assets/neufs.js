@@ -54,10 +54,10 @@
     // même favori, cliqué sur la page Order Locator. Deux portails, deux clics.
     BMW: { nom: 'IVS-R Ordering (stock et commandes)', source: 'bmw', url: 'https://ivsrfe.bmwgroup.com/ooo/userMenu.do?language=en', nomCsi: 'Portail RDR (ventes déclarées)', csi: 'https://salesreporting.bmwgroup.ca/RDR', liste: 'Order Tracking › Order Locator Dealer', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } }
   };
-  /* Ventes déclarées « neuves » : chez BMW, le portail RDR déclare aussi les usagés / certifiés (U), les changements de propriétaire (P)
+  /* Ventes déclarées « neuves » : chez BMW, le portail RDR déclare aussi les occasions / certifiées (U), les changements de propriétaire (P)
      et le wholesale (W) — ils comptent dans le tableau BMW, pas dans les ventes de neufs. */
   function venteNeuve(v) { return !(String((v && v.source) || '') === 'bmw' && /^[UPW]$/.test(String((v && v.typeCode) || '').toUpperCase())); }
-  var RDR_TYPES_BMW = { N: 'Neuf', D: 'Démo', U: 'Usagé / certifié', P: 'Changement de propriétaire', W: 'Wholesale' };
+  var RDR_TYPES_BMW = { N: 'Neuf', D: 'Démo', U: 'Occasion / certifiée', P: 'Changement de propriétaire', W: 'Wholesale' };
   /* (11 oct., Maxime : « très important : les inventaires que tu prends des sites de constructeur sont différents des inventaires
      que tu as avec des fichiers ou des Google Sheets — fais la distinction, on va vouloir les comparer et demander les
      différences ») : deux ORIGINES jamais mélangées — « dms » (export du DMS, fichier, feuille Google) et « constructeur »
@@ -376,8 +376,8 @@
     // Marquage interne (11 oct.) : calculs purs partagés (tests, accueil).
     disponible: estDisponible, raisonIndispo: raisonIndispo, MARQUES: MARQUES
   };
-  // Section « Neufs » du menu (11 oct.) — à côté de « Usagé » ; la page a ses propres onglets, pas de sous-barre.
-  // 11 oct. (Maxime : « un onglet Inventaire, puis Neufs et Usagé ») : plus de section à part — la vue est montée par
+  // Section « Neufs » du menu (11 oct.) — à côté de « Occasion » ; la page a ses propres onglets, pas de sous-barre.
+  // 11 oct. (Maxime : « un onglet Inventaire, puis Neufs et Occasion ») : plus de section à part — la vue est montée par
   // Inventaire › Neufs (assets/inventaire.js, VueInventaire). L'ancienne adresse #/neufs est redirigée (app.js).
   AMX.neufs.monter = function (conteneur, ctx) { return new VueNeufs(conteneur, ctx); };
   /* 21 oct. — Vente › Échanges de neufs : les demandes d'échange (GET ?echanges=1) en cache du module, pour le compteur de la
@@ -558,7 +558,7 @@
     var barre;
     if (AMX.ui2 && AMX.ui2()) {
       /* v134 : recherche, modèle et version restent visibles ; les autres menus (moteur, année, emplacement, étiquette, FAN, sortis)
-         passent dans un bouton « Filtres », comme sur Usagé. */
+         passent dans un bouton « Filtres », comme sur Occasion. */
       var champ = function (libelle, el) { return h('div.champ', [h('label', { text: libelle }), el]); };
       var pop = h('div.inv2-pop', { hidden: true, role: 'dialog', 'aria-label': 'Autres filtres' }, [champ('Moteur', this.selMoteur), champ('Année-modèle', this.selAnnee), champ('Emplacement', this.selEmplacement), champ('Étiquette', this.selEtiquette), this.selNcp, etiquetteSortis]);
       var btnF = h('button.btn.inv2-plus', { type: 'button', 'aria-expanded': 'false', html: I.filtre + '<span>Filtres</span>' });
@@ -1243,7 +1243,7 @@
     if (!this.commandesToutesAnnees) commandes = commandes.filter(function (x) { var a = Number(x.annee) || 0; if (!a || a >= anneeMin) return true; var k = String(x.annee); autresAnnees[k] = (autresAnnees[k] || 0) + (x.n || 0); return false; });
     return { ventes: filtre(neuves, venteFlotte, function (v) { return nomMarque(v.marque); }), ventesUsagees: usagees, commandes: commandes, autresAnnees: autresAnnees, anneeMin: anneeMin, etats: etats, tableaux: tableaux, lus: lus, cies: cies, montants: !!p.montants, factures: p.factures || {} };
   };
-  /* (11 oct.) Tableau du constructeur — portail RDR BMW : objectifs (mois et cumul), crédits, RDR à compléter, usagés déclarés. */
+  /* (11 oct.) Tableau du constructeur — portail RDR BMW : objectifs (mois et cumul), crédits, RDR à compléter, occasions déclarées. */
   VueNeufs.prototype.rendreTableau = function (pv) {
     var self = this, cies = Object.keys(pv.tableaux || {});
     if (!cies.length) return null;
@@ -1256,21 +1256,21 @@
     var tuiles = h('div.neufs-cartes', { style: { marginBottom: '0' } });
     var m = o.mois || {}, cu = o.cumul || {};
     if (m.neufs) tuiles.appendChild(carte(couleur(m.neufs), 'Neufs + démos — ' + moisLib, fmtObj(m.neufs), (pct(m.neufs) !== null ? pct(m.neufs) + ' % de l\'objectif' : 'pas d\'objectif') + (m.neufs.vsAnDernier !== null && m.neufs.vsAnDernier !== undefined ? ' · ' + m.neufs.vsAnDernier + ' % de l\'an dernier' : '')));
-    if (m.usages) tuiles.appendChild(carte(couleur(m.usages), 'Usagés — ' + moisLib, fmtObj(m.usages), (pct(m.usages) !== null ? pct(m.usages) + ' % de l\'objectif' : 'pas d\'objectif') + (m.usages.vsAnDernier ? ' · ' + m.usages.vsAnDernier + ' % de l\'an dernier' : '')));
+    if (m.usages) tuiles.appendChild(carte(couleur(m.usages), 'Occasions — ' + moisLib, fmtObj(m.usages), (pct(m.usages) !== null ? pct(m.usages) + ' % de l\'objectif' : 'pas d\'objectif') + (m.usages.vsAnDernier ? ' · ' + m.usages.vsAnDernier + ' % de l\'an dernier' : '')));
     if (cu.neufs) tuiles.appendChild(carte(couleur(cu.neufs), 'Neufs + démos — cumul ' + (o.annee || ''), fmtObj(cu.neufs), pct(cu.neufs) !== null ? pct(cu.neufs) + ' % de l\'objectif annuel' : 'pas d\'objectif'));
-    if (cu.usages) tuiles.appendChild(carte(couleur(cu.usages), 'Usagés — cumul ' + (o.annee || ''), fmtObj(cu.usages), pct(cu.usages) !== null ? pct(cu.usages) + ' % de l\'objectif annuel' : 'pas d\'objectif'));
+    if (cu.usages) tuiles.appendChild(carte(couleur(cu.usages), 'Occasions — cumul ' + (o.annee || ''), fmtObj(cu.usages), pct(cu.usages) !== null ? pct(cu.usages) + ' % de l\'objectif annuel' : 'pas d\'objectif'));
     var tot = cr.total || {};
     if (cr.total) tuiles.appendChild(carte(tot.attente ? 'ambre' : 'vert', 'Crédits ' + nomMarque(cie) + ' approuvés', AMX.fmtArgent(tot.approuve || 0, 0), 'depuis ' + (cr.depuis || '—') + ' · en attente ' + AMX.fmtArgent(tot.attente || 0, 0) + (tot.refuse ? ' · refusés ' + AMX.fmtArgent(tot.refuse, 0) : '')));
     var parType = {}; aFaire.forEach(function (l) { var k = RDR_TYPES_BMW[l.type] || l.type || '—'; parType[k] = (parType[k] || 0) + 1; });
     tuiles.appendChild(carte(aFaire.length ? 'rouge' : 'vert', 'RDR à compléter', AMX.fmtNombre(aFaire.length), aFaire.length ? Object.keys(parType).map(function (k) { return k + ' ' + parType[k]; }).join(' · ') : 'rien en suspens sur le portail'));
     var usag = pv.ventesUsagees.filter(function (v) { return String(v.dateVente) >= debut12Mois(); }), parU = {}; usag.forEach(function (v) { var k = RDR_TYPES_BMW[v.typeCode] || v.typeVente || '—'; parU[k] = (parU[k] || 0) + 1; });
-    if (usag.length) tuiles.appendChild(carte('sombre', 'Usagés déclarés — 12 mois', AMX.fmtNombre(usag.length), Object.keys(parU).map(function (k) { return k + ' ' + parU[k]; }).join(' · ')));
+    if (usag.length) tuiles.appendChild(carte('sombre', 'Occasions déclarées — 12 mois', AMX.fmtNombre(usag.length), Object.keys(parU).map(function (k) { return k + ' ' + parU[k]; }).join(' · ')));
     var corps = [tuiles];
     if (aFaire.length) {
       var rows = aFaire.slice(0, 80).map(function (l) { return h('tr', [h('td', { text: RDR_TYPES_BMW[l.type] || l.type || '—' }), h('td', { text: l.dateRdr ? AMX.fmtDate(l.dateRdr) : '—' }), h('td.vehicule', [h('div.nom', { text: l.vehicule || '—' }), h('div.vin', { text: l.vin || '' })]), h('td', { text: l.client || '—' }), h('td', { text: l.conseiller || '—' }), h('td', [h('span.badge.' + (/corriger/.test(l.statut || '') ? 'rouge' : 'ambre'), { text: l.statut || '—' })])]); });
       corps.push(h('h3', { style: { margin: '14px 0 6px' }, text: 'RDR à compléter sur le portail (' + aFaire.length + ')' }));
       corps.push(h('div.neufs-table', [h('table.tableau', [h('thead', [h('tr', [h('th', 'Type'), h('th', 'Date RDR'), h('th', 'Véhicule'), h('th', 'Client'), h('th', 'Conseiller'), h('th', 'Statut')])]), h('tbody', rows)])]));
-      corps.push(h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Les RDR « à corriger » bloquent le crédit du constructeur : à régler sur le portail (RDR › RDR List). Un usagé vendu en gros (encan) doit être déclaré en « Wholesale Registration ».' + (aFaire.length > 80 ? ' … ' + (aFaire.length - 80) + ' autres sur le portail.' : '') }));
+      corps.push(h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Les RDR « à corriger » bloquent le crédit du constructeur : à régler sur le portail (RDR › RDR List). Une occasion vendue en gros (encan) doit être déclaré en « Wholesale Registration ».' + (aFaire.length > 80 ? ' … ' + (aFaire.length - 80) + ' autres sur le portail.' : '') }));
     }
     if (cr.mois && cr.mois.length) {
       corps.push(h('h3', { style: { margin: '14px 0 6px' }, text: 'Crédits ' + nomMarque(cie) + ' par mois' }));

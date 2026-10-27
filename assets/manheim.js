@@ -6,7 +6,7 @@
    de marketplace.manheim.ca ; le serveur (Manheim.gs) garde une fiche par NIV : photos (autovinlive.com, publiques), cote
    CR, dommages avec photo, pneus, inspection, divulgations, CARFAX, prix.
    AMX.manheim = { charger(force), parVin(vin), fiche(vin), ouvrir(vin), bloc(vin, conteneur) → Promise<bool> }.
-   Le bloc « Fiche Manheim » du panneau Usagé n'apparaît que si le véhicule a une fiche.
+   Le bloc « Fiche Manheim » du panneau Occasion n'apparaît que si le véhicule a une fiche.
    ========================================================================= */
 (function () {
   'use strict';
@@ -122,7 +122,7 @@
     return m;
   }
 
-  /* ---- Bloc du panneau Usagé : seulement si une fiche existe. Renvoie Promise<bool>. ---- */
+  /* ---- Bloc du panneau Occasion : seulement si une fiche existe. Renvoie Promise<bool>. ---- */
   function bloc(vin, conteneur) {
     return charger(false).then(function () {
       var r = parVin(vin);

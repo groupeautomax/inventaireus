@@ -3,19 +3,19 @@
 
    AchatsAuto.gs entre tout seul, au statut « Acheté », les achats lus sur les portails (favori DealerSource sur
    « Mes transactions », achats Manheim de BMW Financial Services). Maxime : « il faut qu'il soit une autre couleur ou
-   inscrit d'une manière distinctive ». Tant que personne ne l'a confirmé, un tel véhicule est en VIOLET dans Usagé :
+   inscrit d'une manière distinctive ». Tant que personne ne l'a confirmé, un tel véhicule est en VIOLET dans Occasion :
    ligne bordée de violet, puce « Auto · GMF », chiffre « Entrés automatiquement » (filtre ?alerte=auto) et, dans le
    panneau, un bloc qui dit d'où il vient avec le bouton « Confirmer ». L'Accueil compte ceux qui restent à confirmer.
 
    AMX.achatsAuto : charger(force) · enCache() · entree(vin) (non confirmée, sinon null) · compte(compagnie) ·
    puce(vin) · bloc(vin) · confirmer(vins) · lireOpenlane(compagnie) · peutLire() · vider(). Événement « amx:achatsAuto ».
    OPENLANE n'a pas de favori : le serveur lit ses achats tout seul aux 2 heures (AchatsAuto.gs, ACHA_tic) ;
-   lireOpenlane() le fait tout de suite (menu « … » d'Usagé).
+   lireOpenlane() le fait tout de suite (menu « … » d'Occasion).
 
    Contrats d'achat reçus par courriel (AchatsCourriel.gs, 26 oct.) : on transfère le contrat (PDF, photo, ou la
    confirmation dans le texte) à l'adresse dédiée ; Einstein AI le lit et le véhicule entre au registre en violet, ou
    reste « À vérifier » avec la raison. AMX.achatsAuto.contrats : charger(force) · enCache() · aVerifier(compagnie) ·
-   ouvrir({ apres }) (fenêtre « Contrats d'achat reçus », Usagé › « … » et Accueil) · document(id). Événement « amx:contrats ».
+   ouvrir({ apres }) (fenêtre « Contrats d'achat reçus », Occasion › « … » et Accueil) · document(id). Événement « amx:contrats ».
    ========================================================================= */
 (function () {
   'use strict';
@@ -85,7 +85,7 @@
         return A.charger(true).then(function () { return r; });
       }).catch(function (e) { AMX.toast(e.message || String(e), 'erreur'); throw e; });
     },
-    /** Bloc violet du panneau Usagé : d'où vient l'entrée, le prix, et « Confirmer ». */
+    /** Bloc violet du panneau Occasion : d'où vient l'entrée, le prix, et « Confirmer ». */
     bloc: function (vin) {
       var a = A.entree(vin); if (!a) return null;
       var details = [
@@ -200,7 +200,7 @@
         btns.push(h('button.btn.petit', { type: 'button', text: 'Relire avec Einstein AI', onclick: function (ev) { relire(c, ev.currentTarget); } }));
       }
       if (d.peutValider && (aVoir(c) || c.statut === 'pas_contrat')) btns.push(h('button.btn.petit.fantome', { type: 'button', text: 'Ignorer', onclick: function () { ignorer(c); } }));
-      if ((c.statut === 'entre' || c.statut === 'deja') && c.vin) btns.push(h('a.btn.petit', { href: AMX.lien('inventaire', 'usage', { vin: c.vin }), text: 'Ouvrir dans Usagé', onclick: function () { m.fermer(); } }));
+      if ((c.statut === 'entre' || c.statut === 'deja') && c.vin) btns.push(h('a.btn.petit', { href: AMX.lien('inventaire', 'usage', { vin: c.vin }), text: 'Ouvrir dans Occasion', onclick: function () { m.fermer(); } }));
       return h('div.contrat-carte.' + ton, { 'data-id': c.id }, [
         h('div.contrat-tete', [
           h('span.badge.' + ton, { text: LIBELLES[c.statut] || c.statutLibelle || c.statut }),
@@ -344,7 +344,7 @@
     return m;
   }
 
-  /* Violet : la ligne d'Usagé, la puce, le chiffre et le bloc du panneau (couleurs du thème, mode sombre compris). */
+  /* Violet : la ligne d'Occasion, la puce, le chiffre et le bloc du panneau (couleurs du thème, mode sombre compris). */
   if (!document.getElementById('css-achats-auto')) {
     var st = document.createElement('style'); st.id = 'css-achats-auto';
     st.textContent = [

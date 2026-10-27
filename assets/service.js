@@ -256,7 +256,7 @@
     // Demandes de travaux (8 oct.) : puces BT sur les lignes, bloc dans le panneau, KPI « au service ».
     this.surDemandes = function () { if (!self.detruit) self.rendre(); };
     document.addEventListener('amx:demandes', this.surDemandes);
-    // 26 oct. : un usagé effacé du registre Detail (ici ou ailleurs) quitte la liste tout de suite.
+    // 26 oct. : une occasion effacée du registre Detail (ici ou ailleurs) quitte la liste tout de suite.
     this.surInventaire = function (e) { if (!self.detruit && (!e || !e.detail || e.detail.feuille === 'DETAIL')) self.rendre(); };
     document.addEventListener('amx:inventaire', this.surInventaire);
     AMX.demandes.charger().then(this.surDemandes).catch(function () {});
@@ -298,7 +298,7 @@
           h('button.btn', { html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
           AMX.estAdmin() ? h('button.btn', { html: I.outils + '<span>Cibles</span>', onclick: function () { self.modaleCibles(); } }) : null,
           AMX.estAdmin() ? h('button.btn', { title: 'Recopie les suivis dans l\'onglet « Service » des feuilles de concession (BMW)', html: I.externe + '<span>Feuilles</span>', onclick: function () { self.miroir(); } }) : null,
-          this.sel.bouton
+          null
         ])
       ]),
       this.elCies, this.elKpis, this.elAgencement
@@ -352,7 +352,7 @@
   };
 
   /* ----------------- v133 : Suivi service refait (nouvelle interface, html.ui2) -----------------
-     Comme Usagé : un en-tête avec le menu « … », au plus cinq chiffres, une barre de filtres au-dessus de la liste
+     Comme Occasion : un en-tête avec le menu « … », au plus cinq chiffres, une barre de filtres au-dessus de la liste
      (recherche, étapes en pastilles avec leur nombre, « En retard ») ; plus de volet de gauche. */
   Suivi.prototype.construireUi2 = function () {
     var self = this;
@@ -377,7 +377,7 @@
     this.conteneur.appendChild(h('div.page.inv2', [
       h('div.entete-page.inv2-tete', [
         h('div.inv2-titre', [h('h1', 'Suivi service'), h('p#svc-etat.inv2-etat', { text: 'Chargement…' })]),
-        h('div.actions', [menu, this.sel.bouton])
+        h('div.actions', [menu])
       ]),
       /* v138 : filtres → « Chiffres et liste » → chiffres (calculés sur la liste filtrée) → liste */
       this.elRail, this.elPortee, this.elKpis, this.elAgencement
@@ -493,7 +493,7 @@
 
   /* ------------------------------- Filtres -------------------------------- */
   /* 26 oct. — Maxime : « effacer peu importe où je les vois ». « Sélectionner » puis Supprimer (droit « Supprimer ») : le véhicule
-     est retiré du registre Detail, donc du service, de l'Analyse usagé et du Prix du marché. */
+     est retiré du registre Detail, donc du service, de l'Analyse occasion et du Prix du marché. */
   Suivi.prototype.creerSelection = function () {
     if (this.sel) this.sel.quitter();
     this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.ligne', actions: [
@@ -640,6 +640,8 @@
     AMX.vider(this.elOutils);
     var sel = h('select.saisie', { onchange: function (e) { self.tri = e.target.value; AMX.memo.ecrire('svc_tri', self.tri); self.rendre(); } });
     [['jours', 'Jours depuis l\'arrivée'], ['etape', 'Étape'], ['maj', 'Dernière mise à jour'], ['modele', 'Modèle'], ['stock', '# stock']].forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: self.tri === o[0], text: 'Tri : ' + o[1] })); });
+    /* 27 oct. (Maxime : « le bouton Sélectionner devrait être juste en haut des stocks et de la case à cocher ») : au-dessus de la liste, à gauche. */
+    if (this.sel) this.elOutils.appendChild(this.sel.bouton);
     if (this.ui2) { this.elOutils.appendChild(h('span.espace')); this.elOutils.appendChild(sel); return; }   /* v138 : nombre et filtres dans « Chiffres et liste » */
     this.elOutils.appendChild(h('span.compte', [h('b', { text: liste.length }), ' véhicule' + (liste.length > 1 ? 's' : '')]));
     var puces = [];

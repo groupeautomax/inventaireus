@@ -657,7 +657,7 @@
         h('div.cell.indic', [h('span.l', 'Lien'), h('div.indicateurs', [lien ? h('button.puce.info', { type: 'button', html: 'Copier le lien', onclick: function () { AMX.copier(lien, 'Lien de la page copié'); } }) : null, lien ? h('a.puce', { href: lien, target: '_blank', rel: 'noopener', text: 'Ouvrir' }) : null, p.video ? h('span.puce.ok', { text: 'Vidéo' }) : null])]),
         h('div.montant', [h('span.l', 'Prix'), h('span', { text: AMX.montant(p.prix) > 0 ? AMX.fmtArgent(p.prix) : 'Sur demande' })]),
         h('button.btn.petit', { type: 'button', title: 'Envoyer la page de ce véhicule à des acheteurs inscrits (courriel, texto)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(p.vin, { concession: compagnieVersConcession(v.compagnie) }); } }),
-        h('button.plus', { 'aria-label': 'Modifier la publication', type: 'button', title: 'Modifier', html: I.points, onclick: function () { self.modalePublier(p.vin, p); } })
+        h('button.btn.petit.pastille-modifier', { 'aria-label': 'Modifier la publication', type: 'button', title: 'Modifier la publication', text: 'Modifier', onclick: function () { self.modalePublier(p.vin, p); } })
       ]);
       ul.appendChild(el);
     });

@@ -1,10 +1,10 @@
 /* Recherche partout (22 oct. 2026) — la boîte de la barre et la grande boîte de l'Accueil.
    Maxime : « la zone de recherche dans la page d'accueil doit tout rechercher ce qui se rapporte à l'item cherché,
    pas juste le CARFAX ; quand on choisit une compagnie pour chercher, ça doit être plus clair quelle compagnie on
-   cherche ». Avant : l'inventaire usagé + les rapports CARFAX hors inventaire, sans tenir compte de la concession.
+   cherche ». Avant : l'inventaire occasion + les rapports CARFAX hors inventaire, sans tenir compte de la concession.
 
    On cherche un NIV (ou ses derniers caractères), un # stock, un modèle, un client ou un téléphone dans :
-   l'usagé (3 registres), les neufs, les évaluations (client et suivi), le Livre des ventes, le Suivi service et les
+   les occasions (3 registres), les neufs, les évaluations (client et suivi), le Livre des ventes, le Suivi service et les
    demandes de travaux, les offres reçues, les soumissions, l'archive Torque, et par NIV : eBlock, OpenLane, CARFAX.
    Chaque véhicule trouvé = une carte avec tout ce qui s'y rapporte (une puce par élément, qui ouvre la bonne page) ;
    ce qui n'a pas de NIV (vente wholesale, soumission bâtie) est listé à part. Chaque liste se charge une fois, en
@@ -34,11 +34,11 @@
      charger() → Promise<liste> ; cie(x) → code concession ; champs(x) → texte cherché ; tel(x) → téléphones ;
      vin(x) ; puce(x) → { t, c (couleur), href | action, titre } ; titre(x) / sous(x) pour les résultats sans NIV. */
   var SOURCES = [
-    { id: 'usage', nom: 'Usagé', section: 'inventaire', charger: function () { return AMX.inventaire.tout(); },
+    { id: 'usage', nom: 'Occasion', section: 'inventaire', charger: function () { return AMX.inventaire.tout(); },
       cie: function (v) { return v.compagnie; }, vin: function (v) { return v.vin; }, champs: function (v) { return [v.vin, v.stock, v.modele, v.compagnie].join(' '); },
       modele: function (v) { return v.modele; }, stock: function (v) { return v.stock; },
       actif: function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; },
-      puce: function (v) { var s = AMX.statut(v.statut, v._feuille); return { t: 'Usagé · ' + AMX.inventaire.nomFeuille(v._feuille) + ' · ' + s.libelle, c: s.couleur, href: AMX.lien('inventaire', String(v._feuille || '').toLowerCase(), { vin: v.vin }), principal: true }; } },
+      puce: function (v) { var s = AMX.statut(v.statut, v._feuille); return { t: 'Occasion · ' + AMX.inventaire.nomFeuille(v._feuille) + ' · ' + s.libelle, c: s.couleur, href: AMX.lien('inventaire', String(v._feuille || '').toLowerCase(), { vin: v.vin }), principal: true }; } },
     { id: 'neuf', nom: 'Neufs', section: 'inventaire', charger: function () { return AMX.neufs ? AMX.neufs.charger().then(function () { var d = AMX.neufs.enCache(); return d ? d.vehicules : []; }) : Promise.resolve([]); },
       cie: function (v) { return v.compagnie; }, vin: function (v) { return v.vin; }, champs: function (v) { return [v.vin, v.stock, v.annee, v.marque, v.modele, v.version, v.couleur].join(' '); },
       modele: function (v) { return vehiculeTexte(v); }, stock: function (v) { return v.stock; }, actif: function (v) { return !v.sortiLe; },
@@ -173,7 +173,7 @@
       if (!principal) { var p = it.src.puce(it.x); if (p.principal) principal = p.href; }
     });
     if (!principal && g.items.length) principal = g.items[0].src.puce(g.items[0].x).href;
-    // Une puce par élément ; l'usagé et les neufs d'abord, puis le reste dans l'ordre des sources.
+    // Une puce par élément ; les occasions et les neufs d'abord, puis le reste dans l'ordre des sources.
     var rang = {}; SOURCES.forEach(function (s, i) { rang[s.id] = i; });
     var items = g.items.slice().sort(function (a, b) { return rang[a.src.id] - rang[b.src.id]; });
     var vus = {}, puces = [];

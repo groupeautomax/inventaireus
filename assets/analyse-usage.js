@@ -1,7 +1,7 @@
 /* =========================================================================
-   Inventaire › Analyse usagé (24 octobre 2026) — AMX.analyseUsage
+   Inventaire › Analyse occasion (24 octobre 2026) — AMX.analyseUsage
 
-   Maxime (24 oct.) : « monte une analyse de nos inventaires d'usagés (regarde vAuto et les autres) avec les rangs du
+   Maxime (24 oct.) : « monte une analyse de nos inventaires d'occasion (regarde vAuto et les autres) avec les rangs du
    marché, le nombre de jours, le % du prix du marché et toute l'analyse nécessaire pour mieux gérer notre inventaire
    détail ; ça peut être un autre onglet ».
 
@@ -180,7 +180,7 @@
   }
   function alertes(a, p) {
     var l = [];
-    if (voitCouts() && a.coutIllisible) l.push({ t: 'Coût illisible au registre', c: 'rouge', title: 'La cellule « Coût » du registre contient « ' + String(a.coutIllisible).slice(0, 40) + ' » (Sheets l\'a transformée en date) : retapez le coût dans Usagé.' });
+    if (voitCouts() && a.coutIllisible) l.push({ t: 'Coût illisible au registre', c: 'rouge', title: 'La cellule « Coût » du registre contient « ' + String(a.coutIllisible).slice(0, 40) + ' » (Sheets l\'a transformée en date) : retapez le coût dans Occasion.' });
     if (voitCouts() && nb(a.ctm) && a.ctm > p.ctmMax) l.push({ t: 'Coût élevé : ' + pct(a.ctm) + ' du marché', c: 'rouge', title: 'Notre coût dépasse ' + p.ctmMax + ' % de la médiane du marché : peu de place pour le prix.' });
     if (nb(a.prixAttente)) l.push({ t: 'Nouveau prix ' + argent(a.prixAttente) + ' à inscrire sur le site', c: 'bleu', title: 'Enregistré dans ScanAutomax, pas encore inscrit dans D2C : cliquez le favori « Automax → D2C (prix) » dans D2C Media.' });
     if (a.prixEcrase) l.push({ t: 'Prix revenu à l\'ancien sur le site', c: 'ambre', title: 'Le prix inscrit dans D2C a été remis par le feed du DMS : changez-le aussi dans le DMS.' });
@@ -193,7 +193,7 @@
     if (a.elargi) l.push({ t: 'Marché élargi', c: 'gris', title: 'Moins de 3 comparables à l\'année ± 1 et km ± 30 000 : élargi à l\'année ± 2, tout km.' });
     return l;
   }
-  /* Nos ventes au détail des 90 derniers jours, par modèle : le Livre des ventes (usagés, pas annulés, date de vente) et,
+  /* Nos ventes au détail des 90 derniers jours, par modèle : le Livre des ventes (occasions, pas annulés, date de vente) et,
      pour ce qui n'y est pas (Hawkesbury n'a pas de livre), les véhicules du registre Detail passés à « vendu » (date = dernière
      mise à jour de la ligne). Délai de vente = date de vente − entrée au registre, quand le NIV y est. */
   function ventesDe(detail, livre, cie, maintenant) {
@@ -230,7 +230,7 @@
 
   /* ------------------------------ La page ------------------------------ */
   AMX.section('analyse', {
-    titre: 'Analyse usagé', icone: 'inventaire', ordre: 21,
+    titre: 'Analyse occasion', icone: 'inventaire', ordre: 21,
     visible: function () { return AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.perm('modifierMontants') || AMX.estAdmin(); },
     monter: function (conteneur, ctx) { return new VueAnalyse(conteneur, ctx); }
   });
@@ -293,15 +293,17 @@
     this.btnMds = h('button.btn', { type: 'button', html: (I.rafraichir || '') + '<span>Lire des MDS maintenant</span>', onclick: function (e) { self.lireMds(e.currentTarget); } });
     this.btnVersions = h('button.btn', { type: 'button', html: (I.rafraichir || '') + '<span>Décoder les versions manquantes</span>', onclick: function (e) { self.decoderVersions(e.currentTarget); } });
     this.elListe = h('div.carte.anu-liste');
-    // 26 oct. : « Sélectionner » — cliquer ou glisser sur les usagés, puis Supprimer (droit « Supprimer »).
+    // 26 oct. : « Sélectionner » — cliquer ou glisser sur les occasions, puis Supprimer (droit « Supprimer »).
     this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.anu-rangee', actions: [
       AMX.perm('supprimer') ? { texte: 'Supprimer', icone: I.corbeille, danger: true, action: function (vins, vider) {
         AMX.inventaire.supprimer(vins, { feuille: 'DETAIL' }).then(function (faits) { if (faits) vider(); });
       } } : null] });
-    var actions = [this.btnRafraichir, this.btnMds, this.btnVersions, this.btnExport, this.sel.bouton, this.btnReglages];
-    this.elActions = h('div.actions', AMX.actionsEntete ? AMX.actionsEntete(actions, [this.sel.bouton, this.btnReglages]) : actions);
+    var actions = [this.btnRafraichir, this.btnMds, this.btnVersions, this.btnExport, this.btnReglages];
+    this.elActions = h('div.actions', AMX.actionsEntete ? AMX.actionsEntete(actions, [this.btnReglages]) : actions);
+    /* 27 oct. (Maxime : « le bouton Sélectionner devrait être juste en haut des stocks et de la case à cocher ») : au-dessus de la liste, à gauche. */
+    this.elOutilsListe = h('div.outils-liste.anu-outils', [this.sel.bouton]);
     this.elCies = h('div.barre-cies');
-    this.elQ = h('input.saisie#anu-recherche', { type: 'search', placeholder: '# stock, modèle, NIV…', 'aria-label': 'Chercher un usagé', autocomplete: 'off', value: this.f.q,
+    this.elQ = h('input.saisie#anu-recherche', { type: 'search', placeholder: '# stock, modèle, NIV…', 'aria-label': 'Chercher une occasion', autocomplete: 'off', value: this.f.q,
       oninput: AMX.debounce(function (e) { self.f.q = e.target.value; self.limite = LIMITE; self.rafraichir(); }, 150),
       onkeydown: function (e) { if (e.key === 'Escape' && self.elQ.value) { e.stopPropagation(); self.elQ.value = ''; self.f.q = ''; self.rafraichir(); } } });
     this.elTri = h('select.saisie#anu-tri', { 'aria-label': 'Trier', onchange: function () { self.f.tri = self.elTri.value; AMX.memo.ecrire('anu_tri', self.f.tri); self.rafraichir(); } },
@@ -320,11 +322,11 @@
     this.elKpis = h('div.kpis.anu-kpis');
     this.elProfil = h('div.carte.anu-profil');
     this.elCiesTable = h('div.carte.anu-cies');
-    this.conteneur.appendChild(h('div.page.anu-page', [h('div.entete-page', [h('div', [h('h1', 'Analyse usagé'), this.elSous]), this.elActions]),
-      this.elCies, this.elPxd, this.elFiltres, this.elPortee, this.elKpis, this.elProfil, this.elCiesTable, this.elListe]));
+    this.conteneur.appendChild(h('div.page.anu-page', [h('div.entete-page', [h('div', [h('h1', 'Analyse occasion'), this.elSous]), this.elActions]),
+      this.elCies, this.elPxd, this.elFiltres, this.elPortee, this.elKpis, this.elProfil, this.elCiesTable, this.elOutilsListe, this.elListe]));
   };
   VueAnalyse.prototype.p = function () { return params(this.d); };
-  /* Tous nos usagés au détail : le registre Detail (en stock, acheté, transit) et ce que le Prix du marché en sait. */
+  /* Toutes nos occasions au détail : le registre Detail (en stock, acheté, transit) et ce que le Prix du marché en sait. */
   VueAnalyse.prototype.base = function () {
     var self = this, cle = [this.detailOk ? 1 : 0, this.d ? this.d.genereLe : '', this.marche ? this.marche.calculeLe || this.marche.le : '', this.detail ? this.detail.length : -1, this.livre ? this.livre.length : -1, AMX.inventaire.quand ? AMX.inventaire.quand('DETAIL') : 0,
       AMX.openlane && AMX.openlane.enCache && AMX.openlane.enCache() ? Object.keys(AMX.openlane.enCache()).length : 0, this.pxdQuand || 0].join('|');
@@ -431,7 +433,7 @@
     if (f.action) actifs.push((A_LIB[f.action] || {}).t);
     if (f.tranche !== '') actifs.push(libTranche(Number(f.tranche), p.tranches));
     if (f.prix) actifs.push(FILTRES_PRIX.filter(function (x) { return x[0] === f.prix; })[0][1]);
-    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['usagé', 'usagés'], contexte: [this.compagnie ? COURTS[this.compagnie] || this.compagnie : 'toutes les concessions', 'registre Detail'],
+    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['occasion', 'occasions'], contexte: [this.compagnie ? COURTS[this.compagnie] || this.compagnie : 'toutes les concessions', 'registre Detail'],
       filtres: actifs, effacer: function () { f.q = ''; f.action = ''; f.tranche = ''; f.prix = ''; self.elQ.value = ''; AMX.memo.ecrire('anu_action', ''); self.rafraichir(); } });
     this.rendreKpis(liste);
     this.rendreProfil(liste);
@@ -449,10 +451,10 @@
     var coutTot = somme(liste.map(function (a) { return a.cout; }));
     var baisser = liste.filter(function (a) { return a.action.code === 'baisser'; }), monter = liste.filter(function (a) { return a.action.code === 'monter'; });
     var gros = liste.filter(function (a) { return a.action.code === 'gros'; });
-    this.elKpis.appendChild(tuile(AMX.fmtNombre(liste.length), 'Usagés', couts && coutTot ? argent(coutTot) + ' au coût' : ''));
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(liste.length), 'Occasions', couts && coutTot ? argent(coutTot) + ' au coût' : ''));
     this.elKpis.appendChild(tuile(nb(ageMoy) ? Math.round(ageMoy) + ' j' : '—', 'Âge moyen', pVieux + ' % au-delà de 60 j', pVieux > 10 ? 'neg' : '', 'Repères : 60 à 70 % du stock à 30 jours et moins, au plus 5 % au-delà de 60 jours.'));
     this.elKpis.appendChild(tuile(pct(ptmMoy), '% du marché', nb(cibleMoy) ? 'visé ' + pct(cibleMoy) : '', nb(ptmMoy) && nb(cibleMoy) && ptmMoy > cibleMoy + p.tolerance ? 'neg' : '',
-      'Notre prix ÷ médiane des annonces de la même version, ajustée à notre km (' + avecPtm.length + ' usagés avec prix et marché).'));
+      'Notre prix ÷ médiane des annonces de la même version, ajustée à notre km (' + avecPtm.length + ' occasions avec prix et marché).'));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(baisser.length) + ' · ' + AMX.fmtNombre(monter.length), 'À baisser · à monter', baisser.length || monter.length ? signe(somme(baisser.map(function (a) { return a.ecartCible; }))) + ' · ' + signe(somme(monter.map(function (a) { return a.ecartCible; }))) : '', baisser.length ? 'neg' : ''));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(gros.length), 'Envisager le gros', p.ageGros + ' j et plus', gros.length ? 'neg' : ''));
   };
@@ -468,11 +470,11 @@
         ctm: moyenne(l.map(function (a) { return a.ctm; })), profit: moyenne(l.map(function (a) { return a.profitAff; })), baisser: l.filter(function (a) { return a.action.code === 'baisser'; }).length,
         sansPrix: l.filter(function (a) { return a.action.code === 'sansprix'; }).length };
     });
-    var tete = ['Âge', 'Usagés', 'Part du stock', '% du marché', 'Visé', couts ? '% coût' : null, 'À baisser'].filter(function (x) { return x !== null; });
+    var tete = ['Âge', 'Occasions', 'Part du stock', '% du marché', 'Visé', couts ? '% coût' : null, 'À baisser'].filter(function (x) { return x !== null; });
     var corps = rangs.map(function (r) {
       var ecart = nb(r.ptm) ? r.ptm - r.cible : null, cls = !nb(ecart) ? '' : (ecart > p.tolerance ? 'neg' : (ecart < -p.tolerance ? 'bleu' : 'pos'));
       var barre = h('div.anu-barre', { title: 'Part du stock : ' + Math.round(r.part) + ' %' }, [h('i', { style: 'width:' + Math.min(100, Math.round(r.part)) + '%' })]);
-      return h('tr' + (String(self.f.tranche) === String(r.i) ? '.actif' : ''), { tabindex: '0', title: 'Voir ces usagés', onclick: function () { self.f.tranche = String(self.f.tranche) === String(r.i) ? '' : r.i; self.rafraichir(); } }, [
+      return h('tr' + (String(self.f.tranche) === String(r.i) ? '.actif' : ''), { tabindex: '0', title: 'Voir ces occasions', onclick: function () { self.f.tranche = String(self.f.tranche) === String(r.i) ? '' : r.i; self.rafraichir(); } }, [
         h('td', [h('b', { text: libTranche(r.i, p.tranches) })]), h('td.num', { text: AMX.fmtNombre(r.n) }), h('td', [h('div.anu-part', [barre, h('span', { text: Math.round(r.part) + ' %' })])]),
         h('td.num.' + (cls || 'x'), { text: pct(r.ptm) }), h('td.num.doux', { text: pct(r.cible) }),
         couts ? h('td.num' + (nb(r.ctm) && r.ctm > p.ctmMax ? '.neg' : ''), { text: pct(r.ctm) }) : null,
@@ -501,7 +503,7 @@
         ptm: moyenne(l.map(function (a) { return a.ptm; })), ctm: moyenne(l.map(function (a) { return a.ctm; })), baisser: l.filter(function (a) { return a.action.code === 'baisser'; }).length,
         gros: l.filter(function (a) { return a.action.code === 'gros'; }).length, sansPrix: l.filter(function (a) { return a.action.code === 'sansprix'; }).length };
     }).sort(function (a, b) { return b.n - a.n; });
-    var tete = ['Concession', 'Usagés', 'Âge moyen', 'Au-delà de 60 j', '% du marché', couts ? '% coût' : null, 'À baisser', 'Gros'].filter(function (x) { return x !== null; });
+    var tete = ['Concession', 'Occasions', 'Âge moyen', 'Au-delà de 60 j', '% du marché', couts ? '% coût' : null, 'À baisser', 'Gros'].filter(function (x) { return x !== null; });
     this.elCiesTable.appendChild(h('div.carte-corps', [h('div.anu-titre', [h('h3', 'Par concession')]),
       h('div.anu-defile', [h('table.anu-table', [h('thead', [h('tr', tete.map(function (t, i) { return h('th' + (i ? '.num' : ''), { text: t }); }))]),
         h('tbody', lignes.map(function (r) {
@@ -516,9 +518,9 @@
   VueAnalyse.prototype.rendreListe = function (liste) {
     var self = this;
     AMX.vider(this.elListe);
-    if (!this.detail && !this.marche) { this.elListe.appendChild(AMX.chargeur ? AMX.chargeur('Analyse de l\'usagé', { compact: true }) : h('div.vide', 'Chargement…')); return; }
-    if (!liste.length) { this.elListe.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucun usagé pour ces filtres'), h('div', { text: 'Effacez les filtres ou choisissez « Tous ».' })])); return; }
-    var tetes = [['anu-veh', 'Usagé'], ['anu-age', 'Âge'], ['anu-prix', 'Notre prix'], ['anu-marche', 'Marché'], ['anu-ptm', '% du marché'], ['anu-conseil', 'Conseil'], ['anu-act', '']];
+    if (!this.detail && !this.marche) { this.elListe.appendChild(AMX.chargeur ? AMX.chargeur('Analyse des occasions', { compact: true }) : h('div.vide', 'Chargement…')); return; }
+    if (!liste.length) { this.elListe.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune occasion pour ces filtres'), h('div', { text: 'Effacez les filtres ou choisissez « Tous ».' })])); return; }
+    var tetes = [['anu-veh', 'Occasion'], ['anu-age', 'Âge'], ['anu-prix', 'Notre prix'], ['anu-marche', 'Marché'], ['anu-ptm', '% du marché'], ['anu-conseil', 'Conseil'], ['anu-act', '']];
     this.elListe.appendChild(h('div.anu-rangee.anu-tete', tetes.map(function (t) { return h('div.' + t[0], { text: t[1] }); })));
     liste.slice(0, this.limite).forEach(function (a) { self.elListe.appendChild(self.rangee(a)); });
     if (liste.length > this.limite) this.elListe.appendChild(h('button.btn.anu-plus', { type: 'button', text: 'Afficher ' + Math.min(LIMITE, liste.length - this.limite) + ' de plus (' + (liste.length - this.limite) + ' restants)', onclick: function () { self.limite += LIMITE; self.rafraichir(); } }));
@@ -531,7 +533,7 @@
       : (a.verdictMarche === 'version' ? h('button.anu-version.manque', { type: 'button', text: 'Version à préciser', onclick: function (e) { e.stopPropagation(); self.preciserVersion(a); } }) : null);
     var alerte = a.alertes[0];
     var veh = h('div.anu-veh', [AMX.logoMarque ? AMX.logoMarque(nomMarque(a.marque) || String(a.texte || '').split(' ')[0], 'petit') : null, h('div', [
-      h('div.nom', [h('a', { href: AMX.inventaire.lien ? AMX.inventaire.lien('DETAIL', { vin: a.vin }) : '#', text: a.nom || a.vin, title: 'Ouvrir dans Usagé — ' + a.vin, onclick: function (e) { e.stopPropagation(); } })]),
+      h('div.nom', [h('a', { href: AMX.inventaire.lien ? AMX.inventaire.lien('DETAIL', { vin: a.vin }) : '#', text: a.nom || a.vin, title: 'Ouvrir dans Occasion — ' + a.vin, onclick: function (e) { e.stopPropagation(); } })]),
       h('div.anu-ligne2', [versionEl, h('span.mini', { text: [a.stock ? '# ' + a.stock : '', COURTS[a.compagnie] || a.compagnie].filter(Boolean).join(' · ') })]),
       alerte ? h('div.anu-alertes', [h('span.puce.' + alerte.c, { text: alerte.t, title: alerte.title || '' })]) : null])]);
     var age = h('div.anu-age', [h('span.anu-jours.t' + Math.min(a.tranche, 5) + (a.tranche >= p.tranches.length - 2 ? '.vieux' : ''), { text: nb(a.jours) ? a.jours + ' j' : '—', title: a.dateAjout ? 'Entré au registre le ' + AMX.fmtDate(a.dateAjout) : '' })]);
@@ -550,10 +552,10 @@
       { texte: ouvert ? 'Masquer les détails' : 'Détails et comparables', action: basculer },
       { texte: a.version ? 'Changer la version' : 'Préciser la version', action: function () { self.preciserVersion(a); } },
       AMX.prixDetail && AMX.prixDetail.peut() ? { texte: 'Modifier le prix…', action: function () { self.modifierPrix(a); } } : null,
-      { texte: 'Ouvrir dans Usagé', action: function () { AMX.inventaire.aller('DETAIL', { vin: a.vin }); } },
+      { texte: 'Ouvrir dans Occasion', action: function () { AMX.inventaire.aller('DETAIL', { vin: a.vin }); } },
       a.manheim && AMX.manheim.ouvrir ? { texte: 'Fiche Manheim (photos, état)', action: function () { AMX.manheim.ouvrir(a.vin); } } : null,
       AMX.perm('supprimer') ? { texte: 'Supprimer du registre…', icone: I.corbeille, action: function () { AMX.inventaire.supprimer([a.vin], { feuille: 'DETAIL' }); } } : null
-    ].filter(Boolean), { titre: 'Actions — ' + (a.stock || a.vin) }) : h('span');
+    ].filter(Boolean), { titre: 'Actions — ' + (a.stock || a.vin), petit: true }) : h('span');
     var r = h('div.anu-rangee.a-' + a.action.code + (ouvert ? '.ouvert' : ''), { 'data-vin': a.vin, onclick: function (e) { if (e.target.closest('a, button, .menu')) return; basculer(); } },
       [veh, age, prix, marche, ptm, conseilEl, h('div.anu-act', [menu])]);
     if (ouvert) {
@@ -567,7 +569,7 @@
     var vise = (a.action.code === 'baisser' || a.action.code === 'monter') && nb(a.prixCible) ? a.prixCible : null;
     AMX.prixDetail.modifier({ vin: a.vin, stock: a.stock, nom: [a.nom, a.version].filter(Boolean).join(' '), compagnie: a.compagnie, prix: a.prix }, { prixVise: vise });
   };
-  /* Les détails d'un usagé : coût, profit, détention, gros, MDS, ventes, alertes, puis les annonces de la même version. */
+  /* Les détails d'une occasion : coût, profit, détention, gros, MDS, ventes, alertes, puis les annonces de la même version. */
   function details(a, p) {
     var couts = voitCouts(), cases = [];
     var c = function (lib, val, cls, titre) { cases.push(h('div.anu-det', { title: titre || '' }, [h('span', { text: lib }), h('b' + (cls ? '.' + cls : ''), { text: val })])); };
@@ -591,7 +593,7 @@
       }))])]) : h('div.mini.doux', { text: a.version ? 'Aucune annonce de la version ' + a.version + ' autour de nous.' : 'Version inconnue : précisez-la pour voir les annonces de la même version.' });
     return h('div.anu-details', [h('div.anu-dets', cases), autres.length ? h('div.anu-alertes', autres.map(function (x) { return h('span.puce.' + x.c, { text: x.t, title: x.title || '' }); })) : null, comps]);
   }
-  /* Préciser la version d'un usagé : un choix parmi les versions vues au marché pour ce modèle, ou du texte libre. */
+  /* Préciser la version d'une occasion : un choix parmi les versions vues au marché pour ce modèle, ou du texte libre. */
   VueAnalyse.prototype.preciserVersion = function (a) {
     var self = this, choisi = null, boutons = [];
     var champ = h('input.saisie#anu-version-texte', { type: 'text', placeholder: 'ex. LX AWD', value: a.versionSource === 'manuel' ? a.versionTexte : '', maxlength: '60',
@@ -667,7 +669,7 @@
     var lab = function (t, el, aide) { return h('label.champ', [h('span', { text: t }), el, aide ? h('small.doux', { text: aide }) : null]); };
     var corps = h('div.anu-reglages', [
       h('h4', 'Profil de prix par âge (% du marché visé)'),
-      h('p.mini.doux', { text: 'vAuto propose par exemple 97, 95, 93, 91 % par tranches de 15 jours : un usagé frais peut être au marché, un vieux doit passer sous le marché.' }),
+      h('p.mini.doux', { text: 'vAuto propose par exemple 97, 95, 93, 91 % par tranches de 15 jours : une occasion fraîche peut être au marché, une vieille doit passer sous le marché.' }),
       h('table.anu-table', [h('thead', [h('tr', [h('th', ''), h('th', 'Âge (jours)'), h('th', '% visé')])]), tbody]),
       h('div.anu-grille', [
         lab('Tolérance (points de %)', c.tolerance, 'Écart permis avant « baisser » ou « monter ».'),
@@ -680,7 +682,7 @@
       h('label.case', [actif, h('span', ' Lire le MDS des modèles de notre stock (forfait MarketCheck)')]),
       h('div.anu-grille', [lab('Appels par mois au plus', c.mdsBudgetMois), lab('Relire chaque modèle aux (jours)', c.mdsJours)])
     ]);
-    AMX.modale({ titre: 'Réglages — analyse de l\'usagé', corps: corps, large: true, boutons: [{ texte: 'Remettre par défaut', action: function () {
+    AMX.modale({ titre: 'Réglages — analyse des occasions', corps: corps, large: true, boutons: [{ texte: 'Remettre par défaut', action: function () {
       var df = (d.defauts || DEFAUTS);
       return AMX.post({ action: 'analyseUsageParams', params: df }).then(function (r) { return self.apresReglages(r); });
     } }, { texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
@@ -714,9 +716,9 @@
       return o;
     });
     var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignes), 'Analyse usagé');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignes), 'Analyse occasion');
     XLSX.writeFile(wb, 'analyse-usage-' + (this.compagnie || 'groupe').toLowerCase() + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
-    AMX.toast('Export Excel — ' + lignes.length + ' usagés', 'ok');
+    AMX.toast('Export Excel — ' + lignes.length + ' occasions', 'ok');
   };
 
   /* Pour les tests et l'Accueil. */

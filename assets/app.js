@@ -43,7 +43,7 @@
 
   /* ---------------------- Nouvelle interface (v131, 23 oct.) ----------------------
      Maxime : « la nouvelle interface derrière un interrupteur : barre latérale, concession dans la barre, Ctrl+K,
-     Accueil « À faire », puis la page Usagé refaite ». html.ui2 l'allume. Propre à l'appareil (localStorage amx_ui) ;
+     Accueil « À faire », puis la page Occasion refaite ». html.ui2 l'allume. Propre à l'appareil (localStorage amx_ui) ;
      ?ui=2 / ?ui=1 dans l'adresse l'allume / l'éteint d'un lien ; menu du compte → « Essayer la nouvelle interface ».
      v132 (Maxime : « allume la nouvelle interface par défaut pour tout le monde, avec l'option de revenir à l'ancienne ») :
      allumée partout, sauf sur un appareil où quelqu'un a choisi « Revenir à l'ancienne interface » (amx_ui = '1'). */
@@ -782,8 +782,8 @@
     ] },
     { id: 'inventaire', titre: 'Inventaire', icone: 'inventaire', ordre: 20, onglets: [
       { id: 'neufs', titre: 'Neufs', de: 'inventaire', onglet: 'neufs' },
-      { id: 'usage', titre: 'Usagé', de: 'inventaire', onglet: 'usage' },
-      { id: 'analyse', titre: 'Analyse usagé', de: 'analyse', onglet: '' },   /* 24 oct. : façon vAuto — % du marché, rang, jours, MDS, profil de prix par âge (analyse-usage.js) */
+      { id: 'usage', titre: 'Occasion', de: 'inventaire', onglet: 'usage' },
+      { id: 'analyse', titre: 'Analyse occasion', de: 'analyse', onglet: '' },   /* 24 oct. : façon vAuto — % du marché, rang, jours, MDS, profil de prix par âge (analyse-usage.js) */
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '' },
       { id: 'evaluations', titre: 'Évaluations', de: 'outils', vues: [{ id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] },
       { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '' },   /* 22 oct. : dépôt d'une liste (PDF, Excel, CSV) → où est chaque véhicule ; audit dans l'app (listes.js) */
@@ -930,7 +930,7 @@
   AMX.courante = courante;
 
   /* v130 (rapport « Refonte ergonomique », gain rapide 5) : une tuile cliquée dans la barre rouvre le dernier onglet
-     visité sur cet appareil ; la première fois, l'onglet le plus utilisé (Inventaire → Usagé, Relance → Avis Google). */
+     visité sur cet appareil ; la première fois, l'onglet le plus utilisé (Inventaire → Occasion, Relance → Avis Google). */
   var ONGLET_DEFAUT = { inventaire: 'usage', relance: 'avis' };
   function ongletDeDepart(sec, onglets) {
     var veut = function (id) { return id ? onglets.filter(function (o) { return o.id === id; })[0] : null; };
@@ -967,8 +967,8 @@
     if (!r.section && AMX.accueil) { var dep = AMX.accueil.depart(); if (dep) { AMX.aller(dep.section, dep.onglet, r.params); return; } }
     // 9 oct. : Suggestions est devenu un onglet d'Aide ; l'ancienne adresse reste valable.
     if (r.section === 'suggestions' && !AMX.sections.suggestions && AMX.sections.aide) { AMX.aller('aide', 'suggestions', r.params); return; }
-    // 11 oct. : une seule section Inventaire (Neufs · Usagé). Anciennes adresses : #/neufs → #/inventaire/neufs ;
-    // #/inventaire/us|can|detail → #/inventaire/usage?registre=… (les trois registres sont des pastilles dans la page Usagé).
+    // 11 oct. : une seule section Inventaire (Neufs · Occasion). Anciennes adresses : #/neufs → #/inventaire/neufs ;
+    // #/inventaire/us|can|detail → #/inventaire/usage?registre=… (les trois registres sont des pastilles dans la page Occasion).
     if (r.section === 'neufs' && !AMX.sections.neufs && AMX.sections.inventaire) { AMX.aller('inventaire', 'neufs', r.params); return; }
     if (r.section === 'inventaire' && /^(us|can|detail)$/.test(r.onglet) && AMX.inventaire && AMX.inventaire.registres) { var pr = { registre: r.onglet }; Object.keys(r.params || {}).forEach(function (k) { pr[k] = r.params[k]; }); AMX.aller('inventaire', 'usage', pr); return; }
     // 21 oct. : anciennes sections (offres, resultat, achat, avis, csi, admin…) et anciens onglets → leur tuile.
@@ -1251,7 +1251,11 @@
   AMX.menuActions = function (actions, opts) {
     opts = opts || {};
     var menu = h('div.menu-actions-liste', { role: 'menu', hidden: true });
-    var btn = h('button.btn.menu-actions-bouton', { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: opts.titre || 'Autres actions', 'aria-label': opts.titre || 'Autres actions', html: (ICONES.points || '…') + (opts.texte ? '<span>' + esc(opts.texte) + '</span>' : '') });
+    /* 27 oct. (Maxime : « plutôt que de mettre des … fais une pastille qui s'appelle Actions ») : une pastille nommée
+       « Actions » et une flèche, au lieu des trois points. `opts.texte` change le nom, `opts.petit` pour une ligne de liste. */
+    var nomMenu = opts.texte || 'Actions';
+    var btn = h('button.btn.menu-actions-bouton' + (opts.petit ? '.petit' : ''), { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: opts.titre || nomMenu, 'aria-label': opts.titre || nomMenu,
+      html: '<span>' + esc(nomMenu) + '</span><svg class="fleche-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' });
     var env = h('div.menu-actions', [btn, menu]);
     var dehors = function (e) { if (!env.contains(e.target)) fermer(); };
     var fermer = function () { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); };
@@ -1634,18 +1638,18 @@
     }
   };
   /* 26 oct. — Maxime : « je dois pouvoir effacer des inventaires peu importe où je les vois », « plus d'un véhicule à la
-     fois ». Une seule suppression pour toutes les pages (Usagé, Analyse usagé, Prix du marché, Suivi service) : le registre
+     fois ». Une seule suppression pour toutes les pages (Occasion, Analyse occasion, Prix du marché, Suivi service) : le registre
      de chaque NIV est retrouvé en mémoire, une confirmation (taper SUPPRIMER), puis deleteByVinBulk par registre (droit
      « Supprimer »). La liste en mémoire est mise à jour (événement amx:inventaire) : chaque page le retire tout de suite.
      opts.feuille = registre par défaut d'un NIV absent de la mémoire. Renvoie la liste des NIV supprimés (null si annulé). */
-  /* 26 oct. : les usagés effacés à la main que le DMS et D2C ne rajoutent plus (Supprimes.gs) — liste et « Laisser revenir ». */
+  /* 26 oct. : les occasions effacées à la main que le DMS et D2C ne rajoutent plus (Supprimes.gs) — liste et « Laisser revenir ». */
   AMX.inventaire.effaces = function () {
     var corps = h('div', [h('p.doux', { text: 'Lecture…' })]);
-    var m = AMX.modale({ titre: 'Usagés effacés', corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer' }] });
+    var m = AMX.modale({ titre: 'Occasions effacées', corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer' }] });
     var dessiner = function (r) {
       AMX.vider(corps);
-      corps.appendChild(h('p.doux.petit', { style: { marginTop: 0 }, text: 'Un usagé effacé du registre n\'est pas rajouté par la relecture du DMS, de la Synchro ou de D2C pendant ' + (r.jours || 365) + ' jours. Il revient seulement sous un nouveau # stock (repris plus tard en échange) ou si on l\'ajoute à la main.' }));
-      if (!r.supprimes.length) { corps.appendChild(h('p', { text: 'Aucun usagé effacé pour l\'instant.' })); return; }
+      corps.appendChild(h('p.doux.petit', { style: { marginTop: 0 }, text: 'Une occasion effacée du registre n\'est pas rajouté par la relecture du DMS, de la Synchro ou de D2C pendant ' + (r.jours || 365) + ' jours. Il revient seulement sous un nouveau # stock (repris plus tard en échange) ou si on l\'ajoute à la main.' }));
+      if (!r.supprimes.length) { corps.appendChild(h('p', { text: 'Aucune occasion effacée pour l\'instant.' })); return; }
       var tb = h('tbody');
       r.supprimes.forEach(function (x) {
         var lever = r.peutLever ? h('button.btn.petit', { type: 'button', text: 'Laisser revenir', onclick: function () {
@@ -1912,7 +1916,7 @@
   // Liste verticale dans le rail (une ligne par concession : pastille, nom complet,
   // compte). Remplace le segment horizontal où 2 concessions sur 5 débordaient du
   // rail (248 px) et restaient cachées. null quand le compte n'a qu'une concession.
-  // 16 oct. (Maxime : « le choix des concessions pour le neuf et l'usagé est différent — rends le site uniforme ») :
+  // 16 oct. (Maxime : « le choix des concessions pour le neuf et les occasions est différent — rends le site uniforme ») :
   // UNE présentation partout, la rangée de pastilles (.barre) sous l'en-tête de la page ; opts.vertical garde la
   // liste du rail ; opts.sous(code) ajoute une petite ligne de chiffres sous le nom (Torque, eBlock, OpenLane, Registre) ;
   // opts.garder === false : le clic ne change pas la concession du site (filtre local).
@@ -1950,7 +1954,7 @@
     conteneur.classList.toggle('sans-choix', !choix && !extra.length);
     return choix;
   };
-  /* v138 — la même recherche partout (Usagé, Neufs, Suivi service, Livre des ventes, recherche du haut). Maxime, 23 oct. :
+  /* v138 — la même recherche partout (Occasion, Neufs, Suivi service, Livre des ventes, recherche du haut). Maxime, 23 oct. :
      « les recherches de stock dans inventaire ne fonctionnent pas, j'ai fait des tests avec Série 3 2015 » — l'export du DMS
      BMW écrit « BMW SERIE 3 2015 » sans accent (d'autres « 3 Series », « 328i xDrive »), et les pages cherchaient le texte
      tapé tel quel. Maintenant : accents, majuscules et ponctuation ignorés, chaque mot doit se trouver mais dans n'importe

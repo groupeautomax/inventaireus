@@ -24,7 +24,7 @@
      section de la barre (app.js, TUILES) ; les anciennes sections absorbées gardent leur résumé pour la page de départ. */
   var RESUMES = {
     vente: 'Livre des ventes (inscription, F&I, récapitulatif), offres reçues, véhicules en vente, acheteurs externes, soumissions de neufs, échanges entre concessions, résultats.',
-    inventaire: 'Neufs (DMS et manufacturier, détail et flotte), usagé (É.-U., Canada, Detail), fiche d\'achat, évaluations.',
+    inventaire: 'Neufs (DMS et manufacturier, détail et flotte), occasion (É.-U., Canada, Detail), fiche d\'achat, évaluations.',
     relance: 'Équité des clients financés, leads, avis Google et sondages, CSI.',
     service: 'Suivi du reconditionnement (autorisation, bons de travail, livraison), rendez-vous, textos du service.',
     outils: 'Fiches eBlock, valeurs OpenLane, imports CARFAX et D2C, vérification Excel, comptes et droits.',
@@ -303,10 +303,10 @@
 
   function aFaire() {
     var cie = AMX.compagnieChoisie('inventaire'), cieSvc = AMX.compagnieChoisie('service'), out = [], attente = [];
-    // Usagé : registres en retard (les trois registres)
+    // Occasion : registres en retard (les trois registres)
     if (voit('inventaire') && AMX.inventaire && AMX.inventaire.alertes) {
       var ch = AMX.inventaire.alertes(cie).filter(function (r) { return r.charge; });
-      if (!ch.length) attente.push('inventaire usagé');
+      if (!ch.length) attente.push('inventaire occasion');
       var somme = function (k) { return ch.reduce(function (t, r) { return t + r[k]; }, 0); };
       var pire = function (k) { return ch.slice().sort(function (a, b) { return b[k] - a[k]; })[0]; };
       var detail = function (k) { return ch.filter(function (r) { return r[k]; }).map(function (r) { return r.titre + ' ' + r[k]; }).join(' · '); };

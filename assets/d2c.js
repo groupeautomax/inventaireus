@@ -8,7 +8,7 @@
    postMessage — du signet « Automax ← D2C » cliqué dans D2C, ou de l'onglet
    D2C ouvert ici par « Ouvrir D2C Media » (la tâche planifiée Chrome du
    matin) — la simule concession par concession (POST d2cImporter, mode
-   simuler), montre ce qui changerait (neufs vers le suivi des neufs, usagés
+   simuler), montre ce qui changerait (neufs vers le suivi des neufs, occasions
    vers les registres : ajouts, coûts, # stock, vendus, km posés, inconnus du
    DMS, liens CARFAX) puis importe sur un clic (« Importer ») — ou tout de
    suite quand la liste arrive avec `auto` (tâche planifiée) ou par
@@ -97,7 +97,7 @@
     signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis D2C Media (Inventory › Summary).', 'attention', 7000); });
     var btnOuvrir = h('button.btn#d2c-ouvrir', { html: I.externe + '<span>Ouvrir D2C Media</span>', onclick: function () { self.ouvrirD2c(); } });
     this.el.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Import D2C'), h('p', 'Reprend chaque matin l\'inventaire que D2C Media reçoit du DMS (Serti pour Hyundai Longueuil et Ste-Marie) : les neufs vers le suivi des neufs, les usagés vers les registres (ajouts, coûts, # stock, vendus), le kilométrage dans les fiches d\'achat et les liens CARFAX. Rien n\'est écrit avant que vous ayez vu la simulation — sauf par la tâche automatique du matin.')]),
+      h('div', [h('h1', 'Import D2C'), h('p', 'Reprend chaque matin l\'inventaire que D2C Media reçoit du DMS (Serti pour Hyundai Longueuil et Ste-Marie) : les neufs vers le suivi des neufs, les occasions vers les registres (ajouts, coûts, # stock, vendus), le kilométrage dans les fiches d\'achat et les liens CARFAX. Rien n\'est écrit avant que vous ayez vu la simulation — sauf par la tâche automatique du matin.')]),
       h('div.actions', [btnOuvrir])
     ]));
     this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [
@@ -121,7 +121,7 @@
     this.elEtat = h('div');
     this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [h('div.carte-entete', [h('h2', 'Dernier import par concession'), h('div.actions-ligne', [h('button.btn.fantome.petit', { text: 'Rafraîchir', onclick: function () { self.chargerEtat(true); } })])]), h('div.carte-corps', [this.elEtat])]));
     var cases = ['couts', 'km', 'carfax', 'neufs', 'usages'].map(function (k) {
-      var libelles = { couts: 'Mettre à jour les coûts', km: 'Poser les km manquants', carfax: 'Liens CARFAX', neufs: 'Neufs → suivi des neufs', usages: 'Usagés → registres' };
+      var libelles = { couts: 'Mettre à jour les coûts', km: 'Poser les km manquants', carfax: 'Liens CARFAX', neufs: 'Neufs → suivi des neufs', usages: 'Occasions → registres' };
       var c = h('input', { type: 'checkbox', checked: self.options[k] !== false });
       c.addEventListener('change', function () { self.options[k] = c.checked; AMX.memo.ecrire('d2c_options', self.options); self.simulations = {}; self.rendreRecu(); if (self.recu) self.simulerTout(); });
       return h('label.case', [c, h('span', libelles[k])]);
@@ -257,7 +257,7 @@
     var etat = this.etat.etat || {}, actives = this.actives(), noms = this.etat.noms || {};
     var cies = Object.keys(AMX.COMPAGNIES_TOUTES);
     var table = h('table.tableau.d2c-etat-table'), corps = h('tbody');
-    table.appendChild(h('thead', [h('tr', [h('th', 'Concession'), h('th', 'Import D2C'), h('th', 'Dernier passage'), h('th', 'Neufs'), h('th', 'Usagés'), h('th', 'CARFAX'), h('th', 'Résumé')])]));
+    table.appendChild(h('thead', [h('tr', [h('th', 'Concession'), h('th', 'Import D2C'), h('th', 'Dernier passage'), h('th', 'Neufs'), h('th', 'Occasions'), h('th', 'CARFAX'), h('th', 'Résumé')])]));
     cies.forEach(function (c) {
       var e = etat[c], active = actives.indexOf(c) >= 0;
       var n = e && e.neufs, u = e && e.usages;
@@ -316,7 +316,7 @@
         h('span', [h('b', { text: String(liste.length) }), ' véhicules']),
         h('span', [h('b', { text: String(corps.neuf) }), ' neufs' + (corps.transit ? ' (' + corps.transit + ' en transit)' : '')]),
         h('span', [h('b', { text: String(corps.demo) }), ' démos']),
-        h('span', [h('b', { text: String(corps.usage) }), ' usagés']),
+        h('span', [h('b', { text: String(corps.usage) }), ' occasions']),
         corps.vendus ? h('span', [h('b', { text: String(corps.vendus) }), ' vendus']) : null,
         h('span', [h('b', { text: String(corps.cout) }), ' avec coût']),
         h('span', [h('b', { text: String(corps.km) }), ' avec km']),
@@ -349,15 +349,15 @@
       listes.appendChild(d);
     }
     if (u && !u.erreur) {
-      liste('Usagés à ajouter au registre Detail', u.ajoutes, [function (l) { return l.vin; }, function (l) { return l.modele + (l.stock ? ' · # ' + l.stock : ''); }, function (l) { return fmtKm(l.km) + ' · ' + fmt$(l.cout) + (l.jours !== null && l.jours !== undefined ? ' · ' + l.jours + ' j' : ''); }]);
+      liste('Occasions à ajouter au registre Detail', u.ajoutes, [function (l) { return l.vin; }, function (l) { return l.modele + (l.stock ? ' · # ' + l.stock : ''); }, function (l) { return fmtKm(l.km) + ' · ' + fmt$(l.cout) + (l.jours !== null && l.jours !== undefined ? ' · ' + l.jours + ' j' : ''); }]);
       liste('Passés Vendu', u.vendus, [function (l) { return l.vin; }, function (l) { return l.modele + ' (' + l.registre + ')'; }, function (l) { return l.raison; }]);
       liste('En stock chez nous, inconnus du DMS (pas touchés)', u.inconnusDms, [function (l) { return l.vin; }, function (l) { return l.modele + (l.stock ? ' · # ' + l.stock : ''); }, function (l) { return l.registre; }]);
       liste('Coûts mis à jour', u.couts, [function (l) { return l.vin; }, function (l) { return l.modele; }, function (l) { return fmt$(l.avant) + ' → ' + fmt$(l.apres); }]);
       liste('# stock posés', u.stocks, [function (l) { return l.vin; }, function (l) { return l.modele; }, function (l) { return '# ' + l.stock; }]);
       liste('Km posés dans la fiche d\'achat', u.kms, [function (l) { return l.vin; }, function (l) { return l.modele; }, function (l) { return fmtKm(l.km); }]);
       liste('Écarts de km (fiche ≠ D2C, rien d\'écrasé)', u.kmEcarts, [function (l) { return l.vin; }, function (l) { return l.modele; }, function (l) { return 'fiche ' + fmtKm(l.fiche) + ' · D2C ' + fmtKm(l.d2c); }]);
-      if (!u.fiable) bloc.appendChild(h('p.doux.petit', { style: { margin: '6px 0 0' } }, 'Moins de ' + ((this.etat && this.etat.minUsages) || 10) + ' usagés dans la liste : aucun passage à Vendu n\'est déduit.'));
-    } else if (u && u.erreur) bloc.appendChild(h('p', { style: { color: 'var(--rouge)', margin: '6px 0 0' } }, 'Usagés : ' + u.erreur));
+      if (!u.fiable) bloc.appendChild(h('p.doux.petit', { style: { margin: '6px 0 0' } }, 'Moins de ' + ((this.etat && this.etat.minUsages) || 10) + ' occasions dans la liste : aucun passage à Vendu n\'est déduit.'));
+    } else if (u && u.erreur) bloc.appendChild(h('p', { style: { color: 'var(--rouge)', margin: '6px 0 0' } }, 'Occasions : ' + u.erreur));
     if (n && !n.erreur) bloc.appendChild(h('p.doux.petit', { style: { margin: '6px 0 0' } }, 'Neufs : ' + n.total + ' (' + n.enStock + ' en stock, ' + n.transit + ' en transit' + (n.production ? ', ' + n.production + ' en production' : '') + ', ' + n.demos + ' démo' + (n.vendus ? ', ' + n.vendus + ' vendus' : '') + ', ' + n.avecCout + ' avec coût)' + (n.resultat ? (n.resultat.initial ? ' — premier import' : ' — ' + pl(n.resultat.arrivees || 0, 'arrivée') + ', ' + pl(n.resultat.sorties || 0, 'sortie') + ', ' + pl(n.resultat.modifies || 0, 'modifié')) + (n.resultat.fiable === false ? ' (feed trop petit : aucune sortie déduite)' : '') : '') + (n.arrivesAujourdhui ? ' · ' + n.arrivesAujourdhui + ' arrivé(s) de transit aujourd\'hui' : '') + '.'));
     else if (n && n.erreur) bloc.appendChild(h('p', { style: { color: 'var(--rouge)', margin: '6px 0 0' } }, 'Neufs : ' + n.erreur));
     if (cf && !cf.erreur) bloc.appendChild(h('p.doux.petit', { style: { margin: '6px 0 0' } }, 'CARFAX : ' + pl(cf.nouveaux || 0, 'nouveau lien', 'nouveaux liens') + ', ' + (cf.dejaLa || 0) + ' déjà en place (jamais remplacés).'));

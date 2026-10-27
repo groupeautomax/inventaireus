@@ -12,7 +12,7 @@
       seules les lignes (NIV, # stock, année, marque, modèle, ligne de crédit)
       partent au serveur (Listes.gs, listeDeposer).
    2. Rapport « où est chaque véhicule » : calculé ici avec ce que le site
-      connaît déjà (AMX.recherche : usagé, neufs, Livre des ventes, service,
+      connaît déjà (AMX.recherche : occasion, neufs, Livre des ventes, service,
       demandes, offres), rangé en Vendu · sorti / Introuvable / Vendu, pas
       livré / En route / Au service / Démo / En stock. Une copie est gardée
       ligne par ligne au serveur (listeRapport) pour l'app.
@@ -40,7 +40,7 @@
     stock: { libelle: 'En stock', court: 'En stock', ordre: 7 }
   };
   var ORDRE_CATS = ['sorti', 'introuvable', 'vendu', 'transit', 'service', 'demo', 'stock'];
-  var CREDITS = { NEWGM: 'Neuf (GM)', NEWGMDEMO: 'Neuf démo (GM)', USED: 'Usagé', USEDWHOLESALE: 'Usagé wholesale', NEW: 'Neuf', DEMO: 'Démo' };
+  var CREDITS = { NEWGM: 'Neuf (GM)', NEWGMDEMO: 'Neuf démo (GM)', USED: 'Occasion', USEDWHOLESALE: 'Occasion wholesale', NEW: 'Neuf', DEMO: 'Démo' };
   var MARQUES = { CHEV: 'Chevrolet', CADI: 'Cadillac', BUIC: 'Buick', HYUN: 'Hyundai', NISS: 'Nissan', VOLK: 'Volkswagen', ACUR: 'Acura', MAZD: 'Mazda',
     LEXS: 'Lexus', SUBA: 'Subaru', MITS: 'Mitsubishi', HOND: 'Honda', TOYO: 'Toyota', DODG: 'Dodge', CHRY: 'Chrysler', LINC: 'Lincoln', INFI: 'Infiniti',
     MERZ: 'Mercedes-Benz', MERC: 'Mercedes-Benz', PORS: 'Porsche', VOLV: 'Volvo', TESL: 'Tesla', GENE: 'Genesis', JAGU: 'Jaguar', LAND: 'Land Rover', POLE: 'Polestar' };
@@ -294,7 +294,7 @@
     var usageVendu = usages.filter(function (u) { return /^(arrive|comptabilise|transit)$/.test(u.statut); })[0] || null;
     var neufDms = neufs.filter(function (n) { return n.origine !== 'constructeur'; })[0] || null, neufC = neufs.filter(function (n) { return n.origine === 'constructeur'; })[0] || null;
     var neuf = neufDms || neufC;
-    // Une vente plus vieille que l'entrée du véhicule à l'usagé (revenu en échange) ne compte pas.
+    // Une vente plus vieille que l'entrée du véhicule aux occasions (revenu en échange) ne compte pas.
     var entreeUsage = usageActif ? jourDe(usageActif.dateAjout || usageActif.ajouteLe || usageActif.date) : '';
     var ventes = de('vente').filter(function (v) { var j = jourDe(v.dateVente || v.dateLivraison); return v.statut !== 'annulee' && (!entreeUsage || !j || j >= entreeUsage) && (!j || joursDepuis(j) <= 400); })
       .sort(function (a, b) { return String(b.dateLivraison || b.dateVente).localeCompare(String(a.dateLivraison || a.dateVente)); });
@@ -326,7 +326,7 @@
       if (plan) alertes.unshift('Sorti du DMS mais encore sur la liste du prêteur');
     } else if (usageVendu && !usageActif && !neuf) {
       var st = AMX.statut ? AMX.statut(usageVendu.statut, usageVendu._feuille) : { libelle: usageVendu.statut };
-      r.cat = 'sorti'; r.texte = 'Usagé · ' + st.libelle + ' (' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageVendu._feuille) : usageVendu._feuille) + ')';
+      r.cat = 'sorti'; r.texte = 'Occasion · ' + st.libelle + ' (' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageVendu._feuille) : usageVendu._feuille) + ')';
       r.detail = usageVendu.stock ? '# ' + usageVendu.stock : '';
       if (plan) alertes.unshift(usageVendu.statut === 'transit' ? 'Expédié à l\'acheteur mais encore sur la liste du prêteur' : 'Vendu mais encore sur la liste du prêteur');
     } else if (/livre|vendu-constructeur/.test(indispo) && !usageActif) {
@@ -343,19 +343,19 @@
       r.detail = 'Neuf · ' + (neuf.statutLibelle || 'DEMO') + (neuf.stock ? ' · # ' + neuf.stock : '');
     } else if ((usageActif && /^(transitqc|manheimpa)$/.test(usageActif.statut)) || (neuf && !usageActif && /TRANSIT|COMMANDE/.test(statutNeuf))) {
       r.cat = 'transit';
-      if (usageActif && !neuf) { var st2 = AMX.statut ? AMX.statut(usageActif.statut, usageActif._feuille) : { libelle: usageActif.statut }; r.texte = 'Usagé · ' + st2.libelle; r.detail = AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageActif._feuille) : usageActif._feuille; }
+      if (usageActif && !neuf) { var st2 = AMX.statut ? AMX.statut(usageActif.statut, usageActif._feuille) : { libelle: usageActif.statut }; r.texte = 'Occasion · ' + st2.libelle; r.detail = AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageActif._feuille) : usageActif._feuille; }
       else { r.texte = 'Neuf · ' + (neuf.statutLibelle || 'en route') + (neuf.emplacement ? ' · ' + neuf.emplacement : ''); r.detail = neuf.origine === 'constructeur' ? 'Portail du manufacturier' : 'DMS'; }
     } else if (services.length || demandes.length) {
       var s = services[0];
       r.cat = 'service'; r.texte = 'Au service' + (s ? ' — ' + (AMX.service && AMX.service.etapes ? ((AMX.service.etapes().filter(function (e) { return e.id === s.etapeCourante; })[0] || {}).libelle || 'en cours') : 'en cours') : ' — demande de travaux');
-      r.detail = demandes.length ? 'Demande de travaux' + (demandes[0].btNo ? ' · BT ' + demandes[0].btNo : '') : (usageActif ? 'Usagé · ' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageActif._feuille) : '') : '');
+      r.detail = demandes.length ? 'Demande de travaux' + (demandes[0].btNo ? ' · BT ' + demandes[0].btNo : '') : (usageActif ? 'Occasion · ' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageActif._feuille) : '') : '');
     } else if (usageActif || neuf) {
       r.cat = 'stock';
-      if (usageActif) { var st3 = AMX.statut ? AMX.statut(usageActif.statut, usageActif._feuille) : { libelle: usageActif.statut }; r.texte = 'Usagé · ' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageActif._feuille) : usageActif._feuille) + ' · ' + st3.libelle; r.detail = usageActif.stock ? '# ' + usageActif.stock : ''; }
+      if (usageActif) { var st3 = AMX.statut ? AMX.statut(usageActif.statut, usageActif._feuille) : { libelle: usageActif.statut }; r.texte = 'Occasion · ' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(usageActif._feuille) : usageActif._feuille) + ' · ' + st3.libelle; r.detail = usageActif.stock ? '# ' + usageActif.stock : ''; }
       else { r.texte = 'Neuf · ' + (neuf.statutLibelle || 'en stock') + (marq.localisation ? ' · ' + marq.localisation : (neuf.emplacement ? ' · ' + neuf.emplacement : '')); r.detail = (neuf.origine === 'constructeur' ? 'Portail du manufacturier' : 'DMS') + (neuf.stock ? ' · # ' + neuf.stock : '') + (nb(neuf.jours) ? ' · ' + neuf.jours + ' j' : ''); }
     } else {
       r.cat = 'introuvable'; r.texte = 'Aucune trace dans ScanAutomax';
-      r.detail = 'Ni à l\'usagé, ni aux neufs, ni au Livre des ventes, ni au service';
+      r.detail = 'Ni aux occasions, ni aux neufs, ni au Livre des ventes, ni au service';
       if (plan) alertes.unshift('Financé par le prêteur mais inconnu chez nous');
     }
     r.alerte = alertes.join(' · ');

@@ -172,7 +172,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .segment button.actif { background: #fff; color: var(--encre); box-shadow: var(--ombre); }
 .segment.bloc { display: flex; } .segment.bloc button { flex: 1; }
 .segment.petit button { padding: 3px 8px; font-size: 12px; }
-/* 11 oct. : pastilles É.-U. · Canada · Detail sous le titre d'Inventaire › Usagé */
+/* 11 oct. : pastilles É.-U. · Canada · Detail sous le titre d'Inventaire › Occasion */
 .choix-registre button { padding: 5px 12px; font-size: 12.5px; }
 .choix-registre button .compteur { color: var(--encre-3); font-weight: 600; }
 .choix-registre button.actif .compteur { color: var(--vert); }
@@ -438,6 +438,9 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 .dommages-liste li { background: var(--rouge-bg); color: var(--rouge); border: 1px solid var(--rouge-bord); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
 .ligne .vignette .cam { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-radius: 4px; background: var(--vert); color: #fff; display: grid; place-items: center; }
 .ligne .vignette .cam svg { width: 11px; height: 11px; }
+/* 27 oct. : en stock sans photo — vignette en surbrillance jaune et étoile avec le nombre de jours. */
+.ligne .vignette.sans-photo { border-color: #D9A900; background: #FFF6CC; box-shadow: 0 0 0 2px #FFE27A; }
+.ligne .vignette .etoile-photo { position: absolute; right: 2px; bottom: 2px; height: 17px; padding: 0 5px; border-radius: 9px; background: #F5C400; color: #3A2E00; font-size: 11px; font-weight: 800; line-height: 17px; letter-spacing: 0; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
 .ligne .titre { font-weight: 600; font-size: 13.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ligne .sous { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
 .ligne .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-2); letter-spacing: .02em; cursor: copy; }
@@ -886,7 +889,11 @@ html.ui2 .barre-cies:has(> .choix-cie.suit-site):not(:has(> .extra)) { display: 
 
 /* Menu « … » d'une page. */
 .menu-actions { position: relative; display: inline-flex; }
+.menu-actions-bouton { border-radius: 999px; gap: 6px; padding-left: 14px; padding-right: 11px; font-weight: 600; }
+.menu-actions-bouton.petit { padding-left: 10px; padding-right: 8px; }
 .menu-actions-bouton svg { width: 16px; height: 16px; }
+.menu-actions-bouton .fleche-menu { width: 14px; height: 14px; transition: transform .15s; }
+.menu-actions-bouton[aria-expanded="true"] .fleche-menu { transform: rotate(180deg); }
 .menu-actions-liste { position: absolute; right: 0; top: calc(100% + 6px); z-index: 55; min-width: 220px; padding: 6px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 10px; box-shadow: var(--ombre-2); }
 .menu-actions-liste[hidden] { display: none; }
 .menu-actions-liste button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 38px; padding: 0 10px; border: 0; border-radius: 7px; background: none; font: inherit; color: var(--encre-2); text-align: left; cursor: pointer; }
@@ -957,7 +964,7 @@ html.ui2 .barre-cies:has(> .choix-cie.suit-site):not(:has(> .extra)) { display: 
 .acc2-nouv p { margin: 4px 0 8px; line-height: 1.4; }
 @media (max-width: 640px) { .acc2-item { grid-template-columns: 48px minmax(0, 1fr) 18px; gap: 8px; } .acc2-item .n { font-size: 20px; } .acc2-tete h1 { font-size: 22px; } }
 
-/* Usagé refait (html.ui2, inventaire.js construireUi2). */
+/* Occasion refait (html.ui2, inventaire.js construireUi2). */
 .inv2-tete { align-items: center; margin-bottom: 12px; }
 .inv2-titre { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-width: 0; }
 .inv2-titre h1 { margin: 0; }
@@ -994,7 +1001,7 @@ html.ui2 .barre-cies:has(> .choix-cie.suit-site):not(:has(> .extra)) { display: 
 .portee-chiffres .effacer:hover { color: var(--encre); }
 .portee-chiffres .effacer span { text-decoration: none; margin-right: 2px; }
 
-/* v138 — Usagé (ui2) : la liste se lit comme un tableau (une carte, des lignes séparées par un filet, les titres de colonnes
+/* v138 — Occasion (ui2) : la liste se lit comme un tableau (une carte, des lignes séparées par un filet, les titres de colonnes
    une seule fois) ; les chiffres qui ne filtrent pas ne ressemblent pas à des boutons ; la valeur sur les pastilles de registre. */
 html.ui2 .inv2 .liste { gap: 0; background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); overflow: hidden; }
 html.ui2 .inv2 .liste > .ligne { border: none; border-radius: 0; border-bottom: 1px solid var(--ligne); min-height: 56px; padding-top: 8px; padding-bottom: 8px; }

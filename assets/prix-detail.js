@@ -1,5 +1,5 @@
 /* ============================================================================
-   ScanAutomax — prix de détail des usagés (26 octobre 2026)
+   ScanAutomax — prix de détail des occasions (26 octobre 2026)
 
    Deux suggestions de Louis Prassinos (Hyundai Longueuil) :
    - « lorsqu'on modifie un prix de détail, Torque envoie le changement de prix à D2C et le prix est mis à jour ; de plus un
@@ -87,7 +87,7 @@
       raccourcis.length ? h('div.pxd-raccourcis', raccourcis) : null,
       apercu,
       h('label.champ', [h('span', 'Raison'), raison]),
-      h('ul.pxd-info', [h('li', { text: avis }), h('li', { text: 'Le prix s\'inscrit sur le site de la concession avec le favori « Automax → D2C (prix) », cliqué dans D2C Media (la liste des prix à inscrire est dans Analyse usagé et Outils › Import D2C).' })])
+      h('ul.pxd-info', [h('li', { text: avis }), h('li', { text: 'Le prix s\'inscrit sur le site de la concession avec le favori « Automax → D2C (prix) », cliqué dans D2C Media (la liste des prix à inscrire est dans Analyse occasion et Outils › Import D2C).' })])
     ]);
     maj();
     return new Promise(function (resolve) {

@@ -63,8 +63,12 @@
       '.d2c-liste table { width: 100%; font-size: 12.5px; margin-top: 6px; border-collapse: collapse; }',
       '.d2c-liste td { padding: 3px 6px 3px 0; border-bottom: 1px solid var(--ligne); vertical-align: top; }',
       '.d2c-options { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }',
-      '.d2c-etat-table td, .d2c-etat-table th { white-space: nowrap; }',
-      '.d2c-etat-table td.resume { white-space: normal; font-size: 12.5px; color: var(--encre-2); max-width: 520px; }',
+      /* 27 oct. (Maxime : « le tableau dernier import est immense, mets-le petit ») : une ligne par concession, le résumé en infobulle. */
+      '.d2c-etat-defile { overflow-x: auto; }',
+      '.d2c-etat-table { width: auto; min-width: 100%; }',
+      '.d2c-etat-table td, .d2c-etat-table th { white-space: nowrap; padding: 6px 14px 6px 12px; }',
+      '.d2c-etat-table td { font-size: 13px; } .d2c-etat-table td .puce { margin-left: 8px; }',
+      '.d2c-etat-table td.doux { color: var(--encre-3); }',
       '@media (max-width: 860px) { .d2c-cie-tete .actions-ligne { margin-left: 0; } }'
     ].join('\n');
     document.head.appendChild(s);
@@ -257,23 +261,21 @@
     var etat = this.etat.etat || {}, actives = this.actives(), noms = this.etat.noms || {};
     var cies = Object.keys(AMX.COMPAGNIES_TOUTES);
     var table = h('table.tableau.d2c-etat-table'), corps = h('tbody');
-    table.appendChild(h('thead', [h('tr', [h('th', 'Concession'), h('th', 'Import D2C'), h('th', 'Dernier passage'), h('th', 'Neufs'), h('th', 'Occasions'), h('th', 'CARFAX'), h('th', 'Résumé')])]));
+    table.appendChild(h('thead', [h('tr', [h('th', 'Concession'), h('th', 'Dernier import'), h('th', 'Neufs'), h('th', 'Occasions'), h('th', 'CARFAX')])]));
     cies.forEach(function (c) {
       var e = etat[c], active = actives.indexOf(c) >= 0;
       var n = e && e.neufs, u = e && e.usages;
-      corps.appendChild(h('tr', { dataset: { cie: c } }, [
-        h('td', [h('b', { text: nomCie(c) })]),
-        h('td', [h('span.puce' + (active ? '.ok' : ''), { text: active ? 'Actif' : 'Pas encore' })]),
-        h('td', e ? [h('div', { text: quand(e.le) }), h('div.mini', { text: (e.par ? e.par + ' · ' : '') + (e.source || '') })] : [h('span.mini', { text: active ? 'Jamais importé' : '—' })]),
-        h('td', n ? [h('div', { text: n.total + (n.initial ? ' (premier import)' : ' · +' + (n.arrivees || 0) + ' / −' + (n.sorties || 0)) }), h('div.mini', { text: n.enStock + ' en stock · ' + n.transit + ' transit · ' + n.demos + ' démo' })] : '—'),
-        h('td', u ? [h('div', { text: u.total + ' · ' + pl(u.ajoutes || 0, 'ajouté') + ' · ' + pl(u.vendus || 0, 'vendu') }), h('div.mini', { text: (u.kms || 0) + ' km posés · ' + (u.couts || 0) + ' coûts' + (u.inconnus ? ' · ' + u.inconnus + ' inconnus du DMS' : '') })] : '—'),
-        h('td', e && e.carfax ? [h('div', { text: '+' + (e.carfax.nouveaux || 0) }), h('div.mini', { text: (e.carfax.dejaLa || 0) + ' déjà là' })] : '—'),
-        h('td.resume', { text: e ? (e.resume || '') : '' })
+      corps.appendChild(h('tr', { dataset: { cie: c }, title: e && e.resume ? e.resume : '' }, [
+        h('td', [h('b', { text: nomCie(c) }), active ? null : h('span.puce', { text: 'Pas encore' })]),
+        h('td', { title: e ? [e.par, e.source].filter(Boolean).join(' · ') : '' }, e ? quand(e.le) : (active ? 'Jamais importé' : '—')),
+        h('td' + (n ? '' : '.doux'), { title: n ? n.enStock + ' en stock · ' + n.transit + ' en transit · ' + n.demos + ' démo' : '' }, n ? n.total + (n.initial ? ' (premier import)' : ' · +' + (n.arrivees || 0) + ' / −' + (n.sorties || 0)) : 'km et CARFAX seulement'),
+        h('td', { title: u ? (u.kms || 0) + ' km posés · ' + (u.couts || 0) + ' coûts' + (u.inconnus ? ' · ' + u.inconnus + ' en stock chez nous inconnus de D2C' : '') + (u.kmEcarts ? ' · ' + u.kmEcarts + ' écarts de km' : '') : '' }, u ? u.total + ' · ' + pl(u.ajoutes || 0, 'ajouté') + ' · ' + pl(u.vendus || 0, 'vendu') : '—'),
+        h('td', e && e.carfax ? '+' + (e.carfax.nouveaux || 0) : '—')
       ]));
     });
     table.appendChild(corps);
-    this.elEtat.appendChild(table);
-    this.elEtat.appendChild(h('p.doux.petit', { style: { margin: '10px 0 0' } }, 'Concessions actives : ' + actives.map(nomCie).join(', ') + '. Les autres arrivent dans la liste mais ne sont pas importées (leur feed D2C vient d\'un autre fournisseur, ou leur DMS est déjà suivi autrement).'));
+    this.elEtat.appendChild(h('div.d2c-etat-defile', [table]));
+    this.elEtat.appendChild(h('p.doux.petit', { style: { margin: '8px 0 0' } }, 'Le détail de chaque import s\'affiche au survol de sa ligne.'));
   };
 
   ImportD2c.prototype.rendreRecu = function () {

@@ -293,21 +293,36 @@
     var rdr = filtre ? somme(reps, function (r) { return r.neuf.rdr; }) : b.totaux.neuf.rdr;
     var aLiv = filtre ? somme(reps, function (r) { return type === 'neuf' ? r.neuf.aLivrer : (type === 'usage' ? r.usage.aLivrer : r.total.aLivrer); }) : (type === 'neuf' ? b.totaux.neuf.aLivrer : (type === 'usage' ? b.totaux.usage.aLivrer : b.totaux.neuf.aLivrer + b.totaux.usage.aLivrer));
     var prec = filtre ? somme(reps, function (r) { return type === 'neuf' ? r.prec.neuf : (type === 'usage' ? r.prec.usage : r.prec.neuf + r.prec.usage); }) : (type === 'neuf' ? b.totaux.prec.neuf : (type === 'usage' ? b.totaux.prec.usage : b.totaux.prec.neuf + b.totaux.prec.usage));
-    var stat = function (titre, valeur, bas, cls) { return h('div.bv-stat' + (cls ? '.' + cls : ''), [h('span.t', { text: titre }), h('b', { text: valeur }), bas ? h('span.b', { text: bas }) : null]); };
+    /* 27 oct. (Maxime : « je dois pouvoir cliquer sur les cases ») : chaque case ouvre les ventes qu'elle compte. */
+    var stat = function (titre, valeur, bas, cls, ouvrir) {
+      var enfants = [h('span.t', { text: titre }), h('b', { text: valeur }), bas ? h('span.b', { text: bas }) : null];
+      if (!ouvrir) return h('div.bv-stat' + (cls ? '.' + cls : ''), enfants);
+      return h('button.bv-stat.clic' + (cls ? '.' + cls : ''), { type: 'button', title: 'Voir les ventes', 'aria-label': titre + ' : ' + valeur + ' — voir les ventes', onclick: ouvrir }, enfants);
+    };
+    var ensemble = null;   /* recherche active : seulement les ventes des représentants affichés */
+    if (filtre) { ensemble = {}; reps.forEach(function (r) { (r.ventes || []).forEach(function (id) { ensemble[id] = 1; }); }); }
+    var catMesure = mesure === 'vendues' ? 'vendues' : (mesure === 'rdr' ? 'rdr' : 'livrees');
+    var sur = (filtre ? 'Représentants affichés' : b.nom) + ' · ' + moisLib(d.mois);
+    var ouvrir = function (o) { return function () { o.filtre = o.cat === 'prec' ? null : ensemble; o.sous = o.sous || sur; self.ouvrirVentes(b, o); }; };
     var stats = [];
-    if (type === 'total') { stats.push(stat('Neuf', unites(nNeuf))); stats.push(stat('Occasion', unites(nOcc))); }
-    if (type !== 'usage') stats.push(stat('RDR neuf', unites(rdr), b.rdrPortail ? 'livre + portail' : 'livre'));
-    stats.push(stat('Vendues à livrer', unites(aLiv)));
-    stats.push(stat('Projection', j.passe ? unites(n) : unites(ry.proj), j.passe ? 'mois terminé' : 'fin de mois'));
+    if (type === 'total') {
+      stats.push(stat('Neuf', unites(nNeuf), '', '', ouvrir({ titre: b.mesureLibelle + ' — neuf', cat: catMesure, type: 'neuf' })));
+      stats.push(stat('Occasion', unites(nOcc), '', '', ouvrir({ titre: b.mesureLibelle + ' — occasion', cat: catMesure, type: 'usage' })));
+    }
+    if (type !== 'usage') stats.push(stat('RDR neuf', unites(rdr), b.rdrPortail ? 'livre + portail' : 'livre', '', ouvrir({ titre: 'RDR du neuf', cat: 'rdr', type: 'neuf', note: b.rdrPortail ? 'Date RDR du Livre des ventes, ou RDR déclaré au portail du constructeur (« portail »).' : 'Date RDR du Livre des ventes.' })));
+    stats.push(stat('Vendues à livrer', unites(aLiv), '', '', ouvrir({ titre: 'Vendues, pas encore livrées — ' + libType, cat: 'aLivrer', type: type, note: 'Vendues depuis 120 jours, sans date de livraison passée.' })));
+    stats.push(stat('Projection', j.passe ? unites(n) : unites(ry.proj), j.passe ? 'mois terminé' : 'fin de mois', '', ouvrir({ titre: b.mesureLibelle + ' — ' + libType, cat: catMesure, type: type,
+      note: j.passe ? 'Mois terminé.' : 'Projection : ' + unites(ry.proj) + ' à la fin du mois au rythme actuel (' + unites(n) + ' en ' + j.ecoules + ' jour' + (j.ecoules > 1 ? 's' : '') + ' ouvrable' + (j.ecoules > 1 ? 's' : '') + ' sur ' + j.total + ').' })));
     var dPrec = n - prec;
-    stats.push(stat(moisLib(d.moisPrec).split(' ')[0], unites(prec), j.passe ? 'mois précédent' : '', ''));
+    stats.push(stat(moisLib(d.moisPrec).split(' ')[0], unites(prec), j.passe ? 'mois précédent' : '', '', ouvrir({ titre: 'Livrées en ' + moisLib(d.moisPrec).toLowerCase() + ' — ' + libType, cat: 'prec', type: type, sous: b.nom + ' · ' + moisLib(d.moisPrec), note: filtre ? 'Toute la concession (la recherche ne s\'applique pas au mois précédent).' : '' })));
     if (d.montants) {
       var tp = filtre ? (function () { var x = { f: 0, nf: 0, g: 0, ng: 0 }; reps.forEach(function (r) { if (!r.profit) return; if (r.profit.frontMoyen !== null) { x.f += r.profit.front; x.nf += r.unitesProfit; } if (r.profit.fiMoyen !== null) { x.g += r.profit.fi; x.ng += r.unitesProfit; } }); return { front: x.nf ? Math.round(x.f / x.nf) : null, fi: x.ng ? Math.round(x.g / x.ng) : null }; })() : { front: b.totaux.profit && b.totaux.profit.frontMoyen, fi: b.totaux.profit && b.totaux.profit.fiMoyen };
-      stats.push(stat('Front / unité', argent(tp.front), 'F&I / u. ' + argent(tp.fi), 'montant'));
+      stats.push(stat('Front / unité', argent(tp.front), 'F&I / u. ' + argent(tp.fi), 'montant', ouvrir({ titre: 'Front et F&I par vente — ' + libType, cat: 'profit', type: type, profit: true, note: 'Profit réel s\'il est inscrit, sinon le prévu.' })));
     }
     var titreHero = filtre ? 'Représentants affichés' : b.nom;
     this.elHero.appendChild(h('div.bv-hero', [
-      h('div.bv-hero-anneau', [anneau(n, obj, ry.attendu, ry.couleur, 150, true), h('div.centre', [h('b', { text: unites(n) }), h('span', { text: obj !== null ? 'sur ' + unites(obj) : b.mesureLibelle.toLowerCase() }), obj !== null ? h('em', { text: ry.pct + ' %' }) : null])]),
+      h('button.bv-hero-anneau.clic', { type: 'button', title: 'Voir les ventes', 'aria-label': unites(n) + ' ' + b.mesureLibelle.toLowerCase() + ' — voir les ventes', onclick: ouvrir({ titre: b.mesureLibelle + ' — ' + libType, cat: catMesure, type: type }) },
+        [anneau(n, obj, ry.attendu, ry.couleur, 150, true), h('div.centre', [h('b', { text: unites(n) }), h('span', { text: obj !== null ? 'sur ' + unites(obj) : b.mesureLibelle.toLowerCase() }), obj !== null ? h('em', { text: ry.pct + ' %' }) : null])]),
       h('div.bv-hero-texte', [
         h('div.sur', { text: titreHero + ' · ' + moisLib(d.mois) }),
         h('div.titre', { text: b.mesureLibelle + ' — ' + libType }),
@@ -412,23 +427,72 @@
     this.elTri.appendChild(h('details.carte.bv-tri', inconnus.length ? { open: true } : {}, [h('summary', { text: 'Qui est représentant ? ' + (inconnus.length ? inconnus.length + ' à identifier · ' : '') + autres.length + ' hors classement' }), h('div.carte-corps', corps)]));
   };
 
+  /* ------------------------------ Les ventes derrière un chiffre ------------------------------ */
+  /* Le serveur donne les numéros de vente de chaque case (b.ids) ; un script d'avant ne les donne pas : on refait alors
+     le même tri avec les dates du Livre des ventes (sans les RDR du portail). */
+  function idsDe(b, cat, type) {
+    if (!b.ids) return null;
+    var out = [], vus = {};
+    (type === 'total' ? ['neuf', 'usage'] : [type]).forEach(function (t) { ((b.ids[t] || {})[cat] || []).forEach(function (id) { if (!vus[id]) { vus[id] = 1; out.push(id); } }); });
+    return out;
+  }
+  function classer(v, cat, type, d, mesure) {
+    var t = v.type === 'neuf' ? 'neuf' : (v.type === 'usage' ? 'usage' : '');
+    if (!t || v.statut === 'annulee' || (type !== 'total' && t !== type)) return false;
+    var j10 = function (x) { return String(x || '').slice(0, 10); };
+    var dv = j10(v.dateVente), dl = j10(v.dateLivraison), dr = j10(v.dateRdr), auj = d.aujourdhui, m = d.mois;
+    var lim = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+    if (cat === 'vendues') return dv.slice(0, 7) === m;
+    if (cat === 'livrees') return dl.slice(0, 7) === m && dl <= auj;
+    if (cat === 'rdr') return t === 'neuf' && dr.slice(0, 7) === m;
+    if (cat === 'aLivrer') return !!dv && dv >= lim && dv <= auj && (!dl || dl > auj);
+    if (cat === 'prec') return dl.slice(0, 7) === d.moisPrec;
+    if (cat === 'profit') return mesure === 'vendues' ? dv.slice(0, 7) === m : (dl.slice(0, 7) === m && dl <= auj);
+    return false;
+  }
+  function montant(x) { if (x === null || x === undefined || x === '') return null; var n = parseFloat(String(x).replace(/\s/g, '').replace(/[^\d,.-]/g, '').replace(',', '.')); return isFinite(n) ? n : null; }
+
+  /* o : { titre, sous, cat, type, ids (liste donnée : un représentant), filtre ({ id: 1 }), profit, note } */
+  Board.prototype.ouvrirVentes = function (b, o) {
+    var d = this.donnees, corps = h('div', [h('p.doux', 'Lecture des ventes…')]);
+    var m = AMX.modale({ titre: o.titre, corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer', action: function (f) { f(); } }] });
+    if (!AMX.ventes || !AMX.ventes.charger) { AMX.vider(corps); corps.appendChild(h('p.doux', 'Le Livre des ventes n\'est pas chargé.')); return; }
+    AMX.ventes.charger(b.compagnie, 'tout').then(function (vd) {
+      var toutes = vd.ventes || [];
+      var ids = o.ids || (o.cat ? idsDe(b, o.cat, o.type) : null), approx = false, liste, rdrIds = {};
+      ((b.ids && b.ids.neuf && b.ids.neuf.rdr) || []).forEach(function (id) { rdrIds[id] = 1; });
+      if (ids) { var x = {}; ids.forEach(function (id) { x[id] = 1; }); liste = toutes.filter(function (v) { return x[v.id]; }); }
+      else { approx = o.cat === 'rdr' && b.rdrPortail; liste = toutes.filter(function (v) { return classer(v, o.cat, o.type, d, b.mesure); }); }
+      if (o.filtre) liste = liste.filter(function (v) { return o.filtre[v.id]; });
+      var manquent = ids && !o.filtre ? ids.length - liste.length : 0;   /* une vente du board absente du livre lu (effacée entre-temps) */
+      var cle = o.cat === 'vendues' || o.cat === 'aLivrer' ? 'dateVente' : (o.cat === 'rdr' ? 'dateRdr' : 'dateLivraison');
+      liste.sort(function (a, c) { return String(c[cle] || c.dateLivraison || c.dateVente || '').localeCompare(String(a[cle] || a.dateLivraison || a.dateVente || '')); });
+      var montre = !!(d.montants && o.profit);
+      AMX.vider(corps);
+      var tF = 0, nF = 0, tG = 0, nG = 0;
+      liste.forEach(function (v) { var f = montant(v.profitReel) !== null ? montant(v.profitReel) : montant(v.profitPrevu), g = montant(v.profitFIReel) !== null ? montant(v.profitFIReel) : montant(v.profitFIPrevu); v._f = f; v._g = g; if (f !== null) { tF += f; nF++; } if (g !== null) { tG += g; nG++; } });
+      corps.appendChild(h('p.mini.bv-liste-sous', { text: [o.sous || '', liste.length + ' vente' + (liste.length > 1 ? 's' : ''), montre && nF ? 'front moyen ' + argent(Math.round(tF / nF)) : '', montre && nG ? 'F&I moyen ' + argent(Math.round(tG / nG)) : ''].filter(Boolean).join(' · ') }));
+      if (o.note) corps.appendChild(h('p.mini', { text: o.note }));
+      if (manquent > 0) corps.appendChild(h('p.mini', { style: { color: 'var(--ambre)' }, text: manquent + ' vente' + (manquent > 1 ? 's' : '') + ' du board introuvable' + (manquent > 1 ? 's' : '') + ' dans le Livre des ventes (effacée ou modifiée depuis) : rafraîchissez le board.' }));
+      if (approx) corps.appendChild(h('p.mini', { style: { color: 'var(--ambre)' }, text: 'Le script n\'est pas encore à jour : les RDR du portail du constructeur ne sont pas dans cette liste.' }));
+      if (!liste.length) { corps.appendChild(h('p.doux', 'Aucune vente.')); return; }
+      var tetes = ['Vente', 'Véhicule', 'Client', 'Conseiller', 'Vendue', 'Livrée', 'RDR'].concat(montre ? ['Front', 'F&I'] : []);
+      corps.appendChild(h('div', { style: { overflowX: 'auto' } }, [h('table.tableau.bv-liste-ventes', [h('thead', [h('tr', tetes.map(function (t, i) { return h(i > 6 ? 'th.num' : 'th', { text: t }); }))]),
+        h('tbody', liste.map(function (v) {
+          var veh = v.vehicule || [v.annee, v.marque, v.modele].filter(Boolean).join(' ');
+          var rdrTxt = v.dateRdr ? AMX.fmtDate(v.dateRdr) : (rdrIds[v.id] ? 'portail' : '—');
+          var cells = [h('td', [h('b', { text: v.id }), h('div.mini', { text: v.typeLibelle || v.type })]), h('td', [h('div', { text: veh || '—' }), v.stock ? h('div.mini', { text: '# ' + v.stock }) : null]),
+            h('td', { text: v.client || v.venduA || '—' }), h('td', { text: v.conseiller || '—' }),
+            h('td', { text: v.dateVente ? AMX.fmtDate(v.dateVente) : '—' }), h('td', { text: v.dateLivraison ? AMX.fmtDate(v.dateLivraison) : '—' }), h('td', { text: rdrTxt })];
+          if (montre) cells.push(h('td.num', { text: v._f === null ? '—' : argent(v._f) }), h('td.num', { text: v._g === null ? '—' : argent(v._g) }));
+          return h('tr.cliquable', { title: 'Ouvrir la vente', onclick: function () { m.fermer(); AMX.aller('ventes', 'liste', { id: v.id }); } }, cells);
+        }))])]));
+    }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('p', { style: { color: 'var(--rouge)' }, text: AMX.erreurTexte(e) })); });
+  };
+
   /* ------------------------------ Détail d'un représentant ------------------------------ */
   Board.prototype.detail = function (b, r) {
-    var self = this, corps = h('div', [h('p.doux', 'Lecture des ventes…')]);
-    var m = AMX.modale({ titre: r.nom + ' — ' + moisLib(this.donnees.mois), corps: corps, large: true, boutons: [{ texte: 'Fermer', action: function (f) { f(); } }] });
-    if (!AMX.ventes || !AMX.ventes.charger) { AMX.vider(corps); corps.appendChild(h('p.doux', 'Le Livre des ventes n\'est pas chargé.')); return; }
-    AMX.ventes.charger(b.compagnie, 'tout').then(function (d) {
-      var ids = {}; (r.ventes || []).forEach(function (id) { ids[id] = 1; });
-      var liste = (d.ventes || []).filter(function (v) { return ids[v.id]; }).sort(function (a, c) { return String(c.dateLivraison || c.dateVente).localeCompare(String(a.dateLivraison || a.dateVente)); });
-      AMX.vider(corps);
-      if (!liste.length) { corps.appendChild(h('p.doux', 'Aucune vente ce mois-ci.')); return; }
-      corps.appendChild(h('table.tableau', [h('thead', [h('tr', [h('th', 'Vente'), h('th', 'Véhicule'), h('th', 'Client'), h('th', 'Vendue'), h('th', 'Livrée'), h('th', 'RDR')])]),
-        h('tbody', liste.map(function (v) {
-          return h('tr.cliquable', { onclick: function () { m.fermer(); AMX.aller('ventes', 'liste', { id: v.id }); } }, [
-            h('td', [h('b', { text: v.id }), h('div.mini', { text: v.typeLibelle || v.type })]), h('td', { text: v.vehicule || [v.annee, v.marque, v.modele].filter(Boolean).join(' ') }),
-            h('td', { text: v.client || '—' }), h('td', { text: v.dateVente ? AMX.fmtDate(v.dateVente) : '—' }), h('td', { text: v.dateLivraison ? AMX.fmtDate(v.dateLivraison) : '—' }), h('td', { text: v.dateRdr ? AMX.fmtDate(v.dateRdr) : '—' })]);
-        }))]));
-    }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('p', { style: { color: 'var(--rouge)' }, text: AMX.erreurTexte(e) })); });
+    this.ouvrirVentes(b, { titre: r.nom + ' — ' + moisLib(this.donnees.mois), ids: r.ventes || [], sous: b.nom + ' · ' + moisLib(this.donnees.mois), profit: true });
   };
 
   /* ------------------------------ Objectifs (direction) ------------------------------ */
@@ -674,6 +738,11 @@
       '.bv-hero .bv-etat.vert { background: rgba(45,184,98,.22); color: #7FE3A4; } .bv-hero .bv-etat.bleu { background: rgba(91,155,234,.22); color: #A9CBF5; } .bv-hero .bv-etat.ambre { background: rgba(232,163,58,.22); color: #F5C77E; } .bv-hero .bv-etat.rouge { background: rgba(240,96,90,.22); color: #F7A29E; } .bv-hero .bv-etat.gris { background: rgba(255,255,255,.1); color: #C8D3DB; }',
       '.bv-hero-stats { display: flex; flex-wrap: wrap; gap: 10px; }',
       '.bv-stat { display: flex; flex-direction: column; min-width: 92px; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); }',
+      'button.bv-stat.clic, button.bv-hero-anneau.clic { font: inherit; color: inherit; text-align: left; cursor: pointer; }',
+      'button.bv-stat.clic { transition: background .15s, border-color .15s, transform .15s; } button.bv-stat.clic:hover { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.28); transform: translateY(-1px); }',
+      'button.bv-hero-anneau.clic { background: none; border: 0; padding: 0; border-radius: 50%; } button.bv-hero-anneau.clic:hover { filter: brightness(1.15); }',
+      'button.bv-stat.clic:focus-visible, button.bv-hero-anneau.clic:focus-visible { outline: 2px solid #7FE3A4; outline-offset: 2px; }',
+      '.bv-liste-ventes td { vertical-align: top; } .bv-liste-sous { margin: 0 0 6px; }',
       '.bv-stat .t { font-size: 12px; color: #9FB0BC; } .bv-stat b { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; } .bv-stat .b { font-size: 12px; color: #9FB0BC; }',
       '.bv-hero-courbe { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: #9FB0BC; }',
       /* votre mois */

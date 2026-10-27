@@ -189,15 +189,17 @@
     this.segType = h('div.segment', TYPES.map(function (t) {
       return h('button', { type: 'button', 'data-type': t[0], 'aria-pressed': String(self.type === t[0]), text: t[1], onclick: function () { self.type = t[0]; AMX.memo.ecrire('board_type', t[0]); self.rendre(); } });
     }));
-    this.elFiltres = h('div.bv-filtres', [h('div.recherche', [h('span', { html: I.recherche }), this.inputQ]), this.segType]);
+    /* 27 oct. (Maxime : « la page est disparate, de petits écrits en haut séparés du tableau ») : une seule barre —
+       type, recherche et « Chiffres et liste » sur la même ligne ; le mois et le jour ouvrable vont dans le bandeau. */
     this.elPortee = h('div');
+    this.elFiltres = h('div.bv-outils', [this.segType, h('div.recherche', [h('span', { html: I.recherche }), this.inputQ]), h('div.bv-outils-portee', [this.elPortee])]);
     this.elHero = h('div');
     this.elPodium = h('div');
     this.elMoi = h('div');
     this.elListe = h('div.carte.bv-liste');
     this.elFil = h('div.carte.bv-fil');
     this.elTri = h('div');
-    this.page = h('div.bv-page', [entete, this.elCies, this.elFiltres, this.elPortee, this.elHero, this.elMoi, this.elPodium,
+    this.page = h('div.bv-page', [entete, this.elCies, this.elFiltres, this.elHero, this.elMoi, this.elPodium,
       h('div.bv-grille', [h('div.bv-gauche', [this.elListe, this.elTri]), h('div.bv-droite', [this.elFil])])]);
     this.el.appendChild(this.page);
   };
@@ -232,7 +234,8 @@
     var blocs = this.blocs();
     var b0 = blocs[0];
     var j = b0 ? b0.jours : null;
-    this.elSous.textContent = moisLib(d.mois) + (b0 ? ' · compte : ' + b0.mesureLibelle.toLowerCase() : '') + (j ? (j.passe ? ' · mois terminé' : ' · jour ouvrable ' + j.ecoules + ' sur ' + j.total) : '') + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : '');
+    this.elSous.textContent = this.erreur ? 'Mise à jour impossible : ' + this.erreur + ' (chiffres de la dernière lecture)' : '';
+    this.elSous.style.display = this.erreur ? '' : 'none';
     if (blocs.length > 1) { this.rendreGroupe(blocs); return; }
     this.rendreListe();
   };
@@ -277,7 +280,7 @@
     if (!d || !b) return;
     var reps = this.representants(b), type = this.type, mesure = b.mesure, j = b.jours;
     var libType = { total: 'neuf + occasion', neuf: 'neuf', usage: 'occasion' }[type];
-    AMX.porteeChiffres(this.elPortee, { n: reps.length, unite: ['représentant', 'représentants'], contexte: [b.nom, moisLib(d.mois)], filtres: [type !== 'total' ? libType : '', this.q ? '« ' + this.q + ' »' : ''], effacer: function () { self.q = ''; self.inputQ.value = ''; self.type = 'total'; AMX.memo.ecrire('board_type', 'total'); self.rendre(); } });
+    AMX.porteeChiffres(this.elPortee, { n: reps.length, unite: ['représentant', 'représentants'], contexte: [], filtres: [type !== 'total' ? libType : '', this.q ? '« ' + this.q + ' »' : ''], effacer: function () { self.q = ''; self.inputQ.value = ''; self.type = 'total'; AMX.memo.ecrire('board_type', 'total'); self.rendre(); } });
 
     /* Bandeau : la concession (tous ceux qui vendent, représentants ou non) — ou les représentants filtrés. */
     var filtre = !!this.q;
@@ -324,7 +327,7 @@
       h('button.bv-hero-anneau.clic', { type: 'button', title: 'Voir les ventes', 'aria-label': unites(n) + ' ' + b.mesureLibelle.toLowerCase() + ' — voir les ventes', onclick: ouvrir({ titre: b.mesureLibelle + ' — ' + libType, cat: catMesure, type: type }) },
         [anneau(n, obj, ry.attendu, ry.couleur, 150, true), h('div.centre', [h('b', { text: unites(n) }), h('span', { text: obj !== null ? 'sur ' + unites(obj) : b.mesureLibelle.toLowerCase() }), obj !== null ? h('em', { text: ry.pct + ' %' }) : null])]),
       h('div.bv-hero-texte', [
-        h('div.sur', { text: titreHero + ' · ' + moisLib(d.mois) }),
+        h('div.sur', { text: titreHero + ' · ' + moisLib(d.mois) + (j.passe ? ' · mois terminé' : ' · jour ouvrable ' + j.ecoules + ' sur ' + j.total) }),
         h('div.titre', { text: b.mesureLibelle + ' — ' + libType }),
         h('div.ligne-etat', [pastilleEtat(ry), h('span', { text: j.passe ? 'Mois terminé' : (obj !== null ? (n >= obj ? 'objectif atteint — il reste ' + joursAFaire(j) : resteTxt(ry) + (ry.attendu !== null ? ' · il faudrait être à ' + unites(Math.round(ry.attendu * 2) / 2) + ' aujourd\'hui' : '')) : 'aucun objectif fixé · il reste ' + joursAFaire(j)) })]),
         h('div.bv-hero-stats', stats),
@@ -385,10 +388,12 @@
         h('div.c-num', [h('span.t', moisLib(d.moisPrec).split(' ')[0].slice(0, 4) + '.'), h('b', { text: unites(type === 'neuf' ? r.prec.neuf : (type === 'usage' ? r.prec.usage : r.prec.neuf + r.prec.usage)) })])
       ]);
     });
-    this.elListe.appendChild(h('div.carte-entete', [h('h2', ['Classement des représentants', h('span.sous', { text: b.mesureLibelle + ' ' + libType + ' · ' + (j.passe ? 'mois terminé' : 'il reste ' + joursAFaire(j)) })])]));
+    this.elListe.appendChild(h('div.carte-entete.bv-liste-tete', [h('h2', 'Classement des représentants'), h('span.bv-pastille-info', { text: b.mesureLibelle + ' ' + libType + ' · ' + (j.passe ? 'mois terminé' : 'il reste ' + joursAFaire(j)) })]));
+    var tete = h('div.bv-ligne.bv-tete', { 'aria-hidden': 'true' }, [h('div.c-rang', '#'), h('div.c-nom', 'Représentant'), h('div.c-total', { text: b.mesureLibelle }), h('div.c-barre', 'Objectif'), h('div.c-etat', 'Rythme'), h('div.c-courbe', 'Par jour'),
+      h('div.c-num', 'RDR')].concat(d.montants ? [h('div.c-num.montant', 'Front / u.'), h('div.c-num.montant', 'F&I / u.')] : []).concat([h('div.c-num', { text: moisLib(d.moisPrec).split(' ')[0].slice(0, 4) + '.', title: moisLib(d.moisPrec) })]));
     if (!tri.length) this.elListe.appendChild(h('div.carte-corps', [h('p.doux', { text: this.q ? 'Aucun représentant pour « ' + this.q + ' ».' : 'Aucune vente de représentant au Livre des ventes ce mois-ci.' })]));
-    else this.elListe.appendChild(h('div.bv-classement' + (d.montants ? '.avec-montants' : ''), lignes));
-    this.elListe.appendChild(h('div.carte-corps.mini.bv-note', { text: 'Barre : la couleur suit le rythme (vert en avance ou atteint, bleu dans le rythme, ambre un peu en retard, rouge en retard) ; le trait = où il faudrait être aujourd\'hui. ▲ ▼ = rang gagné ou perdu depuis hier. Une vente partagée au livre (« Julie / Marc ») compte une demi-unité chacun ; le wholesale ne compte pas. ' + (mesure === 'livrees' ? 'Compte les ventes livrées (date de livraison du livre).' : (mesure === 'vendues' ? 'Compte les ventes par date de vente.' : 'Compte les RDR du neuf (livre et portail du constructeur).')) }));
+    else this.elListe.appendChild(h('div.bv-classement' + (d.montants ? '.avec-montants' : ''), [tete].concat(lignes)));
+    this.elListe.appendChild(h('details.bv-note', [h('summary', 'Comment lire le classement'), h('p', { text: 'Barre : la couleur suit le rythme (vert en avance ou atteint, bleu dans le rythme, ambre un peu en retard, rouge en retard) ; le trait = où il faudrait être aujourd\'hui. ▲ ▼ = rang gagné ou perdu depuis hier. Une vente partagée au livre (« Julie / Marc ») compte une demi-unité chacun ; le wholesale ne compte pas. ' + (mesure === 'livrees' ? 'Compte les ventes livrées (date de livraison du livre).' : (mesure === 'vendues' ? 'Compte les ventes par date de vente.' : 'Compte les RDR du neuf (livre et portail du constructeur).')) + ' Touchez une case du bandeau ou un représentant pour voir ses ventes.' })]));
 
     /* Fil des dernières livraisons */
     var fil = b.fil || [];
@@ -714,8 +719,10 @@
       '.bv-page .carte-entete h2 .sous { font-size: 12px; font-weight: 400; color: var(--encre-3); margin-left: 8px; text-transform: none; letter-spacing: 0; }',
       '.bv-page .entete-page .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }',
       '.bv-page select.saisie.bv-mois { width: auto; min-width: 200px; height: 36px; font-weight: 600; flex: 0 0 auto; }',
-      '.bv-filtres { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 8px; }',
-      '.bv-filtres .recherche { flex: 1 1 220px; max-width: 360px; }',
+      '.bv-page .entete-page { margin-bottom: 12px; } .bv-page .entete-page .sous-titre { color: var(--rouge); }',
+      '.bv-outils { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; padding: 8px 10px; border: 1px solid var(--ligne, #E3E7EB); border-radius: 12px; background: var(--carte, #fff); }',
+      '.bv-outils .segment { flex: 0 0 auto; } .bv-outils .segment button { padding: 6px 14px; font-size: 13px; }',
+      '.bv-outils .recherche { flex: 0 1 300px; } .bv-outils-portee { margin-left: auto; min-width: 0; } .bv-outils .portee-chiffres { margin: 0; border: 0; background: none; padding: 0; font-size: 13px; }',
       /* avatars, états, barres */
       '.bv-av { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 700; letter-spacing: .02em; flex: 0 0 auto; box-shadow: 0 0 0 2px rgba(255,255,255,.9); }',
       '.bv-etat { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }',
@@ -736,29 +743,29 @@
       '.bv-hero-texte { flex: 1; min-width: 0; } .bv-hero-texte .sur { font-size: 13px; color: #9FB0BC; } .bv-hero-texte .titre { font-size: 22px; font-weight: 800; margin: 2px 0 8px; }',
       '.bv-hero .ligne-etat { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; color: #DCE4EA; margin-bottom: 14px; }',
       '.bv-hero .bv-etat.vert { background: rgba(45,184,98,.22); color: #7FE3A4; } .bv-hero .bv-etat.bleu { background: rgba(91,155,234,.22); color: #A9CBF5; } .bv-hero .bv-etat.ambre { background: rgba(232,163,58,.22); color: #F5C77E; } .bv-hero .bv-etat.rouge { background: rgba(240,96,90,.22); color: #F7A29E; } .bv-hero .bv-etat.gris { background: rgba(255,255,255,.1); color: #C8D3DB; }',
-      '.bv-hero-stats { display: flex; flex-wrap: wrap; gap: 10px; }',
-      '.bv-stat { display: flex; flex-direction: column; min-width: 92px; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); }',
+      '.bv-hero-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; }',
+      '.bv-stat { display: flex; flex-direction: column; min-width: 0; padding: 10px 14px; border-radius: 12px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); }',
       'button.bv-stat.clic, button.bv-hero-anneau.clic { font: inherit; color: inherit; text-align: left; cursor: pointer; }',
       'button.bv-stat.clic { transition: background .15s, border-color .15s, transform .15s; } button.bv-stat.clic:hover { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.28); transform: translateY(-1px); }',
       'button.bv-hero-anneau.clic { background: none; border: 0; padding: 0; border-radius: 50%; } button.bv-hero-anneau.clic:hover { filter: brightness(1.15); }',
       'button.bv-stat.clic:focus-visible, button.bv-hero-anneau.clic:focus-visible { outline: 2px solid #7FE3A4; outline-offset: 2px; }',
       '.bv-liste-ventes td { vertical-align: top; } .bv-liste-sous { margin: 0 0 6px; }',
       '.bv-stat .t { font-size: 12px; color: #9FB0BC; } .bv-stat b { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; } .bv-stat .b { font-size: 12px; color: #9FB0BC; }',
-      '.bv-hero-courbe { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: #9FB0BC; }',
+      '.bv-hero-courbe { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 13px; color: #9FB0BC; } .bv-hero-courbe .bv-courbe svg { width: 300px; height: 34px; }',
       /* votre mois */
       '.bv-moi { display: flex; gap: 14px; align-items: center; padding: 12px 16px; border-radius: 12px; margin: 0 0 14px; background: var(--fond-2, #F3F5F7); border-left: 5px solid var(--encre-4); }',
       '.bv-moi .txt { flex: 1; min-width: 0; } .bv-moi .barre-moi { flex: 0 1 260px; }',
       '.bv-moi.vert { border-left-color: var(--vert); background: var(--vert-clair); } .bv-moi.bleu { border-left-color: var(--bleu); background: var(--bleu-bg); } .bv-moi.ambre { border-left-color: var(--ambre); background: var(--ambre-bg); } .bv-moi.rouge { border-left-color: var(--rouge); background: var(--rouge-bg); }',
       /* podium */
-      '.bv-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; margin: 0 0 14px; max-width: 820px; }',
-      '.bv-place { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 14px 0; border: 1px solid var(--trait, #E3E7EB); border-radius: 14px; background: var(--fond-carte, #fff); cursor: pointer; font: inherit; color: inherit; overflow: hidden; }',
+      '.bv-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; margin: 0 0 14px; }',
+      '.bv-place { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 18px 14px; border: 1px solid var(--ligne, #E3E7EB); border-radius: 14px; background: var(--carte, #fff); cursor: pointer; font: inherit; color: inherit; overflow: hidden; }',
       '.bv-place:hover { border-color: var(--vert); } .bv-place.moi { box-shadow: 0 0 0 2px var(--vert) inset; }',
       '.bv-place .medaille { position: absolute; top: 10px; left: 12px; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #fff; }',
       '.bv-place.p1 .medaille { background: linear-gradient(135deg, #E9B949, #B9861C); } .bv-place.p2 .medaille { background: linear-gradient(135deg, #C9D1D8, #8C98A3); } .bv-place.p3 .medaille { background: linear-gradient(135deg, #D79A63, #9A5B2C); }',
       '.bv-place .nom { font-weight: 700; text-align: center; } .bv-place .gros b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; } .bv-place .gros span { color: var(--encre-3); font-size: 16px; } .bv-place .detail { font-size: 12px; color: var(--encre-3); }',
       '.bv-place .bv-barre { width: 80%; margin: 4px 0; }',
-      '.bv-place .socle { align-self: stretch; margin-top: 10px; height: 10px; } .bv-place.p1 .socle { height: 28px; background: linear-gradient(180deg, rgba(233,185,73,.25), rgba(233,185,73,.05)); } .bv-place.p2 .socle { height: 16px; background: rgba(140,152,163,.12); } .bv-place.p3 .socle { height: 8px; background: rgba(154,91,44,.10); }',
-      '.bv-place.p1 { padding-top: 22px; border-color: #E9B949; }',
+      '.bv-place .socle { display: none; }',
+      '.bv-place.p1 { border-color: #E9B949; box-shadow: 0 6px 18px rgba(233,185,73,.18); }',
       /* grille principale */
       '.bv-grille { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }',
       '.bv-classement { display: flex; flex-direction: column; }',
@@ -770,7 +777,12 @@
       '.bv-ligne .c-total { display: flex; align-items: baseline; gap: 4px; } .bv-ligne .c-total b { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; } .bv-ligne .c-total span { color: var(--encre-3); font-size: 13px; }',
       '.bv-ligne .c-barre .mini { margin-top: 4px; } .bv-ligne .c-etat .mini { margin-top: 4px; }',
       '.bv-ligne .c-num { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; } .bv-ligne .c-num .t { font-size: 11px; color: var(--encre-3); text-transform: uppercase; letter-spacing: .03em; } .bv-ligne .c-num b { font-size: 15px; }',
-      '.bv-note { border-top: 1px solid var(--trait, #E3E7EB); }',
+      '.bv-liste-tete { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }',
+      '.bv-pastille-info { font-size: 13px; color: var(--encre-3); background: var(--fond-2, #F3F5F7); border-radius: 999px; padding: 4px 12px; }',
+      '.bv-ligne.bv-tete { cursor: default; padding-top: 8px; padding-bottom: 8px; background: var(--carte-2, #F8FAFB); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-3); }',
+      '.bv-ligne.bv-tete:hover { background: var(--carte-2, #F8FAFB); } .bv-ligne.bv-tete .c-num { align-items: flex-end; } .bv-ligne.bv-tete .c-rang { justify-content: flex-end; padding-right: 26px; }',
+      '@media (min-width: 761px) { .bv-ligne .c-num .t { display: none; } .bv-ligne .c-num b { font-size: 16px; } }',
+      '.bv-note { border-top: 1px solid var(--ligne, #E3E7EB); padding: 0 16px; } .bv-note summary { cursor: pointer; padding: 10px 0; font-size: 13px; color: var(--encre-3); } .bv-note p { margin: 0 0 12px; font-size: 13px; color: var(--encre-3); }',
       /* fil */
       '.bv-fil-liste { list-style: none; margin: 0; padding: 4px 0; } .bv-fil-liste li { display: grid; grid-template-columns: 64px 1fr auto; gap: 8px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--trait, #E3E7EB); } .bv-fil-liste li:first-child { border-top: 0; }',
       '.bv-fil-liste .q { font-size: 12px; color: var(--encre-3); } .bv-fil-liste b { font-size: 14px; }',
@@ -790,7 +802,7 @@
       '.bv-objectifs tr.bv-ligne-cie td { border-top: 2px solid var(--trait, #E3E7EB); }',
       /* téléphone */
       '@media (max-width: 1180px) { .bv-grille { grid-template-columns: minmax(0, 1fr); } .bv-ligne .c-courbe { display: none; } .bv-ligne, .bv-classement.avec-montants .bv-ligne { grid-template-columns: 54px minmax(160px, 1.6fr) 70px minmax(140px, 1.3fr) 128px 54px 54px; } .bv-classement.avec-montants .bv-ligne .montant { display: none; } }',
-      '@media (max-width: 760px) { .bv-hero { flex-direction: column; align-items: flex-start; padding: 18px; } .bv-podium { gap: 8px; } .bv-place .gros b { font-size: 22px; } .bv-place .detail, .bv-place .bv-barre { display: none; }',
+      '@media (max-width: 760px) { .bv-ligne.bv-tete { display: none; } .bv-outils .recherche { flex: 1 1 100%; } .bv-outils-portee { margin-left: 0; } .bv-hero-courbe .bv-courbe svg { width: 200px; } .bv-hero { flex-direction: column; align-items: flex-start; padding: 18px; } .bv-podium { gap: 8px; } .bv-place .gros b { font-size: 22px; } .bv-place .detail, .bv-place .bv-barre { display: none; }',
       '  .bv-ligne, .bv-classement.avec-montants .bv-ligne { grid-template-columns: 40px 1fr auto; grid-template-areas: "r n t" "r b b"; row-gap: 6px; padding: 10px 12px; }',
       '  .bv-ligne .c-rang { grid-area: r; flex-direction: column; } .bv-ligne .c-nom { grid-area: n; } .bv-ligne .c-total { grid-area: t; } .bv-ligne .c-barre { grid-area: b; } .bv-ligne .c-etat, .bv-ligne .c-num, .bv-ligne .c-courbe { display: none; } .bv-moi { flex-wrap: wrap; } .bv-moi .barre-moi { flex-basis: 100%; } }',
       /* écran télé */

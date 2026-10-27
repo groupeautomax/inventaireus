@@ -771,6 +771,7 @@
      écrits dans les modules n'ont pas changé. `fixes` = paramètres ajoutés à l'adresse de la source (mode d'une page). */
   var TUILES = [
     { id: 'vente', titre: 'Vente', icone: 'vente', ordre: 10, onglets: [
+      { id: 'board', titre: 'Board des ventes', de: 'board', onglet: '' },   /* 27 oct. : par représentant, neuf et occasion, objectifs, écran télé (board.js) */
       { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
       { id: 'offres', titre: 'Offres reçues', de: 'offres', onglet: 'recues' },
       { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente' },
@@ -785,7 +786,7 @@
       { id: 'usage', titre: 'Occasion', de: 'inventaire', onglet: 'usage' },
       { id: 'analyse', titre: 'Analyse occasion', de: 'analyse', onglet: '' },   /* 24 oct. : façon vAuto — % du marché, rang, jours, MDS, profil de prix par âge (analyse-usage.js) */
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '' },
-      { id: 'evaluations', titre: 'Évaluations', de: 'outils', vues: [{ id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] },
+      { id: 'evaluations', titre: 'Évaluations', de: 'outils', vues: [{ id: 'demandes', titre: 'Demandes', de: 'demandesEval', onglet: '' }, { id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
       { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '' },   /* 22 oct. : dépôt d'une liste (PDF, Excel, CSV) → où est chaque véhicule ; audit dans l'app (listes.js) */
       { id: 'transports', titre: 'Transports', de: 'transports', onglet: '', compteur: function () { return AMX.transport ? AMX.transport.compteur() : ''; } }   /* 23 oct. : transport des achats par Central Fleet (transport.js) */
     ] },
@@ -805,7 +806,6 @@
       { id: 'opportunites', titre: 'Opportunités d\'achat', de: 'outils', onglet: 'opportunites' },   /* 24 oct. : Occasions.gs */
       { id: 'eblock', titre: 'Fiches eBlock', de: 'outils', onglet: 'eblock' },
       { id: 'openlane', titre: 'Valeurs OpenLane', de: 'outils', onglet: 'openlane' },
-      { id: 'carfax', titre: 'Import CARFAX', de: 'outils', onglet: 'carfax' },
       { id: 'd2c', titre: 'Import D2C', de: 'outils', onglet: 'd2c' },
       { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification' },
       { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '' }
@@ -972,6 +972,8 @@
     // #/inventaire/us|can|detail → #/inventaire/usage?registre=… (les trois registres sont des pastilles dans la page Occasion).
     if (r.section === 'neufs' && !AMX.sections.neufs && AMX.sections.inventaire) { AMX.aller('inventaire', 'neufs', r.params); return; }
     if (r.section === 'inventaire' && /^(us|can|detail)$/.test(r.onglet) && AMX.inventaire && AMX.inventaire.registres) { var pr = { registre: r.onglet }; Object.keys(r.params || {}).forEach(function (k) { pr[k] = r.params[k]; }); AMX.aller('inventaire', 'usage', pr); return; }
+    // 27 oct. : l'onglet « Import CARFAX » est retiré (l'API officielle de CARFAX lit les rapports) — l'ancienne adresse mène à Outils › Imports.
+    if (r.section === 'outils' && r.onglet === 'carfax') { AMX.aller('outils', 'imports'); return; }
     // 21 oct. : anciennes sections (offres, resultat, achat, avis, csi, admin…) et anciens onglets → leur tuile.
     var trad = AMX.traduire(r.section, r.onglet, r.params);
     if (trad) { AMX.aller(trad.section, trad.onglet, trad.params); return; }
@@ -1403,6 +1405,7 @@
       voit('achat') && { t: 'Nouvelle fiche d\'achat', ic: 'achat', href: AMX.lien('achat', '') },
       voit('ventes') && AMX.ventes && AMX.ventes.peutDeclarer && AMX.ventes.peutDeclarer() && { t: 'Inscrire une vente', ic: 'vente', href: AMX.lien('ventes', 'liste', { nouvelle: Date.now() }) },
       voit('service') && { t: 'Nouveau rendez-vous', ic: 'service', href: AMX.lien('service', 'rendezvous', { nouveau: 1 }) },
+      voit('demandesEval') && { t: 'Demander une évaluation', ic: 'outils', href: AMX.lien('demandesEval', '', { nouvelle: Date.now() }) },
       voit('aide') && { t: 'Écrire une suggestion', ic: 'suggestions', href: AMX.lien('aide', 'suggestions') },
       { t: 'Revenir à l\'ancienne interface', ic: 'rafraichir', faire: function () { AMX.basculerInterface(false); } }
     ];

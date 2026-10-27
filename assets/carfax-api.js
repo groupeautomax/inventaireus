@@ -3,7 +3,7 @@
 
    Le script (Carfax.gs) parle à CARFAX avec le Client ID, le secret et le jeton de compte de chaque concession ; ici :
      - AMX.carfaxApi.bouton(vin, opts) : à la place de « Commander un CARFAX » (panneau Occasion, évaluation, fiche
-       d'achat). Tant que l'API n'est pas branchée pour la concession, c'est l'ancien lien vers le portail (secours).
+       d'achat). Plus de lien vers le portail CARFAX (retiré le 27 oct., Maxime) : sans l'API branchée, rien ne s'affiche.
        Branchée : « Commander le CARFAX » → Lookup d'abord (gratuit : un rapport déjà acheté se montre, il ne se
        rachète pas), puis une fenêtre de confirmation qui dit que c'est FACTURÉ, case à cocher obligatoire. Sans le droit
        « CARFAX — commander des rapports » : « Vérifier chez CARFAX » seulement (Lookup).
@@ -17,7 +17,6 @@
   'use strict';
   var AMX = window.AMX, h = AMX.h;
   var SCRIPT_PAS_A_JOUR = 'Le script n\'est pas à jour : déployez une nouvelle version (Carfax.gs).';
-  var PORTAIL = 'https://portal.carfax.ca/vehicles';
   var NIV_TEST = 'AAAAAAAAAAAAAAAA2';
   var etatCache = null, etatQuand = 0, etatPromesse = null;
 
@@ -182,20 +181,16 @@
   /* -------------------------------- Bouton -------------------------------- */
   /** opts : { compagnie, reference (# stock), vehicule (texte), source ('occasion' | 'evaluation' | 'achat'), classe, onFait } —
       compagnie, reference et vehicule peuvent être des fonctions (lues au clic).
-      Rend tout de suite le lien du portail (secours), puis le bouton de l'API si elle est branchée pour la concession. */
+      Rien tant que l'état de l'API n'est pas lu ou qu'aucune concession n'est branchée ; ensuite le bouton de l'API. */
   function bouton(vin, opts) {
     opts = opts || {};
     injecterCss();
     var zone = h('span.cfx-bouton', { style: { display: 'contents' } });
     var classe = opts.classe || '';
-    var portail = function () {
-      return h('a.btn' + classe, { href: PORTAIL, target: '_blank', rel: 'noopener', title: 'Ouvre votre compte CARFAX (le NIV est copié)', html: AMX.icones.externe + '<span>Commander un CARFAX</span>',
-        onclick: function () { AMX.copier(vin, 'NIV copié — collez-le dans le portail CARFAX'); } });
-    };
     var dessiner = function () {
       AMX.vider(zone);
       var vinOk = /^[A-HJ-NPR-Z0-9]{17}$/.test(String(vin || '').toUpperCase());
-      if (!vinOk || !estBranche(val(opts.compagnie))) { zone.appendChild(portail()); return; }
+      if (!vinOk || !branchees().length) return;   // concession pas branchée : la fenêtre propose les comptes branchés
       var peut = !!(etatCache && etatCache.peutCommander);
       var b = h('button.btn' + classe, { type: 'button', title: peut ? 'Vérifie les rapports déjà achetés, puis commande (facturé) au compte de la concession' : 'Cherche un rapport déjà acheté par nos concessions',
         html: AMX.icones.recherche + '<span>' + (peut ? 'Commander le CARFAX' : 'Vérifier chez CARFAX') + '</span>' });

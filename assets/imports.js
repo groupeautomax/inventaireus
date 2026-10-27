@@ -6,7 +6,7 @@
      à cliquer et les étapes. Les cartes rouges sont ouvertes, les vertes repliées.
    - Les favoris à installer une fois dans Chrome sont réunis en haut (registre AMX.signets : chaque module y inscrit le sien).
    - Données : GET ?importsEtat=1 (Imports.gs), la même lecture que la carte de l'Accueil (AMX.importsEtat, accueil.js).
-   - Les étapes lourdes restent sur leur page (simulation et import D2C, dépôt du fichier InfoBahn, collage CARFAX) :
+   - Les étapes lourdes restent sur leur page (simulation et import D2C, dépôt du fichier InfoBahn) :
      le bouton « Page détaillée » y mène.
    - #/outils/imports?imp=<id> ouvre et montre l'import demandé (lien « Comment faire » de l'Accueil). */
 (function () {
@@ -73,13 +73,7 @@
       etapes: ['Ouvrez Manheim (bouton « Ouvrir le portail »), onglet Achats.',
         'Cliquez le favori : photos, état et CARFAX des achats ; ceux absents du registre y entrent en violet.',
         'Facultatif : onglet Disponible, même favori, pour les opportunités d\'achat.'] },
-    carfaxapi: { texte: 'Rien à faire : depuis le branchement de l\'API officielle de CARFAX (Admin › CARFAX), ScanAutomax lit lui-même aux 20 minutes les rapports déjà achetés par la concession et pose les liens sur les véhicules (stock, achats entrés, évaluations récentes). « Commander le CARFAX » (panneau Occasion, évaluation, fiche d\'achat) achète un rapport, toujours confirmé. En rouge, l\'API ne répond plus : vérifiez les clés dans Admin › CARFAX ; le favori « Automax ← CARFAX » sert de secours.', page: ['outils', 'carfax'], pageTexte: 'Import CARFAX (secours)' },
-    carfax: { court: 'rapports CARFAX', favori: 'carfax', page: ['outils', 'carfax'], pageTexte: 'Import CARFAX',
-      note: 'Secours : depuis le branchement de l\'API CARFAX (Admin › CARFAX), ce favori ne sert que pour un emplacement que l\'API ne lit pas encore, ou si l\'API est en panne.',
-      partage: 'Un seul passage lit les trois emplacements CARFAX (Ste Marie, Hawkesbury, Hyundai Longueuil).',
-      tache: 'La tâche du Mac le fait du lundi au samedi à 12 h 10 et 17 h 10, quand le Mac est allumé.',
-      etapes: ['Ouvrez le portail CARFAX (bouton « Ouvrir le portail »), page Véhicules.',
-        'Cliquez le favori : il lit lui-même les trois emplacements, page par page, puis remet celui du départ.'] },
+    carfaxapi: { texte: 'Rien à faire : depuis le branchement de l\'API officielle de CARFAX (Admin › CARFAX), ScanAutomax lit lui-même aux 20 minutes les rapports déjà achetés par la concession et pose les liens sur les véhicules (stock, achats entrés, évaluations récentes). « Commander le CARFAX » (panneau Occasion, évaluation, fiche d\'achat) achète un rapport, toujours confirmé. En rouge, l\'API ne répond plus : vérifiez les clés dans Admin › CARFAX (API).', page: ['admin'], pageTexte: 'Admin › CARFAX (API)' },
     eblock: { court: 'fiches eBlock', favori: 'eblock', page: ['outils', 'eblock'], pageTexte: 'Fiches eBlock',
       etapes: ['Ouvrez eBlock (bouton « Ouvrir le portail »), My Block › Buyer.',
         'Cliquez le favori : il lit les achats depuis janvier et les fiches des véhicules encore à l\'inventaire.',

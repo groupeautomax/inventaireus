@@ -15,7 +15,8 @@
      full-table-zone-{g}, search-{g}, results-tbody-{g}, results-empty-{g})
      reprennent ceux de l'ancienne page.
 
-   Import CARFAX — signet « Automax ← CARFAX » et zone de collage (plus bas).
+   (27 oct. : l'onglet « Import CARFAX » et son favori sont retirés — l'API officielle de CARFAX, Carfax.gs, lit
+   elle-même les rapports ; un lien se colle encore à la main dans le panneau Occasion.)
 
    Les onglets restent montés tant qu'on est dans la section : changer
    d'onglet ne perd pas ce qui a été tapé ou téléversé.
@@ -114,7 +115,6 @@
       { id: 'openlane', titre: 'Valeurs OpenLane' },
       { id: 'opportunites', titre: 'Opportunités d\'achat' },   /* 24 oct. : assets/opportunites.js (AMX.vues.Opportunites) */
       { id: 'verification', titre: 'Vérification Excel' },
-      { id: 'carfax', titre: 'Import CARFAX' },
       { id: 'd2c', titre: 'Import D2C' },
       { id: 'equite', titre: 'Portefeuille BMW' }   /* 21 oct. : export InfoBahn (BMW Financial Services) → onglet Équité des neufs */
     ],
@@ -131,10 +131,10 @@
     this.naviguer(ctx || {});
   }
   Outils.prototype.naviguer = function (ctx) {
-    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax' || ctx.onglet === 'evaluations' || ctx.onglet === 'torque' || ctx.onglet === 'eblock' || ctx.onglet === 'openlane' || ctx.onglet === 'd2c' || ctx.onglet === 'equite' || ctx.onglet === 'opportunites' || ctx.onglet === 'imports')) ? ctx.onglet : 'evaluation';
+    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'evaluations' || ctx.onglet === 'torque' || ctx.onglet === 'eblock' || ctx.onglet === 'openlane' || ctx.onglet === 'd2c' || ctx.onglet === 'equite' || ctx.onglet === 'opportunites' || ctx.onglet === 'imports')) ? ctx.onglet : 'evaluation';
     if (!this.vues[id]) {
       // 16 oct. : « Import D2C » (assets/d2c.js, AMX.vues.ImportD2c) — l'inventaire que D2C Media reçoit du DMS.
-      this.vues[id] = id === 'imports' ? new AMX.vues.Imports(ctx) : id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : (id === 'd2c' ? new AMX.vues.ImportD2c(ctx) : (id === 'equite' ? new AMX.vues.ImportPortefeuille(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : (id === 'torque' ? new AMX.vues.ArchiveTorque(ctx) : (id === 'eblock' ? new AMX.vues.FichesEblock(ctx) : (id === 'openlane' ? new AMX.vues.ValeursOpenlane(ctx) : (id === 'opportunites' ? new AMX.vues.Opportunites(ctx) : new AMX.vues.Evaluation(ctx)))))))));
+      this.vues[id] = id === 'imports' ? new AMX.vues.Imports(ctx) : id === 'verification' ? new Verification(ctx) : (id === 'd2c' ? new AMX.vues.ImportD2c(ctx) : (id === 'equite' ? new AMX.vues.ImportPortefeuille(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : (id === 'torque' ? new AMX.vues.ArchiveTorque(ctx) : (id === 'eblock' ? new AMX.vues.FichesEblock(ctx) : (id === 'openlane' ? new AMX.vues.ValeursOpenlane(ctx) : (id === 'opportunites' ? new AMX.vues.Opportunites(ctx) : new AMX.vues.Evaluation(ctx))))))));
       this.conteneur.appendChild(this.vues[id].el);
     } else if (this.vues[id].naviguer) {
       this.vues[id].naviguer(ctx);
@@ -408,184 +408,5 @@
       });
       tbody.appendChild(tr);
     });
-  };
-
-  /* =====================================================================
-     Onglet « Import CARFAX » — les liens publics des rapports du compte
-     concessionnaire (dealer.carfax.ca › Mes rapports › Mes RHV), par VIN.
-     Trois chemins : le signet (un clic sur la page Mes RHV), le collage de
-     la page, ou l'arrivée par #/outils/carfax?import=<base64 JSON>.
-     ===================================================================== */
-  var SITE_CARFAX = 'https://portal.carfax.ca/vehicles';   /* 27 oct. : CARFAX a remplacé dealer.carfax.ca › Mes RHV par le portail */
-  // Le signet : lit chaque ligne de « Mes RHV » (VIN + lien vhr.carfax.ca +
-  // no de rapport + date) et revient ici avec la liste dans l'adresse.
-  var CODE_SIGNET = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-carfax.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
-  (AMX.signets = AMX.signets || {}).carfax = { nom: 'Automax ← CARFAX', code: CODE_SIGNET };   /* 27 oct. : registre des favoris (Outils › Imports) */
-
-  function ImportCarfax(ctx) {
-    var self = this;
-    // La liste en attente survit au va-et-vient avec le site CARFAX (le signet
-    // recharge la page) : une page de « Mes RHV » à la fois, jusqu'à Enregistrer.
-    this.liens = AMX.memo.lire('carfax_attente', []);
-    this.el = h('div.page.etroite');
-    this.construire();
-    this.naviguer(ctx || {});
-    AMX.inventaire.tout().catch(function () { return []; }).then(function () { self.rendreListe(); });
-    AMX.carfax.charger().then(function () { self.rendreListe(); }).catch(function () {});
-  }
-  ImportCarfax.prototype.demonter = function () {};
-  ImportCarfax.prototype.naviguer = function (ctx) {
-    var brut = ctx && ctx.params && ctx.params['import'];
-    if (!brut) return;
-    try {
-      var json = decodeURIComponent(escape(atob(brut)));
-      var liste = JSON.parse(json);
-      if (Array.isArray(liste)) { this.recevoir(liste, 'signet'); }
-    } catch (e) { AMX.toast('Liste reçue illisible : recommencez depuis le signet.', 'erreur'); }
-    // On nettoie l'adresse : la liste est en mémoire, inutile de la rejouer.
-    history.replaceState(null, '', AMX.lien('outils', 'carfax'));
-  };
-  ImportCarfax.prototype.construire = function () {
-    var self = this;
-    var signet = h('a.btn.primaire', { href: CODE_SIGNET, text: 'Automax ← CARFAX', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
-    signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le dans le portail CARFAX, page Véhicules.', 'attention', 7000); });
-    this.zoneColle = h('textarea.saisie', { rows: '6', placeholder: 'Ou collez ici des liens de rapports (un par ligne, avec le VIN devant si possible) :\n1FT8W2BT7NEC52018  https://vhr.carfax.ca/fr/?id=…' });
-    var btnColle = h('button.btn', { text: 'Lire ce qui est collé', onclick: function () { self.lireCollage(); } });
-    this.elListe = h('div');
-    this.elResume = h('div.doux.petit', { style: { marginTop: '8px' } });
-    this.el.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Import CARFAX'), h('p', 'Récupère en un clic les liens publics des rapports que vous avez déjà commandés dans votre compte CARFAX Canada, et les attache aux véhicules — à l\'inventaire ou non. Le lien apparaît dans la fiche du véhicule, sur la page de l\'acheteur, et la recherche du site (en haut) retrouve le rapport d\'un véhicule parti par son NIV.')]),
-      h('div.actions', [h('a.btn', { href: SITE_CARFAX, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir mon compte CARFAX</span>' })])
-    ]));
-    this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [
-      h('div.carte-entete', [h('h2', 'En un clic : le signet « Automax ← CARFAX »')]),
-      h('div.carte-corps', [
-        h('div.grille.c3', [
-          h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', { style: { margin: '0 0 10px', color: 'var(--encre-2)' } }, 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
-          h('div', [h('div.section-titre', '2. Dans CARFAX'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Ouvrez le portail CARFAX, page Véhicules (bouton « Ouvrir mon compte CARFAX »).')]),
-          h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Il lit lui-même les trois emplacements (Ste-Marie, Hawkesbury, Hyundai Longueuil), page par page, et enregistre au fur et à mesure (une petite fenêtre du site s\'ouvre à côté : laissez-la). Ensuite, il ne relit que les rapports récents. Rien à faire ici ensuite.')])
-        ])
-      ])
-    ]));
-    this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [
-      h('div.carte-entete', [h('h2', 'Ou coller des liens')]),
-      h('div.carte-corps', [this.zoneColle, h('div', { style: { marginTop: '10px' } }, [btnColle])])
-    ]));
-    this.seulementInventaire = AMX.memo.lire('carfax_seulement_inv', true);
-    var caseInv = h('input', { type: 'checkbox', checked: this.seulementInventaire });
-    caseInv.addEventListener('change', function () { self.seulementInventaire = caseInv.checked; AMX.memo.ecrire('carfax_seulement_inv', caseInv.checked); self.rendreListe(); });
-    this.elCarte = h('div.carte', [h('div.carte-entete', [h('h2', 'Rapports trouvés'), h('div.actions-ligne', [
-      h('label.case', { title: 'Les rapports de véhicules qui ne sont plus à l\'inventaire sont laissés de côté' }, [caseInv, h('span', 'Seulement les véhicules à l\'inventaire')]),
-      h('button.btn.fantome', { text: 'Vider la liste', onclick: function () { self.liens = []; AMX.memo.ecrire('carfax_attente', []); self.rendreListe(); } }),
-      h('button.btn.primaire#cfx-enregistrer', { text: 'Enregistrer', disabled: true, onclick: function () { self.enregistrer(); } })])]), h('div.carte-corps', [this.elListe, this.elResume])]);
-    this.el.appendChild(this.elCarte);
-  };
-  ImportCarfax.prototype.lireCollage = function () {
-    var lignes = String(this.zoneColle.value || '').split(/\r?\n/);
-    var liste = [];
-    lignes.forEach(function (l) {
-      var lien = (l.match(/https:\/\/vhr\.carfax\.ca\/(?:[a-z]{2}\/)?(?:main)?\?id=[^\s"'<>]+/i) || [])[0];
-      if (!lien) return;
-      var vin = (l.toUpperCase().match(/\b[A-HJ-NPR-Z0-9]{17}\b/) || [])[0] || '';
-      liste.push({ vin: vin, lien: lien });
-    });
-    if (!liste.length) { AMX.toast('Aucun lien vhr.carfax.ca trouvé dans le texte collé.', 'attention'); return; }
-    this.recevoir(liste, 'collage');
-  };
-  // Vrai si la date a (jj/mm/aaaa) est strictement plus récente que b.
-  function plusRecent(a, b) {
-    var ma = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(a || ''), mb = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(b || '');
-    if (!ma || !mb) return false;
-    return (ma[3] + ma[2] + ma[1]) > (mb[3] + mb[2] + mb[1]);
-  }
-  ImportCarfax.prototype.recevoir = function (liste, source) {
-    var self = this;
-    var recus = liste.map(function (x) { return { vin: String(x.vin || '').toUpperCase(), lien: String(x.lien || '').trim(), rapport: String(x.rapport || ''), date: String(x.date || ''), source: source }; })
-      .filter(function (x) { return AMX.carfax.valide(x.lien); });
-    // Fusion avec ce qui attend déjà (autres pages de « Mes RHV ») : le plus
-    // récent gagne pour un même VIN.
-    var parVin = {};
-    this.liens.forEach(function (x) { if (x.vin) parVin[x.vin] = x; });
-    var ajoutes = 0;
-    // Deux rapports pour un même VIN (ex. commandé à deux concessions) : on
-    // garde le plus récent quand les dates sont connues, sinon le dernier reçu.
-    recus.forEach(function (x) { if (!x.vin) { self.liens.push(x); ajoutes++; return; } if (!parVin[x.vin]) ajoutes++; else if (plusRecent(parVin[x.vin].date, x.date)) return; parVin[x.vin] = x; });
-    this.liens = this.liens.filter(function (x) { return !x.vin; }).concat(Object.keys(parVin).map(function (k) { return parVin[k]; }));
-    AMX.memo.ecrire('carfax_attente', this.liens);
-    AMX.toast(recus.length + ' rapport' + (recus.length > 1 ? 's' : '') + ' reçu' + (recus.length > 1 ? 's' : '') + ' de CARFAX' + (ajoutes !== recus.length ? ' (' + (recus.length - ajoutes) + ' déjà dans la liste)' : '') + '. Vérifiez puis « Enregistrer » ; autre concession ? « Changez d\'emplacement » dans CARFAX puis le signet.', 'ok', 7000);
-    this.rendreListe();
-    if (this.elCarte.scrollIntoView) this.elCarte.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  ImportCarfax.prototype.rendreListe = function () {
-    var self = this;
-    AMX.vider(this.elListe);
-    var btn = this.el.querySelector('#cfx-enregistrer');
-    if (!this.liens.length) {
-      this.elListe.appendChild(h('div.vide', [h('div', { html: I.lien }), h('h3', 'Aucun rapport en attente'), h('div', 'Cliquez le signet depuis votre compte CARFAX, ou collez des liens ci-dessus.')]));
-      this.elResume.textContent = '';
-      if (btn) { btn.disabled = true; btn.textContent = 'Enregistrer'; }
-      return;
-    }
-    var table = h('table.tableau'), corps = h('tbody');
-    table.appendChild(h('thead', [h('tr', [h('th', 'VIN'), h('th', 'Véhicule à l\'inventaire'), h('th', 'Rapport'), h('th', 'État')])]));
-    var nouveaux = 0, memes = 0, remplaces = 0, sansVin = 0, horsInv = 0;
-    this.liens.forEach(function (x, i) {
-      var v = x.vin ? AMX.inventaire.parVin(x.vin) : null;
-      var actuel = x.vin ? AMX.carfax.lien(x.vin) : '';
-      var etat, cls;
-      if (!x.vin) { etat = 'VIN manquant — à compléter'; cls = 'attention'; sansVin++; }
-      else if (!v && self.seulementInventaire) { etat = 'Hors inventaire — ignoré'; cls = ''; }
-      else if (actuel === x.lien) { etat = 'Déjà enregistré'; cls = ''; memes++; }
-      else if (actuel) { etat = 'Remplacera le lien actuel'; cls = 'info'; remplaces++; }
-      else { etat = 'Nouveau'; cls = 'ok'; nouveaux++; }
-      if (x.vin && !v) horsInv++;
-      var champVin = h('input.saisie.mono', { value: x.vin, placeholder: 'VIN', style: { width: '190px', height: '30px' }, oninput: function (e) { x.vin = e.target.value.trim().toUpperCase(); } });
-      champVin.addEventListener('change', function () { self.rendreListe(); });
-      corps.appendChild(h('tr', [
-        h('td', [x.vin ? h('span.mono', { text: x.vin }) : champVin]),
-        h('td', v ? [h('div', { text: v.modele || '' }), h('div.mini', { text: AMX.inventaire.nomFeuille(v._feuille) + (v.stock ? ' · ' + v.stock : '') })] : [h('span.mini', { text: x.vin ? (self.seulementInventaire ? 'Pas à l\'inventaire' : 'Pas à l\'inventaire (lien gardé quand même)') : '' })]),
-        h('td', [h('a', { href: x.lien, target: '_blank', rel: 'noopener', text: x.rapport ? 'No ' + x.rapport : 'Ouvrir' }), x.date ? h('div.mini', { text: x.date }) : null]),
-        h('td', [h('span.puce' + (cls ? '.' + cls : ''), { text: etat })])
-      ]));
-    });
-    table.appendChild(corps);
-    this.elListe.appendChild(table);
-    this.elResume.textContent = nouveaux + ' nouveau' + (nouveaux > 1 ? 'x' : '') + ' · ' + remplaces + ' à remplacer · ' + memes + ' déjà en place' + (sansVin ? ' · ' + sansVin + ' sans VIN (ignoré' + (sansVin > 1 ? 's' : '') + ')' : '') + (horsInv ? ' · ' + horsInv + ' hors inventaire' + (self.seulementInventaire ? ' (ignorés)' : '') : '');
-    if (btn) { btn.disabled = !(nouveaux + remplaces); btn.textContent = 'Enregistrer ' + (nouveaux + remplaces) + ' lien' + (nouveaux + remplaces > 1 ? 's' : ''); }
-  };
-  // Taille des lots envoyés au serveur : chaque VIN sans ligne Vitrine coûte
-  // une écriture dans la feuille, et la requête doit rester sous la minute.
-  var LOT_CARFAX = 40;
-  ImportCarfax.prototype.enregistrer = function () {
-    var self = this;
-    var aEnvoyer = this.liens.filter(function (x) { return x.vin && /^[A-HJ-NPR-Z0-9]{11,17}$/.test(x.vin) && AMX.carfax.lien(x.vin) !== x.lien && (!self.seulementInventaire || AMX.inventaire.parVin(x.vin)); })
-      .map(function (x) { return { vin: x.vin, lien: x.lien, rapport: x.rapport, date: x.date }; });
-    if (!aEnvoyer.length) return;
-    var btn = this.el.querySelector('#cfx-enregistrer'); btn.classList.add('occupe');
-    var lots = [];
-    for (var i = 0; i < aEnvoyer.length; i += LOT_CARFAX) lots.push(aEnvoyer.slice(i, i + LOT_CARFAX));
-    var enregistres = [], refuses = [], faits = 0;
-    var suite = Promise.resolve();
-    lots.forEach(function (lot, k) {
-      suite = suite.then(function () {
-        if (lots.length > 1) btn.textContent = 'Enregistrement… ' + Math.min(aEnvoyer.length, (k + 1) * LOT_CARFAX) + ' / ' + aEnvoyer.length;
-        return AMX.carfax.enregistrer(lot).then(function (d) {
-          enregistres = enregistres.concat(d.enregistres || []); refuses = refuses.concat(d.refuses || []); faits++;
-          // Ce qui est enregistré sort tout de suite de la liste : si un lot
-          // suivant échoue, on ne renverra que ce qui reste.
-          self.liens = self.liens.filter(function (x) { return (d.enregistres || []).indexOf(x.vin) < 0; });
-          AMX.memo.ecrire('carfax_attente', self.liens);
-        });
-      });
-    });
-    suite.then(function () {
-      var n = enregistres.length;
-      AMX.toast(n + ' lien' + (n > 1 ? 's' : '') + ' CARFAX enregistré' + (n > 1 ? 's' : '') + (refuses.length ? ' · ' + refuses.length + ' refusé(s)' : ''), 'ok', 6000);
-      // Les « hors inventaire » ignorés sortent aussi (ils reviendront au prochain clic du signet si besoin).
-      if (self.seulementInventaire) self.liens = self.liens.filter(function (x) { return !(x.vin && !AMX.inventaire.parVin(x.vin)); });
-      AMX.memo.ecrire('carfax_attente', self.liens);
-    }).catch(function (e) {
-      AMX.toast(AMX.erreurTexte(e) + (faits ? ' — ' + enregistres.length + ' lien(s) déjà enregistré(s), cliquez de nouveau pour le reste.' : ''), 'erreur', 8000);
-    }).finally(function () { btn.classList.remove('occupe'); self.rendreListe(); });
   };
 })();

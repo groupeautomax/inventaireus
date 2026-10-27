@@ -514,7 +514,7 @@
     this.elEtat = h('p', { text: 'Chargement des neufs…' });
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
-    this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail du constructeur</span>', title: 'Lire l\'inventaire, les commandes et les ventes déclarées depuis le portail du constructeur (favori à cliquer sur le portail, connecté)', onclick: function () { self.ouvrirSignet(self.compagnie || 'HYUNDAI'); } });
+    this.btnPortail = h('button.btn', { type: 'button', html: I.externe + '<span>Portail du constructeur</span>', title: 'Lire l\'inventaire, les commandes et les ventes déclarées depuis le portail du constructeur (favori à cliquer sur le portail, connecté)', onclick: function () { self.ouvrirSignet(self.ciePortail()); } });   /* 27 oct. : un compte d'une seule concession (John, BMW) n'a pas de concession « choisie » : on prenait Hyundai par défaut */
     this.elOrigine = h('div.segment.neufs-origine', { role: 'group', 'aria-label': 'Origine de l\'inventaire', title: 'Deux inventaires distincts, jamais mélangés : l\'export du DMS (fichier ou feuille Google) et le portail du manufacturier (favori) — les onglets Absents les comparent' });
     this.elFlotte = h('div.segment.neufs-flotte', { role: 'group', 'aria-label': 'Détail ou flotte', title: 'GM : les unités commandées en FNR / FCN sont de la flotte (parcs) ; TRE / SRE, le détail' });
     // 21 oct. (Maxime : « dans Inventaire, commencer par le choix de la concession, après DMS ou manufacturier, après détail ou
@@ -1241,7 +1241,8 @@
     var p = this.portail || {}, c = this.compagnie;
     var self = this;
     var filtre = function (l, flotte, marque) { return (l || []).filter(function (x) { return (!c || x.compagnie === c) && self.garde(flotte(x)) && (!self.marque || marque(x) === self.marque); }); };
-    var cies = c ? [c] : Object.keys(PORTAILS), etats = p.etats || {}, tableaux = {};
+    var visibles = AMX.codesPour('inventaire') || [];
+    var cies = c ? [c] : Object.keys(PORTAILS).filter(function (x) { return visibles.indexOf(x) >= 0; }), etats = p.etats || {}, tableaux = {};
     var lus = cies.filter(function (x) { return etats[x] && etats[x].le; });
     cies.forEach(function (x) { if (p.tableaux && p.tableaux[x]) tableaux[x] = p.tableaux[x]; });
     var neuves = (p.ventes || []).filter(venteNeuve), usagees = (p.ventes || []).filter(function (v) { return !venteNeuve(v) && (!c || v.compagnie === c); });
@@ -1463,8 +1464,20 @@
     }
   };
   /* Fenêtre du signet : le favori à glisser, le mode d'emploi, les liens vers le portail et le CSI. */
+  /* 27 oct. : la concession du portail = celle choisie en haut, sinon la seule que le compte voit ; sinon on demande. */
+  VueNeufs.prototype.ciePortail = function () {
+    if (this.compagnie) return this.compagnie;
+    var codes = (AMX.codesPour('inventaire') || []).filter(function (c) { return PORTAILS[c]; });
+    return codes.length === 1 ? codes[0] : '';
+  };
+  VueNeufs.prototype.choisirPortail = function () {
+    var self = this, codes = (AMX.codesPour('inventaire') || []).filter(function (c) { return PORTAILS[c]; });
+    if (!codes.length) { AMX.toast('Aucun portail de constructeur pour vos concessions.', 'attention'); return; }
+    var m = AMX.modale({ titre: 'Quel portail ?', corps: h('div.actions-ligne', { style: { flexWrap: 'wrap', gap: '8px' } }, codes.map(function (c) { return h('button.btn', { type: 'button', text: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + PORTAILS[c].nom, onclick: function () { m.fermer(); self.ouvrirSignet(c); } }); })), boutons: [{ texte: 'Annuler', action: function (fermer) { fermer(); } }] });
+  };
   VueNeufs.prototype.ouvrirSignet = function (cie) {
-    var p = PORTAILS[cie] || PORTAILS.HYUNDAI, code = p.signet();
+    if (!PORTAILS[cie]) { this.choisirPortail(); return; }
+    var p = PORTAILS[cie], code = p.signet();
     var signet = h('a.btn.primaire', { href: code, text: p.nomSignet || 'Automax ← Constructeur', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
     signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis le portail, connecté.', 'attention', 8000); });
     var corps = h('div', [

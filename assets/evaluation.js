@@ -32,7 +32,6 @@
 
   var URL_NHTSA = 'https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/';
   var URL_TORQUE = 'https://dealer.torquemanagement.ca/vehicle-management/evaluations/list';
-  var URL_CARFAX_COMPTE = 'https://portal.carfax.ca/vehicles';   /* 27 oct. : le portail a remplacé dealer.carfax.ca */
   var TOLERANCE_KM = 30000;
   var URL_MMR = 'https://mmr.manheim.com/';
 
@@ -463,7 +462,9 @@
     if (AMX.carfax && AMX.carfax.charger) AMX.carfax.charger().catch(function () {});
 
     var vin = (ctx && ctx.params && ctx.params.vin) ? String(ctx.params.vin).trim() : '';
+    this.demandeId = (ctx && ctx.params && ctx.params.demande) ? String(ctx.params.demande) : '';
     if (vin) { this.elNiv.value = vin; this.charger(vin); }
+    this.rendreDemande();
   }
 
   Evaluation.prototype.demonter = function () {
@@ -491,8 +492,50 @@
 
   Evaluation.prototype.naviguer = function (ctx) {
     var vin = (ctx && ctx.params && ctx.params.vin) ? String(ctx.params.vin).trim() : '';
+    var dem = (ctx && ctx.params && ctx.params.demande) ? String(ctx.params.demande) : '';
+    if (dem || (vin && vin !== this.vinCharge)) this.demandeId = dem;
     if (vin && vin !== this.vinCharge) { this.elNiv.value = vin; this.charger(vin); }
+    this.rendreDemande();
   };
+
+  /* 27 oct. (Maxime : « l'envoi des évaluations à des évaluateurs par des représentants doit être simple ») : ouverte depuis
+     une demande (?demande=DE-101), la page montre qui demande, pour quel client, et préremplit le km, le client et le
+     conseiller s'ils sont vides ; l'évaluateur « prend » la demande en l'ouvrant ; « Enregistrer l'évaluation » la marque
+     faite et le représentant reçoit la valeur (DemandesEval.gs). */
+  Evaluation.prototype.rendreDemande = function () {
+    var self = this, el = this.elDemande, id = this.demandeId;
+    if (!el) return;
+    AMX.vider(el);
+    if (!id || !AMX.evalDemandes) return;
+    AMX.evalDemandes.charger(false).then(function () {
+      var x = AMX.evalDemandes.une(id);
+      if (!x || self.demandeId !== id) return;
+      self.demande = x;
+      var dessiner = function (x) {
+        AMX.vider(el);
+        var duree = x.etat === 'faite' ? 'faite' + (x.minutesReponse !== null && x.minutesReponse !== undefined ? ' en ' + x.minutesReponse + ' min' : '') : 'envoyée il y a ' + x.minutes + ' min' + (x.enRetard ? ' — en retard' : '');
+        el.appendChild(h('div.eval-demande.' + x.etat, [
+          h('b', { text: 'Demande ' + x.id + ' de ' + (x.demandeParNom || '—') }),
+          h('span', { text: [x.client ? 'client ' + x.client : '', x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : '', x.note ? '« ' + x.note + ' »' : '', duree].filter(Boolean).join(' · ') }),
+          x.etat === 'faite' ? h('span.badge.vert.sans-point', { text: 'Faite' + (x.valeur ? ' — ' + AMX.fmtArgent(x.valeur) : '') + ' · ' + (x.demandeParNom || 'le représentant') + ' est prévenu' }) : h('span.mini', { text: 'Enregistrez l\'évaluation : ' + (x.demandeParNom || 'le représentant') + ' reçoit la valeur par courriel.' })
+        ]));
+      };
+      dessiner(x);
+      if (x.vin === self.vinCourant || !self.vinCourant) {
+        if (x.km && self.elKm && !self.elKm.value) { self.elKm.value = x.km; try { self.elKm.dispatchEvent(new Event('input')); } catch (e) {} }
+        if (x.client && self.elClient && !self.elClient.value) self.elClient.value = x.client;
+        if (x.telephone && self.elClientTel && !self.elClientTel.value) self.elClientTel.value = x.telephone;
+        if (x.demandeParNom && self.elConseiller && !self.elConseiller.value) self.elConseiller.value = x.demandeParNom;
+      }
+      if (x.etat === 'afaire' && (x.pourMoi || (AMX.evalDemandes.enCache() || {}).moi && AMX.evalDemandes.enCache().moi.evaluateur)) {
+        AMX.evalDemandes.prendre(id).then(function (r) { if (self.demandeId === id && r.demande) dessiner(r.demande); }).catch(function () {});
+      }
+      self.dessinerDemande = dessiner;
+    }).catch(function () {});
+  };
+
+  /* l'adresse garde la demande tant qu'on est sur son véhicule (un rechargement remontre le bandeau) */
+  Evaluation.prototype.paramsAdresse = function (vin) { var p = { vin: vin }; if (this.demandeId && (!this.demande || this.demande.vin === vin)) p.demande = this.demandeId; return p; };
 
   Evaluation.prototype.etat = function (texte) { this.elEtat.textContent = texte; };
 
@@ -646,7 +689,8 @@
     this.construireExport();
 
     // (8 oct., soir — Maxime) le calcul de l'évaluation plus haut ; la comparaison Canada / É.-U. en dessous, à ouvrir d'un clic.
-    this.el = h('div.page.eval-page', [entete, this.elSommaire, vehicule, detail, this.elSuiviCarte, this.elEtatCarte, this.elExport, marche]);
+    this.elDemande = h('div.eval-demande-zone');   /* 27 oct. : demande d'évaluation d'un représentant (demandes-eval.js) */
+    this.el = h('div.page.eval-page', [entete, this.elDemande, this.elSommaire, vehicule, detail, this.elSuiviCarte, this.elEtatCarte, this.elExport, marche]);
     this.rendreSommaire();
     this.rendreLiens();
     this.rendreExport();
@@ -1374,12 +1418,12 @@
     this.rendreOpenlane();
     AMX.vider(this.elLiens);
     var carfax = (vinOk && AMX.carfax && AMX.carfax.lien) ? AMX.carfax.lien(vin) : '';
-    // 27 oct. : sans rapport, « Commander le CARFAX » par l'API officielle (carfax-api.js) ; sinon le compte CARFAX (secours).
+    // 27 oct. : sans rapport, « Commander le CARFAX » par l'API officielle (carfax-api.js) ; plus de lien vers le portail CARFAX.
     var selfCfx = this;
-    if (!carfax && vinOk && AMX.carfaxApi) this.elLiens.appendChild(AMX.carfaxApi.bouton(vin, { classe: '.petit', source: 'evaluation',
+    if (carfax) this.elLiens.appendChild(h('a.btn.petit', { href: carfax, target: '_blank', rel: 'noopener', title: 'Rapport CARFAX partagé de ce véhicule', html: I.externe + '<span>Rapport CARFAX</span>' }));
+    else if (vinOk && AMX.carfaxApi) this.elLiens.appendChild(AMX.carfaxApi.bouton(vin, { classe: '.petit', source: 'evaluation',
       compagnie: function () { return AMX.CONCESSION_COMPAGNIE[selfCfx.elConcession ? selfCfx.elConcession.value : ''] || ''; },
       vehicule: function () { return [selfCfx.elAnnee.value, selfCfx.elMarque.value, selfCfx.elModele.value].filter(Boolean).join(' '); } }));
-    else this.elLiens.appendChild(h('a.btn.petit' + (carfax ? '' : ''), { href: carfax || URL_CARFAX_COMPTE, target: '_blank', rel: 'noopener', title: carfax ? 'Rapport CARFAX partagé de ce véhicule' : 'Mon compte CARFAX (aucun rapport partagé pour ce NIV)', html: I.externe + '<span>' + (carfax ? 'Rapport CARFAX' : 'CARFAX (compte)') + '</span>' }));
     this.elLiens.appendChild(h('a.btn.petit' + (vinOk ? '' : '.desactive'), { href: vinOk ? lienMarketGuide(vin) : '#', target: '_blank', rel: 'noopener', title: 'Valeurs d\'encan eBlock (vendus 90 jours) pour ce NIV', html: I.externe + '<span>eBlock Market Guide</span>' }));
     // OpenLane (9 oct. ; 22 oct. : Maxime « le lien OpenLane devrait s'ouvrir dans notre site ») : la fiche de valeurs du site, lue en direct au besoin.
     if (AMX.openlane && AMX.openlane.lienMarche) {
@@ -1872,7 +1916,7 @@
         self.etat('Aucune évaluation pour ce NIV — décodage du véhicule…');
         self.decoder(vin).then(function () { if (gen === self.generation && self.parametresPrets()) { self.etat('Véhicule décodé. Lancez l\'analyse de marché.'); self.analyser(self.pays, false); } });
       }
-      history.replaceState(null, '', AMX.lien('outils', 'evaluation', { vin: vin }));
+      history.replaceState(null, '', AMX.lien('outils', 'evaluation', self.paramsAdresse(vin)));
     }).catch(function (e) {
       if (gen !== self.generation) return;
       self.vinCharge = '';
@@ -2145,7 +2189,7 @@
       if (data.us) AMX.export.oublierVerdicts();
       self.sauvegarde = { statut: d.statut || 'auto', dateMaj: d.dateMaj || new Date().toISOString(), enregistreLe: d.enregistreLe || '', enregistrePar: d.enregistrePar || '' };
       self.rendreSauvegarde();
-      history.replaceState(null, '', AMX.lien('outils', 'evaluation', { vin: vin }));
+      history.replaceState(null, '', AMX.lien('outils', 'evaluation', self.paramsAdresse(vin)));
     }).catch(function () { /* silencieux : le bouton Enregistrer reste là */ });
   };
   Evaluation.prototype.rendreSauvegarde = function () {
@@ -2216,8 +2260,12 @@
         self.etat('Attention : ce véhicule a aussi été évalué chez ' + (AMX.COMPAGNIES_TOUTES[(d.alerte.concessions || [])[0]] || 'une autre concession') + ' — ' + n + ' directeur' + (n > 1 ? 's' : '') + ' prévenu' + (n > 1 ? 's' : '') + ' (' + (d.alerte.courriels || 0) + ' courriel' + ((d.alerte.courriels || 0) > 1 ? 's' : '') + ', ' + (d.alerte.textos || 0) + ' texto' + ((d.alerte.textos || 0) > 1 ? 's' : '') + ').', 'attention');
         AMX.toast('Alerte envoyée aux directeurs : même véhicule évalué dans deux concessions (' + (d.alerte.textos || 0) + ' texto' + ((d.alerte.textos || 0) > 1 ? 's' : '') + ', ' + (d.alerte.courriels || 0) + ' courriel' + ((d.alerte.courriels || 0) > 1 ? 's' : '') + ').', 'attention', 8000);
       }
-      history.replaceState(null, '', AMX.lien('outils', 'evaluation', { vin: vin }));
+      history.replaceState(null, '', AMX.lien('outils', 'evaluation', self.paramsAdresse(vin)));
       self.rendreContexte();
+      // 27 oct. : la demande d'évaluation de ce NIV est faite — le représentant reçoit la valeur (DemandesEval.gs).
+      if (self.demandeId && AMX.evalDemandes && self.demande && self.demande.vin === vin) {
+        AMX.evalDemandes.faite(self.demandeId).then(function (r) { AMX.toast(r.message || 'Demande faite', 'ok', 6000); if (self.dessinerDemande && r.demande) self.dessinerDemande(r.demande); }).catch(function (e) { AMX.toast('Demande ' + self.demandeId + ' : ' + AMX.erreurTexte(e), 'attention', 8000); });
+      }
     }).catch(function (e) {
       self.etat('Échec de l\'enregistrement : ' + AMX.erreurTexte(e));
       AMX.toast('Échec de l\'enregistrement — ' + AMX.erreurTexte(e), 'erreur');

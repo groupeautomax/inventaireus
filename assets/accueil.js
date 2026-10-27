@@ -62,6 +62,7 @@
       '.acc-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: -22px 18px 0; position: relative; z-index: 2; }',
       '.acc-kpi { background: var(--carte); border: 1px solid var(--ligne); border-radius: 14px; padding: 14px 16px 12px; box-shadow: var(--ombre-2); text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 4px; min-width: 0; transition: transform .12s; }',
       '.acc-kpi:hover { text-decoration: none; transform: translateY(-2px); }',
+      '.acc2-item.vert { border-left-color: var(--vert); } .acc2-item.vert .n { color: var(--vert-fonce); }',
       '.acc-kpi .l { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 600; display: flex; align-items: center; gap: 6px; } .acc-kpi .l i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--encre-4); }',
       '.acc-kpi .v { font-size: 26px; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; } .acc-kpi .v.attente { color: var(--encre-4); font-weight: 500; }',
       '.acc-kpi .m { font-size: 12px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .acc-kpi .m b { color: var(--encre-2); font-weight: 600; }',
@@ -139,7 +140,7 @@
 
   /* ------------------------------- La vue -------------------------------- */
   var EVENEMENTS = ['amx:profil', 'amx:accueil-depart', 'amx:eblock', 'amx:openlane', 'amx:demandes', 'amx:suggestions', 'amx:service', 'amx:inventaire',
-    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto', 'amx:contrats'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
+    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto', 'amx:contrats', 'amx:evalDemandes'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
   function Accueil(conteneur, ctx) {
     injecterCss();
     var self = this;
@@ -319,6 +320,7 @@
     if (voit('avis') && AMX.avis) AMX.avis.charger().then(relancer, rien);
     if (ongletVoit('offres', 'recues')) chargerOffres().then(relancer, rien);
     if (voit('outils') && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);
+    if (voit('demandesEval') && AMX.evalDemandes) AMX.evalDemandes.charger().then(relancer, rien);   /* 27 oct. : demandes d'évaluation */
     if (voitImports()) chargerImports().then(relancer, rien);
   };
 
@@ -422,7 +424,7 @@
     if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.enCache()) {
       var nAuto = AMX.achatsAuto.compte(cie);
       if (nAuto) { var pr = AMX.achatsAuto.parRegistre(cie), regA = Object.keys(pr).sort(function (a, b) { return pr[b] - pr[a]; })[0] || 'DETAIL';
-        out.push({ ton: 'violet', n: nAuto, titre: 'Achats entrés automatiquement au registre, à confirmer', detail: 'lus sur GM Financial DealerSource, Manheim, OPENLANE ou un contrat reçu par courriel', href: AMX.inventaire.lien(regA.toLowerCase(), { alerte: 'auto' }), ic: 'inventaire' }); }
+        out.push({ ton: 'violet', n: nAuto, titre: 'Achats entrés automatiquement au registre, à confirmer', detail: 'lus sur GM Financial DealerSource, Manheim, OPENLANE, eBlock ou un contrat reçu par courriel', href: AMX.inventaire.lien(regA.toLowerCase(), { alerte: 'auto' }), ic: 'inventaire' }); }
     }
     // 26 oct. : contrats d'achat reçus par courriel qu'Einstein AI n'a pas pu entrer seul (AchatsCourriel.gs) — à vérifier
     if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.contrats.enCache()) {
@@ -433,6 +435,13 @@
     if (voit('outils') && AMX.evaluations && AMX.evaluations.enCache()) {
       var aRel = AMX.evaluations.aRelancerPour(AMX.compagnieChoisie('evaluations'));
       if (aRel.length) out.push({ ton: 'ambre', n: aRel.length, titre: 'Clients d\'évaluation à relancer', detail: aRel.slice(0, 3).map(function (r) { return (r.suivi && r.suivi.client) || [r.annee, r.marque, r.modele].filter(Boolean).join(' '); }).join(' · ') + (aRel.length > 3 ? '…' : ''), href: AMX.lien('outils', 'evaluations', { suivi: 'relancer' }), ic: 'outils' });
+    }
+    // 27 oct. : demandes d'évaluation — à faire pour moi (évaluateur, rouge), faites pour moi (représentant, vert, 2 jours)
+    if (voit('demandesEval') && AMX.evalDemandes && AMX.evalDemandes.enCache()) {
+      var cieE = AMX.compagnieChoisie('evaluations'), deAF = AMX.evalDemandes.aFairePourMoi(cieE) || [], dePr = AMX.evalDemandes.pretesPourMoi(cieE) || [];
+      var retard = deAF.filter(function (x) { return x.enRetard; }).length;
+      if (deAF.length) out.push({ ton: 'rouge', n: deAF.length, titre: 'Évaluations demandées, à faire pour vous', detail: (retard ? retard + ' en retard · ' : '') + deAF.slice(0, 3).map(function (x) { return (x.vehicule || x.vin) + ' — ' + (x.demandeParNom || ''); }).join(' · ') + (deAF.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', ''), ic: 'outils' });
+      if (dePr.length) out.push({ ton: 'vert', n: dePr.length, titre: 'Évaluations faites pour vos clients', detail: dePr.slice(0, 3).map(function (x) { return (x.client || x.vehicule || x.vin) + (x.valeur ? ' : ' + AMX.fmtArgent(x.valeur) : ''); }).join(' · ') + (dePr.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', ''), ic: 'outils' });
     }
     // Neufs : RDR à compléter chez le constructeur
     var rdr = AMX.neufs && AMX.neufs.aFaireConstructeur ? AMX.neufs.aFaireConstructeur() : null;
@@ -503,7 +512,7 @@
       var ir = lignesImports(cie).filter(function (l) { return l.rouges.length; });
       if (ir.length) out.push({ ton: 'rouge', n: nRougesImports(ir), titre: 'Imports à faire', detail: ir.slice(0, 3).map(function (l) { return l.im.nom.split(' — ')[0]; }).join(' · ') + (ir.length > 3 ? '…' : ''), href: '#accueil-imports', clic: allerImports, ic: 'outils' });
     }
-    var rang = { rouge: 0, ambre: 1, violet: 2, bleu: 3, gris: 4 };
+    var rang = { rouge: 0, ambre: 1, violet: 2, bleu: 3, vert: 4, gris: 5 };
     out.sort(function (a, b) { return rang[a.ton] - rang[b.ton]; });
     return { items: out, attente: attente };
   }

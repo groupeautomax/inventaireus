@@ -416,7 +416,7 @@
      Trois chemins : le signet (un clic sur la page Mes RHV), le collage de
      la page, ou l'arrivée par #/outils/carfax?import=<base64 JSON>.
      ===================================================================== */
-  var SITE_CARFAX = 'https://dealer.carfax.ca/MyReports';
+  var SITE_CARFAX = 'https://portal.carfax.ca/vehicles';   /* 27 oct. : CARFAX a remplacé dealer.carfax.ca › Mes RHV par le portail */
   // Le signet : lit chaque ligne de « Mes RHV » (VIN + lien vhr.carfax.ca +
   // no de rapport + date) et revient ici avec la liste dans l'adresse.
   var CODE_SIGNET = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-carfax.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
@@ -448,8 +448,8 @@
   ImportCarfax.prototype.construire = function () {
     var self = this;
     var signet = h('a.btn.primaire', { href: CODE_SIGNET, text: 'Automax ← CARFAX', title: 'Glissez ce bouton dans votre barre de favoris', draggable: 'true' });
-    signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le depuis votre compte CARFAX (Mes rapports › Mes RHV).', 'attention', 7000); });
-    this.zoneColle = h('textarea.saisie', { rows: '6', placeholder: 'Ou collez ici des liens de rapports (un par ligne, avec le VIN devant si possible) :\n1FT8W2BT7NEC52018  https://vhr.carfax.ca/?id=…' });
+    signet.addEventListener('click', function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome (Cmd+Shift+B pour l\'afficher), puis cliquez-le dans le portail CARFAX, page Véhicules.', 'attention', 7000); });
+    this.zoneColle = h('textarea.saisie', { rows: '6', placeholder: 'Ou collez ici des liens de rapports (un par ligne, avec le VIN devant si possible) :\n1FT8W2BT7NEC52018  https://vhr.carfax.ca/fr/?id=…' });
     var btnColle = h('button.btn', { text: 'Lire ce qui est collé', onclick: function () { self.lireCollage(); } });
     this.elListe = h('div');
     this.elResume = h('div.doux.petit', { style: { marginTop: '8px' } });
@@ -462,8 +462,8 @@
       h('div.carte-corps', [
         h('div.grille.c3', [
           h('div', [h('div.section-titre', '1. Installer (une fois)'), h('p', { style: { margin: '0 0 10px', color: 'var(--encre-2)' } }, 'Glissez ce bouton dans la barre de favoris de Chrome. Si la barre est cachée : Cmd+Shift+B.'), signet]),
-          h('div', [h('div.section-titre', '2. Dans CARFAX'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Ouvrez Mes rapports › Mes RHV dans votre compte (une concession à la fois : « Changez d\'emplacement » pour les autres).')]),
-          h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Il parcourt lui-même les pages et enregistre au fur et à mesure (une petite fenêtre du site s\'ouvre à côté : laissez-la). Interrompu ? Recliquez-le : il reprend à la page où il était. Rien à faire ici ensuite.')])
+          h('div', [h('div.section-titre', '2. Dans CARFAX'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Ouvrez le portail CARFAX, page Véhicules (bouton « Ouvrir mon compte CARFAX »).')]),
+          h('div', [h('div.section-titre', '3. Cliquer le signet'), h('p', { style: { margin: 0, color: 'var(--encre-2)' } }, 'Il lit lui-même les trois emplacements (Ste-Marie, Hawkesbury, Hyundai Longueuil), page par page, et enregistre au fur et à mesure (une petite fenêtre du site s\'ouvre à côté : laissez-la). Ensuite, il ne relit que les rapports récents. Rien à faire ici ensuite.')])
         ])
       ])
     ]));
@@ -484,7 +484,7 @@
     var lignes = String(this.zoneColle.value || '').split(/\r?\n/);
     var liste = [];
     lignes.forEach(function (l) {
-      var lien = (l.match(/https:\/\/vhr\.carfax\.ca\/(?:main)?\?id=[^\s"'<>]+/i) || [])[0];
+      var lien = (l.match(/https:\/\/vhr\.carfax\.ca\/(?:[a-z]{2}\/)?(?:main)?\?id=[^\s"'<>]+/i) || [])[0];
       if (!lien) return;
       var vin = (l.toUpperCase().match(/\b[A-HJ-NPR-Z0-9]{17}\b/) || [])[0] || '';
       liste.push({ vin: vin, lien: lien });

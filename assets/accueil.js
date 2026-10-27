@@ -80,6 +80,23 @@
       '.acc-tuile.depart-actif { border-color: var(--ambre-bord); box-shadow: 0 0 0 3px var(--ambre-bg); } .acc-tuile.depart-actif::before { opacity: 1; background: var(--ambre); }',
       '.acc-tuile.vert { --acc: var(--vert); --acc-bg: var(--vert-clair); } .acc-tuile.sarcelle { --acc: var(--sarcelle); --acc-bg: var(--sarcelle-bg); } .acc-tuile.bleu { --acc: var(--bleu); --acc-bg: var(--bleu-bg); } .acc-tuile.violet { --acc: var(--violet); --acc-bg: var(--violet-bg); } .acc-tuile.gris { --acc: var(--gris); --acc-bg: var(--gris-bg); } .acc-tuile.ambre { --acc: var(--ambre); --acc-bg: var(--ambre-bg); } .acc-tuile.prune { --acc: var(--prune); --acc-bg: var(--prune-bg); } .acc-tuile.noir { --acc: var(--noir-3); --acc-bg: var(--gris-bg); }',
       /* bas */
+      /* 27 oct. : carte « Imports » (vert = fait, rouge = à faire), DG et propriétaire */
+      '.acc-imp-liste { display: flex; flex-direction: column; gap: 6px; }',
+      '.acc-imp { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 12px; border: 1px solid var(--ligne); border-left: 4px solid var(--vert); border-radius: 10px; background: var(--carte); }',
+      '.acc-imp.rouge { border-left-color: var(--rouge); border-color: var(--rouge-bord); background: var(--rouge-bg); }',
+      '.acc-imp .pt { width: 12px; height: 12px; border-radius: 50%; background: var(--vert); } .acc-imp.rouge .pt { background: var(--rouge); }',
+      '.acc-imp .t { font-weight: 600; display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; line-height: 1.3; } .acc-imp .mode { font-size: 12px; font-weight: 500; color: var(--encre-3); }',
+      '.acc-imp .d { font-size: 13px; color: var(--vert-fonce); margin-top: 2px; } .acc-imp.rouge .d { color: var(--rouge); font-weight: 600; }',
+      '.acc-imp .cies { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }',
+      '.imp-cie { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }',
+      '.imp-cie i { width: 8px; height: 8px; border-radius: 50%; flex: none; } .imp-cie small { font-size: 12px; font-weight: 500; }',
+      '.imp-cie.vert { background: var(--vert-bg); color: var(--vert-fonce); } .imp-cie.vert i { background: var(--vert); }',
+      '.imp-cie.rouge { background: #fff; color: var(--rouge); border-color: var(--rouge-bord); } .imp-cie.rouge i { background: var(--rouge); }',
+      '.acc-imp .act { display: flex; gap: 10px; align-items: center; white-space: nowrap; } .acc-imp .act .lien { font-size: 13px; }',
+      '.acc-imp-tete { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; } .acc-imp-tete .puce.rouge { background: var(--rouge); color: #fff; } .acc-imp-tete .puce.vert { background: var(--vert-bg); color: var(--vert-fonce); }',
+      '.acc-imp-leg { font-size: 13px; color: var(--encre-3); margin: 0 0 10px; }',
+      '.acc-imports { margin-top: 14px; scroll-margin-top: 84px; } .acc-imports.carte { padding: 16px; border-radius: 14px; } .acc-imports h2 { font-size: 16px; margin: 0; }',
+      '@media (max-width: 640px) { .acc-imp { grid-template-columns: 10px minmax(0, 1fr); gap: 8px; } .acc-imp .act { grid-column: 2; } }',
       '.acc-bas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; } @media (max-width: 820px) { .acc-bas { grid-template-columns: 1fr; } }',
       '.acc-bas .carte { border-radius: 14px; } .acc-bas .section-titre { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 600; }',
       '.acc-depart-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; } .acc-depart-ligne select { max-width: 100%; }',
@@ -223,6 +240,9 @@
       ]);
     })));
 
+    /* ---- 27 oct. : imports à faire (DG et propriétaire) ---- */
+    if (voitImports()) { var carteImp = carteImports(AMX.compagnieChoisie('inventaire')); if (carteImp) this.el.appendChild(carteImp); if (!importsCache.promesse && Date.now() - importsCache.quand > 120000) chargerImports().then(function () { self.sur(); }, function () { self.sur(); }); }
+
     /* ---- sections ---- */
     var depart = departLu();
     this.el.appendChild(h('div.acc-titre', [h('h2', 'Où aller'), h('span', 'L\'étoile fixe la page de départ')]));
@@ -299,7 +319,81 @@
     if (voit('avis') && AMX.avis) AMX.avis.charger().then(relancer, rien);
     if (ongletVoit('offres', 'recues')) chargerOffres().then(relancer, rien);
     if (voit('outils') && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);
+    if (voitImports()) chargerImports().then(relancer, rien);
   };
+
+  /* 27 oct. — Maxime : « dans l'écran d'accueil des DG et moi, les imports qui doivent être faits doivent être en vert ou en rouge
+     pour indiquer s'ils sont à faire ou non ». Carte « Imports » : un import par ligne, une pastille par concession, rouge = à faire,
+     vert = fait (Imports.gs, GET ?importsEtat=1 : les dates que chaque import garde déjà). Administrateurs de concession (DG) et
+     propriétaire seulement ; suit la concession choisie dans la barre du haut. */
+  var importsCache = { d: null, quand: 0, promesse: null, erreur: '', qui: '' };
+  var COURT_CIE = { STM: 'Ste Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil', '*': 'Groupe' };
+  var MODES_IMP = { favori: 'favori à cliquer', tache: 'tâche du Mac', auto: 'automatique' };
+  function voitImports() { var r = String((AMX.session && (AMX.session.role || (AMX.session.perms || {}).role)) || ''); return r === 'admin' || r === 'proprietaire'; }
+  function chargerImports() {
+    if (!voitImports()) return Promise.resolve(null);
+    var qui = String(AMX.session.courriel || '');
+    if (importsCache.qui !== qui) importsCache = { d: null, quand: 0, promesse: null, erreur: '', qui: qui };   // jamais l'état d'une autre personne
+    if ((importsCache.d || importsCache.erreur) && Date.now() - importsCache.quand < 120000) return Promise.resolve(importsCache.d);
+    if (importsCache.promesse) return importsCache.promesse;
+    var c = importsCache;
+    c.promesse = AMX.get({ importsEtat: 1 }, { secours: false }).then(function (d) {
+      c.promesse = null; c.quand = Date.now();
+      if (!d || !Array.isArray(d.imports)) { c.erreur = 'Le script du site n\'est pas à jour (Imports.gs) : il faut le déployer.'; return null; }
+      c.d = d; c.erreur = ''; return d;
+    }, function (e) { c.promesse = null; c.quand = Date.now(); c.erreur = 'État des imports illisible : ' + ((e && e.message) || e); throw e; });
+    return c.promesse;
+  }
+  function quandImp(iso) {
+    var d = iso ? new Date(iso) : null; if (!d || isNaN(d)) return '';
+    var auj = new Date(), hier = new Date(auj.getTime() - 864e5), heure = d.getHours() + ' h ' + String(d.getMinutes()).padStart(2, '0');
+    if (d.toDateString() === auj.toDateString()) return 'aujourd\'hui ' + heure;
+    if (d.toDateString() === hier.toDateString()) return 'hier ' + heure;
+    return d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' });
+  }
+  function jourImp(iso) { var d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'short' }) : ''; }
+  function texteEtatImp(x) { return x.etat === 'fait' ? 'Fait ' + quandImp(x.le) : (x.jamais ? 'À faire — jamais fait' : 'À faire — dernier ' + quandImp(x.le)); }
+  function lignesImports(cie) {
+    var d = importsCache.d, out = [], rang = { favori: 0, tache: 1, auto: 2 };
+    if (!d) return out;
+    d.imports.forEach(function (im) {
+      var codes = Object.keys(im.cies || {}).filter(function (c) { return c === '*' ? !cie : (!cie || c === cie); });
+      if (codes.length) out.push({ im: im, codes: codes, rouges: codes.filter(function (c) { return im.cies[c].etat !== 'fait'; }) });
+    });
+    return out.sort(function (a, b) { return (b.rouges.length ? 1 : 0) - (a.rouges.length ? 1 : 0) || (rang[a.im.mode] || 0) - (rang[b.im.mode] || 0); });
+  }
+  function ligneImport(l) {
+    var im = l.im, rouge = l.rouges.length > 0, seul = l.codes.length === 1 ? im.cies[l.codes[0]] : null;
+    var lien = im.lien && voit(im.lien[0]) ? AMX.lien(im.lien[0], im.lien[1] || '', im.lien[2]) : '';
+    var portail = typeof im.portail === 'string' ? im.portail : ((im.portail || {})[l.rouges[0] || l.codes[0]] || '');
+    var etat = seul
+      ? h('div.d', { text: texteEtatImp(seul) + (seul.info ? ' · ' + seul.info : '') + (seul.etat === 'fait' && seul.avant ? ' · à refaire d\'ici ' + jourImp(seul.avant) : '') })
+      : h('div.cies', l.codes.map(function (c) {
+          var x = im.cies[c];
+          return h('span.imp-cie.' + (x.etat === 'fait' ? 'vert' : 'rouge'), { title: (COURT_CIE[c] || c) + ' : ' + texteEtatImp(x) + (x.info ? ' · ' + x.info : '') }, [h('i'), COURT_CIE[c] || c, h('small', { text: x.etat === 'fait' ? quandImp(x.le) : (x.jamais ? 'jamais fait' : 'à faire (' + quandImp(x.le) + ')') })]);
+        }));
+    return h('div.acc-imp.' + (rouge ? 'rouge' : 'vert'), { role: 'listitem', title: im.quoi + ' — ' + im.cadence + '.' }, [
+      h('span.pt', { 'aria-label': rouge ? 'À faire' : 'Fait' }),
+      h('div.txt', [h('div.t', [h('span', { text: im.nom }), h('span.mode', { text: (MODES_IMP[im.mode] || '') + ' · ' + im.cadence })]), etat]),
+      h('div.act', [
+        rouge && portail && im.mode !== 'auto' ? h('a.btn.petit' + (rouge ? '.primaire' : ''), { href: portail, target: '_blank', rel: 'noopener', text: 'Faire l\'import' }) : null,
+        lien ? h('a.lien', { href: lien, text: im.mode === 'auto' ? 'Voir' : 'Le favori', title: 'La page de ScanAutomax où se trouve le favori et son mode d\'emploi' }) : null
+      ])
+    ]);
+  }
+  function carteImports(cie, classe) {
+    if (!voitImports()) return null;
+    var lignes = lignesImports(cie), nRouge = lignes.filter(function (l) { return l.rouges.length; }).length;
+    var corps = importsCache.d
+      ? (lignes.length ? h('div.acc-imp-liste', { role: 'list' }, lignes.map(ligneImport)) : h('div.acc2-vide', 'Aucun import pour cette concession.'))
+      : h('div.acc2-attente', { text: importsCache.erreur || 'Lecture de l\'état des imports…' });
+    return h('section.carte.acc-imports' + (classe ? '.' + classe : ''), { id: 'accueil-imports' }, [
+      h('div.acc-imp-tete', [h('h2', 'Imports'), importsCache.d ? h('span.puce.' + (nRouge ? 'rouge' : 'vert'), { text: nRouge ? nRouge + ' à faire' : 'Tout est fait' }) : null]),
+      h('p.acc-imp-leg', 'Rouge = à faire, vert = fait. Les favoris se cliquent dans Chrome, sur le site du fournisseur ; les tâches du Mac les cliquent toutes seules quand le Mac est allumé.'),
+      corps
+    ]);
+  }
+  function allerImports() { var el = document.getElementById('accueil-imports'); if (el) el.scrollIntoView({ block: 'start' }); }
 
   function aFaire() {
     var cie = AMX.compagnieChoisie('inventaire'), cieSvc = AMX.compagnieChoisie('service'), out = [], attente = [];
@@ -393,6 +487,12 @@
     }
     // Suggestions des employés (administrateurs)
     if (AMX.suggestions && AMX.suggestions.aTraiter && AMX.estAdmin && AMX.estAdmin()) { var sg = Number(AMX.suggestions.aTraiter()) || 0; if (sg) out.push({ ton: 'violet', n: sg, titre: 'Suggestions d\'employés à traiter', href: AMX.lien('aide', 'suggestions'), ic: 'suggestions' }); }
+    // 27 oct. : imports à faire (DG et propriétaire) — le détail est dans la carte « Imports » juste dessous.
+    if (voitImports()) {
+      if (!importsCache.d && !importsCache.erreur) attente.push('imports');
+      var ir = lignesImports(cie).filter(function (l) { return l.rouges.length; });
+      if (ir.length) out.push({ ton: 'rouge', n: ir.length, titre: 'Imports à faire', detail: ir.slice(0, 3).map(function (l) { return l.im.nom.split(' — ')[0]; }).join(' · ') + (ir.length > 3 ? '…' : ''), href: '#accueil-imports', clic: allerImports, ic: 'outils' });
+    }
     var rang = { rouge: 0, ambre: 1, violet: 2, bleu: 3, gris: 4 };
     out.sort(function (a, b) { return rang[a.ton] - rang[b.ton]; });
     return { items: out, attente: attente };
@@ -412,7 +512,7 @@
     var r = aFaire();
     var liste = h('div.acc2-liste', { role: 'list' });
     r.items.forEach(function (it) {
-      liste.appendChild(h('a.acc2-item.' + it.ton, { href: it.href, role: 'listitem' }, [
+      liste.appendChild(h('a.acc2-item.' + it.ton, { href: it.href, role: 'listitem', onclick: it.clic ? function (e) { e.preventDefault(); it.clic(); } : null }, [
         h('span.n', { text: fmtN(it.n) }),
         h('span.txt', [h('span.t', { text: it.titre }), it.detail ? h('span.d', { text: it.detail }) : null]),
         h('span.go', { html: I.chevron })
@@ -439,7 +539,7 @@
     }))]);
     var nouv = (AMX.AIDE_CONTENU && AMX.AIDE_CONTENU.nouveautes) ? AMX.AIDE_CONTENU.nouveautes[0] : null;
     var carteNouv = nouv ? h('section.carte.acc2-nouv', [h('h2', 'Nouveauté'), h('div.date', { text: nouv.date }), h('p', { text: nouv.titre }), AMX.sections.aide ? h('a', { href: AMX.lien('aide', 'nouveautes'), text: 'Toutes les nouveautés' }) : null]) : null;
-    this.el.appendChild(h('div.acc2-grille', [h('div.acc2-col', [carteAFaire]), h('div.acc2-col.acc2-droite', [carteRac, carteBref, carteNouv])]));
+    this.el.appendChild(h('div.acc2-grille', [h('div.acc2-col', [carteAFaire, carteImports(cie)]), h('div.acc2-col.acc2-droite', [carteRac, carteBref, carteNouv])]));
   };
 
   var ETOILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8z"/></svg>';

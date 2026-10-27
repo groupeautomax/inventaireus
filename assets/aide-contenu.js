@@ -542,6 +542,8 @@
     ],
 
     nouveautes: [
+      { date: '27 octobre 2026 (soir)', titre: 'Accueil : les imports à faire, en rouge ou en vert',
+        texte: 'Les directeurs généraux et le propriétaire ont sur l\'Accueil une carte « Imports » : D2C, IVS-R et portail RDR de BMW, utilitaire des commandes GM, portail Hyundai, CSI, InfoBahn (portefeuille et banque), DealerSource, Manheim, CARFAX, eBlock, et les imports automatiques (exports du DMS, classeur des neufs BMW, KPI). Rouge = à faire, vert = fait, une pastille par concession. Le bouton « Faire l\'import » ouvre le site du fournisseur, « Le favori » la page du site où il se trouve. Un favori à cliquer est dû chaque semaine ; une tâche du Mac, chaque jour du lundi au samedi. La carte suit la concession choisie dans la barre du haut.' },
       { date: '27 octobre 2026', titre: '« Usagé » devient « Occasion », menus « Actions »',
         texte: 'Partout dans le site et l\'app, l\'inventaire usagé s\'appelle maintenant Occasion (Inventaire › Occasion, Analyse occasion). Les menus « … » sont devenus une pastille « Actions ». Dans les listes, « Sélectionner » est juste au-dessus des véhicules. Une pastille mauve « Courriel · à ajouter » signale les contrats d\'achat reçus par courriel qu\'il reste à ajouter. Au registre Detail, un véhicule en stock sans photo sur le site de la concession (D2C) a une pastille rouge avec une caméra et le nombre de jours depuis l\'achat, à côté de son statut.',
         liens: [{ t: 'Occasion', s: 'inventaire', o: 'usage' }] },

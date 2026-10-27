@@ -438,9 +438,10 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 .dommages-liste li { background: var(--rouge-bg); color: var(--rouge); border: 1px solid var(--rouge-bord); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
 .ligne .vignette .cam { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-radius: 4px; background: var(--vert); color: #fff; display: grid; place-items: center; }
 .ligne .vignette .cam svg { width: 11px; height: 11px; }
-/* 27 oct. : en stock sans photo — vignette en surbrillance jaune et étoile avec le nombre de jours. */
-.ligne .vignette.sans-photo { border-color: #D9A900; background: #FFF6CC; box-shadow: 0 0 0 2px #FFE27A; }
-.ligne .vignette .etoile-photo { position: absolute; right: 2px; bottom: 2px; height: 17px; padding: 0 5px; border-radius: 9px; background: #F5C400; color: #3A2E00; font-size: 11px; font-weight: 800; line-height: 17px; letter-spacing: 0; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+/* 27 oct. : registre Detail, en stock sans photo — pastille rouge avec une caméra et le nombre de jours, à côté du statut. */
+.puce-sans-photo { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--rouge); color: #fff; font-size: 12px; font-weight: 700; vertical-align: middle; white-space: nowrap; }
+.puce-sans-photo svg { width: 13px; height: 13px; }
+.puce-sans-photo b { font-weight: 800; }
 .ligne .titre { font-weight: 600; font-size: 13.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ligne .sous { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
 .ligne .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-2); letter-spacing: .02em; cursor: copy; }

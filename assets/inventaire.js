@@ -111,6 +111,25 @@
     }
   }
   AMX.photosDe = photosDe;   // partagé avec Vente
+  /* 27 oct. (Maxime : « prends ton data de photo de D2C ») : le nombre de photos de chaque occasion sur le site de la concession,
+     lu par l'import D2C du matin (GET ?photosD2c=1). nb(vin) = null quand D2C ne connaît pas le véhicule (on retombe sur les photos
+     prises dans l'app). */
+  var photosSite = { d: null, le: 0, promesse: null };
+  AMX.photosD2c = {
+    charger: function (force) {
+      if (!force && photosSite.d && Date.now() - photosSite.le < 600000) return Promise.resolve(photosSite.d);
+      if (photosSite.promesse) return photosSite.promesse;
+      photosSite.promesse = AMX.get({ photosD2c: 1 }, { secours: false, delai: 30000 }).then(function (d) {
+        photosSite.promesse = null; photosSite.d = (d && d.parVin) ? d : { parVin: {}, le: {} }; photosSite.le = Date.now();
+        try { document.dispatchEvent(new CustomEvent('amx:photosD2c')); } catch (e) {}
+        return photosSite.d;
+      }, function (e) { photosSite.promesse = null; throw e; });
+      return photosSite.promesse;
+    },
+    nb: function (vin) { var p = photosSite.d && photosSite.d.parVin; if (!p) return null; var n = p[String(vin || '').toUpperCase()]; return (n === undefined || n === null) ? null : Number(n); },
+    leDe: function (cie) { return (photosSite.d && photosSite.d.le && photosSite.d.le[cie]) || ''; },
+    vider: function () { photosSite.d = null; photosSite.le = 0; }
+  };
   // Après un ajout (Évaluation, 21 oct.) : relire les photos du NIV au prochain appel.
   AMX.photosOublier = function (vin) { vin = String(vin || '').toUpperCase(); delete cachePhotos[vin]; try { sessionStorage.removeItem('amx_photos_' + vin); } catch (e) {} };
 
@@ -226,6 +245,7 @@
     if (AMX.openlane) { AMX.openlane.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:openlane', this.surCarfax); }
     if (AMX.demandes) { AMX.demandes.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:demandes', this.surCarfax); }
     if (AMX.achatsAuto) { AMX.achatsAuto.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:achatsAuto', this.surCarfax); }
+    if (AMX.photosD2c) { AMX.photosD2c.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:photosD2c', this.surCarfax); }
     // 27 oct. : pastille mauve « Courriel · à ajouter » — contrats d'achat reçus par courriel qu'il reste à vérifier et ajouter.
     if (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) { AMX.achatsAuto.contrats.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:contrats', this.surCarfax); }
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
@@ -250,6 +270,7 @@
     document.removeEventListener('amx:openlane', this.surCarfax);
     document.removeEventListener('amx:achatsAuto', this.surCarfax);
     document.removeEventListener('amx:contrats', this.surCarfax);
+    document.removeEventListener('amx:photosD2c', this.surCarfax);
     document.removeEventListener('amx:compagnie', this.surCie);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
@@ -795,12 +816,14 @@
     var cls = 'div.ligne' + (retard ? '.retard' : (retardA ? '.retard-achat' : '')) + (estAuto(v) ? '.achat-auto' : '') + (v.statut === 'comptabilise' ? '.verrouille' : '') + (this.selection && String(v.vin).toUpperCase() === String(this.selection).toUpperCase() ? '.actif' : '');
     // Sans photo : le logo du constructeur (voir AMX.logoMarque) ; avec photos,
     // le logo tient lieu de repli jusqu'à ce que la miniature charge.
-    /* 27 oct. (Maxime : « mets une surbrillance ou une étoile avec un chiffre en jaune : le nombre de jours d'un véhicule en
-       stock qui est sans photo ») : vignette jaune et étoile avec les jours depuis l'achat (même âge que « Acheté le … · n j »). */
-    var sansPhoto = v.statut === 'stock' && !v.hasPhotos && (v._feuille || cfg.feuille) === 'DETAIL';   /* registre Detail seulement (Maxime, 27 oct.) */
-    var etoile = sansPhoto ? h('span.etoile-photo', { text: '★ ' + (jours === null || jours === undefined || isNaN(jours) ? '?' : jours) }) : null;
-    var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })])
-      : h('div.vignette' + (sansPhoto ? '.sans-photo' : ''), { title: sansPhoto ? 'En stock sans photo' + (jours >= 0 ? ' — ' + jours + ' jour' + (jours > 1 ? 's' : '') + ' depuis l\'achat' : '') : 'Aucune photo' }, [AMX.logoMarque(marque(v)), etoile]);
+    /* 27 oct. (Maxime : « le nombre de jours d'un véhicule en stock qui est sans photo… juste pour inventaire Detail… plutôt en
+       rouge dans statut avec une caméra ») : pastille rouge « caméra n j » à côté du statut, n = jours depuis l'achat (même âge que
+       « Acheté le … · n j »). Photos : celles du site de la concession (D2C) ; sans donnée D2C, celles prises dans l'app. */
+    var nSite = AMX.photosD2c ? AMX.photosD2c.nb(v.vin) : null;
+    var sansPhoto = v.statut === 'stock' && (v._feuille || cfg.feuille) === 'DETAIL' && (nSite !== null ? nSite === 0 : !v.hasPhotos);
+    var joursTxt = (jours === null || jours === undefined || isNaN(jours)) ? '?' : String(jours);
+    var pucePhoto = sansPhoto ? h('span.puce-sans-photo', { html: I.photo + '<b>' + joursTxt + ' j</b>', title: 'En stock sans photo, ' + joursTxt + ' jour' + (jours > 1 ? 's' : '') + ' depuis l\'achat' + (nSite !== null ? ' — aucune photo sur le site de la concession (D2C)' : ' — aucune photo dans ScanAutomax'), 'aria-label': 'Sans photo, ' + joursTxt + ' jours' }) : null;
+    var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })]) : h('div.vignette', { title: 'Aucune photo' }, [AMX.logoMarque(marque(v))]);
     // Rappels (8 oct., soir — Maxime) : rouge ou vert, pas le détail ; un clic sur la puce rouge ouvre le détail.
     var puceRappel = v.rappel === 'oui'
       ? h('span.puce.alerte.rappel-puce', { text: 'Rappel', title: 'Rappel ouvert — cliquez pour le détail', onclick: function (e) { e.stopPropagation(); self.rappelsOuverts = true; self.selectionner(v.vin); } })
@@ -829,7 +852,7 @@
         // un clic le copie), # stock, compagnie, origine, importateur ; la date d'achat est sous le statut.
         h('div.sous', [h('span.vin', { text: v.vin, title: 'Copier le NIV', onclick: function (e) { e.stopPropagation(); AMX.copier(v.vin, 'NIV copié'); } }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), v.origine ? h('span.puce', { text: v.origine }) : null, autreRegistre ? h('span.puce.registre-autre', { text: 'Registre ' + AMX.inventaire.nomFeuille(autreRegistre), title: 'Ce véhicule est dans un autre registre — cliquez pour l\'ouvrir là-bas.' }) : null])
       ]),
-      h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle })]),
+      h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle }), pucePhoto]),
         v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : h('span.jours' + (retardA ? '.attention' : ''), { text: 'Acheté le ' + AMX.fmtDate(v.dateAjout) + ' · ' + jours + ' j' })]),
       h('div.cell.maj', [h('span.l', 'Mise à jour'), h('span.v', { text: AMX.fmtDate(v.maj, true) })]),
       h('div.cell.indic', [h('span.l', 'Suivi'), h('div.indicateurs', indicateurs)]),

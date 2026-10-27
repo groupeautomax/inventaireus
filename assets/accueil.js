@@ -442,6 +442,8 @@
       var retard = deAF.filter(function (x) { return x.enRetard; }).length;
       if (deAF.length) out.push({ ton: 'rouge', n: deAF.length, titre: 'Évaluations demandées, à faire pour vous', detail: (retard ? retard + ' en retard · ' : '') + deAF.slice(0, 3).map(function (x) { return (x.vehicule || x.vin) + ' — ' + (x.demandeParNom || ''); }).join(' · ') + (deAF.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', ''), ic: 'outils' });
       if (dePr.length) out.push({ ton: 'vert', n: dePr.length, titre: 'Évaluations faites pour vos clients', detail: dePr.slice(0, 3).map(function (x) { return (x.client || x.vehicule || x.vin) + (x.valeur ? ' : ' + AMX.fmtArgent(x.valeur) : ''); }).join(' · ') + (dePr.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', ''), ic: 'outils' });
+      var deQ = AMX.evalDemandes.questionsPourMoi ? (AMX.evalDemandes.questionsPourMoi(cieE) || []) : [];   /* l'évaluateur attend une réponse du représentant */
+      if (deQ.length) out.push({ ton: 'ambre', n: deQ.length, titre: 'Questions de l\'évaluateur sur vos demandes', detail: deQ.slice(0, 3).map(function (x) { return (x.vehicule || x.vin) + ' — ' + (x.evaluateurNom || ''); }).join(' · ') + (deQ.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', '', { vue: 'deMoi', id: deQ[0].id }), ic: 'outils' });
     }
     // Neufs : RDR à compléter chez le constructeur
     var rdr = AMX.neufs && AMX.neufs.aFaireConstructeur ? AMX.neufs.aFaireConstructeur() : null;

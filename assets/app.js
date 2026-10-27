@@ -776,7 +776,7 @@
       { id: 'offres', titre: 'Offres reçues', de: 'offres', onglet: 'recues' },
       { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente' },
       { id: 'acheteurs', titre: 'Acheteurs', de: 'offres', onglet: 'acheteurs' },
-      { id: 'soumissions', titre: 'Soumissions', de: 'inventaire', onglet: 'soumissions' },
+      /* 27 oct. (Maxime) : « enlève l'onglet Soumission, inutile » — la page (soumission.js) reste, sans onglet. */
       { id: 'echanges', titre: 'Échanges de neufs', de: 'inventaire', onglet: 'neufs', fixes: { seul: 'echanges' }, compteur: function () { return AMX.neufs && AMX.neufs.compteurEchanges ? AMX.neufs.compteurEchanges() : ''; } },
       { id: 'resultats', titre: 'Résultats', de: 'resultat', vues: [{ id: 'us', titre: 'É.-U.' }, { id: 'can', titre: 'Wholesale Canada' }, { id: 'neuf', titre: 'Neufs' }] },
       { id: 'kpi', titre: 'KPI', de: 'kpi', vues: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }] }   /* 22 oct. : le tableau de bord KPI du Groupe (Réalisés et états financiers lus dans les Drive partagés, kpi.js) */

@@ -472,6 +472,7 @@
     document.removeEventListener('amx:carfax', this.surCarfax);
     document.removeEventListener('amx:export', this.surExport);
     document.removeEventListener('amx:compagnie', this.surCompagnie);
+    if (this.surDemandes) document.removeEventListener('amx:evalDemandes', this.surDemandes);
     this.generation++;
   };
 
@@ -517,7 +518,9 @@
         el.appendChild(h('div.eval-demande.' + x.etat, [
           h('b', { text: 'Demande ' + x.id + ' de ' + (x.demandeParNom || '—') }),
           h('span', { text: [x.client ? 'client ' + x.client : '', x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : '', x.note ? '« ' + x.note + ' »' : '', duree].filter(Boolean).join(' · ') }),
-          x.etat === 'faite' ? h('span.badge.vert.sans-point', { text: 'Faite' + (x.valeur ? ' — ' + AMX.fmtArgent(x.valeur) : '') + ' · ' + (x.demandeParNom || 'le représentant') + ' est prévenu' }) : h('span.mini', { text: 'Enregistrez l\'évaluation : ' + (x.demandeParNom || 'le représentant') + ' reçoit la valeur par courriel.' })
+          x.etat === 'faite' ? h('span.badge.vert.sans-point', { text: 'Faite' + (x.valeur ? ' — ' + AMX.fmtArgent(x.valeur) : '') + ' · ' + (x.demandeParNom || 'le représentant') + ' est prévenu' + (x.valideJusqu ? ' · vaut jusqu\'au ' + new Date(x.valideJusqu).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' }) : '') }) : h('span.mini', { text: 'Enregistrez l\'évaluation : ' + (x.demandeParNom || 'le représentant') + ' reçoit la valeur par courriel.' }),
+          x.infoDemandee ? h('span.badge.ambre.sans-point', { text: 'Question en attente de réponse' }) : null,
+          AMX.evalDemandes.ouvrirFil ? h('button.btn.petit', { type: 'button', text: (x.messages && x.messages.length ? 'Messages (' + x.messages.length + ')' : 'Question au représentant'), onclick: function () { AMX.evalDemandes.ouvrirFil(x.id); } }) : null
         ]));
       };
       dessiner(x);
@@ -531,6 +534,10 @@
         AMX.evalDemandes.prendre(id).then(function (r) { if (self.demandeId === id && r.demande) dessiner(r.demande); }).catch(function () {});
       }
       self.dessinerDemande = dessiner;
+      if (!self.surDemandes) {   /* un message ou une réponse arrive : le bandeau suit */
+        self.surDemandes = function () { var y = self.demandeId && AMX.evalDemandes.une(self.demandeId); if (y && self.dessinerDemande && self.elDemande && self.elDemande.isConnected) self.dessinerDemande(y); };
+        document.addEventListener('amx:evalDemandes', self.surDemandes);
+      }
     }).catch(function () {});
   };
 

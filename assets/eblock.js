@@ -23,6 +23,7 @@
   var h = AMX.h, esc = AMX.esc, I = AMX.icones;
   var URL_EBLOCK = 'https://app.eblock.com/my-block/buyer?formats=AUCTION&showDetails=true&id=';
   var CODE_SIGNET_EBLOCK_FICHES = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-eblock-fiches.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
+  (AMX.signets = AMX.signets || {}).eblock = { nom: 'Automax ← eBlock (fiches)', code: CODE_SIGNET_EBLOCK_FICHES };   /* 27 oct. : registre des favoris (Outils › Imports) */
 
   /* FR-DEBUT — bloc identique dans assets/eblock.js (site) et Eblock.gs (script) ; gs/test_eblock.js vérifie qu'ils sont les mêmes.
      Libellés d'eBlock (anglais) → français : pièces des photos de dommages (« Front Door - Driver »),

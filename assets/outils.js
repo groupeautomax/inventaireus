@@ -106,6 +106,7 @@
   AMX.section('outils', {
     titre: 'Outils', icone: 'outils', ordre: 40,
     onglets: [
+      { id: 'imports', titre: 'Imports', visible: function () { return !!(AMX.importsEtat && AMX.importsEtat.voit()); }, compteur: function () { return AMX.importsEtat ? AMX.importsEtat.compteur() : ''; } },   /* 27 oct. : tous les imports, par concession (imports.js) */
       { id: 'evaluation', titre: 'Évaluation marché' },
       { id: 'evaluations', titre: 'Registre d\'évaluations' },
       { id: 'torque', titre: 'Archive Torque' },
@@ -130,10 +131,10 @@
     this.naviguer(ctx || {});
   }
   Outils.prototype.naviguer = function (ctx) {
-    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax' || ctx.onglet === 'evaluations' || ctx.onglet === 'torque' || ctx.onglet === 'eblock' || ctx.onglet === 'openlane' || ctx.onglet === 'd2c' || ctx.onglet === 'equite' || ctx.onglet === 'opportunites')) ? ctx.onglet : 'evaluation';
+    var id = (ctx && (ctx.onglet === 'verification' || ctx.onglet === 'carfax' || ctx.onglet === 'evaluations' || ctx.onglet === 'torque' || ctx.onglet === 'eblock' || ctx.onglet === 'openlane' || ctx.onglet === 'd2c' || ctx.onglet === 'equite' || ctx.onglet === 'opportunites' || ctx.onglet === 'imports')) ? ctx.onglet : 'evaluation';
     if (!this.vues[id]) {
       // 16 oct. : « Import D2C » (assets/d2c.js, AMX.vues.ImportD2c) — l'inventaire que D2C Media reçoit du DMS.
-      this.vues[id] = id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : (id === 'd2c' ? new AMX.vues.ImportD2c(ctx) : (id === 'equite' ? new AMX.vues.ImportPortefeuille(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : (id === 'torque' ? new AMX.vues.ArchiveTorque(ctx) : (id === 'eblock' ? new AMX.vues.FichesEblock(ctx) : (id === 'openlane' ? new AMX.vues.ValeursOpenlane(ctx) : (id === 'opportunites' ? new AMX.vues.Opportunites(ctx) : new AMX.vues.Evaluation(ctx)))))))));
+      this.vues[id] = id === 'imports' ? new AMX.vues.Imports(ctx) : id === 'verification' ? new Verification(ctx) : (id === 'carfax' ? new ImportCarfax(ctx) : (id === 'd2c' ? new AMX.vues.ImportD2c(ctx) : (id === 'equite' ? new AMX.vues.ImportPortefeuille(ctx) : (id === 'evaluations' ? new AMX.vues.RegistreEvaluations(ctx) : (id === 'torque' ? new AMX.vues.ArchiveTorque(ctx) : (id === 'eblock' ? new AMX.vues.FichesEblock(ctx) : (id === 'openlane' ? new AMX.vues.ValeursOpenlane(ctx) : (id === 'opportunites' ? new AMX.vues.Opportunites(ctx) : new AMX.vues.Evaluation(ctx)))))))));
       this.conteneur.appendChild(this.vues[id].el);
     } else if (this.vues[id].naviguer) {
       this.vues[id].naviguer(ctx);
@@ -419,6 +420,7 @@
   // Le signet : lit chaque ligne de « Mes RHV » (VIN + lien vhr.carfax.ca +
   // no de rapport + date) et revient ici avec la liste dans l'adresse.
   var CODE_SIGNET = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-carfax.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
+  (AMX.signets = AMX.signets || {}).carfax = { nom: 'Automax ← CARFAX', code: CODE_SIGNET };   /* 27 oct. : registre des favoris (Outils › Imports) */
 
   function ImportCarfax(ctx) {
     var self = this;

@@ -801,6 +801,7 @@
       { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' }
     ] },
     { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
+      { id: 'imports', titre: 'Imports', de: 'outils', onglet: 'imports', compteur: function () { return AMX.importsEtat ? AMX.importsEtat.compteur() : ''; } },   /* 27 oct. : tous les imports, par concession, rouge = à faire (imports.js) */
       { id: 'opportunites', titre: 'Opportunités d\'achat', de: 'outils', onglet: 'opportunites' },   /* 24 oct. : Occasions.gs */
       { id: 'eblock', titre: 'Fiches eBlock', de: 'outils', onglet: 'eblock' },
       { id: 'openlane', titre: 'Valeurs OpenLane', de: 'outils', onglet: 'openlane' },

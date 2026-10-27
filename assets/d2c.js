@@ -28,6 +28,7 @@
   var SCRIPT_PAS_A_JOUR = 'Le script du serveur n\'est pas à jour (D2c.gs, RoutesAjout.gs) : dans l\'éditeur Apps Script, Déployer › Gérer les déploiements › crayon › Nouvelle version › Déployer.';
   // Chargeur du signet (généré par mock/signet-build.py) — ne jamais éditer la constante à la main.
   var CODE_SIGNET_D2C = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-d2c.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
+  (AMX.signets = AMX.signets || {}).d2c = { nom: 'Automax ← D2C', code: CODE_SIGNET_D2C };   /* 27 oct. : registre des favoris (Outils › Imports) */
 
   function nomCie(code) { return (AMX.COMPAGNIES_TOUTES[code] || code || '').replace(' Chevrolet Buick Cadillac', ''); }
   function fmtN(n) { return (n === null || n === undefined || n === '') ? '—' : AMX.fmtNombre(n); }

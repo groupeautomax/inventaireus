@@ -44,6 +44,7 @@
   // éditer la constante à la main) lit le pipeline, les ventes déclarées (RDR) et les factures du portail des ventes Hyundai, et
   // le CSI sur BoostCX. Le stock atterrit ici (feuille Neufs, source portail-hyundai) ; ventes et commandes via ?constructeur=1.
   var CODE_SIGNET_CONSTRUCTEUR = "javascript:(function () { var s = document.createElement('script'); s.src = " + JSON.stringify(AMX.SITE) + " + 'assets/signet-constructeur.js?t=' + Date.now(); s.onerror = function () { alert(\"Impossible de charger le signet depuis le site d'inventaire (groupeautomax.github.io). V\u00e9rifiez votre connexion, puis recliquez.\"); }; document.body.appendChild(s); })();";
+  (AMX.signets = AMX.signets || {}).constructeur = { nom: 'Automax ← Constructeur', code: CODE_SIGNET_CONSTRUCTEUR };   /* 27 oct. : registre des favoris (Outils › Imports) */
   // Un seul favori « Automax ← Constructeur » pour tous les portails (reconnu à l'adresse de la page).
   var PORTAILS = {
     HYUNDAI: { nom: 'Portail Hyundai', source: 'hyundai', url: 'https://salesportal-hacc.am.hyundai-corp.io/salesportal/index.html#/dealerstocklist', nomCsi: 'CSI (BoostCX)', csi: 'https://hacc.boostcx.com/bcx/dashboard/combined', liste: 'Stock › Dealer Stock List', signet: function () { return CODE_SIGNET_CONSTRUCTEUR; } },

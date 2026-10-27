@@ -362,9 +362,11 @@
     });
     return out.sort(function (a, b) { return (b.rouges.length ? 1 : 0) - (a.rouges.length ? 1 : 0) || (rang[a.im.mode] || 0) - (rang[b.im.mode] || 0); });
   }
+  /* Le nombre à faire = une pastille rouge par concession (un import en retard chez deux concessions compte deux), comme Outils › Imports. */
+  function nRougesImports(lignes) { return lignes.reduce(function (t, l) { return t + l.rouges.length; }, 0); }
   function ligneImport(l) {
     var im = l.im, rouge = l.rouges.length > 0, seul = l.codes.length === 1 ? im.cies[l.codes[0]] : null;
-    var lien = im.lien && voit(im.lien[0]) ? AMX.lien(im.lien[0], im.lien[1] || '', im.lien[2]) : '';
+    var lien = ongletVoit('outils', 'imports') ? AMX.lien('outils', 'imports', { imp: im.id }) : (im.lien && voit(im.lien[0]) ? AMX.lien(im.lien[0], im.lien[1] || '', im.lien[2]) : '');   /* 27 oct. : la page Outils › Imports explique chaque import */
     var portail = typeof im.portail === 'string' ? im.portail : ((im.portail || {})[l.rouges[0] || l.codes[0]] || '');
     var etat = seul
       ? h('div.d', { text: texteEtatImp(seul) + (seul.info ? ' · ' + seul.info : '') + (seul.etat === 'fait' && seul.avant ? ' · à refaire d\'ici ' + jourImp(seul.avant) : '') })
@@ -377,13 +379,13 @@
       h('div.txt', [h('div.t', [h('span', { text: im.nom }), h('span.mode', { text: (MODES_IMP[im.mode] || '') + ' · ' + im.cadence })]), etat]),
       h('div.act', [
         rouge && portail && im.mode !== 'auto' ? h('a.btn.petit' + (rouge ? '.primaire' : ''), { href: portail, target: '_blank', rel: 'noopener', text: 'Faire l\'import' }) : null,
-        lien ? h('a.lien', { href: lien, text: im.mode === 'auto' ? 'Voir' : 'Le favori', title: 'La page de ScanAutomax où se trouve le favori et son mode d\'emploi' }) : null
+        lien ? h('a.lien', { href: lien, text: 'Comment faire', title: 'Outils › Imports : le favori à installer et les étapes' }) : null
       ])
     ]);
   }
   function carteImports(cie, classe) {
     if (!voitImports()) return null;
-    var lignes = lignesImports(cie), nRouge = lignes.filter(function (l) { return l.rouges.length; }).length;
+    var lignes = lignesImports(cie), nRouge = nRougesImports(lignes);
     var corps = importsCache.d
       ? (lignes.length ? h('div.acc-imp-liste', { role: 'list' }, lignes.map(ligneImport)) : h('div.acc2-vide', 'Aucun import pour cette concession.'))
       : h('div.acc2-attente', { text: importsCache.erreur || 'Lecture de l\'état des imports…' });
@@ -393,6 +395,14 @@
       corps
     ]);
   }
+  /* 27 oct. : partagé avec Outils › Imports (imports.js) — une seule lecture de ?importsEtat=1 pour les deux pages. */
+  AMX.importsEtat = {
+    voit: voitImports, charger: chargerImports, lignes: lignesImports,
+    enCache: function () { return importsCache.qui === String((AMX.session && AMX.session.courriel) || '') ? importsCache.d : null; },
+    erreur: function () { return importsCache.erreur; },
+    rafraichir: function () { importsCache.quand = 0; importsCache.erreur = ''; return chargerImports(); },
+    compteur: function (cie) { if (!voitImports() || !importsCache.d) return ''; var n = nRougesImports(lignesImports(cie === undefined ? AMX.compagnieChoisie('inventaire') : cie)); return n || ''; }
+  };
   function allerImports() { var el = document.getElementById('accueil-imports'); if (el) el.scrollIntoView({ block: 'start' }); }
 
   function aFaire() {
@@ -491,7 +501,7 @@
     if (voitImports()) {
       if (!importsCache.d && !importsCache.erreur) attente.push('imports');
       var ir = lignesImports(cie).filter(function (l) { return l.rouges.length; });
-      if (ir.length) out.push({ ton: 'rouge', n: ir.length, titre: 'Imports à faire', detail: ir.slice(0, 3).map(function (l) { return l.im.nom.split(' — ')[0]; }).join(' · ') + (ir.length > 3 ? '…' : ''), href: '#accueil-imports', clic: allerImports, ic: 'outils' });
+      if (ir.length) out.push({ ton: 'rouge', n: nRougesImports(ir), titre: 'Imports à faire', detail: ir.slice(0, 3).map(function (l) { return l.im.nom.split(' — ')[0]; }).join(' · ') + (ir.length > 3 ? '…' : ''), href: '#accueil-imports', clic: allerImports, ic: 'outils' });
     }
     var rang = { rouge: 0, ambre: 1, violet: 2, bleu: 3, gris: 4 };
     out.sort(function (a, b) { return rang[a.ton] - rang[b.ton]; });

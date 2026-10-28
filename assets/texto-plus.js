@@ -81,7 +81,7 @@
       var tbody = h('tbody');
       d.clients.forEach(function (c) {
         tbody.appendChild(h('tr.cliquable', { onclick: function () { self.ouvrirClient(c.id); } }, [
-          h('td', [h('b', { text: c.affichage || telJoli(c.telephone) || '—' }), c.courriel ? h('span.sous', { text: c.courriel }) : null, !self.compagnie ? h('span.sous', { text: nomCie(c.compagnie) }) : null]),
+          h('td.client-cell', [h('div', [O.avatar ? O.avatar(c.affichage, c.telephone, true) : null, h('div.t', [h('b', { text: c.affichage || telJoli(c.telephone) || '—' }), c.courriel ? h('span.sous', { text: c.courriel }) : null, !self.compagnie ? h('span.sous', { text: nomCie(c.compagnie) }) : null])])]),
           h('td', [h('span', { text: c.telephoneJoli || '—' }), c.stop || !c.textos ? h('span.sous.stop', { text: c.stop ? 'STOP' : 'textos : non' }) : null]),
           h('td', [h('span', { text: c.vehicule || '—' }), c.vin ? h('span.sous.mono', { text: c.vin }) : null]),
           h('td', { text: dateCourte(c.derniereVisite) }),

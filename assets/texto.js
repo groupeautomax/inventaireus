@@ -23,6 +23,30 @@
      cfg.taxesListe et cfg.province ; un script d'avant n'en envoie pas : TPS + TVQ comme avant). */
   var TYPES_PIECE = { neuve: 'Neuve', usagee: 'Usagée', reusinee: 'Réusinée', remise: 'Remise à neuf' };
   var TAXES_PROVINCE = { QC: [{ nom: 'TPS', libelle: 'TPS 5 %', taux: 0.05 }, { nom: 'TVQ', libelle: 'TVQ 9,975 %', taux: 0.09975 }], ON: [{ nom: 'TVH', libelle: 'TVH 13 %', taux: 0.13 }] };
+  /* 28 oct. — pastille d'initiales colorée par client (couleur stable : tirée du nom ou du numéro), comme dans Kimoby. */
+  var COULEURS_AV = ['#0F7A43', '#1A64BF', '#7C3AED', '#C2410C', '#0B7189', '#B42318', '#4D7C0F', '#A21CAF', '#9A6700', '#3730A3', '#0E7490', '#BE185D'];
+  function initiales(nom) { var m = String(nom || '').replace(/[^A-Za-zÀ-ÿ' -]/g, ' ').trim().split(/\s+/).filter(Boolean); if (!m.length) return ''; return (m[0].charAt(0) + (m.length > 1 ? m[m.length - 1].charAt(0) : (m[0].charAt(1) || ''))).toUpperCase(); }
+  function avatar(nom, cle, petit) {
+    var ini = initiales(nom), k = String(cle || nom || ''), hsh = 0; for (var i = 0; i < k.length; i++) hsh = (hsh * 31 + k.charCodeAt(i)) >>> 0;
+    var el = h('span.txt-av' + (petit ? '.petit' : '') + (ini ? '' : '.inconnu'), { text: ini || '#', 'aria-hidden': 'true' });
+    if (ini) el.style.background = COULEURS_AV[hsh % COULEURS_AV.length];
+    return el;
+  }
+  var SVG = function (d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>'; };
+  var ICO_NAV = {
+    conversations: SVG('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
+    estimes: SVG('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+    paiements: SVG('<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/>'),
+    refuses: SVG('<circle cx="12" cy="12" r="9"/><path d="M8.5 8.5l7 7"/>'),
+    clients: SVG('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+    campagnes: SVG('<path d="M3 11v2a2 2 0 0 0 2 2h2l5 4V5L7 9H5a2 2 0 0 0-2 2zM16 8a5 5 0 0 1 0 8"/>'),
+    autos: SVG('<path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/>'),
+    stats: SVG('<path d="M5 20V11M12 20V5M19 20v-7"/>'),
+    reglages: SVG('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+    alertes: SVG('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'),
+    tel: SVG('<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>')
+  };
+  var ICO_STATUT = { brouillon: '✎', envoye: '◷', vu: '◉', approuve: '✓', partiel: '◐', decline: '✕', expire: '⌛', annule: '⊘', en_attente: '◷', paye: '✓', rembourse: '↺' };
   /* 28 oct. (étape 2) : un client attend une réponse quand son texto est le dernier de la conversation depuis 10 minutes ou plus
      (une réponse automatique — confirmation d'un OUI, AIDE — compte comme une réponse). */
   var ATTENTE_MIN = 10;
@@ -56,7 +80,12 @@
   function zoneTexte(attrs, valeur) { var t = h('textarea.saisie', attrs); t.value = valeur || ''; return t; }
   function lienEstime(e) { return e.lien || (LIEN_ESTIME + '?e=' + encodeURIComponent(e.id) + '&k=' + encodeURIComponent(e.code || '')); }
   function joursDepuis(iso) { return iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null; }
-  function gabarit(texte, v) { return String(texte || '').replace(/\{(\w+)\}/g, function (m, k) { if (k === 'bt') return v.bt ? ' (bon de travail ' + v.bt + ')' : ''; return v[k] !== undefined && v[k] !== null && v[k] !== '' ? String(v[k]) : m; }).replace(/\s{2,}/g, ' ').replace(/\s+([.,])/g, '$1').trim(); }
+  function gabarit(texte, v, langue) { return String(texte || '').replace(/\{(\w+)\}/g, function (m, k) { if (k === 'bt') return v.bt ? (langue === 'en' ? ' (work order ' : ' (bon de travail ') + v.bt + ')' : ''; if (k === 'vehicule' && !v.vehicule) return langue === 'en' ? 'vehicle' : 'véhicule'; return v[k] !== undefined && v[k] !== null && v[k] !== '' ? String(v[k]) : m; }).replace(/\s{2,}/g, ' ').replace(/\s+([.,])/g, '$1').trim(); }
+  /* 28 oct. : le client a demandé l'anglais (TextoLangue.gs) — modèles anglais et montants à l'anglaise ; sinon le français. */
+  function argentL(n, langue) { if (langue !== 'en') return argent(n); return '$' + r2(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function modeleL(cfg, id, langue) { var fr = ((cfg && cfg.modeles) || []).filter(function (m) { return m.id === id; })[0]; if (langue !== 'en') return fr; return ((cfg && cfg.modelesEn) || []).filter(function (m) { return m.id === id; })[0] || fr; }
+  var CANAUX_LANGUE = { texto: 'par texto', page: 'sur la page web', conseiller: 'au conseiller', telephone: 'au téléphone', comptoir: 'au comptoir', fiche: 'dans la fiche client' };
+  function avisLangue(langue, info) { if (langue !== 'en') return null; return h('div.txt-langue', { text: '🇬🇧 Client anglophone : le texto part en anglais' + (info && info.langueLe ? ' (demandé ' + (CANAUX_LANGUE[info.langueCanal] || '') + ' ' + quand(info.langueLe) + ')' : '') + '.' }); }
   /* Photo : réduite à 1600 px, JPEG 0,82 (comme l'inspection du carnet). */
   function reduireImage(fichier) {
     return new Promise(function (res, rej) {
@@ -102,6 +131,7 @@
     '.txt-fil .jour { align-self: center; font-size: 12px; color: var(--encre-4); background: var(--gris-bg); padding: 2px 10px; border-radius: 999px; margin: 4px 0; }',
     '.txt-fil .composer { border-top: 1px solid var(--ligne); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }',
     '.txt-fil .composer .rangee { display: flex; gap: 6px; align-items: flex-end; } .txt-fil .composer textarea { flex: 1; min-height: 44px; height: 44px; }',
+    '.txt-langue { margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; background: #eef4ff; color: #1e3a8a; font-size: 12.5px; } .txt-fil .tete select.langue { height: 27px; font-size: 12px; width: auto; min-width: 0; flex: 0 0 auto; }',
     '.txt-fil .composer .modeles { display: flex; gap: 4px; flex-wrap: wrap; } .txt-fil .composer .modeles button { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ligne); background: #fff; cursor: pointer; color: var(--encre-2); } .txt-fil .composer .modeles button:hover { background: var(--carte-2); }',
     '.txt-fil .composer .compte { font-size: 12px; color: var(--encre-4); text-align: right; }',
     '.txt-fil .stop-bandeau { background: var(--rouge-bg); color: var(--rouge); padding: 8px 12px; font-size: 12.5px; }',
@@ -138,7 +168,53 @@
     '.txt-page .refus-ligne .quand { color: var(--encre-3); font-size: 12px; }',
     '.txt-page .vide-petit { padding: 24px; text-align: center; color: var(--encre-3); background: var(--carte); border: 1px dashed var(--ligne-forte); border-radius: var(--rayon); }',
     '.txt-fil .bulle-medias { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; } .txt-fil .bulle-medias .bm { position: relative; width: 120px; height: 90px; border-radius: 8px; overflow: hidden; background: rgba(0,0,0,.08); display: block; } .txt-fil .bulle-medias img { width: 100%; height: 100%; object-fit: cover; display: block; } .txt-fil .bulle-medias .lecture { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 26px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }',
-    '.txt-fil .composer .btn-media { align-self: flex-end; height: 38px; padding: 0 10px; font-size: 18px; line-height: 1; }'
+    '.txt-fil .composer .btn-media { align-self: flex-end; height: 38px; padding: 0 10px; font-size: 18px; line-height: 1; }',
+    /* 28 oct. — allure à la Kimoby : menu à gauche avec compteurs, pastilles d'initiales, statuts en couleur, pleine hauteur */
+    '.txt-app .entete-page { margin-bottom: 10px; } .txt-app .entete-page h1 { font-size: 22px; } .txt-app .entete-page p { font-size: 13px; color: var(--encre-3); margin-top: 2px; }',
+    '.txt-cadre { display: grid; grid-template-columns: 214px minmax(0, 1fr); gap: 18px; align-items: start; }',
+    '.txt-nav { position: sticky; top: calc(var(--barre-h, 62px) + 12px); display: flex; flex-direction: column; gap: 2px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 14px; padding: 8px; }',
+    '.txt-nav button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: none; border-radius: 10px; font: inherit; font-size: 14px; color: var(--encre-2); cursor: pointer; text-align: left; }',
+    '.txt-nav button svg { width: 18px; height: 18px; flex: none; color: var(--encre-4); } .txt-nav button:hover { background: var(--carte-2); }',
+    '.txt-nav button.actif { background: var(--vert-clair); color: var(--vert-fonce); font-weight: 650; } .txt-nav button.actif svg { color: var(--vert); }',
+    '.txt-nav .n { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; background: var(--gris-bg); color: var(--encre-3); }',
+    '.txt-nav .n.rouge { background: var(--rouge); color: #fff; } .txt-nav .n.ambre { background: var(--ambre-bg); color: var(--ambre); } .txt-nav .n:empty { display: none; }',
+    '.txt-nav .sep { height: 1px; background: var(--ligne); margin: 6px 4px; }',
+    '@media (max-width: 860px) { .txt-cadre { grid-template-columns: 1fr; gap: 10px; } .txt-nav { position: static; flex-direction: row; overflow-x: auto; padding: 6px; } .txt-nav button { width: auto; white-space: nowrap; padding: 7px 10px; } .txt-nav .sep { display: none; } }',
+    '.txt-av { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: #fff; font-size: 13px; font-weight: 700; flex: none; letter-spacing: .02em; text-transform: uppercase; }',
+    '.txt-av.petit { width: 30px; height: 30px; font-size: 11.5px; } .txt-av.inconnu { background: var(--gris-bg) !important; color: var(--encre-3); }',
+    '.txt-app .txt-outils { margin-bottom: 10px; } .txt-app .kpis { margin-bottom: 12px; }',
+    '.txt-app .txt-conv { grid-template-columns: 350px minmax(0, 1fr); gap: 14px; }',
+    '.txt-app .txt-liste, .txt-app .txt-fil { height: calc(100vh - var(--barre-h, 62px) - 210px); min-height: 480px; max-height: none; border-radius: 14px; }',
+    '.txt-app .txt-liste .item { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 2px 10px; padding: 12px 14px; align-items: center; }',
+    '.txt-app .txt-liste .item > .txt-av { grid-row: span 3; align-self: start; }',
+    '.txt-app .txt-liste .item .nom { font-size: 14px; } .txt-app .txt-liste .item .apercu, .txt-app .txt-liste .item .cie { grid-column: 2 / -1; }',
+    '.txt-app .txt-liste .item .tel { grid-column: 2 / -1; font-size: 12.5px; color: var(--encre-3); display: flex; align-items: center; gap: 4px; }',
+    '.txt-app .txt-liste .item .apercu { font-size: 13px; margin-top: 2px; }',
+    '.txt-app .txt-liste .item .attente::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--rouge); margin-right: 5px; vertical-align: 1px; }',
+    '.txt-app .txt-liste .item.attend { box-shadow: none; background: #fff6f5; } .txt-app .txt-liste .item.attend.actif, .txt-app .txt-liste .item.actif { background: var(--vert-clair); box-shadow: inset 3px 0 0 var(--vert); }',
+    '.txt-app .txt-fil .tete { padding: 12px 16px; gap: 12px; } .txt-app .txt-fil .tete .nom { font-size: 16px; } .txt-app .txt-fil .messages { padding: 18px 20px; gap: 10px; }',
+    '.txt-app .txt-fil .bulle { font-size: 14px; padding: 9px 13px; border-radius: 16px; } .txt-app .txt-fil .bulle.entrant { background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.06); }',
+    '.txt-app .txt-fil .composer { padding: 12px 14px; background: var(--carte); border-radius: 0 0 14px 14px; }',
+    '.txt-app .tableau { background: var(--carte); border-radius: 14px; overflow: hidden; } .txt-app .tableau th { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; }',
+    '.txt-app .tableau td { vertical-align: middle; } .txt-app .tableau td.client-cell > div { display: flex; align-items: center; gap: 10px; min-width: 0; } .txt-app .tableau td.client-cell .txt-av { width: 30px; height: 30px; font-size: 11.5px; }',
+    '.txt-app .tableau td.client-cell .t { min-width: 0; } .txt-app .tableau td.client-cell b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+    '.txt-app .tableau td.statut-cell { font-weight: 650; font-size: 13px; white-space: nowrap; } .txt-app .tableau td.statut-cell .ic { margin-right: 6px; }',
+    '.txt-app .tableau td.s-brouillon { background: var(--bleu-bg); color: var(--bleu); } .txt-app .tableau td.s-envoye, .txt-app .tableau td.s-en_attente { background: var(--ambre-bg); color: var(--ambre); }',
+    '.txt-app .tableau td.s-vu { background: var(--bleu-bg); color: var(--bleu); } .txt-app .tableau td.s-approuve, .txt-app .tableau td.s-paye { background: var(--vert-clair); color: var(--vert-fonce); }',
+    '.txt-app .tableau td.s-partiel { background: #E6F6F7; color: #0B7189; } .txt-app .tableau td.s-decline { background: var(--rouge-bg); color: var(--rouge); }',
+    '.txt-app .tableau td.s-expire, .txt-app .tableau td.s-annule, .txt-app .tableau td.s-rembourse { background: var(--gris-bg); color: var(--gris); }',
+    '.txt-app .tableau td.statut-cell .vues { color: inherit; opacity: .8; font-weight: 500; }',
+    '.voile.txt-pleine .modale { width: min(1180px, 96vw); max-width: none; } .voile.txt-pleine .modale-corps { padding-bottom: 0; }',
+    '.txt-fiche .totaux.barre-totaux { position: sticky; bottom: 0; z-index: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 26px; max-width: none; margin: 14px -18px 0; padding: 12px 18px; background: var(--carte); border-top: 1px solid var(--ligne); box-shadow: 0 -8px 14px -12px rgba(16,24,40,.35); }',
+    '.txt-fiche .totaux.barre-totaux .paire { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; } .txt-fiche .totaux.barre-totaux .paire > span:first-child { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--encre-3); }',
+    '.txt-fiche .totaux.barre-totaux .paire > span:last-child { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; } .txt-fiche .totaux.barre-totaux .paire.t > span:last-child { font-size: 19px; font-weight: 800; } .txt-fiche .totaux.barre-totaux .paire.a > span { color: var(--vert-fonce); }',
+    '.txt-fiche .entete .client-tete { display: flex; align-items: center; gap: 10px; }',
+    '.voile.txt-pleine .txt-ligne .rangee1 { grid-template-columns: 180px minmax(180px, 1fr) 250px auto auto; } .voile.txt-pleine .txt-ligne .rangee1 > div:nth-child(3) select { flex: 1; min-width: 0; }',
+    '@media (max-width: 980px) { .voile.txt-pleine .txt-ligne .rangee1 { grid-template-columns: 1fr 1fr; } }',
+    '.txt-app .tableau td.ref .sous { font-family: inherit; font-weight: 400; letter-spacing: 0; }',
+    '@media (max-width: 640px) { .txt-app .txt-outils .compte { display: none; } .txt-app .txt-liste, .txt-app .txt-fil { height: calc(100vh - var(--barre-h, 54px) - 260px); min-height: 420px; } }',
+    '.txt-app .txt-liste .item .cie { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--encre-4); }',
+    '.txt-app .txt-fil .vide-fil { margin: auto; text-align: center; color: var(--encre-3); display: flex; flex-direction: column; align-items: center; gap: 10px; } .txt-app .txt-fil .vide-fil svg { width: 34px; height: 34px; color: var(--encre-4); }'
   ].join('\n');
   if (!document.getElementById('txt-style')) { var st = document.createElement('style'); st.id = 'txt-style'; st.textContent = STYLE; document.head.appendChild(st); }
 
@@ -177,7 +253,7 @@
     sansReponse: function (cie) { var d = cache.reponse; if (!d) return []; return (d.conversations || []).filter(function (x) { return (!cie || x.compagnie === cie) && minutesSansReponse(x); }); },
     monter: function (conteneur, ctx) { return new VueTexto(conteneur, ctx); },
     Vue: null,   /* posé plus bas : texto-plus.js étend VueTexto.prototype (clients, campagnes, automatisations, médias, métriques) */
-    outils: { h: h, telChiffres: telChiffres, telJoli: telJoli, num: num, r2: r2, argent: argent, nomCie: nomCie, prenom: prenom, quand: quand, duree: duree, nomCourt: nomCourt, zoneTexte: zoneTexte, gabarit: gabarit, reduireImage: reduireImage, lireBase64: lireBase64, joursDepuis: joursDepuis }
+    outils: { avatar: function (n, k, p) { return avatar(n, k, p); }, h: h, telChiffres: telChiffres, telJoli: telJoli, num: num, r2: r2, argent: argent, nomCie: nomCie, prenom: prenom, quand: quand, duree: duree, nomCourt: nomCourt, zoneTexte: zoneTexte, gabarit: gabarit, reduireImage: reduireImage, lireBase64: lireBase64, joursDepuis: joursDepuis }
   };
 
   /* ------------------------------------------------------------------ vue */
@@ -185,7 +261,7 @@
     var self = this;
     this.conteneur = conteneur;
     this.compagnie = AMX.compagnieChoisie('service') || (AMX.codesPour('service').length === 1 ? AMX.codesPour('service')[0] : '');
-    this.vue = AMX.memo.lire('txt_vue', 'estimes'); if (['estimes', 'conversations', 'paiements', 'refuses', 'clients', 'campagnes', 'autos', 'stats'].indexOf(this.vue) < 0) this.vue = 'estimes';
+    this.vue = AMX.memo.lire('txt_vue', 'conversations'); if (['estimes', 'conversations', 'paiements', 'refuses', 'clients', 'campagnes', 'autos', 'stats'].indexOf(this.vue) < 0) this.vue = 'conversations';
     this.filtre = ''; this.recherche = ''; this.convId = ''; this.messages = null;
     this.donnees = null; this.erreur = ''; this.generation = 0; this.detruit = false;
     this.construire();
@@ -216,23 +292,31 @@
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true, true); } });
     this.btnReglages = h('button.btn.fantome', { type: 'button', text: 'Réglages', onclick: function () { self.ouvrirReglages(); } });
     this.btnAlertes = h('button.btn.fantome', { type: 'button', text: 'Mes alertes', title: 'Être prévenu par texto ou par courriel quand un client attend une réponse depuis 10 minutes', onclick: function () { self.mesAlertes(); } });
-    this.btnTexto = h('button.btn', { type: 'button', text: '+ Texto', title: 'Envoyer un texto à un client', onclick: function () { self.nouveauTexto(); } });
+    this.btnTexto = h('button.btn', { type: 'button', text: 'Nouveau message', title: 'Envoyer un texto à un client', onclick: function () { self.nouveauTexto(); } });
     this.btnPaiement = h('button.btn', { type: 'button', text: '+ Paiement', title: 'Demande de paiement par texto', onclick: function () { self.nouveauPaiement(null); } });
     this.btnNouveau = h('button.btn.primaire', { type: 'button', text: '+ Nouvel estimé', onclick: function () { self.ouvrirEstime(null); } });
     this.elCies = h('div.barre-cies');
     this.elKpis = h('div.kpis');
     var choisir = function (v) { self.vue = v; AMX.memo.ecrire('txt_vue', v); self.filtre = ''; self.rendre(); };
-    this.elSeg = h('div.segment', [['estimes', 'Estimés'], ['conversations', 'Conversations'], ['paiements', 'Paiements'], ['refuses', 'Travaux refusés'], ['clients', 'Clients'], ['campagnes', 'Campagnes'], ['autos', 'Automatisations'], ['stats', 'Statistiques']].map(function (s) { return h('button', { type: 'button', text: s[1], 'data-vue': s[0], onclick: function () { choisir(s[0]); } }); }));
+    this.elSegAncien = h('div.segment', [['estimes', 'Estimés'], ['conversations', 'Conversations'], ['paiements', 'Paiements'], ['refuses', 'Travaux refusés'], ['clients', 'Clients'], ['campagnes', 'Campagnes'], ['autos', 'Automatisations'], ['stats', 'Statistiques']].map(function (s) { return h('button', { type: 'button', text: s[1], 'data-vue': s[0], onclick: function () { choisir(s[0]); } }); }));
+    /* 28 oct. — menu à gauche, à la Kimoby : une ligne par vue, avec son compteur (non lus en rouge, à approuver en ambre). */
+    this.elSeg = h('nav.txt-nav', { 'aria-label': 'Texto' });
+    var entreeNav = function (v, titre) { return h('button', { type: 'button', 'data-vue': v, onclick: function () { choisir(v); } }, [h('span', { html: ICO_NAV[v] || '' }), h('span', { text: titre }), h('span.n', { 'data-n': v })]); };
+    [['conversations', 'Conversations'], ['estimes', 'Estimés'], ['paiements', 'Paiements'], ['refuses', 'Travaux refusés'], ['clients', 'Clients'], ['campagnes', 'Campagnes'], ['autos', 'Automatisations'], ['stats', 'Statistiques']].forEach(function (x) { self.elSeg.appendChild(entreeNav(x[0], x[1])); });
+    this.elSeg.appendChild(h('div.sep'));
+    this.elNavReglages = h('button', { type: 'button', onclick: function () { self.ouvrirReglages(); } }, [h('span', { html: ICO_NAV.reglages }), h('span', 'Réglages')]);
+    this.elSeg.appendChild(this.elNavReglages);
+    this.elSeg.appendChild(h('button', { type: 'button', onclick: function () { self.mesAlertes(); } }, [h('span', { html: ICO_NAV.alertes }), h('span', 'Mes alertes')]));
     this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'Client, téléphone, NIV, véhicule, BT, référence…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreCorps(); }, 120) });
     this.elFiltres = h('div.filtres');
     this.elCompte = h('span.compte.doux');
-    this.elOutils = h('div.txt-outils', [this.elSeg, h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elFiltres, this.elCompte]);
+    this.elOutils = h('div.txt-outils', [h('div.recherche', [h('span', { html: I.recherche }), this.elRecherche]), this.elFiltres, this.elCompte]);
     this.elCorps = h('div');
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Texto'), this.elEtat]),
-      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnReglages, this.btnAlertes, this.btnTexto, this.btnPaiement, this.btnNouveau], [this.btnTexto, this.btnNouveau]))
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnTexto, this.btnPaiement, this.btnNouveau], [this.btnTexto, this.btnNouveau]))
     ]);
-    this.conteneur.appendChild(h('div.page.txt-page', [entete, this.elCies, this.elKpis, this.elOutils, this.elCorps]));
+    this.conteneur.appendChild(h('div.page.txt-page.txt-app', [entete, this.elCies, h('div.txt-cadre', [this.elSeg, h('div.txt-zone', [this.elKpis, this.elOutils, this.elCorps])])]));
   };
 
   VueTexto.prototype.charger = function (force, annoncer) {
@@ -285,9 +369,22 @@
     [this.btnTexto, this.btnPaiement, this.btnNouveau].forEach(function (b) { b.classList.toggle('cache', !d.peutEcrire); });
     var textos = d.textos || {};
     this.elEtat.textContent = (textos.actif ? 'Textos actifs' + (textos.numero ? ' · ' + telJoli(textos.numero) : '') + (d.reception && d.reception.actif ? ' · réponses reçues instantanément' : (textos.lectureInstallee ? ' · réponses lues chaque minute' : ' · lecture des réponses non installée (Outils › Comptes et droits › Échanges par texto)')) : 'Textos non configurés (Outils › Comptes et droits › Alertes)') + ' · ' + new Date(d.genereLe || Date.now()).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
-    [].forEach.call(this.elSeg.querySelectorAll('button'), function (b) { b.classList.toggle('actif', b.dataset.vue === self.vue); });
+    [].forEach.call(this.elSeg.querySelectorAll('button[data-vue]'), function (b) { b.classList.toggle('actif', b.dataset.vue === self.vue); });
+    this.elNavReglages.classList.toggle('cache', !d.peutConfigurer);
+    this.majNav();
+    this.elKpis.classList.toggle('cache', ['estimes', 'stats'].indexOf(this.vue) < 0);
+    this.elOutils.classList.toggle('cache', ['clients', 'campagnes', 'autos'].indexOf(this.vue) >= 0);   /* ces vues ont leur propre barre */
     this.rendreKpis();
     this.rendreCorps();
+  };
+  /* compteurs du menu de gauche */
+  VueTexto.prototype.majNav = function () {
+    var convs = this.liste('conversations'), est = this.liste('estimes'), pais = this.liste('paiements'), m = Date.now();
+    var attente = convs.filter(function (c) { return minutesSansReponse(c, m); }).length, nonLus = convs.filter(function (c) { return c.nonLus > 0; }).length;
+    var pose = function (v, n, cls) { var el = this.elSeg.querySelector('.n[data-n="' + v + '"]'); if (!el) return; el.textContent = n ? String(n) : ''; el.className = 'n' + (cls && n ? '.' + cls : '').replace('.', ' '); }.bind(this);
+    pose('conversations', attente || nonLus, attente ? 'rouge' : 'ambre');
+    pose('estimes', est.filter(function (e) { return e.ouvert; }).length, 'ambre');
+    pose('paiements', pais.filter(function (p) { return p.statut === 'en_attente'; }).length, '');
   };
   VueTexto.prototype.rendreKpis = function () {
     var self = this, est = this.liste('estimes'), convs = this.liste('conversations'), pais = this.liste('paiements');
@@ -335,10 +432,10 @@
     liste.forEach(function (e) {
       var tr = h('tr.cliquable' + (e.ouvert && joursDepuis(e.envoyeLe) >= 2 ? '.attention' : ''), { onclick: function () { self.ouvrirEstime(e.id); } }, [
         h('td.ref', [e.id, e.termineLe ? h('span.sous', { text: 'travaux terminés' }) : (e.btNo ? h('span.sous', { text: 'BT ' + e.btNo }) : null)]),
-        h('td', [h('b', { text: e.client || '—' }), h('span.sous', { text: (e.telephoneJoli || '') + (e.vehicule ? ' · ' + e.vehicule : '') })]),
+        h('td.client-cell', [h('div', [avatar(e.client, e.telephone, true), h('div.t', [h('b', { text: e.client || '—' }), h('span.sous', { text: (e.telephoneJoli || '') + (e.vehicule ? ' · ' + e.vehicule : '') })])])]),
         h('td.num', { text: argent(e.total) }),
         h('td.num', [e.totalApprouve ? h('b', { text: argent(e.totalApprouve) }) : h('span.doux', '—'), e.nRefuse ? h('span.sous.ico-refus', { text: e.nRefuse + ' refusé' + (e.nRefuse > 1 ? 's' : '') }) : null]),
-        h('td', [h('span.badge.' + (COULEUR[e.statut] || 'gris'), { text: STATUTS[e.statut] || e.statut }), e.vues ? h('span.vues', { text: '👁 ' + e.vues, title: 'Ouvert ' + e.vues + ' fois par le client' }) : null, e.relances ? h('span.vues', { text: '↻ ' + e.relances, title: e.relances + ' relance(s)' }) : null, e.paiementId ? h('span.vues', { text: '$', title: 'Demande de paiement ' + e.paiementId }) : null, e.courtoisieNote !== null && e.courtoisieNote !== undefined ? h('span.vues' + (e.courtoisieNote <= 3 ? '.ico-refus' : '.ico-ok'), { text: '★ ' + e.courtoisieNote, title: 'Note de courtoisie' }) : null]),
+        h('td.statut-cell.s-' + e.statut, [h('span.ic', { text: ICO_STATUT[e.statut] || '•' }), h('span', { text: STATUTS[e.statut] || e.statut }), e.vues ? h('span.vues', { text: '👁 ' + e.vues, title: 'Ouvert ' + e.vues + ' fois par le client' }) : null, e.relances ? h('span.vues', { text: '↻ ' + e.relances, title: e.relances + ' relance(s)' }) : null, e.paiementId ? h('span.vues', { text: '$', title: 'Demande de paiement ' + e.paiementId }) : null, e.courtoisieNote !== null && e.courtoisieNote !== undefined ? h('span.vues' + (e.courtoisieNote <= 3 ? '.ico-refus' : '.ico-ok'), { text: '★ ' + e.courtoisieNote, title: 'Note de courtoisie' }) : null]),
         h('td', [h('span', { text: e.envoyeLe ? quand(e.envoyeLe) : (e.creeLe ? 'créé ' + quand(e.creeLe) : '') }), e.reponduLe ? h('span.sous', { text: 'réponse ' + quand(e.reponduLe) + (e.delaiMin !== null ? ' (' + duree(e.delaiMin) + ')' : '') }) : (e.vuLe ? h('span.sous', { text: 'vu ' + quand(e.vuLe) }) : null)]),
         h('td', [h('span', { text: self.nomConseiller(e.compagnie, e.conseiller || e.creePar) }), !self.compagnie ? h('span.sous', { text: nomCie(e.compagnie) }) : null])
       ]);
@@ -419,7 +516,8 @@
     [inClient, inTel, inCourriel, inAdresse, inVin, inVeh, inPlaque, inKm, inBt, selCons].forEach(function (x) { if (!peut) x.disabled = true; });
     /* --- lignes --- */
     var elLignes = h('div.lignes'), lignesUI = [];
-    var elTotaux = h('div.totaux');
+    var elTotaux = h('div.totaux.barre-totaux');
+    var paire = function (libelle, valeur, cls) { elTotaux.appendChild(h('div.paire' + (cls ? '.' + cls : ''), [h('span', { text: libelle }), h('span', { text: valeur })])); };
     var totalLigne = function (L) { var mo = L.mo.type === 'taux' ? r2(num(L.mo.heures) * (num(L.mo.taux) || cfg.tauxMo)) : r2(num(L.mo.montant)); var p = L.pieces.reduce(function (a, x) { return a + (num(x.qte) || 1) * num(x.prix); }, 0), f = L.frais.reduce(function (a, x) { return a + (num(x.qte) || 1) * num(x.prix); }, 0); return { mo: mo, pieces: r2(p), frais: r2(f), total: r2(mo + p + f) }; };
     var lireLignes = function () { return lignesUI.filter(function (u) { return elLignes.contains(u.el); }).map(function (u) { return u.lire(); }).filter(function (L) { return L.libelle; }); };
     var majTotaux = function () {
@@ -429,10 +527,10 @@
       /* Taxes de la province de la concession (TPS + TVQ au Québec, TVH 13 % en Ontario), comme le serveur. */
       var taxes = cfg.taxes !== false, liste = taxes ? taxesDe(cfg) : [], tx = 0, txA = 0;
       AMX.vider(elTotaux);
-      elTotaux.appendChild(h('span', 'Sous-total')); elTotaux.appendChild(h('span', { text: argent(sous) }));
-      liste.forEach(function (x) { var mt = r2(sous * x.taux); tx += mt; txA += r2(appr * x.taux); elTotaux.appendChild(h('span', { text: x.libelle })); elTotaux.appendChild(h('span', { text: argent(mt) })); });
-      elTotaux.appendChild(h('span.t', 'Total')); elTotaux.appendChild(h('span.t', { text: argent(r2(sous + tx)) }));
-      if (appr || lignes.some(function (L) { return L.etat === 'refuse'; })) { elTotaux.appendChild(h('span.a', 'Approuvé par le client')); elTotaux.appendChild(h('span.a', { text: argent(appr) + (liste.length ? ' + taxes = ' + argent(r2(appr + txA)) : '') })); }
+      paire('Sous-total', argent(sous));
+      liste.forEach(function (x) { var mt = r2(sous * x.taux); tx += mt; txA += r2(appr * x.taux); paire(x.libelle, argent(mt)); });
+      if (appr || lignes.some(function (L) { return L.etat === 'refuse'; })) paire('Approuvé par le client', argent(liste.length ? r2(appr + txA) : appr) + (liste.length ? ' taxes incl.' : ''), 'a');
+      paire('Total', argent(r2(sous + tx)), 't');
       lignesUI.forEach(function (u) { if (elLignes.contains(u.el)) u.majTotal(); });
     };
     var ligneUI = function (L, k) {
@@ -508,7 +606,7 @@
     if (!peut) { inNote.disabled = true; inNoteInt.disabled = true; }
     majTotaux(); majManques();
     /* --- en-tête : statut, suivi, étapes --- */
-    var titre = h('div.titre', [v.id ? 'Estimé ' + v.id : 'Nouvel estimé', h('span.badge.' + (COULEUR[v.statut] || 'gris'), { text: STATUTS[v.statut] || v.statut }), v.statut === 'annule' && v.annuleRaison ? h('span.doux', { text: '— ' + v.annuleRaison }) : null]);
+    var titre = h('div.titre', [v.client ? avatar(v.client, v.telephone) : null, v.id ? 'Estimé ' + v.id : 'Nouvel estimé', h('span.badge.' + (COULEUR[v.statut] || 'gris'), { text: STATUTS[v.statut] || v.statut }), v.statut === 'annule' && v.annuleRaison ? h('span.doux', { text: '— ' + v.annuleRaison }) : null]);
     var suivi = h('div.suivi');
     if (v.envoyeLe) suivi.appendChild(h('div', [h('b', 'Envoyé '), quand(v.envoyeLe) + (v.canal ? ' par ' + v.canal.replace('+', ' et ') : '') + (v.envoyePar ? ' (' + nomCourt(v.envoyePar) + ')' : '')]));
     if (v.vues) suivi.appendChild(h('div', [h('b', 'Vu '), v.vues + ' fois' + (v.vuLe ? ', la première ' + quand(v.vuLe) : '')])); else if (v.envoyeLe) suivi.appendChild(h('div', 'Pas encore ouvert par le client'));
@@ -580,7 +678,7 @@
       (v.approbations || []).length ? h('details', [h('summary', { style: { cursor: 'pointer', fontSize: '12px', color: 'var(--encre-3)' }, text: 'Approbations du client (' + v.approbations.length + ')' }), approbations]) : null,
       (v.journal || []).length ? h('details', [h('summary', { style: { cursor: 'pointer', fontSize: '12px', color: 'var(--encre-3)' }, text: 'Journal (' + v.journal.length + ')' }), journal]) : null
     ]);
-    modale = AMX.modale({ titre: v.id ? 'Estimé ' + v.id + ' — ' + (v.client || '') : 'Nouvel estimé', corps: corps, large: true, sansPied: true, sansFocus: !neuf });
+    modale = AMX.modale({ titre: v.id ? 'Estimé ' + v.id + ' — ' + (v.client || '') : 'Nouvel estimé', corps: corps, large: true, sansPied: true, sansFocus: !neuf, classe: 'txt-pleine' });
     this.ficheOuverte = modale;
     this.fermerFiche = function () { try { modale.fermer(); } catch (e) {} self.ficheOuverte = null; };
   };
@@ -598,22 +696,31 @@
       setTimeout(function () { champ.focus(); }, 30);
     });
   };
+  /* 28 oct. : la langue du client — celle de l'objet (estimé ou paiement complet), sinon celle de sa conversation. */
+  VueTexto.prototype.langueDe = function (o) {
+    if (!o) return { langue: 'fr' };
+    var tel = telChiffres(o.telephone), d = this.donnees || {};
+    var c = (d.conversations || []).filter(function (x) { return telChiffres(x.telephone) === tel && (!o.compagnie || !x.compagnie || x.compagnie === o.compagnie); })[0];
+    if (o.langue) return { langue: o.langue === 'en' ? 'en' : 'fr', langueLe: c ? c.langueLe : '', langueCanal: c ? c.langueCanal : '' };
+    return c ? { langue: c.langue === 'en' ? 'en' : 'fr', langueLe: c.langueLe, langueCanal: c.langueCanal } : { langue: 'fr' };
+  };
   /* Modale d'envoi (estimé ou relance) : canaux, aperçu du texto, lien. */
   VueTexto.prototype.modaleEnvoi = function (v, cfg, relance, apres) {
     var self = this, textosActifs = !!(this.donnees && this.donnees.textos && this.donnees.textos.actif), tel = telChiffres(v.telephone);
     var cbT = h('input', { type: 'checkbox', checked: tel && textosActifs ? true : undefined, disabled: tel && textosActifs ? undefined : true });
     var cbC = h('input', { type: 'checkbox', checked: /@/.test(v.courriel || '') && !relance ? true : undefined, disabled: /@/.test(v.courriel || '') ? undefined : true });
-    var modele = (cfg.modeles || []).filter(function (m) { return m.id === (relance ? 'relance' : 'estime'); })[0];
-    var defaut = modele ? gabarit(modele.texte, { prenom: prenom(v.client), client: v.client, concession: nomCie(v.compagnie), vehicule: v.vehicule || 'véhicule', ref: v.id, total: argent(v.total), lien: lienEstime(v), conseiller: cfg.signature || nomCourt(AMX.session.courriel) }) : '';
+    var lg = this.langueDe(v), modele = modeleL(cfg, relance ? 'relance' : 'estime', lg.langue);
+    var defaut = modele ? gabarit(modele.texte, { prenom: prenom(v.client), client: v.client, concession: nomCie(v.compagnie), vehicule: v.vehicule, ref: v.id, bt: v.btNo || '', total: argentL(v.total, lg.langue), lien: lienEstime(v), conseiller: cfg.signature || nomCourt(AMX.session.courriel) }, lg.langue) : '';
     var inMsg = zoneTexte({ placeholder: 'Texto envoyé au client', style: { minHeight: '70px' } }, defaut);
     var compte = h('div.doux.petit', { style: { textAlign: 'right' } });
     var majCompte = function () { var n = inMsg.value.length + (relance ? 0 : 50); compte.textContent = n + ' caractères' + (n > 160 ? ' · ' + Math.ceil(n / 153) + ' textos' : ''); };
     inMsg.addEventListener('input', majCompte); majCompte();
     var corps = h('div.txt-envoi', [
       h('p', { text: relance ? 'Un rappel au client : le lien vers son estimé est ajouté au message.' : 'Le client reçoit un lien vers une page sans compte : les travaux avec les prix, les photos, Approuver / Refuser par ligne, Tout approuver. Il peut aussi répondre OUI ' + v.id + ' ou NON ' + v.id + ' par texto.' }),
+      avisLangue(lg.langue, lg),
       h('label.champ.inline', [cbT, h('span', { text: 'Texto' + (tel ? ' au ' + telJoli(tel) : ' — aucun cellulaire') + (!textosActifs ? ' — textos non configurés' : '') })]),
       h('label.champ.inline', [cbC, h('span', { text: 'Courriel' + (v.courriel ? ' à ' + v.courriel : ' — aucune adresse') })]),
-      h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Message'), inMsg, compte, relance ? null : h('span.aide', '« Répondez STOP pour ne plus recevoir de textos » est ajouté automatiquement.')]),
+      h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Message'), inMsg, compte, relance ? null : h('span.aide', lg.langue === 'en' ? '« Reply STOP to opt out. » est ajouté automatiquement.' : '« Répondez ARRET ou STOP pour ne plus recevoir de textos » est ajouté automatiquement.')]),
       h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Lien de la page client'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: lienEstime(v), readonly: true, style: { fontSize: '12px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(lienEstime(v), 'Lien copié'); } })])])
     ]);
     AMX.modale({ titre: (relance ? 'Relancer ' : 'Envoyer ') + v.id + ' — ' + (v.client || ''), corps: corps, boutons: [{ texte: 'Annuler' }, { texte: relance ? 'Relancer' : 'Envoyer', classe: 'primaire', action: function () {
@@ -634,9 +741,9 @@
     var self = this, tel = telChiffres(v.telephone), textosActifs = !!(this.donnees && this.donnees.textos && this.donnees.textos.actif);
     var pai = v.paiementId && this.donnees ? (this.donnees.paiements || []).filter(function (p) { return p.id === v.paiementId; })[0] : null;
     var aPayer = !(pai && pai.statut !== 'en_attente') && Number(v.totalApprouveTaxes || 0) > 0;
-    var modeleDe = function (id) { return (cfg.modeles || []).filter(function (m) { return m.id === id; })[0]; };
-    var vars = function (avecPaiement) { return { prenom: prenom(v.client), client: v.client, concession: nomCie(v.compagnie), vehicule: v.vehicule || 'véhicule', ref: v.id, bt: v.btNo || '', montant: avecPaiement ? argent(pai ? pai.montant : v.totalApprouveTaxes) : '', conseiller: cfg.signature || nomCourt(AMX.session.courriel) }; };
-    var texteDe = function (avecPaiement) { var m = modeleDe(avecPaiement ? 'pretPayer' : 'pret'); var t = m ? m.texte : (avecPaiement ? '{concession} : votre {vehicule} est prêt ! Montant à payer : {montant}{bt}. Payez en ligne avant de venir le chercher : {lien}' : '{concession} : votre {vehicule} est prêt ! Vous pouvez venir le chercher.'); return gabarit(t, vars(avecPaiement)); };
+    var lg = this.langueDe(v), modeleDe = function (id) { return modeleL(cfg, id, lg.langue); };
+    var vars = function (avecPaiement) { return { prenom: prenom(v.client), client: v.client, concession: nomCie(v.compagnie), vehicule: v.vehicule, ref: v.id, bt: v.btNo || '', montant: avecPaiement ? argentL(pai ? pai.montant : v.totalApprouveTaxes, lg.langue) : '', conseiller: cfg.signature || nomCourt(AMX.session.courriel) }; };
+    var texteDe = function (avecPaiement) { var m = modeleDe(avecPaiement ? 'pretPayer' : 'pret'); var t = m ? m.texte : (avecPaiement ? '{concession} : votre {vehicule}{bt} est prêt ! Montant à payer : {montant}. Payez en ligne avant de venir le chercher : {lien}' : '{concession} : votre {vehicule}{bt} est prêt. Vous pouvez venir le chercher au service.'); return gabarit(t, vars(avecPaiement), lg.langue); };
     var cb = h('input', { type: 'checkbox', checked: tel && textosActifs ? true : undefined, disabled: tel && textosActifs ? undefined : true });
     var cbPai = h('input', { type: 'checkbox', checked: aPayer ? true : undefined, disabled: aPayer ? undefined : true });
     var inMsg = zoneTexte({ style: { minHeight: '70px' } }, texteDe(aPayer)), touche = false;
@@ -645,7 +752,7 @@
     var aide = h('div.aide', { text: '« {lien} » devient le lien de paiement (Clover si la concession est branchée, sinon la page avec le montant et les façons de payer).' });
     var majAide = function () { aide.classList.toggle('cache', !cbPai.checked); }; cbPai.addEventListener('change', majAide); majAide();
     AMX.modale({ titre: 'Véhicule prêt — ' + v.id, corps: h('div.txt-envoi', [
-      h('p', 'Les travaux sont marqués terminés (le suivi de courtoisie compte à partir d\'ici).'),
+      h('p', 'Les travaux sont marqués terminés (le suivi de courtoisie compte à partir d\'ici).'), avisLangue(lg.langue, lg),
       h('label.champ.inline', [cb, h('span', { text: 'Prévenir le client par texto' + (tel ? ' au ' + telJoli(tel) : ' — aucun cellulaire') + (tel && !textosActifs ? ' (textos non configurés)' : '') })]),
       h('label.champ.inline', [cbPai, h('span', { text: aPayer ? 'Joindre le lien de paiement (' + argent(pai ? pai.montant : v.totalApprouveTaxes) + (pai ? ', ' + pai.id : ' taxes incluses') + ')' : (pai && pai.statut === 'paye' ? 'Déjà payé (' + pai.id + ')' : 'Rien à payer sur cet estimé') })]),
       h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Texto'), inMsg]), aide
@@ -690,9 +797,9 @@
   /* 28 oct. (étape 2) : texto « paiement reçu » proposé quand le paiement est marqué payé (le conseiller l'envoie ; rien d'automatique). */
   VueTexto.prototype.textoPaye = function (p) {
     var self = this, cfg = this.config(p.compagnie) || { modeles: [] }, tel = telChiffres(p.telephone);
-    var m = (cfg.modeles || []).filter(function (x) { return x.id === 'paye'; })[0];
-    var inMsg = zoneTexte({ style: { minHeight: '60px' } }, gabarit(m ? m.texte : '{concession} : nous avons bien reçu votre paiement de {montant}{bt}. Merci ! Vos clés vous attendent au comptoir du service.', { prenom: prenom(p.client), client: p.client, concession: nomCie(p.compagnie), vehicule: p.vehicule || 'véhicule', montant: argent(p.montant), bt: p.btNo || '', conseiller: cfg.signature || nomCourt(AMX.session.courriel) }));
-    AMX.modale({ titre: 'Texto « paiement reçu »', corps: h('div.txt-envoi', [h('p', { text: 'À ' + (p.client || '') + (tel ? ' · ' + telJoli(tel) : '') }), inMsg]), boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
+    var lg = this.langueDe(p), m = modeleL(cfg, 'paye', lg.langue);
+    var inMsg = zoneTexte({ style: { minHeight: '60px' } }, gabarit(m ? m.texte : '{concession} : nous avons bien reçu votre paiement de {montant}{bt}. Merci ! Vos clés vous attendent au comptoir du service.', { prenom: prenom(p.client), client: p.client, concession: nomCie(p.compagnie), vehicule: p.vehicule, montant: argentL(p.montant, lg.langue), bt: p.btNo || '', conseiller: cfg.signature || nomCourt(AMX.session.courriel) }, lg.langue));
+    AMX.modale({ titre: 'Texto « paiement reçu »', corps: h('div.txt-envoi', [avisLangue(lg.langue, lg), h('p', { text: 'À ' + (p.client || '') + (tel ? ' · ' + telJoli(tel) : '') }), inMsg]), boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
       if (!tel) { AMX.toast('Aucun cellulaire pour ce paiement.', 'erreur'); return false; }
       return self.action({ action: 'textoEnvoyer', compagnie: p.compagnie, telephone: tel, texte: inMsg.value.trim(), client: p.client, vehicule: p.vehicule }, 'Texto envoyé').then(function (d) { return !!(d && d.ok); });
     } }] });
@@ -722,14 +829,16 @@
     convs.forEach(function (c) {
       var mAtt = minutesSansReponse(c, maintenant);
       liste.appendChild(h('div.item' + (c.nonLus ? '.nonlu' : '') + (mAtt ? '.attend' : '') + (c.id === self.convId ? '.actif' : ''), { onclick: function () { self.convId = c.id; self.rendreCorps(); } }, [
+        avatar(c.client, c.telephone),
         h('div.nom', [c.client || telJoli(c.telephone), c.nonLus ? h('span.badge-nonlu', { text: c.nonLus }) : null, c.stop ? h('span.stop', ' STOP') : null]),
-        h('div.q', mAtt ? [h('span.attente', { text: 'sans réponse · ' + dureeAttente(mAtt), title: 'Le client attend une réponse depuis ' + dureeAttente(mAtt) })] : [quand(c.dernierLe || c.maj)]),
-        h('div.apercu', { text: (c.dernierSens === 'sortant' ? '↗ ' : (c.dernierSens === 'entrant' ? '↙ ' : '')) + (c.dernierTexte || '') }),
-        h('div.cie', { text: [self.compagnie ? '' : nomCie(c.compagnie), c.client ? telJoli(c.telephone) : '', c.vehicule || '', c.conseiller ? (estMoi(c.conseiller) ? 'vous' : nomCourt(c.conseiller)) : 'sans responsable'].filter(Boolean).join(' · ') })
+        h('div.q', mAtt ? [h('span.attente', { text: dureeAttente(mAtt), title: 'Le client attend une réponse depuis ' + dureeAttente(mAtt) })] : [quand(c.dernierLe || c.maj)]),
+        h('div.tel', [h('span', { html: ICO_NAV.tel, style: { width: '13px', height: '13px', display: 'inline-flex' } }), c.client ? telJoli(c.telephone) : (c.compagnie ? nomCie(c.compagnie) : 'Numéro inconnu')]),
+        h('div.apercu', { text: (c.dernierSens === 'sortant' ? 'Vous : ' : '') + (c.dernierTexte || '') }),
+        h('div.cie', { text: [self.compagnie ? '' : nomCie(c.compagnie), c.vehicule || '', c.conseiller ? (estMoi(c.conseiller) ? 'vous' : nomCourt(c.conseiller)) : 'sans responsable'].filter(Boolean).join(' · ') })
       ]));
     });
     var fil = h('div.txt-fil' + (this.convId ? '' : '.cache-mobile'));
-    if (!this.convId) fil.appendChild(h('div.vide-petit', { style: { margin: 'auto', border: 'none' }, text: 'Choisissez une conversation, ou « + Texto » pour écrire à un client.' }));
+    if (!this.convId) fil.appendChild(h('div.vide-fil', [h('span', { html: ICO_NAV.conversations }), h('div', { text: 'Choisissez une conversation' }), this.peutEcrire() ? h('button.btn.petit', { type: 'button', text: 'Nouveau message', onclick: function () { self.nouveauTexto(); } }) : null]));
     else this.rendreFil(fil, convs.filter(function (c) { return c.id === self.convId; })[0]);
     this.elCorps.appendChild(h('div.txt-conv', [liste, fil]));
   };
@@ -750,11 +859,13 @@
     var cfg = this.config(c.compagnie) || { modeles: [] }, peut = c.peutEcrire && this.peutEcrire();
     var tete = h('div.tete', [
       h('button.btn.petit.fantome', { type: 'button', text: '‹', title: 'Retour à la liste', style: { display: 'none' }, class: 'retour', onclick: function () { self.convId = ''; self.rendreCorps(); } }),
-      h('div', [h('div.nom', { text: c.client || telJoli(c.telephone) }), h('div.d', { text: (c.client ? telJoli(c.telephone) + ' · ' : '') + nomCie(c.compagnie) + (c.vehicule ? ' · ' + c.vehicule : '') + ' · responsable : ' + (c.conseiller ? (estMoi(c.conseiller) ? 'vous' : nomCourt(c.conseiller)) : 'personne') })]),
+      avatar(c.client, c.telephone),
+      h('div', { style: { flex: '1 1 200px', minWidth: 0 } }, [h('div.nom', { text: c.client || telJoli(c.telephone) }), h('div.d', { text: (c.client ? telJoli(c.telephone) + ' · ' : '') + nomCie(c.compagnie) + (c.vehicule ? ' · ' + c.vehicule : '') + ' · responsable : ' + (c.conseiller ? (estMoi(c.conseiller) ? 'vous' : nomCourt(c.conseiller)) : 'personne') })]),
       h('div.actions', [
         peut && !estMoi(c.conseiller) ? h('button.btn.petit' + (c.conseiller ? '.fantome' : '.primaire'), { type: 'button', text: 'Je m\'en occupe', title: c.conseiller ? 'Prendre la conversation de ' + nomCourt(c.conseiller) : 'Devenir le responsable de cette conversation', onclick: function () { self.action({ action: 'textoConversation', id: c.id, conseiller: AMX.session.courriel }, 'Vous êtes responsable de cette conversation').then(function () { self.rendreCorps(); }); } }) : null,
         peut ? h('button.btn.petit', { type: 'button', text: '+ Estimé', onclick: function () { self.ouvrirEstime(null, { compagnie: c.compagnie, client: c.client, telephone: c.telephone, clientId: c.clientId, vin: c.vin, vehicule: c.vehicule }); } }) : null,
         peut ? h('button.btn.petit', { type: 'button', text: '$ Paiement', onclick: function () { self.nouveauPaiement({ compagnie: c.compagnie, client: c.client, telephone: c.telephone, vehicule: c.vehicule }); } }) : null,
+        peut ? h('select.saisie.langue', { title: c.langueLe ? 'Demandé ' + (CANAUX_LANGUE[c.langueCanal] || '') + ' ' + quand(c.langueLe) : 'Français par défaut ; l\'anglais seulement si le client le demande', onchange: function (e) { var voulu = e.target.value; AMX.confirmer(voulu === 'en' ? 'Écrire en anglais' : 'Revenir au français', voulu === 'en' ? 'Seulement si ' + (c.client || 'le client') + ' a demandé l\'anglais. Sa demande est consignée (vous, aujourd\'hui) ; les modèles, les pages de l\'estimé et du paiement passent en anglais.' : 'Les textos, les pages et les courriels de ' + (c.client || 'ce client') + ' repassent en français.', { ok: 'Confirmer' }).then(function (oui) { if (!oui) { e.target.value = c.langue === 'en' ? 'en' : 'fr'; return; } self.action({ action: 'textoLangue', conversationId: c.id, langue: voulu, canal: 'conseiller' }, voulu === 'en' ? 'Client noté anglophone' : 'Client noté francophone').then(function (d) { if (d && d.ok) self.charger(true).then(function () { self.rendreCorps(); }); else e.target.value = c.langue === 'en' ? 'en' : 'fr'; }); }); } }, [h('option', { value: 'fr', selected: c.langue !== 'en' ? true : undefined, text: 'Français' }), h('option', { value: 'en', selected: c.langue === 'en' ? true : undefined, text: 'English (demandé)' })]) : null,
         peut ? h('button.btn.petit.fantome', { type: 'button', text: c.client ? 'Renommer' : 'Nommer', onclick: function () { self.demanderTexte('Nom du client', 'Tel qu\'il apparaît dans la liste', 'Prénom et nom', c.client).then(function (nom) { if (nom === null) return; self.action({ action: 'textoConversation', id: c.id, client: nom }, 'Nom enregistré').then(function (d) { if (d && d.ok) self.rendreCorps(); }); }); } }) : null,
         peut && !c.compagnie ? h('select.saisie', { style: { height: '27px', fontSize: '12px' }, onchange: function (e) { if (!e.target.value) return; self.action({ action: 'textoConversation', id: c.id, compagnie: e.target.value }, 'Conversation attribuée à ' + nomCie(e.target.value)).then(function () { self.rendreCorps(); }); } }, [h('option', { value: '', text: 'Attribuer à…' })].concat(AMX.codesPour('service').map(function (k) { return h('option', { value: k, text: nomCie(k) }); }))) : null,
         peut ? h('button.btn.petit.fantome', { type: 'button', text: c.etat === 'fermee' ? 'Rouvrir' : 'Fermer', onclick: function () { self.action({ action: 'textoConversation', id: c.id, etat: c.etat === 'fermee' ? 'ouverte' : 'fermee' }, c.etat === 'fermee' ? 'Conversation rouverte' : 'Conversation fermée').then(function () { self.rendreCorps(); }); } }) : null,
@@ -800,7 +911,8 @@
       btnEnvoyer.addEventListener('click', envoyer);
       inMsg.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); envoyer(); } });
       var modeles = h('div.modeles');
-      (cfg.modeles || []).filter(function (m) { return ['estime', 'relance', 'paiement', 'courtoisie'].indexOf(m.id) < 0; }).forEach(function (m) { modeles.appendChild(h('button', { type: 'button', text: m.titre, title: m.texte, onclick: function () { inMsg.value = gabarit(m.texte, { prenom: prenom(c.client), client: c.client, concession: nomCie(c.compagnie), vehicule: c.vehicule || 'véhicule', conseiller: cfg.signature || nomCourt(AMX.session.courriel) }); majCompte(); inMsg.focus(); } })); });
+      var lgC = c.langue === 'en' ? 'en' : 'fr';
+      (cfg.modeles || []).filter(function (m) { return ['estime', 'relance', 'paiement', 'courtoisie', 'pretPayer'].indexOf(m.id) < 0; }).forEach(function (m) { var mL = modeleL(cfg, m.id, lgC) || m; modeles.appendChild(h('button', { type: 'button', text: m.titre, title: mL.texte, onclick: function () { inMsg.value = gabarit(mL.texte, { prenom: prenom(c.client), client: c.client, concession: nomCie(c.compagnie), vehicule: c.vehicule, conseiller: cfg.signature || nomCourt(AMX.session.courriel) }, lgC); majCompte(); inMsg.focus(); } })); });
       var btnMedia = self.boutonMedia ? self.boutonMedia(c, inMsg) : null;
       fil.appendChild(h('div.composer', [modeles, h('div.rangee', [inMsg, btnMedia, btnEnvoyer]), compte]));
       setTimeout(function () { try { inMsg.focus(); } catch (e) {} }, 50);
@@ -850,10 +962,10 @@
     liste.forEach(function (p) {
       tbody.appendChild(h('tr.cliquable', { onclick: function () { self.ouvrirPaiement(p.id); } }, [
         h('td.ref', [p.id, p.estimeId ? h('span.sous', { text: p.estimeId + (p.btNo ? ' · BT ' + p.btNo : '') }) : (p.btNo ? h('span.sous', { text: 'BT ' + p.btNo }) : null)]),
-        h('td', [h('b', { text: p.client || '—' }), h('span.sous', { text: (p.telephoneJoli || '') + (p.vehicule ? ' · ' + p.vehicule : '') })]),
+        h('td.client-cell', [h('div', [avatar(p.client, p.telephone, true), h('div.t', [h('b', { text: p.client || '—' }), h('span.sous', { text: (p.telephoneJoli || '') + (p.vehicule ? ' · ' + p.vehicule : '') })])])]),
         h('td', [h('span', { text: p.description || '' })]),
         h('td.num', [h('b', { text: argent(p.montant) })]),
-        h('td', [h('span.badge.' + (PAI_COULEUR[p.statut] || 'gris'), { text: PAI_STATUTS[p.statut] || p.statut }), p.statut === 'paye' && p.moyen ? h('span.vues', { text: PAI_MOYENS[p.moyen] || p.moyen }) : null, p.vues ? h('span.vues', { text: '👁 ' + p.vues }) : null, p.enLigne && p.statut === 'en_attente' ? h('span.vues', { text: 'lien carte' }) : null, p.rappels ? h('span.vues', { text: p.rappels + ' rappel' + (p.rappels > 1 ? 's' : '') }) : null, p.statut === 'en_attente' && p.envoyeLe && p.telephone && self.peutEcrire() && p.peutEcrire ? h('button.btn.petit.fantome', { type: 'button', text: 'Rappeler', title: 'Renvoyer un rappel par texto', style: { marginLeft: '6px' }, onclick: function (ev) { ev.stopPropagation(); self.action({ action: 'paiementRappeler', id: p.id }, 'Rappel envoyé').then(function (d) { if (d && d.ok) self.charger(true); }); } }) : null]),
+        h('td.statut-cell.s-' + p.statut, [h('span.ic', { text: ICO_STATUT[p.statut] || '•' }), h('span', { text: (p.statut === 'en_attente' ? 'Impayé' : (PAI_STATUTS[p.statut] || p.statut)) + (p.statut === 'paye' && p.payeLe ? ' ' + quand(p.payeLe) : '') }), p.statut === 'paye' && p.moyen ? h('span.vues', { text: PAI_MOYENS[p.moyen] || p.moyen }) : null, p.vues ? h('span.vues', { text: '👁 ' + p.vues }) : null, p.enLigne && p.statut === 'en_attente' ? h('span.vues', { text: 'lien carte' }) : null, p.rappels ? h('span.vues', { text: p.rappels + ' rappel' + (p.rappels > 1 ? 's' : '') }) : null, p.statut === 'en_attente' && p.envoyeLe && p.telephone && self.peutEcrire() && p.peutEcrire ? h('button.btn.petit.fantome', { type: 'button', text: 'Rappeler', title: 'Renvoyer un rappel par texto', style: { marginLeft: '6px' }, onclick: function (ev) { ev.stopPropagation(); self.action({ action: 'paiementRappeler', id: p.id }, 'Rappel envoyé').then(function (d) { if (d && d.ok) self.charger(true); }); } }) : null]),
         h('td', [h('span', { text: p.payeLe ? 'payé ' + quand(p.payeLe) : (p.envoyeLe ? 'envoyé ' + quand(p.envoyeLe) : 'créé ' + quand(p.creeLe)) }), !self.compagnie ? h('span.sous', { text: nomCie(p.compagnie) }) : null])
       ]));
     });
@@ -916,10 +1028,10 @@
       } });
       boutons.push({ texte: p.envoyeLe ? 'Renvoyer' : 'Envoyer', classe: 'primaire', action: function (fermer) {
         var tel = telChiffres(p.telephone), cbT = h('input', { type: 'checkbox', checked: tel && textosActifs ? true : undefined, disabled: tel && textosActifs ? undefined : true }), cbC = h('input', { type: 'checkbox', checked: /@/.test(p.courriel || '') ? true : undefined, disabled: /@/.test(p.courriel || '') ? undefined : true });
-        var modele = (cfg.modeles || []).filter(function (x) { return x.id === 'paiement'; })[0];
-        var defaut = modele ? gabarit(modele.texte, { prenom: prenom(p.client), client: p.client, concession: nomCie(p.compagnie), vehicule: p.vehicule || 'véhicule', ref: p.id, montant: argent(p.montant), lien: p.lien, conseiller: cfg.signature || nomCourt(AMX.session.courriel) }) : '';
+        var lgP = self.langueDe(p), modele = modeleL(cfg, 'paiement', lgP.langue);
+        var defaut = modele ? gabarit(modele.texte, { prenom: prenom(p.client), client: p.client, concession: nomCie(p.compagnie), vehicule: p.vehicule, ref: p.id, bt: p.btNo || '', montant: argentL(p.montant, lgP.langue), lien: p.lien, conseiller: cfg.signature || nomCourt(AMX.session.courriel) }, lgP.langue) : '';
         var inMsg = zoneTexte({ style: { minHeight: '70px' } }, defaut);
-        AMX.modale({ titre: 'Envoyer la demande de paiement', corps: h('div.txt-envoi', [h('p', { text: fourn === 'clover' ? 'Le client ouvre la page, voit le montant et paie par carte (Clover).' + (cloverVerifie ? ' Le paiement se marque tout seul.' : ' Marquez « Payé » quand Clover l\'a reçu.') : (fourn === 'stripe' ? 'Le client ouvre la page, voit le montant et paie par carte (Stripe Checkout). Le paiement se marque tout seul.' : 'Le client ouvre la page et voit le montant, votre téléphone et les façons de payer. Marquez « Payé » quand c\'est fait.') }), h('label.champ.inline', [cbT, h('span', { text: 'Texto' + (tel ? ' au ' + telJoli(tel) : ' — aucun cellulaire') })]), h('label.champ.inline', [cbC, h('span', { text: 'Courriel' + (p.courriel ? ' à ' + p.courriel : ' — aucune adresse') })]), h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Message'), inMsg]), h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Lien'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: p.lien, readonly: true, style: { fontSize: '12px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(p.lien, 'Lien copié'); } })])])]), boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
+        AMX.modale({ titre: 'Envoyer la demande de paiement', corps: h('div.txt-envoi', [avisLangue(lgP.langue, lgP), h('p', { text: fourn === 'clover' ? 'Le client ouvre la page, voit le montant et paie par carte (Clover).' + (cloverVerifie ? ' Le paiement se marque tout seul.' : ' Marquez « Payé » quand Clover l\'a reçu.') : (fourn === 'stripe' ? 'Le client ouvre la page, voit le montant et paie par carte (Stripe Checkout). Le paiement se marque tout seul.' : 'Le client ouvre la page et voit le montant, votre téléphone et les façons de payer. Marquez « Payé » quand c\'est fait.') }), h('label.champ.inline', [cbT, h('span', { text: 'Texto' + (tel ? ' au ' + telJoli(tel) : ' — aucun cellulaire') })]), h('label.champ.inline', [cbC, h('span', { text: 'Courriel' + (p.courriel ? ' à ' + p.courriel : ' — aucune adresse') })]), h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Message'), inMsg]), h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Lien'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: p.lien, readonly: true, style: { fontSize: '12px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(p.lien, 'Lien copié'); } })])])]), boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
           if (!cbT.checked && !cbC.checked) { AMX.toast('Cochez texto ou courriel.', 'erreur'); return false; }
           return self.action({ action: 'paiementEnvoyer', id: p.id, canaux: { texto: cbT.checked, courriel: cbC.checked }, message: inMsg.value.trim() === defaut ? '' : inMsg.value.trim() }, null).then(function (d) { if (!d || !d.ok) return false; if (d.envoye && d.envoye.length) AMX.toast('Demande envoyée par ' + d.envoye.join(' et '), 'ok'); else AMX.toast('Rien n\'est parti — copiez le lien.', 'attention', 7000); (d.erreurs || []).forEach(function (x) { AMX.toast(x, 'attention', 8000); }); fermer(); self.fichePaiement(d.paiement, stripe); return true; });
         } }] });

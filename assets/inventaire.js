@@ -1131,6 +1131,12 @@
           var m = AMX.occMarche && AMX.occMarche.enCache && AMX.occMarche.enCache(), mv = m && (m.vehicules || []).filter(function (x) { return String(x.vin || '').toUpperCase() === String(v.vin || '').toUpperCase(); })[0];
           AMX.prixDetail.charger().then(function () { AMX.prixDetail.modifier({ vin: v.vin, stock: v.stock, nom: v.modele, compagnie: v.compagnie, prix: mv && mv.notre ? mv.notre.prix : null }); }, function () { AMX.prixDetail.modifier({ vin: v.vin, stock: v.stock, nom: v.modele, compagnie: v.compagnie }); });
         } }) : null,
+        // 28 oct. (suggestion S302356B768) : un véhicule déjà prêt à vendre retourne au service pour un lavage ou une retouche — bon de travail court, sans rouvrir la mise en marché.
+        (cfg.feuille === 'DETAIL' && v.statut === 'stock' && AMX.demandes && AMX.demandes.retouche && AMX.perm('changerStatut')) ? h('button.btn', { type: 'button', title: 'Lavage, retouche… : envoie un bon de travail court au service. La mise en marché n\'est pas rouverte.', html: I.ok + '<span>Demande au service</span>', onclick: function () {
+          var dv = AMX.demandes.parVin(v.vin);
+          if (dv && (dv.etat === 'envoyee' || dv.etat === 'retournee')) { AMX.toast('Une demande est déjà en attente du service pour ce véhicule (' + (dv.type === 'retouche' ? 'retouche' : 'mise en marché') + ') : ouvrez-la dans Service › Suivi.', 'attention', 7000); return; }
+          AMX.demandes.retouche(v);
+        } }) : null,
         AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
         h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' })
       ])

@@ -155,6 +155,7 @@
     if (!d || d.etat === 'annulee') return opts.toujours ? h('span.puce.dem-puce.dem-aucune', { text: 'BT', title: 'Aucune demande de travaux au service' }) : null;
     var e = DEM_ETATS[d.etat] || DEM_ETATS.envoyee;
     var texte = d.etat === 'approuvee' ? 'BT ' + (d.btNo || '✓') : (d.etat === 'retournee' ? 'BT · question' : 'BT · demandé');
+    if (d.type === 'retouche') texte = d.etat === 'approuvee' ? 'Retouche · BT ' + (d.btNo || '✓') : (d.etat === 'retournee' ? 'Retouche · question' : 'Retouche · demandée');
     var titre = e.libelle + (d.etat === 'envoyee' && d.heuresAttente !== null && d.heuresAttente !== undefined ? ' — il y a ' + AMX.demandes.heures(d.heuresAttente) : '') + (d.etat === 'approuvee' ? ' par ' + (d.approuvePar || '') : '') + (d.etat === 'retournee' && d.commentaire ? ' : ' + d.commentaire : '') + ' — cliquez pour le suivi service';
     var el = h('a.puce.dem-puce.dem-' + d.etat + (e.puce ? '.' + e.puce : ''), { href: AMX.lien('service', 'encours', { vin: vin }), text: texte, title: titre, onclick: function (ev) { ev.stopPropagation(); } });
     return el;
@@ -829,33 +830,46 @@
       else blocAuto.appendChild(h('div.doux.petit', 'Seuls les gestionnaires et administrateurs peuvent décider (droit « Modifier les coûts »).'));
     }
 
-    // Demande de travaux au service (8 oct.)
+    // Demande de travaux au service (8 oct.) ; retouche d'un véhicule prêt à vendre (28 oct., suggestion S302356B768).
     var blocDemande = null;
+    var detailDemande = function (bloc, d) {
+      var travauxTexte = (d.travauxLibelles || []).concat(d.autre ? ['Autre : ' + d.autre] : []).join(', ');
+      bloc.appendChild(h('dl.kv.serre', { style: { marginBottom: '8px' } }, [
+        h('dt', 'Travaux'), h('dd', { text: travauxTexte || '—' }),
+        d.notes ? h('dt', 'Notes') : null, d.notes ? h('dd', { text: d.notes }) : null,
+        d.budget !== null && d.budget !== undefined && d.budget !== '' ? h('dt', 'Budget') : null, d.budget !== null && d.budget !== undefined && d.budget !== '' ? h('dd', { text: AMX.fmtArgent(d.budget) }) : null,
+        h('dt', 'Demandée'), h('dd', { text: AMX.fmtDate(d.demandeLe, true) + (d.demandePar ? ' par ' + nomCourt(d.demandePar) : '') + (d.nDestinataires ? ' · ' + d.nDestinataires + ' destinataire' + (d.nDestinataires > 1 ? 's' : '') : '') + (d.urgence === 'client' ? ' · CLIENT EN ATTENTE' : '') }),
+        d.etat === 'approuvee' ? h('dt', 'BT') : null, d.etat === 'approuvee' ? h('dd', [h('span.puce.ok.mono', { text: 'BT ' + d.btNo }), h('span.doux.petit', { text: ' approuvé le ' + AMX.fmtDate(d.approuveLe, true) + (d.approuvePar ? ' par ' + nomCourt(d.approuvePar) : '') })]) : null,
+        d.etat === 'retournee' ? h('dt', 'Question') : null, d.etat === 'retournee' ? h('dd', { style: { color: 'var(--rouge)' }, text: (d.commentaire || '') + (d.approuvePar ? ' — ' + nomCourt(d.approuvePar) : '') }) : null,
+        d.etat === 'envoyee' ? h('dt', 'Attente') : null, d.etat === 'envoyee' ? h('dd', { text: 'depuis ' + AMX.demandes.heures(d.heuresAttente) + (d.rappels ? ' · ' + d.rappels + ' rappel' + (d.rappels > 1 ? 's' : '') + ' envoyé' + (d.rappels > 1 ? 's' : '') : '') + ' — le service a reçu un courriel avec un lien pour approuver' }) : null
+      ]));
+      var vivante = d.etat === 'envoyee' || d.etat === 'retournee';
+      var actionsDem = h('div.actions-ligne');
+      if (vivante && peutEtape) {
+        actionsDem.appendChild(h('button.btn.petit' + (d.etat === 'retournee' ? '.primaire' : ''), { text: d.etat === 'retournee' ? 'Corriger et renvoyer' : 'Modifier et renvoyer', onclick: function () { self.modaleDemande(s, d, { retouche: d.type === 'retouche' }); } }));
+        // Le service connecté peut approuver ici (même geste que la page du courriel).
+        actionsDem.appendChild(h('button.btn.petit', { text: 'Approuver avec un no de BT', title: d.type === 'retouche' ? 'Pour le service : approuve la retouche' : 'Pour le service : approuve la demande et remplit l\'étape « BT ouvert »', onclick: function () { self.modaleApprouver(s, d); } }));
+        actionsDem.appendChild(h('button.btn.fantome.petit', { text: 'Annuler la demande', onclick: function () { AMX.confirmer('Annuler la demande de travaux', 'La demande pour ' + s.vin + ' sera annulée ; le service n\'y donnera pas suite.', { ok: 'Annuler la demande', danger: true }).then(function (ok) { if (ok) self.actionDemande({ action: 'demandeAction', id: d.id, geste: 'annuler' }); }); } }));
+      }
+      if (actionsDem.childNodes.length) bloc.appendChild(actionsDem);
+    };
     if (s.statut === 'encours' && (accepte || dem)) {
       var e0 = dem ? (DEM_ETATS[dem.etat] || DEM_ETATS.envoyee) : null;
       blocDemande = h('div.bloc.svc-demande', [h('h3', ['Demande de travaux au service', dem && dem.etat !== 'annulee' ? h('span.puce' + (e0.puce ? '.' + e0.puce : ''), { text: e0.libelle }) : h('span.puce', { text: 'Aucune' })])]);
-      if (dem && dem.etat !== 'annulee') {
-        var travauxTexte = (dem.travauxLibelles || []).concat(dem.autre ? ['Autre : ' + dem.autre] : []).join(', ');
-        blocDemande.appendChild(h('dl.kv.serre', { style: { marginBottom: '8px' } }, [
-          h('dt', 'Travaux'), h('dd', { text: travauxTexte || '—' }),
-          dem.notes ? h('dt', 'Notes') : null, dem.notes ? h('dd', { text: dem.notes }) : null,
-          dem.budget !== null && dem.budget !== undefined && dem.budget !== '' ? h('dt', 'Budget') : null, dem.budget !== null && dem.budget !== undefined && dem.budget !== '' ? h('dd', { text: AMX.fmtArgent(dem.budget) }) : null,
-          h('dt', 'Demandée'), h('dd', { text: AMX.fmtDate(dem.demandeLe, true) + (dem.demandePar ? ' par ' + nomCourt(dem.demandePar) : '') + (dem.nDestinataires ? ' · ' + dem.nDestinataires + ' destinataire' + (dem.nDestinataires > 1 ? 's' : '') : '') + (dem.urgence === 'client' ? ' · CLIENT EN ATTENTE' : '') }),
-          dem.etat === 'approuvee' ? h('dt', 'BT') : null, dem.etat === 'approuvee' ? h('dd', [h('span.puce.ok.mono', { text: 'BT ' + dem.btNo }), h('span.doux.petit', { text: ' approuvé le ' + AMX.fmtDate(dem.approuveLe, true) + (dem.approuvePar ? ' par ' + nomCourt(dem.approuvePar) : '') })]) : null,
-          dem.etat === 'retournee' ? h('dt', 'Question') : null, dem.etat === 'retournee' ? h('dd', { style: { color: 'var(--rouge)' }, text: (dem.commentaire || '') + (dem.approuvePar ? ' — ' + nomCourt(dem.approuvePar) : '') }) : null,
-          dem.etat === 'envoyee' ? h('dt', 'Attente') : null, dem.etat === 'envoyee' ? h('dd', { text: 'depuis ' + AMX.demandes.heures(dem.heuresAttente) + (dem.rappels ? ' · ' + dem.rappels + ' rappel' + (dem.rappels > 1 ? 's' : '') + ' envoyé' + (dem.rappels > 1 ? 's' : '') : '') + ' — le service a reçu un courriel avec un lien pour approuver' }) : null
-        ]));
-        var actionsDem = h('div.actions-ligne');
-        if (demVivante && peutEtape) {
-          actionsDem.appendChild(h('button.btn.petit' + (dem.etat === 'retournee' ? '.primaire' : ''), { text: dem.etat === 'retournee' ? 'Corriger et renvoyer' : 'Modifier et renvoyer', onclick: function () { self.modaleDemande(s, dem); } }));
-          // Le service connecté peut approuver ici (même geste que la page du courriel).
-          actionsDem.appendChild(h('button.btn.petit', { text: 'Approuver avec un no de BT', title: 'Pour le service : approuve la demande et remplit l\'étape « BT ouvert »', onclick: function () { self.modaleApprouver(s, dem); } }));
-          actionsDem.appendChild(h('button.btn.fantome.petit', { text: 'Annuler la demande', onclick: function () { AMX.confirmer('Annuler la demande de travaux', 'La demande pour ' + s.vin + ' sera annulée ; le service n\'y donnera pas suite.', { ok: 'Annuler la demande', danger: true }).then(function (ok) { if (ok) self.actionDemande({ action: 'demandeAction', id: dem.id, geste: 'annuler' }); }); } }));
-        }
-        if (actionsDem.childNodes.length) blocDemande.appendChild(actionsDem);
-      } else {
+      if (dem && dem.etat !== 'annulee') detailDemande(blocDemande, dem);
+      else {
         blocDemande.appendChild(h('div.doux.petit', { style: { marginBottom: '8px' }, text: s.btNo ? 'BT ' + s.btNo + ' ouvert à la main — aucune demande n\'est passée par le service.' : 'Aucune demande envoyée au service : le BT est à ouvrir à la main, ou envoyez la demande (lavage, inspection, mécanique…).' }));
         if (peutEtape && !s.btNo) blocDemande.appendChild(h('div.actions-ligne', [h('button.btn.primaire.petit', { html: I.ok + '<span>Demander les travaux au service</span>', onclick: function () { self.modaleDemande(s, null); } })]));
+      }
+    } else if (s.statut === 'pret') {
+      // Véhicule prêt à vendre : une retouche (lavage après des essais routiers, retouche…) — la mise en marché n'est pas rouverte.
+      var dr = dem && dem.type === 'retouche' && dem.etat !== 'annulee' ? dem : null;
+      var e1 = dr ? (DEM_ETATS[dr.etat] || DEM_ETATS.envoyee) : null;
+      blocDemande = h('div.bloc.svc-demande.svc-retouche', [h('h3', ['Retouche au service', dr ? h('span.puce' + (e1.puce ? '.' + e1.puce : ''), { text: e1.libelle }) : null])]);
+      if (dr) detailDemande(blocDemande, dr);
+      if (!dr || dr.etat === 'approuvee') {
+        blocDemande.appendChild(h('div.doux.petit', { style: { marginBottom: '8px' }, text: 'Le véhicule est prêt à vendre. Pour un lavage ou une retouche, envoyez un bon de travail court au service : le suivi de mise en marché reste fermé.' }));
+        if (peutEtape) blocDemande.appendChild(h('div.actions-ligne', [h('button.btn.petit' + (dr ? '' : '.primaire'), { html: I.ok + '<span>Nouvelle demande au service</span>', onclick: function () { self.modaleDemande(s, null, { retouche: true }); } })]));
       }
     }
 
@@ -1031,11 +1045,16 @@
     });
   };
   // Le formulaire : cases (lavage, inspection…), autre, notes, budget, urgence. `existante` = corriger et renvoyer.
-  Suivi.prototype.modaleDemande = function (s, existante) {
+  Suivi.prototype.modaleDemande = function (s, existante, opts) {
     var self = this;
+    return modaleDemandeTravaux(s, existante, opts || {}, function (payload) { return self.actionDemande(payload); });
+  };
+  // La fenêtre « Demande de travaux » : depuis le suivi service, ou depuis le panneau Occasion (retouche d'un véhicule prêt).
+  function modaleDemandeTravaux(s, existante, opts, envoyer) {
+    var retouche = !!opts.retouche;
     var travaux = AMX.demandes.travaux();
     var coches = {};
-    (existante ? existante.travaux : ['lavage', 'inspection']).forEach(function (t) { coches[t] = true; });
+    (existante ? existante.travaux : (retouche ? ['lavage'] : ['lavage', 'inspection'])).forEach(function (t) { coches[t] = true; });
     var cases = h('div.svc-travaux');
     var champAutre = h('input.saisie', { type: 'text', placeholder: 'Précisez (ex. : essuie-glaces, tapis)', maxlength: 300, value: existante ? existante.autre || '' : '' });
     var inputs = {};
@@ -1052,13 +1071,15 @@
     var urgence = h('select.saisie', [h('option', { value: 'normal', text: 'Normal' }), h('option', { value: 'client', text: 'Client en attente (urgent)' })]);
     urgence.value = existante && existante.urgence === 'client' ? 'client' : 'normal';
     var corps = h('div', [
-      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: (s.modele || '') + ' · ' + s.vin + (s.stock ? ' · # ' + s.stock : '') + ' — le service reçoit un courriel avec un lien : il inscrit le numéro du bon de travail, l\'étape « BT ouvert » se remplit et l\'icône passe au vert.' + (existante ? '' : (s.autorisation.decision === 'accepte' ? '' : ' Le véhicule est accepté au détail du même coup.')) }),
+      h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: (s.modele || '') + ' · ' + s.vin + (s.stock ? ' · # ' + s.stock : '') + (retouche
+        ? ' — véhicule déjà prêt à vendre : le service reçoit un courriel et inscrit le numéro du bon de travail. Le suivi de mise en marché n\'est pas rouvert.'
+        : ' — le service reçoit un courriel avec un lien : il inscrit le numéro du bon de travail, l\'étape « BT ouvert » se remplit et l\'icône passe au vert.' + (existante ? '' : ((s.autorisation && s.autorisation.decision === 'accepte') ? '' : ' Le véhicule est accepté au détail du même coup.'))) }),
       existante && existante.etat === 'retournee' ? h('div.alerte-bloc.erreur', { style: { marginBottom: '10px' } }, [h('span', { html: I.alerte }), h('div', { text: 'Question du service : ' + (existante.commentaire || '') })]) : null,
       h('div.champ', [h('label', 'Travaux demandés'), cases, champAutre]),
       h('div.grille.c2', { style: { marginTop: '10px' } }, [h('div.champ', [h('label', 'Budget autorisé ($)'), budget]), h('div.champ', [h('label', 'Urgence'), urgence])]),
       h('div.champ', { style: { marginTop: '10px' } }, [h('label', 'Notes pour le service'), notes])
     ]);
-    AMX.modale({ titre: existante ? 'Corriger la demande de travaux' : 'Demande de travaux au service', corps: corps,
+    AMX.modale({ titre: existante ? 'Corriger la demande de travaux' : (retouche ? 'Retouche au service' : 'Demande de travaux au service'), corps: corps,
       boutons: [{ texte: 'Annuler' }, { texte: existante ? 'Renvoyer au service' : 'Envoyer au service', classe: 'primaire', action: function () {
         var choisis = Object.keys(inputs).filter(function (k) { return inputs[k].checked; });
         var autre = champAutre.value.trim();
@@ -1066,9 +1087,22 @@
         if (!autre) choisis = choisis.filter(function (k) { return k !== 'autre'; });
         if (!choisis.length) { AMX.toast('Cochez au moins un travail.', 'attention'); return false; }
         var payload = existante ? { action: 'demandeAction', id: existante.id, geste: 'renvoyer' } : { action: 'demandeCreer', vin: s.vin };
+        if (!existante && retouche) payload.type = 'retouche';
         Object.assign(payload, { travaux: choisis, autre: autre, notes: notes.value.trim(), budget: budget.value.trim(), urgence: urgence.value });
-        return self.actionDemande(payload).then(function () { return true; }, function () { return false; });
+        return envoyer(payload).then(function () { return true; }, function () { return false; });
       } }] });
+  }
+  // Panneau Occasion (registre Detail) : retouche d'un véhicule déjà prêt à vendre.
+  AMX.demandes.retouche = function (v) {
+    var s = { vin: String(v.vin || '').toUpperCase(), modele: v.modele || '', stock: v.stock || '', autorisation: {} };
+    return modaleDemandeTravaux(s, null, { retouche: true }, function (payload) {
+      return AMX.post(payload).then(function (d) {
+        if (!d || d.refuse || d.ok === false) { var m = (d && (d.erreur || d.message)) || 'action refusée'; AMX.toast('Non envoyé — ' + m, 'erreur', 7000); throw new Error(m); }
+        if (d.demande) AMX.demandes.poser(d.demande);
+        AMX.toast(d.message || 'Retouche envoyée au service', d.avertissement ? 'attention' : 'ok', d.avertissement ? 8000 : 4000);
+        return d;
+      });
+    });
   };
   // Pour le service connecté : approuver (no de BT) ou retourner avec une question.
   Suivi.prototype.modaleApprouver = function (s, dem) {

@@ -234,7 +234,7 @@
   }
 
   /* ------------------------------ Helpers ------------------------------ */
-  function estCourriel(v) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v || '').trim()); }
+  function estCourriel(v) { return /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/.test(String(v || '').trim()); }   // une seule adresse : ni espace, ni virgule
   function pluriel(n, mot, pl) { return n + ' ' + (n > 1 ? (pl || mot + 's') : mot); }
   function nomCle(nom) { return String(nom || '').trim().toLowerCase(); }
   function memeCourriel(a, b) { return nomCle(a) === nomCle(b); }
@@ -434,6 +434,8 @@
       '.admin-form { display: flex; flex-direction: column; gap: 12px; }',
       '.admin-form .intro { margin: 0; color: var(--encre-3); line-height: 1.5; }',
       '.admin-form .case { min-height: 34px; }',
+      '.admin-courriel { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }',
+      '.admin-courriel h2 { margin: 0; overflow-wrap: anywhere; }',
       '.admin-erreur { color: var(--rouge); font-size: 12px; min-height: 16px; }'
     ].join('\n');
     document.head.appendChild(s);
@@ -1572,6 +1574,7 @@
     this.elPanneau.style.display = '';
     var b = this.brouillonDe(u), ref = this.reference, moi = memeCourriel(u.nom, this.moi), cle = nomCle(u.nom);
     var fermer = function () { self.selectionner(''); };
+    var verrou = verrouille(u);
     var rafraichir = function () { self.rendrePanneau(); self.majLigne(u); };     // changement structurel (rôle, accès, droits)
     var leger = function () { self.rendreSous(u); self.majLigne(u); };           // changement sans refaire le panneau (note, acheteur)
 
@@ -1580,14 +1583,15 @@
     var entete = h('div.panneau-entete', [
       h('div.admin-entete-id', [
         avatar(b.nomComplet || u.nom, b.role, b.actif, true),
-        h('div', { style: { minWidth: 0 } }, [h('h2', { text: u.nom }), this.pSous,
+        h('div', { style: { minWidth: 0 } }, [h('div.admin-courriel', [h('h2', { text: u.nom }),
+          (moi || verrou) ? null : h('button.btn.petit.fantome', { type: 'button', text: 'Changer l\'adresse', title: 'Corriger le courriel de ce compte', onclick: function () { self.changerCourriel(u); } })]), this.pSous,
           h('p.admin-connexion', { text: u.derniereConnexion ? 'Dernière connexion ' + dateRelative(u.derniereConnexion) + ' (' + AMX.fmtDate(u.derniereConnexion, true) + ')' : 'Jamais connecté' + (u.ajouteLe ? ' · ajouté le ' + AMX.fmtDate(u.ajouteLe) : '') })])
       ]),
       h('button.fermer', { type: 'button', title: 'Fermer', html: I.fermer, onclick: fermer })
     ]);
 
     // Compte : rôle, département, concession, nom, accès, acheteur, note
-    var verrou = verrouille(u), moiInfo = this.moiInfo, groupe = !moiInfo || !moiInfo.concession || moiInfo.concession === TOUTES;
+    var moiInfo = this.moiInfo, groupe = !moiInfo || !moiInfo.concession || moiInfo.concession === TOUTES;
     var selRole = selectRoles(b.role, moiInfo, { disabled: moi || verrou, title: moi ? 'Vous ne pouvez pas changer votre propre rôle.' : (verrou ? 'Seul le propriétaire peut modifier un administrateur.' : null) });
     var aideRole = h('p.admin-role-aide', { text: (roleInfo(b.role) || {}).aide || '' });
     var selDep = selectDepartement(b.role, b.departement, { disabled: verrou, onchange: function (e) { b.departement = e.target.value; leger(); } });
@@ -1805,6 +1809,49 @@
         });
       });
     });
+  };
+
+  // Changer l'adresse d'un compte (28 oct., suggestion SE52117A46C) : POST utilisateurCourriel { ancien, nouveau }.
+  // La personne se reconnecte ensuite avec la nouvelle adresse (ses sessions sont fermées).
+  VueAdmin.prototype.changerCourriel = function (u) {
+    var self = this;
+    var inp = h('input', { type: 'email', value: u.nom, autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' });
+    var elErreur = h('div.admin-erreur');
+    var corps = h('div.admin-form', [
+      h('p.intro', ['Adresse actuelle : ', h('b', { text: u.nom })]),
+      h('div.champ', [h('label', 'Nouvelle adresse'), inp]),
+      h('p.doux.petit', { text: 'La personne sera déconnectée du site et de l\'app ; elle se reconnecte avec la nouvelle adresse (un code lui sera envoyé). Ses droits, son rôle et son historique restent.' }),
+      elErreur
+    ]);
+    var envoyer = function () {
+      var mail = inp.value.trim().toLowerCase();
+      elErreur.textContent = '';
+      if (!estCourriel(mail)) { elErreur.textContent = 'Entrez une seule adresse valide, sans espace ni virgule.'; inp.focus(); return false; }
+      if (memeCourriel(mail, u.nom)) { elErreur.textContent = 'C\'est déjà l\'adresse de ce compte.'; inp.focus(); return false; }
+      if ((self.utilisateurs || []).some(function (x) { return memeCourriel(x.nom, mail); })) { elErreur.textContent = 'Cette adresse est déjà celle d\'un autre compte.'; inp.focus(); return false; }
+      return AMX.post({ action: 'utilisateurCourriel', ancien: u.nom, nouveau: mail }).then(function (r) {
+        if (r && r.vehicules) throw new Error('Le script n\'est pas à jour (Role.gs) : demandez au propriétaire de le déployer.');
+        AMX.verifier(r, 'Changement refusé par le serveur');
+        if (!r || r.ok !== true) throw new Error((r && (r.erreur || r.message)) || 'Le serveur n\'a pas confirmé le changement.');
+        delete self.brouillons[nomCle(u.nom)];
+        u.nom = r.nouveau || mail;
+        self.selection = u.nom;
+        history.replaceState(null, '', AMX.lien('admin', '', { u: u.nom }));
+        AMX.toast('Adresse changée : ' + u.nom + (r.sessions ? ' — ' + r.sessions + ' session(s) fermée(s)' : ''), 'ok');
+        self.rendre();
+        self.charger();
+        return true;
+      }, function (e) {
+        elErreur.textContent = 'Échec — ' + AMX.erreurTexte(e);
+        throw e;
+      });
+    };
+    var m = AMX.modale({
+      titre: 'Changer l\'adresse courriel', corps: corps,
+      boutons: [{ texte: 'Annuler' }, { texte: 'Changer l\'adresse', classe: 'primaire', action: function () { return envoyer(); } }]
+    });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var b = m.el.querySelector('.modale-pied .btn.primaire'); if (b) b.click(); } });
+    setTimeout(function () { try { inp.focus(); inp.select(); } catch (e) {} }, 30);
   };
 
   // Ajout d'un compte (même action serveur que la mise à jour).

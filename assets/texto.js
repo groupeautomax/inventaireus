@@ -8,7 +8,7 @@
      vidéos), message au client, totaux TPS / TVQ, Envoyer (texto et / ou courriel), Relancer, Copier le lien, Travaux terminés,
      Demande de paiement, Suivi de courtoisie, Dupliquer, Annuler, BT #, journal. Réponse consignée au comptoir / au téléphone.
    - Conversations : un fil par client (entrants et sortants, non lus), composer avec les modèles, nouveau texto.
-   - Paiements : demandes envoyées, payées (en ligne par Stripe ou au comptoir), relance, marquer payé.
+   - Paiements : demandes envoyées, payées (en ligne par Clover — 28 oct., remplace Stripe — ou au comptoir), relance, marquer payé.
    - Travaux refusés : les lignes refusées par les clients, à relancer plus tard.
    - Statistiques : par conseiller et par mois (envoyés, approuvés, taux, $ approuvés, délai de réponse, vues).
    Données : GET ?texto=1[&compagnie=] · ?textoEstime=1&id= · ?textoMessages=1&id= · ?textoPaiement=1&id= ; POST estime*, texto*, paiement* (Texto.gs).
@@ -515,7 +515,7 @@
       if (v.id && v.envoyeLe) { actions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Copier le lien', onclick: function () { AMX.copier(lienEstime(v), 'Lien copié — collez-le dans un texto ou montrez-le au comptoir'); } })); actions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Page client', onclick: function () { window.open(lienEstime(v) + '&apercu=1', '_blank', 'noopener'); } })); }
       if (v.id && (v.statut === 'approuve' || v.statut === 'partiel')) {
         if (!v.termineLe) actions.appendChild(h('button.btn', { type: 'button', text: '✓ Travaux terminés', title: 'Véhicule prêt — propose le texto « véhicule prêt »', onclick: function () { self.terminerTravaux(v, cfg, function (est) { rouvrir(est); }); } }));
-        actions.appendChild(h('button.btn' + (pai && pai.statut === 'paye' ? '.fantome' : ''), { type: 'button', text: pai ? 'Paiement ' + (PAI_STATUTS[pai.statut] || '').toLowerCase() : '$ Demande de paiement', title: pai ? pai.id + ' · ' + argent(pai.montant) : 'Envoyer le montant à payer par texto (en ligne par carte si Stripe est configuré)', onclick: function () { if (pai) self.ouvrirPaiement(pai.id); else self.nouveauPaiement(v); } }));
+        actions.appendChild(h('button.btn' + (pai && pai.statut === 'paye' ? '.fantome' : ''), { type: 'button', text: pai ? 'Paiement ' + (PAI_STATUTS[pai.statut] || '').toLowerCase() : '$ Demande de paiement', title: pai ? pai.id + ' · ' + argent(pai.montant) : 'Envoyer le montant à payer par texto (en ligne par carte si Clover est configuré)', onclick: function () { if (pai) self.ouvrirPaiement(pai.id); else self.nouveauPaiement(v); } }));
         actions.appendChild(h('button.btn', { type: 'button', text: v.courtoisieLe ? '★ Suivi envoyé' : '★ Suivi de courtoisie', title: 'Demander au client comment ça s\'est passé (note sur 5, lien Google)', onclick: function () { self.courtoisie(v, function (est) { rouvrir(est); }); } }));
       }
       if (v.id) actions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Dupliquer', onclick: function () { self.action({ action: 'estimeDupliquer', id: v.id }, 'Copie créée').then(function (d) { if (d && d.ok) rouvrir(d.estime); }); } }));
@@ -726,8 +726,10 @@
   VueTexto.prototype.rendrePaiements = function () {
     var self = this, liste = this.liste('paiements');
     this.elCompte.textContent = liste.length + ' paiement' + (liste.length > 1 ? 's' : '');
-    var d = this.donnees || {}, stripeCie = this.compagnie ? !!(d.stripe || {})[this.compagnie] : Object.keys(d.stripe || {}).some(function (k) { return d.stripe[k]; });
-    this.elCorps.appendChild(h('div.doux.petit', { style: { marginBottom: '8px' }, text: stripeCie ? 'Paiement en ligne par carte actif (Stripe). Le client paie depuis le lien ; le paiement se marque tout seul.' : 'Paiement en ligne non configuré : le client reçoit le montant et paie au comptoir ou par téléphone — marquez « Payé » ici. (Réglages › Stripe pour activer la carte en ligne.)' }));
+    var d = this.donnees || {}, cies = this.compagnie ? [this.compagnie] : Object.keys(d.enLigne || d.stripe || {});
+    var fourn = cies.map(function (c) { return (d.enLigne || {})[c] || ((d.stripe || {})[c] ? 'stripe' : ''); }).filter(Boolean)[0] || '';
+    var verifie = cies.some(function (c) { return d.clover && d.clover[c] && d.clover[c].verifie; });
+    this.elCorps.appendChild(h('div.doux.petit', { style: { marginBottom: '8px' }, text: fourn === 'clover' ? 'Paiement en ligne par carte actif (Clover). Le client paie depuis le lien ; ' + (verifie ? 'le paiement se marque tout seul.' : 'marquez « Payé » quand Clover l\'a reçu (ajoutez le jeton API dans Réglages pour la confirmation automatique).') : (fourn === 'stripe' ? 'Paiement en ligne par carte actif (Stripe). Le client paie depuis le lien ; le paiement se marque tout seul.' : 'Paiement en ligne non configuré : le client reçoit le montant et paie au comptoir ou par téléphone — marquez « Payé » ici. (Réglages › Clover pour activer la carte en ligne.)') }));
     if (!liste.length) { this.elCorps.appendChild(h('div.vide', [h('h3', 'Aucune demande de paiement.'), h('div.doux', 'Depuis un estimé approuvé (« Demande de paiement ») ou « + Paiement » pour un montant libre.')])); return; }
     /* filtres : statut, en ligne / en personne */
     var fp = this.filtrePaiement || '', boutons = h('div.filtres', { style: { marginBottom: '8px' } });
@@ -777,6 +779,12 @@
   };
   VueTexto.prototype.fichePaiement = function (p, stripe, ouvrirEnvoi) {
     var self = this, peut = this.peutEcrire() && p.peutEcrire, cfg = this.config(p.compagnie) || { modeles: [] }, textosActifs = !!(this.donnees && this.donnees.textos && this.donnees.textos.actif);
+    /* 28 oct. : Clover remplace Stripe — fournisseur du paiement, sinon celui de la concession. */
+    var dn = this.donnees || {}, fourn = p.fournisseur || (dn.enLigne && dn.enLigne[p.compagnie]) || (stripe === 'clover' || stripe === 'stripe' ? stripe : (stripe ? 'stripe' : ''));
+    var cloverVerifie = !!(dn.clover && dn.clover[p.compagnie] && dn.clover[p.compagnie].verifie), nomFourn = fourn === 'clover' ? 'Clover' : 'Stripe';
+    var texteEnLigne = fourn === 'clover'
+      ? (p.sessions ? 'Page de paiement Clover ouverte ' + p.sessions + ' fois' : 'Clover : la page de paiement se crée quand le client clique « Payer par carte »') + (p.retourLe ? ' · le client est revenu de Clover ' + quand(p.retourLe) + (p.statut === 'paye' ? '' : ' — à confirmer') : '') + (cloverVerifie ? '' : ' · confirmation à la main (pas de jeton API)')
+      : (fourn === 'stripe' ? (p.enLigne ? 'Lien de paiement par carte (Stripe) créé' : 'La session Stripe se crée à l\'envoi') : 'Paiement en ligne non configuré — paiement au comptoir / par téléphone');
     var rouvrir = function (p2) { try { modale.fermer(); } catch (e) {} self.fichePaiement(p2, stripe); };
     var dl = h('dl', { style: { display: 'grid', gridTemplateColumns: '140px 1fr', gap: '4px 12px', margin: '0 0 10px', fontSize: '13px' } }, [
       h('dt.doux', 'Client'), h('dd', { style: { margin: 0 }, text: (p.client || '—') + (p.telephoneJoli ? ' · ' + p.telephoneJoli : '') + (p.courriel ? ' · ' + p.courriel : '') }),
@@ -784,7 +792,7 @@
       h('dt.doux', 'Description'), h('dd', { style: { margin: 0 }, text: p.description || '—' }),
       h('dt.doux', 'Statut'), h('dd', { style: { margin: 0 } }, [h('span.badge.' + (PAI_COULEUR[p.statut] || 'gris'), { text: PAI_STATUTS[p.statut] || p.statut }), p.statut === 'paye' ? h('span.doux', { text: ' ' + (PAI_MOYENS[p.moyen] || p.moyen || '') + (p.reference ? ' · ' + p.reference : '') + (p.payeLe ? ' · ' + quand(p.payeLe) : '') }) : null]),
       h('dt.doux', 'Envoi'), h('dd', { style: { margin: 0 }, text: p.envoyeLe ? 'envoyé ' + quand(p.envoyeLe) + (p.canal ? ' par ' + p.canal.replace('+', ' et ') : '') + (p.vues ? ' · ouvert ' + p.vues + ' fois' : ' · pas encore ouvert') : 'pas encore envoyé' }),
-      h('dt.doux', 'En ligne'), h('dd', { style: { margin: 0 }, text: p.enLigne ? 'Lien de paiement par carte (Stripe) créé' : (stripe ? 'La session Stripe se crée à l\'envoi' : 'Stripe non configuré — paiement au comptoir / par téléphone') }),
+      h('dt.doux', 'En ligne'), h('dd', { style: { margin: 0 }, text: texteEnLigne }),
       p.estimeId ? h('dt.doux', 'Estimé') : null, p.estimeId ? h('dd', { style: { margin: 0 } }, [h('a', { href: '#', text: p.estimeId, onclick: function (e) { e.preventDefault(); self.ouvrirEstime(p.estimeId); } })]) : null
     ]);
     var journal = h('div.journal', { style: { fontSize: '12px', color: 'var(--encre-3)', maxHeight: '120px', overflow: 'auto' } });
@@ -801,7 +809,7 @@
         var modele = (cfg.modeles || []).filter(function (x) { return x.id === 'paiement'; })[0];
         var defaut = modele ? gabarit(modele.texte, { prenom: prenom(p.client), client: p.client, concession: nomCie(p.compagnie), vehicule: p.vehicule || 'véhicule', ref: p.id, montant: argent(p.montant), lien: p.lien, conseiller: cfg.signature || nomCourt(AMX.session.courriel) }) : '';
         var inMsg = zoneTexte({ style: { minHeight: '70px' } }, defaut);
-        AMX.modale({ titre: 'Envoyer la demande de paiement', corps: h('div.txt-envoi', [h('p', { text: stripe ? 'Le client ouvre la page, voit le montant et paie par carte (Stripe Checkout). Le paiement se marque tout seul.' : 'Le client ouvre la page et voit le montant, votre téléphone et les façons de payer. Marquez « Payé » quand c\'est fait.' }), h('label.champ.inline', [cbT, h('span', { text: 'Texto' + (tel ? ' au ' + telJoli(tel) : ' — aucun cellulaire') })]), h('label.champ.inline', [cbC, h('span', { text: 'Courriel' + (p.courriel ? ' à ' + p.courriel : ' — aucune adresse') })]), h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Message'), inMsg]), h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Lien'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: p.lien, readonly: true, style: { fontSize: '12px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(p.lien, 'Lien copié'); } })])])]), boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
+        AMX.modale({ titre: 'Envoyer la demande de paiement', corps: h('div.txt-envoi', [h('p', { text: fourn === 'clover' ? 'Le client ouvre la page, voit le montant et paie par carte (Clover).' + (cloverVerifie ? ' Le paiement se marque tout seul.' : ' Marquez « Payé » quand Clover l\'a reçu.') : (fourn === 'stripe' ? 'Le client ouvre la page, voit le montant et paie par carte (Stripe Checkout). Le paiement se marque tout seul.' : 'Le client ouvre la page et voit le montant, votre téléphone et les façons de payer. Marquez « Payé » quand c\'est fait.') }), h('label.champ.inline', [cbT, h('span', { text: 'Texto' + (tel ? ' au ' + telJoli(tel) : ' — aucun cellulaire') })]), h('label.champ.inline', [cbC, h('span', { text: 'Courriel' + (p.courriel ? ' à ' + p.courriel : ' — aucune adresse') })]), h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Message'), inMsg]), h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Lien'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: p.lien, readonly: true, style: { fontSize: '12px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(p.lien, 'Lien copié'); } })])])]), boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
           if (!cbT.checked && !cbC.checked) { AMX.toast('Cochez texto ou courriel.', 'erreur'); return false; }
           return self.action({ action: 'paiementEnvoyer', id: p.id, canaux: { texto: cbT.checked, courriel: cbC.checked }, message: inMsg.value.trim() === defaut ? '' : inMsg.value.trim() }, null).then(function (d) { if (!d || !d.ok) return false; if (d.envoye && d.envoye.length) AMX.toast('Demande envoyée par ' + d.envoye.join(' et '), 'ok'); else AMX.toast('Rien n\'est parti — copiez le lien.', 'attention', 7000); (d.erreurs || []).forEach(function (x) { AMX.toast(x, 'attention', 8000); }); fermer(); self.fichePaiement(d.paiement, stripe); return true; });
         } }] });
@@ -812,7 +820,7 @@
       h('button.btn.petit.fantome', { type: 'button', text: 'Copier le lien', onclick: function () { AMX.copier(p.lien, 'Lien copié'); } }),
       h('button.btn.petit.fantome', { type: 'button', text: 'Page client', onclick: function () { window.open(p.lien + '&apercu=1', '_blank', 'noopener'); } }),
       p.envoyeLe && p.telephone ? h('button.btn.petit.fantome', { type: 'button', text: 'Rappeler par texto' + (p.rappels ? ' (' + p.rappels + ')' : ''), onclick: function () { self.action({ action: 'paiementRappeler', id: p.id }, 'Rappel envoyé').then(function (d) { if (d && d.ok) rouvrir(d.paiement); }); } }) : null,
-      p.enLigne ? h('button.btn.petit.fantome', { type: 'button', text: 'Vérifier chez Stripe', onclick: function () { self.action({ action: 'paiementMarquer', id: p.id, statut: 'verifier' }, null).then(function (d) { if (d && d.ok) { AMX.toast(d.change ? 'Payé !' : 'Toujours en attente chez Stripe', d.change ? 'ok' : 'info'); rouvrir(d.paiement); } }); } }) : null,
+      (fourn === 'clover' ? cloverVerifie && p.sessions : p.enLigne) ? h('button.btn.petit.fantome', { type: 'button', text: 'Vérifier chez ' + nomFourn, onclick: function () { self.action({ action: 'paiementMarquer', id: p.id, statut: 'verifier' }, null).then(function (d) { if (d && d.ok) { AMX.toast(d.change ? 'Payé !' : 'Toujours en attente chez ' + nomFourn, d.change ? 'ok' : 'info'); rouvrir(d.paiement); } }); } }) : null,
       h('button.btn.petit.fantome.danger', { type: 'button', text: 'Annuler la demande', onclick: function () { AMX.confirmer('Annuler ' + p.id, 'Le lien ne permettra plus de payer.', { ok: 'Annuler la demande', danger: true }).then(function (oui) { if (oui) self.action({ action: 'paiementMarquer', id: p.id, statut: 'annule' }, 'Demande annulée').then(function (d) { if (d && d.ok) rouvrir(d.paiement); }); }); } })
     ]) : null, peut && p.statut === 'paye' ? h('div', { style: { marginBottom: '10px' } }, [h('button.btn.petit.fantome', { type: 'button', text: 'Marquer remboursé', onclick: function () { self.action({ action: 'paiementMarquer', id: p.id, statut: 'rembourse' }, 'Marqué remboursé').then(function (d) { if (d && d.ok) rouvrir(d.paiement); }); } })]) : null, (p.journal || []).length ? h('details', [h('summary', { style: { cursor: 'pointer', fontSize: '12px', color: 'var(--encre-3)' }, text: 'Journal' }), journal]) : null]);
     var modale = AMX.modale({ titre: 'Paiement ' + p.id + ' — ' + (p.client || ''), corps: corps, boutons: boutons });
@@ -895,14 +903,48 @@
       modeles,
       h('button.btn.petit', { type: 'button', text: '+ Modèle', style: { marginTop: '6px' }, onclick: function () { ajouterModele({}); } }),
       h('div.aide', 'estime, relance, paiement et courtoisie sont les modèles utilisés par les boutons ; les autres apparaissent dans les conversations.'),
-      AMX.estAdmin() ? h('div', [h('h4', 'Paiement en ligne (Stripe)'), h('div.aide', { text: (d.stripe && d.stripe[cie] ? 'Clé Stripe active pour ' + nomCie(cie) + ' : les demandes de paiement créent un lien de paiement par carte.' : 'Aucune clé Stripe : le client paie au comptoir / par téléphone et vous marquez « Payé ».') + ' Compte Stripe → Développeurs › Clés API › clé secrète (sk_live_…). Une clé par concession, ou une commune pour le groupe.' }), h('div', { style: { display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' } }, [
-        (function () { var inCle = h('input.saisie.mono', { type: 'password', placeholder: 'sk_live_… (vide = retirer)', style: { flex: '1 1 260px', fontSize: '12px' } }), selPour = h('select.saisie', { style: { width: 'auto' } }, [h('option', { value: cie, text: nomCie(cie) }), h('option', { value: '', text: 'Tout le groupe' })]); return h('div', { style: { display: 'flex', gap: '6px', flex: '1 1 auto', flexWrap: 'wrap' } }, [inCle, selPour, h('button.btn.petit', { type: 'button', text: 'Enregistrer la clé', onclick: function () { self.action({ action: 'textoStripe', compagnie: selPour.value, cle: inCle.value.trim() }, null).then(function (r) { if (r && r.ok) { AMX.toast(r.actif ? 'Stripe actif (' + r.mode + ')' : 'Clé Stripe retirée', 'ok'); modale.fermer(); self.charger(true).then(function () { self.ouvrirReglages(); }); } }); } })]); })()
-      ])]) : null
+      (d.peutClover || AMX.estAdmin()) ? self.blocClover(cie, function () { modale.fermer(); self.charger(true).then(function () { self.ouvrirReglages(); }); }) : null
     ]);
     var modale = AMX.modale({ titre: 'Réglages Texto — ' + nomCie(cie), corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
       var config = { tauxMo: num(inTaux.value), taxes: cbTaxes.checked, regrouper: cbRegrouper.checked, validiteJours: Math.max(1, Math.round(num(inValid.value)) || 30), telephone: inTel.value, signature: inSig.value.trim(), pied: inPied.value.trim(), courtoisie: { auto: cbAuto.checked, delaiJours: Math.max(0, Math.round(num(inDelai.value))), apres: selApres.value }, modeles: lignesM.filter(function (x) { return document.body.contains(x.el); }).map(function (x) { return x.lire(); }).filter(function (m) { return m.titre && m.texte; }) };
       return self.action({ action: 'textoConfig', compagnie: cie, config: config }, 'Réglages enregistrés').then(function (r) { if (!r || !r.ok) return false; if (self.donnees && self.donnees.configs) self.donnees.configs[cie] = r.config; AMX.texto.invalider(); self.charger(true); return true; });
     } }] });
+  };
+  /* 28 oct. : Clover (Fiserv) remplace Stripe. Chaque concession est un marchand Clover ; ses jetons sont collés ici par le
+     propriétaire (jamais renvoyés au site). Le jeton « Hosted checkout » ouvre la page de paiement ; le jeton API (facultatif,
+     lecture des commandes et des paiements) permet de marquer « Payé » tout seul. */
+  VueTexto.prototype.blocClover = function (cie, recharger) {
+    var self = this, d = this.donnees || {}, e = (d.clover && d.clover[cie]) || {};
+    var inMid = h('input.saisie.mono', { type: 'text', placeholder: e.actif ? 'Marchand ' + e.marchand + ' (vide = garder)' : 'Identifiant du marchand (13 caractères)', autocomplete: 'off', style: { fontSize: '12px' } });
+    var inHco = h('input.saisie.mono', { type: 'password', placeholder: e.actif ? '•••• (vide = garder)' : 'Jeton privé « Hosted checkout »', autocomplete: 'new-password', style: { fontSize: '12px' } });
+    var inApi = h('input.saisie.mono', { type: 'password', placeholder: e.verifie ? '•••• (vide = garder)' : 'Jeton API (facultatif)', autocomplete: 'new-password', style: { fontSize: '12px' } });
+    var cbEssai = h('input', { type: 'checkbox', checked: e.essai ? true : undefined });
+    var etat = e.actif ? 'Clover actif pour ' + nomCie(cie) + ' (marchand ' + e.marchand + ')' + (e.verifie ? ' · paiements confirmés tout seuls' : ' · confirmation à la main') + (e.essai ? ' · ENVIRONNEMENT D\'ESSAI' : '') + '.' : 'Clover n\'est pas configuré pour ' + nomCie(cie) + ' : le client paie au comptoir / par téléphone et vous marquez « Payé ».';
+    var enregistrer = function (retirer) {
+      var corps = { action: 'textoClover', compagnie: cie };
+      if (retirer) corps.retirer = true;
+      else {
+        corps.merchantId = inMid.value.trim(); corps.cleHco = inHco.value.trim(); corps.essai = cbEssai.checked;
+        if (inApi.value.trim()) corps.cleApi = inApi.value.trim();
+        if (!e.actif && (!corps.merchantId || !corps.cleHco)) { AMX.toast('Entrez l\'identifiant du marchand et le jeton « Hosted checkout ».', 'erreur'); return; }
+      }
+      self.action(corps, null).then(function (r) {
+        if (!r || !r.ok) return;
+        if (!r.clover) { AMX.toast('Le script n\'est pas à jour (Texto.gs) : redéployez-le.', 'erreur', 8000); return; }
+        AMX.toast(retirer ? 'Clover retiré pour ' + nomCie(cie) : 'Clover actif pour ' + nomCie(cie) + (r.clover.verifie ? ' — confirmation automatique' : ''), 'ok');
+        inHco.value = ''; inApi.value = '';
+        if (recharger) recharger();
+      });
+    };
+    return h('div', [h('h4', 'Paiement en ligne (Clover)'),
+      h('div.aide', { text: etat }),
+      h('div.aide', { text: 'Tableau de bord Clover de la concession › Paramètres › Commerce électronique › Jetons API › Créer un jeton, type « Hosted checkout » (un seul jeton actif par marchand : vérifiez que le site de la concession n\'en utilise pas déjà un). Jeton API (facultatif) : Paramètres › Jetons API, lecture des commandes et des paiements — sans lui, marquez « Payé » à la main. ScanAutomax vérifie les jetons avant de les garder (une page de paiement d\'essai de 1,00 $ est créée puis expire seule).' }),
+      h('div.grille', { style: { marginTop: '6px' } }, [h('div.champ', [h('label', 'Identifiant du marchand'), inMid]), h('div.champ', [h('label', 'Jeton Hosted checkout'), inHco]), h('div.champ', [h('label', 'Jeton API (facultatif)'), inApi])]),
+      h('label.champ.inline', { style: { marginTop: '4px' } }, [cbEssai, h('span', { text: 'Environnement d\'essai (sandbox) — aucun vrai paiement' })]),
+      h('div', { style: { display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' } }, [
+        h('button.btn.petit', { type: 'button', text: e.actif ? 'Mettre à jour Clover' : 'Activer Clover', onclick: function () { enregistrer(false); } }),
+        e.actif ? h('button.btn.petit.fantome.danger', { type: 'button', text: 'Retirer Clover', onclick: function () { AMX.confirmer('Retirer Clover', 'Les demandes de paiement de ' + nomCie(cie) + ' ne proposeront plus la carte en ligne.', { ok: 'Retirer', danger: true }).then(function (oui) { if (oui) enregistrer(true); }); } }) : null
+      ])]);
   };
   AMX.texto.Vue = VueTexto;
 })();

@@ -23,6 +23,16 @@
      cfg.taxesListe et cfg.province ; un script d'avant n'en envoie pas : TPS + TVQ comme avant). */
   var TYPES_PIECE = { neuve: 'Neuve', usagee: 'Usagée', reusinee: 'Réusinée', remise: 'Remise à neuf' };
   var TAXES_PROVINCE = { QC: [{ nom: 'TPS', libelle: 'TPS 5 %', taux: 0.05 }, { nom: 'TVQ', libelle: 'TVQ 9,975 %', taux: 0.09975 }], ON: [{ nom: 'TVH', libelle: 'TVH 13 %', taux: 0.13 }] };
+  /* 28 oct. (étape 2) : un client attend une réponse quand son texto est le dernier de la conversation depuis 10 minutes ou plus
+     (une réponse automatique — confirmation d'un OUI, AIDE — compte comme une réponse). */
+  var ATTENTE_MIN = 10;
+  function minutesSansReponse(c, maintenant) {
+    if (!c || c.etat === 'fermee' || c.stop || c.dernierSens !== 'entrant' || !c.dernierLe) return 0;
+    var m = Math.floor(((maintenant || Date.now()) - new Date(c.dernierLe).getTime()) / 60000);
+    return m >= ATTENTE_MIN ? m : 0;
+  }
+  function dureeAttente(m) { return m < 60 ? m + ' min' : (m < 1440 ? Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) : '') : Math.floor(m / 1440) + ' j'); }
+  function estMoi(courriel) { var moi = String((AMX.session && AMX.session.courriel) || '').toLowerCase(); return !!moi && String(courriel || '').toLowerCase() === moi; }
   function taxesDe(cfg) { if (cfg && cfg.taxesListe && cfg.taxesListe.length) return cfg.taxesListe; return TAXES_PROVINCE[(cfg && cfg.province) || 'QC'] || TAXES_PROVINCE.QC; }
   var URGENCES = { urgent: 'Urgent', recommande: 'Recommandé', suggere: 'Suggéré' };
   var PAI_STATUTS = { en_attente: 'En attente', paye: 'Payé', annule: 'Annulé', rembourse: 'Remboursé' };
@@ -46,7 +56,7 @@
   function zoneTexte(attrs, valeur) { var t = h('textarea.saisie', attrs); t.value = valeur || ''; return t; }
   function lienEstime(e) { return e.lien || (LIEN_ESTIME + '?e=' + encodeURIComponent(e.id) + '&k=' + encodeURIComponent(e.code || '')); }
   function joursDepuis(iso) { return iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null; }
-  function gabarit(texte, v) { return String(texte || '').replace(/\{(\w+)\}/g, function (m, k) { return v[k] !== undefined && v[k] !== null && v[k] !== '' ? String(v[k]) : m; }).replace(/\s{2,}/g, ' ').trim(); }
+  function gabarit(texte, v) { return String(texte || '').replace(/\{(\w+)\}/g, function (m, k) { if (k === 'bt') return v.bt ? ' (bon de travail ' + v.bt + ')' : ''; return v[k] !== undefined && v[k] !== null && v[k] !== '' ? String(v[k]) : m; }).replace(/\s{2,}/g, ' ').replace(/\s+([.,])/g, '$1').trim(); }
   /* Photo : réduite à 1600 px, JPEG 0,82 (comme l'inspection du carnet). */
   function reduireImage(fichier) {
     return new Promise(function (res, rej) {
@@ -74,6 +84,8 @@
     '.txt-liste { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); max-height: 70vh; overflow: auto; }',
     '.txt-liste .item { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 9px 12px; border-bottom: 1px solid var(--ligne); cursor: pointer; }',
     '.txt-liste .item:hover { background: var(--carte-2); } .txt-liste .item.actif { background: var(--vert-clair); }',
+    '.txt-liste .item.attend { box-shadow: inset 3px 0 0 var(--rouge); } .txt-liste .item .attente { color: var(--rouge); font-weight: 700; font-size: 12px; white-space: nowrap; }',
+    '.txt-liste .seg-conv { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--ligne); position: sticky; top: 0; background: var(--carte); z-index: 1; } .txt-liste .seg-conv button { flex: 1; padding: 5px 6px; font: inherit; font-size: 12px; border: 1px solid var(--ligne); border-radius: 999px; background: var(--carte); color: var(--encre-2); cursor: pointer; } .txt-liste .seg-conv button.actif { background: var(--vert); border-color: var(--vert); color: #fff; } .txt-liste .seg-conv button.rouge:not(.actif) { color: var(--rouge); border-color: var(--rouge); font-weight: 700; }',
     '.txt-liste .item .nom { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .txt-liste .item.nonlu .nom { font-weight: 800; }',
     '.txt-liste .item .q { font-size: 12px; color: var(--encre-3); white-space: nowrap; }',
     '.txt-liste .item .apercu { grid-column: 1 / -1; font-size: 12px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .txt-liste .item.nonlu .apercu { color: var(--encre); }',
@@ -157,10 +169,12 @@
     compteur: function () {
       var d = cache.reponse; if (!d) return '';
       var c = AMX.compagnieChoisie('service');
-      var nonLus = (d.conversations || []).filter(function (x) { return (!c || x.compagnie === c) && x.nonLus > 0; }).length;
+      var nonLus = (d.conversations || []).filter(function (x) { return (!c || x.compagnie === c) && (x.nonLus > 0 || minutesSansReponse(x)); }).length;
       var attente = (d.estimes || []).filter(function (x) { return (!c || x.compagnie === c) && x.ouvert; }).length;
       return nonLus || attente || '';
     },
+    /* clients qui attendent une réponse depuis 10 minutes ou plus (Accueil, compteur) */
+    sansReponse: function (cie) { var d = cache.reponse; if (!d) return []; return (d.conversations || []).filter(function (x) { return (!cie || x.compagnie === cie) && minutesSansReponse(x); }); },
     monter: function (conteneur, ctx) { return new VueTexto(conteneur, ctx); },
     Vue: null,   /* posé plus bas : texto-plus.js étend VueTexto.prototype (clients, campagnes, automatisations, médias, métriques) */
     outils: { h: h, telChiffres: telChiffres, telJoli: telJoli, num: num, r2: r2, argent: argent, nomCie: nomCie, prenom: prenom, quand: quand, duree: duree, nomCourt: nomCourt, zoneTexte: zoneTexte, gabarit: gabarit, reduireImage: reduireImage, lireBase64: lireBase64, joursDepuis: joursDepuis }
@@ -189,7 +203,7 @@
     else if (p.paiement) setTimeout(function () { self.ouvrirPaiement(p.paiement); }, 400);
   }
   VueTexto.prototype.demonter = function () { this.detruit = true; clearInterval(this.minuterie); document.removeEventListener('amx:compagnie', this.surCompagnie); document.removeEventListener('visibilitychange', this.surVisible); };
-  VueTexto.prototype.naviguer = function (ctx) { var p = (ctx && ctx.params) || {}; if (p.estime) this.ouvrirEstime(p.estime); else if (p.tel) { this.vue = 'conversations'; this.ouvrirTel = telChiffres(p.tel); this.rendre(); } };
+  VueTexto.prototype.naviguer = function (ctx) { var p = (ctx && ctx.params) || {}; if (p.estime) this.ouvrirEstime(p.estime); else if (p.tel) { this.vue = 'conversations'; this.ouvrirTel = telChiffres(p.tel); this.rendre(); } else if (p.conv) { this.vue = 'conversations'; this.filtreConv = p.conv === 'attente' || p.conv === 'moi' ? p.conv : ''; this.rendre(); } };
   /* Nom d'un conseiller (id des réglages du carnet) ou d'un compte (courriel). */
   VueTexto.prototype.nomConseiller = function (cie, id) { var cfg = this.config(cie); var c = cfg && (cfg.conseillers || []).filter(function (x) { return x.id === id; })[0]; return c ? c.nom : nomCourt(id); };
   VueTexto.prototype.config = function (cie) { var d = this.donnees; cie = cie || this.compagnie; return (d && d.configs && (d.configs[cie] || (!cie && d.configs[Object.keys(d.configs)[0]]))) || null; };
@@ -269,7 +283,7 @@
     this.btnReglages.classList.toggle('cache', !d.peutConfigurer);
     [this.btnTexto, this.btnPaiement, this.btnNouveau].forEach(function (b) { b.classList.toggle('cache', !d.peutEcrire); });
     var textos = d.textos || {};
-    this.elEtat.textContent = (textos.actif ? 'Textos actifs' + (textos.numero ? ' · ' + telJoli(textos.numero) : '') + (textos.lectureInstallee ? ' · réponses lues chaque minute' : ' · lecture des réponses non installée (Outils › Comptes et droits › Échanges par texto)') : 'Textos non configurés (Outils › Comptes et droits › Alertes)') + ' · ' + new Date(d.genereLe || Date.now()).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+    this.elEtat.textContent = (textos.actif ? 'Textos actifs' + (textos.numero ? ' · ' + telJoli(textos.numero) : '') + (d.reception && d.reception.actif ? ' · réponses reçues instantanément' : (textos.lectureInstallee ? ' · réponses lues chaque minute' : ' · lecture des réponses non installée (Outils › Comptes et droits › Échanges par texto)')) : 'Textos non configurés (Outils › Comptes et droits › Alertes)') + ' · ' + new Date(d.genereLe || Date.now()).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
     [].forEach.call(this.elSeg.querySelectorAll('button'), function (b) { b.classList.toggle('actif', b.dataset.vue === self.vue); });
     this.rendreKpis();
     this.rendreCorps();
@@ -285,13 +299,13 @@
     var dollarsApprouves = est.filter(function (e) { return depuis30(e) && (e.statut === 'approuve' || e.statut === 'partiel'); }).reduce(function (a, e) { return a + (e.totalApprouve || 0); }, 0);
     var delais = est.filter(function (e) { return depuis30(e) && e.delaiMin !== null && e.delaiMin !== undefined; }).map(function (e) { return e.delaiMin; });
     var delaiMoy = delais.length ? delais.reduce(function (a, b) { return a + b; }, 0) / delais.length : null;
-    var nonLus = convs.filter(function (c) { return c.nonLus > 0; }).length;
+    var nonLus = convs.filter(function (c) { return c.nonLus > 0; }).length, sansRep = convs.filter(function (c) { return minutesSansReponse(c); }).length;
     var paiAttente = pais.filter(function (p) { return p.statut === 'en_attente'; }), paiMontant = paiAttente.reduce(function (a, p) { return a + (p.montant || 0); }, 0);
     this.elKpis.appendChild(kpi(attente.length, 'À approuver', { classe: attente.length ? 'attention' : '', sous: montantAttente ? argent(montantAttente) + ' en attente' : 'aucun estimé envoyé', actif: this.vue === 'estimes' && this.filtre === 'attente', onclick: function () { self.vue = 'estimes'; self.filtre = 'attente'; self.rendre(); } }));
     this.elKpis.appendChild(kpi(repondus.length ? Math.round(gagnes.length / repondus.length * 100) + ' %' : '—', 'Taux d\'approbation', { sous: '30 jours · ' + gagnes.length + ' sur ' + repondus.length, actif: this.vue === 'estimes' && this.filtre === 'approuve', onclick: function () { self.vue = 'estimes'; self.filtre = 'approuve'; self.rendre(); } }));
     this.elKpis.appendChild(kpi(argent(dollarsApprouves), 'Approuvés 30 j', { sous: 'avant taxes', classe: 'neutre' }));
     this.elKpis.appendChild(kpi(delaiMoy === null ? '—' : duree(delaiMoy), 'Délai de réponse', { sous: 'moyenne 30 jours', classe: 'neutre' }));
-    this.elKpis.appendChild(kpi(nonLus, 'Textos non lus', { classe: nonLus ? 'alerte' : '', sous: convs.length + ' conversation' + (convs.length > 1 ? 's' : ''), actif: this.vue === 'conversations', onclick: function () { self.vue = 'conversations'; self.rendre(); } }));
+    this.elKpis.appendChild(kpi(nonLus, 'Textos non lus', { classe: nonLus || sansRep ? 'alerte' : '', sous: sansRep ? sansRep + ' client' + (sansRep > 1 ? 's' : '') + ' sans réponse depuis ' + ATTENTE_MIN + ' min' : convs.length + ' conversation' + (convs.length > 1 ? 's' : ''), actif: this.vue === 'conversations', onclick: function () { self.vue = 'conversations'; if (sansRep) self.filtreConv = 'attente'; self.rendre(); } }));
     this.elKpis.appendChild(kpi(paiAttente.length, 'Paiements en attente', { classe: paiAttente.length ? 'attention' : '', sous: paiMontant ? argent(paiMontant) : 'aucun', actif: this.vue === 'paiements', onclick: function () { self.vue = 'paiements'; self.rendre(); } }));
   };
   VueTexto.prototype.rendreCorps = function () {
@@ -544,7 +558,7 @@
       if (v.ouvert) actions.appendChild(h('button.btn', { type: 'button', text: 'Relancer', title: 'Petit rappel par texto', onclick: function () { self.modaleEnvoi(v, cfg, true, function (est) { rouvrir(est); }); } }));
       if (v.id && v.envoyeLe) { actions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Copier le lien', onclick: function () { AMX.copier(lienEstime(v), 'Lien copié — collez-le dans un texto ou montrez-le au comptoir'); } })); actions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Page client', onclick: function () { window.open(lienEstime(v) + '&apercu=1', '_blank', 'noopener'); } })); }
       if (v.id && (v.statut === 'approuve' || v.statut === 'partiel')) {
-        if (!v.termineLe) actions.appendChild(h('button.btn', { type: 'button', text: '✓ Travaux terminés', title: 'Véhicule prêt — propose le texto « véhicule prêt »', onclick: function () { self.terminerTravaux(v, cfg, function (est) { rouvrir(est); }); } }));
+        if (!v.termineLe) actions.appendChild(h('button.btn', { type: 'button', text: '✓ Véhicule prêt', title: 'Travaux terminés + texto au client avec le lien de paiement', onclick: function () { self.terminerTravaux(v, cfg, function (est) { rouvrir(est); }); } }));
         actions.appendChild(h('button.btn' + (pai && pai.statut === 'paye' ? '.fantome' : ''), { type: 'button', text: pai ? 'Paiement ' + (PAI_STATUTS[pai.statut] || '').toLowerCase() : '$ Demande de paiement', title: pai ? pai.id + ' · ' + argent(pai.montant) : 'Envoyer le montant à payer par texto (en ligne par carte si Clover est configuré)', onclick: function () { if (pai) self.ouvrirPaiement(pai.id); else self.nouveauPaiement(v); } }));
         actions.appendChild(h('button.btn', { type: 'button', text: v.courtoisieLe ? '★ Suivi envoyé' : '★ Suivi de courtoisie', title: 'Demander au client comment ça s\'est passé (note sur 5, lien Google)', onclick: function () { self.courtoisie(v, function (est) { rouvrir(est); }); } }));
       }
@@ -613,19 +627,44 @@
     } }] });
   };
   /* Travaux terminés : date posée, puis on propose (case cochée) le texto « véhicule prêt ». */
+  /* 28 oct. (étape 2) : « véhicule prêt » en un geste — travaux terminés, demande de paiement du montant approuvé et UN texto
+     (véhicule, montant, bon de travail, lien de paiement). POST estimePret ; {lien} est remplacé par le serveur. */
   VueTexto.prototype.terminerTravaux = function (v, cfg, apres) {
     var self = this, tel = telChiffres(v.telephone), textosActifs = !!(this.donnees && this.donnees.textos && this.donnees.textos.actif);
-    var modele = (cfg.modeles || []).filter(function (m) { return m.id === 'pret'; })[0];
-    var texte = modele ? gabarit(modele.texte, { prenom: prenom(v.client), client: v.client, concession: nomCie(v.compagnie), vehicule: v.vehicule || 'véhicule', ref: v.id, conseiller: cfg.signature || nomCourt(AMX.session.courriel) }) : '';
+    var pai = v.paiementId && this.donnees ? (this.donnees.paiements || []).filter(function (p) { return p.id === v.paiementId; })[0] : null;
+    var aPayer = !(pai && pai.statut !== 'en_attente') && Number(v.totalApprouveTaxes || 0) > 0;
+    var modeleDe = function (id) { return (cfg.modeles || []).filter(function (m) { return m.id === id; })[0]; };
+    var vars = function (avecPaiement) { return { prenom: prenom(v.client), client: v.client, concession: nomCie(v.compagnie), vehicule: v.vehicule || 'véhicule', ref: v.id, bt: v.btNo || '', montant: avecPaiement ? argent(pai ? pai.montant : v.totalApprouveTaxes) : '', conseiller: cfg.signature || nomCourt(AMX.session.courriel) }; };
+    var texteDe = function (avecPaiement) { var m = modeleDe(avecPaiement ? 'pretPayer' : 'pret'); var t = m ? m.texte : (avecPaiement ? '{concession} : votre {vehicule} est prêt ! Montant à payer : {montant}{bt}. Payez en ligne avant de venir le chercher : {lien}' : '{concession} : votre {vehicule} est prêt ! Vous pouvez venir le chercher.'); return gabarit(t, vars(avecPaiement)); };
     var cb = h('input', { type: 'checkbox', checked: tel && textosActifs ? true : undefined, disabled: tel && textosActifs ? undefined : true });
-    var inMsg = zoneTexte({ style: { minHeight: '60px' } }, texte);
-    AMX.modale({ titre: 'Travaux terminés — ' + v.id, corps: h('div.txt-envoi', [h('p', 'Le véhicule est prêt. La date est notée sur l\'estimé (le suivi de courtoisie compte à partir d\'ici).'), h('label.champ.inline', [cb, h('span', { text: 'Prévenir le client par texto' + (tel ? ' au ' + telJoli(tel) : ' — aucun cellulaire') })]), h('div.champ', [h('label', 'Message'), inMsg])]), boutons: [{ texte: 'Annuler' }, { texte: 'Terminer', classe: 'primaire', action: function () {
-      return self.action({ action: 'estimeEtat', id: v.id, etat: 'termine' }, 'Travaux terminés').then(function (d) {
+    var cbPai = h('input', { type: 'checkbox', checked: aPayer ? true : undefined, disabled: aPayer ? undefined : true });
+    var inMsg = zoneTexte({ style: { minHeight: '70px' } }, texteDe(aPayer)), touche = false;
+    inMsg.addEventListener('input', function () { touche = true; });
+    cbPai.addEventListener('change', function () { if (!touche) inMsg.value = texteDe(cbPai.checked); });
+    var aide = h('div.aide', { text: '« {lien} » devient le lien de paiement (Clover si la concession est branchée, sinon la page avec le montant et les façons de payer).' });
+    var majAide = function () { aide.classList.toggle('cache', !cbPai.checked); }; cbPai.addEventListener('change', majAide); majAide();
+    AMX.modale({ titre: 'Véhicule prêt — ' + v.id, corps: h('div.txt-envoi', [
+      h('p', 'Les travaux sont marqués terminés (le suivi de courtoisie compte à partir d\'ici).'),
+      h('label.champ.inline', [cb, h('span', { text: 'Prévenir le client par texto' + (tel ? ' au ' + telJoli(tel) : ' — aucun cellulaire') + (tel && !textosActifs ? ' (textos non configurés)' : '') })]),
+      h('label.champ.inline', [cbPai, h('span', { text: aPayer ? 'Joindre le lien de paiement (' + argent(pai ? pai.montant : v.totalApprouveTaxes) + (pai ? ', ' + pai.id : ' taxes incluses') + ')' : (pai && pai.statut === 'paye' ? 'Déjà payé (' + pai.id + ')' : 'Rien à payer sur cet estimé') })]),
+      h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Texto'), inMsg]), aide
+    ]), boutons: [{ texte: 'Annuler' }, { texte: 'Confirmer', classe: 'primaire', action: function () {
+      return self.action({ action: 'estimePret', id: v.id, texto: cb.checked, paiement: cbPai.checked, message: inMsg.value.trim() }, null).then(function (d) {
         if (!d || !d.ok) return false;
-        var suite = Promise.resolve(d);
-        if (cb.checked && inMsg.value.trim()) suite = self.action({ action: 'textoEnvoyer', compagnie: v.compagnie, telephone: tel, texte: inMsg.value.trim(), client: v.client, clientId: v.clientId, vin: v.vin, vehicule: v.vehicule }, 'Client prévenu par texto').then(function () { return d; });
-        return suite.then(function () { if (apres) apres(d.estime); return true; });
+        AMX.toast('Véhicule prêt' + (d.paiement ? ' · paiement ' + d.paiement.id : '') + ((d.envoye || []).length ? ' · client prévenu par texto' : ''), 'ok');
+        (d.erreurs || []).forEach(function (x) { AMX.toast(x, 'attention', 8000); });
+        if (apres) apres(d.estime); return true;
       });
+    } }] });
+  };
+  /* 28 oct. (étape 2) : texto « paiement reçu » proposé quand le paiement est marqué payé (le conseiller l'envoie ; rien d'automatique). */
+  VueTexto.prototype.textoPaye = function (p) {
+    var self = this, cfg = this.config(p.compagnie) || { modeles: [] }, tel = telChiffres(p.telephone);
+    var m = (cfg.modeles || []).filter(function (x) { return x.id === 'paye'; })[0];
+    var inMsg = zoneTexte({ style: { minHeight: '60px' } }, gabarit(m ? m.texte : '{concession} : nous avons bien reçu votre paiement de {montant}{bt}. Merci ! Vos clés vous attendent au comptoir du service.', { prenom: prenom(p.client), client: p.client, concession: nomCie(p.compagnie), vehicule: p.vehicule || 'véhicule', montant: argent(p.montant), bt: p.btNo || '', conseiller: cfg.signature || nomCourt(AMX.session.courriel) }));
+    AMX.modale({ titre: 'Texto « paiement reçu »', corps: h('div.txt-envoi', [h('p', { text: 'À ' + (p.client || '') + (tel ? ' · ' + telJoli(tel) : '') }), inMsg]), boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
+      if (!tel) { AMX.toast('Aucun cellulaire pour ce paiement.', 'erreur'); return false; }
+      return self.action({ action: 'textoEnvoyer', compagnie: p.compagnie, telephone: tel, texte: inMsg.value.trim(), client: p.client, vehicule: p.vehicule }, 'Texto envoyé').then(function (d) { return !!(d && d.ok); });
     } }] });
   };
   VueTexto.prototype.courtoisie = function (v, apres) {
@@ -638,17 +677,25 @@
 
   /* ------------------------------------------------------------------ conversations */
   VueTexto.prototype.rendreConversations = function () {
-    var self = this, convs = this.liste('conversations');
+    var self = this, toutes = this.liste('conversations'), maintenant = Date.now();
+    var nAttente = toutes.filter(function (c) { return minutesSansReponse(c, maintenant); }).length, nMoi = toutes.filter(function (c) { return estMoi(c.conseiller); }).length;
+    var f = this.filtreConv || '';
+    var convs = toutes.filter(function (c) { return f === 'attente' ? minutesSansReponse(c, maintenant) : (f === 'moi' ? estMoi(c.conseiller) : true); });
+    /* les clients qui attendent le plus longtemps d'abord ; le reste dans l'ordre d'avant */
+    convs = convs.map(function (c, i) { return { c: c, i: i, m: minutesSansReponse(c, maintenant) }; }).sort(function (a, b) { return (b.m ? 1 : 0) - (a.m ? 1 : 0) || b.m - a.m || a.i - b.i; }).map(function (x) { return x.c; });
     this.elCompte.textContent = convs.length + ' conversation' + (convs.length > 1 ? 's' : '');
     if (this.ouvrirTel) { var c0 = convs.filter(function (c) { return c.telephone === self.ouvrirTel; })[0]; if (c0) this.convId = c0.id; else if (this.peutEcrire()) { var telV = this.ouvrirTel; this.ouvrirTel = ''; setTimeout(function () { self.nouveauTexto({ telephone: telV }); }, 100); } this.ouvrirTel = ''; }
     var liste = h('div.txt-liste' + (this.convId ? '.cache-mobile' : ''));
-    if (!convs.length) liste.appendChild(h('div.vide-petit', { text: this.recherche ? 'Aucune conversation ne correspond.' : 'Aucune conversation. Les textos envoyés et reçus apparaissent ici.' }));
+    var segConv = function (cle, libelle, n) { return h('button' + (f === cle ? '.actif' : '') + (cle === 'attente' && n ? '.rouge' : ''), { type: 'button', text: libelle + (n !== undefined ? ' ' + n : ''), onclick: function () { self.filtreConv = cle; self.rendreCorps(); } }); };
+    liste.appendChild(h('div.seg-conv', [segConv('', 'Toutes'), segConv('moi', 'Les miennes', nMoi), segConv('attente', 'Sans réponse', nAttente)]));
+    if (!convs.length) liste.appendChild(h('div.vide-petit', { text: f === 'attente' ? 'Aucun client n\'attend de réponse depuis ' + ATTENTE_MIN + ' minutes.' : (f === 'moi' ? 'Aucune conversation dont vous êtes responsable.' : (this.recherche ? 'Aucune conversation ne correspond.' : 'Aucune conversation. Les textos envoyés et reçus apparaissent ici.')) }));
     convs.forEach(function (c) {
-      liste.appendChild(h('div.item' + (c.nonLus ? '.nonlu' : '') + (c.id === self.convId ? '.actif' : ''), { onclick: function () { self.convId = c.id; self.rendreCorps(); } }, [
+      var mAtt = minutesSansReponse(c, maintenant);
+      liste.appendChild(h('div.item' + (c.nonLus ? '.nonlu' : '') + (mAtt ? '.attend' : '') + (c.id === self.convId ? '.actif' : ''), { onclick: function () { self.convId = c.id; self.rendreCorps(); } }, [
         h('div.nom', [c.client || telJoli(c.telephone), c.nonLus ? h('span.badge-nonlu', { text: c.nonLus }) : null, c.stop ? h('span.stop', ' STOP') : null]),
-        h('div.q', { text: quand(c.dernierLe || c.maj) }),
+        h('div.q', mAtt ? [h('span.attente', { text: 'sans réponse · ' + dureeAttente(mAtt), title: 'Le client attend une réponse depuis ' + dureeAttente(mAtt) })] : [quand(c.dernierLe || c.maj)]),
         h('div.apercu', { text: (c.dernierSens === 'sortant' ? '↗ ' : (c.dernierSens === 'entrant' ? '↙ ' : '')) + (c.dernierTexte || '') }),
-        h('div.cie', { text: (self.compagnie ? '' : nomCie(c.compagnie) + ' · ') + (c.client ? telJoli(c.telephone) : '') + (c.vehicule ? ' · ' + c.vehicule : '') })
+        h('div.cie', { text: [self.compagnie ? '' : nomCie(c.compagnie), c.client ? telJoli(c.telephone) : '', c.vehicule || '', c.conseiller ? (estMoi(c.conseiller) ? 'vous' : nomCourt(c.conseiller)) : 'sans responsable'].filter(Boolean).join(' · ') })
       ]));
     });
     var fil = h('div.txt-fil' + (this.convId ? '' : '.cache-mobile'));
@@ -673,8 +720,9 @@
     var cfg = this.config(c.compagnie) || { modeles: [] }, peut = c.peutEcrire && this.peutEcrire();
     var tete = h('div.tete', [
       h('button.btn.petit.fantome', { type: 'button', text: '‹', title: 'Retour à la liste', style: { display: 'none' }, class: 'retour', onclick: function () { self.convId = ''; self.rendreCorps(); } }),
-      h('div', [h('div.nom', { text: c.client || telJoli(c.telephone) }), h('div.d', { text: (c.client ? telJoli(c.telephone) + ' · ' : '') + nomCie(c.compagnie) + (c.vehicule ? ' · ' + c.vehicule : '') + (c.conseiller ? ' · ' + nomCourt(c.conseiller) : '') })]),
+      h('div', [h('div.nom', { text: c.client || telJoli(c.telephone) }), h('div.d', { text: (c.client ? telJoli(c.telephone) + ' · ' : '') + nomCie(c.compagnie) + (c.vehicule ? ' · ' + c.vehicule : '') + ' · responsable : ' + (c.conseiller ? (estMoi(c.conseiller) ? 'vous' : nomCourt(c.conseiller)) : 'personne') })]),
       h('div.actions', [
+        peut && !estMoi(c.conseiller) ? h('button.btn.petit' + (c.conseiller ? '.fantome' : '.primaire'), { type: 'button', text: 'Je m\'en occupe', title: c.conseiller ? 'Prendre la conversation de ' + nomCourt(c.conseiller) : 'Devenir le responsable de cette conversation', onclick: function () { self.action({ action: 'textoConversation', id: c.id, conseiller: AMX.session.courriel }, 'Vous êtes responsable de cette conversation').then(function () { self.rendreCorps(); }); } }) : null,
         peut ? h('button.btn.petit', { type: 'button', text: '+ Estimé', onclick: function () { self.ouvrirEstime(null, { compagnie: c.compagnie, client: c.client, telephone: c.telephone, clientId: c.clientId, vin: c.vin, vehicule: c.vehicule }); } }) : null,
         peut ? h('button.btn.petit', { type: 'button', text: '$ Paiement', onclick: function () { self.nouveauPaiement({ compagnie: c.compagnie, client: c.client, telephone: c.telephone, vehicule: c.vehicule }); } }) : null,
         peut ? h('button.btn.petit.fantome', { type: 'button', text: c.client ? 'Renommer' : 'Nommer', onclick: function () { self.demanderTexte('Nom du client', 'Tel qu\'il apparaît dans la liste', 'Prénom et nom', c.client).then(function (nom) { if (nom === null) return; self.action({ action: 'textoConversation', id: c.id, client: nom }, 'Nom enregistré').then(function (d) { if (d && d.ok) self.rendreCorps(); }); }); } }) : null,
@@ -854,7 +902,7 @@
       p.envoyeLe && p.telephone ? h('button.btn.petit.fantome', { type: 'button', text: 'Rappeler par texto' + (p.rappels ? ' (' + p.rappels + ')' : ''), onclick: function () { self.action({ action: 'paiementRappeler', id: p.id }, 'Rappel envoyé').then(function (d) { if (d && d.ok) rouvrir(d.paiement); }); } }) : null,
       (fourn === 'clover' ? cloverVerifie && p.sessions : p.enLigne) ? h('button.btn.petit.fantome', { type: 'button', text: 'Vérifier chez ' + nomFourn, onclick: function () { self.action({ action: 'paiementMarquer', id: p.id, statut: 'verifier' }, null).then(function (d) { if (d && d.ok) { AMX.toast(d.change ? 'Payé !' : 'Toujours en attente chez ' + nomFourn, d.change ? 'ok' : 'info'); rouvrir(d.paiement); } }); } }) : null,
       h('button.btn.petit.fantome.danger', { type: 'button', text: 'Annuler la demande', onclick: function () { AMX.confirmer('Annuler ' + p.id, 'Le lien ne permettra plus de payer.', { ok: 'Annuler la demande', danger: true }).then(function (oui) { if (oui) self.action({ action: 'paiementMarquer', id: p.id, statut: 'annule' }, 'Demande annulée').then(function (d) { if (d && d.ok) rouvrir(d.paiement); }); }); } })
-    ]) : null, peut && p.statut === 'paye' ? h('div', { style: { marginBottom: '10px' } }, [h('button.btn.petit.fantome', { type: 'button', text: 'Marquer remboursé', onclick: function () { self.action({ action: 'paiementMarquer', id: p.id, statut: 'rembourse' }, 'Marqué remboursé').then(function (d) { if (d && d.ok) rouvrir(d.paiement); }); } })]) : null, (p.journal || []).length ? h('details', [h('summary', { style: { cursor: 'pointer', fontSize: '12px', color: 'var(--encre-3)' }, text: 'Journal' }), journal]) : null]);
+    ]) : null, peut && p.statut === 'paye' ? h('div', { style: { marginBottom: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' } }, [p.telephone ? h('button.btn.petit', { type: 'button', text: 'Texto « paiement reçu »', title: 'Dire au client que le paiement est reçu et où sont ses clés', onclick: function () { self.textoPaye(p); } }) : null, h('button.btn.petit.fantome', { type: 'button', text: 'Marquer remboursé', onclick: function () { self.action({ action: 'paiementMarquer', id: p.id, statut: 'rembourse' }, 'Marqué remboursé').then(function (d) { if (d && d.ok) rouvrir(d.paiement); }); } })]) : null, (p.journal || []).length ? h('details', [h('summary', { style: { cursor: 'pointer', fontSize: '12px', color: 'var(--encre-3)' }, text: 'Journal' }), journal]) : null]);
     var modale = AMX.modale({ titre: 'Paiement ' + p.id + ' — ' + (p.client || ''), corps: corps, boutons: boutons });
     if (ouvrirEnvoi && peut && p.statut === 'en_attente') setTimeout(function () { var b = modale.el.querySelector('.modale-pied .btn.primaire'); if (b) b.click(); }, 50);
   };
@@ -935,12 +983,35 @@
       modeles,
       h('button.btn.petit', { type: 'button', text: '+ Modèle', style: { marginTop: '6px' }, onclick: function () { ajouterModele({}); } }),
       h('div.aide', 'estime, relance, paiement et courtoisie sont les modèles utilisés par les boutons ; les autres apparaissent dans les conversations.'),
-      (d.peutClover || AMX.estAdmin()) ? self.blocClover(cie, function () { modale.fermer(); self.charger(true).then(function () { self.ouvrirReglages(); }); }) : null
+      (d.peutClover || AMX.estAdmin()) ? self.blocClover(cie, function () { modale.fermer(); self.charger(true).then(function () { self.ouvrirReglages(); }); }) : null,
+      d.reception && (AMX.estAdmin() || d.peutClover) ? self.blocReception(d.reception) : null
     ]);
     var modale = AMX.modale({ titre: 'Réglages Texto — ' + nomCie(cie), corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
       var config = { tauxMo: num(inTaux.value), taxes: cbTaxes.checked, regrouper: cbRegrouper.checked, validiteJours: Math.max(1, Math.round(num(inValid.value)) || 30), telephone: inTel.value, signature: inSig.value.trim(), pied: inPied.value.trim(), courtoisie: { auto: cbAuto.checked, delaiJours: Math.max(0, Math.round(num(inDelai.value))), apres: selApres.value }, modeles: lignesM.filter(function (x) { return document.body.contains(x.el); }).map(function (x) { return x.lire(); }).filter(function (m) { return m.titre && m.texte; }) };
       return self.action({ action: 'textoConfig', compagnie: cie, config: config }, 'Réglages enregistrés').then(function (r) { if (!r || !r.ok) return false; if (self.donnees && self.donnees.configs) self.donnees.configs[cie] = r.config; AMX.texto.invalider(); self.charger(true); return true; });
     } }] });
+  };
+  /* 28 oct. : réception instantanée (Reception.gs). Infobip pousse chaque texto reçu vers l'adresse du script ; le propriétaire
+     la crée ici et la colle lui-même dans le portail Infobip (Numbers › le numéro › Inbound configuration › Forward to HTTP).
+     L'adresse contient un jeton : elle ne s'affiche qu'à la demande et ne se garde nulle part dans la page. */
+  VueTexto.prototype.blocReception = function (r) {
+    var self = this, zone = h('div');
+    var etat = r.actif ? 'Active — dernier texto reçu ' + quand(r.dernierPousse) + (r.poussesAujourdhui ? ' · ' + r.poussesAujourdhui + ' aujourd\'hui' : '') + '. La lecture de la boîte Infobip n\'est plus qu\'un secours, aux 10 minutes.'
+      : (r.adresseCreee ? 'Adresse créée, aucun texto reçu par elle depuis 3 jours : les réponses sont lues dans la boîte Infobip (chaque minute de 7 h à 19 h).' : 'Pas encore en place : les réponses sont lues dans la boîte Infobip (chaque minute de 7 h à 19 h, moins souvent le soir).');
+    var montrer = function (nouveau) {
+      return self.action({ action: 'textoReception', montrer: true, nouveau: !!nouveau }, null).then(function (d) {
+        if (!d || !d.ok) return;
+        AMX.vider(zone);
+        zone.appendChild(h('div.champ', { style: { marginTop: '6px' } }, [h('label', 'Adresse à coller dans Infobip (Forward to HTTP)'), h('div', { style: { display: 'flex', gap: '6px' } }, [h('input.saisie.mono', { type: 'text', value: d.adresse, readonly: true, style: { fontSize: '11.5px' } }), h('button.btn.petit', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(d.adresse, 'Adresse copiée — collez-la dans Infobip'); } })])]));
+        zone.appendChild(h('ol.aide', { style: { margin: '6px 0 0', paddingLeft: '18px' } }, [h('li', 'Portail Infobip › Channels and Numbers › Numbers › votre numéro › onglet SMS › Keywords : modifiez la règle qui reçoit les textos (aujourd\'hui « Pull »).'), h('li', 'Forwarding action : Forward to HTTP · URL : collez l\'adresse · Renderer Type : MO_JSON_2 › CONFIGURE.'), h('li', 'Envoyez un texto de test au numéro, puis rouvrez ces réglages : la réception doit être « Active ».')]));
+        if (d.cree) AMX.toast(nouveau ? 'Nouvelle adresse : remplacez l\'ancienne dans Infobip' : 'Adresse de réception créée', 'ok', 6000);
+      });
+    };
+    return h('div', [h('h4', 'Réception instantanée des réponses'), h('div.aide', { text: etat }), zone,
+      h('div', { style: { display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' } }, [
+        h('button.btn.petit', { type: 'button', text: r.adresseCreee ? 'Montrer l\'adresse de réception' : 'Créer l\'adresse de réception', onclick: function () { montrer(false); } }),
+        r.adresseCreee ? h('button.btn.petit.fantome', { type: 'button', text: 'Nouvelle adresse', title: 'L\'ancienne ne marchera plus', onclick: function () { AMX.confirmer('Nouvelle adresse de réception', 'L\'ancienne adresse ne marchera plus : il faudra coller la nouvelle dans Infobip tout de suite, sinon les réponses ne seront lues qu\'aux 10 minutes.', { ok: 'Faire une nouvelle adresse' }).then(function (oui) { if (oui) montrer(true); }); } }) : null
+      ])]);
   };
   /* 28 oct. : Clover (Fiserv) remplace Stripe. Chaque concession est un marchand Clover ; ses jetons sont collés ici par le
      propriétaire (jamais renvoyés au site). Le jeton « Hosted checkout » ouvre la page de paiement ; le jeton API (facultatif,

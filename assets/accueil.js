@@ -469,6 +469,8 @@
         else {
           var nl = (tx.conversations || []).filter(function (x) { return deCie(x.compagnie, cieSvc) && x.nonLus > 0; }).length;
           var es = (tx.estimes || []).filter(function (x) { return deCie(x.compagnie, cieSvc) && x.ouvert; }).length;
+          var sr = AMX.texto.sansReponse ? AMX.texto.sansReponse().filter(function (x) { return deCie(x.compagnie, cieSvc); }).length : 0;   /* 28 oct. : clients sans réponse depuis 10 min */
+          if (sr) out.push({ ton: 'rouge', n: sr, titre: 'Clients qui attendent une réponse par texto depuis 10 minutes ou plus', href: AMX.lien('service', 'texto', { conv: 'attente' }), ic: 'texto' });
           if (nl) out.push({ ton: 'ambre', n: nl, titre: 'Conversations texto non lues', href: AMX.lien('service', 'texto'), ic: 'texto' });
           if (es) out.push({ ton: 'bleu', n: es, titre: 'Estimés envoyés en attente de la réponse du client', href: AMX.lien('service', 'texto'), ic: 'texto' });
         }

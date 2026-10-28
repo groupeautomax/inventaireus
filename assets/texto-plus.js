@@ -101,6 +101,14 @@
     var self = this, m = AMX.modale({ titre: 'Client', corps: AMX.chargeur('Fiche', { compact: true }), boutons: [{ texte: 'Fermer' }] });
     AMX.get({ textoClient: 1, id: id }, { secours: false }).then(function (d) { m.fermer(); if (!d || !d.ok) { AMX.toast((d && (d.erreur || d.message)) || 'Client introuvable', 'erreur'); return; } self.ficheClient(d); }).catch(function (e) { m.fermer(); AMX.toast(AMX.erreurTexte(e), 'erreur'); });
   };
+  /* 28 oct. : consentement aux messages commerciaux (LCAP) — exprès, tacite 2 ans après la dernière visite, échu, refusé ou inconnu. */
+  function TEXTE_OFFRES(o) {
+    if (o.type === 'expres') return 'consentement exprès';
+    if (o.type === 'tacite') return 'consentement tacite jusqu\'au ' + dateCourte(o.jusqua) + ' (2 ans après la dernière visite)';
+    if (o.type === 'echu') return 'consentement tacite échu le ' + dateCourte(o.jusqua) + ' — exclu des campagnes';
+    if (o.type === 'refus') return 'refusé — exclu des campagnes';
+    return 'aucun consentement connu — exclu des campagnes (cochez « offres » avec l\'accord du client)';
+  }
   V.prototype.ficheClient = function (d) {
     var self = this, c = d.client, peut = this.peutEcrire() && d.peutEcrire;
     var vehs = (c.vehicules || []).map(function (v) { return (v.texte || '') + (v.vin ? ' · ' + v.vin : '') + (v.plaque ? ' · ' + v.plaque : '') + (v.km ? ' · ' + v.km + ' km' : ''); });
@@ -110,6 +118,7 @@
       h('dt.doux', 'Véhicules'), h('dd', vehs.length ? vehs.map(function (t) { return h('div', { text: t }); }) : '—'),
       h('dt.doux', 'Dernière visite'), h('dd', { text: dateCourte(c.derniereVisite) + (c.dmsId ? ' · # DMS ' + c.dmsId : '') }),
       h('dt.doux', 'Textos'), h('dd', [h('span', { text: c.stop ? 'STOP reçu — plus aucun texto' : (c.textos ? 'acceptés' : 'refusés (fiche)') + (c.consentRappels ? ' · rappels : ' + c.consentRappels : '') + (c.consentOffres ? ' · offres : ' + c.consentOffres : '') })]),
+      c.offres ? h('dt.doux', 'Offres (campagnes)') : null, c.offres ? h('dd', { text: TEXTE_OFFRES(c.offres), style: { color: c.offres.ok ? '' : 'var(--rouge)' } }) : null,
       c.notes ? h('dt.doux', 'Notes') : null, c.notes ? h('dd', { text: c.notes }) : null
     ]);
     var actions = h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' } }, [
@@ -274,7 +283,7 @@
     var blocListe = h('div.champ', [h('label', 'Numéros'), inNumeros]);
     var majSource = function () { var l = selSource.value === 'liste'; blocClients.classList.toggle('cache', l); blocListe.classList.toggle('cache', !l); }; selSource.addEventListener('change', majSource); majSource();
     var audience = function () { return selSource.value === 'liste' ? { source: 'liste', numeros: inNumeros.value } : { source: 'clients', marque: inMarque.value.trim(), langue: selLangue.value, sansVisiteMois: num(inSans.value) || '', avecVisiteMois: num(inAvec.value) || '', visiteAvant: inAvant.value, visiteApres: inApres.value, anneeMin: num(inAnMin.value) || '', anneeMax: num(inAnMax.value) || '' }; };
-    var btnCompter = h('button.btn.petit', { type: 'button', text: 'Compter', onclick: function () { btnCompter.classList.add('occupe'); AMX.post({ action: 'campagneAudience', compagnie: selCie.value, audience: audience() }).then(function (d) { btnCompter.classList.remove('occupe'); if (!d || !d.ok) { apercu.textContent = (d && (d.erreur || d.message)) || 'Erreur'; return; } var ex = d.exclus || {}; apercu.textContent = d.total + ' client' + (d.total > 1 ? 's' : '') + ' recevront le message (' + d.minutes + ' min à 25 / min)' + (ex.consentement ? ' · ' + ex.consentement + ' sans consentement « offres »' : '') + (ex.stop ? ' · ' + ex.stop + ' STOP' : '') + (ex.sansCellulaire ? ' · ' + ex.sansCellulaire + ' sans cellulaire' : '') + (ex.doublons ? ' · ' + ex.doublons + ' doublon' + (ex.doublons > 1 ? 's' : '') : '') + (d.echantillon.length ? '. Ex. : ' + d.echantillon.slice(0, 5).map(function (x) { return x.client || telJoli(x.tel); }).join(', ') + '…' : ''); }).catch(function (e) { btnCompter.classList.remove('occupe'); apercu.textContent = AMX.erreurTexte(e); }); } });
+    var btnCompter = h('button.btn.petit', { type: 'button', text: 'Compter', onclick: function () { btnCompter.classList.add('occupe'); AMX.post({ action: 'campagneAudience', compagnie: selCie.value, audience: audience() }).then(function (d) { btnCompter.classList.remove('occupe'); if (!d || !d.ok) { apercu.textContent = (d && (d.erreur || d.message)) || 'Erreur'; return; } var ex = d.exclus || {}; apercu.textContent = d.total + ' client' + (d.total > 1 ? 's' : '') + ' recevront le message (' + d.minutes + ' min à 25 / min)' + (ex.consentement ? ' · ' + ex.consentement + ' refus (offres : non ou textos : non)' : '') + (ex.echu ? ' · ' + ex.echu + ' consentement tacite échu (dernière visite il y a plus de 2 ans)' : '') + (ex.inconnu ? ' · ' + ex.inconnu + ' sans consentement connu (pas de fiche ou pas de visite)' : '') + (ex.stop ? ' · ' + ex.stop + ' STOP' : '') + (ex.sansCellulaire ? ' · ' + ex.sansCellulaire + ' sans cellulaire' : '') + (ex.doublons ? ' · ' + ex.doublons + ' doublon' + (ex.doublons > 1 ? 's' : '') : '') + (d.echantillon.length ? '. Ex. : ' + d.echantillon.slice(0, 5).map(function (x) { return x.client || telJoli(x.tel); }).join(', ') + '…' : ''); }).catch(function (e) { btnCompter.classList.remove('occupe'); apercu.textContent = AMX.erreurTexte(e); }); } });
     var corps = h('div.txt-camp-form', [
       h('div.grille', [h('div.champ', [h('label', 'Concession'), selCie]), h('div.champ', [h('label', 'Nom de la campagne'), inNom])]),
       h('div.champ', { style: { marginTop: '8px' } }, [h('label', 'Message'), inTexte, compte]),

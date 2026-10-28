@@ -68,6 +68,7 @@
       <div class="sous" id="stock"></div>
       <div class="vin" id="vin"></div>
       <div class="alerte urgent cache" id="urgent">Client en attente — demande urgente.</div>
+      <div class="alerte cache" id="retouche">Retouche d'un véhicule déjà prêt à vendre (lavage, retouche…) : un bon de travail court, la mise en marché n'est pas rouverte.</div>
     </div>
     <div class="bloc">
       <h2>Travaux demandés</h2>
@@ -133,6 +134,7 @@
     $('stock').textContent = (d.stock ? '# stock ' + d.stock + ' · ' : '') + (d.compagnie || '');
     $('vin').textContent = 'NIV ' + d.vin;
     montrer($('urgent'), d.urgence === 'client');
+    montrer($('retouche'), d.type === 'retouche');
     var ul = $('travaux'); ul.innerHTML = '';
     (d.travaux || []).forEach(function (t) {
       if (t === 'autre') return;

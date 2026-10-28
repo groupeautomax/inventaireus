@@ -27,6 +27,8 @@
   .contact { background: #e8f6ee; border: 1px solid #bfe3cd; border-radius: var(--rayon); padding: 14px 16px; text-align: center; margin-bottom: 14px; } .contact .q { font-weight: 700; color: #0a6136; } .contact .c { color: #0a6136; font-size: 14px; margin: 2px 0 10px; }
   .contact .liens { display: flex; gap: 10px; } .contact a { flex: 1; display: block; padding: 11px; background: #fff; border: 1px solid #bfe3cd; border-radius: 10px; color: var(--texte); font-weight: 650; text-decoration: none; }
   .merci { text-align: center; padding: 10px 0 4px; } .merci .gros { width: 64px; height: 64px; border-radius: 50%; background: #e7f5ed; color: #0a6136; display: inline-grid; place-items: center; font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+  .avis { margin-top: 12px; padding: 12px 14px; border-radius: 10px; font-size: 14px; background: #fff4d6; color: #6b4700; } .avis.ok { background: #e7f5ed; color: #0a6136; } .avis.non { background: #fdecec; color: #8a1d1d; }
+  .principal[disabled] { opacity: .65; cursor: progress; pointer-events: none; }
   .cache { display: none !important; } .pied { color: var(--doux); font-size: 12.5px; text-align: center; margin: 18px 0 8px; } .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
 </style>
 </head>
@@ -44,7 +46,8 @@
       <span class="etat" id="etat"></span>
       <dl id="details"></dl>
       <div class="boutons" id="boutons"><a class="principal cache" id="btn-payer" href="#">Payer par carte en ligne</a></div>
-      <div class="securite cache" id="securite">Paiement sécurisé par Stripe — vos informations de carte ne passent jamais par le concessionnaire.</div>
+      <div class="securite cache" id="securite">Paiement sécurisé — vos informations de carte ne passent jamais par le concessionnaire.</div>
+      <div class="avis cache" id="avis"></div>
     </div>
     <div class="bloc cache" id="bloc-moyens"><h2>Comment payer</h2><ul class="moyens" id="moyens"></ul></div>
     <div class="contact" id="contact"><div class="q">Une question sur cette facture ?</div><div class="c" id="contact-c"></div><div class="liens"><a id="lien-texto" href="#">💬 Texto</a><a id="lien-appel" href="#">📞 Appeler</a></div></div>
@@ -55,7 +58,8 @@
 (function () {
   'use strict';
   var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
-  var q = new URLSearchParams(location.search), p = q.get('p') || '', c = (q.get('k') || q.get('c') || '').toUpperCase(), retour = q.get('retour') === '1', apercu = q.get('apercu') === '1';
+  var q = new URLSearchParams(location.search), p = q.get('p') || '', c = (q.get('k') || q.get('c') || '').toUpperCase(), retour = q.get('retour') === '1', echec = q.get('echec') === '1', apercu = q.get('apercu') === '1';
+  var essais = 0;
   var $ = function (s) { return document.getElementById(s); };
   function montrer(el, oui) { el.classList.toggle('cache', !oui); }
   function argent(n) { n = Number(n) || 0; return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
@@ -72,8 +76,17 @@
     var ajouter = function (a, b) { if (!b) return; var dt = document.createElement('dt'); dt.textContent = a; var dd = document.createElement('dd'); dd.textContent = b; dl.appendChild(dt); dl.appendChild(dd); };
     ajouter('Référence', pa.id); ajouter('Bon de travail', pa.btNo); ajouter('Estimé', pa.estimeId);
     if (paye) { ajouter('Payé le', dateLisible(pa.payeLe)); ajouter('Moyen', pa.moyen); ajouter('Confirmation', pa.reference ? '…' + pa.reference : ''); montrer($('merci'), true); $('merci-texte').textContent = argent(pa.montant) + ' reçu' + (pa.payeLe ? ' le ' + dateLisible(pa.payeLe) : '') + '. ' + (conc.nom || '') + ' vous remercie.'; }
-    montrer($('btn-payer'), !paye && !annule && pa.enLigne); if (pa.enLigne) $('btn-payer').href = pa.lienPaiement;
+    /* 28 oct. : Clover — la page de paiement se crée au clic (une session Clover ne vit que 15 min). */
+    var btn = $('btn-payer');
+    montrer(btn, !paye && !annule && pa.enLigne);
+    if (pa.enLigne && pa.fournisseur === 'clover') { btn.href = '#'; btn.onclick = function (e) { e.preventDefault(); payerClover(btn); }; }
+    else if (pa.enLigne) { btn.href = pa.lienPaiement; btn.onclick = null; }
     montrer($('securite'), !paye && !annule && pa.enLigne);
+    $('securite').textContent = pa.fournisseur === 'clover' ? 'Paiement sécurisé par Clover (Fiserv) — vos informations de carte ne passent jamais par le concessionnaire.' : 'Paiement sécurisé par Stripe — vos informations de carte ne passent jamais par le concessionnaire.';
+    var avis = $('avis'), texteAvis = '', classeAvis = '';
+    if (!paye && !annule && echec) { texteAvis = 'Le paiement n\'a pas été accepté. Vous pouvez réessayer avec une autre carte, ou payer au comptoir.'; classeAvis = 'non'; }
+    else if (!paye && !annule && (retour || pa.aConfirmer)) { texteAvis = 'Merci ! Votre paiement est en cours de confirmation par ' + (conc.nom || 'la concession') + '. Vous recevrez votre reçu de Clover par courriel.'; classeAvis = 'ok'; }
+    avis.className = 'avis' + (classeAvis ? ' ' + classeAvis : '') + (texteAvis ? '' : ' cache'); avis.textContent = texteAvis;
     montrer($('bloc-moyens'), !paye && !annule);
     var ul = $('moyens'); ul.innerHTML = '';
     var li = function (t) { var x = document.createElement('li'); x.textContent = t; ul.appendChild(x); };
@@ -85,13 +98,25 @@
     montrer($('lien-appel'), !!conc.telephoneBrut); if (conc.telephoneBrut) $('lien-appel').href = 'tel:' + conc.telephoneBrut;
     $('pied').textContent = (conc.nom || '') + ' · Référence ' + pa.id;
     montrer($('chargement'), false); montrer($('contenu'), true);
-    if (retour && !paye && !annule) { $('etat').textContent = 'Vérification du paiement…'; setTimeout(charger, 4000); }
+    if (retour && !paye && !annule && essais < 5) { essais++; $('etat').textContent = 'Vérification du paiement…'; setTimeout(charger, 4000); }
   }
   function charger() {
     fetch(SCRIPT_URL + '?paiementLien=' + encodeURIComponent(p) + '&k=' + encodeURIComponent(c) + (retour ? '&retour=1' : '') + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
       .then(function (x) { return x.json(); })
       .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
       .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
+  }
+  function payerClover(btn) {
+    var texte = btn.textContent; btn.setAttribute('disabled', 'disabled'); btn.textContent = 'Ouverture de la page de paiement…';
+    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'paiementPayer', p: p, k: c }) })
+      .then(function (x) { return x.json(); })
+      .then(function (d) {
+        if (d && d.ok && d.href) { location.href = d.href; return; }
+        btn.removeAttribute('disabled'); btn.textContent = texte;
+        var avis = $('avis'); avis.className = 'avis non'; avis.textContent = (d && d.erreur) || 'La page de paiement n\'a pas pu être ouverte. Réessayez dans un instant ou appelez la concession.';
+        if (d && d.code === 'FERME') charger();
+      })
+      .catch(function () { btn.removeAttribute('disabled'); btn.textContent = texte; var avis = $('avis'); avis.className = 'avis non'; avis.textContent = 'Connexion impossible pour le moment. Réessayez dans une minute.'; });
   }
   if (!p || !c) { montrer($('chargement'), false); montrer($('invalide'), true); } else charger();
 })();

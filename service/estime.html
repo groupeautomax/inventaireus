@@ -69,14 +69,16 @@
     body { background: #fff; } .bloc { border: 0; padding: 0 0 10px; } details.detail { display: block; } details.detail summary { display: none; }
     details.detail table { display: table !important; }
   }
+  .langue { margin-left: 10px; padding: 6px 10px; font: inherit; font-size: 13px; font-weight: 650; border-radius: 999px; border: 1px solid var(--trait); background: #fff; color: var(--texte); cursor: pointer; }
+  @media print { .langue { display: none !important; } }
   .voile { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: grid; place-items: center; z-index: 50; cursor: zoom-out; } .voile img { max-width: 96vw; max-height: 92vh; object-fit: contain; }
 </style>
 </head>
 <body>
-<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse">Votre estimé de service</span></div></header>
+<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse" id="pousse">Votre estimé de service</span><button type="button" class="langue cache" id="btn-langue" lang="en">English</button></div></header>
 <main>
   <div class="chargement" id="chargement">Chargement de votre estimé…</div>
-  <div class="bloc cache" id="invalide"><h1>Lien invalide</h1><p class="sous" id="invalide-texte">Ce lien n'est plus valide. Appelez votre concessionnaire pour en recevoir un nouveau.</p></div>
+  <div class="bloc cache" id="invalide"><h1 id="invalide-titre">Lien invalide</h1><p class="sous" id="invalide-texte">Ce lien n'est plus valide. Appelez votre concessionnaire pour en recevoir un nouveau.</p></div>
   <div id="contenu" class="cache">
     <div class="bloc">
       <h1 id="titre">Votre estimé</h1>
@@ -87,19 +89,19 @@
       <div class="copie cache" id="copie"></div>
     </div>
     <div class="bloc" id="bloc-travaux">
-      <h2>Travaux proposés</h2>
+      <h2 id="h-travaux">Travaux proposés</h2>
       <p class="sous" id="consigne">Approuvez ou refusez chaque travail. Nous ne faisons que ce que vous approuvez.</p>
       <div class="tout" id="tout"><button type="button" id="btn-tout-oui">✓ Tout approuver</button><button type="button" id="btn-tout-non">✗ Tout refuser</button></div>
       <div id="travaux"></div>
       <div class="totaux" id="totaux"></div>
-      <label for="note">Un mot pour votre conseiller (facultatif)</label>
+      <label for="note" id="label-note">Un mot pour votre conseiller (facultatif)</label>
       <textarea id="note" placeholder="Une question, une précision…"></textarea>
       <div class="boutons"><button class="principal" id="btn-envoyer" type="button">Envoyer ma réponse</button></div>
       <div class="erreur" id="erreur"></div>
     </div>
-    <div class="bloc cache" id="merci"><div class="merci"><div class="gros">✓</div><h1>Merci !</h1><p class="sous" id="merci-texte"></p></div></div>
-    <div class="bloc cache" id="bloc-paiement"><h2>Paiement</h2><p class="sous" id="paiement-texte"></p><div class="boutons"><a class="principal" id="btn-payer" href="#">Payer en ligne</a></div></div>
-    <div class="contact" id="contact"><div class="q">Vous avez des questions ?</div><div class="c" id="contact-c"></div><div class="liens"><a id="lien-texto" href="#">💬 Texto</a><a id="lien-appel" href="#">📞 Appeler</a></div></div>
+    <div class="bloc cache" id="merci"><div class="merci"><div class="gros">✓</div><h1 id="merci-titre">Merci !</h1><p class="sous" id="merci-texte"></p></div></div>
+    <div class="bloc cache" id="bloc-paiement"><h2 id="h-paiement">Paiement</h2><p class="sous" id="paiement-texte"></p><div class="boutons"><a class="principal" id="btn-payer" href="#">Payer en ligne</a></div></div>
+    <div class="contact" id="contact"><div class="q" id="contact-q">Vous avez des questions ?</div><div class="c" id="contact-c"></div><div class="liens"><a id="lien-texto" href="#">💬 Texto</a><a id="lien-appel" href="#">📞 Appeler</a></div></div>
     <p class="pied" id="pied"></p>
     <button type="button" class="imprimer" id="btn-imprimer">Imprimer ou enregistrer en PDF</button>
   </div>
@@ -110,15 +112,38 @@
   var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
   var q = new URLSearchParams(location.search), e = q.get('e') || '', c = (q.get('k') || q.get('c') || '').toUpperCase(), apercu = q.get('apercu') === '1';
   var $ = function (s) { return document.getElementById(s); };
-  var PRIO = { urgent: 'Urgent', recommande: 'Recommandé', suggere: 'Suggéré' };
+  /* 28 oct. : en français, en anglais si le client l'a demandé (texto ENGLISH, ce bouton, ou son conseiller) — Charte, art. 50.2 et 55.
+     Ce que le conseiller a tapé (travaux, notes) reste tel quel. */
+  var L = 'fr', langueVoulue = q.get('langue') === 'en' || q.get('langue') === 'fr' ? q.get('langue') : '';
+  function t(fr, en) { return L === 'en' ? en : fr; }
+  var PRIO = { urgent: ['Urgent', 'Urgent'], recommande: ['Recommandé', 'Recommended'], suggere: ['Suggéré', 'Suggested'] };
+  var STATUTS_EN = { brouillon: 'Draft', envoye: 'Waiting for your answer', vu: 'Waiting for your answer', approuve: 'Approved', partiel: 'Partly approved', decline: 'Declined', expire: 'Expired', annule: 'Cancelled' };
+  var PIECES_EN = { neuve: 'new', usagee: 'used', reusinee: 'remanufactured', remise: 'rebuilt', 'Neuve': 'new', 'Usagée': 'used', 'Réusinée': 'remanufactured', 'Remise à neuf': 'rebuilt' };
+  var TAXES_EN = { TPS: 'GST', TVQ: 'QST', TVH: 'HST' };
   var donnees = null, reponses = {}, fini = false;
   function montrer(el, oui) { el.classList.toggle('cache', !oui); }
-  function argent(n) { n = Number(n) || 0; return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
+  function argent(n) { n = Number(n) || 0; return L === 'en' ? '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
   function el(tag, cls, texte) { var x = document.createElement(tag); if (cls) x.className = cls; if (texte !== undefined) x.textContent = texte; return x; }
-  function dateLisible(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' }); }
+  function dateLisible(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(t('fr-CA', 'en-CA'), { day: 'numeric', month: 'long', year: 'numeric' }); }
+  function libelleTaxe(x) { if (L !== 'en') return x.libelle; var p = Math.round((Number(x.taux) || 0) * 100000) / 1000; return (TAXES_EN[x.nom] || x.nom || 'Tax') + ' ' + String(p) + '%'; }
+  function statique() {
+    document.documentElement.lang = L;
+    document.title = t('Votre estimé de service', 'Your service estimate');
+    $('pousse').textContent = t('Votre estimé de service', 'Your service estimate');
+    $('btn-langue').textContent = L === 'en' ? 'Français' : 'English'; $('btn-langue').lang = L === 'en' ? 'fr' : 'en';
+    $('h-travaux').textContent = t('Travaux proposés', 'Recommended work');
+    $('btn-tout-oui').textContent = t('✓ Tout approuver', '✓ Approve all'); $('btn-tout-non').textContent = t('✗ Tout refuser', '✗ Decline all');
+    $('label-note').textContent = t('Un mot pour votre conseiller (facultatif)', 'A note for your service advisor (optional)');
+    $('note').placeholder = t('Une question, une précision…', 'A question, a detail…');
+    $('merci-titre').textContent = t('Merci !', 'Thank you!');
+    $('h-paiement').textContent = t('Paiement', 'Payment'); $('btn-payer').textContent = t('Payer en ligne', 'Pay online');
+    $('contact-q').textContent = t('Vous avez des questions ?', 'Any questions?');
+    $('lien-texto').textContent = t('💬 Texto', '💬 Text'); $('lien-appel').textContent = t('📞 Appeler', '📞 Call');
+    $('btn-imprimer').textContent = t('Imprimer ou enregistrer en PDF', 'Print or save as PDF');
+  }
 
   /* Taxes de la province de la concession (28 oct. : TVH 13 % à Hawkesbury) ; un script d'avant n'envoie pas la liste : TPS + TVQ. */
-  function taxesDe(est) { return (est.taxesListe && est.taxesListe.length) ? est.taxesListe : [{ libelle: 'TPS 5 %', taux: 0.05 }, { libelle: 'TVQ 9,975 %', taux: 0.09975 }]; }
+  function taxesDe(est) { return (est.taxesListe && est.taxesListe.length) ? est.taxesListe : [{ nom: 'TPS', libelle: 'TPS 5 %', taux: 0.05 }, { nom: 'TVQ', libelle: 'TVQ 9,975 %', taux: 0.09975 }]; }
   function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
   function totaux() {
     var est = donnees.estime, sous = 0;
@@ -126,111 +151,127 @@
     sous = r2(sous);
     var z = $('totaux'); z.innerHTML = '';
     var ligne = function (a, b, cls) { var s1 = el('span', cls, a), s2 = el('span', cls, b); z.appendChild(s1); z.appendChild(s2); };
-    ligne('Travaux approuvés', argent(sous));
-    if (est.taxes) { var tx = 0; taxesDe(est).forEach(function (x) { var m = r2(sous * x.taux); tx += m; ligne(x.libelle, argent(m)); }); ligne('Total approuvé', argent(r2(sous + tx)), 't'); }
-    else ligne('Total approuvé (avant taxes)', argent(sous), 't');
+    ligne(t('Travaux approuvés', 'Approved work'), argent(sous));
+    if (est.taxes) { var tx = 0; taxesDe(est).forEach(function (x) { var m = r2(sous * x.taux); tx += m; ligne(libelleTaxe(x), argent(m)); }); ligne(t('Total approuvé', 'Approved total'), argent(r2(sous + tx)), 't'); }
+    else ligne(t('Total approuvé (avant taxes)', 'Approved total (before taxes)'), argent(sous), 't');
   }
   /* Ce que l'estimé doit porter (LPC art. 170 au Québec ; Règl. 17/05 en Ontario) : client, concession, véhicule, date, validité. */
   function identification(est, conc) {
     var z = $('ident'); z.innerHTML = '';
     var bloc = function (titre, lignes) { lignes = lignes.filter(Boolean); if (!lignes.length) return; var d = el('div'); d.appendChild(el('div', 't', titre)); d.appendChild(el('div', 'v', lignes.join('\n'))); z.appendChild(d); };
-    bloc('Client', [est.client, est.adresse]);
-    bloc('Concessionnaire', [conc.nomLegal || conc.nom, conc.adresse, conc.telephone]);
-    bloc('Véhicule', [est.vehicule, est.vin ? 'NIV ' + est.vin : '', est.plaque ? 'Plaque ' + est.plaque : '', est.km ? String(est.km).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' km' : '']);
+    bloc(t('Client', 'Customer'), [est.client, est.adresse]);
+    bloc(t('Concessionnaire', 'Dealer'), [conc.nomLegal || conc.nom, conc.adresse, conc.telephone]);
+    bloc(t('Véhicule', 'Vehicle'), [est.vehicule, est.vin ? t('NIV ', 'VIN ') + est.vin : '', est.plaque ? t('Plaque ', 'Plate ') + est.plaque : '', est.km ? String(est.km).replace(/\B(?=(\d{3})+(?!\d))/g, t(' ', ',')) + ' km' : '']);
     var date = est.envoyeLe || est.creeLe;
-    bloc('Estimé', [date ? 'Fait le ' + dateLisible(date) : '', est.expireLe ? 'Valide jusqu\'au ' + dateLisible(est.expireLe) : (est.validiteJours ? 'Valide ' + est.validiteJours + ' jours' : ''), est.btNo ? 'Bon de travail ' + est.btNo : '']);
+    bloc(t('Estimé', 'Estimate'), [date ? t('Fait le ', 'Issued on ') + dateLisible(date) : '', est.expireLe ? t('Valide jusqu\'au ', 'Valid until ') + dateLisible(est.expireLe) : (est.validiteJours ? t('Valide ' + est.validiteJours + ' jours', 'Valid ' + est.validiteJours + ' days') : ''), est.btNo ? t('Bon de travail ', 'Work order ') + est.btNo : '']);
     var a = est.approbation;
-    montrer($('copie'), !!(a && a.le)); if (a && a.le) $('copie').textContent = 'Votre dernière réponse est enregistrée le ' + dateLisible(a.le) + ' à ' + new Date(a.le).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }) + (a.empreinte ? ' (copie ' + String(a.empreinte).slice(0, 10) + ')' : '') + '.';
+    montrer($('copie'), !!(a && a.le)); if (a && a.le) $('copie').textContent = t('Votre dernière réponse est enregistrée le ', 'Your last answer was recorded on ') + dateLisible(a.le) + t(' à ', ' at ') + new Date(a.le).toLocaleTimeString(t('fr-CA', 'en-CA'), { hour: '2-digit', minute: '2-digit' }) + (a.empreinte ? t(' (copie ', ' (copy ') + String(a.empreinte).slice(0, 10) + ')' : '') + '.';
   }
   function rendre(d) {
     donnees = d;
+    L = langueVoulue || (d.langue === 'en' ? 'en' : 'fr');
+    statique();
+    montrer($('btn-langue'), true);
     var est = d.estime, conc = d.concession;
     $('marque').textContent = conc.nom || 'ScanAutomax';
-    $('titre').textContent = (est.prenom ? est.prenom + ', voici l\'estimé de votre ' : 'Estimé de votre ') + (est.vehicule || 'véhicule');
+    $('titre').textContent = L === 'en' ? (est.prenom ? est.prenom + ', here is the estimate for your ' : 'Estimate for your ') + (est.vehicule || 'vehicle') : (est.prenom ? est.prenom + ', voici l\'estimé de votre ' : 'Estimé de votre ') + (est.vehicule || 'véhicule');
     identification(est, conc);
-    $('sous').textContent = ['Estimé ' + est.id, est.conseiller ? 'Conseiller : ' + est.conseiller : ''].filter(Boolean).join(' · ');
+    $('sous').textContent = [t('Estimé ', 'Estimate ') + est.id, est.conseiller ? t('Conseiller : ', 'Service advisor: ') + est.conseiller : ''].filter(Boolean).join(' · ');
     var repondu = !!est.reponduLe, ferme = est.statut === 'expire' || est.statut === 'annule';
     fini = ferme;
+    var libStatut = L === 'en' ? (STATUTS_EN[est.statut] || est.statutLibelle) : est.statutLibelle;
     $('etat').className = 'etat ' + (ferme ? 'non' : (repondu ? 'ok' : 'attente'));
-    $('etat').textContent = ferme ? est.statutLibelle : (repondu ? est.statutLibelle : 'En attente de votre réponse');
+    $('etat').textContent = ferme ? libStatut : (repondu ? libStatut : t('En attente de votre réponse', 'Waiting for your answer'));
     montrer($('message'), !!est.note); $('message').textContent = est.note || '';
     var zone = $('travaux'); zone.innerHTML = ''; reponses = {};
     est.lignes.forEach(function (l, k) {
       if (l.etat === 'approuve' || l.etat === 'refuse') reponses[l.code] = l.etat;
-      var t = el('div', 'travail'), haut = el('div', 'haut');
-      var lib = el('div', 'lib', (k + 1) + '. ' + l.libelle); var prio = el('span', 'prio ' + (l.urgence || 'recommande'), l.urgenceLibelle || PRIO[l.urgence] || PRIO.recommande); lib.appendChild(prio);
+      var tr0 = el('div', 'travail'), haut = el('div', 'haut');
+      var pr = PRIO[l.urgence] || PRIO.recommande;
+      var lib = el('div', 'lib', (k + 1) + '. ' + l.libelle); var prio = el('span', 'prio ' + (l.urgence || 'recommande'), L === 'en' ? pr[1] : (l.urgenceLibelle || pr[0])); lib.appendChild(prio);
       var couvert = (l.paiement === 'garantie' || l.paiement === 'interne');
-      if (couvert) lib.appendChild(el('span', 'prio couvert', l.paiementLibelle || (l.paiement === 'garantie' ? 'Couvert par la garantie' : 'Sans frais')));
-      haut.appendChild(lib); haut.appendChild(el('div', 'prix' + (couvert ? ' couvert' : ''), couvert ? '0,00 $' : (l.total ? argent(l.total) : 'Sur devis'))); t.appendChild(haut);
-      if (l.description) t.appendChild(el('div', 'desc', l.description));
-      if (l.typesPieces && l.typesPieces.length && (est.regrouper || !(l.pieces && l.pieces.length))) t.appendChild(el('div', 'type-piece', 'Pièces : ' + l.typesPieces.join(', ').toLowerCase()));
+      if (couvert) lib.appendChild(el('span', 'prio couvert', L === 'en' ? (l.paiement === 'garantie' ? 'Covered by warranty' : 'No charge') : (l.paiementLibelle || (l.paiement === 'garantie' ? 'Couvert par la garantie' : 'Sans frais'))));
+      haut.appendChild(lib); haut.appendChild(el('div', 'prix' + (couvert ? ' couvert' : ''), couvert ? argent(0) : (l.total ? argent(l.total) : t('Sur devis', 'On quote')))); tr0.appendChild(haut);
+      if (l.description) tr0.appendChild(el('div', 'desc', l.description));
+      if (l.typesPieces && l.typesPieces.length && (est.regrouper || !(l.pieces && l.pieces.length))) tr0.appendChild(el('div', 'type-piece', t('Pièces : ', 'Parts: ') + l.typesPieces.map(function (x) { return L === 'en' ? (PIECES_EN[x] || x) : x; }).join(', ').toLowerCase()));
       var hasDetail = (l.mo && (l.mo.montant || l.mo.heures)) || (l.pieces && l.pieces.length) || (l.frais && l.frais.length);
       if (hasDetail && !est.regrouper) {
-        var det = document.createElement('details'); det.className = 'detail'; var sum = el('summary', '', 'Voir le détail du prix'); det.appendChild(sum);
+        var det = document.createElement('details'); det.className = 'detail'; var sum = el('summary', '', t('Voir le détail du prix', 'See price details')); det.appendChild(sum);
         var tab = document.createElement('table');
         var tr = function (a, b, cls) { var r = document.createElement('tr'); var c1 = el('td', cls || '', a), c2 = el('td', 'n' + (cls ? ' ' + cls : ''), b); r.appendChild(c1); r.appendChild(c2); tab.appendChild(r); };
-        if (l.mo && (l.mo.montant || l.mo.heures)) tr('Main-d\'œuvre' + (l.mo.type === 'taux' && l.mo.heures ? ' — ' + String(l.mo.heures).replace('.', ',') + ' h × ' + argent(l.mo.taux) : ''), argent(l.mo.montant));
-        if (l.pieces && l.pieces.length) { tr('Pièces', '', 't'); l.pieces.forEach(function (p) { tr((p.qte > 1 ? p.qte + ' × ' : '') + (p.nom || p.no) + (p.no && p.nom ? ' (' + p.no + ')' : '') + ' — pièce ' + String(p.typeLibelle || 'Neuve').toLowerCase(), argent((Number(p.qte) || 1) * Number(p.prix))); }); }
-        if (l.frais && l.frais.length) { tr('Frais', '', 't'); l.frais.forEach(function (f) { tr((f.qte > 1 ? f.qte + ' × ' : '') + f.nom, argent((Number(f.qte) || 1) * Number(f.prix))); }); }
-        det.appendChild(tab); t.appendChild(det);
+        if (l.mo && (l.mo.montant || l.mo.heures)) tr(t('Main-d\'œuvre', 'Labour') + (l.mo.type === 'taux' && l.mo.heures ? ' — ' + (L === 'en' ? String(l.mo.heures) : String(l.mo.heures).replace('.', ',')) + ' h × ' + argent(l.mo.taux) : ''), argent(l.mo.montant));
+        if (l.pieces && l.pieces.length) { tr(t('Pièces', 'Parts'), '', 't'); l.pieces.forEach(function (p) { tr((p.qte > 1 ? p.qte + ' × ' : '') + (p.nom || p.no) + (p.no && p.nom ? ' (' + p.no + ')' : '') + (L === 'en' ? ' — ' + (PIECES_EN[p.type] || PIECES_EN[p.typeLibelle] || 'new') + ' part' : ' — pièce ' + String(p.typeLibelle || 'Neuve').toLowerCase()), argent((Number(p.qte) || 1) * Number(p.prix))); }); }
+        if (l.frais && l.frais.length) { tr(t('Frais', 'Fees'), '', 't'); l.frais.forEach(function (f) { tr((f.qte > 1 ? f.qte + ' × ' : '') + f.nom, argent((Number(f.qte) || 1) * Number(f.prix))); }); }
+        det.appendChild(tab); tr0.appendChild(det);
       }
       if (l.medias && l.medias.length) {
         var med = el('div', 'medias');
         l.medias.forEach(function (m, i) {
           var boite = el('div', 'media' + (m.type === 'video' ? ' video' : ''));
           if (m.type === 'video') { var f = document.createElement('iframe'); f.src = m.lecture; f.allow = 'autoplay; fullscreen'; f.setAttribute('allowfullscreen', ''); boite.appendChild(f); }
-          else { var img = document.createElement('img'); img.src = m.apercu || m.lecture; img.alt = 'Photo ' + (i + 1); img.loading = 'lazy'; img.addEventListener('click', function () { var v = el('div', 'voile'); var g = document.createElement('img'); g.src = m.lecture; v.appendChild(g); v.addEventListener('click', function () { v.remove(); }); document.body.appendChild(v); }); boite.appendChild(img); }
+          else { var img = document.createElement('img'); img.src = m.apercu || m.lecture; img.alt = t('Photo ', 'Photo ') + (i + 1); img.loading = 'lazy'; img.addEventListener('click', function () { var v = el('div', 'voile'); var g = document.createElement('img'); g.src = m.lecture; v.appendChild(g); v.addEventListener('click', function () { v.remove(); }); document.body.appendChild(v); }); boite.appendChild(img); }
           med.appendChild(boite);
         });
-        t.appendChild(med);
+        tr0.appendChild(med);
       }
       if (!ferme) {
-        var choix = el('div', 'choix'), bOui = el('button', 'oui', 'Approuver'), bNon = el('button', 'non', 'Refuser');
+        var choix = el('div', 'choix'), bOui = el('button', 'oui', t('Approuver', 'Approve')), bNon = el('button', 'non', t('Refuser', 'Decline'));
         bOui.type = bNon.type = 'button';
         var maj = function () { bOui.classList.toggle('actif', reponses[l.code] === 'approuve'); bNon.classList.toggle('actif', reponses[l.code] === 'refuse'); totaux(); };
         bOui.addEventListener('click', function () { reponses[l.code] = 'approuve'; maj(); });
         bNon.addEventListener('click', function () { reponses[l.code] = 'refuse'; maj(); });
         l._maj = maj;
-        choix.appendChild(bOui); choix.appendChild(bNon); t.appendChild(choix); maj();
-      } else { var st = el('div', 'sous', l.etat === 'approuve' ? '✓ Approuvé' : (l.etat === 'refuse' ? '✗ Refusé' : '')); t.appendChild(st); }
-      zone.appendChild(t);
+        choix.appendChild(bOui); choix.appendChild(bNon); tr0.appendChild(choix); maj();
+      } else { var st = el('div', 'sous', l.etat === 'approuve' ? t('✓ Approuvé', '✓ Approved') : (l.etat === 'refuse' ? t('✗ Refusé', '✗ Declined') : '')); tr0.appendChild(st); }
+      zone.appendChild(tr0);
     });
     totaux();
     montrer($('tout'), !ferme); montrer($('note'), !ferme); montrer($('btn-envoyer'), !ferme);
-    document.querySelector('label[for="note"]').classList.toggle('cache', ferme);
-    $('consigne').textContent = ferme ? (est.statut === 'expire' ? 'Cet estimé n\'est plus valide : demandez à votre conseiller de vous en renvoyer un.' : 'Cet estimé a été annulé.') : 'Approuvez ou refusez chaque travail. Nous ne faisons que ce que vous approuvez.' + (est.taxes ? ' Prix avant taxes.' : '') + (est.province === 'ON' ? '' : ' Aucun frais de plus sans votre accord.');
+    $('label-note').classList.toggle('cache', ferme);
+    $('consigne').textContent = ferme ? (est.statut === 'expire' ? t('Cet estimé n\'est plus valide : demandez à votre conseiller de vous en renvoyer un.', 'This estimate is no longer valid: ask your service advisor to send you a new one.') : t('Cet estimé a été annulé.', 'This estimate was cancelled.')) : t('Approuvez ou refusez chaque travail. Nous ne faisons que ce que vous approuvez.', 'Approve or decline each item. We only do the work you approve.') + (est.taxes ? t(' Prix avant taxes.', ' Prices before taxes.') : '') + (est.province === 'ON' ? '' : t(' Aucun frais de plus sans votre accord.', ' No extra charge without your consent.'));
     if (est.noteClient) $('note').value = est.noteClient;
-    $('btn-envoyer').textContent = repondu ? 'Modifier ma réponse' : 'Envoyer ma réponse';
-    if (d.paiement) { montrer($('bloc-paiement'), true); $('paiement-texte').textContent = d.paiement.statut === 'paye' ? 'Paiement de ' + argent(d.paiement.montant) + ' reçu' + (d.paiement.payeLe ? ' le ' + dateLisible(d.paiement.payeLe) : '') + '. Merci !' : (d.paiement.statut === 'en_attente' ? 'Montant à payer : ' + argent(d.paiement.montant) + ' (taxes incluses).' : ''); montrer($('btn-payer'), d.paiement.statut === 'en_attente'); $('btn-payer').href = d.paiement.lien; }
-    $('contact-c').textContent = 'Contactez votre conseiller' + (est.conseiller ? ' ' + est.conseiller : '') + (conc.telephone ? ' · ' + conc.telephone : '');
-    montrer($('lien-texto'), !!conc.texto); if (conc.texto) $('lien-texto').href = 'sms:' + conc.texto + '?&body=' + encodeURIComponent('Bonjour, au sujet de mon estimé ' + est.id + ' : ');
+    $('btn-envoyer').textContent = repondu ? t('Modifier ma réponse', 'Change my answer') : t('Envoyer ma réponse', 'Send my answer');
+    if (d.paiement) { montrer($('bloc-paiement'), true); $('paiement-texte').textContent = d.paiement.statut === 'paye' ? t('Paiement de ', 'Payment of ') + argent(d.paiement.montant) + t(' reçu', ' received') + (d.paiement.payeLe ? t(' le ', ' on ') + dateLisible(d.paiement.payeLe) : '') + t('. Merci !', '. Thank you!') : (d.paiement.statut === 'en_attente' ? t('Montant à payer : ', 'Amount due: ') + argent(d.paiement.montant) + t(' (taxes incluses).', ' (taxes included).') : ''); montrer($('btn-payer'), d.paiement.statut === 'en_attente'); $('btn-payer').href = d.paiement.lien; }
+    $('contact-c').textContent = t('Contactez votre conseiller', 'Contact your service advisor') + (est.conseiller ? ' ' + est.conseiller : '') + (conc.telephone ? ' · ' + conc.telephone : '');
+    montrer($('lien-texto'), !!conc.texto); if (conc.texto) $('lien-texto').href = 'sms:' + conc.texto + '?&body=' + encodeURIComponent(t('Bonjour, au sujet de mon estimé ', 'Hello, about my estimate ') + est.id + ' : ');
     montrer($('lien-appel'), !!conc.telephoneBrut); if (conc.telephoneBrut) $('lien-appel').href = 'tel:' + conc.telephoneBrut;
-    $('pied').textContent = (est.pied ? est.pied + '\n' : '') + (conc.nom || '') + ' · Référence ' + est.id;
+    $('pied').textContent = (est.pied ? est.pied + '\n' : '') + (conc.nom || '') + t(' · Référence ', ' · Reference ') + est.id;
     montrer($('chargement'), false); montrer($('contenu'), true);
   }
   function charger() {
-    fetch(SCRIPT_URL + '?estimeLien=' + encodeURIComponent(e) + '&k=' + encodeURIComponent(c) + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
+    fetch(SCRIPT_URL + '?estimeLien=' + encodeURIComponent(e) + '&k=' + encodeURIComponent(c) + (apercu ? '&apercu=1' : '') + (langueVoulue ? '&langue=' + langueVoulue : '') + '&_=' + Date.now())
       .then(function (x) { return x.json(); })
-      .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); if (d && d.code === 'ANNULE') $('invalide-texte').textContent = 'Cet estimé a été annulé par votre concessionnaire.'; montrer($('invalide'), true); return; } rendre(d); })
-      .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
+      .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); if (d && d.code === 'ANNULE') $('invalide-texte').textContent = t('Cet estimé a été annulé par votre concessionnaire.', 'This estimate was cancelled by your dealer.'); montrer($('invalide'), true); return; } rendre(d); })
+      .catch(function () { $('chargement').textContent = t('Impossible de charger la page pour le moment. Réessayez dans une minute.', 'The page cannot be loaded right now. Please try again in a minute.'); });
   }
+  /* Le client change de langue : sa demande est consignée (sauf en aperçu du conseiller), puis la page se redessine. */
+  $('btn-langue').addEventListener('click', function () {
+    var voulu = L === 'en' ? 'fr' : 'en', btn = $('btn-langue');
+    langueVoulue = voulu; btn.disabled = true;
+    var fin = function () { btn.disabled = false; charger(); };
+    if (apercu) { fin(); return; }
+    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'clientLangue', e: e, k: c, langue: voulu }) }).then(fin, fin);
+  });
   $('btn-tout-oui').addEventListener('click', function () { donnees.estime.lignes.forEach(function (l) { reponses[l.code] = 'approuve'; if (l._maj) l._maj(); }); });
   $('btn-tout-non').addEventListener('click', function () { donnees.estime.lignes.forEach(function (l) { reponses[l.code] = 'refuse'; if (l._maj) l._maj(); }); });
   $('btn-envoyer').addEventListener('click', function () {
     if (fini) return;
     var n = Object.keys(reponses).length;
-    if (!n && !$('note').value.trim()) { $('erreur').textContent = 'Choisissez « Approuver » ou « Refuser » pour au moins un travail.'; return; }
+    if (!n && !$('note').value.trim()) { $('erreur').textContent = t('Choisissez « Approuver » ou « Refuser » pour au moins un travail.', 'Choose "Approve" or "Decline" for at least one item.'); return; }
     $('erreur').textContent = ''; $('btn-envoyer').disabled = true;
     fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'estimeReponse', e: e, k: c, reponses: reponses, note: $('note').value.trim() }) })
       .then(function (x) { return x.json(); })
       .then(function (d) {
         $('btn-envoyer').disabled = false;
-        if (!d || !d.ok) { $('erreur').textContent = d && d.code === 'LIEN_INVALIDE' ? 'Ce lien n\'est plus valide.' : (d && d.code === 'EXPIRE' ? 'Cet estimé n\'est plus valide : demandez-en un nouveau à votre conseiller.' : 'Réponse non envoyée. Réessayez ou appelez votre conseiller.'); return; }
-        $('merci-texte').textContent = 'Votre réponse est transmise à votre conseiller : ' + d.approuves + ' travail' + (d.approuves > 1 ? 'x' : '') + ' approuvé' + (d.approuves > 1 ? 's' : '') + (d.totalApprouveTaxes ? ' (' + argent(d.totalApprouveTaxes) + ' taxes incluses)' : '') + ', ' + d.refuses + ' refusé' + (d.refuses > 1 ? 's' : '') + '. Vous pouvez la modifier tant que les travaux ne sont pas commencés.' + (d.approbation && d.approbation.empreinte ? ' Une copie de votre réponse est conservée (' + String(d.approbation.empreinte).slice(0, 10) + ').' : '');
-        montrer($('merci'), true); $('etat').className = 'etat ok'; $('etat').textContent = d.statutLibelle || 'Réponse reçue'; $('btn-envoyer').textContent = 'Modifier ma réponse';
+        if (!d || !d.ok) { $('erreur').textContent = d && d.code === 'LIEN_INVALIDE' ? t('Ce lien n\'est plus valide.', 'This link is no longer valid.') : (d && d.code === 'EXPIRE' ? t('Cet estimé n\'est plus valide : demandez-en un nouveau à votre conseiller.', 'This estimate is no longer valid: ask your service advisor for a new one.') : t('Réponse non envoyée. Réessayez ou appelez votre conseiller.', 'Answer not sent. Please try again or call your service advisor.')); return; }
+        var empreinte = d.approbation && d.approbation.empreinte ? String(d.approbation.empreinte).slice(0, 10) : '';
+        $('merci-texte').textContent = L === 'en'
+          ? 'Your answer was sent to your service advisor: ' + d.approuves + ' item' + (d.approuves > 1 ? 's' : '') + ' approved' + (d.totalApprouveTaxes ? ' (' + argent(d.totalApprouveTaxes) + ' taxes included)' : '') + ', ' + d.refuses + ' declined. You can change it until the work has started.' + (empreinte ? ' A copy of your answer is kept (' + empreinte + ').' : '')
+          : 'Votre réponse est transmise à votre conseiller : ' + d.approuves + ' travail' + (d.approuves > 1 ? 'x' : '') + ' approuvé' + (d.approuves > 1 ? 's' : '') + (d.totalApprouveTaxes ? ' (' + argent(d.totalApprouveTaxes) + ' taxes incluses)' : '') + ', ' + d.refuses + ' refusé' + (d.refuses > 1 ? 's' : '') + '. Vous pouvez la modifier tant que les travaux ne sont pas commencés.' + (empreinte ? ' Une copie de votre réponse est conservée (' + empreinte + ').' : '');
+        montrer($('merci'), true); $('etat').className = 'etat ok'; $('etat').textContent = L === 'en' ? (STATUTS_EN[d.statut] || 'Answer received') : (d.statutLibelle || 'Réponse reçue'); $('btn-envoyer').textContent = t('Modifier ma réponse', 'Change my answer');
         window.scrollTo({ top: $('merci').offsetTop - 80, behavior: 'smooth' });
       })
-      .catch(function () { $('btn-envoyer').disabled = false; $('erreur').textContent = 'Réponse non envoyée (réseau). Réessayez.'; });
+      .catch(function () { $('btn-envoyer').disabled = false; $('erreur').textContent = t('Réponse non envoyée (réseau). Réessayez.', 'Answer not sent (network). Please try again.'); });
   });
   $('btn-imprimer').addEventListener('click', function () { [].forEach.call(document.querySelectorAll('details.detail'), function (d) { d.open = true; }); window.print(); });
   if (!e || !c) { montrer($('chargement'), false); montrer($('invalide'), true); } else charger();

@@ -29,16 +29,17 @@
   .merci { text-align: center; padding: 10px 0 4px; } .merci .gros { width: 64px; height: 64px; border-radius: 50%; background: #e7f5ed; color: #0a6136; display: inline-grid; place-items: center; font-size: 30px; font-weight: 700; margin-bottom: 10px; }
   .avis { margin-top: 12px; padding: 12px 14px; border-radius: 10px; font-size: 14px; background: #fff4d6; color: #6b4700; } .avis.ok { background: #e7f5ed; color: #0a6136; } .avis.non { background: #fdecec; color: #8a1d1d; }
   .principal[disabled] { opacity: .65; cursor: progress; pointer-events: none; }
+  .langue { margin-left: 10px; padding: 6px 10px; font: inherit; font-size: 13px; font-weight: 650; border-radius: 999px; border: 1px solid var(--trait); background: #fff; color: var(--texte); cursor: pointer; }
   .cache { display: none !important; } .pied { color: var(--doux); font-size: 12.5px; text-align: center; margin: 18px 0 8px; } .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
 </style>
 </head>
 <body>
-<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse">Paiement</span></div></header>
+<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse" id="pousse">Paiement</span><button type="button" class="langue cache" id="btn-langue" lang="en">English</button></div></header>
 <main>
   <div class="chargement" id="chargement">Chargement…</div>
-  <div class="bloc cache" id="invalide"><h1>Lien invalide</h1><p class="sous">Ce lien n'est plus valide. Appelez votre concessionnaire.</p></div>
+  <div class="bloc cache" id="invalide"><h1 id="invalide-titre">Lien invalide</h1><p class="sous" id="invalide-texte">Ce lien n'est plus valide. Appelez votre concessionnaire.</p></div>
   <div id="contenu" class="cache">
-    <div class="bloc cache" id="merci"><div class="merci"><div class="gros">✓</div><h1>Paiement reçu, merci !</h1><p class="sous" id="merci-texte"></p></div></div>
+    <div class="bloc cache" id="merci"><div class="merci"><div class="gros">✓</div><h1 id="merci-titre">Paiement reçu, merci !</h1><p class="sous" id="merci-texte"></p></div></div>
     <div class="bloc">
       <h1 id="titre">Votre facture</h1>
       <div class="sous" id="desc"></div>
@@ -49,8 +50,8 @@
       <div class="securite cache" id="securite">Paiement sécurisé — vos informations de carte ne passent jamais par le concessionnaire.</div>
       <div class="avis cache" id="avis"></div>
     </div>
-    <div class="bloc cache" id="bloc-moyens"><h2>Comment payer</h2><ul class="moyens" id="moyens"></ul></div>
-    <div class="contact" id="contact"><div class="q">Une question sur cette facture ?</div><div class="c" id="contact-c"></div><div class="liens"><a id="lien-texto" href="#">💬 Texto</a><a id="lien-appel" href="#">📞 Appeler</a></div></div>
+    <div class="bloc cache" id="bloc-moyens"><h2 id="h-moyens">Comment payer</h2><ul class="moyens" id="moyens"></ul></div>
+    <div class="contact" id="contact"><div class="q" id="contact-q">Une question sur cette facture ?</div><div class="c" id="contact-c"></div><div class="liens"><a id="lien-texto" href="#">💬 Texto</a><a id="lien-appel" href="#">📞 Appeler</a></div></div>
     <p class="pied" id="pied"></p>
   </div>
 </main>
@@ -61,62 +62,91 @@
   var q = new URLSearchParams(location.search), p = q.get('p') || '', c = (q.get('k') || q.get('c') || '').toUpperCase(), retour = q.get('retour') === '1', echec = q.get('echec') === '1', apercu = q.get('apercu') === '1';
   var essais = 0;
   var $ = function (s) { return document.getElementById(s); };
+  /* 28 oct. : en français, en anglais si le client l'a demandé (Charte, art. 57 : la facture existe toujours en français). */
+  var L = 'fr', langueVoulue = q.get('langue') === 'en' || q.get('langue') === 'fr' ? q.get('langue') : '';
+  function t(fr, en) { return L === 'en' ? en : fr; }
+  var STATUTS_EN = { en_attente: 'Waiting for payment', paye: 'Paid', annule: 'Cancelled', rembourse: 'Refunded' };
+  var MOYENS_EN = { 'En ligne (carte)': 'Online (card)', 'Au comptoir': 'At the counter', 'Carte au téléphone': 'Card by phone', 'Virement / Interac': 'Transfer / Interac', 'Autre': 'Other' };
+  /* La description par défaut d'une demande de paiement (Texto.gs) en anglais ; une description tapée reste telle quelle. */
+  function descriptionEn(d) { d = String(d || ''); var m = /^Travaux approuvés — estimé (ES-\d+)(?: · BT (.+))?$/.exec(d); if (m) return 'Approved work — estimate ' + m[1] + (m[2] ? ' · work order ' + m[2] : ''); return d === 'Facture service' ? 'Service invoice' : d; }
   function montrer(el, oui) { el.classList.toggle('cache', !oui); }
-  function argent(n) { n = Number(n) || 0; return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
-  function dateLisible(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' }) + ' à ' + d.toLocaleTimeString('fr-CA', { hour: 'numeric', minute: '2-digit' }); }
+  function argent(n) { n = Number(n) || 0; return L === 'en' ? '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $'; }
+  function dateLisible(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(t('fr-CA', 'en-CA'), { day: 'numeric', month: 'long', year: 'numeric' }) + t(' à ', ' at ') + d.toLocaleTimeString(t('fr-CA', 'en-CA'), { hour: 'numeric', minute: '2-digit' }); }
+  function statique() {
+    document.documentElement.lang = L; document.title = t('Paiement', 'Payment');
+    $('pousse').textContent = t('Paiement', 'Payment');
+    $('btn-langue').textContent = L === 'en' ? 'Français' : 'English'; $('btn-langue').lang = L === 'en' ? 'fr' : 'en';
+    $('merci-titre').textContent = t('Paiement reçu, merci !', 'Payment received, thank you!');
+    $('btn-payer').textContent = t('Payer par carte en ligne', 'Pay online by card');
+    $('h-moyens').textContent = t('Comment payer', 'How to pay');
+    $('contact-q').textContent = t('Une question sur cette facture ?', 'A question about this invoice?');
+    $('lien-texto').textContent = t('💬 Texto', '💬 Text'); $('lien-appel').textContent = t('📞 Appeler', '📞 Call');
+  }
   function rendre(d) {
+    L = langueVoulue || (d.langue === 'en' ? 'en' : 'fr');
+    statique(); montrer($('btn-langue'), true);
     var pa = d.paiement, conc = d.concession;
     $('marque').textContent = conc.nom || 'ScanAutomax';
-    $('titre').textContent = (pa.prenom ? pa.prenom + ', voici votre facture' : 'Votre facture') + (pa.vehicule ? ' — ' + pa.vehicule : '');
-    $('desc').textContent = pa.description || '';
-    $('montant').innerHTML = argent(pa.montant) + ' <small>taxes incluses</small>';
+    $('titre').textContent = (pa.prenom ? pa.prenom + t(', voici votre facture', ', here is your invoice') : t('Votre facture', 'Your invoice')) + (pa.vehicule ? ' — ' + pa.vehicule : '');
+    $('desc').textContent = L === 'en' ? descriptionEn(pa.description) : (pa.description || '');
+    $('montant').innerHTML = '';
+    $('montant').appendChild(document.createTextNode(argent(pa.montant) + ' ')); var sm = document.createElement('small'); sm.textContent = t('taxes incluses', 'taxes included'); $('montant').appendChild(sm);
     var paye = pa.statut === 'paye', annule = pa.statut === 'annule' || pa.statut === 'rembourse';
-    $('etat').className = 'etat ' + (paye ? 'ok' : (annule ? 'non' : 'attente')); $('etat').textContent = pa.statutLibelle;
+    $('etat').className = 'etat ' + (paye ? 'ok' : (annule ? 'non' : 'attente')); $('etat').textContent = L === 'en' ? (STATUTS_EN[pa.statut] || pa.statutLibelle) : pa.statutLibelle;
     var dl = $('details'); dl.innerHTML = '';
     var ajouter = function (a, b) { if (!b) return; var dt = document.createElement('dt'); dt.textContent = a; var dd = document.createElement('dd'); dd.textContent = b; dl.appendChild(dt); dl.appendChild(dd); };
-    ajouter('Référence', pa.id); ajouter('Bon de travail', pa.btNo); ajouter('Estimé', pa.estimeId);
-    if (paye) { ajouter('Payé le', dateLisible(pa.payeLe)); ajouter('Moyen', pa.moyen); ajouter('Confirmation', pa.reference ? '…' + pa.reference : ''); montrer($('merci'), true); $('merci-texte').textContent = argent(pa.montant) + ' reçu' + (pa.payeLe ? ' le ' + dateLisible(pa.payeLe) : '') + '. ' + (conc.nom || '') + ' vous remercie.'; }
+    ajouter(t('Référence', 'Reference'), pa.id); ajouter(t('Bon de travail', 'Work order'), pa.btNo); ajouter(t('Estimé', 'Estimate'), pa.estimeId);
+    if (paye) { ajouter(t('Payé le', 'Paid on'), dateLisible(pa.payeLe)); ajouter(t('Moyen', 'Method'), L === 'en' ? (MOYENS_EN[pa.moyen] || pa.moyen) : pa.moyen); ajouter('Confirmation', pa.reference ? '…' + pa.reference : ''); montrer($('merci'), true); $('merci-texte').textContent = L === 'en' ? argent(pa.montant) + ' received' + (pa.payeLe ? ' on ' + dateLisible(pa.payeLe) : '') + '. Thank you from ' + (conc.nom || 'your dealer') + '.' : argent(pa.montant) + ' reçu' + (pa.payeLe ? ' le ' + dateLisible(pa.payeLe) : '') + '. ' + (conc.nom || '') + ' vous remercie.'; }
     /* 28 oct. : Clover — la page de paiement se crée au clic (une session Clover ne vit que 15 min). */
     var btn = $('btn-payer');
     montrer(btn, !paye && !annule && pa.enLigne);
     if (pa.enLigne && pa.fournisseur === 'clover') { btn.href = '#'; btn.onclick = function (e) { e.preventDefault(); payerClover(btn); }; }
     else if (pa.enLigne) { btn.href = pa.lienPaiement; btn.onclick = null; }
     montrer($('securite'), !paye && !annule && pa.enLigne);
-    $('securite').textContent = pa.fournisseur === 'clover' ? 'Paiement sécurisé par Clover (Fiserv) — vos informations de carte ne passent jamais par le concessionnaire.' : 'Paiement sécurisé par Stripe — vos informations de carte ne passent jamais par le concessionnaire.';
+    var fourn = pa.fournisseur === 'clover' ? 'Clover (Fiserv)' : 'Stripe';
+    $('securite').textContent = t('Paiement sécurisé par ' + fourn + ' — vos informations de carte ne passent jamais par le concessionnaire.', 'Secure payment by ' + fourn + ' — your card details never go through the dealer.');
     var avis = $('avis'), texteAvis = '', classeAvis = '';
-    if (!paye && !annule && echec) { texteAvis = 'Le paiement n\'a pas été accepté. Vous pouvez réessayer avec une autre carte, ou payer au comptoir.'; classeAvis = 'non'; }
-    else if (!paye && !annule && (retour || pa.aConfirmer)) { texteAvis = 'Merci ! Votre paiement est en cours de confirmation par ' + (conc.nom || 'la concession') + '. Vous recevrez votre reçu de Clover par courriel.'; classeAvis = 'ok'; }
+    if (!paye && !annule && echec) { texteAvis = t('Le paiement n\'a pas été accepté. Vous pouvez réessayer avec une autre carte, ou payer au comptoir.', 'The payment was not accepted. You can try again with another card, or pay at the counter.'); classeAvis = 'non'; }
+    else if (!paye && !annule && (retour || pa.aConfirmer)) { texteAvis = t('Merci ! Votre paiement est en cours de confirmation par ' + (conc.nom || 'la concession') + '. Vous recevrez votre reçu de Clover par courriel.', 'Thank you! Your payment is being confirmed by ' + (conc.nom || 'the dealer') + '. You will receive your receipt from Clover by email.'); classeAvis = 'ok'; }
     avis.className = 'avis' + (classeAvis ? ' ' + classeAvis : '') + (texteAvis ? '' : ' cache'); avis.textContent = texteAvis;
     montrer($('bloc-moyens'), !paye && !annule);
     var ul = $('moyens'); ul.innerHTML = '';
     var li = function (t) { var x = document.createElement('li'); x.textContent = t; ul.appendChild(x); };
-    if (pa.enLigne) li('En ligne, par carte de crédit ou débit, avec le bouton ci-dessus (reçu par courriel).');
-    li('Au comptoir du service, à la remise du véhicule (carte, Interac ou comptant).');
-    if (conc.telephone) li('Par carte au téléphone, au ' + conc.telephone + '.');
+    if (pa.enLigne) li(t('En ligne, par carte de crédit ou débit, avec le bouton ci-dessus (reçu par courriel).', 'Online, by credit or debit card, with the button above (receipt by email).'));
+    li(t('Au comptoir du service, à la remise du véhicule (carte, Interac ou comptant).', 'At the service counter, when you pick up your vehicle (card, Interac or cash).'));
+    if (conc.telephone) li(t('Par carte au téléphone, au ', 'By card over the phone, at ') + conc.telephone + '.');
     $('contact-c').textContent = (conc.nom || '') + (conc.telephone ? ' · ' + conc.telephone : '');
-    montrer($('lien-texto'), !!conc.texto); if (conc.texto) $('lien-texto').href = 'sms:' + conc.texto + '?&body=' + encodeURIComponent('Bonjour, au sujet de ma facture ' + pa.id + ' : ');
+    montrer($('lien-texto'), !!conc.texto); if (conc.texto) $('lien-texto').href = 'sms:' + conc.texto + '?&body=' + encodeURIComponent(t('Bonjour, au sujet de ma facture ', 'Hello, about my invoice ') + pa.id + ' : ');
     montrer($('lien-appel'), !!conc.telephoneBrut); if (conc.telephoneBrut) $('lien-appel').href = 'tel:' + conc.telephoneBrut;
-    $('pied').textContent = (conc.nom || '') + ' · Référence ' + pa.id;
+    $('pied').textContent = (conc.nom || '') + t(' · Référence ', ' · Reference ') + pa.id;
     montrer($('chargement'), false); montrer($('contenu'), true);
-    if (retour && !paye && !annule && essais < 5) { essais++; $('etat').textContent = 'Vérification du paiement…'; setTimeout(charger, 4000); }
+    if (retour && !paye && !annule && essais < 5) { essais++; $('etat').textContent = t('Vérification du paiement…', 'Checking the payment…'); setTimeout(charger, 4000); }
   }
   function charger() {
-    fetch(SCRIPT_URL + '?paiementLien=' + encodeURIComponent(p) + '&k=' + encodeURIComponent(c) + (retour ? '&retour=1' : '') + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
+    fetch(SCRIPT_URL + '?paiementLien=' + encodeURIComponent(p) + '&k=' + encodeURIComponent(c) + (retour ? '&retour=1' : '') + (apercu ? '&apercu=1' : '') + (langueVoulue ? '&langue=' + langueVoulue : '') + '&_=' + Date.now())
       .then(function (x) { return x.json(); })
       .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
-      .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
+      .catch(function () { $('chargement').textContent = t('Impossible de charger la page pour le moment. Réessayez dans une minute.', 'The page cannot be loaded right now. Please try again in a minute.'); });
   }
+  /* Le client change de langue : demande consignée (sauf en aperçu du conseiller), puis la page se redessine. */
+  $('btn-langue').addEventListener('click', function () {
+    var voulu = L === 'en' ? 'fr' : 'en', b = $('btn-langue');
+    langueVoulue = voulu; b.disabled = true;
+    var fin = function () { b.disabled = false; charger(); };
+    if (apercu) { fin(); return; }
+    fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'clientLangue', p: p, k: c, langue: voulu }) }).then(fin, fin);
+  });
   function payerClover(btn) {
-    var texte = btn.textContent; btn.setAttribute('disabled', 'disabled'); btn.textContent = 'Ouverture de la page de paiement…';
+    var texte = btn.textContent; btn.setAttribute('disabled', 'disabled'); btn.textContent = t('Ouverture de la page de paiement…', 'Opening the payment page…');
     fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'paiementPayer', p: p, k: c }) })
       .then(function (x) { return x.json(); })
       .then(function (d) {
         if (d && d.ok && d.href) { location.href = d.href; return; }
         btn.removeAttribute('disabled'); btn.textContent = texte;
-        var avis = $('avis'); avis.className = 'avis non'; avis.textContent = (d && d.erreur) || 'La page de paiement n\'a pas pu être ouverte. Réessayez dans un instant ou appelez la concession.';
+        var avis = $('avis'); avis.className = 'avis non'; avis.textContent = L === 'en' ? (d && d.code === 'FERME' ? 'This payment is closed.' : (d && d.code === 'HORS_LIGNE' ? 'Online payment is not offered: please pay at the counter or by phone.' : 'The payment page could not be opened. Please try again in a moment or call the dealer.')) : ((d && d.erreur) || 'La page de paiement n\'a pas pu être ouverte. Réessayez dans un instant ou appelez la concession.');
         if (d && d.code === 'FERME') charger();
       })
-      .catch(function () { btn.removeAttribute('disabled'); btn.textContent = texte; var avis = $('avis'); avis.className = 'avis non'; avis.textContent = 'Connexion impossible pour le moment. Réessayez dans une minute.'; });
+      .catch(function () { btn.removeAttribute('disabled'); btn.textContent = texte; var avis = $('avis'); avis.className = 'avis non'; avis.textContent = t('Connexion impossible pour le moment. Réessayez dans une minute.', 'Cannot connect right now. Please try again in a minute.'); });
   }
   if (!p || !c) { montrer($('chargement'), false); montrer($('invalide'), true); } else charger();
 })();

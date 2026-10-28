@@ -5,7 +5,7 @@
    Ce que fait la page (une seule, cinq vues) :
    - Estimés : liste (référence, client, véhicule, BT, total, approuvé, statut, vues, envoyé, conseiller), filtres par statut,
      recherche ; fiche = lignes de travaux (menu ou libre, main-d'œuvre fixe ou taux × heures, pièces, frais, priorité, photos /
-     vidéos), message au client, totaux TPS / TVQ, Envoyer (texto et / ou courriel), Relancer, Copier le lien, Travaux terminés,
+     vidéos), message au client, totaux avec les taxes de la province (TPS + TVQ, TVH en Ontario), Envoyer (texto et / ou courriel), Relancer, Copier le lien, Travaux terminés,
      Demande de paiement, Suivi de courtoisie, Dupliquer, Annuler, BT #, journal. Réponse consignée au comptoir / au téléphone.
    - Conversations : un fil par client (entrants et sortants, non lus), composer avec les modèles, nouveau texto.
    - Paiements : demandes envoyées, payées (en ligne par Clover — 28 oct., remplace Stripe — ou au comptoir), relance, marquer payé.
@@ -19,6 +19,11 @@
 
   var STATUTS = { brouillon: 'Brouillon', envoye: 'En attente', vu: 'Vu par le client', approuve: 'Approuvé', partiel: 'Partiellement approuvé', decline: 'Décliné', expire: 'Expiré', annule: 'Annulé' };
   var COULEUR = { brouillon: 'gris', envoye: 'ambre', vu: 'bleu', approuve: 'vert', partiel: 'sarcelle', decline: 'rouge', expire: 'gris', annule: 'gris' };
+  /* 28 oct. : type de chaque pièce (exigé sur l'estimé au Québec) et taxes de la province de la concession (le serveur envoie
+     cfg.taxesListe et cfg.province ; un script d'avant n'en envoie pas : TPS + TVQ comme avant). */
+  var TYPES_PIECE = { neuve: 'Neuve', usagee: 'Usagée', reusinee: 'Réusinée', remise: 'Remise à neuf' };
+  var TAXES_PROVINCE = { QC: [{ nom: 'TPS', libelle: 'TPS 5 %', taux: 0.05 }, { nom: 'TVQ', libelle: 'TVQ 9,975 %', taux: 0.09975 }], ON: [{ nom: 'TVH', libelle: 'TVH 13 %', taux: 0.13 }] };
+  function taxesDe(cfg) { if (cfg && cfg.taxesListe && cfg.taxesListe.length) return cfg.taxesListe; return TAXES_PROVINCE[(cfg && cfg.province) || 'QC'] || TAXES_PROVINCE.QC; }
   var URGENCES = { urgent: 'Urgent', recommande: 'Recommandé', suggere: 'Suggéré' };
   var PAI_STATUTS = { en_attente: 'En attente', paye: 'Payé', annule: 'Annulé', rembourse: 'Remboursé' };
   var PAI_COULEUR = { en_attente: 'ambre', paye: 'vert', annule: 'gris', rembourse: 'violet' };
@@ -104,7 +109,7 @@
     '.txt-ligne .bloc-mo, .txt-ligne .bloc-pieces, .txt-ligne .bloc-frais { font-size: 12px; } .txt-ligne .bloc-pieces, .txt-ligne .bloc-desc { grid-column: 1 / -1; }',
     '.txt-ligne .bloc h5 { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); display: flex; align-items: center; gap: 8px; } .txt-ligne .bloc h5 .btn { text-transform: none; letter-spacing: 0; }',
     '.txt-ligne .mo { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; } .txt-ligne .mo input { width: 86px; } .txt-ligne .mo select { width: auto; } .txt-ligne .mo .eq { color: var(--encre-3); }',
-    '.txt-ligne table.pieces { width: 100%; border-collapse: collapse; } .txt-ligne table.pieces td { padding: 2px 3px; } .txt-ligne table.pieces input { height: 28px; font-size: 12px; } .txt-ligne table.pieces td.n input { width: 56px; text-align: right; } .txt-ligne table.pieces td.p input { width: 86px; text-align: right; } .txt-ligne table.pieces td.t { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; width: 90px; }',
+    '.txt-ligne table.pieces { width: 100%; border-collapse: collapse; } .txt-ligne table.pieces td { padding: 2px 3px; } .txt-ligne table.pieces input { height: 28px; font-size: 12px; } .txt-ligne table.pieces td.n input { width: 56px; text-align: right; } .txt-ligne table.pieces td.p input { width: 86px; text-align: right; } .txt-ligne table.pieces td.t { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; width: 90px; } .txt-ligne table.pieces td.ty select { width: 118px; height: 28px; font-size: 12px; } .txt-manques { color: var(--ambre); font-size: 12.5px; margin: 6px 0; font-weight: 600; }',
     '.txt-ligne .medias { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; } .txt-ligne .media { position: relative; width: 84px; height: 64px; border-radius: 8px; overflow: hidden; border: 1px solid var(--ligne); background: var(--carte-2); cursor: pointer; } .txt-ligne .media img { width: 100%; height: 100%; object-fit: cover; display: block; }',
     '.txt-ligne .media .lecture { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 22px; text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none; } .txt-ligne .media .retirer { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; line-height: 18px; padding: 0; cursor: pointer; }',
     '.txt-ligne .media.ajout { display: grid; place-items: center; font-size: 12px; color: var(--encre-3); text-align: center; border-style: dashed; }',
@@ -349,11 +354,13 @@
     var self = this, v = JSON.parse(JSON.stringify(e)), peut = this.peutEcrire() && v.statut !== 'annule';
     cfg = cfg || { tauxMo: 139.95, taxes: true, travaux: [], modeles: [], conseillers: [] };
     var neuf = !v.id, modale;
+    var liste0 = function () { return cfg.taxes !== false ? taxesDe(cfg) : []; };
     var champ = function (label, el, aide) { return h('div.champ', [h('label', label), el, aide ? h('span.aide', { text: aide }) : null]); };
     /* --- client et véhicule --- */
     var inClient = h('input.saisie', { type: 'text', value: v.client || '', placeholder: 'Prénom et nom', autocomplete: 'off' });
     var inTel = h('input.saisie', { type: 'tel', value: v.telephoneJoli || telJoli(v.telephone) || '', placeholder: '514 555-1234', autocomplete: 'off' });
     var inCourriel = h('input.saisie', { type: 'email', value: v.courriel || '', placeholder: 'facultatif' });
+    var inAdresse = h('input.saisie', { type: 'text', value: v.adresse || '', placeholder: 'No, rue, ville, code postal', autocomplete: 'off' });
     var inVin = h('input.saisie.mono', { type: 'text', value: v.vin || '', placeholder: 'NIV', maxlength: 17, style: { textTransform: 'uppercase' } });
     var inVeh = h('input.saisie', { type: 'text', value: v.vehicule || '', placeholder: '2023 BMW X3' });
     var inPlaque = h('input.saisie', { type: 'text', value: v.plaque || '', placeholder: 'ABC 123' });
@@ -379,7 +386,22 @@
     } });
     var grilleClient = h('div.grille.c4.rdv-form', [champ('Client', h('div', [inClient, resultats])), champ('Cellulaire', inTel, 'le lien part par texto à ce numéro'), champ('Courriel', inCourriel), champ('Conseiller', selCons),
       champ('NIV', h('div', { style: { display: 'flex', gap: '6px' } }, [inVin, btnDecoder])), champ('Véhicule', inVeh), champ('Plaque · km', h('div', { style: { display: 'flex', gap: '6px' } }, [inPlaque, inKm])), champ('Bon de travail #', inBt)]);
-    [inClient, inTel, inCourriel, inVin, inVeh, inPlaque, inKm, inBt, selCons].forEach(function (x) { if (!peut) x.disabled = true; });
+    /* 28 oct. : l'adresse du client est exigée sur l'estimé (LPC art. 170) ; en Ontario aussi le NIV et le kilométrage (Règl. 17/05). */
+    var chAdresse = champ('Adresse du client', inAdresse, 'exigée sur l\'estimé'); chAdresse.style.gridColumn = 'span 2'; grilleClient.appendChild(chAdresse);
+    var elManques = h('div.txt-manques.cache');
+    var manquesLocal = function () {
+      if (!cfg.province) return [];   /* script d'avant le 28 oct. : le serveur ne vérifie pas */
+      var m = [];
+      if (!inClient.value.trim()) m.push('le nom du client');
+      if (!inAdresse.value.trim()) m.push('l\'adresse du client');
+      if (!inVeh.value.trim()) m.push('le véhicule (marque et modèle)');
+      if (!inPlaque.value.trim()) m.push('la plaque d\'immatriculation');
+      if (cfg.province === 'ON') { if (!inVin.value.trim()) m.push('le NIV'); if (!String(inKm.value || '').trim()) m.push('le kilométrage'); }
+      return m;
+    };
+    var majManques = function () { var m = peut ? manquesLocal() : []; elManques.textContent = m.length ? 'Avant l\'envoi au client, ajoutez : ' + m.join(', ') + '.' : ''; elManques.classList.toggle('cache', !m.length); return m; };
+    [inClient, inAdresse, inVeh, inPlaque, inVin, inKm].forEach(function (x) { x.addEventListener('input', majManques); });
+    [inClient, inTel, inCourriel, inAdresse, inVin, inVeh, inPlaque, inKm, inBt, selCons].forEach(function (x) { if (!peut) x.disabled = true; });
     /* --- lignes --- */
     var elLignes = h('div.lignes'), lignesUI = [];
     var elTotaux = h('div.totaux');
@@ -389,12 +411,13 @@
       var lignes = lireLignes(), sous = 0, appr = 0;
       lignes.forEach(function (L) { if (L.paiement === 'garantie' || L.paiement === 'interne') return; var t = totalLigne(L).total; sous += t; if (L.etat === 'approuve') appr += t; });
       sous = r2(sous); appr = r2(appr);
-      var taxes = cfg.taxes !== false, tps = taxes ? r2(sous * 0.05) : 0, tvq = taxes ? r2(sous * 0.09975) : 0;
+      /* Taxes de la province de la concession (TPS + TVQ au Québec, TVH 13 % en Ontario), comme le serveur. */
+      var taxes = cfg.taxes !== false, liste = taxes ? taxesDe(cfg) : [], tx = 0, txA = 0;
       AMX.vider(elTotaux);
       elTotaux.appendChild(h('span', 'Sous-total')); elTotaux.appendChild(h('span', { text: argent(sous) }));
-      if (taxes) { elTotaux.appendChild(h('span', 'TPS 5 %')); elTotaux.appendChild(h('span', { text: argent(tps) })); elTotaux.appendChild(h('span', 'TVQ 9,975 %')); elTotaux.appendChild(h('span', { text: argent(tvq) })); }
-      elTotaux.appendChild(h('span.t', 'Total')); elTotaux.appendChild(h('span.t', { text: argent(sous + tps + tvq) }));
-      if (appr || lignes.some(function (L) { return L.etat === 'refuse'; })) { elTotaux.appendChild(h('span.a', 'Approuvé par le client')); elTotaux.appendChild(h('span.a', { text: argent(appr) + (taxes ? ' + taxes = ' + argent(appr * (taxes ? 1.14975 : 1)) : '') })); }
+      liste.forEach(function (x) { var mt = r2(sous * x.taux); tx += mt; txA += r2(appr * x.taux); elTotaux.appendChild(h('span', { text: x.libelle })); elTotaux.appendChild(h('span', { text: argent(mt) })); });
+      elTotaux.appendChild(h('span.t', 'Total')); elTotaux.appendChild(h('span.t', { text: argent(r2(sous + tx)) }));
+      if (appr || lignes.some(function (L) { return L.etat === 'refuse'; })) { elTotaux.appendChild(h('span.a', 'Approuvé par le client')); elTotaux.appendChild(h('span.a', { text: argent(appr) + (liste.length ? ' + taxes = ' + argent(r2(appr + txA)) : '') })); }
       lignesUI.forEach(function (u) { if (elLignes.contains(u.el)) u.majTotal(); });
     };
     var ligneUI = function (L, k) {
@@ -421,8 +444,8 @@
       [inMontant, inHeures, inTaux].forEach(function (x) { x.addEventListener('input', majTotaux); });
       /* pièces et frais */
       var tbP = h('tbody'), tbF = h('tbody');
-      var rangeePiece = function (p) { var inNo = h('input.saisie', { type: 'text', value: p.no || '', placeholder: '# pièce' }), inNom = h('input.saisie', { type: 'text', value: p.nom || '', placeholder: 'Pièce' }), inQ = h('input.saisie', { type: 'number', step: '1', min: 0, value: p.qte || 1 }), inPx = h('input.saisie', { type: 'number', step: '0.01', min: 0, value: p.prix || '', placeholder: '0,00' }), tdT = h('td.t'); var tr = h('tr', [h('td', { style: { width: '120px' } }, [inNo]), h('td', [inNom]), h('td.n', [inQ]), h('td.p', [inPx]), tdT, h('td', { style: { width: '26px' } }, [h('button.btn.petit.fantome', { type: 'button', text: '×', onclick: function () { tr.remove(); majTotaux(); } })])]); tr._lire = function () { return { no: inNo.value.trim(), nom: inNom.value.trim(), qte: num(inQ.value) || 1, prix: num(inPx.value), dispo: p.dispo || '' }; }; tr._maj = function () { tdT.textContent = argent((num(inQ.value) || 1) * num(inPx.value)); }; [inQ, inPx].forEach(function (x) { x.addEventListener('input', majTotaux); }); tbP.appendChild(tr); tr._maj(); };
-      var rangeeFrais = function (f) { var inNom = h('input.saisie', { type: 'text', value: f.nom || '', placeholder: 'Frais (atelier, recyclage, fournitures…)' }), inQ = h('input.saisie', { type: 'number', step: '1', min: 0, value: f.qte || 1 }), inPx = h('input.saisie', { type: 'number', step: '0.01', min: 0, value: f.prix || '', placeholder: '0,00' }), tdT = h('td.t'); var tr = h('tr', [h('td', { colspan: 2 }, [inNom]), h('td.n', [inQ]), h('td.p', [inPx]), tdT, h('td', { style: { width: '26px' } }, [h('button.btn.petit.fantome', { type: 'button', text: '×', onclick: function () { tr.remove(); majTotaux(); } })])]); tr._lire = function () { return { nom: inNom.value.trim(), qte: num(inQ.value) || 1, prix: num(inPx.value) }; }; tr._maj = function () { tdT.textContent = argent((num(inQ.value) || 1) * num(inPx.value)); }; [inQ, inPx].forEach(function (x) { x.addEventListener('input', majTotaux); }); tbF.appendChild(tr); tr._maj(); };
+      var rangeePiece = function (p) { var selTypeP = h('select.saisie', { title: 'Type de pièce (exigé sur l\'estimé)' }, Object.keys(TYPES_PIECE).map(function (k) { return h('option', { value: k, selected: (p.type || 'neuve') === k ? true : undefined, text: TYPES_PIECE[k] }); })), inNo = h('input.saisie', { type: 'text', value: p.no || '', placeholder: '# pièce' }), inNom = h('input.saisie', { type: 'text', value: p.nom || '', placeholder: 'Pièce' }), inQ = h('input.saisie', { type: 'number', step: '1', min: 0, value: p.qte || 1 }), inPx = h('input.saisie', { type: 'number', step: '0.01', min: 0, value: p.prix || '', placeholder: '0,00' }), tdT = h('td.t'); var tr = h('tr', [h('td', { style: { width: '120px' } }, [inNo]), h('td', [inNom]), h('td.ty', [selTypeP]), h('td.n', [inQ]), h('td.p', [inPx]), tdT, h('td', { style: { width: '26px' } }, [h('button.btn.petit.fantome', { type: 'button', text: '×', onclick: function () { tr.remove(); majTotaux(); } })])]); tr._lire = function () { return { no: inNo.value.trim(), nom: inNom.value.trim(), type: selTypeP.value, qte: num(inQ.value) || 1, prix: num(inPx.value), dispo: p.dispo || '' }; }; tr._maj = function () { tdT.textContent = argent((num(inQ.value) || 1) * num(inPx.value)); }; [inQ, inPx].forEach(function (x) { x.addEventListener('input', majTotaux); }); tbP.appendChild(tr); tr._maj(); };
+      var rangeeFrais = function (f) { var inNom = h('input.saisie', { type: 'text', value: f.nom || '', placeholder: 'Frais (atelier, recyclage, fournitures…)' }), inQ = h('input.saisie', { type: 'number', step: '1', min: 0, value: f.qte || 1 }), inPx = h('input.saisie', { type: 'number', step: '0.01', min: 0, value: f.prix || '', placeholder: '0,00' }), tdT = h('td.t'); var tr = h('tr', [h('td', { colspan: 3 }, [inNom]), h('td.n', [inQ]), h('td.p', [inPx]), tdT, h('td', { style: { width: '26px' } }, [h('button.btn.petit.fantome', { type: 'button', text: '×', onclick: function () { tr.remove(); majTotaux(); } })])]); tr._lire = function () { return { nom: inNom.value.trim(), qte: num(inQ.value) || 1, prix: num(inPx.value) }; }; tr._maj = function () { tdT.textContent = argent((num(inQ.value) || 1) * num(inPx.value)); }; [inQ, inPx].forEach(function (x) { x.addEventListener('input', majTotaux); }); tbF.appendChild(tr); tr._maj(); };
       L.pieces.forEach(rangeePiece); L.frais.forEach(rangeeFrais);
       var inDesc = zoneTexte({ placeholder: 'Ce que vous avez vu, pourquoi c\'est recommandé (le client le lit)…', style: { minHeight: '44px' } }, L.description);
       /* médias de la ligne */
@@ -468,7 +491,7 @@
     var inNote = zoneTexte({ placeholder: 'Message au client (en tête de la page) — facultatif', style: { minHeight: '48px' } }, v.note);
     var inNoteInt = zoneTexte({ placeholder: 'Note interne (le client ne la voit pas)', style: { minHeight: '36px' } }, v.noteInterne);
     if (!peut) { inNote.disabled = true; inNoteInt.disabled = true; }
-    majTotaux();
+    majTotaux(); majManques();
     /* --- en-tête : statut, suivi, étapes --- */
     var titre = h('div.titre', [v.id ? 'Estimé ' + v.id : 'Nouvel estimé', h('span.badge.' + (COULEUR[v.statut] || 'gris'), { text: STATUTS[v.statut] || v.statut }), v.statut === 'annule' && v.annuleRaison ? h('span.doux', { text: '— ' + v.annuleRaison }) : null]);
     var suivi = h('div.suivi');
@@ -490,8 +513,15 @@
     /* --- journal --- */
     var journal = h('div.journal');
     (v.journal || []).slice().reverse().forEach(function (j) { journal.appendChild(h('div', [h('b', { text: quand(j.le) }), ' ', j.quoi, j.par ? h('span.doux', { text: ' · ' + nomCourt(j.par) }) : null])); });
+    /* --- approbations figées (28 oct.) : ce que le client a approuvé, quand, par où, avec l'empreinte de la copie --- */
+    var CANAUX_APPR = { page: 'page de l\'estimé', texto: 'texto', comptoir: 'au comptoir (consigné)' };
+    var approbations = h('div.journal');
+    (v.approbations || []).slice().reverse().forEach(function (a) {
+      var ok = (a.lignes || []).filter(function (l) { return l.etat === 'approuve'; }).map(function (l) { return l.libelle; }), non = (a.lignes || []).filter(function (l) { return l.etat === 'refuse'; }).map(function (l) { return l.libelle; });
+      approbations.appendChild(h('div', [h('b', { text: quand(a.le) }), ' ', 'Par ' + (CANAUX_APPR[a.canal] || a.canal || '—') + (a.qui ? ' · ' + a.qui : '') + (a.telephone ? ' · ' + telJoli(a.telephone) : '') + ' — approuvé : ' + (ok.join(', ') || 'rien') + ' (' + argent(a.totalApprouveTaxes) + (liste0().length ? ' taxes incluses' : '') + ')' + (non.length ? ' · refusé : ' + non.join(', ') : ''), a.empreinte ? h('span.doux.mono', { text: ' · ' + String(a.empreinte).slice(0, 12), title: 'Empreinte de la copie : ' + a.empreinte }) : null]));
+    });
     /* --- lecture de l'état local --- */
-    var lire = function () { return { id: v.id || undefined, compagnie: v.compagnie, client: inClient.value.trim(), clientId: v.clientId || '', telephone: inTel.value, courriel: inCourriel.value.trim(), vin: inVin.value.trim().toUpperCase(), vehicule: inVeh.value.trim(), plaque: inPlaque.value.trim(), km: inKm.value, btNo: inBt.value.trim(), rdvId: v.rdvId || '', conseiller: selCons.value, note: inNote.value, noteInterne: inNoteInt.value, lignes: lireLignes() }; };
+    var lire = function () { return { id: v.id || undefined, compagnie: v.compagnie, client: inClient.value.trim(), clientId: v.clientId || '', telephone: inTel.value, courriel: inCourriel.value.trim(), adresse: inAdresse.value.trim(), vin: inVin.value.trim().toUpperCase(), vehicule: inVeh.value.trim(), plaque: inPlaque.value.trim(), km: inKm.value, btNo: inBt.value.trim(), rdvId: v.rdvId || '', conseiller: selCons.value, note: inNote.value, noteInterne: inNoteInt.value, lignes: lireLignes() }; };
     var enregistrer = function (silencieux) {
       var e2 = lire();
       if (!e2.client && !telChiffres(e2.telephone)) { AMX.toast('Nom ou cellulaire du client requis', 'erreur'); inClient.focus(); return Promise.resolve(null); }
@@ -510,7 +540,7 @@
     var actions = h('div.actions-fiche');
     if (peut) {
       actions.appendChild(h('button.btn', { type: 'button', text: 'Enregistrer', onclick: function () { enregistrer().then(function (r) { if (r) rouvrir(r); }); } }));
-      actions.appendChild(h('button.btn.primaire', { type: 'button', text: v.envoyeLe ? 'Renvoyer au client' : 'Envoyer au client', onclick: function () { enregistrer(true).then(function (r) { if (r) self.modaleEnvoi(r, cfg, false, function (est) { rouvrir(est); }); }); } }));
+      actions.appendChild(h('button.btn.primaire', { type: 'button', text: v.envoyeLe ? 'Renvoyer au client' : 'Envoyer au client', onclick: function () { var m = majManques(); if (m.length) { AMX.toast('Avant l\'envoi, ajoutez : ' + m.join(', ') + '.', 'erreur', 7000); return; } enregistrer(true).then(function (r) { if (r) self.modaleEnvoi(r, cfg, false, function (est) { rouvrir(est); }); }); } }));
       if (v.ouvert) actions.appendChild(h('button.btn', { type: 'button', text: 'Relancer', title: 'Petit rappel par texto', onclick: function () { self.modaleEnvoi(v, cfg, true, function (est) { rouvrir(est); }); } }));
       if (v.id && v.envoyeLe) { actions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Copier le lien', onclick: function () { AMX.copier(lienEstime(v), 'Lien copié — collez-le dans un texto ou montrez-le au comptoir'); } })); actions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Page client', onclick: function () { window.open(lienEstime(v) + '&apercu=1', '_blank', 'noopener'); } })); }
       if (v.id && (v.statut === 'approuve' || v.statut === 'partiel')) {
@@ -530,7 +560,9 @@
       elLignes, peut ? btnLigne : null,
       elTotaux,
       h('div.grille.c2', [champ('Message au client', inNote), champ('Note interne', inNoteInt)]),
+      elManques,
       actions,
+      (v.approbations || []).length ? h('details', [h('summary', { style: { cursor: 'pointer', fontSize: '12px', color: 'var(--encre-3)' }, text: 'Approbations du client (' + v.approbations.length + ')' }), approbations]) : null,
       (v.journal || []).length ? h('details', [h('summary', { style: { cursor: 'pointer', fontSize: '12px', color: 'var(--encre-3)' }, text: 'Journal (' + v.journal.length + ')' }), journal]) : null
     ]);
     modale = AMX.modale({ titre: v.id ? 'Estimé ' + v.id + ' — ' + (v.client || '') : 'Nouvel estimé', corps: corps, large: true, sansPied: true, sansFocus: !neuf });
@@ -892,9 +924,9 @@
       h('div.doux.petit', { text: 'Réglages de ' + nomCie(cie) + '. Le menu des travaux (codes, prix, heures) est celui du carnet de rendez-vous (Rendez-vous › Réglages).' }),
       h('h4', 'Estimés'),
       h('div.grille.c3', [champ('Taux horaire ($/h)', inTaux), champ('Validité (jours)', inValid), champ('Téléphone du service', inTel, 'affiché au client (Appeler)')]),
-      h('div.grille.c2', { style: { marginTop: '8px' } }, [h('label.champ.inline', [cbTaxes, h('span', 'Afficher TPS / TVQ au client')]), h('label.champ.inline', [cbRegrouper, h('span', 'Un seul prix par ligne (masquer pièces / main-d\'œuvre / frais)')])]),
+      h('div.grille.c2', { style: { marginTop: '8px' } }, [h('label.champ.inline', [cbTaxes, h('span', 'Afficher les taxes au client (' + ((cfg.taxesListe && cfg.taxesListe.length ? cfg.taxesListe : taxesDe(cfg)).map(function (x) { return x.nom; }).join(' + ')) + ')')]), h('label.champ.inline', [cbRegrouper, h('span', 'Un seul prix par ligne (masquer pièces / main-d\'œuvre / frais)')])]),
       h('div.grille.c2', { style: { marginTop: '8px' } }, [champ('Signature des textos', inSig), null]),
-      champ('Pied de page de l\'estimé (le client le lit)', inPied, '{concession} et {validite} sont remplacés'),
+      champ('Pied de page de l\'estimé (le client le lit)', inPied, '{concession} et {validite} sont remplacés' + (cfg.piedDefaut ? ' — videz la case pour revenir au texte par défaut ' + (cfg.province === 'ON' ? 'de l\'Ontario' : 'du Québec') : '')),
       h('h4', 'Suivi de courtoisie'),
       h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', fontSize: '12.5px' } }, [cbAuto, h('span', 'Envoyer automatiquement'), inDelai, h('span', 'jour(s) après'), selApres]),
       h('div.aide', { text: (d.avisModule ? 'Via le module Avis (page sondage, lien Google, alerte directeur si ≤ 3, rappel à 3 jours, 9 h – 20 h). ' : 'Texto « note de 1 à 5 » (sans le module Avis). ') + (d.courtoisie && d.courtoisie.installee ? 'Déclencheur quotidien installé (10 h).' : 'Déclencheur quotidien NON installé — un administrateur l\'installe ci-dessous.') + (d.courtoisie && d.courtoisie.dernier ? ' Dernier passage ' + quand(d.courtoisie.dernier.le) + ' : ' + d.courtoisie.dernier.envoyes + ' envoyé(s).' : '') }),

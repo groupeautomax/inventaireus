@@ -73,7 +73,11 @@
   function charger() {
     fetch(SCRIPT_URL + '?mediaLien=' + encodeURIComponent(m) + '&k=' + encodeURIComponent(c) + '&_=' + Date.now())
       .then(function (x) { return x.json(); })
-      .then(function (d) { if (!d || !d.ok || !(d.medias || []).length) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
+      .then(function (d) {
+        if (d && d.ok && !(d.medias || []).length && d.retires) { montrer($('chargement'), false); var inv = $('invalide'); inv.querySelector('h1').textContent = 'Photos et vidéos retirées'; inv.querySelector('.sous').textContent = 'Pour protéger vos renseignements, les photos et vidéos ne restent en ligne que 60 jours. Appelez votre concessionnaire pour les revoir.'; montrer(inv, true); return; }
+        if (!d || !d.ok || !(d.medias || []).length) { montrer($('chargement'), false); montrer($('invalide'), true); return; }
+        rendre(d);
+      })
       .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
   }
   if (!m || !c) { montrer($('chargement'), false); montrer($('invalide'), true); } else charger();

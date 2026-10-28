@@ -215,6 +215,7 @@
     this.elEtat = h('p', { text: 'Chargement…' });
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true, true); } });
     this.btnReglages = h('button.btn.fantome', { type: 'button', text: 'Réglages', onclick: function () { self.ouvrirReglages(); } });
+    this.btnAlertes = h('button.btn.fantome', { type: 'button', text: 'Mes alertes', title: 'Être prévenu par texto ou par courriel quand un client attend une réponse depuis 10 minutes', onclick: function () { self.mesAlertes(); } });
     this.btnTexto = h('button.btn', { type: 'button', text: '+ Texto', title: 'Envoyer un texto à un client', onclick: function () { self.nouveauTexto(); } });
     this.btnPaiement = h('button.btn', { type: 'button', text: '+ Paiement', title: 'Demande de paiement par texto', onclick: function () { self.nouveauPaiement(null); } });
     this.btnNouveau = h('button.btn.primaire', { type: 'button', text: '+ Nouvel estimé', onclick: function () { self.ouvrirEstime(null); } });
@@ -229,7 +230,7 @@
     this.elCorps = h('div');
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Texto'), this.elEtat]),
-      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnReglages, this.btnTexto, this.btnPaiement, this.btnNouveau], [this.btnTexto, this.btnNouveau]))
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnReglages, this.btnAlertes, this.btnTexto, this.btnPaiement, this.btnNouveau], [this.btnTexto, this.btnNouveau]))
     ]);
     this.conteneur.appendChild(h('div.page.txt-page', [entete, this.elCies, this.elKpis, this.elOutils, this.elCorps]));
   };
@@ -654,6 +655,35 @@
         AMX.toast('Véhicule prêt' + (d.paiement ? ' · paiement ' + d.paiement.id : '') + ((d.envoye || []).length ? ' · client prévenu par texto' : ''), 'ok');
         (d.erreurs || []).forEach(function (x) { AMX.toast(x, 'attention', 8000); });
         if (apres) apres(d.estime); return true;
+      });
+    } }] });
+  };
+  /* 28 oct. : comment le compte est prévenu qu'un client attend une réponse depuis 10 minutes (texto, courriel ou rien).
+     Demande de Maxime : « texto ou courriel selon la préférence, après 10 minutes ». POST textoAlertePref. */
+  VueTexto.prototype.mesAlertes = function () {
+    var self = this, a = (this.donnees && this.donnees.alertePref) || null;
+    if (!a) { AMX.toast('Le script n\'est pas encore à jour (Reception.gs) : réessayez après le déploiement.', 'attention', 7000); return; }
+    var choix = a.pref || '', boutons = [];
+    var ligne = function (val, titre, detail, actif) {
+      var r = h('input', { type: 'radio', name: 'txt-alerte', value: val, checked: choix === val ? true : undefined, disabled: actif === false ? true : undefined });
+      r.addEventListener('change', function () { choix = val; });
+      return h('label.champ.inline', { style: { alignItems: 'flex-start', marginTop: '6px' } }, [r, h('span', [h('b', { text: titre }), h('div.aide', { text: detail })])]);
+    };
+    var defaut = a.telephone && a.textosActifs ? 'texto au ' + a.telephone : 'courriel';
+    var corps = h('div.txt-envoi', [
+      h('p', { text: 'Quand un client attend une réponse par texto depuis 10 minutes (de 7 h à 20 h), ScanAutomax prévient le responsable de la conversation ; sans responsable, l\'équipe du service de la concession.' }),
+      ligne('', 'Par défaut', 'En ce moment : ' + defaut + '.'),
+      ligne('texto', 'Par texto', a.telephone ? 'Au ' + a.telephone + (a.textosActifs ? '' : ' (textos pas configurés : courriel en attendant)') : 'Aucun cellulaire dans votre compte : ajoutez-le dans le menu du compte › Mon cellulaire.', !!a.telephone),
+      ligne('courriel', 'Par courriel', 'À votre adresse ScanAutomax.'),
+      ligne('aucune', 'Ne pas me prévenir', 'Vous verrez quand même les clients en rouge dans Conversations et dans l\'Accueil.')
+    ]);
+    AMX.modale({ titre: 'Mes alertes — client sans réponse', corps: corps, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+      return self.action({ action: 'textoAlertePref', pref: choix }, null).then(function (d) {
+        if (!d || !d.ok) return false;
+        if (self.donnees) self.donnees.alertePref = d.alertePref;
+        var e = d.alertePref ? d.alertePref.effectif : choix;
+        AMX.toast(e === 'aucune' ? 'Vous ne serez plus prévenu' : 'Vous serez prévenu par ' + (e === 'texto' ? 'texto' : 'courriel'), 'ok');
+        return true;
       });
     } }] });
   };

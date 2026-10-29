@@ -214,7 +214,25 @@
     '.txt-app .tableau td.ref .sous { font-family: inherit; font-weight: 400; letter-spacing: 0; }',
     '@media (max-width: 640px) { .txt-app .txt-outils .compte { display: none; } .txt-app .txt-liste, .txt-app .txt-fil { height: calc(100vh - var(--barre-h, 54px) - 260px); min-height: 420px; } }',
     '.txt-app .txt-liste .item .cie { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--encre-4); }',
-    '.txt-app .txt-fil .vide-fil { margin: auto; text-align: center; color: var(--encre-3); display: flex; flex-direction: column; align-items: center; gap: 10px; } .txt-app .txt-fil .vide-fil svg { width: 34px; height: 34px; color: var(--encre-4); }'
+    '.txt-app .txt-fil .vide-fil { margin: auto; text-align: center; color: var(--encre-3); display: flex; flex-direction: column; align-items: center; gap: 10px; } .txt-app .txt-fil .vide-fil svg { width: 34px; height: 34px; color: var(--encre-4); }',
+    /* 29 oct. : un seul lien par visite — l'inspection en couleurs dans la fiche de l'estimé */
+    '.txt-insp { border: 1px solid var(--ligne); border-radius: 12px; padding: 10px 12px; margin: 6px 0 12px; background: #fff; }',
+    '.txt-insp > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; list-style: revert; }',
+    '.txt-insp .resume { display: inline-flex; gap: 6px; flex-wrap: wrap; font-size: 12px; } .txt-insp .resume span { padding: 1px 8px; border-radius: 999px; font-weight: 700; }',
+    '.txt-insp .r-rouge { background: var(--rouge-bg); color: var(--rouge); } .txt-insp .r-jaune { background: var(--ambre-bg); color: var(--ambre); } .txt-insp .r-vert { background: var(--vert-clair); color: var(--vert-fonce); } .txt-insp .r-gris { background: var(--gris-bg); color: var(--encre-3); }',
+    '.txt-insp .tete-insp { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0 4px; } .txt-insp .tete-insp .saisie { width: auto; max-width: 220px; }',
+    '.txt-insp .cat { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); margin: 12px 0 2px; }',
+    '.txt-insp .pt { display: grid; grid-template-columns: minmax(150px, 1.2fr) auto 110px minmax(120px, 1.5fr) 92px; gap: 6px; align-items: center; padding: 4px 6px; border-bottom: 1px dashed var(--ligne); border-radius: 6px; }',
+    '.txt-insp .pt .lib { font-size: 13px; } .txt-insp .pt input { height: 30px; font-size: 12.5px; } .txt-insp .pt .btn { white-space: nowrap; }',
+    '.txt-insp .pt.c-rouge { background: #fff4f3; } .txt-insp .pt.c-jaune { background: #fffaeb; }',
+    '.txt-insp .coul { display: inline-flex; gap: 3px; } .txt-insp .coul button { width: 32px; height: 30px; border-radius: 8px; border: 1px solid var(--ligne); background: #fff; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--encre-4); padding: 0; }',
+    '.txt-insp .coul button.vert.actif { background: #12a150; border-color: #12a150; color: #fff; } .txt-insp .coul button.jaune.actif { background: #e8a400; border-color: #e8a400; color: #fff; } .txt-insp .coul button.rouge.actif { background: #d92d20; border-color: #d92d20; color: #fff; }',
+    '.txt-insp .coul button:disabled { cursor: default; opacity: .7; }',
+    '@media (max-width: 760px) { .txt-insp .pt { grid-template-columns: 1fr auto; } .txt-insp .pt input, .txt-insp .pt .btn { grid-column: 1 / -1; } }',
+    '.txt-insp .medias { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; } .txt-insp .media { position: relative; width: 112px; height: 84px; border-radius: 8px; overflow: hidden; border: 1px solid var(--ligne); background: var(--carte-2); cursor: pointer; } .txt-insp .media img { width: 100%; height: 100%; object-fit: cover; display: block; }',
+    '.txt-insp .media .lecture { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 24px; text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none; } .txt-insp .media .retirer { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; line-height: 18px; padding: 0; cursor: pointer; }',
+    '.txt-insp .media.ajout { display: grid; place-items: center; font-size: 12px; color: var(--encre-3); text-align: center; border-style: dashed; }',
+    '.txt-insp .pied-insp { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }'
   ].join('\n');
   if (!document.getElementById('txt-style')) { var st = document.createElement('style'); st.id = 'txt-style'; st.textContent = STYLE; document.head.appendChild(st); }
 
@@ -534,7 +552,7 @@
       lignesUI.forEach(function (u) { if (elLignes.contains(u.el)) u.majTotal(); });
     };
     var ligneUI = function (L, k) {
-      L = Object.assign({ code: '', libelle: '', description: '', urgence: 'recommande', mo: { type: 'fixe', heures: 0, taux: cfg.tauxMo, montant: 0 }, pieces: [], frais: [], medias: [], etat: 'propose' }, L || {});
+      L = Object.assign({ code: '', libelle: '', description: '', urgence: 'recommande', mo: { type: 'fixe', heures: 0, taux: cfg.tauxMo, montant: 0 }, pieces: [], frais: [], medias: [], etat: 'propose', point: '' }, L || {});
       L.mo = Object.assign({ type: 'fixe', heures: 0, taux: cfg.tauxMo, montant: 0 }, L.mo || {}); L.pieces = (L.pieces || []).slice(); L.frais = (L.frais || []).slice();
       var el = h('div.txt-ligne.u-' + L.urgence + (L.etat !== 'propose' ? '.e-' + L.etat : ''));
       var selMenu = h('select.saisie', [h('option', { value: '', text: '— menu —' })].concat((cfg.travaux || []).map(function (t) { return h('option', { value: t.code, selected: t.code === L.code ? true : undefined, text: t.libelle + (t.prix ? ' · ' + argent(t.prix) : '') }); })));
@@ -592,7 +610,7 @@
         h('div.bloc.bloc-desc', [h('h5', 'Note au client · photos et vidéos'), inDesc, elMedias, inFichier])
       ]));
       majMo();
-      var u = { el: el, lire: function () { return { code: L.code || selMenu.value || '', libelle: inLib.value.trim(), description: inDesc.value.trim(), urgence: selUrg.value, mo: { type: selType.value, heures: num(inHeures.value), taux: num(inTaux.value) || cfg.tauxMo, montant: num(inMontant.value) }, pieces: [].map.call(tbP.querySelectorAll('tr'), function (tr) { return tr._lire(); }).filter(function (p) { return p.nom || p.no; }), frais: [].map.call(tbF.querySelectorAll('tr'), function (tr) { return tr._lire(); }).filter(function (f) { return f.nom; }), medias: L.medias, etat: L.etat, reponduLe: L.reponduLe, paiement: selPai.value }; }, majTotal: function () { var t = totalLigne(u.lire()); elTotal.textContent = argent(t.total) + (selPai.value === 'garantie' ? ' · garantie' : (selPai.value === 'interne' ? ' · interne' : '')); [].forEach.call(el.querySelectorAll('table.pieces tr'), function (tr) { if (tr._maj) tr._maj(); }); } };
+      var u = { el: el, lire: function () { return { code: L.code || selMenu.value || '', libelle: inLib.value.trim(), description: inDesc.value.trim(), urgence: selUrg.value, mo: { type: selType.value, heures: num(inHeures.value), taux: num(inTaux.value) || cfg.tauxMo, montant: num(inMontant.value) }, pieces: [].map.call(tbP.querySelectorAll('tr'), function (tr) { return tr._lire(); }).filter(function (p) { return p.nom || p.no; }), frais: [].map.call(tbF.querySelectorAll('tr'), function (tr) { return tr._lire(); }).filter(function (f) { return f.nom; }), medias: L.medias, etat: L.etat, reponduLe: L.reponduLe, paiement: selPai.value, point: L.point || '' }; }, majTotal: function () { var t = totalLigne(u.lire()); elTotal.textContent = argent(t.total) + (selPai.value === 'garantie' ? ' · garantie' : (selPai.value === 'interne' ? ' · interne' : '')); [].forEach.call(el.querySelectorAll('table.pieces tr'), function (tr) { if (tr._maj) tr._maj(); }); } };
       if (!peut) [].forEach.call(el.querySelectorAll('input, select, textarea'), function (x) { x.disabled = true; });
       [inLib, inDesc].forEach(function (x) { x.addEventListener('input', majTotaux); });
       lignesUI.push(u); elLignes.appendChild(el);
@@ -605,6 +623,12 @@
     var inNoteInt = zoneTexte({ placeholder: 'Note interne (le client ne la voit pas)', style: { minHeight: '36px' } }, v.noteInterne);
     if (!peut) { inNote.disabled = true; inNoteInt.disabled = true; }
     majTotaux(); majManques();
+    /* --- 29 oct. : inspection en couleurs (un seul lien par visite) --- */
+    var insp = self.sectionInspection(v, cfg, peut, {
+      id: function () { return v.id; },
+      aLigne: function (code) { return lireLignes().some(function (L) { return L.point === code; }); },
+      versTravail: function (p) { var u = ligneUI({ libelle: p.libelle, urgence: p.couleur === 'rouge' ? 'urgent' : 'recommande', point: p.code, description: p.note || '' }); majTotaux(); try { u.el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e3) {} }
+    });
     /* --- en-tête : statut, suivi, étapes --- */
     var titre = h('div.titre', [v.client ? avatar(v.client, v.telephone) : null, v.id ? 'Estimé ' + v.id : 'Nouvel estimé', h('span.badge.' + (COULEUR[v.statut] || 'gris'), { text: STATUTS[v.statut] || v.statut }), v.statut === 'annule' && v.annuleRaison ? h('span.doux', { text: '— ' + v.annuleRaison }) : null]);
     var suivi = h('div.suivi');
@@ -634,11 +658,11 @@
       approbations.appendChild(h('div', [h('b', { text: quand(a.le) }), ' ', 'Par ' + (CANAUX_APPR[a.canal] || a.canal || '—') + (a.qui ? ' · ' + a.qui : '') + (a.telephone ? ' · ' + telJoli(a.telephone) : '') + ' — approuvé : ' + (ok.join(', ') || 'rien') + ' (' + argent(a.totalApprouveTaxes) + (liste0().length ? ' taxes incluses' : '') + ')' + (non.length ? ' · refusé : ' + non.join(', ') : ''), a.empreinte ? h('span.doux.mono', { text: ' · ' + String(a.empreinte).slice(0, 12), title: 'Empreinte de la copie : ' + a.empreinte }) : null]));
     });
     /* --- lecture de l'état local --- */
-    var lire = function () { return { id: v.id || undefined, compagnie: v.compagnie, client: inClient.value.trim(), clientId: v.clientId || '', telephone: inTel.value, courriel: inCourriel.value.trim(), adresse: inAdresse.value.trim(), vin: inVin.value.trim().toUpperCase(), vehicule: inVeh.value.trim(), plaque: inPlaque.value.trim(), km: inKm.value, btNo: inBt.value.trim(), rdvId: v.rdvId || '', conseiller: selCons.value, note: inNote.value, noteInterne: inNoteInt.value, lignes: lireLignes() }; };
+    var lire = function () { return { id: v.id || undefined, compagnie: v.compagnie, client: inClient.value.trim(), clientId: v.clientId || '', telephone: inTel.value, courriel: inCourriel.value.trim(), adresse: inAdresse.value.trim(), vin: inVin.value.trim().toUpperCase(), vehicule: inVeh.value.trim(), plaque: inPlaque.value.trim(), km: inKm.value, btNo: inBt.value.trim(), rdvId: v.rdvId || '', conseiller: selCons.value, note: inNote.value, noteInterne: inNoteInt.value, lignes: lireLignes(), inspection: insp ? insp.lire() : undefined }; };
     var enregistrer = function (silencieux) {
       var e2 = lire();
       if (!e2.client && !telChiffres(e2.telephone)) { AMX.toast('Nom ou cellulaire du client requis', 'erreur'); inClient.focus(); return Promise.resolve(null); }
-      if (!e2.lignes.length) { AMX.toast('Ajoutez au moins un travail', 'erreur'); return Promise.resolve(null); }
+      if (!e2.lignes.length && !(insp && insp.aDesNotes())) { AMX.toast('Ajoutez au moins un travail (ou notez l\'inspection)', 'erreur'); return Promise.resolve(null); }
       self.enEcriture = true;
       return AMX.post({ action: 'estimeEnregistrer', estime: e2 }, { delai: 60000 }).then(function (d) {
         self.enEcriture = false;
@@ -669,6 +693,7 @@
       h('div.entete', [h('div', [titre, h('div.sous', { text: nomCie(v.compagnie) + (v.rdvId ? ' · rendez-vous ' + v.rdvId : '') + (v.creeLe ? ' · créé ' + quand(v.creeLe) + ' par ' + nomCourt(v.creePar) : '') })]), suivi]),
       v.id ? etapes : null,
       grilleClient,
+      insp ? insp.el : null,
       h('h4', { style: { margin: '6px 0 4px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--encre-3)' } }, 'Travaux proposés'),
       elLignes, peut ? btnLigne : null,
       elTotaux,
@@ -683,6 +708,112 @@
     this.fermerFiche = function () { try { modale.fermer(); } catch (e) {} self.ficheOuverte = null; };
   };
   VueTexto.prototype.fermerFiche = function () {};
+  /* 29 oct. — un seul lien par visite : l'inspection en couleurs (vert = en bon état, jaune = à surveiller, rouge = à faire
+     maintenant), la vidéo et les photos de toute la visite, en tête de la page du client. Un point jaune ou rouge devient un
+     travail d'un clic. Les points viennent de la liste de la concession (cfg.mpi, 25 points par défaut). */
+  var COULEURS_INSP = [['vert', '✓', 'En bon état'], ['jaune', '!', 'À surveiller'], ['rouge', '✕', 'À faire maintenant']];
+  VueTexto.prototype.sectionInspection = function (v, cfg, peut, ctx) {
+    var self = this, insp = v.inspection || null;
+    if (!insp && !(cfg && cfg.mpi && cfg.mpi.length)) return null;   /* script d'avant le 29 oct. */
+    var points = (insp && insp.points && insp.points.length) ? JSON.parse(JSON.stringify(insp.points)) : (cfg.mpi || []).map(function (g) { return { code: g.code, libelle: g.libelle, categorie: g.categorie, mesureUnite: g.mesure || '', couleur: '', mesure: '', note: '', gabarit: true }; });
+    var medias = (insp && insp.medias) ? insp.medias.slice() : [];
+    var det = h('details.txt-insp'), resume = h('span.resume');
+    det.appendChild(h('summary', [h('b', 'Inspection du véhicule'), resume]));
+    var inTech = h('input.saisie', { type: 'text', value: (insp && insp.technicien) || '', placeholder: 'Technicien (facultatif)' });
+    var inNote = zoneTexte({ placeholder: 'Note de l\'inspection (le client la lit en tête de sa page)', style: { minHeight: '40px', marginTop: '8px' } }, (insp && insp.note) || '');
+    if (!peut) { inTech.disabled = true; inNote.disabled = true; }
+    var majResume = function () {
+      var n = { rouge: 0, jaune: 0, vert: 0 }, reste = 0; points.forEach(function (p) { if (n[p.couleur] !== undefined) n[p.couleur]++; else reste++; });
+      AMX.vider(resume);
+      if (n.rouge) resume.appendChild(h('span.r-rouge', { text: n.rouge + ' à faire maintenant' }));
+      if (n.jaune) resume.appendChild(h('span.r-jaune', { text: n.jaune + ' à surveiller' }));
+      if (n.vert) resume.appendChild(h('span.r-vert', { text: n.vert + ' en bon état' }));
+      if (reste) resume.appendChild(h('span.r-gris', { text: reste + ' à vérifier' }));
+      if (medias.length) resume.appendChild(h('span.r-gris', { text: medias.length + (medias.length > 1 ? ' photos ou vidéos' : ' photo ou vidéo') }));
+    };
+    var elMedias = h('div.medias'), inFichier = h('input', { type: 'file', accept: 'image/*,video/*', multiple: true, style: { display: 'none' } }), etatEnvoi = h('span.doux');
+    var rendreMedias;
+    var poser = function (d) { if (!d || d.ok === false || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Envoi refusé'); medias = ((d.estime && d.estime.inspection) || {}).medias || medias; rendreMedias(); AMX.texto.invalider(); };
+    var envoyerBlob = function (blob, nom, mime, surEtat) {
+      var prep = /^image\//.test(mime) ? reduireImage(blob) : lireBase64(blob).then(function (b) { return { base64: b, mime: mime }; });
+      return prep.then(function (p) {
+        var octets = Math.round(p.base64.length * 0.75);
+        if (octets > 35 * 1024 * 1024) throw new Error('Fichier trop lourd (' + Math.round(octets / 1048576) + ' Mo) — filmez moins de 90 secondes.');
+        if (surEtat) surEtat('Envoi de ' + (/^video/.test(mime) ? 'la vidéo' : 'la photo') + ' (' + Math.round(octets / 1024) + ' Ko)…');
+        self.enEcriture = true;
+        return AMX.post({ action: 'estimeMedia', id: ctx.id(), cible: 'inspection', nom: nom || '', mime: p.mime, base64: p.base64 }, { delai: 240000 }).then(function (d) { self.enEcriture = false; poser(d); return true; }, function (e) { self.enEcriture = false; throw e; });
+      });
+    };
+    rendreMedias = function () {
+      AMX.vider(elMedias);
+      medias.forEach(function (m) {
+        elMedias.appendChild(h('div.media', { title: m.nom || '', onclick: function () { window.open(m.type === 'video' ? m.lecture : m.url, '_blank', 'noopener'); } }, [
+          h('img', { src: m.apercu, alt: m.nom || '', loading: 'lazy', onerror: function () { this.style.display = 'none'; } }),
+          m.type === 'video' ? h('span.lecture', { html: '&#9654;' }) : null,
+          peut ? h('button.retirer', { type: 'button', text: '×', title: 'Retirer', onclick: function (ev) { ev.stopPropagation(); self.action({ action: 'estimeMediaRetirer', id: ctx.id(), mediaId: m.id }, 'Média retiré').then(function (d) { if (d && d.ok) { medias = ((d.estime && d.estime.inspection) || {}).medias || []; rendreMedias(); } }); } }) : null
+        ]));
+      });
+      if (peut) {
+        var exige = function () { if (!ctx.id()) { AMX.toast('Enregistrez d\'abord l\'estimé, puis ajoutez les photos et la vidéo.', 'attention'); return false; } return true; };
+        elMedias.appendChild(h('div.media.ajout', { text: '📷 Photo / vidéo', title: 'Le client voit ces photos et vidéos en tête de sa page', onclick: function () { if (exige()) inFichier.click(); } }));
+        if (AMX.enregistreurVideo) elMedias.appendChild(h('div.media.ajout', { text: '🎥 Filmer', title: 'Filmer avec la caméra (640 × 360, 90 s max)', onclick: function () { if (!exige()) return; AMX.enregistreurVideo({ titre: 'Vidéo pour ' + (v.client || ctx.id()), nomBase: 'video-' + ctx.id(), envoyer: envoyerBlob }); } }));
+      }
+      majResume();
+    };
+    inFichier.addEventListener('change', function () {
+      var fichiers = [].slice.call(inFichier.files || []); inFichier.value = '';
+      var suite = Promise.resolve();
+      fichiers.forEach(function (f) { suite = suite.then(function () { return envoyerBlob(f, f.name, f.type || 'application/octet-stream', function (t) { etatEnvoi.textContent = t; }); }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }); });
+      suite.then(function () { etatEnvoi.textContent = ''; });
+    });
+    var elPoints = h('div');
+    var rendrePoints = function () {
+      AMX.vider(elPoints);
+      var cats = []; points.forEach(function (p) { var c = p.categorie || 'Autres'; if (cats.indexOf(c) < 0) cats.push(c); });
+      cats.forEach(function (c) {
+        elPoints.appendChild(h('div.cat', { text: c }));
+        points.filter(function (p) { return (p.categorie || 'Autres') === c; }).forEach(function (p) {
+          var rangee = h('div.pt' + (p.couleur ? '.c-' + p.couleur : ''));
+          var coul = h('div.coul');
+          var btnTravail = h('button.btn.petit', { type: 'button', text: '→ Travail', title: 'Ajouter ce point aux travaux proposés' });
+          var majTravail = function () { var deja = ctx.aLigne(p.code); btnTravail.style.visibility = (peut && p.code && (p.couleur === 'rouge' || p.couleur === 'jaune')) ? 'visible' : 'hidden'; btnTravail.disabled = deja; btnTravail.textContent = deja ? 'Au devis' : '→ Travail'; };
+          COULEURS_INSP.forEach(function (x) {
+            coul.appendChild(h('button.' + x[0] + (p.couleur === x[0] ? '.actif' : ''), { type: 'button', text: x[1], title: x[2], disabled: peut ? undefined : true, onclick: function () {
+              p.couleur = p.couleur === x[0] ? '' : x[0];
+              [].forEach.call(coul.querySelectorAll('button'), function (b) { b.classList.toggle('actif', !!p.couleur && b.classList.contains(p.couleur)); });
+              rangee.className = 'pt' + (p.couleur ? ' c-' + p.couleur : ''); majTravail(); majResume();
+            } }));
+          });
+          var inMes = h('input.saisie', { type: 'text', value: p.mesure || '', placeholder: p.mesureUnite ? 'mesure (' + p.mesureUnite + ')' : 'mesure', disabled: peut ? undefined : true });
+          var inNt = h('input.saisie', { type: 'text', value: p.note || '', placeholder: 'note pour le client', disabled: peut ? undefined : true });
+          inMes.addEventListener('input', function () { p.mesure = inMes.value.trim(); });
+          inNt.addEventListener('input', function () { p.note = inNt.value.trim(); });
+          btnTravail.addEventListener('click', function () { ctx.versTravail(p); majTravail(); });
+          rangee.appendChild(h('div.lib', { text: p.libelle }));
+          rangee.appendChild(coul); rangee.appendChild(inMes); rangee.appendChild(inNt); rangee.appendChild(btnTravail);
+          majTravail();
+          elPoints.appendChild(rangee);
+        });
+      });
+      majResume();
+    };
+    var pied = h('div.pied-insp');
+    if (peut) {
+      pied.appendChild(h('button.btn.petit', { type: 'button', text: '✓ Le reste en bon état', title: 'Marquer en vert tous les points pas encore notés', onclick: function () { points.forEach(function (p) { if (!p.couleur) p.couleur = 'vert'; }); rendrePoints(); } }));
+      pied.appendChild(h('button.btn.petit.fantome', { type: 'button', text: '+ Point', onclick: function () { self.demanderTexte('Ajouter un point', 'Ce que vous avez vérifié', 'Ex. Bruit à la roue avant').then(function (t) { t = String(t || '').trim(); if (!t) return; points.push({ code: '', libelle: t.slice(0, 80), categorie: 'Autres', mesureUnite: '', couleur: '', mesure: '', note: '', gabarit: false }); rendrePoints(); }); } }));
+      pied.appendChild(h('span.doux', { text: 'Enregistrez l\'estimé pour garder l\'inspection.' }));
+    }
+    det.appendChild(h('div.tete-insp', [inTech, etatEnvoi]));
+    det.appendChild(elMedias); det.appendChild(inFichier);
+    det.appendChild(elPoints); det.appendChild(inNote); det.appendChild(pied);
+    rendreMedias(); rendrePoints();
+    if (points.some(function (p) { return p.couleur; }) || medias.length || (insp && insp.note)) det.open = true;
+    return {
+      el: det,
+      aDesNotes: function () { return points.some(function (p) { return p.couleur; }); },
+      lire: function () { return { technicien: inTech.value.trim(), note: inNote.value, points: points.filter(function (p) { return p.couleur || p.mesure || p.note || !p.gabarit; }).map(function (p) { return { code: p.code, libelle: p.libelle, categorie: p.categorie, couleur: p.couleur || '', mesure: p.mesure || '', note: p.note || '' }; }) }; }
+    };
+  };
   /* POST générique avec toast ; renvoie la réponse (ou null). */
   VueTexto.prototype.action = function (corps, messageOk) {
     var self = this; this.enEcriture = true;

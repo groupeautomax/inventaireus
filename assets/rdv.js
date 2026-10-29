@@ -841,7 +841,7 @@
     }
     /* inspection vidéo et travaux proposés (comme Kimoby, intégrée) */
     var inspEl = h('div.rdv-insp'); corps.appendChild(inspEl);
-    var fiche = { r: r, el: inspEl, rafraichir: function () { self.rendreInspection(inspEl, r, peut, cfg); } };
+    var fiche = { r: r, el: inspEl, modale: modale, rafraichir: function () { self.rendreInspection(inspEl, r, peut, cfg); } };
     fiche.rafraichir();
     this.ficheOuverte = fiche;
   };
@@ -883,25 +883,28 @@
       }, function (e) { self.enEcriture = false; throw e; });
     });
   };
-  /* Enregistreur vidéo dans la page : caméra arrière, 640 × 360, ~1 Mbit/s, 90 s au plus — un clip de 60 s pèse ~7 Mo. */
-  VueRdv.prototype.ouvrirEnregistreur = function (r, surFini) {
-    var self = this, flux = null, rec = null, morceaux = [], debut = 0, minuterie = null, blob = null, mimeSortie = '';
+  /* Enregistreur vidéo dans la page : caméra arrière, 640 × 360, ~1 Mbit/s, 90 s au plus — un clip de 60 s pèse ~7 Mo.
+     29 oct. : partagé avec Service › Texto (AMX.enregistreurVideo) — opts : titre, nomBase, envoyer(blob, nom, mime, surEtat)
+     → Promise, surFini, texteEnvoyer. */
+  AMX.enregistreurVideo = function (opts) {
+    opts = opts || {};
+    var flux = null, rec = null, morceaux = [], debut = 0, minuterie = null, blob = null, mimeSortie = '';
     var apercu = h('video', { autoplay: true, muted: true, playsinline: true }), lecture = h('video', { controls: true, playsinline: true, style: { display: 'none' } });
     var chrono = h('div.chrono', { text: '00:00' }), etat = h('div.doux', { text: 'Pointez la caméra sur ce que vous voulez montrer au client.' });
     var btnRec = h('button.btn.primaire', { type: 'button', text: '● Filmer' }), btnStop = h('button.btn.danger', { type: 'button', text: '■ Arrêter', disabled: true }), btnRefaire = h('button.btn', { type: 'button', text: 'Refaire', style: { display: 'none' } });
     var corps = h('div.rdv-enregistreur', [apercu, lecture, chrono, etat, h('div.boutons', [btnRec, btnStop, btnRefaire])]);
     var arreterFlux = function () { if (flux) { flux.getTracks().forEach(function (t) { t.stop(); }); flux = null; } };
-    var modale = AMX.modale({ titre: 'Vidéo pour ' + (r.client || r.vehicule || r.id), corps: corps, bloquante: true, boutons: [{ texte: 'Annuler', action: function () { arreterFlux(); return true; } }, { texte: 'Envoyer au dossier', classe: 'primaire', action: function (fermer, btn) {
+    AMX.modale({ titre: opts.titre || 'Vidéo', corps: corps, bloquante: true, boutons: [{ texte: 'Annuler', action: function () { arreterFlux(); return true; } }, { texte: opts.texteEnvoyer || 'Envoyer au dossier', classe: 'primaire', action: function () {
       if (!blob) { AMX.toast('Filmez d\'abord', 'erreur'); return false; }
       arreterFlux();
-      return self.televerserMedia(r, blob, 'video-' + r.id + '-' + Date.now() + (/mp4/.test(mimeSortie) ? '.mp4' : '.webm'), mimeSortie || 'video/webm', function (t) { etat.textContent = t; }).then(function () { AMX.toast('Vidéo ajoutée au dossier', 'ok'); if (surFini) surFini(); return true; }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+      return opts.envoyer(blob, (opts.nomBase || 'video') + '-' + Date.now() + (/mp4/.test(mimeSortie) ? '.mp4' : '.webm'), mimeSortie || 'video/webm', function (t) { etat.textContent = t; }).then(function () { AMX.toast('Vidéo ajoutée', 'ok'); if (opts.surFini) opts.surFini(); return true; }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
     } }] });
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') { etat.textContent = 'Ce navigateur ne permet pas de filmer ici — utilisez « Photo / vidéo » pour choisir un fichier.'; btnRec.disabled = true; return; }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } }, audio: true }).then(function (f) {
       flux = f; apercu.srcObject = f;
       ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'].forEach(function (m) { if (!mimeSortie && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) mimeSortie = m; });
     }).catch(function () { etat.textContent = 'Caméra refusée ou absente — utilisez « Photo / vidéo » pour choisir un fichier.'; btnRec.disabled = true; });
-    var tic = function () { var s = Math.floor((Date.now() - debut) / 1000); chrono.textContent = p2(Math.floor(s / 60)) + ':' + p2(s % 60); if (s >= 90) btnStop.click(); };
+    var tic = function () { var s2 = Math.floor((Date.now() - debut) / 1000); chrono.textContent = p2(Math.floor(s2 / 60)) + ':' + p2(s2 % 60); if (s2 >= 90) btnStop.click(); };
     btnRec.addEventListener('click', function () {
       if (!flux) return;
       morceaux = []; blob = null;
@@ -912,7 +915,7 @@
         clearInterval(minuterie); chrono.classList.remove('rec');
         blob = new Blob(morceaux, { type: mimeSortie || 'video/webm' });
         apercu.style.display = 'none'; lecture.style.display = ''; lecture.src = URL.createObjectURL(blob);
-        etat.textContent = 'Vidéo de ' + chrono.textContent + ' · ' + Math.round(blob.size / 1024) + ' Ko — vérifiez, puis « Envoyer au dossier ».';
+        etat.textContent = 'Vidéo de ' + chrono.textContent + ' · ' + Math.round(blob.size / 1024) + ' Ko — vérifiez, puis « ' + (opts.texteEnvoyer || 'Envoyer au dossier') + ' ».';
         btnRec.style.display = 'none'; btnStop.style.display = 'none'; btnRefaire.style.display = '';
       };
       rec.start(1000); debut = Date.now(); chrono.classList.add('rec'); minuterie = setInterval(tic, 250);
@@ -921,11 +924,15 @@
     btnStop.addEventListener('click', function () { if (rec && rec.state !== 'inactive') rec.stop(); btnStop.disabled = true; });
     btnRefaire.addEventListener('click', function () { blob = null; lecture.style.display = 'none'; apercu.style.display = ''; btnRec.style.display = ''; btnStop.style.display = ''; btnRec.disabled = false; btnRefaire.style.display = 'none'; chrono.textContent = '00:00'; etat.textContent = 'Prêt à refilmer.'; });
   };
+  VueRdv.prototype.ouvrirEnregistreur = function (r, surFini) {
+    var self = this;
+    AMX.enregistreurVideo({ titre: 'Vidéo pour ' + (r.client || r.vehicule || r.id), nomBase: 'video-' + r.id, surFini: surFini, envoyer: function (blob, nom, mime, surEtat) { return self.televerserMedia(r, blob, nom, mime, surEtat); } });
+  };
   /* La section « Inspection » de la fiche : médias, travaux proposés avec prix, message, envoi au client, réponses. */
   VueRdv.prototype.rendreInspection = function (conteneur, r, peut, cfg) {
     var self = this, i = r.inspection || { medias: [], propositions: [], note: '', journal: [] };
     AMX.vider(conteneur);
-    var titre = h('h4', ['Inspection et travaux proposés', i.envoyeLe ? h('span.puce' + (i.reponduLe ? '.ok' : '.info'), { text: i.reponduLe ? 'Réponse reçue' : (i.vuLe ? 'Vue par le client' : 'Envoyée') }) : null]);
+    var titre = h('h4', ['Inspection et travaux proposés', i.estimeId ? h('span.puce.ok', { text: 'Estimé ' + i.estimeId }) : (i.envoyeLe ? h('span.puce' + (i.reponduLe ? '.ok' : '.info'), { text: i.reponduLe ? 'Réponse reçue' : (i.vuLe ? 'Vue par le client' : 'Envoyée') }) : null)]);
     conteneur.appendChild(titre);
     /* médias */
     var medias = h('div.medias');
@@ -984,14 +991,14 @@
     }
     if (!peut) return;
     var lire = function () { return lignes.filter(function (l) { return document.body.contains(l.tr); }).map(function (l) { return { code: l.selMenu.value || l.code || '', libelle: l.inLib.value.trim(), prix: l.inPrix.value, urgence: l.selUrg.value }; }).filter(function (p) { return p.libelle; }); };
-    var enregistrer = function (envoyer) {
+    var enregistrer = function (envoyer, silencieux) {
       self.enEcriture = true;
       return AMX.post({ action: 'rdvInspection', id: r.id, propositions: lire(), note: inNote.value, envoyer: envoyer || null }, { delai: 60000 }).then(function (d) {
         self.enEcriture = false;
         if (!d || d.ok === false || d.refuse) { AMX.toast((d && (d.erreur || d.message)) || 'Refusé', 'erreur'); return false; }
         r.inspection = d.inspection; if (d.rdv) Object.assign(r, d.rdv); AMX.rdv.invalider(); self.rendre();
         if (envoyer) { if (d.envoye && d.envoye.length) AMX.toast('Inspection envoyée au client par ' + d.envoye.join(' et '), 'ok'); (d.erreurs || []).forEach(function (e) { AMX.toast(e, 'attention', 7000); }); if (!(d.envoye && d.envoye.length)) AMX.toast('Rien n\'a été envoyé — copiez le lien et donnez-le au client.', 'attention', 7000); }
-        else AMX.toast('Inspection enregistrée', 'ok');
+        else if (!silencieux) AMX.toast('Inspection enregistrée', 'ok');
         self.rendreInspection(conteneur, r, peut, cfg);
         return true;
       }, function (e) { self.enEcriture = false; AMX.toast('Non enregistré — ' + AMX.erreurTexte(e), 'erreur'); return false; });
@@ -1009,11 +1016,38 @@
       ]);
       AMX.modale({ titre: 'Envoyer l\'inspection — ' + (r.client || r.id), corps: corps2, boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () { return enregistrer({ courriel: cbC.checked, texto: cbT.checked }); } }] });
     } });
-    conteneur.appendChild(h('div.outils', { style: { marginTop: '10px' } }, [
-      h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function () { enregistrer(null); } }),
-      btnEnvoyer,
-      h('button.btn.petit.fantome', { type: 'button', text: 'Ouvrir la page client', onclick: function () { window.open(lienInspection(r), '_blank', 'noopener'); } })
-    ]));
+    /* 29 oct. — un seul lien par visite : l'inspection (photos, vidéo, travaux proposés) passe à l'estimé de Service › Texto ;
+       c'est l'estimé, avec l'inspection en couleurs et le paiement, qui part au client. */
+    var ouvrirEstime = function (id) { try { if (self.ficheOuverte && self.ficheOuverte.modale) self.ficheOuverte.modale.fermer(); } catch (e) {} AMX.aller('service', 'texto', { estime: id }); };
+    var preparer = function () {
+      return enregistrer(null, true).then(function (ok) {
+        if (!ok) return false;
+        self.enEcriture = true;
+        return AMX.post({ action: 'estimeDepuisRdv', rdvId: r.id }, { delai: 90000 }).then(function (d) {
+          self.enEcriture = false;
+          if (d && d.ok && !d.estime) { AMX.toast('Le script n\'est pas à jour — redéployez-le (TextoInspection.gs) pour passer l\'inspection à l\'estimé.', 'erreur', 8000); return false; }
+          if (!d || d.ok === false || d.refuse) { AMX.toast((d && (d.erreur || d.message)) || 'Refusé', 'erreur'); return false; }
+          if (d.rdv) Object.assign(r, d.rdv);
+          r.inspection = Object.assign({}, r.inspection || {}, { estimeId: d.estime.id });
+          AMX.rdv.invalider(); if (AMX.texto && AMX.texto.invalider) AMX.texto.invalider();
+          var a = d.ajouts || {};
+          AMX.toast(d.cree ? 'Estimé ' + d.estime.id + ' créé : notez l\'inspection en couleurs, puis envoyez-le au client.' : 'Estimé ' + d.estime.id + ' mis à jour (' + (a.medias || 0) + ' photo(s) ou vidéo(s), ' + (a.lignes || 0) + ' travail(aux) ajoutés).', 'ok', 7000);
+          ouvrirEstime(d.estime.id);
+          return true;
+        }, function (e) { self.enEcriture = false; AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+      });
+    };
+    var boutons = [h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function () { enregistrer(null); } })];
+    if (i.estimeId) {
+      boutons.push(h('button.btn.petit.primaire', { type: 'button', text: 'Ouvrir l\'estimé ' + i.estimeId, onclick: function () { ouvrirEstime(i.estimeId); } }));
+      boutons.push(h('button.btn.petit', { type: 'button', text: 'Mettre à jour l\'estimé', title: 'Ajoute à l\'estimé les nouvelles photos, vidéos et travaux proposés de ce rendez-vous', onclick: function () { preparer(); } }));
+    } else {
+      boutons.push(h('button.btn.petit.primaire', { type: 'button', text: 'Préparer l\'estimé pour le client', title: 'Un seul lien pour le client : l\'inspection en couleurs, la vidéo, l\'estimé à approuver ligne par ligne et le paiement', onclick: function () { preparer(); } }));
+      if (i.envoyeLe) boutons.push(btnEnvoyer);   /* inspection déjà envoyée seule (avant le 29 oct.) : on peut encore la renvoyer */
+    }
+    if (i.envoyeLe) boutons.push(h('button.btn.petit.fantome', { type: 'button', text: 'Ouvrir la page client', onclick: function () { window.open(lienInspection(r), '_blank', 'noopener'); } }));
+    conteneur.appendChild(h('div.outils', { style: { marginTop: '10px' } }, boutons));
+    if (!i.estimeId) conteneur.appendChild(h('p.doux', { style: { margin: '6px 0 0', fontSize: '12.5px' }, text: 'Le client reçoit un seul lien par visite : l\'inspection, la vidéo, l\'estimé à approuver ligne par ligne et le paiement.' }));
   };
   VueRdv.prototype.changerEtat = function (r, etat, extra) {
     var self = this, corps = Object.assign({ action: 'rdvEtat', id: r.id, etat: etat }, extra || {});

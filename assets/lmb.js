@@ -54,6 +54,11 @@
     '.lmb-outils { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }',
     '.lmb-table td.note { max-width: 260px; white-space: normal; font-size: 12.5px; color: var(--encre-2); }',
     '.lmb-note { display: block; margin-top: 3px; padding: 4px 8px; background: #fff8d6; border-left: 3px solid #e0b400; border-radius: 4px; color: var(--encre); font-size: 12.5px; white-space: normal; }',
+    '.lmb-maitre { margin-left: auto; align-self: center; font-size: 13px; font-weight: 700; color: var(--vert-fonce); text-decoration: none; border: 1px solid var(--vert-clair); background: var(--vert-clair); border-radius: 999px; padding: 6px 13px; }',
+    '.lmb-maitre:hover { text-decoration: underline; }',
+    '.lmb-lien-maitre { display: block; font-size: 12px; font-weight: 600; color: var(--vert-fonce); text-decoration: none; margin-top: 2px; } .lmb-lien-maitre:hover { text-decoration: underline; }',
+    '.lmb-contrat-maitre { display: grid; gap: 3px; margin: 0 0 10px; padding: 9px 12px; border-left: 4px solid var(--vert); background: var(--vert-clair); border-radius: 6px; font-size: 13px; }',
+    '.lmb-contrat-maitre a { font-weight: 700; color: var(--vert-fonce); }',
     '.lmb-masquees { margin-top: 14px; border: 1px dashed var(--ligne); border-radius: 10px; padding: 8px 12px; background: var(--carte); }',
     '.lmb-masquees summary { cursor: pointer; font-weight: 700; color: var(--encre-2); font-size: 13px; }',
     '.lmb-masquees .lmb-liste-simple li { opacity: .85; }'
@@ -112,6 +117,15 @@
   /* 29 oct. (Maxime) : « fais un croisement entre les ventes et les locations pour enlever les vendus des locations actives ».
      Un véhicule de la flotte dont le NIV (complet, ou ses 8 derniers caractères) ou le no LOC est aussi dans un onglet
      « Vendus » n'est plus une location active. */
+  /* 29 oct. (Maxime) : « location long terme : inclure un lien vers le fichier maître de calcul de location ». Le fichier maître =
+     « Calcul LMB - Suivi Location » (onglet Contrats : soldes, échéanciers). Son adresse vient de la source « contrats » ; à défaut,
+     de l'identifiant connu. */
+  var ID_FICHIER_MAITRE = '1nyIISPlTH29HbbbsUQrshT1dmtgw3OBcak2jhyWL2Yw';
+  function fichierMaitre(rep) {
+    var s = ((rep && rep.sources) || []).filter(function (x) { return x.type === 'contrats' && x.id; })[0];
+    return { lien: s ? s.lien : 'https://docs.google.com/spreadsheets/d/' + ID_FICHIER_MAITRE + '/edit', nom: (s && s.classeur) || 'Calcul LMB - Suivi Location', source: s || null };
+  }
+  function lienLigne(s, l) { return s.lien + (s.lien.indexOf('#') >= 0 ? '&' : '#') + 'range=A' + l.r; }
   function cleNiv(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
   function indexVendus(rep) {
     var idx = { vin: {}, fin: {}, stock: {} };
@@ -154,8 +168,28 @@
     for (var i = 0; i < ent.length; i++) if (/^notes?$/.test(AMX.texteCherche(ent[i] || '').trim())) return i;
     return -1;
   }
+  function indexContrats(rep) {
+    var idx = { vin: {}, fin: {}, stock: {} };
+    (rep.sources || []).forEach(function (s) {
+      if (s.type !== 'contrats') return;
+      (s._toutes || s.lignes || []).forEach(function (l) {
+        var v = cleNiv(l.f.vin), st = cleNiv(l.f.stock), info = { s: s, l: l };
+        if (v.length >= 11) idx.vin[v] = info;
+        if (v.length >= 8) idx.fin[v.slice(-8)] = info;
+        if (/^LOC\d{3,}$/.test(st)) idx.stock[st] = info;
+      });
+    });
+    return idx;
+  }
+  function contratDe(idx, f) {
+    var v = cleNiv(f.vin), st = cleNiv(f.stock);
+    if (v.length >= 11 && idx.vin[v]) return idx.vin[v];
+    if (v.length >= 8 && idx.fin[v.slice(-8)]) return idx.fin[v.slice(-8)];
+    if (st && idx.stock[st] && (!v || !cleNiv(idx.stock[st].l.f.vin))) return idx.stock[st];
+    return null;
+  }
   function preparer(rep) {
-    var auj = aujourdhui(), idxV = indexVendus(rep), masques = cache.masques || {};
+    var auj = aujourdhui(), idxV = indexVendus(rep), idxC = indexContrats(rep), masques = cache.masques || {};
     (rep.sources || []).forEach(function (s) {
       if (!s._toutes) { try { Object.defineProperty(s, '_toutes', { value: s.lignes || [], enumerable: false, configurable: true, writable: true }); } catch (eT) { s._toutes = s.lignes || []; } }
       s._toutes.forEach(function (l) {
@@ -167,6 +201,7 @@
         if (s.type === 'flotte' || s.type === 'vendus') {
           f._loc = typeLoc(f);
           f._vendu = s.type === 'flotte' ? vendu(idxV, f) : null;
+          try { Object.defineProperty(f, '_contratMaitre', { value: s.type === 'flotte' ? contratDe(idxC, f) : null, enumerable: false, configurable: true, writable: true }); } catch (eC) {}
           f._actif = s.type === 'flotte' && !!f.vin && !f.retour && !f.retourTexte && !f._vendu;
           var al = [];
           if (s.type === 'flotte') {
@@ -381,6 +416,10 @@
     };
     this.elVues.appendChild(bouton('resume', 'Résumé', null));
     this.sources().forEach(function (s) { self.elVues.appendChild(bouton(s.cle, s.nom, s.erreur ? null : (s.lignes || []).length, !!s.erreur)); });
+    var fm = fichierMaitre(this.rep);
+    this.elVues.appendChild(h('a.lmb-maitre', { href: fm.lien, target: '_blank', rel: 'noopener', title: fm.nom + ' — soldes, échéanciers et calculs des locations long terme' }, ['Fichier maître de calcul ↗']));
+    var sv = this.sourceVue();
+    this.btnOuvrir.textContent = sv && sv.type === 'contrats' ? 'Ouvrir le fichier maître' : 'Ouvrir le classeur';
     this.rendreClients();
     this.rafraichir();
   };
@@ -687,7 +726,7 @@
       ['Plaque', function (f) { return f.plaque || '—'; }],
       ['Loué à', function (f) { return f.loueA || '—'; }],
       ['Type', function (f) { return f._loc === 'Autre' ? (f.type || '—') : h('span.puce' + (f._loc === 'LEASE' ? '.info' : (f._loc === 'RENTAL' ? '.ok' : '.attention')), { text: f._loc }); }],
-      ['Contrat', function (f) { return f.contrat ? dateCourte(f.contrat) : (f.contratTexte || '—'); }],
+      ['Contrat', function (f) { var c = f._contratMaitre; return [f.contrat ? dateCourte(f.contrat) : (f.contratTexte || '—'), c ? h('a.lmb-lien-maitre', { href: lienLigne(c.s, c.l), target: '_blank', rel: 'noopener', title: 'Ouvrir le contrat dans le fichier maître de calcul', onclick: function (e) { e.stopPropagation(); } }, ['Fichier maître' + (typeof c.l.f.solde === 'number' ? ' · solde ' + argent(c.l.f.solde) : '') + ' ↗']) : null]; }],
       ['Location / mois', function (f) { return argent2(f.cout); }, 'num'],
       ['Retour', function (f) { return f.retour ? [dateCourte(f.retour), f.kmRetour ? h('span.s', { text: AMX.fmtNombre(f.kmRetour) + ' km' }) : null] : (f.retourTexte || ''); }],
       ['Note', function (f) { return f.note || ''; }, 'note'],
@@ -750,10 +789,20 @@
     var self = this, lien = s.lien + (s.lien.indexOf('#') >= 0 ? '&' : '#') + 'range=A' + l.r, m = l.f._masque;
     var avis = m ? h('div.lmb-erreur-source', { style: { borderLeftColor: 'var(--ambre)', background: 'var(--ambre-bg)' }, text: 'Retirée du suivi' + (m.le ? ' le ' + AMX.fmtDateCourte(m.le) : '') + (m.par ? ' par ' + m.par : '') + (m.r ? ' — « ' + m.r + ' »' : '') + '. Elle reste dans le classeur.' }) : null;
     var note = l.f.note ? h('div.lmb-note', { style: { margin: '0 0 10px' }, text: 'Note : ' + l.f.note }) : null;
-    AMX.modale({ titre: titreLigne(s, l) || s.nom, corps: h('div', [h('p.doux', { style: { margin: '0 0 10px' }, text: s.nom + ' · ' + (s.classeur || '') + ' › ' + s.onglet + ', ligne ' + l.r }), avis, note, dl]), large: true,
+    var c = l.f._contratMaitre, blocC = null;
+    if (c) {
+      var fc = c.l.f;
+      blocC = h('div.lmb-contrat-maitre', [
+        h('b', { text: 'Contrat au fichier maître de calcul' + (fc.stock ? ' — ' + fc.stock : '') }),
+        h('span', { text: [fc.client, fc.statut, typeof fc.solde === 'number' ? 'solde ' + argent2(fc.solde) : '', typeof fc.paiement === 'number' ? 'paiement ' + argent2(fc.paiement) + ' / mois' : '', fc.prochain ? 'prochain prélèvement ' + dateCourte(fc.prochain) : '', fc._fin ? 'fin ' + dateCourte(fc._fin) : ''].filter(Boolean).join(' · ') }),
+        h('a', { href: lienLigne(c.s, c.l), target: '_blank', rel: 'noopener', text: 'Ouvrir le contrat dans le fichier maître ↗' })
+      ]);
+    }
+    var estMaitre = s.type === 'contrats';
+    AMX.modale({ titre: titreLigne(s, l) || s.nom, corps: h('div', [h('p.doux', { style: { margin: '0 0 10px' }, text: s.nom + ' · ' + (s.classeur || '') + ' › ' + s.onglet + ', ligne ' + l.r }), avis, note, blocC, dl]), large: true,
       boutons: [{ texte: 'Fermer' },
         { texte: m ? 'Reprendre le suivi' : 'Ne plus suivre', action: function () { if (m) return self.masquer([l], false); self.masquer([l], true); return true; } },
-        { texte: 'Ouvrir la ligne dans Google Sheets', classe: 'primaire', action: function () { window.open(lien, '_blank', 'noopener'); return false; } }] });
+        { texte: estMaitre ? 'Ouvrir dans le fichier maître' : 'Ouvrir la ligne dans Google Sheets', classe: 'primaire', action: function () { window.open(lien, '_blank', 'noopener'); return false; } }] });
   };
 
   /* ------------------------------------------------------------------------------- onglets connectés */

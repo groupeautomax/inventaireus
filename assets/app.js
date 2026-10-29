@@ -627,7 +627,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
-    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -800,7 +800,8 @@
     { id: 'service', titre: 'Service après-vente', court: 'Service', icone: 'service', ordre: 40, onglets: [
       { id: 'suivi', titre: 'Suivi service', de: 'service', vues: [{ id: 'encours', titre: 'En cours' }, { id: 'autoriser', titre: 'Direction' }, { id: 'termines', titre: 'Terminés' }] },
       { id: 'rendezvous', titre: 'Rendez-vous', de: 'service', onglet: 'rendezvous' },
-      { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' }
+      { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' },
+      { id: 'courtoisie', titre: 'Courtoisie', de: 'courtoisie', onglet: '', compteur: function () { return AMX.courtoisie ? AMX.courtoisie.compteur() : ''; } }   /* 29 oct. : véhicules de courtoisie, LMB + fichier de suivi (courtoisie.js, Courtoisie.gs) */
     ] },
     { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
       { id: 'imports', titre: 'Imports', de: 'outils', onglet: 'imports', compteur: function () { return AMX.importsEtat ? AMX.importsEtat.compteur() : ''; } },   /* 27 oct. : tous les imports, par concession, rouge = à faire (imports.js) */

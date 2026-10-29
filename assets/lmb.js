@@ -100,12 +100,16 @@
           f._actif = s.type === 'flotte' && !!f.vin && !f.retour && !f.retourTexte;
           var al = [];
           if (s.type === 'flotte') {
-            if (f._actif && f._loc === 'LEASE' && !f.rdprm) al.push(['rdprm', 'Bail sans RDPRM']);
+            if (f._actif && f._loc === 'LEASE' && !f.rdprm) al.push(['rdprm', 'RDPRM non noté']);
             if (f._actif && !f.contrat && !f.contratTexte) al.push(['contrat', 'Sans date de contrat']);
             if ((f.retour || f.retourTexte) && !f.payeFp) al.push(['fp', 'Retourné, floor plan pas payé']);
             if ((f.retour || f.retourTexte) && f.rdprm && !f.radiation) al.push(['radiation', 'Retourné, RDPRM pas radié']);
           }
           f._alertes = al;
+        }
+        if (s.type === 'achats') {
+          f._note = typeof f.prixPaye !== 'number' && typeof f.prixVente !== 'number' && typeof f.profit !== 'number';
+          f._vehicule = [f.annee, f.marque, f.modeleNom].filter(Boolean).join(' ');
         }
         if (s.type === 'contrats') {
           if (f.debut && f.duree) { f._fin = plusMois(f.debut, Math.round(f.duree)); f._joursFin = joursEntre(auj, f._fin); }
@@ -113,6 +117,11 @@
           f._incomplet = /incomplet/i.test(f.statut || '');
         }
       });
+      /* Achats / revente : un véhicule inscrit dans les deux tableaux de l'onglet (même NIV) ne compte qu'une fois — la ligne la plus basse gagne. */
+      if (s.type === 'achats') {
+        var vu = {};
+        for (var i = (s.lignes || []).length - 1; i >= 0; i--) { var f2 = s.lignes[i].f, v = String(f2.vin || '').toUpperCase(); if (f2._note || !/^[A-Z0-9]{11,17}$/.test(v)) continue; if (vu[v]) f2._doublon = true; else vu[v] = true; }
+      }
     });
     return rep;
   }
@@ -222,7 +231,7 @@
       var l = self.trouvees(s); toutes += l.length;
       if (s.type === 'flotte') flotte = flotte.concat(l);
       if (s.type === 'contrats') contrats = contrats.concat(l);
-      if (s.type === 'achats') achats = achats.concat(l);
+      if (s.type === 'achats') achats = achats.concat(l.filter(function (x) { return garde('achats', 'tous', x); }));
     });
     AMX.porteeChiffres(this.elPortee, { n: toutes, unite: ['ligne', 'lignes'], contexte: 'tous les onglets connectés', filtres: q ? ['« ' + q.trim() + ' »'] : [], effacer: function () { self.inRecherche.value = ''; self.q = ''; self.rafraichir(); } });
     var actifs = flotte.filter(function (l) { return l.f._actif; });
@@ -278,7 +287,7 @@
     var self = this, ul = h('ul.lmb-liste-simple'), cleF = (this.sources('flotte')[0] || {}).cle, cleC = (this.sources('contrats')[0] || {}).cle;
     var compte = function (code) { return flotte.filter(function (l) { return (l.f._alertes || []).some(function (a) { return a[0] === code; }); }).length; };
     var lignes = [
-      ['rdprm', 'Baux (LEASE) sans inscription au RDPRM', 'Un bail de plus d\'un an se publie au RDPRM dans les 7 jours (art. 1852 C.c.Q.) pour être opposable aux tiers.', compte('rdprm'), 'rouge', cleF, { flotte: 'al:rdprm' }],
+      ['rdprm', 'Baux (LEASE) sans RDPRM noté au classeur', 'Colonne « RDPRM » vide. Un bail de plus d\'un an se publie au RDPRM dans les 7 jours (art. 1852 C.c.Q.) pour être opposable aux tiers.', compte('rdprm'), 'rouge', cleF, { flotte: 'al:rdprm' }],
       ['radiation', 'Retournés : RDPRM pas radié', 'Radier l\'inscription une fois le véhicule revenu.', compte('radiation'), 'ambre', cleF, { flotte: 'al:radiation' }],
       ['fp', 'Retournés : floor plan pas payé', 'Colonne « Payé floor plan » vide.', compte('fp'), 'ambre', cleF, { flotte: 'al:fp' }],
       ['contrat', 'Loués sans date de contrat', 'Véhicule au nom d\'un locataire, sans date du contrat de location.', compte('contrat'), 'ambre', cleF, { flotte: 'al:contrat' }]
@@ -349,7 +358,7 @@
 
   /* ------------------------------------------------------------------------------- vue d'un onglet */
   var PASTILLES = {
-    flotte: [['actifs', 'En location'], ['lease', 'LEASE'], ['rental', 'RENTAL'], ['retour', 'Retournés'], ['tous', 'Toutes les lignes'], ['al:rdprm', 'Bail sans RDPRM', 1], ['al:radiation', 'RDPRM pas radié', 1], ['al:fp', 'Floor plan pas payé', 1], ['al:contrat', 'Sans date de contrat', 1]],
+    flotte: [['actifs', 'En location'], ['lease', 'LEASE'], ['rental', 'RENTAL'], ['retour', 'Retournés'], ['tous', 'Toutes les lignes'], ['al:rdprm', 'RDPRM non noté', 1], ['al:radiation', 'RDPRM pas radié', 1], ['al:fp', 'Floor plan pas payé', 1], ['al:contrat', 'Sans date de contrat', 1]],
     contrats: [['tous', 'Tous'], ['prochain', 'Prélèvement 7 j'], ['fin90', 'Fin dans 90 j'], ['incomplet', 'Incomplets', 1]]
   };
   function garde(type, filtre, l) {
@@ -362,6 +371,7 @@
       if (/^al:/.test(filtre)) return (f._alertes || []).some(function (a) { return a[0] === filtre.slice(3); });
       return true;
     }
+    if (type === 'achats') return !f._note && !f._doublon;
     if (type === 'contrats') {
       if (filtre === 'prochain') return f._joursProchain !== undefined && f._joursProchain >= 0 && f._joursProchain <= 7;
       if (filtre === 'fin90') return f._joursFin !== undefined && f._joursFin >= 0 && f._joursFin <= 90;
@@ -393,6 +403,7 @@
       filtres: [defs && filtre !== (s.type === 'flotte' ? 'actifs' : 'tous') ? libFiltre : '', this.q.trim() ? '« ' + this.q.trim() + ' »' : ''],
       effacer: function () { self.filtres[s.type] = null; self.inRecherche.value = ''; self.q = ''; self.rafraichir(); } });
     this.rendreChiffres(s, liste);
+    if (s.type === 'achats') { var dbl = trouvees.filter(function (l) { return l.f._doublon; }).length; if (dbl) this.elCorps.appendChild(h('p.doux', { style: { margin: '0 0 8px' }, text: pluriel(dbl, 'véhicule') + ' inscrit' + (dbl > 1 ? 's' : '') + ' dans les deux tableaux de l\'onglet (même NIV) : compté' + (dbl > 1 ? 's' : '') + ' une seule fois.' })); }
     this.elCorps.appendChild(this.tableau(s, liste));
   };
   Lmb.prototype.rendreChiffres = function (s, liste) {
@@ -444,8 +455,8 @@
       ['Statut', function (f) { return f.statut ? h('span.puce' + (f._incomplet ? '.alerte' : ''), { text: f.statut }) : '—'; }]
     ];
     if (s.type === 'achats') return [
-      ['Achat', function (f) { return f.date ? dateCourte(f.date) : '—'; }],
-      ['Véhicule', function (f) { return [String(f.annee || ''), f.vin ? h('span.s.mono', { text: f.vin }) : null]; }],
+      ['Achat', function (f) { return f.date ? dateCourte(f.date) : (f.stock ? h('b.mono', { text: f.stock }) : '—'); }],
+      ['Véhicule', function (f) { return [f._vehicule || '—', f.vin ? h('span.s.mono', { text: f.vin }) : null]; }],
       ['Vendeur', function (f) { return f.vendeur || '—'; }],
       ['Prix payé', function (f) { return argent2(f.prixPaye); }, 'num'],
       ['Acheteur', function (f) { return f.acheteur || '—'; }],
@@ -471,7 +482,7 @@
   function titreLigne(s, l) {
     var f = l.f;
     if (s.type === 'contrats') return (f.stock ? f.stock + ' · ' : '') + (f.client || f.modele || '');
-    if (s.type === 'achats') return (f.annee ? f.annee + ' ' : '') + (f.vin || '') + (f.acheteur ? ' → ' + f.acheteur : '');
+    if (s.type === 'achats') return (f.stock ? f.stock + ' · ' : '') + (f._vehicule || f.vin || '') + (f.acheteur ? ' → ' + f.acheteur : '');
     if (f.stock || f.modele) return (f.stock ? f.stock + ' · ' : '') + (f.modele || '');
     return l.c.filter(Boolean).slice(0, 2).join(' · ');
   }
@@ -483,8 +494,8 @@
     return l.c.filter(Boolean).slice(2, 5).join(' · ');
   }
   Lmb.prototype.detail = function (s, l) {
-    var dl = h('dl.lmb-detail');
-    s.entetes.forEach(function (e, i) { var v = l.c[i]; if (!v) return; dl.appendChild(h('dt', { text: e })); dl.appendChild(h('dd', { text: v })); });
+    var dl = h('dl.lmb-detail'), ent = (l.b && s.blocs && s.blocs[l.b]) || s.entetes;
+    ent.forEach(function (e, i) { var v = l.c[i]; if (!v) return; dl.appendChild(h('dt', { text: e })); dl.appendChild(h('dd', { text: v })); });
     if (!dl.firstChild) dl.appendChild(h('dd', { text: 'Ligne vide.' }));
     var lien = s.lien + (s.lien.indexOf('#') >= 0 ? '&' : '#') + 'range=A' + l.r;
     AMX.modale({ titre: titreLigne(s, l) || s.nom, corps: h('div', [h('p.doux', { style: { margin: '0 0 10px' }, text: s.nom + ' · ' + (s.classeur || '') + ' › ' + s.onglet + ', ligne ' + l.r }), dl]), large: true,

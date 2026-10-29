@@ -136,7 +136,7 @@
   function charger() {
     fetch(SCRIPT_URL + '?rdvInspection=1&r=' + encodeURIComponent(r) + '&k=' + encodeURIComponent(c) + '&_=' + Date.now())
       .then(function (x) { return x.json(); })
-      .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); montrer($('invalide'), true); return; } rendre(d); })
+      .then(function (d) { if (!d || !d.ok) { montrer($('chargement'), false); montrer($('invalide'), true); return; } if (d.redirection && /^https:\/\/groupeautomax\.github\.io\/inventaireus\/service\/estime\.html\?/.test(d.redirection)) { location.replace(d.redirection); return; } rendre(d); })   /* 29 oct. : l'inspection est passée à l'estimé — un seul lien par visite */
       .catch(function () { $('chargement').textContent = 'Impossible de charger la page pour le moment. Réessayez dans une minute.'; });
   }
 

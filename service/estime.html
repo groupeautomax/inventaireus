@@ -71,6 +71,23 @@
   }
   .langue { margin-left: 10px; padding: 6px 10px; font: inherit; font-size: 13px; font-weight: 650; border-radius: 999px; border: 1px solid var(--trait); background: #fff; color: var(--texte); cursor: pointer; }
   @media print { .langue { display: none !important; } }
+  /* 29 oct. : un seul lien par visite — vidéo et bilan de l'inspection en couleurs en tête de l'estimé */
+  .resume-insp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 4px; }
+  .resume-insp .c { border-radius: 12px; padding: 10px 6px; text-align: center; }
+  .resume-insp .n { display: block; font-size: 24px; font-weight: 750; line-height: 1.1; }
+  .resume-insp .l { display: block; font-size: 12.5px; font-weight: 650; margin-top: 2px; }
+  .c.rouge { background: #fdecec; color: #8a1d1d; } .c.jaune { background: #fff4d6; color: #8a5a00; } .c.vert { background: #e7f5ed; color: #0a6136; }
+  .groupe-insp { margin-top: 12px; } .groupe-insp h3 { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin: 0 0 2px; }
+  .groupe-insp.rouge h3 { color: #b42318; } .groupe-insp.jaune h3 { color: #8a5a00; } .groupe-insp.vert h3 { color: #0a6136; }
+  .point { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 2px 10px; padding: 9px 0; border-bottom: 1px solid var(--trait); align-items: start; }
+  .point:last-child { border-bottom: 0; }
+  .pastille { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; display: inline-block; }
+  .pastille.rouge { background: #d92d20; } .pastille.jaune { background: #e8a400; } .pastille.vert { background: #12a150; }
+  .point .nom { font-weight: 600; font-size: 15px; } .point .cat { color: var(--doux); font-size: 12px; } .point .mes { font-weight: 650; font-size: 14px; white-space: nowrap; }
+  .point .pn { grid-column: 2 / -1; font-size: 13.5px; color: var(--doux); white-space: pre-wrap; }
+  details.verts { margin-top: 12px; } details.verts summary { cursor: pointer; color: #0a6136; font-weight: 650; font-size: 14px; }
+  .travail.u-urgent { border-left: 3px solid #d92d20; padding-left: 12px; } .travail.u-recommande { border-left: 3px solid #e8a400; padding-left: 12px; } .travail.u-suggere { border-left: 3px solid #93b4f0; padding-left: 12px; }
+  .technicien { color: var(--doux); font-size: 13px; margin-top: 2px; }
   .voile { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: grid; place-items: center; z-index: 50; cursor: zoom-out; } .voile img { max-width: 96vw; max-height: 92vh; object-fit: contain; }
 </style>
 </head>
@@ -87,6 +104,14 @@
       <div class="message cache" id="message"></div>
       <div class="ident" id="ident"></div>
       <div class="copie cache" id="copie"></div>
+    </div>
+    <div class="bloc cache" id="bloc-inspection">
+      <h2 id="h-inspection">Inspection de votre véhicule</h2>
+      <div class="technicien" id="insp-qui"></div>
+      <div class="medias" id="insp-medias"></div>
+      <div class="resume-insp" id="insp-resume"></div>
+      <div id="insp-points"></div>
+      <div class="message cache" id="insp-note"></div>
     </div>
     <div class="bloc" id="bloc-travaux">
       <h2 id="h-travaux">Travaux proposés</h2>
@@ -132,6 +157,7 @@
     $('pousse').textContent = t('Votre estimé de service', 'Your service estimate');
     $('btn-langue').textContent = L === 'en' ? 'Français' : 'English'; $('btn-langue').lang = L === 'en' ? 'fr' : 'en';
     $('h-travaux').textContent = t('Travaux proposés', 'Recommended work');
+    $('h-inspection').textContent = t('Inspection de votre véhicule', 'Your vehicle inspection');
     $('btn-tout-oui').textContent = t('✓ Tout approuver', '✓ Approve all'); $('btn-tout-non').textContent = t('✗ Tout refuser', '✗ Decline all');
     $('label-note').textContent = t('Un mot pour votre conseiller (facultatif)', 'A note for your service advisor (optional)');
     $('note').placeholder = t('Une question, une précision…', 'A question, a detail…');
@@ -167,6 +193,44 @@
     var a = est.approbation;
     montrer($('copie'), !!(a && a.le)); if (a && a.le) $('copie').textContent = t('Votre dernière réponse est enregistrée le ', 'Your last answer was recorded on ') + dateLisible(a.le) + t(' à ', ' at ') + new Date(a.le).toLocaleTimeString(t('fr-CA', 'en-CA'), { hour: '2-digit', minute: '2-digit' }) + (a.empreinte ? t(' (copie ', ' (copy ') + String(a.empreinte).slice(0, 10) + ')' : '') + '.';
   }
+  /* Photos et vidéos : la vidéo prend toute la largeur ; une photo s'agrandit au toucher. */
+  function blocMedias(medias) {
+    var med = el('div', 'medias');
+    medias.forEach(function (m, i) {
+      var boite = el('div', 'media' + (m.type === 'video' ? ' video' : ''));
+      if (m.type === 'video') { var f = document.createElement('iframe'); f.src = m.lecture; f.allow = 'autoplay; fullscreen'; f.setAttribute('allowfullscreen', ''); f.title = t('Vidéo de votre conseiller', 'Video from your service advisor'); boite.appendChild(f); }
+      else { var img = document.createElement('img'); img.src = m.apercu || m.lecture; img.alt = t('Photo ', 'Photo ') + (i + 1); img.loading = 'lazy'; img.addEventListener('click', function () { var v = el('div', 'voile'); var g = document.createElement('img'); g.src = m.lecture; v.appendChild(g); v.addEventListener('click', function () { v.remove(); }); document.body.appendChild(v); }); boite.appendChild(img); }
+      med.appendChild(boite);
+    });
+    return med;
+  }
+  /* 29 oct. : le bilan de l'inspection (rouge = à faire maintenant, jaune = à surveiller, vert = en bon état). */
+  function rendreInspection(ins) {
+    montrer($('bloc-inspection'), !!ins);
+    if (!ins) return;
+    var COUL = ins.couleurs || { rouge: t('À faire maintenant', 'Needs attention now'), jaune: t('À surveiller', 'Keep an eye on'), vert: t('En bon état', 'Good condition') };
+    $('insp-qui').textContent = [ins.technicien ? t('Faite par ', 'Done by ') + ins.technicien : '', ins.faiteLe ? t('le ', 'on ') + dateLisible(ins.faiteLe) : ''].filter(Boolean).join(' ');
+    var zm = $('insp-medias'); zm.innerHTML = ''; montrer(zm, !!(ins.medias && ins.medias.length));
+    if (ins.medias && ins.medias.length) zm.appendChild(blocMedias(ins.medias));
+    var r = ins.resume || { rouge: 0, jaune: 0, vert: 0 }, zr = $('insp-resume'); zr.innerHTML = '';
+    montrer(zr, (r.rouge + r.jaune + r.vert) > 0);
+    ['rouge', 'jaune', 'vert'].forEach(function (c) { var b = el('div', 'c ' + c); b.appendChild(el('span', 'n', String(r[c] || 0))); b.appendChild(el('span', 'l', COUL[c])); zr.appendChild(b); });
+    var zp = $('insp-points'); zp.innerHTML = '';
+    var point = function (p) {
+      var x = el('div', 'point'); x.appendChild(el('span', 'pastille ' + p.couleur));
+      var n = el('div'); n.appendChild(el('div', 'nom', p.libelle)); if (p.categorie) n.appendChild(el('div', 'cat', p.categorie)); x.appendChild(n);
+      x.appendChild(el('div', 'mes', p.mesure || ''));
+      if (p.note) x.appendChild(el('div', 'pn', p.note));
+      return x;
+    };
+    ['rouge', 'jaune'].forEach(function (c) {
+      var liste = (ins.points || []).filter(function (p) { return p.couleur === c; }); if (!liste.length) return;
+      var g = el('div', 'groupe-insp ' + c); g.appendChild(el('h3', '', COUL[c])); liste.forEach(function (p) { g.appendChild(point(p)); }); zp.appendChild(g);
+    });
+    var verts = (ins.points || []).filter(function (p) { return p.couleur === 'vert'; });
+    if (verts.length) { var det = document.createElement('details'); det.className = 'verts'; det.appendChild(el('summary', '', t('Voir les ' + verts.length + ' point' + (verts.length > 1 ? 's' : '') + ' en bon état', 'See the ' + verts.length + ' item' + (verts.length > 1 ? 's' : '') + ' in good condition'))); var g2 = el('div', 'groupe-insp vert'); verts.forEach(function (p) { g2.appendChild(point(p)); }); det.appendChild(g2); zp.appendChild(det); }
+    montrer($('insp-note'), !!ins.note); $('insp-note').textContent = ins.note || '';
+  }
   function rendre(d) {
     donnees = d;
     L = langueVoulue || (d.langue === 'en' ? 'en' : 'fr');
@@ -174,7 +238,9 @@
     montrer($('btn-langue'), true);
     var est = d.estime, conc = d.concession;
     $('marque').textContent = conc.nom || 'ScanAutomax';
-    $('titre').textContent = L === 'en' ? (est.prenom ? est.prenom + ', here is the estimate for your ' : 'Estimate for your ') + (est.vehicule || 'vehicle') : (est.prenom ? est.prenom + ', voici l\'estimé de votre ' : 'Estimé de votre ') + (est.vehicule || 'véhicule');
+    var avecInsp = !!est.inspection;
+    $('titre').textContent = L === 'en' ? (est.prenom ? est.prenom + ', here is ' + (avecInsp ? 'the inspection and estimate' : 'the estimate') + ' for your ' : (avecInsp ? 'Inspection and estimate' : 'Estimate') + ' for your ') + (est.vehicule || 'vehicle') : (est.prenom ? est.prenom + ', voici ' + (avecInsp ? 'l\'inspection et l\'estimé' : 'l\'estimé') + ' de votre ' : (avecInsp ? 'Inspection et estimé' : 'Estimé') + ' de votre ') + (est.vehicule || 'véhicule');
+    rendreInspection(est.inspection || null);
     identification(est, conc);
     $('sous').textContent = [t('Estimé ', 'Estimate ') + est.id, est.conseiller ? t('Conseiller : ', 'Service advisor: ') + est.conseiller : ''].filter(Boolean).join(' · ');
     var repondu = !!est.reponduLe, ferme = est.statut === 'expire' || est.statut === 'annule';
@@ -186,7 +252,7 @@
     var zone = $('travaux'); zone.innerHTML = ''; reponses = {};
     est.lignes.forEach(function (l, k) {
       if (l.etat === 'approuve' || l.etat === 'refuse') reponses[l.code] = l.etat;
-      var tr0 = el('div', 'travail'), haut = el('div', 'haut');
+      var tr0 = el('div', 'travail u-' + (l.urgence || 'recommande')), haut = el('div', 'haut');
       var pr = PRIO[l.urgence] || PRIO.recommande;
       var lib = el('div', 'lib', (k + 1) + '. ' + l.libelle); var prio = el('span', 'prio ' + (l.urgence || 'recommande'), L === 'en' ? pr[1] : (l.urgenceLibelle || pr[0])); lib.appendChild(prio);
       var couvert = (l.paiement === 'garantie' || l.paiement === 'interne');
@@ -204,16 +270,7 @@
         if (l.frais && l.frais.length) { tr(t('Frais', 'Fees'), '', 't'); l.frais.forEach(function (f) { tr((f.qte > 1 ? f.qte + ' × ' : '') + f.nom, argent((Number(f.qte) || 1) * Number(f.prix))); }); }
         det.appendChild(tab); tr0.appendChild(det);
       }
-      if (l.medias && l.medias.length) {
-        var med = el('div', 'medias');
-        l.medias.forEach(function (m, i) {
-          var boite = el('div', 'media' + (m.type === 'video' ? ' video' : ''));
-          if (m.type === 'video') { var f = document.createElement('iframe'); f.src = m.lecture; f.allow = 'autoplay; fullscreen'; f.setAttribute('allowfullscreen', ''); boite.appendChild(f); }
-          else { var img = document.createElement('img'); img.src = m.apercu || m.lecture; img.alt = t('Photo ', 'Photo ') + (i + 1); img.loading = 'lazy'; img.addEventListener('click', function () { var v = el('div', 'voile'); var g = document.createElement('img'); g.src = m.lecture; v.appendChild(g); v.addEventListener('click', function () { v.remove(); }); document.body.appendChild(v); }); boite.appendChild(img); }
-          med.appendChild(boite);
-        });
-        tr0.appendChild(med);
-      }
+      if (l.medias && l.medias.length) tr0.appendChild(blocMedias(l.medias));
       if (!ferme) {
         var choix = el('div', 'choix'), bOui = el('button', 'oui', t('Approuver', 'Approve')), bNon = el('button', 'non', t('Refuser', 'Decline'));
         bOui.type = bNon.type = 'button';

@@ -42,7 +42,7 @@
   /* ------------------------------ Rôles ------------------------------- */
   // Repli local = la liste de Role.gs (ROLES_) ; le serveur l'envoie dans `roles`.
   var ROLES_DEFAUT = [
-    { cle: 'proprietaire',      libelle: 'Propriétaire',                 departement: 'direction', niveau: 'admin',        aide: 'Maxime Allard seul : tout voir, nommer et retirer les administrateurs de concession.' },
+    { cle: 'proprietaire',      libelle: 'Propriétaire',                 departement: 'direction', niveau: 'admin',        aide: 'Tous les pouvoirs : tout voir, nommer et retirer les administrateurs de concession, réglages et clés, Location LMB.' },
     { cle: 'admin',             libelle: 'Administrateur de concession', departement: 'direction', niveau: 'admin',        aide: 'Directeur général : gère les comptes de sa concession, reçoit les alertes (évaluations, avis, sondages).' },
     { cle: 'gestionnaire',      libelle: 'Gestionnaire',                 departement: '',          niveau: 'gestionnaire', aide: 'Coûts, résultats et inventaire de sa concession.' },
     { cle: 'direction_ventes',  libelle: 'Direction des ventes',         departement: 'ventes',    niveau: 'gestionnaire', aide: 'Directeur des ventes : coûts et résultats ; reçoit les alertes des avis et sondages de vente.' },
@@ -79,10 +79,12 @@
   // Couleur du badge et de l'avatar selon le niveau du rôle (admin sombre, direction bleu, les autres gris).
   function couleurRole(cle) { var n = niveauRole(cle); return n === 'admin' ? 'sombre' : (n === 'gestionnaire' || n === 'direction') ? 'bleu' : 'gris'; }
   var COULEUR_DEP = { direction: 'sombre', ventes: 'vert', service: 'ambre', pieces: 'ambre', marketing: 'violet', administration: 'gris' };
-  // Rôles qu'on peut donner d'ici : jamais « propriétaire » ; « Administrateur » seulement pour le propriétaire.
+  // Rôles qu'on peut donner d'ici : « Administrateur » seulement pour le propriétaire ; « Propriétaire » (mêmes pouvoirs que
+  // Maxime, LMB compris) seulement par un propriétaire (29 oct. : « ajoute aloiselle@ avec les mêmes pouvoirs que moi »).
+  // Le serveur l'accepte déjà de lui seul (ROLE_peutGererCompte_, Portee.gs).
   function choixRoles(moiInfo) {
     return REF.roles.filter(function (r) {
-      if (r.cle === 'proprietaire') return false;
+      if (r.cle === 'proprietaire') return !!(moiInfo && moiInfo.role === 'proprietaire');
       if (r.cle === 'admin') return !!(moiInfo && moiInfo.gererAdmins);
       return true;
     });

@@ -627,7 +627,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
-    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -779,7 +779,8 @@
       /* 27 oct. (Maxime) : « enlève l'onglet Soumission, inutile » — la page (soumission.js) reste, sans onglet. */
       { id: 'echanges', titre: 'Échanges de neufs', de: 'inventaire', onglet: 'neufs', fixes: { seul: 'echanges' }, compteur: function () { return AMX.neufs && AMX.neufs.compteurEchanges ? AMX.neufs.compteurEchanges() : ''; } },
       { id: 'resultats', titre: 'Résultats', de: 'resultat', vues: [{ id: 'us', titre: 'É.-U.' }, { id: 'can', titre: 'Wholesale Canada' }, { id: 'neuf', titre: 'Neufs' }] },
-      { id: 'kpi', titre: 'KPI', de: 'kpi', vues: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }] }   /* 22 oct. : le tableau de bord KPI du Groupe (Réalisés et états financiers lus dans les Drive partagés, kpi.js) */
+      { id: 'kpi', titre: 'KPI', de: 'kpi', vues: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }] },   /* 22 oct. : le tableau de bord KPI du Groupe (Réalisés et états financiers lus dans les Drive partagés, kpi.js) */
+      { id: 'lmb', titre: 'LMB', de: 'lmb', onglet: '' }   /* 29 oct. : Location LMB, réservé au propriétaire (lmb.js, Lmb.gs) */
     ] },
     { id: 'inventaire', titre: 'Inventaire', icone: 'inventaire', ordre: 20, onglets: [
       { id: 'neufs', titre: 'Neufs', de: 'inventaire', onglet: 'neufs' },

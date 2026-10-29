@@ -23,6 +23,7 @@
     '.lmb-vues button.erreur { border-color: var(--rouge); color: var(--rouge); }',
     '.lmb-filtres { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 8px; }',
     '.lmb-filtres .saisie.recherche { flex: 1 1 280px; max-width: 520px; }',
+    '.lmb-filtres .lmb-client { width: auto; flex: 0 1 300px; max-width: 340px; }',
     '.lmb-pastilles { display: flex; gap: 6px; flex-wrap: wrap; }',
     '.lmb-pastilles button { border: 1px solid var(--ligne); background: var(--carte); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; color: var(--encre-2); }',
     '.lmb-pastilles button.actif { background: var(--encre); border-color: var(--encre); color: #fff; }',
@@ -90,14 +91,47 @@
     return 'Autre';
   }
   /* Enrichit chaque ligne une fois (champs calculés préfixés par _). */
+  /* 29 oct. (Maxime) : « fais un croisement entre les ventes et les locations pour enlever les vendus des locations actives ».
+     Un véhicule de la flotte dont le NIV (complet, ou ses 8 derniers caractères) ou le no LOC est aussi dans un onglet
+     « Vendus » n'est plus une location active. */
+  function cleNiv(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function indexVendus(rep) {
+    var idx = { vin: {}, fin: {}, stock: {} };
+    (rep.sources || []).forEach(function (s) {
+      if (s.type !== 'vendus') return;
+      (s.lignes || []).forEach(function (l) {
+        var v = cleNiv(l.f.vin), st = cleNiv(l.f.stock), info = { onglet: s.nom, stock: l.f.stock || '', r: l.r, vin: v };
+        if (v.length >= 11) idx.vin[v] = info;
+        if (v.length >= 8) idx.fin[v.slice(-8)] = info;
+        if (/^LOC\d{3,}$/.test(st)) idx.stock[st] = info;
+      });
+    });
+    return idx;
+  }
+  function vendu(idx, f) {
+    var v = cleNiv(f.vin), st = cleNiv(f.stock);
+    if (v.length >= 11 && idx.vin[v]) return idx.vin[v];
+    if (v.length >= 8 && idx.fin[v.slice(-8)]) return idx.fin[v.slice(-8)];
+    if (st && idx.stock[st] && (!v || !idx.stock[st].vin)) return idx.stock[st];
+    return null;
+  }
+  /* Client d'une ligne, selon l'onglet, et sa clé (sans ce qui est entre parenthèses, sans « inc », sans accents). */
+  function clientDe(type, f) { return type === 'contrats' ? f.client : (type === 'achats' ? f.acheteur : f.loueA); }
+  function cleClient(nom) {
+    var t = AMX.texteCherche(String(nom || '').replace(/\(.*?\)/g, ' ').replace(/\s+-\s+.*$/, ' '));
+    return t.replace(/\b(inc|ltee|ltd|enr|senc)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+  }
   function preparer(rep) {
-    var auj = aujourdhui();
+    var auj = aujourdhui(), idxV = indexVendus(rep);
     (rep.sources || []).forEach(function (s) {
       (s.lignes || []).forEach(function (l) {
         var f = l.f || (l.f = {});
+        var nomC = (s.type === 'flotte' || s.type === 'vendus') && !f.vin ? '' : clientDe(s.type, f);   /* une ligne de dépôt (sans NIV) n'a pas de client */
+        f._client = nomC ? String(nomC).replace(/\s+/g, ' ').trim() : ''; f._clientCle = f._client ? cleClient(f._client) : '';
         if (s.type === 'flotte' || s.type === 'vendus') {
           f._loc = typeLoc(f);
-          f._actif = s.type === 'flotte' && !!f.vin && !f.retour && !f.retourTexte;
+          f._vendu = s.type === 'flotte' ? vendu(idxV, f) : null;
+          f._actif = s.type === 'flotte' && !!f.vin && !f.retour && !f.retourTexte && !f._vendu;
           var al = [];
           if (s.type === 'flotte') {
             if (f._actif && f._loc === 'LEASE' && !f.rdprm) al.push(['rdprm', 'RDPRM non noté']);
@@ -139,7 +173,7 @@
     var self = this;
     this.conteneur = conteneur; this.detruit = false;
     this.vue = (ctx && ctx.params && ctx.params.vue) || AMX.memo.lire('lmb_vue', 'resume');
-    this.q = ''; this.filtres = {};
+    this.q = ''; this.filtres = {}; this.client = '';
     this.erreur = '';
     AMX.vider(conteneur);
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
@@ -158,7 +192,9 @@
     this.elKpis = h('div.kpis');
     this.elCorps = h('div');
     conteneur.appendChild(this.elVues);
-    conteneur.appendChild(h('div.lmb-filtres', [this.inRecherche, this.elPastilles]));
+    this.selClient = h('select.saisie.lmb-client', { 'aria-label': 'Filtrer par client' });
+    this.selClient.addEventListener('change', function () { self.client = self.selClient.value; self.rafraichir(); });
+    conteneur.appendChild(h('div.lmb-filtres', [this.inRecherche, this.selClient, this.elPastilles]));
     conteneur.appendChild(this.elPortee);
     conteneur.appendChild(this.elKpis);
     conteneur.appendChild(this.elCorps);
@@ -201,7 +237,46 @@
     this.elSous.textContent = t.join(' · ');
   };
   /* Lignes qui passent la recherche (toutes les colonnes de l'onglet). */
-  Lmb.prototype.trouvees = function (s) { var q = this.q; return (s.lignes || []).filter(function (l) { return AMX.correspond(l.c, q); }); };
+  Lmb.prototype.trouvees = function (s) {
+    var q = this.q, cle = this.client, nom = this.clientNom();
+    return (s.lignes || []).filter(function (l) {
+      if (!AMX.correspond(l.c, q)) return false;
+      if (!cle) return true;
+      if (s.type === 'libre') return AMX.correspond(l.c, nom);
+      return l.f._clientCle === cle;
+    });
+  };
+  /* Les clients de tous les onglets (la graphie la plus fréquente), avec leur nombre de lignes. */
+  Lmb.prototype.clients = function () {
+    var par = {};
+    this.sources().forEach(function (s) {
+      if (s.type === 'libre') return;
+      (s.lignes || []).forEach(function (l) {
+        var k = l.f._clientCle; if (!k) return;
+        var c = par[k] || (par[k] = { cle: k, n: 0, noms: {} });
+        c.n++; c.noms[l.f._client] = (c.noms[l.f._client] || 0) + 1;
+      });
+    });
+    return Object.keys(par).map(function (k) {
+      var c = par[k], noms = Object.keys(c.noms).sort(function (a, b) { return c.noms[b] - c.noms[a]; });
+      return { cle: k, nom: noms[0], n: c.n };
+    }).sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+  };
+  Lmb.prototype.clientNom = function () {
+    var cle = this.client; if (!cle) return '';
+    var c = (this.listeClients || []).filter(function (x) { return x.cle === cle; })[0];
+    return c ? c.nom : cle;
+  };
+  Lmb.prototype.choisirClient = function (cle) { this.client = cle || ''; this.rendreClients(); this.rafraichir(); };
+  Lmb.prototype.rendreClients = function () {
+    var self = this, sel = this.selClient;
+    this.listeClients = this.clients();
+    AMX.vider(sel);
+    sel.appendChild(h('option', { value: '', text: 'Tous les clients (' + this.listeClients.length + ')' }));
+    this.listeClients.forEach(function (c) { sel.appendChild(h('option', { value: c.cle, text: c.nom + ' — ' + c.n, selected: c.cle === self.client ? true : undefined })); });
+    if (this.client && !this.listeClients.some(function (c) { return c.cle === self.client; })) this.client = '';
+    sel.value = this.client;
+  };
 
   Lmb.prototype.rendre = function () {
     if (this.detruit || !this.rep) return;
@@ -215,6 +290,7 @@
     };
     this.elVues.appendChild(bouton('resume', 'Résumé', null));
     this.sources().forEach(function (s) { self.elVues.appendChild(bouton(s.cle, s.nom, s.erreur ? null : (s.lignes || []).length, !!s.erreur)); });
+    this.rendreClients();
     this.rafraichir();
   };
   Lmb.prototype.rafraichir = function () {
@@ -233,7 +309,7 @@
       if (s.type === 'contrats') contrats = contrats.concat(l);
       if (s.type === 'achats') achats = achats.concat(l.filter(function (x) { return garde('achats', 'tous', x); }));
     });
-    AMX.porteeChiffres(this.elPortee, { n: toutes, unite: ['ligne', 'lignes'], contexte: 'tous les onglets connectés', filtres: q ? ['« ' + q.trim() + ' »'] : [], effacer: function () { self.inRecherche.value = ''; self.q = ''; self.rafraichir(); } });
+    AMX.porteeChiffres(this.elPortee, { n: toutes, unite: ['ligne', 'lignes'], contexte: 'tous les onglets connectés', filtres: [this.client ? 'Client : ' + this.clientNom() : '', q.trim() ? '« ' + q.trim() + ' »' : ''], effacer: function () { self.effacerFiltres(); } });
     var actifs = flotte.filter(function (l) { return l.f._actif; });
     var lease = actifs.filter(function (l) { return l.f._loc === 'LEASE'; }).length, rental = actifs.filter(function (l) { return l.f._loc === 'RENTAL'; }).length;
     var revenu = somme(actifs, 'cout'), avecCout = actifs.filter(function (l) { return typeof l.f.cout === 'number' && l.f.cout > 0; }).length;
@@ -245,7 +321,8 @@
       return h('button.kpi' + (classe ? '.' + classe : ''), { type: 'button', onclick: vue ? function () { self.vue = vue.cle; self.filtres = vue.filtres || {}; self.rendre(); } : null }, [h('span.libelle', { text: libelle }), h('span.valeur', { text: valeur }), sous ? h('span.sous', { text: sous }) : null]);
     };
     var cleFlotte = (this.sources('flotte')[0] || {}).cle, cleContrats = (this.sources('contrats')[0] || {}).cle, cleAchats = (this.sources('achats')[0] || {}).cle;
-    this.elKpis.appendChild(tuile(AMX.fmtNombre(actifs.length), 'Véhicules en location', lease + ' LEASE · ' + rental + ' RENTAL · ' + (actifs.length - lease - rental) + ' autres', cleFlotte ? { cle: cleFlotte } : null));
+    var vendusRetires = flotte.filter(function (l) { return l.f._vendu; }).length;
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(actifs.length), 'Véhicules en location', lease + ' LEASE · ' + rental + ' RENTAL · ' + (actifs.length - lease - rental) + ' autres' + (vendusRetires ? ' · ' + vendusRetires + ' vendu' + (vendusRetires > 1 ? 's' : '') + ' retiré' + (vendusRetires > 1 ? 's' : '') : ''), cleFlotte ? { cle: cleFlotte } : null));
     this.elKpis.appendChild(tuile(argent(revenu), 'Location mensuelle', avecCout ? 'moyenne ' + argent(revenu / avecCout) + ' · ' + pluriel(avecCout, 'véhicule') : 'coût de location non inscrit', cleFlotte ? { cle: cleFlotte } : null));
     if (this.sources('contrats').length) {
       this.elKpis.appendChild(tuile(argent(solde), 'Solde des contrats', pluriel(contrats.length, 'contrat') + ' · intérêt ' + argent2(interet) + ' / jour', cleContrats ? { cle: cleContrats } : null));
@@ -256,7 +333,7 @@
 
     AMX.vider(this.elCorps);
     var grille = h('div.lmb-grille');
-    if (q && q.trim()) grille.appendChild(this.carteResultats());
+    if ((q && q.trim()) || this.client) grille.appendChild(this.carteResultats());
     grille.appendChild(this.carteAlertes(flotte, contrats));
     grille.appendChild(this.carteLocataires(actifs));
     if (this.sources('contrats').length) {
@@ -269,6 +346,7 @@
   function carte(titre, droite, corps, large) {
     return h('div.carte' + (large ? '.large' : ''), [h('div.carte-entete', [h('h2', titre), droite || null]), h('div.carte-corps', [corps])]);
   }
+  Lmb.prototype.effacerFiltres = function () { this.inRecherche.value = ''; this.q = ''; this.client = ''; this.selClient.value = ''; this.rafraichir(); };
   Lmb.prototype.carteResultats = function () {
     var self = this, ul = h('ul.lmb-liste-simple'), n = 0;
     this.sources().forEach(function (s) {
@@ -281,7 +359,7 @@
       });
     });
     if (!n) ul.appendChild(h('li', [h('span.doux', { text: 'Rien ne correspond.' })]));
-    return carte('Résultats de la recherche', h('span.doux', { text: n >= 40 ? '40 premiers par onglet' : '' }), ul, true);
+    return carte(this.client && !this.q.trim() ? 'Tout pour ' + this.clientNom() : 'Résultats de la recherche', h('span.doux', { text: n >= 40 ? '40 premiers par onglet' : '' }), ul, true);
   };
   Lmb.prototype.carteAlertes = function (flotte, contrats) {
     var self = this, ul = h('ul.lmb-liste-simple'), cleF = (this.sources('flotte')[0] || {}).cle, cleC = (this.sources('contrats')[0] || {}).cle;
@@ -307,11 +385,11 @@
   };
   Lmb.prototype.carteLocataires = function (actifs) {
     var self = this, par = {};
-    actifs.forEach(function (l) { var k = (l.f.loueA || 'Non inscrit').replace(/\s+/g, ' ').trim(), cle = AMX.texteCherche(k); if (!par[cle]) par[cle] = { nom: k, n: 0, cout: 0 }; par[cle].n++; if (typeof l.f.cout === 'number') par[cle].cout += l.f.cout; });
+    actifs.forEach(function (l) { var k = l.f._client || 'Non inscrit', cle = l.f._clientCle || ''; if (!par[cle]) par[cle] = { nom: k, cle: cle, n: 0, cout: 0 }; par[cle].n++; if (typeof l.f.cout === 'number') par[cle].cout += l.f.cout; });
     var liste = Object.keys(par).map(function (k) { return par[k]; }).sort(function (a, b) { return b.n - a.n || b.cout - a.cout; }).slice(0, 10), max = liste.length ? liste[0].n : 1;
     var ul = h('ul.lmb-liste-simple'), cleF = (this.sources('flotte')[0] || {}).cle;
     liste.forEach(function (x) {
-      ul.appendChild(h('li.cliquable', { onclick: function () { self.vue = cleF; self.filtres = {}; self.inRecherche.value = x.nom; self.q = x.nom; self.rendre(); } }, [
+      ul.appendChild(h('li.cliquable', { title: 'Filtrer sur ce client', onclick: function () { self.client = x.cle; self.rendre(); } }, [
         h('div.g', { style: { flex: '1' } }, [h('b', { text: x.nom }), h('div.lmb-barre', [h('i', { style: { width: Math.round(100 * x.n / max) + '%' } })])]),
         h('div.d', [h('b', { text: pluriel(x.n, 'véhicule') }), h('span.s', { style: { display: 'block', color: 'var(--encre-3)', fontSize: '12px' }, text: x.cout ? argent(x.cout) + ' / mois' : '' })])
       ]));
@@ -358,7 +436,7 @@
 
   /* ------------------------------------------------------------------------------- vue d'un onglet */
   var PASTILLES = {
-    flotte: [['actifs', 'En location'], ['lease', 'LEASE'], ['rental', 'RENTAL'], ['retour', 'Retournés'], ['tous', 'Toutes les lignes'], ['al:rdprm', 'RDPRM non noté', 1], ['al:radiation', 'RDPRM pas radié', 1], ['al:fp', 'Floor plan pas payé', 1], ['al:contrat', 'Sans date de contrat', 1]],
+    flotte: [['actifs', 'En location'], ['lease', 'LEASE'], ['rental', 'RENTAL'], ['retour', 'Retournés'], ['vendus', 'Vendus (onglet Vendus)', 1], ['tous', 'Toutes les lignes'], ['al:rdprm', 'RDPRM non noté', 1], ['al:radiation', 'RDPRM pas radié', 1], ['al:fp', 'Floor plan pas payé', 1], ['al:contrat', 'Sans date de contrat', 1]],
     contrats: [['tous', 'Tous'], ['prochain', 'Prélèvement 7 j'], ['fin90', 'Fin dans 90 j'], ['incomplet', 'Incomplets', 1]]
   };
   function garde(type, filtre, l) {
@@ -368,6 +446,7 @@
       if (filtre === 'lease') return f._actif && f._loc === 'LEASE';
       if (filtre === 'rental') return f._actif && f._loc === 'RENTAL';
       if (filtre === 'retour') return !!(f.retour || f.retourTexte);
+      if (filtre === 'vendus') return !!f._vendu;
       if (/^al:/.test(filtre)) return (f._alertes || []).some(function (a) { return a[0] === filtre.slice(3); });
       return true;
     }
@@ -400,8 +479,8 @@
     var liste = trouvees.filter(function (l) { return garde(s.type, filtre, l); });
     var libFiltre = defs ? (defs.filter(function (d) { return d[0] === filtre; })[0] || [])[1] : '';
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['ligne', 'lignes'], contexte: s.nom,
-      filtres: [defs && filtre !== (s.type === 'flotte' ? 'actifs' : 'tous') ? libFiltre : '', this.q.trim() ? '« ' + this.q.trim() + ' »' : ''],
-      effacer: function () { self.filtres[s.type] = null; self.inRecherche.value = ''; self.q = ''; self.rafraichir(); } });
+      filtres: [defs && filtre !== (s.type === 'flotte' ? 'actifs' : 'tous') ? libFiltre : '', this.client ? 'Client : ' + this.clientNom() : '', this.q.trim() ? '« ' + this.q.trim() + ' »' : ''],
+      effacer: function () { self.filtres[s.type] = null; self.effacerFiltres(); } });
     this.rendreChiffres(s, liste);
     if (s.type === 'achats') { var dbl = trouvees.filter(function (l) { return l.f._doublon; }).length; if (dbl) this.elCorps.appendChild(h('p.doux', { style: { margin: '0 0 8px' }, text: pluriel(dbl, 'véhicule') + ' inscrit' + (dbl > 1 ? 's' : '') + ' dans les deux tableaux de l\'onglet (même NIV) : compté' + (dbl > 1 ? 's' : '') + ' une seule fois.' })); }
     this.elCorps.appendChild(this.tableau(s, liste));
@@ -441,7 +520,7 @@
       ['Contrat', function (f) { return f.contrat ? dateCourte(f.contrat) : (f.contratTexte || '—'); }],
       ['Location / mois', function (f) { return argent2(f.cout); }, 'num'],
       ['Retour', function (f) { return f.retour ? [dateCourte(f.retour), f.kmRetour ? h('span.s', { text: AMX.fmtNombre(f.kmRetour) + ' km' }) : null] : (f.retourTexte || ''); }],
-      ['À surveiller', function (f) { return (f._alertes || []).map(function (a) { return h('span.puce.' + (a[0] === 'rdprm' ? 'alerte' : 'attention'), { text: a[1], style: { marginRight: '4px' } }); }); }]
+      ['À surveiller', function (f) { return (f._vendu ? [h('span.puce', { text: 'Vendu (' + f._vendu.onglet + ')', style: { marginRight: '4px' } })] : []).concat((f._alertes || []).map(function (a) { return h('span.puce.' + (a[0] === 'rdprm' ? 'alerte' : 'attention'), { text: a[1], style: { marginRight: '4px' } }); })); }]
     ];
     if (s.type === 'contrats') return [
       ['Stock', function (f) { return h('b.mono', { text: f.stock || '—' }); }],

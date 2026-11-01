@@ -120,8 +120,21 @@
   }
 
   /* ------------------------------ Cache et appels ------------------------------ */
-  var cache = { rep: null, quand: 0, cle: '', cleEnCours: '', promesse: null, copieLe: 0 };
-  var cacheRecap = { rep: null, quand: 0, cle: '', cleEnCours: '', promesse: null, copieLe: 0 };
+  /* 1er nov. : `vue` = la clé (concession|période) que la page montre. Une réponse qui arrive pour une autre clé (mois quitté,
+     lecture plus lente, recherche du haut) ne remplace plus la liste affichée : elle est gardée à part (`autres`, 45 s). */
+  var cache = { rep: null, quand: 0, cle: '', copieLe: 0, vue: '', enVol: {}, autres: {} };
+  var cacheRecap = { rep: null, quand: 0, cle: '', copieLe: 0, vue: '', enVol: {} };
+  function garderAutre(cle, rep, quand) {
+    if (!rep || !cle) return;
+    cache.autres[cle] = { rep: rep, quand: quand };
+    var cles = Object.keys(cache.autres);
+    if (cles.length > 4) { cles.sort(function (a, b) { return cache.autres[a].quand - cache.autres[b].quand; }); delete cache.autres[cles[0]]; }
+  }
+  function poserCache(cle, rep, quand) {
+    if (cache.rep && cache.cle && cache.cle !== cle && !cache.copieLe && cache.quand) garderAutre(cache.cle, cache.rep, cache.quand);
+    cache.rep = rep; cache.quand = quand; cache.cle = cle; cache.copieLe = 0;
+    delete cache.autres[cle];
+  }
   function cleDe(cie, mois) { return String(cie || '') + '|' + String(mois || ''); }
   function cleCopie(prefixe, cle) { return prefixe + cle.replace(/[^A-Za-z0-9]/g, '_'); }
   function verifier(d) {
@@ -147,35 +160,37 @@
   }
   AMX.ventes = {
     charger: function (cie, mois, force) {
-      var cle = cleDe(cie, mois);
-      if (!force && cache.rep && cache.cle === cle && Date.now() - cache.quand < 45000) return Promise.resolve(cache.rep);
-      if (cache.promesse && cache.cleEnCours === cle) return cache.promesse;
+      var cle = cleDe(cie, mois), libre = !cache.vue || cache.vue === cle;   /* libre : cette réponse peut devenir la liste affichée */
+      var garde = cache.cle === cle ? cache : cache.autres[cle];
+      if (!force && garde && garde.rep && Date.now() - garde.quand < 45000) {
+        if (garde !== cache && libre) { poserCache(cle, garde.rep, garde.quand); document.dispatchEvent(new CustomEvent('amx:ventes')); }
+        return Promise.resolve(garde.rep);
+      }
+      if (cache.enVol[cle]) return cache.enVol[cle];
       var params = { ventes: 1 }; if (cie) params.compagnie = cie; if (mois) params.mois = mois; if (force === 'relire') params.relire = 1;
-      cache.cleEnCours = cle;
-      cache.promesse = AMX.get(params, { gz: true, copie: cleCopie('ventes_', cle), secours: false, delai: 60000 }).then(function (d) {
-        cache.promesse = null; cache.cleEnCours = '';
+      var p = cache.enVol[cle] = AMX.get(params, { gz: true, copie: cleCopie('ventes_', cle), secours: false, delai: 60000 }).then(function (d) {
+        if (cache.enVol[cle] === p) delete cache.enVol[cle];
         verifier(d);
-        cache.rep = d; cache.quand = Date.now(); cache.cle = cle; cache.copieLe = 0;
-        document.dispatchEvent(new CustomEvent('amx:ventes'));
+        if (!cache.vue || cache.vue === cle) { poserCache(cle, d, Date.now()); document.dispatchEvent(new CustomEvent('amx:ventes')); }
+        else garderAutre(cle, d, Date.now());
         return d;
-      }, function (e) { cache.promesse = null; cache.cleEnCours = ''; throw e; });
-      return cache.promesse;
+      }, function (e) { if (cache.enVol[cle] === p) delete cache.enVol[cle]; throw e; });
+      return p;
     },
     copie: function (cie, mois) { return AMX.cacheLocal.lireGz(cleCopie('ventes_', cleDe(cie, mois)), 7 * 86400000); },
     /* Le tableau récapitulatif d'une année (?ventesRecap=1) : par mois × neufs / occasions / wholesale, conseillers, produits F&I. */
     recap: function (cie, annee, force) {
       var cle = cleDe(cie, annee);
       if (!force && cacheRecap.rep && cacheRecap.cle === cle && Date.now() - cacheRecap.quand < 45000) return Promise.resolve(cacheRecap.rep);
-      if (cacheRecap.promesse && cacheRecap.cleEnCours === cle) return cacheRecap.promesse;
+      if (cacheRecap.enVol[cle]) return cacheRecap.enVol[cle];
       var params = { ventesRecap: 1 }; if (cie) params.compagnie = cie; if (annee) params.annee = annee;
-      cacheRecap.cleEnCours = cle;
-      cacheRecap.promesse = AMX.get(params, { gz: true, copie: cleCopie('ventes_recap_', cle), secours: false, delai: 60000 }).then(function (r) {
-        cacheRecap.promesse = null; cacheRecap.cleEnCours = '';
+      var p = cacheRecap.enVol[cle] = AMX.get(params, { gz: true, copie: cleCopie('ventes_recap_', cle), secours: false, delai: 60000 }).then(function (r) {
+        if (cacheRecap.enVol[cle] === p) delete cacheRecap.enVol[cle];
         verifierRecap(r);
-        cacheRecap.rep = r; cacheRecap.quand = Date.now(); cacheRecap.cle = cle; cacheRecap.copieLe = 0;
+        if (!cacheRecap.vue || cacheRecap.vue === cle) { cacheRecap.rep = r; cacheRecap.quand = Date.now(); cacheRecap.cle = cle; cacheRecap.copieLe = 0; }   /* 1er nov. : une année quittée ne remplace pas celle montrée */
         return r;
-      }, function (e) { cacheRecap.promesse = null; cacheRecap.cleEnCours = ''; throw e; });
-      return cacheRecap.promesse;
+      }, function (e) { if (cacheRecap.enVol[cle] === p) delete cacheRecap.enVol[cle]; throw e; });
+      return p;
     },
     copieRecap: function (cie, annee) { return AMX.cacheLocal.lireGz(cleCopie('ventes_recap_', cleDe(cie, annee)), 7 * 86400000); },
     /* Une vente avec son historique (les grandes listes voyagent sans journal : `sansJournal`). */
@@ -205,7 +220,7 @@
     },
     enCache: function () { return cache.rep; },
     recapEnCache: function () { return cacheRecap.rep; },
-    invalider: function () { cache.quand = 0; cacheRecap.quand = 0; },
+    invalider: function () { cache.quand = 0; cache.autres = {}; cacheRecap.quand = 0; },
     produits: function () { var d = cache.rep; return d && Array.isArray(d.produits) && d.produits.length ? d.produits : PRODUITS_DEFAUT; },
     produitsDe: produitsDe,
     produitsListe: produitsListe,
@@ -217,6 +232,7 @@
       var n = { declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreurLivre: 0 };
       cache.rep.ventes.forEach(function (x) { if (n[x.statut] !== undefined) n[x.statut]++; if (x.livre === 'erreur') n.erreurLivre++; });
       cache.rep.compte = n;
+      cache.autres = {};
       cacheRecap.quand = 0;
       document.dispatchEvent(new CustomEvent('amx:ventes'));
     },
@@ -354,7 +370,7 @@
     if (p.nouvelle && this.nouvelleFaite !== p.nouvelle) { this.nouvelleFaite = p.nouvelle; setTimeout(function () { AMX.ventes.declarer({ compagnie: self.compagnie }); }, 60); }
     if (p.id && this.idOuvert !== p.id) { this.idOuvert = p.id; setTimeout(function () { self.ouvrirId(p.id); }, 60); }
   };
-  VueVentes.prototype.demonter = function () { document.removeEventListener('amx:ventes', this.sur); document.removeEventListener('amx:compagnie', this.surCompagnie); document.removeEventListener('amx:profil', this.surProfil); };
+  VueVentes.prototype.demonter = function () { cache.vue = ''; cacheRecap.vue = ''; document.removeEventListener('amx:ventes', this.sur); document.removeEventListener('amx:compagnie', this.surCompagnie); document.removeEventListener('amx:profil', this.surProfil); };
   VueVentes.prototype.naviguer = function (ctx) {
     this.params = (ctx && ctx.params) || {};
     var vue = ctx && ctx.onglet === 'recap' ? 'recap' : 'liste';
@@ -466,13 +482,15 @@
     }, function () {});
   };
   VueVentes.prototype.charger = function (force) {
-    var self = this, cie = this.compagnie, mois = moisDe(this.periode);
+    var self = this, cie = this.compagnie, mois = moisDe(this.periode), cle = cleDe(cie, mois);
+    cache.vue = cle;
     this.chargerAvenir();
-    if (!cache.rep || cache.cle !== cleDe(cie, mois)) {
-      if (!cache.rep) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur('Livre des ventes')); }
-      AMX.ventes.copie(cie, mois).then(function (o) { if (o && o.donnees && (!cache.rep || cache.cle !== cleDe(cie, mois))) { try { verifier(o.donnees); cache.rep = o.donnees; cache.cle = cleDe(cie, mois); cache.quand = 0; cache.copieLe = o.quand; self.rendre(); } catch (e) {} } }).catch(function () {});
+    if (!cache.rep || cache.cle !== cle) {
+      if (!cache.autres[cle]) this.attente();   /* 1er nov. : plus la liste du mois quitté sous l'étiquette du nouveau mois */
+      AMX.ventes.copie(cie, mois).then(function (o) { if (o && o.donnees && cache.vue === cle && (!cache.rep || cache.cle !== cle)) { try { verifier(o.donnees); cache.rep = o.donnees; cache.cle = cle; cache.quand = 0; cache.copieLe = o.quand; self.rendre(); } catch (e) {} } }).catch(function () {});
     }
-    AMX.ventes.charger(cie, mois, force).then(function () { self.rendre(); if (force === true) AMX.toast('Livre des ventes mis à jour', 'ok'); }, function (e) {
+    AMX.ventes.charger(cie, mois, force).then(function () { if (cache.vue !== cle) return; self.rendre(); if (force === true) AMX.toast('Livre des ventes mis à jour', 'ok'); }, function (e) {
+      if (cache.vue !== cle) return;
       var msg = AMX.erreurTexte(e);
       self.elSous.textContent = /route|absent|inconnue|pas à jour/i.test(msg) ? 'Route absente — redéployez le script (Vente.gs).' : msg;
       if (!cache.rep) { AMX.vider(self.elListe); self.elListe.appendChild(h('div.carte', [h('div.ventes-vide', { text: msg })])); }
@@ -536,11 +554,18 @@
     }
   };
 
+  /* La période choisie n'est pas encore arrivée : chargeur, sans les chiffres de la période d'avant. */
+  VueVentes.prototype.attente = function () {
+    this.elSous.textContent = 'Lecture du livre…';
+    AMX.vider(this.elKpis); AMX.vider(this.elPortee);
+    if (!this.elListe.querySelector('.amx-chargeur')) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur('Livre des ventes')); }
+  };
   VueVentes.prototype.rendre = function () {
     var d = cache.rep;
     this.rendreEntete();
     this.rendreFi();
     if (this.vue === 'recap') { this.rendreRecap(); return; }
+    if (d && cache.vue && cache.cle !== cache.vue) { this.attente(); return; }
     if (!d) return;
     this.normaliserFiltres();
     var n = d.compte || {}, total = d.ventes.length;
@@ -929,12 +954,14 @@
 
   /* ------------------------------ Récapitulatif ------------------------------ */
   VueVentes.prototype.chargerRecap = function (force) {
-    var self = this, cie = this.compagnie, annee = this.annee;
-    if (!cacheRecap.rep || cacheRecap.cle !== cleDe(cie, annee)) {
-      if (!cacheRecap.rep) { AMX.vider(this.elVueRecap); this.elVueRecap.appendChild(AMX.chargeur('Récapitulatif des ventes')); }
-      AMX.ventes.copieRecap(cie, annee).then(function (o) { if (o && o.donnees && (!cacheRecap.rep || cacheRecap.cle !== cleDe(cie, annee))) { try { verifierRecap(o.donnees); cacheRecap.rep = o.donnees; cacheRecap.cle = cleDe(cie, annee); cacheRecap.quand = 0; cacheRecap.copieLe = o.quand; self.rendreRecap(); } catch (e) {} } }).catch(function () {});
+    var self = this, cie = this.compagnie, annee = this.annee, cle = cleDe(cie, annee);
+    cacheRecap.vue = cle;
+    if (!cacheRecap.rep || cacheRecap.cle !== cle) {
+      AMX.vider(this.elVueRecap); this.elVueRecap.appendChild(AMX.chargeur('Récapitulatif des ventes'));
+      AMX.ventes.copieRecap(cie, annee).then(function (o) { if (o && o.donnees && cacheRecap.vue === cle && (!cacheRecap.rep || cacheRecap.cle !== cle)) { try { verifierRecap(o.donnees); cacheRecap.rep = o.donnees; cacheRecap.cle = cle; cacheRecap.quand = 0; cacheRecap.copieLe = o.quand; self.rendreRecap(); } catch (e) {} } }).catch(function () {});
     }
-    AMX.ventes.recap(cie, annee, force).then(function () { self.rendreCies(); self.rendreRecap(); if (force === true) AMX.toast('Récapitulatif mis à jour', 'ok'); }, function (e) {
+    AMX.ventes.recap(cie, annee, force).then(function () { if (cacheRecap.vue !== cle) return; self.rendreCies(); self.rendreRecap(); if (force === true) AMX.toast('Récapitulatif mis à jour', 'ok'); }, function (e) {
+      if (cacheRecap.vue !== cle) return;
       var msg = AMX.erreurTexte(e);
       self.elSous.textContent = /route|absent|inconnue|pas à jour/i.test(msg) ? 'Route absente — redéployez le script (Vente.gs).' : msg;
       if (!cacheRecap.rep) { AMX.vider(self.elVueRecap); self.elVueRecap.appendChild(h('div.carte', [h('div.ventes-vide', { text: msg })])); }
@@ -944,6 +971,7 @@
   VueVentes.prototype.rendreRecap = function () {
     var self = this, r = cacheRecap.rep, el = this.elVueRecap;
     if (this.vue !== 'recap' || !r) return;
+    if (cacheRecap.vue && cacheRecap.cle !== cacheRecap.vue) { this.elSous.textContent = 'Lecture du récapitulatif…'; if (!el.querySelector('.amx-chargeur')) { AMX.vider(el); el.appendChild(AMX.chargeur('Récapitulatif des ventes')); } return; }
     var montants = !!r.montants, T = r.totaux || {}, tot = T.total || {};
     var copie = cacheRecap.copieLe ? 'Copie du ' + AMX.copieTexte(cacheRecap.copieLe) + ' — mise à jour en cours… · ' : '';
     this.elSous.textContent = copie + 'Année ' + r.annee + ' · ' + pluriel(r.nombre || 0, 'vente') + (tot.attenteFI ? ' · ' + tot.attenteFI + ' en attente du F&I' : '') + (tot.compta ? ' · ' + tot.compta + ' comptabilisée' + (tot.compta > 1 ? 's' : '') : '') + (r.genereLe && !cacheRecap.copieLe ? ' · calculé à ' + AMX.fmtDate(r.genereLe, true).replace(/^\S+\s/, '') : '');
@@ -1550,6 +1578,7 @@
     if (!Array.isArray(d.ajustements)) d.ajustements = [];
     d.ajustements = d.ajustements.filter(function (x) { return x.id !== a.id; });
     if (dedans && !a.annule) d.ajustements.push(a);
+    cache.autres = {};
     cacheRecap.quand = 0;
     document.dispatchEvent(new CustomEvent('amx:ventes'));
   }

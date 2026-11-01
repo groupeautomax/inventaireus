@@ -56,7 +56,12 @@
     '.crt-erreur { border-left: 4px solid var(--rouge); background: var(--rouge-bg); padding: 10px 12px; border-radius: 8px; margin: 0 0 10px; font-size: 13px; }',
     '.crt-vide { padding: 28px; text-align: center; color: var(--encre-3); }',
     '.crt-reglages .champ { margin-bottom: 10px; } .crt-reglages .ligne2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }',
-    '.crt-fichiers li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--ligne); font-size: 13px; }'
+    '.crt-fichiers li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--ligne); font-size: 13px; }',
+    '.crt-auto { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #E6F0FB; color: #1A64BF; vertical-align: 1px; }',
+    '.crt-tele-etat { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--carte-2); margin: 0 0 10px; }',
+    '.crt-tele-etat.ok { background: var(--vert-clair); } .crt-tele-etat.erreur { background: var(--rouge-bg); }',
+    '.crt-reglages .case { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 8px; font-size: 13px; } .crt-reglages .case input { margin-top: 3px; }',
+    '.crt-tele-boutons { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; }'
   ].join('\n');
   function css() { if (!document.getElementById('css-courtoisie')) { var s = document.createElement('style'); s.id = 'css-courtoisie'; s.textContent = CSS; document.head.appendChild(s); } }
 
@@ -318,7 +323,8 @@
         h('td', [h('span.crt-cat.' + v.categorie, { text: NOM_CAT[v.categorie] || v.categorie })]),
         h('td', [h('span', { text: v.chez || '—' }), v.bt ? h('span.s', { text: 'BT ' + v.bt }) : null]),
         h('td', [h('span', { text: v.miseService ? dateCourte(v.miseService) : (v.miseTexte || '—') }), typeof v.mois === 'number' ? h('span.s', { text: (Math.round(v.mois * 10) / 10).toLocaleString('fr-CA') + ' mois' }) : null]),
-        h('td.num', [h('span', { text: typeof v.km === 'number' ? AMX.fmtNombre(v.km) : '—' }), jaugeKm === null ? null : h('div.crt-jauge', [h('i' + (clsJ ? '.' + clsJ : ''), { style: { width: jaugeKm + '%' } })])]),
+        h('td.num', [h('span', { text: typeof v.km === 'number' ? AMX.fmtNombre(v.km) : '—' }), v.kmSource === 'telematique' ? h('span.crt-auto', { text: 'auto', title: infoKm(v) }) : null,
+          jaugeKm === null ? null : h('div.crt-jauge', [h('i' + (clsJ ? '.' + clsJ : ''), { style: { width: jaugeKm + '%' } })]), niveauTele(v) ? h('span.s', { text: niveauTele(v) }) : null]),
         h('td', lmb),
         h('td', puces)
       ]);
@@ -361,18 +367,31 @@
       corps.appendChild(h('div.crt-h', { text: 'Au fichier de courtoisie' }));
       corps.appendChild(dl([['Unité', v.unite], ['Onglet', v.fichier.onglet + ', ligne ' + v.fichier.ligne], ['Section', { service: 'Courtoisie service', vente: 'Courtoisie vente', carrosserie: 'VR carrosserie', sortie: 'Sortie de la route' }[v.fichier.section] || v.fichier.section],
         ['Chez / activité', v.chez], ['Bon de travail', v.bt], ['Départ', v.depart ? dateCourte(v.depart) : v.departTexte], ['Mise en service', v.miseService ? dateCourte(v.miseService) + (typeof v.mois === 'number' ? ' (' + (Math.round(v.mois * 10) / 10).toLocaleString('fr-CA') + ' mois)' : '') : v.miseTexte],
-        ['Km', typeof v.km === 'number' ? AMX.fmtNombre(v.km) : ''], ['Stock', v.stock], ['Pneus', v.pneus], ['Raison', v.raison], ['Notes', v.notes],
+        ['Km', kmFichier(v)], ['Stock', v.stock], ['Pneus', v.pneus], ['Raison', v.raison], ['Notes', v.notes],
         ['Lignes au fichier', v.fichierLignes > 1 ? v.fichierLignes : '']]));
     } else corps.appendChild(h('p.doux', { text: 'Pas au fichier de courtoisie.' }));
     corps.appendChild(h('div.crt-h', { text: 'Chez LMB' }));
     if (v.lmb) corps.appendChild(dl([['No LOC', v.lmb.stock], ['Modèle', v.lmb.modele], ['Loué à', v.lmb.loueA], ['Floor plan', v.lmb.type || 'vide'], ['Note', v.lmb.note], ['Contrat', v.lmb.contrat ? dateCourte(v.lmb.contrat) : ''], ['Punch', v.lmb.punch ? dateCourte(v.lmb.punch) : ''], ['Ligne', 'LOCATIONS 2026 EN COURS, ligne ' + v.lmb.ligne]]));
     else if (v.vendu) corps.appendChild(dl([['No LOC', v.vendu.stock], ['État', 'Vendu (onglet Vendus 2026, ligne ' + v.vendu.ligne + ')'], ['Retour', v.vendu.retour ? dateCourte(v.vendu.retour) : ''], ['Km au retour', v.vendu.kmRetour ? AMX.fmtNombre(v.vendu.kmRetour) : '']]));
     else corps.appendChild(h('p.doux', { text: 'Pas chez LMB (ni en cours ni vendu).' }));
+    if (v.tele) {
+      var t = v.tele;
+      corps.appendChild(h('div.crt-h', { text: 'Télématique (' + typeTele(t.type) + ')' }));
+      corps.appendChild(dl([['Km lu', typeof t.km === 'number' ? AMX.fmtNombre(t.km) + (t.kmLe ? ' · ' + dateHeure(t.kmLe) : '') : ''],
+        ['Essence', typeof t.carburant === 'number' ? Math.round(t.carburant) + ' %' + (t.carburantLe ? ' · ' + dateHeure(t.carburantLe) : '') : ''],
+        ['Charge', typeof t.charge === 'number' ? Math.round(t.charge) + ' %' + (t.chargeLe ? ' · ' + dateHeure(t.chargeLe) : '') : ''],
+        ['Dernière communication', t.vuLe ? dateHeure(t.vuLe) + (t.communique === 'non' ? ' (ne communique plus)' : '') : ''],
+        ['Nom chez le fournisseur', t.nom],
+        ['Km au fichier', v.kmSource === 'telematique' && typeof v.kmFichier === 'number' ? AMX.fmtNombre(v.kmFichier) : '']]));
+      if (v.kmSource !== 'telematique' && typeof t.km === 'number') corps.appendChild(h('p.doux.petit', { text: 'Km du boîtier trop ancien (plus de 45 jours) : la page garde celui du fichier.' }));
+    }
     if (v.neuf || v.registre) {
       corps.appendChild(h('div.crt-h', { text: 'Ailleurs dans ScanAutomax' }));
       corps.appendChild(dl([['Neufs', v.neuf ? ((v.neuf.stock ? '#' + v.neuf.stock + ' · ' : '') + (v.neuf.statut || '') + (v.neuf.sorti ? ' · sorti' : '')) : ''], ['Registre', v.registre ? (v.registre.registre + (v.registre.stock ? ' #' + v.registre.stock : '') + ' · ' + v.registre.statut) : '']]));
     }
     var boutons = [{ texte: 'Fermer' }];
+    var T = (this.rep && this.rep.tele) || {};
+    if (v.tele && v.vin && T.position && T.peutLocaliser) boutons.push({ texte: 'Localiser…', action: function () { localiser(v); return false; } });
     if (lienLigne) boutons.push({ texte: 'Ouvrir la ligne du fichier', classe: 'primaire', action: function () { window.open(lienLigne, '_blank', 'noopener'); return false; } });
     AMX.modale({ titre: (v.unite ? v.unite + ' · ' : '') + (v.vehicule || v.vehiculeFichier || v.vin), corps: corps, large: true, proteger: false, boutons: boutons });
   };
@@ -403,6 +422,8 @@
       corps.appendChild(h('button.btn', { type: 'button', text: 'Ajouter ce fichier', onclick: function () { if (inLien.value.trim()) self.fichiers({ op: 'ajouter', lien: inLien.value.trim(), compagnie: selCie.value }); } }));
       corps.appendChild(h('p.doux.petit', { text: 'Le classeur doit être partagé en lecture avec le compte du script. Chaque onglet est lu ; les colonnes sont reconnues par leur titre (NIV ou # SÉRIE, VÉHICULE, PLAQUE, KM, MISE EN SERVICE…).' }));
     }
+    if (rep.tele && rep.tele.peutRegler) corps.appendChild(this.blocTele(rep.tele));
+    else if (!rep.tele && rep.peutFichiers) corps.appendChild(h('p.doux.petit', { text: 'Télématique : le script n\'est pas à jour (Telematique.gs).' }));
     var boutons = [{ texte: 'Fermer' }];
     if (rep.peutRegler) boutons.push({ texte: 'Enregistrer', classe: 'primaire', action: function () {
       return AMX.post({ action: 'courtoisieParams', kmMax: kmMax.i.value, kmAvertir: kmAv.i.value, moisMax: moisMax.i.value, joursAvertir: jAv.i.value }, { delai: 30000 }).then(function (d) {
@@ -423,15 +444,101 @@
     }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
   };
 
+  /* ------------------------------------------------------------------------------------ télématique (31 oct.) */
+  function dateHeure(iso) {
+    var d = new Date(iso); if (isNaN(d.getTime())) return String(iso || '');
+    return d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+  }
+  function typeTele(t) {
+    t = String(t || '');
+    if (/custom/i.test(t)) return 'OnStar ou système du constructeur';
+    if (/^go/i.test(t)) return 'boîtier Geotab ' + t.toUpperCase();
+    return t || 'boîtier';
+  }
+  function kmFichier(v) {
+    var km = v.kmSource === 'telematique' ? v.kmFichier : v.km;
+    return typeof km === 'number' ? AMX.fmtNombre(km) : '';
+  }
+  function infoKm(v) {
+    return 'Lu par la télématique' + (v.kmLe ? ' le ' + dateHeure(v.kmLe) : '') + (typeof v.kmFichier === 'number' ? ' · au fichier : ' + AMX.fmtNombre(v.kmFichier) + ' km' : '');
+  }
+  function niveauTele(v) {
+    var t = v.tele; if (!t) return '';
+    if (typeof t.charge === 'number') return 'charge ' + Math.round(t.charge) + ' %';
+    if (typeof t.carburant === 'number') return 'essence ' + Math.round(t.carburant) + ' %';
+    return '';
+  }
+  /* Position sur demande seulement, avec un motif : le serveur la garde 6 h au plus et note chaque consultation au journal. */
+  function localiser(v) {
+    var motif = h('textarea.saisie', { rows: '3', placeholder: 'Ex. : véhicule pas rendu à la date prévue, client injoignable.' });
+    var res = h('div');
+    AMX.modale({ titre: 'Localiser ' + (v.unite || v.vehicule || v.vin), proteger: false,
+      corps: h('div', [h('p.doux.petit', { text: 'La position n\'est consultée que pour un motif précis (Loi 25). Le motif, votre nom et l\'heure sont notés au journal.' }),
+        h('label.champ', [h('span', { text: 'Motif' }), motif]), res]),
+      boutons: [{ texte: 'Fermer' }, { texte: 'Voir la position', classe: 'primaire', action: function () {
+        if (motif.value.trim().length < 5) { AMX.toast('Inscrivez le motif.', 'attention'); return false; }
+        return AMX.post({ action: 'teleLocaliser', vin: v.vin, motif: motif.value.trim() }, { delai: 30000 }).then(function (d) {
+          if (!d || d.refuse || d.ok === false) throw new Error((d && d.erreur) || 'Refusé.');
+          var p = d.position || {}, lieu = p.lat + ',' + p.lon;
+          res.innerHTML = '';
+          res.appendChild(h('div.crt-tele-etat.ok', [h('b', { text: 'Position du ' + dateHeure(p.le) }), h('div', { text: Number(p.lat).toFixed(5) + ', ' + Number(p.lon).toFixed(5) }),
+            h('a', { href: 'https://www.google.com/maps?q=' + encodeURIComponent(lieu), target: '_blank', rel: 'noopener', text: 'Ouvrir dans Google Maps' })]));
+          return false;
+        }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+      } }] });
+  }
+  /* Branchement du compte télématique (propriétaire) : serveur, base, compte, mot de passe collé par lui ; jamais renvoyé. */
+  VueCourtoisie.prototype.blocTele = function (T) {
+    var self = this, el = h('div');
+    var E = T.etat || {};
+    el.appendChild(h('div.crt-h', { text: 'Télématique (OnStar par Geotab)' }));
+    var etat = !T.motDePasse ? ['', 'Pas encore branché. OnStar arrive par un partenaire (Geotab) : il faut d\'abord le contrat, puis un compte de service en lecture seule.']
+      : (!T.actif ? ['', 'Compte enregistré, lecture arrêtée.']
+        : (E.erreur ? ['erreur', 'Dernier passage ' + (E.le ? dateHeure(E.le) : '—') + ' : ' + E.erreur]
+          : ['ok', E.le ? 'Dernier passage ' + dateHeure(E.le) + ' · ' + pluriel(E.lus || 0, 'véhicule') + ' lu' + ((E.lus || 0) > 1 ? 's' : '') + ' · ' + (E.avecKm || 0) + ' avec km' + (E.sansNiv ? ' · ' + E.sansNiv + ' sans NIV chez Geotab' : '') : 'Activé : première lecture au prochain passage de l\'horloge.']));
+    el.appendChild(h('div.crt-tele-etat' + (etat[0] ? '.' + etat[0] : ''), { text: etat[1] }));
+    var inServ = h('input.saisie', { type: 'text', value: T.serveur || 'my.geotab.com', autocomplete: 'off' });
+    var inBase = h('input.saisie', { type: 'text', value: T.base || '', placeholder: 'Nom de la base de données Geotab', autocomplete: 'off' });
+    var inCompte = h('input.saisie', { type: 'text', value: T.compte || '', placeholder: 'Courriel du compte de service', autocomplete: 'off' });
+    var inMdp = h('input.saisie', { type: 'password', value: '', placeholder: T.motDePasse ? 'Enregistré — laisser vide pour le garder' : 'Mot de passe du compte de service', autocomplete: 'new-password' });
+    var inPas = h('input.saisie', { type: 'number', min: '5', max: '60', value: String(T.pasMin || 15) });
+    var cAct = h('input', { type: 'checkbox' }); cAct.checked = !!T.actif;
+    var cPos = h('input', { type: 'checkbox' }); cPos.checked = !!T.position;
+    el.appendChild(h('div.ligne2', [h('label.champ', [h('span', { text: 'Serveur' }), inServ]), h('label.champ', [h('span', { text: 'Base de données' }), inBase])]));
+    el.appendChild(h('div.ligne2', [h('label.champ', [h('span', { text: 'Compte' }), inCompte]), h('label.champ', [h('span', { text: 'Mot de passe' }), inMdp])]));
+    el.appendChild(h('div.ligne2', [h('label.champ', [h('span', { text: 'Lire aux (minutes, le jour)' }), inPas]), h('div')]));
+    el.appendChild(h('label.case', [cAct, h('span', { text: 'Lire le km, l\'essence et la charge des véhicules (Service › Courtoisie)' })]));
+    el.appendChild(h('label.case', [cPos, h('span', { text: 'Permettre de localiser un véhicule sur demande, avec un motif (gardé 6 h, consultation notée au journal). Fermé par défaut — à valider avec l\'avocat (Loi 25).' })]));
+    var envoyer = function (corps, ok) {
+      return AMX.post(corps, { delai: 60000, secours: false }).then(function (d) {
+        if (!d || d.refuse || d.ok === false) throw new Error((d && d.erreur) || 'Refusé.');
+        if (d.telematique) self.rep.tele = Object.assign({}, self.rep.tele, d.telematique);
+        AMX.toast(d.message || ok, 'ok'); inMdp.value = ''; self.charger(true);
+        document.querySelectorAll('.voile').forEach(function (v) { v.remove(); });
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+    };
+    el.appendChild(h('div.crt-tele-boutons', [
+      h('button.btn', { type: 'button', text: 'Enregistrer la télématique', onclick: function () {
+        envoyer({ action: 'teleReglages', fournisseur: 'geotab', teleServeur: inServ.value.trim(), teleBase: inBase.value.trim(), teleCompte: inCompte.value.trim(),
+          teleMdp: inMdp.value, actif: cAct.checked ? 'oui' : 'non', position: cPos.checked ? 'oui' : 'non', pasMin: inPas.value }, 'Télématique enregistrée');
+      } }),
+      T.motDePasse ? h('button.btn', { type: 'button', text: 'Lire maintenant', onclick: function () { envoyer({ action: 'teleTester' }, 'Lecture faite'); } }) : null,
+      T.motDePasse ? h('button.btn.danger', { type: 'button', text: 'Retirer le compte', onclick: function () {
+        AMX.confirmer('Retirer le compte télématique ?', 'La lecture s\'arrête et le mot de passe est effacé du script.', { danger: true, ok: 'Retirer' }).then(function (ok) { if (ok) envoyer({ action: 'teleRetirer' }, 'Compte retiré'); });
+      } }) : null]));
+    el.appendChild(h('p.doux.petit', { text: 'Le mot de passe est vérifié chez Geotab avant d\'être gardé, puis il ne quitte plus le script. Les véhicules sont reconnus par leur NIV.' }));
+    return el;
+  };
+
   /* ------------------------------------------------------------------------------------ export */
   VueCourtoisie.prototype.exporter = function () {
     var liste = this.filtrer();
     if (!liste.length) { AMX.toast('Rien à exporter.', 'attention'); return; }
     if (typeof XLSX === 'undefined') { AMX.toast('Excel indisponible dans ce navigateur.', 'erreur'); return; }
-    var lignes = [['Concession', 'Unité', 'Véhicule', 'NIV', 'Plaque', 'Utilisation', 'État', 'Chez / activité', 'BT', 'Mise en service', 'Mois', 'Km', 'No LOC (LMB)', 'Floor plan', 'Note LMB', 'Écarts', 'Onglet du fichier', 'Ligne']];
+    var lignes = [['Concession', 'Unité', 'Véhicule', 'NIV', 'Plaque', 'Utilisation', 'État', 'Chez / activité', 'BT', 'Mise en service', 'Mois', 'Km', 'Source du km', 'No LOC (LMB)', 'Floor plan', 'Note LMB', 'Écarts', 'Onglet du fichier', 'Ligne']];
     liste.forEach(function (v) {
       lignes.push([nomCie(v.compagnie), v.unite, v.vehicule || v.vehiculeFichier, v.vin, v.plaque, NOM_CAT[v.categorie] || v.categorie, v.etat === 'sorti' ? 'Sorti' : 'En service', v.chez, v.bt, v.miseService || v.miseTexte,
-        typeof v.mois === 'number' ? Math.round(v.mois * 10) / 10 : '', typeof v.km === 'number' ? v.km : '', v.lmb ? v.lmb.stock : (v.vendu ? v.vendu.stock + ' (vendu)' : ''), v.lmb ? (v.lmb.type || 'vide') : '', v.lmb ? v.lmb.note : '',
+        typeof v.mois === 'number' ? Math.round(v.mois * 10) / 10 : '', typeof v.km === 'number' ? v.km : '', v.kmSource === 'telematique' ? 'Télématique' + (v.kmLe ? ' (' + String(v.kmLe).slice(0, 10) + ')' : '') : 'Fichier', v.lmb ? v.lmb.stock : (v.vendu ? v.vendu.stock + ' (vendu)' : ''), v.lmb ? (v.lmb.type || 'vide') : '', v.lmb ? v.lmb.note : '',
         v.alertes.map(function (a) { return a.texte; }).join(' | '), v.fichier ? v.fichier.onglet : '', v.fichier ? v.fichier.ligne : '']);
     });
     var wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(lignes);

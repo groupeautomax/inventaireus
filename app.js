@@ -43,7 +43,7 @@
 
   /* ---------------------- Nouvelle interface (v131, 23 oct.) ----------------------
      Maxime : « la nouvelle interface derrière un interrupteur : barre latérale, concession dans la barre, Ctrl+K,
-     Accueil « À faire », puis la page Usagé refaite ». html.ui2 l'allume. Propre à l'appareil (localStorage amx_ui) ;
+     Accueil « À faire », puis la page Occasion refaite ». html.ui2 l'allume. Propre à l'appareil (localStorage amx_ui) ;
      ?ui=2 / ?ui=1 dans l'adresse l'allume / l'éteint d'un lien ; menu du compte → « Essayer la nouvelle interface ».
      v132 (Maxime : « allume la nouvelle interface par défaut pour tout le monde, avec l'option de revenir à l'ancienne ») :
      allumée partout, sauf sur un appareil où quelqu'un a choisi « Revenir à l'ancienne interface » (amx_ui = '1'). */
@@ -627,7 +627,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
-    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -771,20 +771,23 @@
      écrits dans les modules n'ont pas changé. `fixes` = paramètres ajoutés à l'adresse de la source (mode d'une page). */
   var TUILES = [
     { id: 'vente', titre: 'Vente', icone: 'vente', ordre: 10, onglets: [
+      { id: 'board', titre: 'Board des ventes', de: 'board', onglet: '' },   /* 27 oct. : par représentant, neuf et occasion, objectifs, écran télé (board.js) */
       { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
       { id: 'offres', titre: 'Offres reçues', de: 'offres', onglet: 'recues' },
       { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente' },
       { id: 'acheteurs', titre: 'Acheteurs', de: 'offres', onglet: 'acheteurs' },
-      { id: 'soumissions', titre: 'Soumissions', de: 'inventaire', onglet: 'soumissions' },
+      /* 27 oct. (Maxime) : « enlève l'onglet Soumission, inutile » — la page (soumission.js) reste, sans onglet. */
       { id: 'echanges', titre: 'Échanges de neufs', de: 'inventaire', onglet: 'neufs', fixes: { seul: 'echanges' }, compteur: function () { return AMX.neufs && AMX.neufs.compteurEchanges ? AMX.neufs.compteurEchanges() : ''; } },
       { id: 'resultats', titre: 'Résultats', de: 'resultat', vues: [{ id: 'us', titre: 'É.-U.' }, { id: 'can', titre: 'Wholesale Canada' }, { id: 'neuf', titre: 'Neufs' }] },
-      { id: 'kpi', titre: 'KPI', de: 'kpi', vues: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }] }   /* 22 oct. : le tableau de bord KPI du Groupe (Réalisés et états financiers lus dans les Drive partagés, kpi.js) */
+      { id: 'kpi', titre: 'KPI', de: 'kpi', vues: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }] },   /* 22 oct. : le tableau de bord KPI du Groupe (Réalisés et états financiers lus dans les Drive partagés, kpi.js) */
+      { id: 'lmb', titre: 'LMB', de: 'lmb', onglet: '' }   /* 29 oct. : Location LMB, réservé au propriétaire (lmb.js, Lmb.gs) */
     ] },
     { id: 'inventaire', titre: 'Inventaire', icone: 'inventaire', ordre: 20, onglets: [
       { id: 'neufs', titre: 'Neufs', de: 'inventaire', onglet: 'neufs' },
-      { id: 'usage', titre: 'Usagé', de: 'inventaire', onglet: 'usage' },
+      { id: 'usage', titre: 'Occasion', de: 'inventaire', onglet: 'usage' },
+      { id: 'analyse', titre: 'Analyse occasion', de: 'analyse', onglet: '' },   /* 24 oct. : façon vAuto — % du marché, rang, jours, MDS, profil de prix par âge (analyse-usage.js) */
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '' },
-      { id: 'evaluations', titre: 'Évaluations', de: 'outils', vues: [{ id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] },
+      { id: 'evaluations', titre: 'Évaluations', de: 'outils', vues: [{ id: 'demandes', titre: 'Demandes', de: 'demandesEval', onglet: '' }, { id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
       { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '' },   /* 22 oct. : dépôt d'une liste (PDF, Excel, CSV) → où est chaque véhicule ; audit dans l'app (listes.js) */
       { id: 'transports', titre: 'Transports', de: 'transports', onglet: '', compteur: function () { return AMX.transport ? AMX.transport.compteur() : ''; } }   /* 23 oct. : transport des achats par Central Fleet (transport.js) */
     ] },
@@ -797,12 +800,14 @@
     { id: 'service', titre: 'Service après-vente', court: 'Service', icone: 'service', ordre: 40, onglets: [
       { id: 'suivi', titre: 'Suivi service', de: 'service', vues: [{ id: 'encours', titre: 'En cours' }, { id: 'autoriser', titre: 'Direction' }, { id: 'termines', titre: 'Terminés' }] },
       { id: 'rendezvous', titre: 'Rendez-vous', de: 'service', onglet: 'rendezvous' },
-      { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' }
+      { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' },
+      { id: 'courtoisie', titre: 'Courtoisie', de: 'courtoisie', onglet: '', compteur: function () { return AMX.courtoisie ? AMX.courtoisie.compteur() : ''; } }   /* 29 oct. : véhicules de courtoisie, LMB + fichier de suivi (courtoisie.js, Courtoisie.gs) */
     ] },
     { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
+      { id: 'imports', titre: 'Imports', de: 'outils', onglet: 'imports', compteur: function () { return AMX.importsEtat ? AMX.importsEtat.compteur() : ''; } },   /* 27 oct. : tous les imports, par concession, rouge = à faire (imports.js) */
+      { id: 'opportunites', titre: 'Opportunités d\'achat', de: 'outils', onglet: 'opportunites' },   /* 24 oct. : Occasions.gs */
       { id: 'eblock', titre: 'Fiches eBlock', de: 'outils', onglet: 'eblock' },
       { id: 'openlane', titre: 'Valeurs OpenLane', de: 'outils', onglet: 'openlane' },
-      { id: 'carfax', titre: 'Import CARFAX', de: 'outils', onglet: 'carfax' },
       { id: 'd2c', titre: 'Import D2C', de: 'outils', onglet: 'd2c' },
       { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification' },
       { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '' }
@@ -928,7 +933,7 @@
   AMX.courante = courante;
 
   /* v130 (rapport « Refonte ergonomique », gain rapide 5) : une tuile cliquée dans la barre rouvre le dernier onglet
-     visité sur cet appareil ; la première fois, l'onglet le plus utilisé (Inventaire → Usagé, Relance → Avis Google). */
+     visité sur cet appareil ; la première fois, l'onglet le plus utilisé (Inventaire → Occasion, Relance → Avis Google). */
   var ONGLET_DEFAUT = { inventaire: 'usage', relance: 'avis' };
   function ongletDeDepart(sec, onglets) {
     var veut = function (id) { return id ? onglets.filter(function (o) { return o.id === id; })[0] : null; };
@@ -965,10 +970,12 @@
     if (!r.section && AMX.accueil) { var dep = AMX.accueil.depart(); if (dep) { AMX.aller(dep.section, dep.onglet, r.params); return; } }
     // 9 oct. : Suggestions est devenu un onglet d'Aide ; l'ancienne adresse reste valable.
     if (r.section === 'suggestions' && !AMX.sections.suggestions && AMX.sections.aide) { AMX.aller('aide', 'suggestions', r.params); return; }
-    // 11 oct. : une seule section Inventaire (Neufs · Usagé). Anciennes adresses : #/neufs → #/inventaire/neufs ;
-    // #/inventaire/us|can|detail → #/inventaire/usage?registre=… (les trois registres sont des pastilles dans la page Usagé).
+    // 11 oct. : une seule section Inventaire (Neufs · Occasion). Anciennes adresses : #/neufs → #/inventaire/neufs ;
+    // #/inventaire/us|can|detail → #/inventaire/usage?registre=… (les trois registres sont des pastilles dans la page Occasion).
     if (r.section === 'neufs' && !AMX.sections.neufs && AMX.sections.inventaire) { AMX.aller('inventaire', 'neufs', r.params); return; }
     if (r.section === 'inventaire' && /^(us|can|detail)$/.test(r.onglet) && AMX.inventaire && AMX.inventaire.registres) { var pr = { registre: r.onglet }; Object.keys(r.params || {}).forEach(function (k) { pr[k] = r.params[k]; }); AMX.aller('inventaire', 'usage', pr); return; }
+    // 27 oct. : l'onglet « Import CARFAX » est retiré (l'API officielle de CARFAX lit les rapports) — l'ancienne adresse mène à Outils › Imports.
+    if (r.section === 'outils' && r.onglet === 'carfax') { AMX.aller('outils', 'imports'); return; }
     // 21 oct. : anciennes sections (offres, resultat, achat, avis, csi, admin…) et anciens onglets → leur tuile.
     var trad = AMX.traduire(r.section, r.onglet, r.params);
     if (trad) { AMX.aller(trad.section, trad.onglet, trad.params); return; }
@@ -1164,7 +1171,49 @@
     var cote = document.getElementById('cote');
     if (!AMX.ui2()) { if (cote) cote.remove(); return; }
     if (!cote) { cote = h('nav#cote.cote', { 'aria-label': 'Navigation principale' }); app.insertBefore(cote, app.firstChild); }
+    brancherCoteAuto(cote);
     majCote();
+  }
+
+  /* 26 oct. (Maxime : « le menu de gauche : cache-le quand on travaille la page principale et fais-le réapparaître quand
+     l'utilisateur envoie son curseur à gauche ») : en ui2, sur un ordinateur avec souris, la barre latérale est cachée et la
+     page prend toute la largeur ; le menu glisse quand le curseur touche le bord gauche de l'écran (bande #cote-bord), au
+     bouton ☰ de la barre du haut ou au clavier (Tab), et repart quand le curseur le quitte, après un clic dans la page ou
+     avec Échap. « Garder le menu affiché » (bas du menu) l'épingle comme avant (mémo cote_epingle, par appareil).
+     Sur tablette ou écran tactile (pas de survol), le menu reste affiché : tout est dans le CSS (hover: hover). */
+  var COTE_MEMO = 'cote_epingle', coteMinuterie = null;
+  function coteEpingle() { return AMX.memo.lire(COTE_MEMO, '') === '1'; }
+  function coteAuto() { var de = document.documentElement; de.classList.toggle('cote-auto', !!AMX.ui2() && !coteEpingle()); return de.classList.contains('cote-auto'); }
+  function coteMontrer() { var c = document.getElementById('cote'); if (!c) return; clearTimeout(coteMinuterie); c.classList.add('visible'); }
+  function coteCacher(delai) {
+    var c = document.getElementById('cote'); if (!c) return;
+    clearTimeout(coteMinuterie);
+    coteMinuterie = setTimeout(function () { if (!c.matches(':hover') && !c.contains(document.activeElement)) c.classList.remove('visible'); }, delai === undefined ? 350 : delai);
+  }
+  function brancherCoteAuto(cote) {
+    coteAuto();
+    var barre = document.getElementById('barre');
+    if (barre && !barre.querySelector('.cote-ouvrir')) {
+      barre.insertBefore(h('button.cote-ouvrir', { type: 'button', 'aria-label': 'Afficher le menu', title: 'Menu (ou amenez le curseur au bord gauche de l\'écran)',
+        html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+        onclick: function (e) { e.stopPropagation(); var c = document.getElementById('cote'); if (c && c.classList.contains('visible')) c.classList.remove('visible'); else coteMontrer(); } }), barre.firstChild);
+    }
+    if (cote._auto) return;
+    cote._auto = true;
+    var bord = document.getElementById('cote-bord');
+    if (!bord) { bord = h('div#cote-bord', { 'aria-hidden': 'true' }); document.body.appendChild(bord); }
+    bord.addEventListener('mouseenter', function () { if (coteAuto()) coteMontrer(); });
+    cote.addEventListener('mouseenter', function () { if (coteAuto()) coteMontrer(); });
+    cote.addEventListener('mouseleave', function () { if (coteAuto()) coteCacher(); });
+    cote.addEventListener('focusin', function () { if (coteAuto()) coteMontrer(); });
+    cote.addEventListener('focusout', function () { if (coteAuto()) coteCacher(0); });
+    // Un lien choisi : la page change, le menu repart tout de suite.
+    cote.addEventListener('click', function (e) {
+      if (!coteAuto() || !e.target.closest('a')) return;
+      setTimeout(function () { var a = document.activeElement; if (a && cote.contains(a) && a.blur) a.blur(); cote.classList.remove('visible'); }, 0);
+    });
+    document.addEventListener('mousedown', function (e) { if (coteAuto() && cote.classList.contains('visible') && !cote.contains(e.target) && !(e.target.closest && e.target.closest('.cote-ouvrir'))) cote.classList.remove('visible'); }, true);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && coteAuto() && cote.classList.contains('visible')) { cote.classList.remove('visible'); var a = document.activeElement; if (a && cote.contains(a) && a.blur) a.blur(); } });
   }
   function majCote() {
     var cote = document.getElementById('cote'); if (!cote || !AMX.ui2()) return;
@@ -1195,6 +1244,9 @@
     cote.appendChild(liste);
     cote.appendChild(h('div.cote-pied', [
       h('button.cote-palette', { type: 'button', onclick: function () { AMX.palette(); } }, [h('span', { html: ICONES.recherche }), h('span', 'Aller à…'), h('kbd', { text: /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘K' : 'Ctrl K' })]),
+      h('button.cote-epingle', { type: 'button', text: coteEpingle() ? 'Cacher le menu automatiquement' : 'Garder le menu affiché',
+        title: coteEpingle() ? 'Le menu se cache quand vous travaillez dans la page ; amenez le curseur au bord gauche pour le revoir.' : 'Le menu reste toujours visible à gauche.',
+        onclick: function () { AMX.memo.ecrire(COTE_MEMO, coteEpingle() ? '' : '1'); coteAuto(); var c = document.getElementById('cote'); if (c) c.classList.remove('visible'); majCote(); } }),
       h('button.cote-bascule', { type: 'button', text: 'Revenir à l\'ancienne interface', onclick: function () { AMX.basculerInterface(false); } })
     ]));
     cote.scrollTop = defile;
@@ -1204,7 +1256,11 @@
   AMX.menuActions = function (actions, opts) {
     opts = opts || {};
     var menu = h('div.menu-actions-liste', { role: 'menu', hidden: true });
-    var btn = h('button.btn.menu-actions-bouton', { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: opts.titre || 'Autres actions', 'aria-label': opts.titre || 'Autres actions', html: (ICONES.points || '…') + (opts.texte ? '<span>' + esc(opts.texte) + '</span>' : '') });
+    /* 27 oct. (Maxime : « plutôt que de mettre des … fais une pastille qui s'appelle Actions ») : une pastille nommée
+       « Actions » et une flèche, au lieu des trois points. `opts.texte` change le nom, `opts.petit` pour une ligne de liste. */
+    var nomMenu = opts.texte || 'Actions';
+    var btn = h('button.btn.menu-actions-bouton' + (opts.petit ? '.petit' : ''), { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: opts.titre || nomMenu, 'aria-label': opts.titre || nomMenu,
+      html: '<span>' + esc(nomMenu) + '</span><svg class="fleche-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' });
     var env = h('div.menu-actions', [btn, menu]);
     var dehors = function (e) { if (!env.contains(e.target)) fermer(); };
     var fermer = function () { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); };
@@ -1240,6 +1296,91 @@
     suivre();
     return env;
   };
+  /* 26 oct. — Maxime : « je veux le mode glisser et cliquer », « effacer plus d'un véhicule à la fois », « peu importe où je
+     les vois ». Mode « Sélectionner » d'une liste dont les lignes portent data-vin : un clic coche ou décoche une ligne, on
+     appuie et on glisse sur d'autres lignes pour les cocher d'un seul trait, Maj + clic coche tout l'intervalle (au doigt :
+     un toucher coche). Une barre en bas donne le nombre et les actions. La sélection (des NIV) survit aux redessins de la
+     liste (filtres, tri). o = { liste, selecteur ('.ligne'), tous: function () → NIV affichés, actions: [{ texte, icone,
+     danger, action: function (vins, vider) }] }. Renvoie { bouton, activer, quitter, actif, vins }. */
+  AMX.modeSelection = function (o) {
+    var sel = {}, actif = false, dernier = null, trait = null, obs = null, typePointeur = '';
+    var nb = function () { return Object.keys(sel).length; };
+    var lignes = function () { return Array.prototype.slice.call(o.liste.querySelectorAll(o.selecteur + '[data-vin]')); };
+    var elCompte = h('b'), elActions = h('div.barre-selection-actions');
+    var barre = h('div.barre-selection', { role: 'region', 'aria-label': 'Sélection' }, [h('div.barre-selection-compte', [elCompte]), elActions]);
+    var etiquette = h('span', { text: 'Sélectionner' });
+    var bouton = h('button.btn.bouton-selection', { type: 'button', title: 'Cocher plusieurs véhicules : cliquez, ou appuyez et glissez sur les lignes', onclick: function () { if (actif) quitter(); else activer(); } });
+    bouton.innerHTML = ICONES.check || ''; bouton.appendChild(etiquette);
+    function compte() {
+      var n = nb();
+      elCompte.textContent = n ? n + ' véhicule' + (n > 1 ? 's' : '') + ' sélectionné' + (n > 1 ? 's' : '') : 'Cliquez ou glissez sur les lignes pour les cocher';
+      elActions.querySelectorAll('[data-action]').forEach(function (b) { b.disabled = !n; var c = b.querySelector('.n'); if (c) c.textContent = n ? ' (' + n + ')' : ''; });
+    }
+    function appliquer() {
+      lignes().forEach(function (l) { l.classList.toggle('choisie', !!sel[l.dataset.vin]); });
+      AMX.vider(elActions);
+      var tous = (o.tous ? o.tous() : lignes().map(function (l) { return l.dataset.vin; })).filter(Boolean);
+      var tousCoches = tous.length > 0 && tous.every(function (v) { return sel[v]; });
+      elActions.appendChild(h('button.btn', { type: 'button', text: tousCoches ? 'Tout décocher' : 'Tout sélectionner (' + tous.length + ')', onclick: function () { if (tousCoches) sel = {}; else tous.forEach(function (v) { sel[v] = true; }); appliquer(); } }));
+      (o.actions || []).filter(Boolean).forEach(function (a, i) {
+        var b = h('button.btn' + (a.danger ? '.danger' : '.primaire'), { type: 'button', 'data-action': String(i), onclick: function () { a.action(Object.keys(sel), function () { sel = {}; appliquer(); }); } });
+        b.innerHTML = a.icone || ''; b.appendChild(h('span', { text: a.texte })); b.appendChild(h('span.n'));
+        elActions.appendChild(b);
+      });
+      elActions.appendChild(h('button.btn.fantome', { type: 'button', text: 'Terminer', onclick: quitter }));
+      compte();
+    }
+    function ligneDe(e) { var l = e.target && e.target.closest ? e.target.closest(o.selecteur + '[data-vin]') : null; return l && o.liste.contains(l) ? l : null; }
+    function poser(l, etat) { if (etat) sel[l.dataset.vin] = true; else delete sel[l.dataset.vin]; l.classList.toggle('choisie', etat); }
+    // `dernier` est un NIV (la liste peut s'être redessinée entre deux clics).
+    function intervalle(vinA, b) { var l = lignes(), i = -1, j = l.indexOf(b); l.forEach(function (x, k) { if (x.dataset.vin === vinA) i = k; }); if (i < 0 || j < 0) return [b]; return l.slice(Math.min(i, j), Math.max(i, j) + 1); }
+    var surDown = function (e) {
+      typePointeur = e.pointerType || 'mouse';
+      if (!actif || typePointeur === 'touch' || e.button !== 0) return;      // au doigt : le toucher (click) coche, le glisser fait défiler
+      var l = ligneDe(e); if (!l || e.target.closest('input, select, textarea')) return;   // un lien de la ligne coche aussi (pas de départ de la page)
+      e.preventDefault();
+      if (e.shiftKey && dernier) intervalle(dernier, l).forEach(function (x) { poser(x, true); });
+      else { var etat = !sel[l.dataset.vin]; poser(l, etat); trait = { etat: etat }; }
+      dernier = l.dataset.vin; compte();
+    };
+    var surOver = function (e) { if (!actif || !trait) return; var l = ligneDe(e); if (!l) return; poser(l, trait.etat); dernier = l.dataset.vin; compte(); };
+    var surUp = function () { if (trait) { trait = null; appliquer(); } };
+    var surClic = function (e) {
+      if (!actif) return; var l = ligneDe(e); if (!l || e.target.closest('input, select, textarea')) return;
+      e.preventDefault(); e.stopPropagation();
+      if (typePointeur === 'touch' || e.detail === 0) { poser(l, !sel[l.dataset.vin]); dernier = l.dataset.vin; appliquer(); }   // doigt ou clavier
+    };
+    var surTouche = function (e) { if (actif && e.key === 'Escape' && !document.querySelector('.voile')) quitter(); };
+    function activer() {
+      if (actif) return;
+      actif = true; sel = {}; dernier = null; trait = null;
+      o.liste.classList.add('mode-selection'); bouton.classList.add('actif'); etiquette.textContent = 'Terminer la sélection';
+      o.liste.addEventListener('pointerdown', surDown, true);
+      o.liste.addEventListener('pointerover', surOver, true);
+      o.liste.addEventListener('click', surClic, true);
+      document.addEventListener('pointerup', surUp, true);
+      document.addEventListener('keydown', surTouche);
+      obs = new MutationObserver(function () { if (actif) appliquer(); });
+      obs.observe(o.liste, { childList: true, subtree: true });
+      document.body.appendChild(barre); document.body.classList.add('avec-barre-selection');
+      appliquer();
+    }
+    function quitter() {
+      if (!actif) return;
+      actif = false; trait = null; sel = {};
+      if (obs) obs.disconnect(); obs = null;
+      o.liste.removeEventListener('pointerdown', surDown, true);
+      o.liste.removeEventListener('pointerover', surOver, true);
+      o.liste.removeEventListener('click', surClic, true);
+      document.removeEventListener('pointerup', surUp, true);
+      document.removeEventListener('keydown', surTouche);
+      o.liste.classList.remove('mode-selection'); bouton.classList.remove('actif'); etiquette.textContent = 'Sélectionner';
+      lignes().forEach(function (l) { l.classList.remove('choisie'); });
+      if (barre.parentNode) barre.parentNode.removeChild(barre);
+      document.body.classList.remove('avec-barre-selection');
+    }
+    return { bouton: bouton, activer: activer, quitter: quitter, actif: function () { return actif; }, vins: function () { return Object.keys(sel); } };
+  };
   /* v135 : en ui2, seuls `garder` restent visibles dans l'en-tête ; les autres boutons de `liste` descendent dans « … » (ce
      sont toujours les mêmes boutons). Hors ui2, `liste` telle quelle. */
   AMX.actionsEntete = function (liste, garder) {
@@ -1266,6 +1407,7 @@
       voit('achat') && { t: 'Nouvelle fiche d\'achat', ic: 'achat', href: AMX.lien('achat', '') },
       voit('ventes') && AMX.ventes && AMX.ventes.peutDeclarer && AMX.ventes.peutDeclarer() && { t: 'Inscrire une vente', ic: 'vente', href: AMX.lien('ventes', 'liste', { nouvelle: Date.now() }) },
       voit('service') && { t: 'Nouveau rendez-vous', ic: 'service', href: AMX.lien('service', 'rendezvous', { nouveau: 1 }) },
+      voit('demandesEval') && { t: 'Demander une évaluation', ic: 'outils', href: AMX.lien('demandesEval', '', { nouvelle: Date.now() }) },
       voit('aide') && { t: 'Écrire une suggestion', ic: 'suggestions', href: AMX.lien('aide', 'suggestions') },
       { t: 'Revenir à l\'ancienne interface', ic: 'rafraichir', faire: function () { AMX.basculerInterface(false); } }
     ];
@@ -1494,7 +1636,89 @@
       return null;
     },
     nomFeuille: function (f) { return { US: 'É.-U.', CAN: 'Canada', DETAIL: 'Detail' }[f] || f; },
-    vider: function () { FEUILLES.forEach(function (f) { cache[f] = null; }); cache.quand = {}; AMX.cacheLocal.oublier('registres'); }
+    vider: function () { FEUILLES.forEach(function (f) { cache[f] = null; }); cache.quand = {}; AMX.cacheLocal.oublier('registres'); },
+    // 26 oct. : retirer des NIV de la liste en mémoire (après une suppression) sans relire le serveur.
+    retirer: function (feuille, vins) {
+      var k = {}; (vins || []).forEach(function (v) { k[String(v).toUpperCase()] = true; });
+      if (cache[feuille]) { poserFeuille(feuille, cache[feuille].filter(function (v) { return !k[String(v.vin).toUpperCase()]; })); sauverRegistres(); }
+    }
+  };
+  /* 26 oct. — Maxime : « je dois pouvoir effacer des inventaires peu importe où je les vois », « plus d'un véhicule à la
+     fois ». Une seule suppression pour toutes les pages (Occasion, Analyse occasion, Prix du marché, Suivi service) : le registre
+     de chaque NIV est retrouvé en mémoire, une confirmation (taper SUPPRIMER), puis deleteByVinBulk par registre (droit
+     « Supprimer »). La liste en mémoire est mise à jour (événement amx:inventaire) : chaque page le retire tout de suite.
+     opts.feuille = registre par défaut d'un NIV absent de la mémoire. Renvoie la liste des NIV supprimés (null si annulé). */
+  /* 26 oct. : les occasions effacées à la main que le DMS et D2C ne rajoutent plus (Supprimes.gs) — liste et « Laisser revenir ». */
+  AMX.inventaire.effaces = function () {
+    var corps = h('div', [h('p.doux', { text: 'Lecture…' })]);
+    var m = AMX.modale({ titre: 'Occasions effacées', corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer' }] });
+    var dessiner = function (r) {
+      AMX.vider(corps);
+      corps.appendChild(h('p.doux.petit', { style: { marginTop: 0 }, text: 'Une occasion effacée du registre n\'est pas rajouté par la relecture du DMS, de la Synchro ou de D2C pendant ' + (r.jours || 365) + ' jours. Il revient seulement sous un nouveau # stock (repris plus tard en échange) ou si on l\'ajoute à la main.' }));
+      if (!r.supprimes.length) { corps.appendChild(h('p', { text: 'Aucune occasion effacée pour l\'instant.' })); return; }
+      var tb = h('tbody');
+      r.supprimes.forEach(function (x) {
+        var lever = r.peutLever ? h('button.btn.petit', { type: 'button', text: 'Laisser revenir', onclick: function () {
+          lever.classList.add('occupe');
+          AMX.post({ action: 'usageSupprimeLever', vin: x.vin }).then(function (y) { if (!y || y.refuse || y.ok === false) throw new Error((y && y.erreur) || 'Refusé'); AMX.toast(y.message || 'Fait', 'ok', 6000); charger(); }, function (e) { lever.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+        } }) : null;
+        tb.appendChild(h('tr', [
+          h('td', [h('b', { text: x.modele || '—' }), h('span.sous.mono', { style: { display: 'block' }, text: x.vin + (x.stock ? ' · #' + x.stock : '') })]),
+          h('td', { text: ((AMX.COMPAGNIES_TOUTES || {})[x.compagnie] || x.compagnie || '—') + (x.registre ? ' · ' + (AMX.inventaire.nomFeuille ? AMX.inventaire.nomFeuille(x.registre) : x.registre) : '') }),
+          h('td', [h('span', { text: AMX.fmtDate(x.le, true) }), h('span.sous', { style: { display: 'block' }, text: x.par || '' })]),
+          h('td', { text: x.revu ? 'Proposé de nouveau par ' + x.revuPar + ' le ' + AMX.fmtDateCourte(String(x.revu).slice(0, 10)) : '—' }),
+          h('td', [lever])
+        ]));
+      });
+      corps.appendChild(h('div', { style: { overflowX: 'auto' } }, [h('table.tableau', [h('thead', [h('tr', ['Véhicule', 'Concession', 'Effacé le', 'Depuis', ''].map(function (t) { return h('th', { text: t }); }))]), tb])]));
+    };
+    var charger = function () {
+      AMX.get({ usagesSupprimes: 1 }, { secours: false }).then(function (r) {
+        if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Refusé');
+        if (!Array.isArray(r.supprimes)) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (Supprimes.gs).');
+        dessiner(r);
+      }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('p', { text: AMX.erreurTexte(e) })); });
+    };
+    charger();
+    return m;
+  };
+  AMX.inventaire.supprimer = function (vins, opts) {
+    opts = opts || {};
+    if (!AMX.perm('supprimer')) { AMX.toast('Supprimer des véhicules demande le droit « Supprimer » (Admin › Droits).', 'attention', 7000); return Promise.resolve(null); }
+    var par = {}, liste = [], vus = {};
+    (vins || []).forEach(function (vin) {
+      var k = String(vin || '').toUpperCase(); if (!k || vus[k]) return; vus[k] = true;
+      var v = AMX.inventaire.parVin(k), f = (v && v._feuille) || opts.feuille || '';
+      if (!f) return;
+      (par[f] = par[f] || []).push(k); liste.push(v || { vin: k });
+    });
+    if (!liste.length) { AMX.toast('Aucun de ces véhicules n\'est au registre (déjà supprimés ?).', 'attention'); return Promise.resolve(null); }
+    var n = liste.length;
+    var noms = liste.slice(0, 6).map(function (v) { return (v.modele || v.vin) + (v.stock ? ' (# ' + v.stock + ')' : ''); }).join(' · ') + (n > 6 ? ' · et ' + (n - 6) + ' autre' + (n - 6 > 1 ? 's' : '') : '');
+    var titre = n > 1 ? 'Supprimer ' + n + ' véhicules' : 'Supprimer le véhicule';
+    var message = noms + '. Retiré' + (n > 1 ? 's' : '') + ' du registre pour de bon — et donc de l\'analyse, du prix du marché et du suivi service. La relecture du DMS ou de D2C ne ' + (n > 1 ? 'les' : 'le') + ' rajoutera pas (sauf sous un nouveau # stock). Tapez SUPPRIMER pour confirmer.';
+    return AMX.confirmerSaisie(titre, message, 'SUPPRIMER', { ok: n > 1 ? 'Supprimer les ' + n : 'Supprimer', danger: true }).then(function (ok) {
+      if (!ok) return null;
+      var feuilles = Object.keys(par), faits = [], refus = [], introuvables = [];
+      var suite = Promise.resolve();
+      feuilles.forEach(function (f) {
+        suite = suite.then(function () {
+          return AMX.post({ action: 'deleteByVinBulk', sheet: f, vins: par[f] }, { secours: false }).then(function (d) {
+            if (!d || d.refuse || d.ok === false) { refus.push((d && (d.erreur || d.message)) || 'refusé'); return; }
+            var absents = d.notFound || [];
+            introuvables = introuvables.concat(absents);
+            if (Array.isArray(d.vehicules)) AMX.inventaire.remplacer(f, d.vehicules); else AMX.inventaire.retirer(f, par[f]);
+            faits = faits.concat(par[f].filter(function (v) { return absents.indexOf(v) < 0; }));
+          });
+        });
+      });
+      return suite.then(function () {
+        if (refus.length) AMX.toast('Suppression refusée : ' + refus[0], 'erreur', 8000);
+        if (faits.length) AMX.toast(faits.length + ' véhicule' + (faits.length > 1 ? 's' : '') + ' supprimé' + (faits.length > 1 ? 's' : '') + (introuvables.length ? ' · ' + introuvables.length + ' déjà absent' + (introuvables.length > 1 ? 's' : '') : ''), 'ok');
+        try { document.dispatchEvent(new CustomEvent('amx:supprimes', { detail: { vins: faits } })); } catch (e) {}
+        return faits;
+      }, function (e) { AMX.toast('Suppression : ' + AMX.erreurTexte(e) + ' — rechargez la page pour voir ce qui a été fait.', 'erreur', 9000); return null; });
+    });
   };
 
   /* ------------------------- Fiche d'achat (lecture) ---------------------- */
@@ -1572,7 +1796,7 @@
   // tirés du compte concessionnaire. Cache partagé par les sections.
   var carfaxCache = null, carfaxPromesse = null;
   AMX.carfax = {
-    valide: function (lien) { var l = String(lien || '').trim(); return /^https:\/\/vhr\.carfax\.ca\/(?:main)?\?id=[^\s&]+/i.test(l) ? l : ''; },
+    valide: function (lien) { var l = String(lien || '').trim(); return /^https:\/\/vhr\.carfax\.ca\/(?:[a-z]{2}\/)?(?:main)?\?id=[^\s&]+/i.test(l) ? l : ''; },
     charger: function (force) {
       if (!force && carfaxCache) return Promise.resolve(carfaxCache);
       if (carfaxPromesse) return carfaxPromesse;
@@ -1698,7 +1922,7 @@
   // Liste verticale dans le rail (une ligne par concession : pastille, nom complet,
   // compte). Remplace le segment horizontal où 2 concessions sur 5 débordaient du
   // rail (248 px) et restaient cachées. null quand le compte n'a qu'une concession.
-  // 16 oct. (Maxime : « le choix des concessions pour le neuf et l'usagé est différent — rends le site uniforme ») :
+  // 16 oct. (Maxime : « le choix des concessions pour le neuf et les occasions est différent — rends le site uniforme ») :
   // UNE présentation partout, la rangée de pastilles (.barre) sous l'en-tête de la page ; opts.vertical garde la
   // liste du rail ; opts.sous(code) ajoute une petite ligne de chiffres sous le nom (Torque, eBlock, OpenLane, Registre) ;
   // opts.garder === false : le clic ne change pas la concession du site (filtre local).
@@ -1736,7 +1960,7 @@
     conteneur.classList.toggle('sans-choix', !choix && !extra.length);
     return choix;
   };
-  /* v138 — la même recherche partout (Usagé, Neufs, Suivi service, Livre des ventes, recherche du haut). Maxime, 23 oct. :
+  /* v138 — la même recherche partout (Occasion, Neufs, Suivi service, Livre des ventes, recherche du haut). Maxime, 23 oct. :
      « les recherches de stock dans inventaire ne fonctionnent pas, j'ai fait des tests avec Série 3 2015 » — l'export du DMS
      BMW écrit « BMW SERIE 3 2015 » sans accent (d'autres « 3 Series », « 328i xDrive »), et les pages cherchaient le texte
      tapé tel quel. Maintenant : accents, majuscules et ponctuation ignorés, chaque mot doit se trouver mais dans n'importe

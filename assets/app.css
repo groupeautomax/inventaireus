@@ -508,6 +508,20 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 @keyframes defile { from { background-position: 0 0; } to { background-position: -12px 0; } }
 @keyframes reflet { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .amx-chargeur-anneau, .amx-chargeur-auto, .amx-chargeur-route, .amx-chargeur-marque b { animation: none; } }
+/* Rafraîchissement après un changement de menu (AMX.patienter) : page estompée, icône Automax au centre ;
+   après 8 s (.long), la page redevient lisible et l'icône passe en petit en haut. */
+#vue { transition: opacity .18s ease; }
+#vue.amx-maj-vue { opacity: .42; }
+.amx-maj { position: fixed; top: 34vh; transform: translateX(-50%); z-index: 65; background: var(--carte, #fff); border: 1px solid var(--ligne); border-radius: 16px; box-shadow: var(--ombre-2, 0 10px 30px rgba(0,0,0,.18)); min-width: 220px; animation: fondu .15s ease-out; pointer-events: none; }
+.amx-maj .amx-chargeur { padding: 16px 22px 18px; }
+.amx-maj.long { top: calc(var(--barre-h, 56px) + 10px); min-width: 0; border-radius: 999px; }
+.amx-maj.long .amx-chargeur { flex-direction: row; gap: 10px; padding: 6px 16px 6px 8px; }
+.amx-maj.long .amx-chargeur-roue { width: 30px; height: 30px; margin: 0; }
+.amx-maj.long .amx-chargeur-roue::before { border-width: 3px; }
+.amx-maj.long .amx-chargeur-anneau { -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); }
+.amx-maj.long .amx-chargeur-auto, .amx-maj.long .amx-chargeur-route, .amx-maj.long .amx-chargeur-marque, .amx-maj.long .amx-chargeur-phrase { display: none; }
+.amx-maj.long .amx-chargeur-libelle { margin: 0; font-size: 12.5px; color: var(--encre-2); }
+@media print { .amx-maj { display: none; } #vue.amx-maj-vue { opacity: 1; } }
 .spin { width: 14px; height: 14px; border: 2px solid var(--ligne-forte); border-top-color: var(--vert); border-radius: 50%; animation: tourne .8s linear infinite; display: inline-block; }
 @keyframes tourne { to { transform: rotate(360deg); } }
 .alerte-bloc { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--rayon-s); font-size: 12.5px; border: 1px solid; }

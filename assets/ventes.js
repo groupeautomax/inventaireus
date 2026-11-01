@@ -459,7 +459,7 @@
     if (this[cle] && Date.now() - this[cle] < 60000) return;
     this[cle] = Date.now();
     var q = { ventes: 1, mois: 'avenir' }; if (cie) q.compagnie = cie;
-    AMX.get(q, { secours: false, gz: true }).then(function (d) {
+    AMX.get(q, { secours: false, gz: true, discret: true }).then(function (d) {   // compteur « À livrer plus tard » : lecture de fond
       if (!d || !Array.isArray(d.ventes)) return;
       var n = d.ventes.filter(function (v) { return v.statut !== 'annulee'; }).length;
       if (self.avenir[cie] !== n) { self.avenir[cie] = n; if (self.vue !== 'recap') self.rendreCies(); }

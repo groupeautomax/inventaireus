@@ -383,6 +383,71 @@
   }
   function attendre(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
+  // Rafraîchissement visible (Maxime, 1er nov. : « quand on change quelque chose dans un menu, comme le
+  // livre des ventes de novembre à octobre, fais apparaître l'icône Automax qui tourne et rafraîchit les
+  // données — c'est un principe qui doit être partout »). Un geste sur un menu (liste déroulante, case,
+  // pastille de concession, segment, onglet, élément du menu Actions, bouton d'en-tête) suivi d'une
+  // lecture au serveur (AMX.get) dans les GESTE_MS : la page s'estompe et l'icône Automax tourne au
+  // centre jusqu'à la réponse. Rien si la réponse arrive en moins de 150 ms ou si la page montre déjà
+  // son propre chargeur. Après 8 s, la page redevient lisible (sa copie reste affichée) et l'icône passe
+  // en petit en haut. AMX.get(…, { discret: true }) = lecture de fond, jamais montrée ;
+  // { attente: true } = toujours montrée ; AMX.patienter(promesse) pour tout le reste.
+  var GESTE_MS = 700, dernierGeste = 0;
+  var MENU_SEL = 'select, input[type=radio], input[type=checkbox], input[type=date], input[type=month], [role=menuitem], [role=tab], [aria-pressed], .segment button, .choix-cie button, .barre-cies button, .inv2-statuts button, .entete-page button';
+  function gesteMenu(cible) {
+    if (!cible || !cible.closest) return false;
+    if (cible.closest('.voile, #maxai-panneau')) return false;   // une fenêtre ouverte ou Einstein : pas la page derrière
+    return !!cible.closest(MENU_SEL);
+  }
+  document.addEventListener('change', function (e) { if (gesteMenu(e.target)) dernierGeste = Date.now(); }, true);
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.closest && t.closest('button, a, [role=menuitem], [role=tab]') && gesteMenu(t)) dernierGeste = Date.now();
+  }, true);
+  var MAJ = { n: 0, carte: null, montreLe: 0, tMontrer: null, tLong: null, tCacher: null };
+  function montrerMaj() {
+    MAJ.tMontrer = null;
+    if (!MAJ.n || MAJ.carte) return;
+    var vue = document.getElementById('vue'); if (!vue) return;
+    var deja = vue.querySelector('.amx-chargeur');
+    if (deja && deja.offsetParent !== null) return;   // premier chargement : la page a déjà son grand chargeur
+    var r = vue.getBoundingClientRect();
+    var carte = h('div.amx-maj', [AMX.chargeur('Mise à jour des données', { compact: true })]);
+    carte.style.left = Math.round(r.left + r.width / 2) + 'px';
+    document.body.appendChild(carte);
+    vue.classList.add('amx-maj-vue');
+    MAJ.carte = carte; MAJ.montreLe = Date.now();
+    MAJ.tLong = setTimeout(function () {
+      MAJ.tLong = null;
+      if (!MAJ.carte) return;
+      MAJ.carte.classList.add('long');
+      var v = document.getElementById('vue'); if (v) v.classList.remove('amx-maj-vue');
+    }, 8000);
+  }
+  function retirerMaj() {
+    if (MAJ.n) return;
+    if (MAJ.tLong) { clearTimeout(MAJ.tLong); MAJ.tLong = null; }
+    if (MAJ.carte && MAJ.carte.parentNode) MAJ.carte.parentNode.removeChild(MAJ.carte);
+    MAJ.carte = null;
+    var v = document.getElementById('vue'); if (v) v.classList.remove('amx-maj-vue');
+  }
+  function cacherMaj() {
+    if (MAJ.tMontrer) { clearTimeout(MAJ.tMontrer); MAJ.tMontrer = null; }
+    if (!MAJ.carte) return;
+    if (MAJ.tCacher) clearTimeout(MAJ.tCacher);
+    MAJ.tCacher = setTimeout(function () { MAJ.tCacher = null; retirerMaj(); }, Math.max(0, 450 - (Date.now() - MAJ.montreLe)));   // au moins 450 ms : pas d'éclair
+  }
+  AMX.patienter = function (p) {
+    MAJ.n++;
+    if (MAJ.tCacher) { clearTimeout(MAJ.tCacher); MAJ.tCacher = null; }
+    if (!MAJ.carte && !MAJ.tMontrer) MAJ.tMontrer = setTimeout(montrerMaj, 150);
+    // Retiré au tour suivant : la page a d'abord le temps de se redessiner avec les nouvelles données.
+    var fin = function () { setTimeout(function () { MAJ.n = Math.max(0, MAJ.n - 1); if (!MAJ.n) cacherMaj(); }, 0); };
+    Promise.resolve(p).then(fin, fin);
+    return p;
+  };
+  AMX.gesteMenuRecent = function () { return Date.now() - dernierGeste < GESTE_MS; };
+
   // Déconnexions intempestives (Maxime, 7 oct. : « les utilisateurs se font déconnecter à tout
   // bout de champ, il faut que ça arrête »). Diagnostic côté serveur : aucun jeton expiré ni
   // révoqué, mais des reconnexions à 1–3 minutes d'intervalle — juste après la connexion, Google
@@ -469,6 +534,7 @@
     var q = typeof params === 'string' ? params : Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
     var base = URL_BACKEND + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton));
     enCours++; majEtat(false);
+    var montrer = !opts.discret && (opts.attente || AMX.gesteMenuRecent());
     var lent = AMX.reseau.estLent(), courrielReq = AMX.session.courriel;
     // Nombre de requêtes HTTP au plus : au calme 3 (première, secours, une relance) ; Google lent : 2 (patiente + une relance).
     var essais = opts.essais === undefined ? (lent ? 2 : 3) : opts.essais;
@@ -521,12 +587,13 @@
       // (mesuré le 16 oct. : les deux restaient 90 s) et doublait la charge.
       if (!lent && opts.secours !== false) secours = setTimeout(function () { if (!fini && !AMX.reseau.estLent()) lancer(); }, opts.secours || D.secours);
     });
-    return course.then(function (d) {
+    var promesse = course.then(function (d) {
       enCours--; majEtat(false);
       if (refusJeton(d)) return surRefusJeton(function () { return AMX.get(params, Object.assign({}, opts, { rejoue: true })); }, opts.rejoue);
       if (opts.copie && d && !d.refuse && d.ok !== false && courrielReq && AMX.session.courriel === courrielReq && lire(CLE.jeton)) AMX.cacheLocal.ecrireGz(opts.copie, d);   // dernière bonne réponse, pour s'afficher d'un coup la prochaine fois — jamais après une déconnexion
       return d;
     }, function (err) { enCours--; majEtat(true); throw err; });
+    return montrer ? AMX.patienter(promesse) : promesse;
   };
   // POST : jamais rejoué par défaut (une écriture dédoublée coûte plus cher
   // qu'un échec). `opts.rejouer` : pour une action idempotente (modifier ou

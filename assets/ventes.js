@@ -620,7 +620,7 @@
     var segType = h('div.segment#ventes-types', TYPES_VENTE.map(function (t) { var b = h('span.n', { text: '0' }); self.nbType[t[0]] = b; return h('button' + (self.filtres.type === t[0] ? '.actif' : ''), { type: 'button', 'data-type': t[0], 'aria-pressed': self.filtres.type === t[0] ? 'true' : 'false', onclick: function () { self.filtres.type = t[0]; self.rendre(); } }, [t[1], b]); }));
     if (ui2) {
       // Recherche, puis l'état de la vente en pastilles (avec leur nombre), puis le type.
-      var pas = h('div.inv2-statuts', { role: 'group', 'aria-label': 'État de la vente' }, ETATS_VENTE.map(function (e) {
+      var pas = h('div.inv2-statuts', { role: 'group', 'aria-label': 'État de la vente' }, ETATS_VENTE.filter(function (e) { return !(e[0] === 'declaree' && self.filtres.type === 'wholesale' && self.filtres.etat !== 'declaree'); }).map(function (e) {
         var actif = (self.filtres.etat || '') === e[0], b = h('b', { text: '0' }); self.nbEtat[e[0]] = b;
         return h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'data-etat': e[0], 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres.etat = e[0]; self.rendre(); } }, [h('span', { text: e[1] }), b]);
       }));
@@ -647,7 +647,7 @@
       effacer: function () { self.filtres = { etat: '', type: '', drapeau: '', recherche: '' }; self.rendre(); } });
   };
   VueVentes.prototype.rendreKpis = function () {
-    var self = this, d = cache.rep, ui2 = AMX.ui2 && AMX.ui2(), c = this.nbCompte || this.compteurs();
+    var self = this, d = cache.rep, ui2 = AMX.ui2 && AMX.ui2(), c = this.nbCompte || this.compteurs(), sansFI = this.filtres.type === 'wholesale';
     AMX.vider(this.elKpis);
     if (!d) return;
     var kpi = function (etat, libelle, valeur, cls) {
@@ -656,7 +656,7 @@
     };
     /* v133 : en ui2, les états sont des pastilles dans la barre de filtres ; ici, l'ancienne interface garde ses tuiles. */
     if (!ui2) {
-      this.elKpis.appendChild(kpi('declaree', 'Attente F&I', c.etat.declaree, c.etat.declaree ? 'alerte' : ''));
+      if (!sansFI) this.elKpis.appendChild(kpi('declaree', 'Attente F&I', c.etat.declaree, c.etat.declaree ? 'alerte' : ''));
       this.elKpis.appendChild(kpi('completee', 'Au livre', c.etat.completee, ''));
       this.elKpis.appendChild(kpi('comptabilisee', 'Comptabilisées', c.etat.comptabilisee, ''));
       this.elKpis.appendChild(kpi('annulee', 'Annulées', c.etat.annulee, ''));
@@ -681,8 +681,8 @@
       var carteMoy = h('div.kpi.neutre.ventes-comp.ventes-moy#ventes-kpi-moyennes', { title: nAnnulees ? nAnnulees + ' vente(s) annulée(s) exclue(s) des montants' : '' }, [h('div.titre', { text: titreMoy }),
         h('table.ventes-moy-table', [
           h('thead', [h('tr', [h('th', { text: '' }), h('th.num', { text: 'Estimé' }), h('th.num', { text: 'Comptable' }), h('th.num', { text: 'Écart' })])]),
-          h('tbody', [rangee('Front', cp.front), rangee('F&I', cp.fi), rangee('Total', cp, '.total'),
-            prixMoy !== null ? h('tr.prix', [h('th', { scope: 'row', text: 'Prix' }), cellule(prixMoy, prixL.length), h('td.num.doux', { colspan: '2', text: 'sur ' + prixL.length + ' prix' })]) : null])
+          h('tbody', (sansFI ? [rangee('Profit', cp.front, '.total')] : [rangee('Front', cp.front), rangee('F&I', cp.fi), rangee('Total', cp, '.total')]).concat([   /* 1er nov. (Maxime) : pas de F&I en wholesale */
+            prixMoy !== null ? h('tr.prix', [h('th', { scope: 'row', text: 'Prix' }), cellule(prixMoy, prixL.length), h('td.num.doux', { colspan: '2', text: 'sur ' + prixL.length + ' prix' })]) : null]))
         ])]);
       this.elKpis.insertBefore(carteMoy, this.elKpis.firstChild);
       /* 26 oct. : les ajustements imputés à la période s'ajoutent au comptable (le profit balance avec les résultats du mois). */
@@ -692,8 +692,8 @@
         return h('div.cmp-aj', [h('div.cmp-ligne', { title: 'Entrées hors vente imputées à la période : ajustements, renversements, F&I après-vente, ventes à un concessionnaire' }, [h('span.l', { text: 'Hors vente' }), h('span.v' + classeEcart(montant), { text: signe(montant) }), h('span.n', { text: String(sa.n) })]),
           h('div.cmp-ligne.total', { title: 'Comptable + hors vente' }, [h('span.l', { text: 'Avec hors vente' }), h('span.v', { text: argent(Math.round((compta + montant) * 100) / 100) }), h('span.n', { text: n ? String(n) : '' })])]);
       };
-      this.elKpis.appendChild(carteComparaison('ventes-kpi-front', 'Front (voiture)', cp.front, extraAj(sa.front, cp.front.comptable, cp.front.nComptable)));
-      this.elKpis.appendChild(carteComparaison('ventes-kpi-fi', 'F&I', cp.fi, extraAj(sa.fi, cp.fi.comptable, cp.fi.nComptable)));
+      this.elKpis.appendChild(carteComparaison('ventes-kpi-front', sansFI ? 'Profit' : 'Front (voiture)', cp.front, extraAj(sa.front, cp.front.comptable, cp.front.nComptable)));
+      if (!sansFI) this.elKpis.appendChild(carteComparaison('ventes-kpi-fi', 'F&I', cp.fi, extraAj(sa.fi, cp.fi.comptable, cp.fi.nComptable)));
     }
     /* 28 oct. : les unités hors vente (renversement −1, vente à un concessionnaire +1) — pour balancer avec les résultats du mois. */
     var hv = this.ajustementsVisibles(), shv = sommeAj(hv);
@@ -702,7 +702,7 @@
       this.elKpis.appendChild(h('div.kpi.neutre#ventes-kpi-hors', { title: resumeHors(hv, !!d.montants) }, [h('div.valeur', { text: String(nVentes + shv.u) }), h('div.libelle', { text: 'Unités nettes' }),
         h('div.sous', { text: pluriel(nVentes, 'vente') + (shv.u ? ' ' + (shv.u > 0 ? '+ ' : '− ') + pluriel(Math.abs(shv.u), 'unité') + ' hors vente' : '') + ' · ' + pluriel(shv.n, 'entrée') + ' hors vente' })]));
     }
-    this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', c.etat.sansFI, c.etat.sansFI ? 'alerte' : ''));
+    if (!sansFI) this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', c.etat.sansFI, c.etat.sansFI ? 'alerte' : ''));
     /* 26 oct. : compteur des RDR du mois (Date RDR du livre) */
     if (this.moisRdr() && d.rdr) {
       var tuileRdr = kpi('rdr', 'RDR — ' + moisLibelle(this.moisRdr()), c.etat.rdr, '');
@@ -805,12 +805,15 @@
         AMX.ventes.peutDeclarer() ? h('button.btn.primaire', { type: 'button', style: { marginTop: '10px' }, onclick: function () { AMX.ventes.declarer({ compagnie: self.compagnie }); } }, [AMX.svg('plus'), ' Inscrire une vente']) : null])]));
       return;
     }
-    var colonnes = 9 + (montants ? 7 : 0), rs = montants ? { rowspan: '2' } : {};
+    /* 1er nov. (Maxime : « quand on fait le profit wholesale dans le livre des ventes, enlever les sections F&I ») : la liste
+       filtrée sur le wholesale n'a ni Dir. F&I ni colonnes F&I. */
+    var sansFI = this.filtres.type === 'wholesale';
+    var colonnes = (sansFI ? 8 : 9) + (montants ? (sansFI ? 4 : 7) : 0), rs = montants ? { rowspan: '2' } : {};
     var thR = function (t, extra) { return h('th', Object.assign({ text: t }, rs, extra || {})); };
-    var entete = h('tr', [thR('Livraison', { title: 'Les ventes sont rangées dans le mois de leur livraison (date de vente quand il n\'y a pas de date de livraison)' }), thR('Véhicule'), thR('Client'), thR('Type'), thR('Conseiller'), thR('Dir. F&I')]
-      .concat(montants ? [h('th.num', Object.assign({ text: 'Prix' }, rs)), h('th.groupe-col.debut-groupe', { colspan: '3', text: 'Front (voiture)' }), h('th.groupe-col.debut-groupe', { colspan: '3', text: 'F&I' })] : [])
+    var entete = h('tr', [thR('Livraison', { title: 'Les ventes sont rangées dans le mois de leur livraison (date de vente quand il n\'y a pas de date de livraison)' }), thR('Véhicule'), thR('Client'), thR('Type'), thR('Conseiller'), sansFI ? null : thR('Dir. F&I')].filter(Boolean)
+      .concat(montants ? [h('th.num', Object.assign({ text: 'Prix' }, rs)), h('th.groupe-col.debut-groupe', { colspan: '3', text: sansFI ? 'Profit' : 'Front (voiture)' }), sansFI ? null : h('th.groupe-col.debut-groupe', { colspan: '3', text: 'F&I' })].filter(Boolean) : [])
       .concat([thR('Livre'), thR('État'), thR('')]));
-    var entete2 = montants ? h('tr', ['Estimé', 'Comptable', 'Écart', 'Estimé', 'Comptable', 'Écart'].map(function (t, i) { return h('th.num' + (i % 3 === 0 ? '.debut-groupe' : ''), { text: t, title: i % 3 === 2 ? 'Comptable − estimé' : (i % 3 === 0 ? 'Prévu' : 'Réel inscrit par la comptabilité') }); })) : null;
+    var entete2 = montants ? h('tr', (sansFI ? ['Estimé', 'Comptable', 'Écart'] : ['Estimé', 'Comptable', 'Écart', 'Estimé', 'Comptable', 'Écart']).map(function (t, i) { return h('th.num' + (i % 3 === 0 ? '.debut-groupe' : ''), { text: t, title: i % 3 === 2 ? 'Comptable − estimé' : (i % 3 === 0 ? 'Prévu' : 'Réel inscrit par la comptabilité') }); })) : null;
     var corps = h('tbody');
     var groupes = grouperParMois(liste), parMoisG = {};
     groupes.forEach(function (g) { parMoisG[g.mois] = g; g.ajustements = []; });
@@ -819,10 +822,10 @@
     groupes.forEach(function (g) {
       var actives = g.ventes.filter(function (v) { return v.statut !== 'annulee'; }), attente = actives.filter(function (v) { return v.statut === 'declaree'; }).length;
       var cg = compteTypes(actives);
-      var resume = pluriel(actives.length, 'vente') + ' (' + [cg.neuf ? pluriel(cg.neuf, 'neuf') : '', cg.usage ? cg.usage + ' occasion' + (cg.usage > 1 ? 's' : '') : '', cg.wholesale ? cg.wholesale + ' wholesale' : ''].filter(Boolean).join(' · ') + ')' + (attente ? ' · ' + attente + ' en attente du F&I' : '');
+      var resume = pluriel(actives.length, 'vente') + ' (' + [cg.neuf ? pluriel(cg.neuf, 'neuf') : '', cg.usage ? cg.usage + ' occasion' + (cg.usage > 1 ? 's' : '') : '', cg.wholesale ? cg.wholesale + ' wholesale' : ''].filter(Boolean).join(' · ') + ')' + (attente && !sansFI ? ' · ' + attente + ' en attente du F&I' : '');
       var sansFIm = actives.filter(besoinFI).length;
-      if (sansFIm) resume += ' · ' + sansFIm + ' F&I à inscrire';
-      if (montants) { var cpm = cumulProfits(actives), q = function (nom, x) { return nom + ' : est. ' + (x.nEstime ? argent(x.estime) : '—') + ' · compta ' + (x.nComptable ? argent(x.comptable) : '—') + (x.nPaires ? ' · écart ' + signe(x.ecart) : ''); }; resume += ' · ' + q('front', cpm.front) + ' · ' + q('F&I', cpm.fi); }
+      if (sansFIm && !sansFI) resume += ' · ' + sansFIm + ' F&I à inscrire';
+      if (montants) { var cpm = cumulProfits(actives), q = function (nom, x) { return nom + ' : est. ' + (x.nEstime ? argent(x.estime) : '—') + ' · compta ' + (x.nComptable ? argent(x.comptable) : '—') + (x.nPaires ? ' · écart ' + signe(x.ecart) : ''); }; resume += ' · ' + (sansFI ? q('profit', cpm.front) : q('front', cpm.front) + ' · ' + q('F&I', cpm.fi)); }
       if (g.ajustements.length) resume += ' · hors vente : ' + resumeHors(g.ajustements, montants);
       corps.appendChild(h('tr.groupe', { dataset: { mois: g.mois } }, [h('td', { colspan: String(colonnes) }, [h('span', { text: capitale(g.libelle) }), h('span.sous', { text: resume })])]));
       g.ventes.forEach(function (v) {
@@ -834,21 +837,22 @@
           h('td', [h('div', { text: v.client || v.venduA || '—' }), v.noClient ? h('div.sous', { text: 'No client ' + v.noClient }) : null, v.type === 'wholesale' && v.acheteDe ? h('div.sous', { text: 'acheté de ' + v.acheteDe }) : (v.echangeStock || v.echangeModele || v.echangeVin ? h('div.sous', { text: 'échange ' + ([v.echangeStock, v.echangeModele].filter(Boolean).join(' ') || v.echangeVin) + (v.echangeEvaluation !== undefined && v.echangeEvaluation !== null ? ' · évalué' : '') }) : null)]),
           h('td', [h('span.badge.' + (v.type === 'neuf' ? 'vert' : (v.type === 'usage' ? 'bleu' : 'ambre')) + '.sans-point', { text: TYPES[v.type] || v.type }), h('div.sous', { text: libCategorie(v.type, v.categorie) + (v.paiement ? ' · ' + libPaiement(v.paiement) : '') })]),
           h('td', { text: v.conseiller || '—' }),
-          h('td', [h('div', { text: v.directeur || '—' }), prd.length ? h('div.sous', { text: pluriel(prd.length, 'produit'), title: prd.map(function (p) { return p.libelle + (p.montant !== null ? ' ' + argent(p.montant) : ''); }).join(', ') }) : null])
-        ].concat(montants ? [
+          sansFI ? null : h('td', [h('div', { text: v.directeur || '—' }), prd.length ? h('div.sous', { text: pluriel(prd.length, 'produit'), title: prd.map(function (p) { return p.libelle + (p.montant !== null ? ' ' + argent(p.montant) : ''); }).join(', ') }) : null])
+        ].filter(Boolean).concat(montants ? [
           h('td.num', { text: argent(v.prixVente) }),
           h('td.num.debut-groupe.front-estime', { text: argent(frontE(v)) }),
           h('td.num.front-comptable', frontC(v) !== null ? { text: argent(frontC(v)) } : [h('span', '—'), v.statut !== 'annulee' ? h('div.sous', 'pas inscrit') : null]),
-          h('td.num.front-ecart' + classeEcart(ecartEC(frontE(v), frontC(v))), { text: ecartEC(frontE(v), frontC(v)) === null ? '—' : signe(ecartEC(frontE(v), frontC(v))) }),
+          h('td.num.front-ecart' + classeEcart(ecartEC(frontE(v), frontC(v))), { text: ecartEC(frontE(v), frontC(v)) === null ? '—' : signe(ecartEC(frontE(v), frontC(v))) })
+        ].concat(sansFI ? [] : [
           /* Le bouton « Inscrire » se trouve là où le F&I estimé manque (Maxime, 22 oct.). */
           h('td.num.debut-groupe.fi-estime', besoinFI(v) ? [AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Inscrire', title: 'Inscrire le profit F&I estimé et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.fi(v); } }) : h('span.puce.alerte', { text: 'à inscrire', title: 'Profit F&I estimé pas encore inscrit' })] : { text: v.type === 'wholesale' && fiE(v) === null ? '·' : argent(fiE(v)) }),
           h('td.num.fi-comptable', { text: v.type === 'wholesale' && fiC(v) === null ? '·' : argent(fiC(v)) }),
           h('td.num.fi-ecart' + classeEcart(ecartEC(fiE(v), fiC(v))), { text: ecartEC(fiE(v), fiC(v)) === null ? '—' : signe(ecartEC(fiE(v), fiC(v))) })
-        ] : []).concat([
+        ]) : []).concat([
           h('td', [puceLivre(v)]),
           h('td.etat', [puceEtat(v), v.importee ? h('div.sous', { text: 'importée du livre', title: 'Ligne lue dans le livre de la comptabilité' }) : null]),
           h('td.actions', [
-            v.statut === 'declaree' && !(montants && besoinFI(v)) && AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Profits F&I', title: 'Inscrire le profit F&I et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.fi(v); } }) : null,
+            v.statut === 'declaree' && v.type !== 'wholesale' && !(montants && besoinFI(v)) && AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Profits F&I', title: 'Inscrire le profit F&I et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.fi(v); } }) : null,
             !montants && besoinFI(v) && v.statut !== 'declaree' && AMX.ventes.peutCompleter() ? h('button.btn.petit.primaire.ventes-completer', { type: 'button', text: 'Profits F&I', title: 'Inscrire le profit F&I estimé et les produits', onclick: function (e) { e.stopPropagation(); AMX.ventes.fi(v); } }) : null,
             v.livre === 'ecrit' && v.statut !== 'annulee' && AMX.ventes.peutCompta() ? h('button.btn.petit.ventes-compta' + (v.statut !== 'comptabilisee' ? '.primaire' : ''), { type: 'button', text: 'Compta', title: 'Inscrire la comptabilité (colonnes vertes du livre)', onclick: function (e) { e.stopPropagation(); AMX.ventes.compta(v); } }) : null,
             v.livre === 'erreur' && (AMX.ventes.peutDeclarer() || AMX.ventes.peutCompleter()) ? h('button.btn.petit.ventes-renvoyer', { type: 'button', text: 'Renvoyer au livre', onclick: function (e) { e.stopPropagation(); renvoyer(v); } }) : null
@@ -857,13 +861,13 @@
         tr.addEventListener('click', function () { ouvrirFiche(v); });
         corps.appendChild(tr);
       });
-      g.ajustements.forEach(function (a) { corps.appendChild(ligneAjustement(a, montants)); });
+      g.ajustements.forEach(function (a) { corps.appendChild(ligneAjustement(a, montants, sansFI)); });
     });
     this.elListe.appendChild(h('div.ventes-defile', [h('table.tableau.ventes-table', [h('thead', [entete, entete2]), corps])]));   /* 22 oct. : 6 colonnes de profit → défilement horizontal au besoin */
   };
   /* Une ligne hors vente (ajustement, renversement, F&I après-vente, vente à un concessionnaire) : dans le mois où elle est imputée ;
      un clic ouvre la vente d'origine, ou le détail de l'entrée quand elle n'en a pas. */
-  function ligneAjustement(a, montants) {
+  function ligneAjustement(a, montants, sansFI) {
     var tiret = function (cls) { return h('td.num' + (cls || ''), { text: '—' }); };
     var g = genreAj(a), u = unitesAj(a);
     var tr = h('tr.cliquable.ajustement.hv-' + g, { dataset: { aj: a.id }, title: GENRES_HV[g][0] + ' ' + a.id + (a.venteId ? ' — vente ' + a.venteId + ' (livrée en ' + moisLibelle(a.moisVente) + ')' : '') }, [
@@ -871,9 +875,9 @@
       h('td.vehicule', [h('div.nom', { text: a.vehicule || '(véhicule)' }), h('div.vin', { text: [a.stock ? '# ' + a.stock : '', a.vin && !a.venteId ? a.vin : '', a.venteId ? a.venteId + ' · ' + moisLibelle(a.moisVente) : 'hors livre'].filter(Boolean).join(' · ') })]),
       h('td', { text: a.client || '—' }),
       h('td', [h('span.badge.' + (a.type === 'neuf' ? 'vert' : (a.type === 'usage' ? 'bleu' : 'ambre')) + '.sans-point', { text: TYPES[a.type] || a.type }), h('div.sous', { text: (a.categorieLibelle || libCategorie(a.type, a.categorie)) + (u ? ' · ' + texteUnites(u) : '') })]),
-      h('td', { text: '—' }),
+      sansFI ? null : h('td', { text: '—' }),   /* en wholesale seul (sans Dir. F&I), la raison prend la colonne Conseiller */
       h('td', [h('div', { text: a.raison || '' }), h('div.sous', { text: 'par ' + String(a.par || '').split('@')[0] + (a.produits && a.produits.length ? ' · ' + pluriel(a.produits.length, 'produit') : '') })])
-    ].concat(montants ? [tiret(), tiret('.debut-groupe'), h('td.num' + classeEcart(ajFront(a)), { text: ajFront(a) ? signe(ajFront(a)) : '—' }), tiret(), tiret('.debut-groupe'), h('td.num' + classeEcart(ajFI(a)), { text: ajFI(a) ? signe(ajFI(a)) : '—' }), tiret()] : [])
+    ].filter(Boolean).concat(montants ? [tiret(), tiret('.debut-groupe'), h('td.num' + classeEcart(ajFront(a)), { text: ajFront(a) ? signe(ajFront(a)) : '—' }), tiret()].concat(sansFI ? [] : [tiret('.debut-groupe'), h('td.num' + classeEcart(ajFI(a)), { text: ajFI(a) ? signe(ajFI(a)) : '—' }), tiret()]) : [])
       .concat([h('td', { text: '—' }), h('td.etat', [h('span.puce.' + (g === 'renversement' ? 'alerte' : 'info'), { text: GENRES_HV[g][0] + ' ' + a.id })]),
         h('td.actions', [peutAnnulerAj(a) ? h('button.btn.petit.fantome', { type: 'button', text: 'Annuler', title: 'Annuler cette entrée', onclick: function (e) { e.stopPropagation(); annulerAjustement(a); } }) : null])]));
     tr.addEventListener('click', function () {
@@ -900,13 +904,14 @@
     AMX.ventes.une(id).then(function (x) { ouvrirFiche(x); }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
   };
   VueVentes.prototype.exporter = function () {
-    var d = cache.rep, liste = this.visibles(), montants = !!(d && d.montants), defs = AMX.ventes.produits();
+    var d = cache.rep, liste = this.visibles(), montants = !!(d && d.montants), defs = AMX.ventes.produits(), sansFI = this.filtres.type === 'wholesale';
     var lignes = liste.map(function (v) {
       var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Catégorie': libCategorie(v.type, v.categorie), 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'No client (DMS)': v.noClient || '', Provenance: v.provenance || '', 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
       o['Mois (livraison)'] = moisDeVente(v); o['Mois selon'] = dateLivraisonOk(v) ? 'livraison' : 'vente';
       o['F&I à inscrire'] = besoinFI(v) ? 'oui' : '';
       if (montants) { o.Holdback = v.holdback && v.holdback.holdback ? v.holdback.holdback : ''; var deb = (Array.isArray(v.banque) ? v.banque : []).filter(function (x) { return x.genre === 'deboursement'; })[0]; o['Déboursé BMW FS'] = deb ? deb.date : ''; }   /* 26 oct. */
       if (montants) { o['Front estimé'] = frontE(v); o['Front comptable'] = frontC(v); o['Écart front'] = ecartEC(frontE(v), frontC(v)); o['F&I estimé'] = fiE(v); o['F&I comptable'] = fiC(v); o['Écart F&I'] = ecartEC(fiE(v), fiC(v)); o['Profit estimé (total)'] = estimeDe(v); o['Profit comptable (total)'] = comptableDe(v); o['Écart (total)'] = ecartDe(v); o['Prix de vente'] = v.prixVente; o['Profit front prévu'] = v.profitPrevu; o['Profit F&I prévu'] = v.profitFIPrevu; o.Accessoires = v.accessoires; o['Valeur échange accordée'] = v.echangeValeur; o['Évaluation échange'] = v.echangeEvaluation; o['Over / under'] = v.overUnder; o['Profit front réel'] = v.profitReel; o['Profit F&I réel'] = v.profitFIReel; var prd = produitsDe(v); defs.forEach(function (p) { o[p[1]] = prd[p[0]] === undefined ? '' : prd[p[0]]; }); }
+      if (sansFI) { ['Dir. commercial (F&I)', 'Pneus', 'F&I à inscrire', 'F&I estimé', 'F&I comptable', 'Écart F&I', 'Profit F&I prévu', 'Profit F&I réel'].concat(defs.map(function (p) { return p[1]; })).forEach(function (k) { delete o[k]; }); }   /* 1er nov. : pas de F&I en wholesale */
       return o;
     });
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignes), 'Livre des ventes');
@@ -1079,8 +1084,8 @@
         montants ? ['Over / under', h('span' + (nombre(v.overUnder) > 0 ? '.alerte' : ''), { text: signe(nombre(v.overUnder)) + (nombre(v.overUnder) > 0 ? ' (accordé au-dessus de l\'évaluation)' : '') })] : null
       ]));
     }
-    corps.appendChild(h('h4', 'F&I — directeur commercial'));
-    corps.appendChild(dl([
+    if (!ws) corps.appendChild(h('h4', 'F&I — directeur commercial'));   /* 1er nov. : pas de F&I en wholesale */
+    if (!ws) corps.appendChild(dl([
       ['Directeur commercial', v.directeur || '—'],
       montants ? ['F&I estimé', besoinFI(v) ? h('span.puce.alerte', { text: 'à inscrire' }) : argent(fiE(v))] : null, montants ? ['F&I comptable', fiC(v) === null ? 'pas encore inscrit' : argent(fiC(v))] : null,
       montants && ecartEC(fiE(v), fiC(v)) !== null ? ['Écart F&I', h('span' + classeEcart(ecartEC(fiE(v), fiC(v))), { text: signe(ecartEC(fiE(v), fiC(v))) + ' (comptable − estimé)' })] : null,
@@ -1099,17 +1104,17 @@
     if (voitCompta) {
       var extraCompta = lignesBanqueHoldback(v);
       var prdF = produitsListe(v), confF = v.fiConfirmes || {}, nConf = prdF.filter(function (p) { return confF[p.code] && confF[p.code].ok; }).length;
-      if (prdF.length) extraCompta.push(['Produits F&I confirmés', nConf + ' / ' + prdF.length + (v.fiConfirmeLe ? ' · ' + AMX.fmtDate(v.fiConfirmeLe) + (v.fiConfirmeParNom ? ' par ' + v.fiConfirmeParNom : '') : (nConf ? '' : ' — à confirmer par la comptabilité (fenêtre Comptabilité)'))]);
+      if (prdF.length && !ws) extraCompta.push(['Produits F&I confirmés', nConf + ' / ' + prdF.length + (v.fiConfirmeLe ? ' · ' + AMX.fmtDate(v.fiConfirmeLe) + (v.fiConfirmeParNom ? ' par ' + v.fiConfirmeParNom : '') : (nConf ? '' : ' — à confirmer par la comptabilité (fenêtre Comptabilité)'))]);
       if (extraCompta.length) corps.appendChild(dl(extraCompta));
     }
     /* 26 oct. : ajustements de profit de cette vente (imputés à des mois suivants). */
     var ajsV = Array.isArray(v.ajustements) ? v.ajustements : ((d && d.ajustements) || []).filter(function (a) { return a.venteId === v.id; });
     if (voitCompta && ajsV.length) {
       corps.appendChild(h('h4', 'Hors vente et ajustements'));
-      corps.appendChild(h('div.ventes-defile', [h('table.tableau.ventes-aj-table', [h('thead', [h('tr', ['Imputé à', 'Genre · catégorie', 'Front', 'F&I', 'Raison', ''].map(function (t, i) { return h('th' + (i === 2 || i === 3 ? '.num' : ''), { text: t }); }))]),
+      corps.appendChild(h('div.ventes-defile', [h('table.tableau.ventes-aj-table', [h('thead', [h('tr', ['Imputé à', 'Genre · catégorie', ws ? 'Profit' : 'Front', ws ? null : 'F&I', 'Raison', ''].filter(function (t) { return t !== null; }).map(function (t, i) { return h('th' + (i === 2 || (i === 3 && !ws) ? '.num' : ''), { text: t }); }))]),
         h('tbody', ajsV.map(function (a) {
           return h('tr' + (a.annule ? '.annulee' : ''), [h('td', [h('div', { text: capitale(moisLibelle(a.mois)) }), h('div.sous', { text: a.id + ' · ' + AMX.fmtDateCourte(a.date) })]), h('td', [h('div', { text: GENRES_HV[genreAj(a)][0] + (unitesAj(a) ? ' · ' + texteUnites(unitesAj(a)) : '') }), h('div.sous', { text: (TYPES[a.type] || a.type) + ' · ' + (a.categorieLibelle || libCategorie(a.type, a.categorie)) })]),
-            h('td.num' + classeEcart(ajFront(a)), { text: a.front === undefined ? '—' : signe(ajFront(a)) }), h('td.num' + classeEcart(ajFI(a)), { text: a.fi === undefined ? '—' : signe(ajFI(a)) }),
+            h('td.num' + classeEcart(ajFront(a)), { text: a.front === undefined ? '—' : signe(ajFront(a)) }), ws ? null : h('td.num' + classeEcart(ajFI(a)), { text: a.fi === undefined ? '—' : signe(ajFI(a)) }),
             h('td', [h('div', { text: a.raison || '' }), h('div.sous', { text: (a.annule ? 'annulé' + (a.annuleRaison ? ' — ' + a.annuleRaison : '') + ' · ' : '') + 'par ' + String(a.par || '').split('@')[0] })]),
             h('td', [!a.annule && peutAnnulerAj(a) ? h('button.btn.petit.fantome', { type: 'button', text: 'Annuler', onclick: function () { annulerAjustement(a); } }) : null])]);
         }))])]));
@@ -1117,7 +1122,7 @@
     corps.appendChild(h('h4', 'Livre et suivi'));
     corps.appendChild(dl([
       ['Livre', v.livre === 'ecrit' ? (v.livreOnglet || '') + ' · ligne ' + v.livreLigne : (v.livre === 'erreur' ? 'PAS ÉCRITE — ' + (v.livreErreur || '') : 'pas encore écrite')],
-      [v.importee ? 'Importée' : 'Inscrite', (v.importee ? 'du livre' : (v.declareParNom || v.declarePar || '')) + (v.declareLe ? ' · ' + AMX.fmtDate(v.declareLe, true) : '')], v.completeLe ? ['F&I inscrit', (v.completeParNom || v.completePar || '') + ' · ' + AMX.fmtDate(v.completeLe, true)] : null,
+      [v.importee ? 'Importée' : 'Inscrite', (v.importee ? 'du livre' : (v.declareParNom || v.declarePar || '')) + (v.declareLe ? ' · ' + AMX.fmtDate(v.declareLe, true) : '')], v.completeLe && !ws ? ['F&I inscrit', (v.completeParNom || v.completePar || '') + ' · ' + AMX.fmtDate(v.completeLe, true)] : null,
       v.comptabiliseLe ? ['Comptabilisée', AMX.fmtDate(v.comptabiliseLe)] : null, v.statut === 'annulee' ? ['Annulée', v.annuleRaison || ''] : null
     ]));
     if (v.journal && v.journal.length) corps.appendChild(h('div.journal', [h('b', 'Historique'), h('ul', { style: { margin: '4px 0 0', paddingLeft: '16px' } }, v.journal.slice().reverse().map(function (j) { return h('li', { text: AMX.fmtDate(j.le, true) + ' — ' + j.quoi + (j.par ? ' (' + j.par + ')' : '') }); }))]));
@@ -1354,7 +1359,7 @@
         s.cols.forEach(function (col) { var c = champCompta(col, !r.peutEcrire); c.col = col; champs.push(c); grille.appendChild(c.el); });
         corps.appendChild(grille);
       });
-      corps.appendChild(blocFIConfirmer(r.vente || v, r.peutEcrire));   /* 26 oct. : produits F&I confirmés (bonification) */
+      if ((r.vente || v).type !== 'wholesale') corps.appendChild(blocFIConfirmer(r.vente || v, r.peutEcrire));   /* 26 oct. : produits F&I confirmés (bonification) ; 1er nov. : pas en wholesale */
       if (!r.peutEcrire) corps.appendChild(h('p.ventes-aide', { text: 'Lecture seule : inscrire la comptabilité demande le droit « Ventes — comptabilité » (Admin › Droits).' }));
       m.boutons(r.peutEcrire ? [{ texte: 'Fermer' }, { texte: 'Inscrire au livre', classe: 'primaire', action: enregistrer }] : [{ texte: 'Fermer' }]);
     }
@@ -1416,11 +1421,12 @@
     var corps = h('div.ventes-form', [
       h('p.ventes-aide', { text: (vehiculeTexte(v) || v.id) + (v.stock ? ' · # ' + v.stock : '') + ' — vente ' + v.id + ' livrée en ' + moisLibelle(mv) + '. Le profit de la vente ne change pas : l\'ajustement compte dans le mois choisi.' }),
       h('div.grille.c2', [champ('aj-mois', 'Imputé à', selMois), champ('aj-categorie', 'Catégorie', selCat)]),
-      h('div.grille.c2', [champ('aj-front', 'Front (voiture) $', inFront), champ('aj-fi', 'F&I $', inFI)]),
+      h('div.grille.c2', v.type === 'wholesale' ? [champ('aj-front', 'Profit $', inFront), h('div')] : [champ('aj-front', 'Front (voiture) $', inFront), champ('aj-fi', 'F&I $', inFI)]),   /* 1er nov. : pas de F&I en wholesale */
       champ('aj-raison', 'Raison', raison), apercu]);
     AMX.modale({ titre: 'Ajustement de profit — ' + v.id, corps: corps, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer l\'ajustement', classe: 'primaire', action: function () {
       var f = nombre(inFront.value), g = nombre(inFI.value), tc = selCat.value.split('|');
-      if (!f && !g) { AMX.toast('Entrez le montant (front, F&I ou les deux).', 'erreur'); inFront.focus(); return false; }
+      if (v.type === 'wholesale') g = null;
+      if (!f && !g) { AMX.toast(v.type === 'wholesale' ? 'Entrez le montant de l\'ajustement.' : 'Entrez le montant (front, F&I ou les deux).', 'erreur'); inFront.focus(); return false; }
       if (raison.value.trim().length < 3) { AMX.toast('Indiquez la raison de l\'ajustement.', 'erreur'); raison.focus(); return false; }
       return AMX.post({ action: 'venteAjustement', venteId: v.id, front: f || 0, fi: g || 0, mois: selMois.value, type: tc[0], categorie: tc[1] || '', raison: raison.value.trim() }, { delai: 90000 }).then(function (r) {
         verifierPost(r);
@@ -1494,7 +1500,7 @@
         zone.appendChild(h('div.grille.c2', [champ('hv-front', 'Holdback (front) $', inFront), h('div.champ', [h('label.case', [caseUnite, h('span', { text: ' Compter l\'unité dans les ventes du mois' })])])]));
       } else if (genre === 'renversement') {
         inFront.placeholder = 'ex. −1 500';
-        zone.appendChild(h('div.grille.c2', [champ('hv-front', 'Front (voiture) $', inFront), champ('hv-fi', 'F&I $', inFI)]));
+        zone.appendChild(h('div.grille.c2', v && v.type === 'wholesale' ? [champ('hv-front', 'Profit $', inFront), h('div')] : [champ('hv-front', 'Front (voiture) $', inFront), champ('hv-fi', 'F&I $', inFI)]));
       } else {
         zone.appendChild(h('div.grille.c2', [champ('hv-fi', 'Profit F&I $', inFI), h('div')]));
         zone.appendChild(h('div.champ', [h('label', { text: 'Produits vendus' }), produits]));
@@ -1729,6 +1735,7 @@
       blocWholesale.style.display = ws ? '' : 'none'; blocClient.style.display = ws ? 'none' : '';
       corps.querySelector('#vente-titre-client').textContent = ws ? 'Acheteur (wholesale)' : 'Client';
       titreEchange.style.display = ws ? 'none' : ''; blocEchange.style.display = ws ? 'none' : ''; pEchange.style.display = ws ? 'none' : '';
+      if (sectionFI) sectionFI.style.display = ws ? 'none' : '';   /* 1er nov. : pas de F&I en wholesale */
       champRdr.style.display = ws ? 'none' : ''; champCodeRdr.style.display = ws || String(selCie.value || cie).toUpperCase() !== 'STM' ? 'none' : '';
       if (champProvenance) champProvenance.style.display = type === 'neuf' && String(selCie.value || cie).toUpperCase() === 'BMW' ? '' : 'none';   /* le code RDR : seulement le livre de Ste-Marie */
     }

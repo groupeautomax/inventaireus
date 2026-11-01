@@ -339,6 +339,22 @@
       '.eval-tuile.actif { border-color: var(--vert); box-shadow: 0 0 0 1px var(--vert), 0 2px 8px rgba(0,136,64,.12); background: var(--carte); }',
       '.eval-tuile.actif .t { color: var(--vert); }',
       '.eval-panneau[hidden] { display: none !important; }',
+      '.eval-prix-plus { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }',
+      '.eval-prix-type { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--encre-3); font-weight: 600; } .eval-prix-type select { height: 28px; font-size: 13px; }',
+      '#e-prix-note { flex: 1 1 180px; min-width: 140px; height: 28px; font-size: 13px; }',
+      '.eval-recon-detail { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; padding: 8px 10px; border: 1px dashed var(--ligne); border-radius: var(--rayon-s); background: var(--fond); }',
+      '.eval-recon-detail.cache { display: none; }',
+      '.eval-chips-bloc { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }',
+      '.eval-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }',
+      '.eval-chips .l { font-size: 12px; font-weight: 700; color: var(--encre-3); text-transform: uppercase; letter-spacing: .06em; min-width: 86px; }',
+      '.eval-chip { border: 1px solid var(--ligne); background: var(--carte); color: var(--encre-2); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }',
+      '.eval-chip:hover { border-color: var(--ligne-forte); }',
+      '.eval-chip:focus-visible { outline: 2px solid var(--vert); outline-offset: 1px; }',
+      '.eval-chips.rouge .eval-chip.actif { background: var(--rouge-bg, #FDECEC); border-color: var(--rouge); color: var(--rouge); font-weight: 600; }',
+      '.eval-chips.rouge .eval-chip.actif[data-code="vu"] { background: var(--vert-clair); border-color: var(--vert); color: var(--vert); }',
+      '.eval-chips.bleu .eval-chip.actif { background: var(--bleu-bg); border-color: var(--bleu); color: var(--bleu); font-weight: 600; }',
+      '.eval-chips.vert .eval-chip.actif { background: var(--vert-clair); border-color: var(--vert); color: var(--vert); font-weight: 600; }',
+      '.eval-chip.actif::before { content: "✓ "; }',
       '.eval-panneau > .carte { margin-bottom: 12px; }',
       '#sec-openlane .eval-valeurs { margin-top: 0; padding-top: 0; border-top: none; }',
       '#sec-historique .eval-sous-vehicule { margin-top: 0; } #sec-historique .eval-sous-vehicule + .eval-sous-vehicule { margin-top: 10px; }',
@@ -356,16 +372,16 @@
       '@media (max-width: 1200px) { .eval-prix-grille { grid-template-columns: 1fr; } }',
       '@media (max-width: 900px) { .eval-cibles { grid-template-columns: 1fr; } .eval-sommaire .sauts { display: none; } }',
       '.eval-resume { margin-bottom: 12px; }',
-      '.eval-grille-suivi { grid-template-columns: 1.4fr 1fr 1.4fr 1fr 1.3fr 1.1fr; gap: 10px 12px; }',
-      '.eval-grille-etat { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; }',
+      '.eval-grille-suivi { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px 12px; }',
+      '.eval-grille-etat { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; }',
       '.eval-suivi-ecart:not(:empty) { margin-top: 10px; }',
       '.eval-etat-notes { margin-top: 10px; } .eval-etat-notes textarea { width: 100%; min-height: 54px; resize: vertical; }',
       '.eval-photos-entete { display: flex; align-items: center; gap: 10px; margin: 14px 0 8px; } .eval-photos-entete h3 { margin: 0; font-size: 13px; }',
       '.eval-photos { display: flex; flex-wrap: wrap; gap: 8px; } .eval-photo img { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid var(--ligne); display: block; background: var(--gris-bg); }',
       '#eval-suivi-statut button.actif.s-ambre { color: var(--ambre); } #eval-suivi-statut button.actif.s-vert { color: var(--vert); } #eval-suivi-statut button.actif.s-rouge { color: var(--rouge); } #eval-suivi-statut button.actif.s-bleu { color: var(--bleu); } #eval-suivi-statut button.actif.s-violet { color: var(--violet); }',
       '.eval-sommaire .item.suivi.s-ambre .v { color: var(--ambre); } .eval-sommaire .item.suivi.s-vert .v { color: var(--vert); } .eval-sommaire .item.suivi.s-rouge .v { color: var(--rouge); } .eval-sommaire .item.suivi.s-bleu .v { color: var(--bleu); } .eval-sommaire .item.suivi.s-violet .v { color: var(--violet); }',
-      '@media (max-width: 1200px) { .eval-grille-suivi, .eval-grille-etat { grid-template-columns: repeat(3, minmax(0, 1fr)); } }',
-      '@media (max-width: 900px) { .eval-grille-suivi, .eval-grille-etat { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
+      '@media (max-width: 600px) { .eval-grille-suivi, .eval-grille-etat { grid-template-columns: repeat(2, minmax(0, 1fr)); } .eval-recon-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); } .eval-chips .l { min-width: 0; width: 100%; } }',
+      '@media (max-width: 900px) and (min-width: 601px) { .eval-recon-detail { grid-template-columns: repeat(3, minmax(0, 1fr)); } }',
       '.eval-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }',
       '.eval-stat { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 12px 14px; }',
       '.eval-stat h3 { font-size: 13px; margin: 0 0 8px; }',
@@ -643,10 +659,12 @@
     this.elCibles = h('div#eval-cibles');
     // Valeurs OpenLane (9 oct.) : ventes comparables et prévision Market guide du NIV — panneau « OpenLane ».
     this.elOpenlane = h('div.eval-valeurs.eval-openlane#eval-openlane.cache');
+    this.construirePrixPlus();
     var detail = h('div.carte#sec-prix', [h('div.carte-corps', [h('div.eval-prix-grille', [
       h('div.eval-prix-calc', [
         h('div.eval-formule', [cAchat.el, h('span.op', '+'), cFrais.el, h('span.op', '='), cPaye.el]),
         h('div.eval-formule', [h('span.op.rappel', 'payé'), h('span.op', '+'), cRecon.el, h('span.op', '+'), cMarge.el, h('span.op', '='), cPrix.el]),
+        this.elPrixPlus, this.elReconDetail,
         this.elDetailResume
       ]),
       this.elCibles
@@ -665,7 +683,7 @@
     [this.elMarque, this.elModele, this.elAnnee].forEach(function (el) { el.addEventListener('input', AMX.debounce(function () { self.rendreSommaire(); self.chargerRappels(); }, 600)); });
     this.elKm.addEventListener('input', function () { self.rendreMarche(); self.rendreExport(); });
     this.elKm.addEventListener('change', function () { self.rendreOpenlane(); });
-    this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); });
+    this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); self.elPrixType.value = 'manuel'; });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
     // La carrosserie change la recherche MarketCheck : on relance l'analyse du pays affiché.
     this.elStyle.addEventListener('change', function () { self.styleManuel = true; self.analyses = {}; self.planifierAuto(); if (self.parametresPrets()) self.analyser(self.pays, false); else self.rendreMarche(); });
@@ -869,7 +887,9 @@
     // État et photos
     var gen = this.elEtatGeneral && this.elEtatGeneral.value ? ((ETAT_GENERAL.filter(function (x) { return x[0] === self.elEtatGeneral.value; })[0] || [])[1] || this.elEtatGeneral.value) : '';
     var nPh = this.nbPhotos;
-    var etatTxt = [gen, nPh ? nPh + ' photo' + (nPh > 1 ? 's' : '') : ''].filter(Boolean).join(' · ');
+    var accidentOui = this.elAccident && this.elAccident.value === 'oui';
+    var etatRempli = this.chipsOptions ? !!this.collecterSuivi().etatVehicule : false;
+    var etatTxt = [gen, accidentOui && !gen ? 'Accident' : '', nPh ? nPh + ' photo' + (nPh > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || (etatRempli ? 'Rempli' : '');
     poser('etat', etatTxt || 'À remplir', this.elAccident && this.elAccident.value === 'oui' ? 'rouge' : (etatTxt ? '' : 'gris'), this.elAccident && this.elAccident.value === 'oui' ? 'Accident déclaré' : '');
     // Rappels
     var r = this.rappels;
@@ -1214,11 +1234,60 @@
     this.rendreExport();
   };
 
+  /* 1er nov. (Torque, points 6 et 7) : le recon par poste — quand un poste est rempli, le recon est leur somme —
+     et le prix retenu (manuel / agressif / standard / conservateur) avec une note. Gardés dans `reconDetail`,
+     `prixType`, `prixNote`. */
+  Evaluation.prototype.construirePrixPlus = function () {
+    var self = this;
+    this.reconPostes = {};
+    this.elReconDetail = h('div.eval-recon-detail.cache#eval-recon-detail', RECON_POSTES.map(function (p) {
+      var c = champ('e-recon-' + p[0], p[1], { type: 'number', inputmode: 'numeric', placeholder: '0' });
+      self.reconPostes[p[0]] = c.input;
+      c.input.addEventListener('input', function () { self.reconDetailModifie(); });
+      return c.el;
+    }));
+    this.btnReconDetail = h('button.btn.fantome.petit#eval-recon-detailler', { type: 'button', 'aria-expanded': 'false', 'aria-controls': 'eval-recon-detail', text: 'Détailler le recon ▸', onclick: function () { self.basculerReconDetail(); } });
+    this.elPrixType = h('select#e-prix-type', [h('option', { value: '', text: '—' })].concat(PRIX_TYPES.map(function (o) { return h('option', { value: o[0], text: o[1] }); })));
+    this.elPrixNote = h('input#e-prix-note', { type: 'text', autocomplete: 'off', placeholder: 'Note sur le prix', 'aria-label': 'Note sur le prix' });
+    this.elPrixPlus = h('div.eval-prix-plus', [this.btnReconDetail, h('label.eval-prix-type', [h('span', 'Prix retenu'), this.elPrixType]), this.elPrixNote]);
+    this.elPrixType.addEventListener('change', function () { self.planifierAuto(); });
+    this.elPrixNote.addEventListener('input', function () { self.planifierAuto(); });
+  };
+  Evaluation.prototype.basculerReconDetail = function (ouvrir) {
+    var o = ouvrir === undefined ? this.elReconDetail.classList.contains('cache') : !!ouvrir;
+    this.elReconDetail.classList.toggle('cache', !o);
+    this.btnReconDetail.setAttribute('aria-expanded', o ? 'true' : 'false');
+    this.btnReconDetail.textContent = o ? 'Détail du recon ▾' : 'Détailler le recon ▸';
+  };
+  Evaluation.prototype.reconDetail = function () {
+    var self = this, d = {}, total = 0, n = 0;
+    RECON_POSTES.forEach(function (p) { var v = nombre(self.reconPostes[p[0]].value); if (v !== null) { d[p[0]] = String(v); total += v; n++; } });
+    return { postes: n ? d : null, total: n ? Math.round(total) : null };
+  };
+  Evaluation.prototype.reconDetailModifie = function () {
+    var r = this.reconDetail();
+    var calcule = r.total !== null;
+    this.elRecon.readOnly = calcule;
+    this.elRecon.parentNode.classList.toggle('eval-champ-calcule', calcule);
+    this.elRecon.title = calcule ? 'Somme des postes du détail du recon' : '';
+    if (calcule) { this.elRecon.value = String(r.total); this.recalculerDetail('couts'); this.planifierAuto(); }
+  };
+  Evaluation.prototype.poserReconDetail = function (d) {
+    var self = this;
+    d = (d && typeof d === 'object') ? d : {};
+    RECON_POSTES.forEach(function (p) { self.reconPostes[p[0]].value = d[p[0]] === null || d[p[0]] === undefined ? '' : String(d[p[0]]); });
+    var rempli = this.reconDetail().total !== null;
+    this.elRecon.readOnly = rempli;
+    this.elRecon.parentNode.classList.toggle('eval-champ-calcule', rempli);
+    this.basculerReconDetail(rempli);
+  };
+
   // « Prendre ce prix » (suggestion d'un utilisateur, 9 oct.) : le prix de détail choisi (agressif / standard /
   // conservateur) donne le prix d'ACHAT à ne pas dépasser pour garder la marge visée et le reconditionnement :
   // achat = prix − marge − recon − frais (payé = achat + frais). Sans marge inscrite : ancienne règle (marge déduite).
-  Evaluation.prototype.prendrePrix = function (v) {
+  Evaluation.prototype.prendrePrix = function (v, type) {
     this.elPrix.value = String(Math.round(v));
+    if (type) this.elPrixType.value = type;
     var marge = nombre(this.elMarge.value);
     if (marge === null) { this.recalculerDetail('prix'); return; }
     var recon = nombre(this.elRecon.value) || 0, frais = nombre(this.elFrais.value) || 0;
@@ -1259,7 +1328,7 @@
           h('div.l', { text: nom }), h('div.v.num', { text: fmt(v) }),
           h('div.s', { title: maxAchat !== null ? 'Prix d\'achat maximal pour garder ' + fmt(marge) + ' de marge' : '', text: maxAchat !== null ? 'Achat max. ' + fmt(maxAchat) : 'Marge à entrer' }),
           margeSi !== null ? h('div.s.' + (margeSi >= (marge || 0) ? 'pos' : 'neg'), { text: 'Marge ' + fmt(margeSi), title: 'Marge au prix payé' }) : null,
-          h('button.btn.petit', { type: 'button', text: 'Prendre', title: 'Prendre ce prix : le prix d\'achat se calcule pour garder la marge visée', onclick: function () { self.prendrePrix(v); } })
+          h('button.btn.petit', { type: 'button', text: 'Prendre', title: 'Prendre ce prix : le prix d\'achat se calcule pour garder la marge visée', onclick: function () { self.prendrePrix(v, cls); } })
         ]);
       };
       this.elCibles.appendChild(h('div.eval-cibles', [cible('Agressif', c.agressif, 'agressif'), cible('Standard', c.standard, 'standard'), cible('Conservateur', c.conservateur, 'conservateur')]));
@@ -1322,7 +1391,44 @@
   var ETAT_PNEUS = ['Neufs', 'Bons', 'Moyens', 'À changer', 'Aucun'];
   var ETAT_PARE_BRISE = ['Bon', 'Éclat', 'Fissuré', 'À changer'];
   var ETAT_ACCIDENT = [['non', 'Non'], ['oui', 'Oui'], ['inconnu', 'Inconnu']];
+  /* 1er nov. : les champs que Torque avait et pas nous (rapport « Torque face à ScanAutomax », points 1 à 7). Mêmes
+     codes que l'app (EvaluationSuivi.swift). Les cases oui / non sont des pastilles à cocher (tableaux de codes). */
+  var SUIVI_TYPES_CLIENT = [['particulier', 'Particulier'], ['entreprise', 'Entreprise'], ['commercant', 'Commerçant'], ['employe', 'Employé']];
+  var SUIVI_LANGUES = [['fr', 'Français'], ['en', 'Anglais']];
+  var ETAT_CLES = [['0', 'Aucune'], ['1', '1'], ['2', '2'], ['3', '3 et plus']];
+  var ETAT_FINANCEMENT = [['paye', 'Payé (aucun solde)'], ['finance', 'Financé'], ['loue', 'Location']];
+  var ETAT_CONSTATS = [['vu', 'Véhicule vu'], ['moteur', 'Témoin moteur'], ['abs', 'Témoin ABS'], ['coussins', 'Témoin coussins'], ['clim', 'Clim défectueuse'], ['fumeur', 'Fumeur'], ['modifie', 'Modifié'], ['americain', 'Véhicule américain']];
+  var ETAT_GARANTIES = [['origine', 'Garantie d\'origine'], ['prolongee', 'Garantie prolongée'], ['motopropulseur', 'Motopropulseur'], ['assurance', 'Produits d\'assurance']];
+  var ETAT_OPTIONS = [['toit', 'Toit ouvrant'], ['cuir', 'Cuir'], ['siegesChauffants', 'Sièges chauffants'], ['volantChauffant', 'Volant chauffant'], ['siegesVentiles', 'Sièges ventilés'],
+    ['navigation', 'Navigation'], ['camera360', 'Caméra 360°'], ['demarreur', 'Démarreur à distance'], ['regulateur', 'Régulateur adaptatif'], ['anglesMorts', 'Angles morts'],
+    ['hayon', 'Hayon électrique'], ['attelage', 'Attelage'], ['son', 'Son haut de gamme'], ['teteHaute', 'Affichage tête haute'], ['marchepieds', 'Marchepieds'], ['caisse', 'Doublure de caisse'], ['cable', 'Câble de recharge (VÉ)']];
+  var RECON_POSTES = [['mecanique', 'Mécanique'], ['carrosserie', 'Carrosserie'], ['pneus', 'Pneus'], ['pareBrise', 'Pare-brise'], ['esthetique', 'Esthétique'], ['certification', 'Certification']];
+  var PRIX_TYPES = [['manuel', 'Manuel'], ['agressif', 'Agressif'], ['standard', 'Standard'], ['conservateur', 'Conservateur']];
   function statutSuivi(cle) { return SUIVI_STATUTS.filter(function (s) { return s[0] === cle; })[0] || null; }
+  // Une rangée de pastilles à cocher : { el, get() → [codes], set([codes]) } ; un code inconnu (ancienne fiche) est gardé.
+  function pastilles(id, libelle, liste, ton, surChange) {
+    var choisis = [], autres = [];
+    var boutons = liste.map(function (o) {
+      return h('button.eval-chip', { type: 'button', 'data-code': o[0], 'aria-pressed': 'false', text: o[1], onclick: function () {
+        var i = choisis.indexOf(o[0]);
+        if (i < 0) choisis.push(o[0]); else choisis.splice(i, 1);
+        maj(); if (surChange) surChange();
+      } });
+    });
+    var el = h('div.eval-chips#' + id + (ton ? '.' + ton : ''), [h('span.l', { text: libelle })].concat(boutons));
+    function maj() { boutons.forEach(function (b) { var on = choisis.indexOf(b.getAttribute('data-code')) >= 0; b.classList.toggle('actif', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+    return {
+      el: el,
+      get: function () { return liste.map(function (o) { return o[0]; }).filter(function (c) { return choisis.indexOf(c) >= 0; }).concat(autres); },
+      set: function (arr) {
+        arr = Array.isArray(arr) ? arr.map(String) : [];
+        var connus = liste.map(function (o) { return o[0]; });
+        choisis = arr.filter(function (c) { return connus.indexOf(c) >= 0; });
+        autres = arr.filter(function (c) { return connus.indexOf(c) < 0; });
+        maj();
+      }
+    };
+  }
   function listeChoix(id, libelle, options) {
     var sel = h('select#' + id, [h('option', { value: '', text: '—' })].concat(options.map(function (o) {
       return h('option', { value: Array.isArray(o) ? o[0] : o, text: Array.isArray(o) ? o[1] : o });
@@ -1365,15 +1471,18 @@
     var cConseiller = champ('e-conseiller', 'Conseiller', { placeholder: (AMX.session && AMX.session.nom) || '' });
     cConseiller.input.setAttribute('list', 'e-conseillers');
     this.elConseillers = h('datalist#e-conseillers');
+    var cTypeClient = listeChoix('e-client-type', 'Type de client', SUIVI_TYPES_CLIENT);
+    var cLangue = listeChoix('e-client-langue', 'Langue', SUIVI_LANGUES);
     var cCherche = champ('e-client-cherche', 'Ce que le client cherche', { placeholder: 'VUS 2024, 400 $ / mois…' });
     var cValeur = champ('e-valeur-client', 'Valeur offerte au client ($)', { type: 'number', inputmode: 'numeric', placeholder: 'Montant annoncé au client' });
     var cRelance = champ('e-relance', 'Relancer le', { type: 'date' });
     this.elClient = cNom.input; this.elClientTel = cTel.input; this.elClientCourriel = cCourriel.input;
     this.elOrigine = cOrigine.input; this.elTransaction = cTransaction.input; this.elConseiller = cConseiller.input;
     this.elCherche = cCherche.input; this.elValeurClient = cValeur.input; this.elRelance = cRelance.input;
+    this.elTypeClient = cTypeClient.input; this.elLangue = cLangue.input;
     this.elEcartClient = h('div.eval-suivi-ecart#eval-ecart-client');
     this.elSuiviCarte = carte(h('div.titre', [h('h2', 'Client et suivi'), this.elSuiviInfo]), [
-      h('div.grille.eval-grille-suivi', [cNom.el, cTel.el, cCourriel.el, cOrigine.el, cTransaction.el, cConseiller.el, cCherche.el, cValeur.el, cRelance.el]),
+      h('div.grille.eval-grille-suivi', [cNom.el, cTel.el, cCourriel.el, cTypeClient.el, cLangue.el, cOrigine.el, cTransaction.el, cConseiller.el, cCherche.el, cValeur.el, cRelance.el]),
       this.elEcartClient, this.elConseillers
     ], h('div.droite', [this.elSuiviSegment]));
     this.elSuiviCarte.id = 'sec-suivi';
@@ -1384,12 +1493,24 @@
     var cPareBrise = listeChoix('e-pare-brise', 'Pare-brise', ETAT_PARE_BRISE);
     var cAccident = listeChoix('e-accident', 'Accident déclaré', ETAT_ACCIDENT);
     var cCarrosserie = champ('e-carrosserie', 'Carrosserie', { placeholder: 'Égratignures, bosses…' });
-    var cVoyants = champ('e-voyants', 'Voyants allumés', { placeholder: 'Moteur, ABS…' });
+    var cVoyants = champ('e-voyants', 'Autres voyants', { placeholder: 'Pression des pneus…' });
     var cSolde = champ('e-solde-pret', 'Solde de prêt ($)', { type: 'number', inputmode: 'numeric' });
+    var cCles = listeChoix('e-cles', 'Clés', ETAT_CLES);
+    var cCoulExt = champ('e-couleur-ext', 'Couleur ext.', { placeholder: 'Blanc' });
+    var cCoulInt = champ('e-couleur-int', 'Couleur int.', { placeholder: 'Noir' });
+    var cPneusDim = champ('e-pneus-dim', 'Dimension pneus', { placeholder: '235/55R19' });
+    var cAccMontant = champ('e-accident-montant', 'Montant de l\'accident ($)', { type: 'number', inputmode: 'numeric' });
+    var cFinancement = listeChoix('e-financement', 'Financement', ETAT_FINANCEMENT);
+    this.elCles = cCles.input; this.elCouleurExt = cCoulExt.input; this.elCouleurInt = cCoulInt.input; this.elPneusDim = cPneusDim.input;
+    this.elAccidentMontant = cAccMontant.input; this.elChampAccMontant = cAccMontant.el; this.elFinancement = cFinancement.input;
+    var modif = function () { self.suiviModifie(); };
+    this.chipsConstats = pastilles('eval-constats', 'Constats', ETAT_CONSTATS, 'rouge', modif);
+    this.chipsGaranties = pastilles('eval-garanties', 'Garanties', ETAT_GARANTIES, 'bleu', modif);
+    this.chipsOptions = pastilles('eval-options', 'Options', ETAT_OPTIONS, 'vert', modif);
     this.elEtatGeneral = cGeneral.input; this.elPneusEte = cPneusEte.input; this.elPneusHiver = cPneusHiver.input;
     this.elPareBrise = cPareBrise.input; this.elAccident = cAccident.input; this.elCarrosserie = cCarrosserie.input;
     this.elVoyants = cVoyants.input; this.elSoldePret = cSolde.input;
-    this.elEtatNotes = h('textarea.saisie#e-etat-notes', { rows: '2', placeholder: 'Odeurs, entretien, clés, livrets…' });
+    this.elEtatNotes = h('textarea.saisie#e-etat-notes', { rows: '2', placeholder: 'Odeurs, entretien, livrets…' });
     this.elPhotos = h('div.eval-photos#eval-photos');
     this.elPhotoInput = h('input#eval-photo-fichier', { type: 'file', accept: 'image/*', multiple: 'multiple', style: { display: 'none' } });
     this.elPhotoInput.addEventListener('change', function () {
@@ -1399,7 +1520,9 @@
     });
     this.btnPhotos = h('button.btn.petit#eval-photos-btn', { type: 'button', html: I.plus + '<span>Ajouter des photos</span>', onclick: function () { self.elPhotoInput.click(); } });
     this.elEtatCarte = carte(h('div.titre', [h('h2', 'État du véhicule et photos'), h('p', 'Ce que le client déclare et ce que vous voyez. Les photos restent avec le NIV et suivent le véhicule s\'il est acheté.')]), [
-      h('div.grille.eval-grille-etat', [cGeneral.el, cPneusEte.el, cPneusHiver.el, cPareBrise.el, cAccident.el, cCarrosserie.el, cVoyants.el, cSolde.el]),
+      h('div.grille.eval-grille-etat', [cGeneral.el, cCles.el, cCoulExt.el, cCoulInt.el, cPneusEte.el, cPneusHiver.el, cPneusDim.el, cPareBrise.el,
+        cAccident.el, cAccMontant.el, cCarrosserie.el, cVoyants.el, cSolde.el, cFinancement.el]),
+      h('div.eval-chips-bloc', [this.chipsConstats.el, this.chipsGaranties.el, this.chipsOptions.el]),
       h('div.champ.eval-etat-notes', [h('label', { 'for': 'e-etat-notes', text: 'Notes' }), this.elEtatNotes]),
       h('div.eval-photos-entete', [h('h3', 'Photos'), this.btnPhotos, this.elPhotoInput]),
       this.elPhotos
@@ -1413,12 +1536,21 @@
       });
     });
     [this.elClient, this.elClientTel, this.elClientCourriel, this.elConseiller, this.elCherche, this.elValeurClient, this.elRelance,
-      this.elCarrosserie, this.elVoyants, this.elSoldePret, this.elEtatNotes].forEach(function (el) { el.addEventListener('input', function () { self.suiviModifie(); }); });
-    [this.elOrigine, this.elTransaction, this.elEtatGeneral, this.elPneusEte, this.elPneusHiver, this.elPareBrise, this.elAccident, this.elRelance].forEach(function (el) { el.addEventListener('change', function () { self.suiviModifie(); }); });
+      this.elCarrosserie, this.elVoyants, this.elSoldePret, this.elEtatNotes, this.elCouleurExt, this.elCouleurInt, this.elPneusDim, this.elAccidentMontant].forEach(function (el) { el.addEventListener('input', function () { self.suiviModifie(); }); });
+    [this.elOrigine, this.elTransaction, this.elEtatGeneral, this.elPneusEte, this.elPneusHiver, this.elPareBrise, this.elAccident, this.elRelance,
+      this.elTypeClient, this.elLangue, this.elCles, this.elFinancement].forEach(function (el) { el.addEventListener('change', function () { self.suiviModifie(); }); });
+    this.elAccident.addEventListener('change', function () { self.majChampsEtat(); });
     [this.elAchat, this.elFrais].forEach(function (el) { el.addEventListener('input', function () { self.rendreEcartClient(); }); });
     this.rendreSuiviStatut();
     this.rendreConseillers();
+    this.majChampsEtat();
     this.rendrePhotos();   // page sans NIV : bouton grisé et « dès que le NIV est complet »
+  };
+
+  // Le montant d'un accident ne se demande que si un accident est déclaré (ou qu'un montant était déjà inscrit).
+  Evaluation.prototype.majChampsEtat = function () {
+    if (!this.elChampAccMontant) return;
+    this.elChampAccMontant.classList.toggle('cache', this.elAccident.value !== 'oui' && !this.elAccidentMontant.value);
   };
 
   Evaluation.prototype.rendreSuiviStatut = function () {
@@ -1475,16 +1607,19 @@
 
   Evaluation.prototype.collecterSuivi = function () {
     function t(el) { return String(el.value || '').trim(); }
-    function vide(o) { return !Object.keys(o).some(function (k) { return o[k]; }); }
+    function vide(o) { return !Object.keys(o).some(function (k) { return Array.isArray(o[k]) ? o[k].length : o[k]; }); }
     var suivi = {
       statut: this.suiviStatut, statutLe: this.suiviStatutLe, statutPar: this.suiviStatutPar,
       client: t(this.elClient), telephone: t(this.elClientTel), courriel: t(this.elClientCourriel), origine: t(this.elOrigine),
       transaction: t(this.elTransaction), cherche: t(this.elCherche), conseiller: t(this.elConseiller),
-      valeurClient: t(this.elValeurClient), relanceLe: t(this.elRelance)
+      valeurClient: t(this.elValeurClient), relanceLe: t(this.elRelance), typeClient: t(this.elTypeClient), langue: t(this.elLangue)
     };
     var etat = {
       general: t(this.elEtatGeneral), pneusEte: t(this.elPneusEte), pneusHiver: t(this.elPneusHiver), pareBrise: t(this.elPareBrise),
-      accident: t(this.elAccident), carrosserie: t(this.elCarrosserie), voyants: t(this.elVoyants), soldePret: t(this.elSoldePret), notes: t(this.elEtatNotes)
+      accident: t(this.elAccident), carrosserie: t(this.elCarrosserie), voyants: t(this.elVoyants), soldePret: t(this.elSoldePret), notes: t(this.elEtatNotes),
+      cles: t(this.elCles), couleurExt: t(this.elCouleurExt), couleurInt: t(this.elCouleurInt), pneusDim: t(this.elPneusDim),
+      accidentMontant: t(this.elAccidentMontant), financement: t(this.elFinancement),
+      constats: this.chipsConstats.get(), garanties: this.chipsGaranties.get(), options: this.chipsOptions.get()
     };
     if (suivi.conseiller) {
       var noms = AMX.memo.lire('eval_conseillers', []);
@@ -1510,11 +1645,16 @@
     poserChoix(this.elOrigine, s.origine); poserChoix(this.elTransaction, s.transaction);
     this.elConseiller.value = v(s.conseiller); this.elCherche.value = v(s.cherche);
     this.elValeurClient.value = v(s.valeurClient); this.elRelance.value = v(s.relanceLe).slice(0, 10);
+    poserChoix(this.elTypeClient, s.typeClient); poserChoix(this.elLangue, s.langue);
     this.suiviStatut = statutSuivi(s.statut) ? s.statut : '';
     this.suiviStatutLe = this.suiviStatut ? v(s.statutLe) : ''; this.suiviStatutPar = this.suiviStatut ? v(s.statutPar) : '';
     poserChoix(this.elEtatGeneral, e.general); poserChoix(this.elPneusEte, e.pneusEte); poserChoix(this.elPneusHiver, e.pneusHiver);
     poserChoix(this.elPareBrise, e.pareBrise); poserChoix(this.elAccident, e.accident);
     this.elCarrosserie.value = v(e.carrosserie); this.elVoyants.value = v(e.voyants); this.elSoldePret.value = v(e.soldePret); this.elEtatNotes.value = v(e.notes);
+    poserChoix(this.elCles, e.cles); poserChoix(this.elFinancement, e.financement);
+    this.elCouleurExt.value = v(e.couleurExt); this.elCouleurInt.value = v(e.couleurInt); this.elPneusDim.value = v(e.pneusDim); this.elAccidentMontant.value = v(e.accidentMontant);
+    this.chipsConstats.set(e.constats); this.chipsGaranties.set(e.garanties); this.chipsOptions.set(e.options);
+    this.majChampsEtat();
     this.rendreSuiviStatut();
     this.rendreEcartClient();
     this.rendrePhotos();
@@ -2006,6 +2146,7 @@
       marque: this.elMarque.value, modele: this.elModele.value, annee: this.elAnnee.value, version: this.elVersion.value, carrosserie: this.elStyle.value,
       km: this.elKm.value, tauxKm: this.elTaux.value, prixVente: this.elPrix.value, prixAchat: this.elAchat.value, frais: this.elFrais.value, prixPaye: this.elPaye.value, recon: this.elRecon.value, marge: this.elMarge.value, concession: this.elConcession.value,
       comparables: this.comparablesCharges || [],
+      reconDetail: this.reconDetail().postes, prixType: this.elPrixType.value, prixNote: this.elPrixNote.value.trim(),
       marche: marche,
       us: us,
       mmr: us && us.mmr !== null ? String(us.mmr) : '',
@@ -2033,6 +2174,8 @@
     if (!this.elAchat.value && data.prixPaye) this.elAchat.value = data.prixPaye;
     if (data.recon !== undefined && data.recon !== '') this.elRecon.value = data.recon;
     if (data.marge !== undefined && data.marge !== '') this.elMarge.value = data.marge;
+    this.poserReconDetail(data.reconDetail);
+    poserChoix(this.elPrixType, data.prixType); this.elPrixNote.value = data.prixNote || '';
     if (data.concession && AMX.concessionsPour('evaluations')[data.concession]) { this.elConcession.value = data.concession; this.rendreCie(); }
     this.comparablesCharges = Array.isArray(data.comparables) ? data.comparables.filter(function (c) { return c && (c.prix || c.source); }) : [];
     this.derniereSauvegarde = (data.marche && typeof data.marche === 'object') ? data.marche : null;
@@ -2068,6 +2211,7 @@
     var self = this;
     ['elMarque', 'elModele', 'elAnnee', 'elVersion', 'elKm', 'elPrix', 'elPaye', 'elRecon', 'elAchat', 'elFrais'].forEach(function (k) { self[k].value = ''; });
     this.elStyle.value = ''; this.styleManuel = false;
+    this.poserReconDetail(null); this.elPrixType.value = ''; this.elPrixNote.value = '';
     this.ficheSource = '';
     this.comparablesCharges = [];
     this.derniereSauvegarde = null;

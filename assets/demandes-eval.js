@@ -590,6 +590,11 @@
       h('div.mini', { text: 'De ' + (x.demandeParNom || '—') + ' → ' + (x.evaluateurNom || '—') + (x.mode === 'disponible' ? ' (premier disponible)' : '') + ' · ' + nomCie(x.compagnie) + ' · ' + x.id + (x.photos ? ' · ' + pluriel(x.photos, 'photo') : '') }),
       x.reprendDe ? h('div.mini', { text: 'Réévaluation de ' + x.reprendDe }) : null,
       x.remplaceePar ? h('div.mini', { text: 'Réévaluée : voir ' + x.remplaceePar }) : null,
+      /* 1er nov. : demande venue du CRM Traction — la valeur y retourne d'elle-même (Traction.gs) */
+      x.source === 'traction' && x.crm ? h('div.mini.de-traction', [h('span.badge.bleu.sans-point', { text: 'Traction' }),
+        x.crm.url ? h('a', { href: x.crm.url, target: '_blank', rel: 'noopener', text: ' Opportunité ' + (x.crm.opportuniteId || '') + ' ↗' }) : h('span', { text: ' Opportunité ' + (x.crm.opportuniteId || '—') }),
+        h('span', { text: x.crm.echec ? ' · renvoi à Traction en échec : ' + x.crm.echec : (x.crm.envoye ? ' · valeur renvoyée dans la cotation' : (x.etat === 'faite' ? ' · valeur en route vers Traction' : '')) }),
+        (x.crm.photos || []).length ? h('span', [h('span', { text: ' · photos : ' })].concat(x.crm.photos.map(function (u, i) { return h('a', { href: u, target: '_blank', rel: 'noopener', text: (i ? ', ' : '') + (i + 1) }); }))) : null]) : null,
       x.note ? h('div.de-note', { text: x.note }) : null,
       x.etat === 'annulee' && x.annuleRaison ? h('div.mini', { text: 'Annulée : ' + x.annuleRaison }) : null
     ]);
@@ -664,6 +669,7 @@
       h('b', { text: x.vehicule || x.vin }),
       h('span.mini', { text: [x.client, x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : ''].filter(Boolean).join(' · ') }),
       h('span.mini', { text: (x.demandeParNom || '—') + ' → ' + (x.evaluateurNom || '—') }),
+      x.source === 'traction' ? h('span.badge.bleu.sans-point', { text: 'Traction' }) : null,
       x.infoDemandee ? h('span.badge.ambre.sans-point', { text: 'Question en attente' }) : null,
       bas
     ]);

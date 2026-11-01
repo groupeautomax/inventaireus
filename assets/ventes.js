@@ -51,6 +51,22 @@
   /* 22 oct. (Maxime) : une vente compte dans le mois de sa LIVRAISON (sinon de sa vente) — le serveur envoie `mois` calculé ainsi. */
   function dateLivraisonOk(v) { return /^\d{4}-\d{2}-\d{2}/.test(String(v.dateLivraison || '')); }
   function moisDeVente(v) { return v.mois || String((dateLivraisonOk(v) ? v.dateLivraison : '') || v.dateVente || v.declareLe || '').slice(0, 7); }
+  /* 1er nov. (Maxime : « ajouter un onglet vente reportée qu'on appelle les commandes vendues ») : vendue, pas encore livrée
+     (pas de date de livraison, ou une date à venir), ni annulée, ni comptabilisée, ni wholesale. Au-delà de 120 jours depuis la
+     vente (comme « à livrer » du Board), elle est mise à part : souvent une livraison jamais inscrite au livre. */
+  var COMMANDES_JOURS = 120;
+  function estCommande(v) {
+    if (v.statut === 'annulee' || v.statut === 'comptabilisee' || v.type === 'wholesale') return false;
+    return !(dateLivraisonOk(v) && String(v.dateLivraison).slice(0, 10) <= isoLocal(new Date()));
+  }
+  function joursDepuisVente(v) {
+    var d = String(v.dateVente || v.declareLe || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    return Math.max(0, Math.round((Date.parse(isoLocal(new Date())) - Date.parse(d)) / 86400000));
+  }
+  function ageCommande(v) { var j = joursDepuisVente(v); return j !== null && j <= COMMANDES_JOURS ? 'recentes' : 'vieilles'; }
+  var AGES_COMMANDE = [['recentes', 'Moins de ' + COMMANDES_JOURS + ' jours'], ['vieilles', 'Plus de ' + COMMANDES_JOURS + ' jours (à vérifier)'], ['', 'Toutes']];
+  function vueDe(ctx) { var o = ctx && ctx.onglet; return o === 'recap' || o === 'commandes' ? o : 'liste'; }
   function capitale(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   function nombre(x) { if (x === null || x === undefined || x === '') return null; if (typeof x === 'number') return isNaN(x) ? null : x; var s = String(x).replace(/\s| | /g, '').replace(/\$/g, ''); var neg = /^\(.*\)$/.test(s) || s.indexOf('-') >= 0; s = s.replace(/[()\-]/g, ''); var v = s.lastIndexOf(','), pt = s.lastIndexOf('.'); if (v >= 0 && pt >= 0) { if (v > pt) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(/,/g, ''); } else if (v >= 0) s = s.replace(',', '.'); var n = parseFloat(s); return isNaN(n) ? null : (neg ? -n : n); }
   function argent(n) { return n === null || n === undefined || n === '' || isNaN(n) ? '—' : AMX.fmtArgent(n); }
@@ -330,6 +346,7 @@
       '.compta-champ.compta-case { display: flex; align-items: flex-end; } .compta-champ.compta-case label.case { font-size: 13.5px; color: var(--encre); font-weight: 600; }',
       '.compta-puces { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; } .compta-puces .btn.actif { background: var(--vert-clair); border-color: var(--vert); color: var(--vert-fonce); }',
       '.ventes-table .sous.rdr { color: var(--vert-fonce); } .ventes-table .sous.rdr.manque { color: var(--ambre); font-weight: 600; }',
+      '.ventes-table .sous.retard { color: var(--ambre); font-weight: 600; } #ventes-ages { flex-wrap: wrap; }',   /* 1er nov. : Commandes vendues */
       '@media (max-width: 760px) { .ventes-table th:nth-child(5), .ventes-table td:nth-child(5), .ventes-table th:nth-child(6), .ventes-table td:nth-child(6) { display: none; } .ventes-produits { grid-template-columns: 1fr; } }'
     ].join('\n');
     document.head.appendChild(s);
@@ -348,12 +365,12 @@
     injecterCss();
     this.conteneur = conteneur;
     this.params = (ctx && ctx.params) || {};
-    this.vue = ctx && ctx.onglet === 'recap' ? 'recap' : 'liste';
+    this.vue = vueDe(ctx);
     this.compagnie = AMX.compagnieChoisie('inventaire');
     this.periode = periodeValide(this.params.mois) ? String(this.params.mois) : moisCourant();
     this.avenir = {};   /* nombre de ventes à livrer plus tard, par concession */
     this.annee = String(this.params.annee || AMX.memo.lire('ventes_annee', '') || new Date().getFullYear());
-    this.filtres = { etat: this.params.etat || '', type: this.params.type || '', drapeau: '', recherche: '' };
+    this.filtres = { etat: this.params.etat || '', type: this.params.type || '', drapeau: '', recherche: '', age: 'recentes' };
     this.construire();
     this.montrer();
     this.sur = function () { self.rendre(); AMX.rafraichirSousBarre(); };
@@ -373,7 +390,7 @@
   VueVentes.prototype.demonter = function () { cache.vue = ''; cacheRecap.vue = ''; document.removeEventListener('amx:ventes', this.sur); document.removeEventListener('amx:compagnie', this.surCompagnie); document.removeEventListener('amx:profil', this.surProfil); };
   VueVentes.prototype.naviguer = function (ctx) {
     this.params = (ctx && ctx.params) || {};
-    var vue = ctx && ctx.onglet === 'recap' ? 'recap' : 'liste';
+    var vue = vueDe(ctx);
     if (this.params.etat !== undefined) this.filtres.etat = this.params.etat;
     if (this.params.type !== undefined) this.filtres.type = this.params.type;
     if (periodeValide(this.params.mois)) this.periode = String(this.params.mois);
@@ -450,6 +467,8 @@
       var sel = h('select.saisie#ventes-annee', Object.keys(annees).sort().reverse().map(function (a) { return h('option', { value: a, text: a, selected: a === self.annee ? 'selected' : undefined }); }));
       sel.addEventListener('change', function () { self.annee = sel.value; AMX.memo.ecrire('ventes_annee', sel.value); self.chargerRecap(false); });
       extra = [h('div.annee', [h('span.doux.petit', 'Année'), sel])];
+    } else if (this.vue === 'commandes') {
+      extra = [h('div.ventes-mois', [h('span.doux.petit', { text: 'Vendues, pas encore livrées — tous les mois' })])];
     } else {
       // v137 : un menu des mois de LIVRAISON (le mois courant en premier, puis les 11 précédents, l'année, tout) et, à côté,
       // « À livrer plus tard » : les ventes livrées dans un mois suivant restent là jusqu'à ce que leur mois arrive.
@@ -482,7 +501,7 @@
     }, function () {});
   };
   VueVentes.prototype.charger = function (force) {
-    var self = this, cie = this.compagnie, mois = moisDe(this.periode), cle = cleDe(cie, mois);
+    var self = this, cie = this.compagnie, mois = this.vue === 'commandes' ? 'tout' : moisDe(this.periode), cle = cleDe(cie, mois);
     cache.vue = cle;
     this.chargerAvenir();
     if (!cache.rep || cache.cle !== cle) {
@@ -571,6 +590,11 @@
     var n = d.compte || {}, total = d.ventes.length;
     var copie = cache.copieLe ? 'Copie du ' + AMX.copieTexte(cache.copieLe) + ' — mise à jour en cours… · ' : '';
     var importees = d.ventes.filter(function (v) { return v.importee; }).length;
+    if (this.vue === 'commandes') {   /* 1er nov. : le sous-titre parle des commandes, pas de tout ce qui a été lu */
+      var cmd = d.ventes.filter(estCommande), vieilles = cmd.filter(function (v) { return ageCommande(v) === 'vieilles'; }).length, attenteFI = cmd.filter(function (v) { return v.statut === 'declaree'; }).length;
+      this.elSous.textContent = copie + (cmd.length ? cmd.length + (cmd.length > 1 ? ' commandes vendues, pas encore livrées' : ' commande vendue, pas encore livrée') + (vieilles ? ' · ' + vieilles + ' de plus de ' + COMMANDES_JOURS + ' jours à vérifier' : '') + (attenteFI ? ' · ' + attenteFI + ' en attente du F&I' : '') : 'Aucune commande vendue en attente de livraison.');
+      this.rendreFiltres(); this.rafraichir(); return;
+    }
     this.elSous.textContent = copie + (total ? pluriel(total, 'vente') + (n.declaree ? ' · ' + n.declaree + ' en attente du F&I' : '') + (n.comptabilisee ? ' · ' + n.comptabilisee + ' comptabilisée' + (n.comptabilisee > 1 ? 's' : '') : '') + (importees ? ' · ' + importees + ' importée' + (importees > 1 ? 's' : '') + ' du livre' : '') + (n.erreurLivre ? ' · ' + n.erreurLivre + ' pas au livre' : '') : 'Aucune vente inscrite pour cette période.') + (d.relu && d.relu.le && !d.relu.duCache ? ' · livre relu à ' + AMX.fmtDate(d.relu.le, true).replace(/^\S+\s/, '') : '');
     this.rendreFiltres();
     this.rafraichir();
@@ -583,6 +607,7 @@
   /* Une vente passe-t-elle les filtres ? `sauf` = le filtre à ne pas appliquer ('etat' ou 'type') pour compter une pastille. */
   VueVentes.prototype.garde = function (v, sauf) {
     var f = this.filtres, q = f.recherche || '';
+    if (this.vue === 'commandes') { if (!estCommande(v)) return false; if (sauf !== 'age' && f.age && ageCommande(v) !== f.age) return false; }
     if (sauf !== 'etat' && f.etat && v.statut !== f.etat) return false;
     if (sauf !== 'type' && f.type && v.type !== f.type) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'sansFI' && !besoinFI(v)) return false;
@@ -594,6 +619,7 @@
   };
   VueVentes.prototype.ajustementsVisibles = function () {
     var d = cache.rep, f = this.filtres, q = f.recherche || '';
+    if (this.vue === 'commandes') return [];
     if (!d || !Array.isArray(d.ajustements) || f.drapeau || (f.etat && f.etat !== 'comptabilisee')) return [];
     return d.ajustements.filter(function (a) {
       if (a.annule) return false;
@@ -616,20 +642,21 @@
   /* 26 oct. (Maxime : « il faut aussi un compteur de RDR du mois et la date est dans le livre des ventes ») : la Date RDR vient du
      livre. « RDR du mois » = Date RDR dans le mois affiché ; « sans RDR » = neuf livré dans le mois sans Date RDR, seulement pour
      les concessions qui inscrivent leurs RDR (le serveur les nomme dans rdr.cies). */
-  VueVentes.prototype.moisRdr = function () { return /^\d{4}-\d{2}$/.test(String(this.periode || '')) ? this.periode : ''; };
+  VueVentes.prototype.moisRdr = function () { return this.vue !== 'commandes' && /^\d{4}-\d{2}$/.test(String(this.periode || '')) ? this.periode : ''; };
   VueVentes.prototype.estRdr = function (v) { var m = this.moisRdr(); return !!m && v.statut !== 'annulee' && String(v.dateRdr || '').slice(0, 7) === m; };
   VueVentes.prototype.sansRdr = function (v) { var m = this.moisRdr(), d = cache.rep, cies = d && d.rdr && d.rdr.cies ? d.rdr.cies : []; return !!m && v.statut !== 'annulee' && v.type === 'neuf' && !v.dateRdr && dateLivraisonOk(v) && moisDeVente(v) === m && cies.indexOf(v.compagnie) >= 0; };
   /* Les nombres des pastilles : état (sans le filtre d'état), type (sans le filtre de type), F&I à inscrire / pas au livre
      (sans ce drapeau) — chaque nombre est ce qu'on verra en cliquant. */
   VueVentes.prototype.compteurs = function () {
-    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0, rdr: 0, sansRdr: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 };
-    if (!d) return { etat: e, type: t };
+    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0, rdr: 0, sansRdr: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 }, a = { '': 0, recentes: 0, vieilles: 0 };
+    if (!d) return { etat: e, type: t, age: a };
     d.ventes.forEach(function (v) {
+      if (self.vue === 'commandes' && self.garde(v, 'age')) { a['']++; a[ageCommande(v)]++; }
       if (self.garde(v, 'etat')) { e['']++; if (e[v.statut] !== undefined) e[v.statut]++; }
       if (self.garde(v, 'type')) { t['']++; if (t[v.type] !== undefined) t[v.type]++; }
       if (self.garde(v, 'drapeau')) { if (v.livre === 'erreur') e.erreur++; if (besoinFI(v)) e.sansFI++; if (self.estRdr(v)) e.rdr++; if (self.sansRdr(v)) e.sansRdr++; }
     });
-    return { etat: e, type: t };
+    return { etat: e, type: t, age: a };
   };
   var ETATS_VENTE = [['', 'Toutes'], ['declaree', 'Attente F&I'], ['completee', 'Au livre'], ['comptabilisee', 'Comptabilisées'], ['annulee', 'Annulées']];
   var TYPES_VENTE = [['', 'Tous'], ['neuf', 'Neufs'], ['usage', 'Occasions'], ['wholesale', 'Wholesale']];
@@ -639,7 +666,9 @@
     var self = this, ui2 = AMX.ui2 && AMX.ui2();
     AMX.vider(this.elFiltres);
     this.elFiltres.classList.toggle('inv2-filtres', !!ui2);
-    this.nbEtat = {}; this.nbType = {};
+    this.nbEtat = {}; this.nbType = {}; this.nbAge = {};
+    var commandes = this.vue === 'commandes';
+    var segAge = commandes ? h('div.segment#ventes-ages', { role: 'group', 'aria-label': 'Vendue depuis' }, AGES_COMMANDE.map(function (g) { var b = h('span.n', { text: '0' }); self.nbAge[g[0]] = b; var actif = (self.filtres.age || '') === g[0]; return h('button' + (actif ? '.actif' : ''), { type: 'button', 'data-age': g[0], 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres.age = g[0]; self.rendre(); } }, [g[1], b]); })) : null;
     var rech = h('input.saisie#ventes-recherche', { type: 'search', placeholder: 'Client, NIV, # stock, conseiller…', value: this.filtres.recherche, 'aria-label': 'Chercher une vente' });
     rech.addEventListener('input', function () { self.filtres.recherche = rech.value; self.rafraichir(); });
     var segType = h('div.segment#ventes-types', TYPES_VENTE.map(function (t) { var b = h('span.n', { text: '0' }); self.nbType[t[0]] = b; return h('button' + (self.filtres.type === t[0] ? '.actif' : ''), { type: 'button', 'data-type': t[0], 'aria-pressed': self.filtres.type === t[0] ? 'true' : 'false', onclick: function () { self.filtres.type = t[0]; self.rendre(); } }, [t[1], b]); }));
@@ -652,9 +681,10 @@
       this.elFiltres.appendChild(h('div.recherche.inv2-recherche', [h('span', { html: AMX.icones.recherche }), rech]));
       this.elFiltres.appendChild(pas);
       this.elFiltres.appendChild(segType);
+      if (segAge) this.elFiltres.appendChild(segAge);
       return;
     }
-    this.elFiltres.appendChild(segType); this.elFiltres.appendChild(rech);
+    this.elFiltres.appendChild(segType); if (segAge) this.elFiltres.appendChild(segAge); this.elFiltres.appendChild(rech);
     if (typeof XLSX !== 'undefined') this.elFiltres.appendChild(h('button.btn.petit#ventes-export', { type: 'button', onclick: function () { self.exporter(); } }, [AMX.svg('telecharger'), ' Excel']));
   };
   VueVentes.prototype.majCompteurs = function () {
@@ -662,14 +692,15 @@
     this.nbCompte = c;
     Object.keys(this.nbEtat || {}).forEach(function (k) { self.nbEtat[k].textContent = String(c.etat[k] || 0); });
     Object.keys(this.nbType || {}).forEach(function (k) { self.nbType[k].textContent = String(c.type[k] || 0); });
+    Object.keys(this.nbAge || {}).forEach(function (k) { self.nbAge[k].textContent = String((c.age || {})[k] || 0); });
   };
   VueVentes.prototype.rendrePortee = function () {
     var self = this, f = this.filtres, liste = this.visibles(), q = (f.recherche || '').trim();
     if (!this.elPortee) return;
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['vente', 'ventes'],
-      contexte: [this.periode === 'avenir' ? 'À livrer plus tard' : (this.periode === 'tout' ? 'Toutes les périodes' : capitale(this.periode.length === 4 ? 'année ' + this.periode : moisLibelle(this.periode))), this.compagnie ? (AMX.COMPAGNIES_TOUTES[this.compagnie] || this.compagnie) : ''],
-      filtres: [f.etat ? libelleEtatVente(f.etat) : '', f.drapeau ? libelleEtatVente(f.drapeau) : '', f.type ? (TYPES_VENTE.filter(function (t) { return t[0] === f.type; })[0] || ['', f.type])[1] : '', q ? '« ' + q + ' »' : ''],
-      effacer: function () { self.filtres = { etat: '', type: '', drapeau: '', recherche: '' }; self.rendre(); } });
+      contexte: [this.vue === 'commandes' ? 'Commandes vendues, pas encore livrées' : this.periode === 'avenir' ? 'À livrer plus tard' : (this.periode === 'tout' ? 'Toutes les périodes' : capitale(this.periode.length === 4 ? 'année ' + this.periode : moisLibelle(this.periode))), this.compagnie ? (AMX.COMPAGNIES_TOUTES[this.compagnie] || this.compagnie) : ''],
+      filtres: [this.vue === 'commandes' && f.age ? (AGES_COMMANDE.filter(function (g) { return g[0] === f.age; })[0] || ['', ''])[1].toLowerCase() : '', f.etat ? libelleEtatVente(f.etat) : '', f.drapeau ? libelleEtatVente(f.drapeau) : '', f.type ? (TYPES_VENTE.filter(function (t) { return t[0] === f.type; })[0] || ['', f.type])[1] : '', q ? '« ' + q + ' »' : ''],
+      effacer: function () { self.filtres = { etat: '', type: '', drapeau: '', recherche: '', age: '' }; self.rendre(); } });
   };
   VueVentes.prototype.rendreKpis = function () {
     var self = this, d = cache.rep, ui2 = AMX.ui2 && AMX.ui2(), c = this.nbCompte || this.compteurs(), sansFI = this.filtres.type === 'wholesale';
@@ -764,22 +795,28 @@
     var cle = cie + '|' + m, r = cacheRdrP.cle === cle ? cacheRdrP.rep : null;
     /* 1er nov. (Maxime : « faire une distinction entre RDR manufacturier (provient des données du manufacturier) et les autos
        livrées ») : par concession, les neufs livrés (livre), les RDR inscrits au livre et les RDR reçus par le constructeur. */
-    var carte = h('div.kpi.neutre.ventes-comp.ventes-rdr-portail#ventes-kpi-rdr-portail', [h('div.titre', { text: 'RDR manufacturier et livraisons' })]);
+    var carte = h('div.kpi.neutre.ventes-comp.ventes-rdr-portail#ventes-kpi-rdr-portail', [h('div.titre', { text: 'RDR manufacturier, livre et comptabilité' })]);
     if (!r) { carte.appendChild(h('div.n', { text: cacheRdrP.cle === cle && cacheRdrP.erreur ? cacheRdrP.erreur : 'Lecture des RDR du constructeur…' })); return carte; }
     var avecRdrLivre = (cache.rep && cache.rep.rdr && cache.rep.rdr.cies) || [];
     var codes = Object.keys(r.cies);
     if (!codes.length) return null;
     var ecartsTotal = 0;
+    /* 1er nov. (Maxime : « le tableau doit comparer RDR manuf., RDR livre, unités comptabilisées ») : neufs livrés dans le mois
+       que la comptabilité a comptabilisés, lus dans la liste du mois (la même que celle affichée dessous). */
+    var listeDuMois = cache.rep && cache.cle === cache.vue && String(cache.cle).split('|')[1] === m ? cache.rep.ventes : null;
+    var compta = function (c) { if (!listeDuMois) return null; return listeDuMois.filter(function (v) { return v.compagnie === c && v.type === 'neuf' && v.statut === 'comptabilisee' && dateLivraisonOk(v) && String(v.dateLivraison).slice(0, 7) === m; }).length; };
     var corps = h('tbody', codes.map(function (c) {
       var x = r.cies[c], e = x.portailSeul.length + x.livreSeul.length + x.autreMois.length, compare = avecRdrLivre.indexOf(c) >= 0 || x.livre > 0;
       if (compare) ecartsTotal += e;
+      var nc = compta(c);
       return h('tr', [h('th', { scope: 'row', text: ({ BMW: 'BMW', STM: 'Ste Marie', HAWKS: 'Hawkesbury', VW: 'VW', HYUNDAI: 'Hyundai' })[c] || c, title: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + x.portail + (x.lu ? ', lu le ' + AMX.fmtDate(x.lu, true) : ', jamais lu') }),
-        h('td.num', { text: x.livrees === undefined ? '—' : String(x.livrees), title: 'Neufs livrés dans le mois (date de livraison du Livre des ventes)' }),
-        h('td.num', { text: compare ? String(x.livre) : '—', title: compare ? 'Date RDR inscrite au livre' : 'Ce livre n\'inscrit pas la Date RDR' }),
         h('td.num', { text: String(x.constructeur), title: 'RDR reçus par ' + x.portail + (x.lu ? ' (lu le ' + AMX.fmtDate(x.lu, true) + ')' : ' (jamais lu)') }),
+        h('td.num', { text: compare ? String(x.livre) : '—', title: compare ? 'Date RDR inscrite au livre' : 'Ce livre n\'inscrit pas la Date RDR' }),
+        h('td.num', { text: nc === null ? '…' : String(nc), title: 'Neufs livrés dans le mois et comptabilisés (case Comptabilisé du livre)' }),
+        h('td.num', { text: x.livrees === undefined ? '—' : String(x.livrees), title: 'Neufs livrés dans le mois (date de livraison du Livre des ventes)' }),
         h('td.num' + (!compare ? '.doux' : (e ? '.ecart-moins' : '.ecart-plus')), { text: !compare ? '—' : (e ? String(e) : '✓'), title: compare ? 'RDR du livre et du constructeur qui ne concordent pas' : 'Pas de comparaison : le livre n\'a pas de Date RDR' })]);
     }));
-    carte.appendChild(h('table.ventes-moy-table', [h('thead', [h('tr', [h('th', { text: '' }), h('th.num', { text: 'Livrées', title: 'Neufs livrés (livre)' }), h('th.num', { text: 'RDR livre', title: 'Date RDR inscrite au livre' }), h('th.num', { text: 'RDR manuf.', title: 'RDR reçus par le constructeur' }), h('th.num', { text: 'Écarts' })])]), corps]));
+    carte.appendChild(h('table.ventes-moy-table', [h('thead', [h('tr', [h('th', { text: '' }), h('th.num', { text: 'RDR manuf.', title: 'RDR reçus par le constructeur' }), h('th.num', { text: 'RDR livre', title: 'Date RDR inscrite au livre' }), h('th.num', { text: 'Compta.', title: 'Neufs livrés dans le mois et comptabilisés' }), h('th.num', { text: 'Livrés', title: 'Neufs livrés dans le mois (livre)' }), h('th.num', { text: 'Écarts', title: 'RDR du livre et du constructeur qui ne concordent pas' })])]), corps]));
     carte.appendChild(h('button.btn.petit#ventes-rdr-comparer', { type: 'button', text: ecartsTotal === 1 ? 'Voir l\'écart' : (ecartsTotal ? 'Voir les ' + ecartsTotal + ' écarts' : 'Voir le détail'), onclick: function (ev) { ev.stopPropagation(); ouvrirComparaisonRdr(r); } }));
     return carte;
   };
@@ -835,7 +872,7 @@
     var liste = this.visibles(), montants = !!d.montants, ajs = this.ajustementsVisibles();
     AMX.vider(this.elListe);
     if (!liste.length && !ajs.length) {
-      this.elListe.appendChild(h('div.carte', [h('div.ventes-vide', [h('div', { text: (this.filtres.etat || this.filtres.drapeau || this.filtres.type || this.filtres.recherche) ? 'Aucune vente pour ce filtre.' : 'Aucune vente inscrite pour cette période.' }),
+      this.elListe.appendChild(h('div.carte', [h('div.ventes-vide', [h('div', { text: this.vue === 'commandes' ? 'Aucune commande vendue en attente de livraison' + (this.filtres.age || this.filtres.type || this.filtres.recherche ? ' pour ce filtre.' : '.') : (this.filtres.etat || this.filtres.drapeau || this.filtres.type || this.filtres.recherche) ? 'Aucune vente pour ce filtre.' : 'Aucune vente inscrite pour cette période.' }),
         AMX.ventes.peutDeclarer() ? h('button.btn.primaire', { type: 'button', style: { marginTop: '10px' }, onclick: function () { AMX.ventes.declarer({ compagnie: self.compagnie }); } }, [AMX.svg('plus'), ' Inscrire une vente']) : null])]));
       return;
     }
@@ -866,6 +903,7 @@
         var prd = produitsListe(v);
         var tr = h('tr.cliquable' + (v.statut === 'annulee' ? '.annulee' : ''), { dataset: { id: v.id } }, [
           h('td', (dateLivraisonOk(v) ? [h('div', { text: AMX.fmtDateCourte(v.dateLivraison) }), v.dateVente ? h('div.sous', { text: 'vendue ' + AMX.fmtDateCourte(v.dateVente) }) : null] : [h('div', { text: AMX.fmtDateCourte(v.dateVente) }), h('div.sous', { text: 'date de vente', title: 'Pas de date de livraison inscrite : la vente compte dans le mois de sa date de vente' })])
+            .concat([self.vue === 'commandes' && joursDepuisVente(v) !== null ? h('div.sous' + (ageCommande(v) === 'vieilles' ? '.retard' : ''), { text: (dateLivraisonOk(v) ? 'livraison prévue · ' : 'pas livrée · ') + 'depuis ' + joursDepuisVente(v) + ' j', title: 'Jours depuis la date de vente' }) : null])
             .concat([v.dateRdr ? h('div.sous.rdr', { text: 'RDR ' + AMX.fmtDateCourte(v.dateRdr) + (v.codeRdr ? ' · ' + v.codeRdr : ''), title: 'Date RDR inscrite au livre' }) : (self.sansRdr(v) ? h('div.sous.rdr.manque', { text: 'sans RDR', title: 'Neuf livré sans Date RDR au livre' }) : null)])),
           h('td.vehicule', [h('div.nom', { text: vehiculeTexte(v) || '(véhicule à préciser)' }), h('div.vin', { text: [v.stock ? '# ' + v.stock : '', v.vin].filter(Boolean).join(' · ') })]),
           h('td', [h('div', { text: v.client || v.venduA || '—' }), v.noClient ? h('div.sous', { text: 'No client ' + v.noClient }) : null, v.type === 'wholesale' && v.acheteDe ? h('div.sous', { text: 'acheté de ' + v.acheteDe }) : (v.echangeStock || v.echangeModele || v.echangeVin ? h('div.sous', { text: 'échange ' + ([v.echangeStock, v.echangeModele].filter(Boolean).join(' ') || v.echangeVin) + (v.echangeEvaluation !== undefined && v.echangeEvaluation !== null ? ' · évalué' : '') }) : null)]),

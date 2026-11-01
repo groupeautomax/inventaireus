@@ -839,7 +839,7 @@
   var TUILES = [
     { id: 'vente', titre: 'Vente', icone: 'vente', ordre: 10, onglets: [
       { id: 'board', titre: 'Board des ventes', de: 'board', onglet: '' },   /* 27 oct. : par représentant, neuf et occasion, objectifs, écran télé (board.js) */
-      { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
+      { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'commandes', titre: 'Commandes vendues' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 1er nov. : + Commandes vendues (vendues, pas encore livrées) ; 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
       { id: 'offres', titre: 'Offres reçues', de: 'offres', onglet: 'recues' },
       { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente' },
       { id: 'acheteurs', titre: 'Acheteurs', de: 'offres', onglet: 'acheteurs' },

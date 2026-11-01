@@ -255,7 +255,7 @@
           h('div.bv-cie-anneau', [anneau(cT.n, cT.obj, ry.attendu, ry.couleur, 92), h('div.centre', [h('b', { text: unites(cT.n) }), h('span', { text: cT.obj !== null ? 'sur ' + unites(cT.obj) : b.mesureLibelle.toLowerCase() })])]),
           h('div.bv-cie-chiffres', [
             h('div', [h('span', 'Neuf'), h('b', { text: unites(cN.n) })]), h('div', [h('span', 'Occasion'), h('b', { text: unites(cU.n) })]),
-            h('div', [h('span', 'RDR'), h('b', { text: unites(b.totaux.neuf.rdr) })]), h('div', [h('span', 'Projection'), h('b', { text: unites(ry.proj) })]),
+            h('div', { title: b.rdrManufacturier ? 'RDR reçus par ' + nomPortail(b.rdrManufacturier.portail) + ' (données du constructeur)' : 'Date RDR du Livre des ventes' }, [h('span', b.rdrManufacturier ? 'RDR manuf.' : 'RDR au livre'), h('b', { text: unites(b.rdrManufacturier ? b.rdrManufacturier.n : b.totaux.neuf.rdr) })]), h('div', [h('span', 'Projection'), h('b', { text: unites(ry.proj) })]),
             h('div', [h('span', 'À livrer'), h('b', { text: unites(b.totaux.neuf.aLivrer + b.totaux.usage.aLivrer) })]),
             d.montants && b.totaux.profit ? h('div', [h('span', 'Front / u.'), h('b', { text: argent(b.totaux.profit.frontMoyen) })]) : null
           ])
@@ -309,10 +309,16 @@
     var ouvrir = function (o) { return function () { o.filtre = o.cat === 'prec' ? null : ensemble; o.sous = o.sous || sur; self.ouvrirVentes(b, o); }; };
     var stats = [];
     if (type === 'total') {
-      stats.push(stat('Neuf', unites(nNeuf), '', '', ouvrir({ titre: b.mesureLibelle + ' — neuf', cat: catMesure, type: 'neuf' })));
-      stats.push(stat('Occasion', unites(nOcc), '', '', ouvrir({ titre: b.mesureLibelle + ' — occasion', cat: catMesure, type: 'usage' })));
+      stats.push(stat('Neuf', unites(nNeuf), b.mesureLibelle.toLowerCase() + (catMesure === 'livrees' ? ' (livre)' : ''), '', ouvrir({ titre: b.mesureLibelle + ' — neuf', cat: catMesure, type: 'neuf' })));
+      stats.push(stat('Occasion', unites(nOcc), b.mesureLibelle.toLowerCase() + (catMesure === 'livrees' ? ' (livre)' : ''), '', ouvrir({ titre: b.mesureLibelle + ' — occasion', cat: catMesure, type: 'usage' })));
     }
-    if (type !== 'usage') stats.push(stat('RDR neuf', unites(rdr), b.rdrPortail ? 'livre + portail' : 'livre', '', ouvrir({ titre: 'RDR du neuf', cat: 'rdr', type: 'neuf', note: b.rdrPortail ? 'Date RDR du Livre des ventes, ou RDR déclaré au portail du constructeur (« portail »).' : 'Date RDR du Livre des ventes.' })));
+    /* 1er nov. (Maxime : « faire une distinction entre RDR manufacturier (provient des données du manufacturier) et les autos
+       livrées ») : les livrées viennent du Livre des ventes ; les RDR, du portail du constructeur, comptés tels quels. */
+    var rm = b.rdrManufacturier;
+    if (type !== 'usage') {
+      if (rm && !filtre) stats.push(stat('RDR manufacturier', unites(rm.n), nomPortail(rm.portail) + (rm.lu ? ' · lu le ' + AMX.fmtDateCourte(rm.lu) : ' · jamais lu'), rm.lu ? '' : 'alerte', function () { self.ouvrirRdrManuf(b); }));
+      else stats.push(stat(rm ? 'RDR reliés' : 'RDR au livre', unites(rdr), rm ? 'ventes des représentants' : 'Date RDR du livre', '', ouvrir({ titre: 'RDR du neuf', cat: 'rdr', type: 'neuf', note: rm ? 'RDR du constructeur reliés à une vente du livre (par le NIV), ou Date RDR inscrite au livre.' : 'Date RDR du Livre des ventes.' })));
+    }
     stats.push(stat('Vendues à livrer', unites(aLiv), '', '', ouvrir({ titre: 'Vendues, pas encore livrées — ' + libType, cat: 'aLivrer', type: type, note: 'Vendues depuis 120 jours, sans date de livraison passée.' })));
     stats.push(stat('Projection', j.passe ? unites(n) : unites(ry.proj), j.passe ? 'mois terminé' : 'fin de mois', '', ouvrir({ titre: b.mesureLibelle + ' — ' + libType, cat: catMesure, type: type,
       note: j.passe ? 'Mois terminé.' : 'Projection : ' + unites(ry.proj) + ' à la fin du mois au rythme actuel (' + unites(n) + ' en ' + j.ecoules + ' jour' + (j.ecoules > 1 ? 's' : '') + ' ouvrable' + (j.ecoules > 1 ? 's' : '') + ' sur ' + j.total + ').' })));
@@ -493,6 +499,25 @@
           return h('tr.cliquable', { title: 'Ouvrir la vente', onclick: function () { m.fermer(); AMX.aller('ventes', 'liste', { id: v.id }); } }, cells);
         }))])]));
     }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('p', { style: { color: 'var(--rouge)' }, text: AMX.erreurTexte(e) })); });
+  };
+
+  /* 1er nov. : les RDR du mois tels que le constructeur les a reçus (GM Global Connect, S-Gate, console OMC, portail Hyundai). */
+  function nomPortail(nom) { return String(nom || 'portail').replace(/\s*\(.*\)\s*$/, ''); }
+  Board.prototype.ouvrirRdrManuf = function (b) {
+    var d = this.donnees, rm = b.rdrManufacturier || { n: 0, liste: [] }, corps = h('div');
+    var m = AMX.modale({ titre: 'RDR manufacturier — ' + b.nom + ' · ' + moisLib(d.mois), corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer', action: function (f) { f(); } }] });
+    var nonRelies = rm.n - (rm.relies || 0);
+    corps.appendChild(h('p.mini.bv-liste-sous', { text: [rm.n + ' RDR reçu' + (rm.n > 1 ? 's' : '') + ' par ' + nomPortail(rm.portail), rm.flotte ? rm.flotte + ' parc' + (rm.flotte > 1 ? 's' : '') : '', (rm.relies || 0) + ' relié' + ((rm.relies || 0) > 1 ? 's' : '') + ' à une vente du livre', rm.lu ? 'lu le ' + AMX.fmtDate(rm.lu, true) : 'jamais lu'].filter(Boolean).join(' · ') }));
+    corps.appendChild(h('p.mini', { text: 'Ce sont les données du constructeur (favori « Automax ← Constructeur »), pas le Livre des ventes : les livraisons du board viennent de la date de livraison du livre.' + (nonRelies > 0 ? ' Un RDR non relié : la vente du livre n\'a pas le NIV' + (b.compagnie === 'HAWKS' ? ' (le livre de Hawkesbury n\'inscrit pas le NIV des neufs)' : '') + ', ou la vente n\'est pas au livre.' : '') }));
+    if (!rm.liste || !rm.liste.length) { corps.appendChild(h('p.doux', rm.lu ? 'Aucun RDR ce mois-ci.' : 'Le portail n\'a jamais été lu : lancez le favori « Automax ← Constructeur ».')); return; }
+    corps.appendChild(h('div', { style: { overflowX: 'auto' } }, [h('table.tableau.bv-liste-ventes', [
+      h('thead', [h('tr', ['Date RDR', 'Véhicule', 'NIV', 'Type', 'Vente au livre'].map(function (t) { return h('th', { text: t }); }))]),
+      h('tbody', rm.liste.map(function (x) {
+        return h('tr' + (x.vente ? '.cliquable' : ''), x.vente ? { title: 'Ouvrir la vente', onclick: function () { m.fermer(); AMX.aller('ventes', 'liste', { id: x.vente }); } } : {}, [
+          h('td', { text: x.date ? AMX.fmtDate(x.date) : '—' }), h('td', { text: x.vehicule || '—' }), h('td.mono', { text: x.vin || '—' }),
+          h('td', [h('span', { text: x.type || '—' }), x.flotte && !/parc/i.test(x.type || '') ? h('span.puce', { text: 'parc', style: { marginLeft: '6px' } }) : null]),
+          h('td', x.vente ? [h('b', { text: x.vente })] : [h('span.doux', { text: 'pas reliée' })])]);
+      }))])]));
   };
 
   /* ------------------------------ Détail d'un représentant ------------------------------ */

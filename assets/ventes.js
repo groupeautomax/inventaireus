@@ -705,7 +705,8 @@
     if (!sansFI) this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', c.etat.sansFI, c.etat.sansFI ? 'alerte' : ''));
     /* 26 oct. : compteur des RDR du mois (Date RDR du livre) */
     if (this.moisRdr() && d.rdr) {
-      var tuileRdr = kpi('rdr', 'RDR — ' + moisLibelle(this.moisRdr()), c.etat.rdr, '');
+      var tuileRdr = kpi('rdr', 'RDR au livre — ' + moisLibelle(this.moisRdr()), c.etat.rdr, '');   /* 1er nov. : la Date RDR inscrite au livre (le compte du constructeur est dans la carte « RDR manufacturier ») */
+      tuileRdr.title = 'Date RDR inscrite au Livre des ventes — à ne pas confondre avec les RDR reçus par le constructeur';
       tuileRdr.id = 'ventes-kpi-rdr';
       if (d.rdr.mois === this.moisRdr() && d.rdr.n !== c.etat.rdr && !this.filtres.type && !this.filtres.recherche && !this.filtres.etat) tuileRdr.appendChild(h('div.sous', { text: d.rdr.n + ' au total (dont des ventes livrées un autre mois)' }));
       this.elKpis.appendChild(tuileRdr);
@@ -715,7 +716,7 @@
   };
   /* 26 oct. (Maxime : « corroborer les RDR dans S-Gate avec le compteur pour BMW et Global Connect pour Hawks et STM ») : les RDR du
      livre et ceux des portails (POST venteRdrComparer), par concession, pour le mois affiché. */
-  var RDR_CIES = ['BMW', 'STM', 'HAWKS'];
+  var RDR_CIES = ['BMW', 'STM', 'HAWKS', 'VW', 'HYUNDAI'];   /* 1er nov. : les cinq portails lus (VENTE_RDR_PORTAILS_) */
   var cacheRdrP = { cle: '', rep: null, quand: 0, promesse: null, erreur: '' };
   VueVentes.prototype.chargerRdrPortail = function (force) {
     var self = this, m = this.moisRdr(), cie = this.compagnie || '';
@@ -736,16 +737,24 @@
     if (!m || (cie && RDR_CIES.indexOf(cie) < 0)) return null;
     this.chargerRdrPortail(false);
     var cle = cie + '|' + m, r = cacheRdrP.cle === cle ? cacheRdrP.rep : null;
-    var carte = h('div.kpi.neutre.ventes-comp.ventes-rdr-portail#ventes-kpi-rdr-portail', [h('div.titre', { text: 'RDR — livre et portails' })]);
-    if (!r) { carte.appendChild(h('div.n', { text: cacheRdrP.cle === cle && cacheRdrP.erreur ? cacheRdrP.erreur : 'Comparaison avec S-Gate et Global Connect…' })); return carte; }
+    /* 1er nov. (Maxime : « faire une distinction entre RDR manufacturier (provient des données du manufacturier) et les autos
+       livrées ») : par concession, les neufs livrés (livre), les RDR inscrits au livre et les RDR reçus par le constructeur. */
+    var carte = h('div.kpi.neutre.ventes-comp.ventes-rdr-portail#ventes-kpi-rdr-portail', [h('div.titre', { text: 'RDR manufacturier et livraisons' })]);
+    if (!r) { carte.appendChild(h('div.n', { text: cacheRdrP.cle === cle && cacheRdrP.erreur ? cacheRdrP.erreur : 'Lecture des RDR du constructeur…' })); return carte; }
+    var avecRdrLivre = (cache.rep && cache.rep.rdr && cache.rep.rdr.cies) || [];
     var codes = Object.keys(r.cies);
     if (!codes.length) return null;
     var ecartsTotal = 0;
     var corps = h('tbody', codes.map(function (c) {
-      var x = r.cies[c], e = x.portailSeul.length + x.livreSeul.length + x.autreMois.length; ecartsTotal += e;
-      return h('tr', [h('th', { scope: 'row', text: ({ BMW: 'BMW', STM: 'Ste Marie', HAWKS: 'Hawkesbury' })[c] || c, title: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + x.portail + (x.lu ? ', lu le ' + AMX.fmtDate(x.lu, true) : ', jamais lu') }), h('td.num', { text: String(x.livre) }), h('td.num', { text: String(x.constructeur) }), h('td.num' + (e ? '.ecart-moins' : '.ecart-plus'), { text: e ? String(e) : '✓' })]);
+      var x = r.cies[c], e = x.portailSeul.length + x.livreSeul.length + x.autreMois.length, compare = avecRdrLivre.indexOf(c) >= 0 || x.livre > 0;
+      if (compare) ecartsTotal += e;
+      return h('tr', [h('th', { scope: 'row', text: ({ BMW: 'BMW', STM: 'Ste Marie', HAWKS: 'Hawkesbury', VW: 'VW', HYUNDAI: 'Hyundai' })[c] || c, title: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + x.portail + (x.lu ? ', lu le ' + AMX.fmtDate(x.lu, true) : ', jamais lu') }),
+        h('td.num', { text: x.livrees === undefined ? '—' : String(x.livrees), title: 'Neufs livrés dans le mois (date de livraison du Livre des ventes)' }),
+        h('td.num', { text: compare ? String(x.livre) : '—', title: compare ? 'Date RDR inscrite au livre' : 'Ce livre n\'inscrit pas la Date RDR' }),
+        h('td.num', { text: String(x.constructeur), title: 'RDR reçus par ' + x.portail + (x.lu ? ' (lu le ' + AMX.fmtDate(x.lu, true) + ')' : ' (jamais lu)') }),
+        h('td.num' + (!compare ? '.doux' : (e ? '.ecart-moins' : '.ecart-plus')), { text: !compare ? '—' : (e ? String(e) : '✓'), title: compare ? 'RDR du livre et du constructeur qui ne concordent pas' : 'Pas de comparaison : le livre n\'a pas de Date RDR' })]);
     }));
-    carte.appendChild(h('table.ventes-moy-table', [h('thead', [h('tr', [h('th', { text: '' }), h('th.num', { text: 'Livre' }), h('th.num', { text: 'Portail' }), h('th.num', { text: 'Écarts' })])]), corps]));
+    carte.appendChild(h('table.ventes-moy-table', [h('thead', [h('tr', [h('th', { text: '' }), h('th.num', { text: 'Livrées', title: 'Neufs livrés (livre)' }), h('th.num', { text: 'RDR livre', title: 'Date RDR inscrite au livre' }), h('th.num', { text: 'RDR manuf.', title: 'RDR reçus par le constructeur' }), h('th.num', { text: 'Écarts' })])]), corps]));
     carte.appendChild(h('button.btn.petit#ventes-rdr-comparer', { type: 'button', text: ecartsTotal === 1 ? 'Voir l\'écart' : (ecartsTotal ? 'Voir les ' + ecartsTotal + ' écarts' : 'Voir le détail'), onclick: function (ev) { ev.stopPropagation(); ouvrirComparaisonRdr(r); } }));
     return carte;
   };
@@ -759,11 +768,11 @@
     Object.keys(r.cies).forEach(function (c) {
       var x = r.cies[c];
       corps.appendChild(h('h4', { text: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + x.portail }));
-      corps.appendChild(h('p.ventes-aide', { text: capitale(r.moisLibelle) + ' : ' + x.livre + ' RDR au livre, ' + x.constructeur + ' RDR au portail, ' + x.deux + ' des deux côtés.' + (x.lu ? ' Portail lu le ' + AMX.fmtDate(x.lu, true) + ' (favori « Automax ← Constructeur »).' : ' Le portail n\'a jamais été lu : lancez le favori « Automax ← Constructeur ».') }));
-      var t1 = tableau('Au portail, pas au livre', ['Date RDR', 'Véhicule', 'NIV', 'Au livre'], x.portailSeul.map(function (y) {
+      corps.appendChild(h('p.ventes-aide', { text: capitale(r.moisLibelle) + ' : ' + (x.livrees !== undefined ? x.livrees + ' neuf' + (x.livrees > 1 ? 's' : '') + ' livré' + (x.livrees > 1 ? 's' : '') + ' (livre), ' : '') + x.constructeur + ' RDR reçu' + (x.constructeur > 1 ? 's' : '') + ' par le constructeur (manufacturier), ' + x.livre + ' Date' + (x.livre > 1 ? 's' : '') + ' RDR inscrite' + (x.livre > 1 ? 's' : '') + ' au livre, ' + x.deux + ' des deux côtés.' + (x.lu ? ' Portail lu le ' + AMX.fmtDate(x.lu, true) + ' (favori « Automax ← Constructeur »).' : ' Le portail n\'a jamais été lu : lancez le favori « Automax ← Constructeur ».') }));
+      var t1 = tableau('RDR du constructeur, pas au livre', ['Date RDR', 'Véhicule', 'NIV', 'Au livre'], x.portailSeul.map(function (y) {
         return h('tr', [h('td', { text: AMX.fmtDateCourte(y.date) }), h('td', { text: y.vehicule + (y.type ? ' · ' + y.type : '') }), h('td.mono', { text: y.vin }), h('td', y.vente ? [ouvrir(y.vente.id), h('span', { text: ' · ' + (y.vente.dateRdr ? 'Date RDR ' + AMX.fmtDateCourte(y.vente.dateRdr) : 'Date RDR manquante') + (y.vente.client ? ' · ' + y.vente.client : '') })] : [h('span.puce.alerte', { text: 'aucune vente au livre' })])]);
       }));
-      var t2 = tableau('Au livre, pas au portail', ['Date RDR', 'Vente', 'Véhicule', 'Client'], x.livreSeul.map(function (y) {
+      var t2 = tableau('Date RDR au livre, pas chez le constructeur', ['Date RDR', 'Vente', 'Véhicule', 'Client'], x.livreSeul.map(function (y) {
         return h('tr', [h('td', { text: AMX.fmtDateCourte(y.dateRdr) }), h('td', [ouvrir(y.id), y.stock ? h('span', { text: ' · # ' + y.stock }) : null]), h('td', { text: y.vehicule + (y.sansNiv ? ' · sans NIV au livre' : '') }), h('td', { text: y.client })]);
       }));
       var t3 = tableau('Pas le même mois', ['Vente', 'Date RDR au livre', 'Au portail', 'Véhicule'], x.autreMois.map(function (y) {
@@ -772,7 +781,7 @@
       if (!t1 && !t2 && !t3) corps.appendChild(h('p.ventes-aide', { text: 'Aucun écart : le livre et le portail concordent.' }));
       [t1, t2, t3].forEach(function (t) { if (t) corps.appendChild(t); });
     });
-    AMX.modale({ titre: 'RDR de ' + r.moisLibelle + ' — livre et portails', corps: corps, large: true, boutons: [{ texte: 'Fermer' }] });
+    AMX.modale({ titre: 'RDR manufacturier et livre — ' + r.moisLibelle, corps: corps, large: true, boutons: [{ texte: 'Fermer' }] });
   }
   /* Les ventes par mois afférent (la date inscrite), dans l'ordre de la liste (la plus récente d'abord). */
   function grouperParMois(liste) {

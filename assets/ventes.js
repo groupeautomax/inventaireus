@@ -260,7 +260,7 @@
       '.ventes-page .ecart-plus { color: var(--vert); } .ventes-page .ecart-moins { color: var(--rouge); }',
       '.ventes-page .ventes-defile { overflow-x: auto; } .ventes-table td.num, .ventes-table th.num { white-space: nowrap; } .ventes-table td.vehicule { min-width: 170px; }',
       '.ventes-page .ventes-comp { min-width: 250px; } .ventes-comp .titre { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); margin-bottom: 4px; }',
-      '.ventes-rdr-comp h5 { margin: 12px 0 6px; font-size: 13px; } .ventes-rdr-portail .btn { margin-top: 6px; } .ventes-page .ventes-rdr-portail { min-width: 280px; }',
+      '.ventes-rdr-comp h5 { margin: 12px 0 6px; font-size: 13px; } .ventes-rdr-portail .btn { margin-top: 6px; } .ventes-page .ventes-rdr-portail { min-width: max-content; }',   /* 1er nov. : la carte prend la largeur de son tableau (la colonne Écarts était coupée) */
       '.ventes-moy-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; } .ventes-moy-table th, .ventes-moy-table td { padding: 3px 6px; white-space: nowrap; } .ventes-moy-table thead th { font-size: 12px; font-weight: 600; color: var(--encre-3); text-align: right; border-bottom: 1px solid var(--ligne); } .ventes-moy-table tbody th { text-align: left; font-weight: 600; color: var(--encre-2); } .ventes-moy-table td.num { text-align: right; font-weight: 700; } .ventes-moy-table tr.total th, .ventes-moy-table tr.total td { border-top: 1px solid var(--ligne); } .ventes-moy-table tr.prix td.doux { font-weight: 400; color: var(--encre-3); font-size: 12px; } .ventes-page .ventes-moy { min-width: 330px; }',
       '.ventes-table tr.ajustement.hv-renversement td { background: var(--rouge-bg, #fdecec); } .hv-unites { font-size: 12px; color: var(--encre-3); font-weight: 600; } #hv-genre { margin-bottom: 10px; } ' +
       '.ventes-comp .cmp-aj { margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--ligne); } .ventes-table tr.ajustement td { background: var(--bleu-bg); } .ventes-table tr.ajustement .nom { font-style: italic; } .ventes-table td.num.avec-aj, .tableau td.num.avec-aj { text-decoration: underline dotted; }',
@@ -705,8 +705,8 @@
     if (!sansFI) this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', c.etat.sansFI, c.etat.sansFI ? 'alerte' : ''));
     /* 26 oct. : compteur des RDR du mois (Date RDR du livre) */
     if (this.moisRdr() && d.rdr) {
-      var tuileRdr = kpi('rdr', 'RDR au livre — ' + moisLibelle(this.moisRdr()), c.etat.rdr, '');   /* 1er nov. : la Date RDR inscrite au livre (le compte du constructeur est dans la carte « RDR manufacturier ») */
-      tuileRdr.title = 'Date RDR inscrite au Livre des ventes — à ne pas confondre avec les RDR reçus par le constructeur';
+      var tuileRdr = kpi('rdr', 'RDR au livre', c.etat.rdr, '');   /* 1er nov. : la Date RDR inscrite au livre (le compte du constructeur est dans la carte « RDR manufacturier ») */
+      tuileRdr.title = 'Date RDR inscrite au Livre des ventes (' + moisLibelle(this.moisRdr()) + ') — à ne pas confondre avec les RDR reçus par le constructeur';
       tuileRdr.id = 'ventes-kpi-rdr';
       if (d.rdr.mois === this.moisRdr() && d.rdr.n !== c.etat.rdr && !this.filtres.type && !this.filtres.recherche && !this.filtres.etat) tuileRdr.appendChild(h('div.sous', { text: d.rdr.n + ' au total (dont des ventes livrées un autre mois)' }));
       this.elKpis.appendChild(tuileRdr);

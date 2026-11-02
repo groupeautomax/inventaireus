@@ -33,7 +33,7 @@
    proposé selon la note et la langue (« Suggérer »), « Publier sur Google »,
    « Retirer ». Réservé aux gestionnaires, directions, admins et marketing
    (le serveur tranche). Un admin peut lancer « Relever maintenant ».
-     POST avisBrouillon { id, brouillon | suggerer }, avisRepondre { id, texte },
+     POST avisBrouillon { id, brouillon | suggerer [, einstein] }, avisRepondre { id, texte },
           avisRetirerReponse { id }, avisRelever { mode }
    ========================================================================= */
 (function () {
@@ -102,6 +102,9 @@
       '.avis-carte .reponse-edit textarea { width: 100%; min-height: 88px; font: inherit; font-size: 13px; line-height: 1.45; padding: 8px 10px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); background: var(--carte); color: var(--encre); resize: vertical; box-sizing: border-box; }',
       '.avis-carte .reponse-edit .actions-ligne { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }',
       '.avis-carte .reponse-edit .compte { margin-left: auto; font-size: 12px; color: var(--encre-4); }',
+      /* 2 nov. : réponses d'Einstein AI (AvisPositifs.gs) */
+      '.avis-carte .einstein-puce { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--vert-clair); color: var(--vert-fonce); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }',
+      '.avis-carte .einstein-note { margin: 0 0 8px; padding: 6px 10px; border-radius: var(--rayon-s); background: var(--ambre-bg, #FFF4E0); color: var(--ambre); font-size: 13px; }',
       '.avis-plus-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0 6px; }',
       '.retrait-modale .avis-cite { padding: 10px 12px; border-left: 3px solid var(--ligne); background: var(--fond-2, #f6f7f9); border-radius: var(--rayon-s); font-size: 13px; }',
       '.retrait-modale .champ { margin: 10px 0; } .retrait-modale textarea.saisie { width: 100%; box-sizing: border-box; font: inherit; }',
@@ -633,6 +636,7 @@
     var enDirect = !!(d.api && d.api.approuve) && a.repondable && a.enLigne;
     var droit = peutRepondre(d);
     var publiee = a.reponse ? h('div.reponse', [h('div.l', ['Réponse de la concession' + (a.reponseLe ? ' · ' + AMX.fmtDate(a.reponseLe) : ''),
+      a.einstein === 'publie' ? h('span.einstein-puce', { title: 'Écrite et publiée par Einstein AI sans approbation (avis de 4 ou 5 étoiles)' }, 'Réponse automatique · Einstein AI') : null,
       enDirect && droit ? h('button.btn.fantome.petit.ed', { type: 'button', onclick: function () { self.ouvrirEditeur(a, d, a.reponse); } }, 'Modifier') : null,
       enDirect && droit ? h('button.btn.fantome.petit.ed', { type: 'button', onclick: function () {
         AMX.confirmer('Retirer la réponse', 'Retirer la réponse publiée sur Google ?', { ok: 'Retirer de Google', danger: true }).then(function (oui) {
@@ -673,6 +677,17 @@
         ta.value = r.suggestion || ''; majCompte(); ta.focus();
       }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }).then(function () { occupe(b, false); });
     } }, 'Suggérer un texte');
+    // 2 nov. : texte écrit par Einstein AI (langue de l'avis, prénom, détail de l'avis) — toujours à relire ici avant de publier.
+    var bEinstein = h('button.btn.petit', { type: 'button', title: 'Einstein AI écrit une réponse à partir de l\'avis — à relire avant de publier', onclick: function (e) {
+      var b = e.currentTarget; occupe(b, true, 'Einstein AI écrit…');
+      AMX.post({ action: 'avisBrouillon', id: a.id, suggerer: true, einstein: true }, { secours: false, delai: 90000 }).then(function (r) {
+        AMX.verifier(r, 'Einstein AI n\'a pas pu écrire');
+        ta.value = r.suggestion || ''; majCompte(); ta.focus();
+        if (r.einsteinErreur) AMX.toast('Einstein AI indisponible (' + r.einsteinErreur + ') : texte type proposé à la place.', 'attention', 9000);
+        else if (r.einstein === undefined) AMX.toast('Le script n\'est pas à jour : texte type proposé (déployez AvisPositifs.gs).', 'attention', 9000);
+        else if (r.aVerifier) AMX.toast('Einstein AI : à relire avec soin — ' + r.aVerifier, 'attention', 9000);
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }).then(function () { occupe(b, false); });
+    } }, 'Rédiger avec Einstein AI');
     var bBrouillon = h('button.btn.petit', { type: 'button', onclick: function (e) {
       var b = e.currentTarget; occupe(b, true, 'Enregistrement…');
       self.ecrire({ action: 'avisBrouillon', id: a.id, brouillon: ta.value }, ta.value.trim() ? 'Brouillon enregistré' : 'Brouillon effacé').then(function () { occupe(b, false); });
@@ -693,8 +708,9 @@
     } }, a.reponse ? 'Remplacer sur Google' : 'Publier sur Google');
     return h('div.reponse-edit', [
       h('div.l', [a.reponse ? 'Modifier la réponse' : (a.brouillon ? 'Brouillon' : 'Répondre'), h('span.doux', { style: { fontWeight: 400, letterSpacing: 0, textTransform: 'none' } }, '— publiée sur la fiche Google « ' + a.fiche + ' »' + (nomRep !== a.fiche ? ', signée ' + nomRep : ''))]),
+      (a.einstein === 'verifier' && !a.reponse) ? h('div.einstein-note', { text: 'Einstein AI n\'a pas publié de réponse automatique' + (a.einsteinRaison ? ' : ' + a.einsteinRaison : '') + '. Relisez la réponse proposée avant de la publier.' }) : null,
       ta,
-      h('div.actions-ligne', [bSuggerer, bBrouillon, bPublier, compte])
+      h('div.actions-ligne', [bEinstein, bSuggerer, bBrouillon, bPublier, compte])
     ]);
   };
 

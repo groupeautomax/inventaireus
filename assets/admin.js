@@ -989,6 +989,19 @@
       h('label.case', [h('input', { type: 'checkbox', checked: !!r.textoDirecteurs, disabled: !peut, onchange: function (e) { r.textoDirecteurs = e.target.checked; } }), h('span', 'Alertes aussi par texto (comptes avec numéro)')]),
       h('label.case', [h('input', { type: 'checkbox', checked: !!r.attribuerVendeur, disabled: !peut, onchange: function (e) { r.attribuerVendeur = e.target.checked; } }), h('span', 'La demande d\'avis crédite d\'office le vendeur / conseiller choisi')])
     ]);
+    // 2 nov. : réponse automatique d'Einstein AI aux avis 4 et 5 étoiles, par concession (active par défaut — AvisPositifs.gs).
+    var blocPositifs = (function () {
+      var codes = Object.keys(d.destinatairesApercu || {});
+      if (!r.positifsAuto || typeof r.positifsAuto !== 'object') {
+        return h('div', [h('h4', 'Réponse automatique aux avis 4 et 5 étoiles (Einstein AI)'), h('p.doux.petit', { text: 'Le script n\'est pas à jour : déployez une nouvelle version (AvisPositifs.gs, AvisSuivi.gs, AvisApi.gs).' })]);
+      }
+      var cs = h('div.admin-cases', codes.map(function (c) {
+        var actif = r.positifsAuto[c] === undefined ? true : !!r.positifsAuto[c];
+        return h('label.case', [h('input', { type: 'checkbox', checked: actif, disabled: !peut, onchange: function (e) { r.positifsAuto[c] = e.target.checked; } }), h('span', { text: nomConcession(c, self.moiInfo) })]);
+      }));
+      return h('div', [h('h4', 'Réponse automatique aux avis 4 et 5 étoiles (Einstein AI)'),
+        h('p.doux.petit', { style: { margin: '0 0 6px' }, text: 'Chaque heure, Einstein AI répond sur Google aux nouveaux avis de 4 ou 5 étoiles des concessions cochées, sans approbation. Un avis qui cache un problème (plainte, question, propos inappropriés) n\'est pas publié : la réponse reste en brouillon, l\'avis passe « à répondre ». Chaque matin, un courriel du détail part aux propriétaires s\'il y a eu des réponses automatiques.' }), cs]);
+    })();
     // Qui reçoit les alertes, par département.
     var blocAlertes = function (type, titre) {
       var liste = r.alertes[type] || [];
@@ -1040,6 +1053,7 @@
     if (!peut) this.elReglagesCorps.appendChild(h('div.alerte-bloc.info.admin-avis', [h('span', { html: I.info }), h('div', 'Ces réglages sont modifiés par le propriétaire ou un compte du groupe (Marc-André). Vous les voyez tels qu\'ils s\'appliquent à votre concession.')]));
     this.elReglagesCorps.appendChild(grille);
     this.elReglagesCorps.appendChild(cases);
+    this.elReglagesCorps.appendChild(blocPositifs);
     this.elReglagesCorps.appendChild(h('div.grille.c2', [blocAlertes('vente', 'Alertes — vente / livraison'), blocAlertes('service', 'Alertes — service')]));
     this.elReglagesCorps.appendChild(h('div', [h('h4', 'Qui recevrait l\'alerte aujourd\'hui'), this.elApercuAlertes]));
     this.elReglagesCorps.appendChild(h('div', [h('h4', 'Fiches Google et département'), h('p.doux.petit', { style: { margin: '0 0 6px' }, text: 'Le sondage « service » envoie le client vers la fiche Service de la concession quand elle existe (ex. Ste-Marie Pièces et Service), sinon vers la fiche Ventes.' }), h('div.admin-tableau-enveloppe', [fiches])]));

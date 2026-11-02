@@ -109,6 +109,88 @@
   function mediane(l) { if (!l.length) return null; var s = l.slice().sort(function (a, b) { return a - b; }); return s[Math.floor(s.length / 2)]; }
   function pct(n, total) { return total ? Math.round(100 * n / total) + ' %' : '—'; }
   function pluriel(n, un, plus) { return n + ' ' + (n > 1 ? (plus || un + 's') : un); }
+
+  /* 2 nov. (Maxime : « le vendeur remplit le détail de l'évaluation, les photos et tout ») : le représentant inscrit le client et
+     l'état du véhicule dans sa demande — mêmes listes et mêmes clés que les cartes « Client et suivi » et « État du véhicule »
+     de l'évaluation (AMX.evalListes, evaluation.js), qui s'en remplissent à l'ouverture. Rien sur le prix. */
+  function listesEval() { return AMX.evalListes || null; }
+  function libelleDe(liste, code) {
+    var o = (liste || []).filter(function (x) { return (Array.isArray(x) ? x[0] : x) === code; })[0];
+    return o === undefined ? String(code) : (Array.isArray(o) ? o[1] : o);
+  }
+  function resumeDetail(d) {
+    var L = listesEval(); if (!d || !L) return '';
+    var s = d.suivi || {}, e = d.etatVehicule || {}, out = [];
+    if (s.transaction) out.push(libelleDe(L.transactions, s.transaction).replace(/ \(.*\)$/, ''));
+    if (s.cherche) out.push('cherche : ' + s.cherche);
+    if (e.general) out.push('état ' + libelleDe(L.etatGeneral, e.general).toLowerCase());
+    var pn = [e.pneusEte ? 'été ' + e.pneusEte.toLowerCase() : '', e.pneusHiver ? 'hiver ' + e.pneusHiver.toLowerCase() : ''].filter(Boolean).join(', ');
+    if (pn) out.push('pneus ' + pn);
+    if (e.pareBrise) out.push('pare-brise ' + e.pareBrise.toLowerCase());
+    if (e.accident === 'oui') out.push('accident déclaré' + (e.accidentMontant ? ' (' + argent(e.accidentMontant) + ')' : ''));
+    if (e.accident === 'non') out.push('aucun accident');
+    if (e.cles) out.push(libelleDe(L.cles, e.cles) + ' clé' + (e.cles === '1' || e.cles === '0' ? '' : 's'));
+    if (e.financement) out.push(libelleDe(L.financement, e.financement).toLowerCase() + (e.soldePret ? ' (solde ' + argent(e.soldePret) + ')' : ''));
+    if (e.carrosserie) out.push('carrosserie : ' + e.carrosserie);
+    (e.constats || []).forEach(function (c) { out.push(libelleDe(L.constats, c).toLowerCase()); });
+    if ((e.options || []).length) out.push(pluriel(e.options.length, 'option'));
+    return out.join(' · ');
+  }
+  function formDetail(prefill) {
+    var L = listesEval(); if (!L) return null;
+    var p = prefill || {}, ps = p.suivi || {}, pe = p.etatVehicule || {};
+    var choix = function (libelle, options, v) {
+      var sel = h('select.saisie', [h('option', { value: '', text: '—' })].concat(options.map(function (o) { var c = Array.isArray(o) ? o[0] : o; return h('option', { value: c, text: Array.isArray(o) ? o[1] : o, selected: c === v }); })));
+      return { el: h('label.champ', [h('span', libelle), sel]), input: sel };
+    };
+    var texte = function (libelle, v, opts) {
+      var i = h('input.saisie', Object.assign({ type: 'text', value: v || '' }, opts || {}));
+      return { el: h('label.champ', [h('span', libelle), i]), input: i };
+    };
+    var puces = function (libelle, options, ton, v) {
+      var choisis = Array.isArray(v) ? v.slice() : [];
+      var boutons = options.map(function (o) {
+        var b = h('button.de-chip', { type: 'button', 'data-code': o[0], text: o[1], onclick: function () {
+          var i = choisis.indexOf(o[0]); if (i < 0) choisis.push(o[0]); else choisis.splice(i, 1); maj();
+        } });
+        return b;
+      });
+      function maj() { boutons.forEach(function (b) { var on = choisis.indexOf(b.getAttribute('data-code')) >= 0; b.classList.toggle('actif', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+      maj();
+      return { el: h('div.champ.large.de-chips.' + ton, [h('span', libelle), h('div.de-chips-l', boutons)]), get: function () { return options.map(function (o) { return o[0]; }).filter(function (c) { return choisis.indexOf(c) >= 0; }); } };
+    };
+    var c = {
+      courriel: texte('Courriel du client', ps.courriel, { type: 'email', autocomplete: 'off' }),
+      typeClient: choix('Type de client', L.typesClient, ps.typeClient), langue: choix('Langue', L.langues, ps.langue),
+      origine: choix('Origine', L.origines, ps.origine), transaction: choix('Transaction', L.transactions, ps.transaction),
+      cherche: texte('Ce que le client cherche', ps.cherche, { placeholder: 'VUS 2025, 450 $ / mois…' }),
+      general: choix('État général', L.etatGeneral, pe.general), cles: choix('Clés', L.cles, pe.cles),
+      couleurExt: texte('Couleur ext.', pe.couleurExt, { placeholder: 'Blanc' }), couleurInt: texte('Couleur int.', pe.couleurInt, { placeholder: 'Noir' }),
+      pneusEte: choix('Pneus d\'été', L.pneus, pe.pneusEte), pneusHiver: choix('Pneus d\'hiver', L.pneus, pe.pneusHiver),
+      pneusDim: texte('Dimension pneus', pe.pneusDim, { placeholder: '235/55R19' }), pareBrise: choix('Pare-brise', L.pareBrise, pe.pareBrise),
+      accident: choix('Accident déclaré', L.accident, pe.accident), accidentMontant: texte('Montant de l\'accident ($)', pe.accidentMontant, { inputmode: 'numeric' }),
+      financement: choix('Financement', L.financement, pe.financement), soldePret: texte('Solde de prêt ($)', pe.soldePret, { inputmode: 'numeric' }),
+      carrosserie: texte('Carrosserie', pe.carrosserie, { placeholder: 'Égratignures, bosses…' }), voyants: texte('Voyants allumés', pe.voyants, { placeholder: 'Pression des pneus…' })
+    };
+    var constats = puces('Constats', L.constats, 'rouge', pe.constats), garanties = puces('Garanties', L.garanties, 'bleu', pe.garanties), options = puces('Options', L.options, 'vert', pe.options);
+    var majAccident = function () { c.accidentMontant.el.style.display = c.accident.input.value === 'oui' || c.accidentMontant.input.value ? '' : 'none'; };
+    c.accident.input.addEventListener('change', majAccident); majAccident();
+    var el = h('div.large.de-detail-form', [
+      h('details.de-detail-bloc', { open: true }, [h('summary', 'Le client'), h('div.de-grille', [c.courriel.el, c.typeClient.el, c.langue.el, c.origine.el, c.transaction.el, c.cherche.el])]),
+      h('details.de-detail-bloc', { open: true }, [h('summary', 'État du véhicule'), h('div.de-grille.trois', [c.general.el, c.cles.el, c.couleurExt.el, c.couleurInt.el, c.pneusEte.el, c.pneusHiver.el, c.pneusDim.el, c.pareBrise.el,
+        c.accident.el, c.accidentMontant.el, c.financement.el, c.soldePret.el, c.carrosserie.el, c.voyants.el]), constats.el, garanties.el, options.el])
+    ]);
+    return {
+      el: el,
+      get: function () {
+        var v = function (k) { return String(c[k].input.value || '').trim(); };
+        return { suivi: { courriel: v('courriel'), typeClient: v('typeClient'), langue: v('langue'), origine: v('origine'), transaction: v('transaction'), cherche: v('cherche') },
+          etatVehicule: { general: v('general'), cles: v('cles'), couleurExt: v('couleurExt'), couleurInt: v('couleurInt'), pneusEte: v('pneusEte'), pneusHiver: v('pneusHiver'),
+            pneusDim: v('pneusDim'), pareBrise: v('pareBrise'), accident: v('accident'), accidentMontant: v('accident') === 'oui' ? v('accidentMontant') : '', financement: v('financement'),
+            soldePret: v('soldePret'), carrosserie: v('carrosserie'), voyants: v('voyants'), constats: constats.get(), garanties: garanties.get(), options: options.get() } };
+      }
+    };
+  }
   function reduirePhoto(fichier) {
     return new Promise(function (res, rej) {
       var url = URL.createObjectURL(fichier), img = new Image();
@@ -214,9 +296,10 @@
     var inTel = h('input.saisie', { type: 'tel', placeholder: 'Téléphone (facultatif)', value: prefill.telephone || '' });
     var inNote = h('textarea.saisie', { rows: '2', placeholder: 'Note pour l\'évaluateur (facultatif) : options, dommages, ce que le client espère…' });
     inNote.value = prefill.note || '';
-    var inPhotos = h('input', { type: 'file', accept: 'image/*', multiple: true, capture: 'environment', style: { display: 'none' } });
+    var inPhotos = h('input', { type: 'file', accept: 'image/*', multiple: true, style: { display: 'none' } });
     var elPhotos = h('span.mini', { text: 'aucune photo' });
-    var btnPhotos = h('button.btn.petit', { type: 'button', html: I.photo + '<span>Photos (facultatif)</span>', onclick: function () { inPhotos.click(); } });
+    var btnPhotos = h('button.btn.petit', { type: 'button', html: I.photo + '<span>Ajouter des photos</span>', onclick: function () { inPhotos.click(); } });
+    var detail = formDetail(prefill.detail);
     inPhotos.onchange = function () { var n = inPhotos.files.length; elPhotos.textContent = n ? n + ' photo' + (n > 1 ? 's' : '') + ' prête' + (n > 1 ? 's' : '') : 'aucune photo'; };
     var elEval = h('div.de-evaluateurs'), elAvis = h('div.mini.de-avis-eval');
     var dessinerEvaluateurs = function () {
@@ -255,8 +338,9 @@
       h('label.champ', [h('span', 'Kilométrage'), inKm]),
       h('label.champ', [h('span', 'Client'), inClient]),
       h('label.champ', [h('span', 'Téléphone du client'), inTel]),
-      h('label.champ.large', [h('span', 'Note'), inNote]),
-      h('div.champ.large', [h('span', 'Photos'), h('div.actions-ligne', { style: { alignItems: 'center', gap: '10px' } }, [btnPhotos, elPhotos, inPhotos])]),
+      detail ? detail.el : null,
+      h('div.champ.large', [h('span', 'Photos du véhicule (tableau de bord, 4 côtés, intérieur, dommages)'), h('div.actions-ligne', { style: { alignItems: 'center', gap: '10px' } }, [btnPhotos, elPhotos, inPhotos])]),
+      h('label.champ.large', [h('span', 'Note pour l\'évaluateur'), inNote]),
       sansChoix ? null : h('div.champ.large', [h('span', moiF.diriger ? 'Évaluateur' : 'Évaluateur proposé'), elEval, elAvis]),
       moiF.diriger ? null : h('p.mini.large.de-circuit', { text: 'Votre demande va d\'abord à la direction, qui l\'approuve et l\'envoie à l\'évaluateur. Le montant vous revient par texto une fois confirmé par la direction.' })
     ]));
@@ -272,7 +356,8 @@
       btnEnvoyer.classList.add('occupe');
       if (!sansChoix) AMX.memo.ecrire('evalDemande_evaluateur', choix);
       AMX.post({ action: 'evalDemander', compagnie: selCie.value, vin: vin, km: inKm.value, client: inClient.value, telephone: inTel.value, note: inNote.value, photos: fichiers.length,
-        annee: elVeh.dataset.annee || '', marque: elVeh.dataset.marque || '', modele: elVeh.dataset.modele || '', evaluateur: sansChoix ? 'disponible' : choix }, { secours: false, delai: 60000 }).then(function (x) {
+        annee: elVeh.dataset.annee || '', marque: elVeh.dataset.marque || '', modele: elVeh.dataset.modele || '', evaluateur: sansChoix ? 'disponible' : choix,
+        detail: detail ? detail.get() : null }, { secours: false, delai: 60000 }).then(function (x) {
         if (!x || x.refuse || x.ok === false) throw new Error((x && x.erreur) || 'Refusé');
         if (!x.demande) throw new Error(SCRIPT_PAS_A_JOUR);
         poser(x.demande);
@@ -743,6 +828,7 @@
         h('span', { text: x.crm.echec ? ' · renvoi à Traction en échec : ' + x.crm.echec : (x.crm.envoye ? ' · valeur renvoyée dans la cotation' : (x.etat === 'faite' ? ' · valeur en route vers Traction' : '')) }),
         (x.crm.photos || []).length ? h('span', [h('span', { text: ' · photos : ' })].concat(x.crm.photos.map(function (u, i) { return h('a', { href: u, target: '_blank', rel: 'noopener', text: (i ? ', ' : '') + (i + 1) }); }))) : null]) : null,
       x.note ? h('div.de-note', { text: x.note }) : null,
+      x.detail && resumeDetail(x.detail) ? h('div.mini.de-detail', [h('b', 'Détail inscrit : '), h('span', { text: resumeDetail(x.detail) })]) : null,
       x.etat === 'annulee' && x.annuleRaison ? h('div.mini', { text: 'Annulée : ' + x.annuleRaison }) : null,
       x.etat === 'refusee' ? h('div.de-refus', { text: 'Refusée par ' + (x.refusParNom || 'la direction') + (x.refusRaison ? ' : ' + x.refusRaison : '') }) : null,
       x.renvoiRaison && enCours(x) ? h('div.de-refus.renvoi', { text: 'Renvoyée par la direction : ' + x.renvoiRaison }) : null,
@@ -976,6 +1062,12 @@
       '.de-raison { display: grid; grid-template-columns: minmax(160px, 1fr) 2fr 40px; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; } .de-raison i { height: 8px; background: var(--fond-2, #F3F5F7); border-radius: 4px; overflow: hidden; } .de-raison i b { display: block; height: 100%; background: #9AA5AE; }',
       '.de-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; } .de-grille .champ { display: grid; gap: 4px; } .de-grille .champ > span { font-size: 12px; color: var(--encre-3); } .de-grille .large { grid-column: 1 / -1; }',
       '.de-veh { min-height: 16px; } .de-avis-eval { color: #955F10; margin-top: 4px; min-height: 0; }',
+      '.de-grille.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); } .de-detail-form { display: grid; gap: 10px; }',
+      '.de-detail-bloc { border: 1px solid var(--ligne, #E3E7EB); border-radius: 10px; padding: 8px 12px 12px; } .de-detail-bloc > summary { cursor: pointer; font-weight: 700; padding: 4px 0 8px; }',
+      '.de-chips { margin-top: 8px; } .de-chips-l { display: flex; flex-wrap: wrap; gap: 6px; }',
+      '.de-chip { border: 1px solid var(--ligne, #E3E7EB); background: var(--carte, #fff); color: var(--encre-2); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }',
+      '.de-chips.rouge .de-chip.actif { background: #FDECEC; border-color: #D64545; color: #B83232; font-weight: 600; } .de-chips.bleu .de-chip.actif { background: #E8F0FB; border-color: #1A64BF; color: #1A64BF; font-weight: 600; } .de-chips.vert .de-chip.actif { background: var(--vert-clair, #E6F3EC); border-color: var(--vert, #008840); color: var(--vert-fonce, #006B33); font-weight: 600; }',
+      '.de-detail { margin-top: 2px; } @media (max-width: 640px) { .de-grille.trois { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
       '.de-evaluateurs, .de-raisons { display: flex; flex-wrap: wrap; gap: 8px; }',
       '.de-eval { display: grid; text-align: left; gap: 2px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--ligne, #E3E7EB); background: var(--carte, #fff); cursor: pointer; min-width: 150px; font: inherit; }',
       '.de-eval b { display: flex; align-items: center; } .de-eval span { font-size: 12px; color: var(--encre-3); } .de-eval.choisi { border-color: var(--vert); box-shadow: 0 0 0 2px var(--vert) inset; background: var(--vert-clair, #E8F6EC); }',

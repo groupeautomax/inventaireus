@@ -595,12 +595,7 @@
         ]));
       };
       dessiner(x);
-      if (x.vin === self.vinCourant || !self.vinCourant) {
-        if (x.km && self.elKm && !self.elKm.value) { self.elKm.value = x.km; try { self.elKm.dispatchEvent(new Event('input')); } catch (e) {} }
-        if (x.client && self.elClient && !self.elClient.value) self.elClient.value = x.client;
-        if (x.telephone && self.elClientTel && !self.elClientTel.value) self.elClientTel.value = x.telephone;
-        if (x.demandeParNom && self.elConseiller && !self.elConseiller.value) self.elConseiller.value = x.demandeParNom;
-      }
+      if (x.vin === self.vinCourant || !self.vinCourant) self.appliquerDemande();
       if (x.etat === 'afaire' && (x.pourMoi || (AMX.evalDemandes.enCache() || {}).moi && AMX.evalDemandes.enCache().moi.evaluateur)) {
         AMX.evalDemandes.prendre(id).then(function (r) { if (self.demandeId === id && r.demande) dessiner(r.demande); }).catch(function () {});
       }
@@ -613,6 +608,32 @@
   };
 
   /* l'adresse garde la demande tant qu'on est sur son véhicule (un rechargement remontre le bandeau) */
+  /* Ce que le représentant a inscrit dans sa demande (km, client, et depuis le 2 nov. le détail : client et état du véhicule)
+     remplit les cases encore vides, jamais par-dessus. Appelé à l'arrivée de la demande et après chaque remplissage de la page
+     (le chargement de l'évaluation peut arriver après la demande et vider les cases). */
+  Evaluation.prototype.appliquerDemande = function () {
+    var x = this.demande, self = this;
+    if (!x || !this.elClient || (this.demandeId && x.id !== this.demandeId)) return;
+    var vin = String(this.vinCourant || (this.elNiv && this.elNiv.value) || '').trim().toUpperCase();
+    if (vin && x.vin !== vin) return;
+    var vide = function (el) { return el && !String(el.value || '').trim(); };
+    var texte = function (el, v) { if (v && vide(el)) el.value = String(v); };
+    var choix = function (el, v) { if (v && vide(el)) poserChoix(el, v); };
+    if (x.km && vide(this.elKm)) { this.elKm.value = x.km; try { this.elKm.dispatchEvent(new Event('input')); } catch (e) {} }
+    texte(this.elClient, x.client); texte(this.elClientTel, x.telephone); texte(this.elConseiller, x.demandeParNom);
+    var d = x.detail || {}, s = d.suivi || {}, e = d.etatVehicule || {};
+    texte(this.elClientCourriel, s.courriel); choix(this.elTypeClient, s.typeClient); choix(this.elLangue, s.langue);
+    choix(this.elOrigine, s.origine); choix(this.elTransaction, s.transaction); texte(this.elCherche, s.cherche);
+    choix(this.elEtatGeneral, e.general); choix(this.elCles, e.cles); texte(this.elCouleurExt, e.couleurExt); texte(this.elCouleurInt, e.couleurInt);
+    choix(this.elPneusEte, e.pneusEte); choix(this.elPneusHiver, e.pneusHiver); texte(this.elPneusDim, e.pneusDim); choix(this.elPareBrise, e.pareBrise);
+    choix(this.elAccident, e.accident); texte(this.elAccidentMontant, e.accidentMontant); choix(this.elFinancement, e.financement); texte(this.elSoldePret, e.soldePret);
+    texte(this.elCarrosserie, e.carrosserie); texte(this.elVoyants, e.voyants); texte(this.elEtatNotes, e.notes);
+    [['chipsConstats', 'constats'], ['chipsGaranties', 'garanties'], ['chipsOptions', 'options']].forEach(function (p) {
+      var c = self[p[0]], l = e[p[1]];
+      if (c && Array.isArray(l) && l.length && !c.get().length) c.set(l);
+    });
+    if (this.majChampsEtat) this.majChampsEtat();
+  };
   Evaluation.prototype.paramsAdresse = function (vin) { var p = { vin: vin }; if (this.demandeId && (!this.demande || this.demande.vin === vin)) p.demande = this.demandeId; return p; };
 
   Evaluation.prototype.etat = function (texte) { this.elEtat.textContent = texte; };
@@ -1433,6 +1454,10 @@
     ['hayon', 'Hayon électrique'], ['attelage', 'Attelage'], ['son', 'Son haut de gamme'], ['teteHaute', 'Affichage tête haute'], ['marchepieds', 'Marchepieds'], ['caisse', 'Doublure de caisse'], ['cable', 'Câble de recharge (VÉ)']];
   var RECON_POSTES = [['mecanique', 'Mécanique'], ['carrosserie', 'Carrosserie'], ['pneus', 'Pneus'], ['pareBrise', 'Pare-brise'], ['esthetique', 'Esthétique'], ['certification', 'Certification']];
   var PRIX_TYPES = [['manuel', 'Manuel'], ['agressif', 'Agressif'], ['standard', 'Standard'], ['conservateur', 'Conservateur']];
+  /* 2 nov. : les mêmes listes servent au détail que le représentant inscrit dans sa demande (demandes-eval.js). */
+  AMX.evalListes = { origines: SUIVI_ORIGINES, transactions: SUIVI_TRANSACTIONS, typesClient: SUIVI_TYPES_CLIENT, langues: SUIVI_LANGUES,
+    etatGeneral: ETAT_GENERAL, pneus: ETAT_PNEUS, pareBrise: ETAT_PARE_BRISE, accident: ETAT_ACCIDENT, cles: ETAT_CLES, financement: ETAT_FINANCEMENT,
+    constats: ETAT_CONSTATS, garanties: ETAT_GARANTIES, options: ETAT_OPTIONS };
   function statutSuivi(cle) { return SUIVI_STATUTS.filter(function (s) { return s[0] === cle; })[0] || null; }
   // Une rangée de pastilles à cocher : { el, get() → [codes], set([codes]) } ; un code inconnu (ancienne fiche) est gardé.
   function pastilles(id, libelle, liste, ton, surChange) {
@@ -1684,6 +1709,7 @@
     this.elCouleurExt.value = v(e.couleurExt); this.elCouleurInt.value = v(e.couleurInt); this.elPneusDim.value = v(e.pneusDim); this.elAccidentMontant.value = v(e.accidentMontant);
     this.chipsConstats.set(e.constats); this.chipsGaranties.set(e.garanties); this.chipsOptions.set(e.options);
     this.majChampsEtat();
+    this.appliquerDemande();   /* 2 nov. : le détail inscrit par le représentant remplit les cases restées vides */
     this.rendreSuiviStatut();
     this.rendreEcartClient();
     this.rendrePhotos();

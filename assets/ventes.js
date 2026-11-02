@@ -71,8 +71,9 @@
      du livre restent dans ScanAutomax, marquées `horsVente` par le serveur (statut du livre), hors de toutes les ventes et de
      tous les chiffres. Elles se consultent dans la vue « Exclues » (d.horsVentes, même période que la Liste). Ne pas confondre
      avec les « entrées hors vente » (renversement, F&I après-vente, vente à un concessionnaire), qui, elles, comptent. */
-  var SORTES_EX = [['', 'Toutes'], ['aftersale', 'Aftersale'], ['accommodation', 'Accommodation'], ['rachat', 'Rachat de bail']];
-  function sorteEx(v) { var s = String((v && v.horsVente) || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); return /rachat/.test(s) ? 'rachat' : (/accom/.test(s) ? 'accommodation' : (/after/.test(s) ? 'aftersale' : 'autre')); }
+  /* 2 nov. : « Retirées » = commandes sans NIV retirées des ventes (Hawkesbury, juillet 2026 et avant — Vente.gs VENTE_retirerCommandes_). */
+  var SORTES_EX = [['', 'Toutes'], ['aftersale', 'Aftersale'], ['accommodation', 'Accommodation'], ['rachat', 'Rachat de bail'], ['retiree', 'Retirées']];
+  function sorteEx(v) { var s = String((v && v.horsVente) || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); return /^retir/.test(s) ? 'retiree' : (/rachat/.test(s) ? 'rachat' : (/accom/.test(s) ? 'accommodation' : (/after/.test(s) ? 'aftersale' : 'autre'))); }
   function capitale(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   function nombre(x) { if (x === null || x === undefined || x === '') return null; if (typeof x === 'number') return isNaN(x) ? null : x; var s = String(x).replace(/\s| | /g, '').replace(/\$/g, ''); var neg = /^\(.*\)$/.test(s) || s.indexOf('-') >= 0; s = s.replace(/[()\-]/g, ''); var v = s.lastIndexOf(','), pt = s.lastIndexOf('.'); if (v >= 0 && pt >= 0) { if (v > pt) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(/,/g, ''); } else if (v >= 0) s = s.replace(',', '.'); var n = parseFloat(s); return isNaN(n) ? null : (neg ? -n : n); }
   function argent(n) { return n === null || n === undefined || n === '' || isNaN(n) ? '—' : AMX.fmtArgent(n); }

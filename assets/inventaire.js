@@ -1069,10 +1069,12 @@
     }
 
     // Évaluation (Inventaire › Évaluations) : ce qu'on en sait, depuis la fiche d'inventaire (7 oct.).
-    var blocEval = h('div.bloc', [h('h3', ['Évaluation', h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.vin }), text: 'Ouvrir' })])]);
+    // 2 nov. : un représentant ne voit pas l'analyse de l'évaluation (il passe par Vente › Évaluations demandées).
+    var voitEval = !AMX.voitEvaluations || AMX.voitEvaluations();
+    var blocEval = voitEval ? h('div.bloc', [h('h3', ['Évaluation', h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.vin }), text: 'Ouvrir' })])]) : null;
     var zoneEval = h('div.doux.petit', 'Chargement…');
-    blocEval.appendChild(zoneEval);
-    AMX.get('evalVin=' + encodeURIComponent(v.vin), { essais: 1 }).then(function (d) {
+    if (blocEval) blocEval.appendChild(zoneEval);
+    if (voitEval) AMX.get('evalVin=' + encodeURIComponent(v.vin), { essais: 1 }).then(function (d) {
       if (!zoneEval.isConnected) return;
       AMX.vider(zoneEval); zoneEval.className = '';
       if (!d || !d.trouve) {
@@ -1176,7 +1178,7 @@
         AMX.release.vin(v.vin).then(function (d) { dessinerRel(d.release); }, function () { AMX.vider(zoneRel); });
         ctxTr.prefill = function () {
           var r = ctxTr.releaseLu; if (!r) return {};
-          return { depart: { adresse: r.adresse, ville: r.ville, province: r.province }, consignes: AMX.release.consignes(r), release: { recu: r.recu, paye: r.paye, no: r.no } };
+          return { depart: { adresse: r.adresse, ville: r.ville, province: r.province, codePostal: r.codePostal }, consignes: AMX.release.consignes(r), release: { recu: r.recu, paye: r.paye, no: r.no, doc: r.pdf } };
         };
       }
       blocTransport = h('div.bloc.inv-transport', [h('h3', 'Transport (Central Fleet)'), zoneRel, zoneTr]);

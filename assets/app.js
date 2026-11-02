@@ -672,6 +672,15 @@
   };
   AMX.estAdmin = function () { return AMX.session.role === 'admin' || AMX.session.role === 'proprietaire' || AMX.perm('gererUtilisateurs'); };
   AMX.estProprietaire = function () { return AMX.session.role === 'proprietaire' || AMX.perm('gererAdmins'); };
+  /* 2 nov. (Maxime : « le représentant ne doit pas voir l'analyse de l'évaluation ») : un représentant (vendeur, BDC) sans le
+     droit « Évaluateur » ne voit pas le module d'évaluation (Nouvelle, Registre, Archive Torque) ; il passe par
+     Vente › Évaluations demandées. Le serveur refuse aussi ces lectures (DemandesEval.gs, DEV_refusRepresentant_). */
+  AMX.representantEval = function () {
+    var r = String(AMX.session.role || (AMX.session.perms || {}).role || '').toLowerCase();
+    if (r !== 'vendeur' && r !== 'bdc') return false;
+    return !(AMX.perm('evaluateur') || AMX.perm('gererUtilisateurs') || AMX.perm('gererAdmins'));
+  };
+  AMX.voitEvaluations = function () { return !AMX.representantEval(); };
 
   function chargerProfil(deuxieme) {
     return _fetch(URL_BACKEND + '?permissions=1&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&utilisateur=' + encodeURIComponent(lire(CLE.mail)) + '&_=' + Date.now(), { cache: 'no-store' })
@@ -845,6 +854,7 @@
   var TUILES = [
     { id: 'vente', titre: 'Vente', icone: 'vente', ordre: 10, onglets: [
       { id: 'board', titre: 'Board des ventes', de: 'board', onglet: '' },   /* 27 oct. : par représentant, neuf et occasion, objectifs, écran télé (board.js) */
+      { id: 'evaldemandes', titre: 'Évaluations demandées', de: 'evalPortail', onglet: '' },   /* 2 nov. : le portail du représentant — demander, suivre, recevoir le montant confirmé par la direction (demandes-eval.js) */
       { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'commandes', titre: 'Commandes vendues' }, { id: 'exclues', titre: 'Exclues' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 2 nov. : + Exclues (aftersale, accommodation, rachat de bail : gardées, jamais comptées) ; 1er nov. : + Commandes vendues (vendues, pas encore livrées) ; 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
       { id: 'offres', titre: 'Offres reçues', de: 'offres', onglet: 'recues' },
       { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente' },
@@ -860,7 +870,7 @@
       { id: 'usage', titre: 'Occasion', de: 'inventaire', onglet: 'usage' },
       { id: 'analyse', titre: 'Analyse occasion', de: 'analyse', onglet: '' },   /* 24 oct. : façon vAuto — % du marché, rang, jours, MDS, profil de prix par âge (analyse-usage.js) */
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '' },
-      { id: 'evaluations', titre: 'Évaluations', de: 'outils', vues: [{ id: 'demandes', titre: 'Demandes', de: 'demandesEval', onglet: '' }, { id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
+      { id: 'evaluations', titre: 'Évaluations', de: 'outils', visible: function () { return AMX.voitEvaluations(); }, vues: [{ id: 'demandes', titre: 'Demandes', de: 'demandesEval', onglet: '' }, { id: 'evaluation', titre: 'Nouvelle' }, { id: 'evaluations', titre: 'Registre' }, { id: 'torque', titre: 'Archive Torque' }] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
       { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '' },   /* 22 oct. : dépôt d'une liste (PDF, Excel, CSV) → où est chaque véhicule ; audit dans l'app (listes.js) */
       { id: 'transports', titre: 'Transports', de: 'transports', onglet: '', compteur: function () { return AMX.transport ? AMX.transport.compteur() : ''; } }   /* 23 oct. : transport des achats par Central Fleet (transport.js) */
     ] },
@@ -1592,11 +1602,11 @@
     });
     var voit = function (id) { var x = AMX.sources[id] || AMX.sections[id]; return !!x && (!x.visible || x.visible()); };
     var actions = [
-      voit('outils') && { t: 'Nouvelle évaluation', ic: 'achat', href: AMX.lien('outils', 'evaluation') },
+      voit('outils') && AMX.voitEvaluations() && { t: 'Nouvelle évaluation', ic: 'achat', href: AMX.lien('outils', 'evaluation') },
       voit('achat') && { t: 'Nouvelle fiche d\'achat', ic: 'achat', href: AMX.lien('achat', '') },
       voit('ventes') && AMX.ventes && AMX.ventes.peutDeclarer && AMX.ventes.peutDeclarer() && { t: 'Inscrire une vente', ic: 'vente', href: AMX.lien('ventes', 'liste', { nouvelle: Date.now() }) },
       voit('service') && { t: 'Nouveau rendez-vous', ic: 'service', href: AMX.lien('service', 'rendezvous', { nouveau: 1 }) },
-      voit('demandesEval') && { t: 'Demander une évaluation', ic: 'outils', href: AMX.lien('demandesEval', '', { nouvelle: Date.now() }) },
+      voit('evalPortail') && { t: 'Demander une évaluation', ic: 'outils', href: AMX.lien('evalPortail', '', { nouvelle: Date.now() }) },
       voit('aide') && { t: 'Écrire une suggestion', ic: 'suggestions', href: AMX.lien('aide', 'suggestions') },
       { t: 'Revenir à l\'ancienne interface', ic: 'rafraichir', faire: function () { AMX.basculerInterface(false); } }
     ];

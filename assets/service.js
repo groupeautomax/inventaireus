@@ -705,6 +705,9 @@
     history.replaceState(null, '', AMX.lien('service', this.onglet, vin ? { vin: vin } : {}));
     this.elListe.querySelectorAll('.ligne').forEach(function (l) { l.classList.toggle('actif', !!vin && l.dataset.vin === vin); });
     this.rendrePanneau();
+    /* 2 nov. : la liste vient de se tasser à gauche — garder la ligne choisie en vue. */
+    var choisie = vin ? this.elListe.querySelector('.ligne.actif') : null;
+    if (choisie && choisie.scrollIntoView) choisie.scrollIntoView({ block: 'nearest' });
   };
 
   /* ------------------------------- Panneau -------------------------------- */
@@ -712,6 +715,9 @@
     var self = this, etapes = AMX.service.etapes(), cibles = AMX.service.cibles();
     var s = this.selection ? AMX.service.parVin(this.selection) : null;
     this.elAgencement.classList.toggle('avec-panneau', !!s);
+    /* 2 nov. (Maxime : « quand on choisit un stock, l'écran doit être beaucoup plus gros et on tasse la liste des
+       stocks ») : la fiche prend la place, la liste devient une colonne étroite (CSS .agencement.svc-fiche). */
+    this.elAgencement.classList.toggle('svc-fiche', !!s);
     AMX.vider(this.elPanneau);
     if (!s) { this.elPanneau.style.display = 'none'; return; }
     this.elPanneau.style.display = '';
@@ -1011,7 +1017,7 @@
       }))]);
     }
 
-    this.elPanneau.appendChild(h('div.carte', [
+    this.elPanneau.appendChild(h('div.carte.svc-fiche-carte', [
       h('div.panneau-entete', [
         h('div', { style: { minWidth: 0 } }, [
           h('h2', { text: s.modele || '(modèle à préciser)' }),

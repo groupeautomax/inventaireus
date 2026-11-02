@@ -753,6 +753,25 @@ input.saisie.manque { border-color: var(--rouge); background: var(--rouge-bg); }
 @container (max-width: 600px) {
   .ligne.svc { grid-template-columns: 48px minmax(0, 1fr) 36px; }
 }
+/* 2 nov. (Maxime : « quand on choisit un stock, l'écran doit être beaucoup plus gros et on tasse la liste des stocks ») :
+   un véhicule choisi, sa fiche prend la place et la liste devient une colonne étroite — les règles @container ci-dessus
+   réduisent alors chaque ligne au modèle, au NIV, au # stock et à l'étape. Fiche assez large : blocs sur deux colonnes. */
+@media (min-width: 1101px) {
+  .agencement.sans-rail.svc-fiche.avec-panneau { grid-template-columns: minmax(270px, 330px) minmax(0, 1fr); }
+  .agencement.svc-fiche:not(.sans-rail).avec-panneau { grid-template-columns: var(--rail-l) minmax(250px, 300px) minmax(0, 1fr); }
+  .agencement.svc-fiche .panneau { container-type: inline-size; }
+}
+@media (max-width: 1100px) {
+  .agencement.svc-fiche .panneau { width: min(880px, 100vw); container-type: inline-size; }
+}
+.agencement.svc-fiche .ligne.svc { gap: 8px; min-height: 52px; }
+.agencement.svc-fiche .ligne.svc .vignette { width: 40px; height: 34px; }
+.agencement.svc-fiche .ligne.svc .sous > :not(.vin):not(.mono):not(.registre-autre) { display: none; }
+@container (min-width: 860px) {
+  .svc-fiche-carte { column-count: 2; column-gap: 0; column-rule: 1px solid var(--ligne); }
+  .svc-fiche-carte > .panneau-entete { column-span: all; }
+  .svc-fiche-carte > .bloc { break-inside: avoid; }
+}
 
 /* Textos (6 oct.) — ligne « Alertes par texto » du menu du compte */
 .usager .menu .textos { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 12.5px; }

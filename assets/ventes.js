@@ -48,6 +48,33 @@
   function moisCourant() { return isoLocal(new Date()).slice(0, 7); }
   function periodeValide(p) { return /^\d{4}(-\d{2})?$/.test(String(p || '')) || p === 'tout' || p === 'avenir'; }
   function moisLibelle(m) { var r = /^(\d{4})-(\d{2})/.exec(m || ''); return r ? MOIS[parseInt(r[2], 10) - 1] + ' ' + r[1] : (m || ''); }
+  /* 2 nov. — Mois du manufacturier, comme VENTE_moisManuf_ (Vente.gs) : le dimanche et le lundi qui suivent un samedi du mois
+     précédent comptent dans ce mois-là (le lundi 2 nov. 2026 est un RDR d'octobre). Pour les dates RDR seulement. */
+  function moisManuf(jour) {
+    var x = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(jour || '')); if (!x) return '';
+    var a = +x[1], mo = +x[2], d = +x[3], dow = new Date(Date.UTC(a, mo - 1, d)).getUTCDay();
+    if ((dow === 0 && d === 1) || (dow === 1 && d <= 2)) { mo -= 1; if (!mo) { mo = 12; a -= 1; } }
+    return a + '-' + ('0' + mo).slice(-2);
+  }
+  function periodeManuf(mois) {
+    var x = /^(\d{4})-(\d{2})$/.exec(String(mois || '')); if (!x) return null;
+    var iso = function (t) { var z = new Date(t); return z.getUTCFullYear() + '-' + ('0' + (z.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + z.getUTCDate()).slice(-2); };
+    var J = 86400000, t0 = Date.UTC(+x[1], +x[2] - 1, 1), t1 = Date.UTC(+x[1], +x[2], 0);
+    while (moisManuf(iso(t0)) !== mois) t0 += J;
+    while (moisManuf(iso(t1 + J)) === mois) t1 += J;
+    var debut = iso(t0), fin = iso(t1);
+    return { mois: mois, debut: debut, fin: fin, prolonge: fin.slice(0, 7) !== mois, raccourci: debut.slice(8) !== '01' };
+  }
+  /* « RDR du 1er oct. au lundi 2 nov. » quand le mois du manufacturier ne suit pas le calendrier, sinon '' */
+  function textePeriodeManuf(p) {
+    if (!p || (!p.prolonge && !p.raccourci)) return '';
+    var J = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    var MC = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    var jr = function (iso, avecJour) { var z = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso), d = +z[3], dow = new Date(Date.UTC(+z[1], +z[2] - 1, d)).getUTCDay();
+      return (avecJour ? J[dow] + ' ' : '') + (d === 1 ? '1er' : String(d)) + ' ' + MC[+z[2] - 1]; };
+    return 'RDR du ' + jr(p.debut, p.raccourci) + ' au ' + jr(p.fin, p.prolonge) + ' (mois du manufacturier)';
+  }
+  AMX.moisManuf = moisManuf; AMX.periodeManuf = periodeManuf; AMX.textePeriodeManuf = textePeriodeManuf;
   /* 22 oct. (Maxime) : une vente compte dans le mois de sa LIVRAISON (sinon de sa vente) — le serveur envoie `mois` calculé ainsi. */
   function dateLivraisonOk(v) { return /^\d{4}-\d{2}-\d{2}/.test(String(v.dateLivraison || '')); }
   function moisDeVente(v) { return v.mois || String((dateLivraisonOk(v) ? v.dateLivraison : '') || v.dateVente || v.declareLe || '').slice(0, 7); }
@@ -222,8 +249,19 @@
     evaluation: function (vin) {
       vin = String(vin || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
       if (vin.length !== 17) return Promise.resolve({ trouve: false, vin: vin });
+      var demander = AMX.lien('evalPortail', '', { nouvelle: Date.now(), vin: vin });
+      /* 2 nov. : un représentant ne lit pas l'évaluation ; il reçoit la valeur confirmée par la direction (sa demande). */
+      if (AMX.voitEvaluations && !AMX.voitEvaluations()) {
+        if (!AMX.evalDemandes) return Promise.resolve({ trouve: false, vin: vin, urlDemander: demander, portail: true });
+        return AMX.evalDemandes.charger(false).then(function (dd) {
+          var x = ((dd && dd.demandes) || []).filter(function (y) { return y.vin === vin && y.etat === 'faite' && y.valeur; }).sort(function (a, b) { return String(b.confirmeLe || b.faiteLe || '').localeCompare(String(a.confirmeLe || a.faiteLe || '')); })[0];
+          if (!x) return { trouve: false, vin: vin, urlDemander: demander, portail: true };
+          return { trouve: true, portail: true, vin: vin, le: x.confirmeLe || x.faiteLe || '', par: x.confirmeParNom || '', km: nombre(x.km), annee: String(x.annee || ''), marque: String(x.marque || ''), modele: String(x.modele || ''), version: '',
+            prixAchat: nombre(x.valeur), prixPaye: null, acv: nombre(x.valeur), recon: null, prixVente: null, concession: String(x.compagnie || ''), statut: 'confirmee', url: AMX.lien('evalPortail', '', { id: x.id }) };
+        });
+      }
       return AMX.get('evalVin=' + encodeURIComponent(vin), { essais: 1 }).then(function (d) {
-        if (!d || !d.trouve) return { trouve: false, vin: vin };
+        if (!d || !d.trouve) return { trouve: false, vin: vin, urlDemander: AMX.lien('outils', 'evaluation', { vin: vin }) };
         var e = d.donnees || {}, acv = nombre(e.prixAchat) !== null ? nombre(e.prixAchat) : nombre(e.prixPaye);
         return { trouve: true, vin: vin, le: d.dateMaj || e._enregistreLe || e._le || '', par: String(e._enregistrePar || e._par || ''), km: nombre(e.km), annee: String(e.annee || ''), marque: String(e.marque || ''), modele: String(e.modele || ''), version: String(e.version || ''),
           prixAchat: nombre(e.prixAchat), prixPaye: nombre(e.prixPaye), acv: acv, recon: nombre(e.recon), prixVente: nombre(e.prixVente), concession: String(e.concession || ''), statut: String(e._statut || ''), url: AMX.lien('outils', 'evaluation', { vin: vin }) };
@@ -659,7 +697,7 @@
      livre. « RDR du mois » = Date RDR dans le mois affiché ; « sans RDR » = neuf livré dans le mois sans Date RDR, seulement pour
      les concessions qui inscrivent leurs RDR (le serveur les nomme dans rdr.cies). */
   VueVentes.prototype.moisRdr = function () { return this.vue !== 'commandes' && /^\d{4}-\d{2}$/.test(String(this.periode || '')) ? this.periode : ''; };
-  VueVentes.prototype.estRdr = function (v) { var m = this.moisRdr(); return !!m && v.statut !== 'annulee' && String(v.dateRdr || '').slice(0, 7) === m; };
+  VueVentes.prototype.estRdr = function (v) { var m = this.moisRdr(); return !!m && v.statut !== 'annulee' && !!v.dateRdr && moisManuf(v.dateRdr) === m; };   /* mois du manufacturier (2 nov.) */
   VueVentes.prototype.sansRdr = function (v) { var m = this.moisRdr(), d = cache.rep, cies = d && d.rdr && d.rdr.cies ? d.rdr.cies : []; return !!m && v.statut !== 'annulee' && v.type === 'neuf' && !v.dateRdr && dateLivraisonOk(v) && moisDeVente(v) === m && cies.indexOf(v.compagnie) >= 0; };
   /* Les nombres des pastilles : état (sans le filtre d'état), type (sans le filtre de type), F&I à inscrire / pas au livre
      (sans ce drapeau) — chaque nombre est ce qu'on verra en cliquant. */
@@ -790,7 +828,7 @@
      les plus vieilles (souvent une livraison jamais inscrite au livre) vont dans « à vérifier ». Repère : la fin du mois affiché,
      ou aujourd'hui pour le mois courant. */
   function commandesParAge(g, m) {
-    var finMois = new Date(m + '-01T12:00:00'); finMois.setMonth(finMois.getMonth() + 1); finMois.setDate(0);
+    var per = periodeManuf(m), finMois = new Date((per ? per.fin : m + '-28') + 'T12:00:00');   /* fin du mois du manufacturier (2 nov.) */
     var refT = Math.min(finMois.getTime(), new Date(isoLocal(new Date()) + 'T12:00:00').getTime());
     var recentes = [], vieilles = [];
     (g.commandes || []).forEach(function (y) { var t0 = y.dateVente ? new Date(y.dateVente + 'T12:00:00').getTime() : refT; ((refT - t0) / 86400000 > COMMANDES_JOURS ? vieilles : recentes).push(y); });
@@ -821,6 +859,8 @@
        (RDR manuf. mais pas livré physiquement) et commande vendue (pas de RDR, pas livré, mais vendu) ») : chaque RDR du constructeur
        est relié à sa vente du livre par le NIV (ou le # stock), côté serveur (VENTE_rdrGroupes_). */
     var carte = h('div.kpi.neutre.ventes-comp.ventes-rdr-portail#ventes-kpi-rdr-portail', [h('div.titre', { text: 'RDR manufacturier et ventes neuves — ' + moisLibelle(m) })]);
+    var tPer = textePeriodeManuf((r && r.periode) || periodeManuf(m));   /* 2 nov. : « RDR du 1er oct. au lundi 2 nov. » */
+    if (tPer) carte.appendChild(h('div.sous.rdr-periode', { text: tPer, title: 'Le dimanche et le lundi qui suivent un samedi du mois précédent comptent dans ce mois-là pour le manufacturier.' }));
     if (!r) { carte.appendChild(h('div.n', { text: cacheRdrP.cle === cle && cacheRdrP.erreur ? cacheRdrP.erreur : 'Lecture des RDR du constructeur…' })); return carte; }
     var codes = Object.keys(r.cies);
     if (!codes.length) return null;
@@ -894,7 +934,7 @@
         var g = gr[cote], n = g.n;
         if (!filtre.cote && cote === 'flotte' && !n.rdr && !n.commandes && !n.livresSansRdr) return;
         corps.appendChild(h('h4', { text: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + (cote === 'flotte' ? 'Flotte' : 'Détail') }));
-        if (!filtre.cat) corps.appendChild(h('p.ventes-aide', { text: capitale(r.moisLibelle) + ' : ' + n.rdr + ' RDR chez ' + x.portail + ' — ' + n.rdrLivres + ' livré' + (n.rdrLivres > 1 ? 's' : '') + ', ' + n.rdrNonLivres + ' pas encore livré' + (n.rdrNonLivres > 1 ? 's' : '') + ', ' + n.rdrSansVente + ' pas au livre ; ' + (function () { var pa = commandesParAge(g, r.mois); return pa.nRecentes + ' commande' + (pa.nRecentes > 1 ? 's' : '') + ' vendue' + (pa.nRecentes > 1 ? 's' : '') + ' de moins de ' + COMMANDES_JOURS + ' jours sans RDR' + (pa.nVieilles ? ' (+ ' + pa.nVieilles + ' plus vieilles)' : ''); })() + '.' + (x.lu ? ' Portail lu le ' + AMX.fmtDate(x.lu, true) + '.' : ' Le portail n\'a jamais été lu.') }));
+        if (!filtre.cat) corps.appendChild(h('p.ventes-aide', { text: capitale(r.moisLibelle) + (textePeriodeManuf(r.periode || periodeManuf(r.mois)) ? ' (' + textePeriodeManuf(r.periode || periodeManuf(r.mois)).replace(' (mois du manufacturier)', '') + ')' : '') + ' : ' + n.rdr + ' RDR chez ' + x.portail + ' — ' + n.rdrLivres + ' livré' + (n.rdrLivres > 1 ? 's' : '') + ', ' + n.rdrNonLivres + ' pas encore livré' + (n.rdrNonLivres > 1 ? 's' : '') + ', ' + n.rdrSansVente + ' pas au livre ; ' + (function () { var pa = commandesParAge(g, r.mois); return pa.nRecentes + ' commande' + (pa.nRecentes > 1 ? 's' : '') + ' vendue' + (pa.nRecentes > 1 ? 's' : '') + ' de moins de ' + COMMANDES_JOURS + ' jours sans RDR' + (pa.nVieilles ? ' (+ ' + pa.nVieilles + ' plus vieilles)' : ''); })() + '.' + (x.lu ? ' Portail lu le ' + AMX.fmtDate(x.lu, true) + '.' : ' Le portail n\'a jamais été lu.') }));
         var vides = true;
         ordre.forEach(function (cat) {
           var s = SECTIONS[cat], tabs;
@@ -2054,7 +2094,7 @@
       AMX.ventes.evaluation(vin).then(function (e) {
         if (inEchVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase() !== vin) return;
         AMX.vider(elEval);
-        if (!e.trouve) { elEval.className = 'ventes-trouve alerte'; elEval.appendChild(h('span', { text: 'Pas d\'évaluation pour ce NIV.' })); elEval.appendChild(h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: vin }), target: '_blank', rel: 'noopener', text: 'Évaluer ce véhicule' })); return; }
+        if (!e.trouve) { elEval.className = 'ventes-trouve alerte'; elEval.appendChild(h('span', { text: e.portail ? 'Aucune valeur confirmée par la direction pour ce NIV.' : 'Pas d\'évaluation pour ce NIV.' })); elEval.appendChild(h('a.btn.petit', { href: e.urlDemander || AMX.lien('outils', 'evaluation', { vin: vin }), target: '_blank', rel: 'noopener', text: e.portail ? 'Demander une évaluation' : 'Évaluer ce véhicule' })); return; }
         var modele = [e.annee, e.marque, e.modele].filter(Boolean).join(' ');
         if (modele && (ecraser || !inEchModele.value.trim())) inEchModele.value = modele;
         if (e.km !== null && (ecraser || !inEchKm.value.trim())) inEchKm.value = String(Math.round(e.km));
@@ -2062,8 +2102,8 @@
         evalMeta.le = e.le || ''; evalMeta.par = e.par || '';
         majOver();
         elEval.className = 'ventes-trouve';
-        elEval.appendChild(h('span', { text: 'Évaluation importée : ' + (modele || vin) + (e.km !== null ? ' · ' + AMX.fmtNombre(Math.round(e.km)) + ' km' : '') + (e.acv !== null ? ' · valeur d\'achat ' + argent(e.acv) : ' · sans valeur d\'achat') + (e.prixVente !== null ? ' · détail visé ' + argent(e.prixVente) : '') + (e.le ? ' · évaluée le ' + AMX.fmtDate(e.le) : '') + (e.par ? ' par ' + e.par.split('@')[0] : '') }));
-        elEval.appendChild(h('a.btn.petit', { href: e.url, target: '_blank', rel: 'noopener', text: 'Ouvrir l\'évaluation' }));
+        elEval.appendChild(h('span', { text: (e.portail ? 'Valeur confirmée par la direction : ' : 'Évaluation importée : ') + (modele || vin) + (e.km !== null ? ' · ' + AMX.fmtNombre(Math.round(e.km)) + ' km' : '') + (e.acv !== null ? ' · valeur d\'achat ' + argent(e.acv) : ' · sans valeur d\'achat') + (e.prixVente !== null ? ' · détail visé ' + argent(e.prixVente) : '') + (e.le ? (e.portail ? ' · confirmée le ' : ' · évaluée le ') + AMX.fmtDate(e.le) : '') + (e.par ? ' par ' + e.par.split('@')[0] : '') }));
+        elEval.appendChild(h('a.btn.petit', { href: e.url, target: '_blank', rel: 'noopener', text: e.portail ? 'Ouvrir la demande' : 'Ouvrir l\'évaluation' }));
       }, function (err) { if (!elEval.isConnected) return; elEval.className = 'ventes-trouve alerte'; elEval.textContent = 'Évaluation indisponible : ' + AMX.erreurTexte(err); });
     }
     var overAuto = !val(v.overUnder);

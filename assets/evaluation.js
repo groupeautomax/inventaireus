@@ -555,14 +555,43 @@
       if (!x || self.demandeId !== id) return;
       self.demande = x;
       var dessiner = function (x) {
+        /* 2 nov. : circuit du directeur — approbation, évaluateur, montant à confirmer, puis le représentant. */
         AMX.vider(el);
-        var duree = x.etat === 'faite' ? 'faite' + (x.minutesReponse !== null && x.minutesReponse !== undefined ? ' en ' + x.minutesReponse + ' min' : '') : 'envoyée il y a ' + x.minutes + ' min' + (x.enRetard ? ' — en retard' : '');
+        var moi = (AMX.evalDemandes.enCache() || {}).moi || {};
+        var rep = x.demandeParNom || 'le représentant';
+        var jour = function (iso) { return iso ? new Date(iso).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' }) : ''; };
+        var duree = (x.etat === 'faite' || x.etat === 'aconfirmer') ? 'faite' + (x.minutesReponse !== null && x.minutesReponse !== undefined ? ' en ' + x.minutesReponse + ' min' : '')
+          : (x.etat === 'refusee' || x.etat === 'annulee') ? '' : 'envoyée il y a ' + x.minutes + ' min' + (x.enRetard ? ' — en retard' : '');
+        var etatTexte, boutons = [];
+        if (x.etat === 'approbation') {
+          etatTexte = h('span.badge.violet.sans-point', { text: 'En attente de l\'approbation de la direction' });
+          if (moi.diriger && AMX.evalDemandes.approuver) {
+            boutons.push(h('button.btn.primaire.petit', { type: 'button', text: 'Approuver…', onclick: function () { AMX.evalDemandes.approuver(x.id); } }));
+            if (AMX.evalDemandes.refuser) boutons.push(h('button.btn.petit', { type: 'button', text: 'Refuser…', onclick: function () { AMX.evalDemandes.refuser(x.id); } }));
+          }
+        } else if (x.etat === 'aconfirmer') {
+          etatTexte = h('span.badge.bleu.sans-point', { text: 'Évaluation faite' + (x.valeurEvaluateur ? ' — ' + AMX.fmtArgent(x.valeurEvaluateur) : '') + ', à confirmer par la direction' });
+          if (moi.diriger) {
+            if (AMX.evalDemandes.confirmer) boutons.push(h('button.btn.primaire.petit', { type: 'button', text: 'Confirmer le montant…', onclick: function () { AMX.evalDemandes.confirmer(x.id); } }));
+            if (AMX.evalDemandes.renvoyer) boutons.push(h('button.btn.petit', { type: 'button', text: 'Renvoyer à l\'évaluateur…', onclick: function () { AMX.evalDemandes.renvoyer(x.id); } }));
+          }
+        } else if (x.etat === 'faite') {
+          etatTexte = h('span.badge.vert.sans-point', { text: (x.circuit ? 'Valeur confirmée' : 'Faite') + (x.valeur ? ' — ' + AMX.fmtArgent(x.valeur) : '') + (x.circuit && x.confirmeParNom ? ' par ' + x.confirmeParNom : '') + ' · ' + rep + ' est prévenu' + (x.valideJusqu ? ' · vaut jusqu\'au ' + jour(x.valideJusqu) : '') });
+        } else if (x.etat === 'refusee') {
+          etatTexte = h('span.badge.gris.sans-point', { text: 'Refusée par la direction' + (x.refusParNom ? ' (' + x.refusParNom + ')' : '') + (x.refusRaison ? ' : ' + x.refusRaison : '') });
+        } else if (x.etat === 'annulee') {
+          etatTexte = h('span.badge.gris.sans-point', { text: 'Demande annulée' + (x.annuleRaison ? ' : ' + x.annuleRaison : '') });
+        } else {
+          etatTexte = h('span.mini', { text: x.circuit ? 'Enregistrez l\'évaluation : la direction confirme le montant, puis ' + rep + ' le reçoit.' : 'Enregistrez l\'évaluation : ' + rep + ' reçoit la valeur par courriel.' });
+        }
+        if (AMX.evalDemandes.ouvrirFil && x.etat !== 'refusee' && x.etat !== 'annulee') boutons.push(h('button.btn.petit', { type: 'button', text: (x.messages && x.messages.length ? 'Messages (' + x.messages.length + ')' : 'Question au représentant'), onclick: function () { AMX.evalDemandes.ouvrirFil(x.id); } }));
         el.appendChild(h('div.eval-demande.' + x.etat, [
           h('b', { text: 'Demande ' + x.id + ' de ' + (x.demandeParNom || '—') }),
           h('span', { text: [x.client ? 'client ' + x.client : '', x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : '', x.note ? '« ' + x.note + ' »' : '', duree].filter(Boolean).join(' · ') }),
-          x.etat === 'faite' ? h('span.badge.vert.sans-point', { text: 'Faite' + (x.valeur ? ' — ' + AMX.fmtArgent(x.valeur) : '') + ' · ' + (x.demandeParNom || 'le représentant') + ' est prévenu' + (x.valideJusqu ? ' · vaut jusqu\'au ' + new Date(x.valideJusqu).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' }) : '') }) : h('span.mini', { text: 'Enregistrez l\'évaluation : ' + (x.demandeParNom || 'le représentant') + ' reçoit la valeur par courriel.' }),
+          etatTexte,
+          x.renvoiRaison && (x.etat === 'afaire' || x.etat === 'encours') ? h('span.badge.ambre.sans-point', { text: 'Renvoyée par la direction : ' + x.renvoiRaison }) : null,
           x.infoDemandee ? h('span.badge.ambre.sans-point', { text: 'Question en attente de réponse' }) : null,
-          AMX.evalDemandes.ouvrirFil ? h('button.btn.petit', { type: 'button', text: (x.messages && x.messages.length ? 'Messages (' + x.messages.length + ')' : 'Question au représentant'), onclick: function () { AMX.evalDemandes.ouvrirFil(x.id); } }) : null
+          boutons.length ? h('div.eval-demande-boutons', boutons) : null
         ]));
       };
       dessiner(x);
@@ -2520,10 +2549,23 @@
       }
       history.replaceState(null, '', AMX.lien('outils', 'evaluation', self.paramsAdresse(vin)));
       self.rendreContexte();
-      // 27 oct. : la demande d'évaluation de ce NIV est faite — le représentant reçoit la valeur (DemandesEval.gs).
-      if (self.demandeId && AMX.evalDemandes && self.demande && self.demande.vin === vin) {
-        AMX.evalDemandes.faite(self.demandeId).then(function (r) { AMX.toast(r.message || 'Demande faite', 'ok', 6000); if (self.dessinerDemande && r.demande) self.dessinerDemande(r.demande); }).catch(function (e) { AMX.toast('Demande ' + self.demandeId + ' : ' + AMX.erreurTexte(e), 'attention', 8000); });
-      }
+      // 27 oct. : la demande d'évaluation de ce NIV est faite (DemandesEval.gs). 2 nov. : dans le circuit du directeur, le
+      // montant attend sa confirmation ; si c'est un directeur qui enregistre, la fenêtre « Confirmer le montant » s'ouvre.
+      // Sans ?demande= dans l'adresse, une demande ouverte de ce NIV qui m'est confiée est marquée faite quand même.
+      var idDem = (self.demandeId && self.demande && self.demande.vin === vin) ? self.demandeId : '';
+      if (AMX.evalDemandes) (idDem || AMX.evalDemandes.enCache() ? Promise.resolve() : AMX.evalDemandes.charger(false)).then(function () {
+        if (!idDem) {
+          var cacheDem = AMX.evalDemandes.enCache() || {}, moiDem = cacheDem.moi || {};
+          var ouverte = (cacheDem.demandes || []).filter(function (x) { return x.vin === vin && (x.etat === 'afaire' || x.etat === 'encours') && (x.pourMoi || moiDem.evaluateur || moiDem.diriger); })[0];
+          if (!ouverte) return;
+          idDem = ouverte.id;
+        }
+        return AMX.evalDemandes.faite(idDem).then(function (r) {
+          AMX.toast(r.message || 'Demande faite', 'ok', 6000);
+          if (self.demandeId === idDem && self.dessinerDemande && r.demande) self.dessinerDemande(r.demande);
+          if (r.peutConfirmer && AMX.evalDemandes.confirmer) AMX.evalDemandes.confirmer(idDem);
+        });
+      }).catch(function (e) { if (idDem) AMX.toast('Demande ' + idDem + ' : ' + AMX.erreurTexte(e), 'attention', 8000); });
     }).catch(function (e) {
       self.etat('Échec de l\'enregistrement : ' + AMX.erreurTexte(e));
       AMX.toast('Échec de l\'enregistrement — ' + AMX.erreurTexte(e), 'erreur');

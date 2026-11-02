@@ -485,7 +485,7 @@
   Fiche.prototype.verifierEvaluation = function (vin, importer) {
     var self = this;
     vin = String(vin || '').trim().toUpperCase();
-    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { this.evaluation = null; this.rendreEvaluation(); return Promise.resolve(); }
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) || (AMX.voitEvaluations && !AMX.voitEvaluations())) { this.evaluation = null; this.rendreEvaluation(); return Promise.resolve(); }   /* 2 nov. : rien pour un représentant */
     this.evalVerifiee = vin;
     return AMX.get('evalVin=' + encodeURIComponent(vin)).then(function (d) {
       if (String(self.vinCourant || '').toUpperCase() !== vin) return;
@@ -720,8 +720,9 @@
       return { compagnie: String(valeur('f-compagnie') || '').toUpperCase(), stock: valeur('f-stock'), annee: valeur('f-annee'), marque: valeur('f-marque'), modele: valeur('f-modele'),
         carrosserie: self.decode && self.decode.carrosserie,
         // 26 oct. : le release donne le lieu de cueillette et les consignes (no de release, heures, contact).
-        depart: { adresse: valeur('f-releaseadresse'), ville: valeur('f-releaseville') || valeur('f-villeprovenance'), province: valeur('f-releaseprov') },
-        consignes: AMX.release ? AMX.release.consignes(rel) : null, release: { recu: valeur('f-releaserecu'), paye: paye, no: rel.no } };
+        depart: { adresse: valeur('f-releaseadresse'), ville: valeur('f-releaseville') || valeur('f-villeprovenance'), province: valeur('f-releaseprov'), codePostal: valeur('f-releasecp') },
+        // 2 nov. : le document déposé (champ caché f-releasepdf) part avec la demande — case « Joindre le release ».
+        consignes: AMX.release ? AMX.release.consignes(rel) : null, release: { recu: valeur('f-releaserecu'), paye: paye, no: rel.no, doc: !!valeur('f-releasepdf') } };
     };
     AMX.transport.bloc(vin, zone, Object.assign(prefill(), { prefill: prefill, onDemande: remplir, onInfos: remplir }));
   };
@@ -761,8 +762,9 @@
       AMX.release.deposer(vin, f).then(function (d) {
         val('f-releasepdf', d.pdfId || ''); val('f-releasepdfnom', d.pdfNom || f.name);
         poser('f-releaserecu', d.release && d.release.recu); poser('f-releasesource', 'pdf');
-        AMX.toast((d.message || 'Release déposé') + ' Enregistrez la fiche pour garder les autres champs.', 'ok', 8000);
+        AMX.toast((d.message || 'Release déposé') + ' Enregistrez la fiche pour garder les autres champs.', d.centralFleet && !d.centralFleet.ok ? 'attention' : 'ok', d.centralFleet ? 12000 : 8000);
         self.rendreRelease(vin);
+        if (d.centralFleet && AMX.transport) { AMX.transport.vider(); self.rendreTransport(vin); }
       }, function (e) { AMX.toast('Release : ' + AMX.erreurTexte(e), 'erreur', 9000); });
     });
     this.elReleaseOutils.appendChild(inp);
@@ -772,6 +774,15 @@
     AMX.release.vin(vin).then(function (d) {
       if (vin !== String(self.vinCourant || '').toUpperCase()) return;
       AMX.vider(self.elReleaseSug);
+      // 2 nov. : le document chez Central Fleet — état du dernier envoi et bouton (Central Fleet le garde s'il n'y a pas encore de demande).
+      var cf = d.release && d.release.cf;
+      if (d.release && d.release.pdf && d.peutEcrire && AMX.transport && AMX.transport.envoyerRelease) {
+        var envoye = cf && cf.le && !cf.erreur && !cf.ancien;
+        self.elReleaseOutils.appendChild(h('button.btn.petit', { type: 'button', text: envoye ? 'Renvoyer à Central Fleet' : 'Envoyer à Central Fleet', title: 'Le document et le no de release partent à Central Fleet ; sans demande de transport, il le garde et le joint dès que la demande arrive.',
+          onclick: function (ev) { var b = ev.currentTarget; b.classList.add('occupe'); AMX.transport.envoyerRelease(vin, String(valeur('f-compagnie') || d.compagnie || '').toUpperCase()).then(function (x) { b.classList.remove('occupe'); if (x && x.ok) { self.rendreRelease(vin); self.rendreTransport(vin); } }); } }));
+      }
+      if (cf) self.elReleaseOutils.appendChild(h('span.doux.petit', { style: cf.erreur || cf.ancien ? { color: 'var(--ambre)' } : null,
+        text: cf.erreur ? 'Central Fleet : pas envoyé — ' + cf.erreur : 'Central Fleet : envoyé le ' + AMX.fmtDateCourte(String(cf.le).slice(0, 10)) + (cf.no ? ' (no ' + cf.no + ')' : '') + (cf.attente ? ', gardé jusqu\'à la demande' : '') + (cf.ancien ? ' — un autre document a été déposé depuis' : '') }));
       var sug = (d.suggestions || []).filter(function (s) { return s.source !== 'fiche'; });
       if (!sug.length) return;
       self.elReleaseSug.appendChild(h('span.doux.petit', { text: 'Où est le véhicule, selon :' }));

@@ -97,7 +97,8 @@
     }, function (err) { e.promesse = null; e.erreur = AMX.erreurTexte(err); if (!e.liste) e.liste = []; e.quand = Date.now(); if (apres) apres(); return e.liste; });
     return e.promesse;
   }
-  function sourcesActives() { return SOURCES.filter(function (s) { return visible(s.section); }); }
+  /* 2 nov. : un représentant ne voit ni les évaluations ni l'archive Torque (AMX.voitEvaluations, app.js). */
+  function sourcesActives() { return SOURCES.filter(function (s) { return visible(s.section) && !((s.id === 'evaluation' || s.id === 'torque') && AMX.voitEvaluations && !AMX.voitEvaluations()); }); }
   function prechauffer(apres) {
     sourcesActives().forEach(function (s) { charger(s, apres); });
     if (AMX.carfax) AMX.carfax.charger().then(apres, function () {});

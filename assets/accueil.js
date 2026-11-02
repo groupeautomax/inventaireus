@@ -319,8 +319,8 @@
     if (ongletVoit('service', 'texto') && AMX.texto) AMX.texto.charger(cieSvc).then(relancer, rien);
     if (voit('avis') && AMX.avis) AMX.avis.charger().then(relancer, rien);
     if (ongletVoit('offres', 'recues')) chargerOffres().then(relancer, rien);
-    if (voit('outils') && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);
-    if (voit('demandesEval') && AMX.evalDemandes) AMX.evalDemandes.charger().then(relancer, rien);   /* 27 oct. : demandes d'évaluation */
+    if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);   /* 2 nov. : jamais pour un représentant */
+    if ((voit('demandesEval') || voit('evalPortail')) && AMX.evalDemandes) AMX.evalDemandes.charger().then(relancer, rien);   /* 27 oct. : demandes d'évaluation ; 2 nov. : portail du représentant */
     if (voitImports()) chargerImports().then(relancer, rien);
   };
 
@@ -432,18 +432,24 @@
       if (cv.length) out.push({ ton: 'ambre', n: cv.length, titre: 'Contrats d\'achat reçus par courriel, à vérifier', detail: cv.slice(0, 2).map(function (c) { return c.raison || c.fichier; }).join(' · ') + (cv.length > 2 ? '…' : ''), href: AMX.inventaire.lien('detail', { contrats: 1 }), ic: 'inventaire' });
     }
     // 26 oct. : clients d'évaluation dont la date de relance est passée (registre des évaluations, concession choisie)
-    if (voit('outils') && AMX.evaluations && AMX.evaluations.enCache()) {
+    if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations && AMX.evaluations.enCache()) {
       var aRel = AMX.evaluations.aRelancerPour(AMX.compagnieChoisie('evaluations'));
       if (aRel.length) out.push({ ton: 'ambre', n: aRel.length, titre: 'Clients d\'évaluation à relancer', detail: aRel.slice(0, 3).map(function (r) { return (r.suivi && r.suivi.client) || [r.annee, r.marque, r.modele].filter(Boolean).join(' '); }).join(' · ') + (aRel.length > 3 ? '…' : ''), href: AMX.lien('outils', 'evaluations', { suivi: 'relancer' }), ic: 'outils' });
     }
     // 27 oct. : demandes d'évaluation — à faire pour moi (évaluateur, rouge), faites pour moi (représentant, vert, 2 jours)
-    if (voit('demandesEval') && AMX.evalDemandes && AMX.evalDemandes.enCache()) {
-      var cieE = AMX.compagnieChoisie('evaluations'), deAF = AMX.evalDemandes.aFairePourMoi(cieE) || [], dePr = AMX.evalDemandes.pretesPourMoi(cieE) || [];
+    // 2 nov. : circuit du directeur — à approuver, montants à confirmer (direction) ; le représentant passe par son portail.
+    var boardE = voit('demandesEval'), portailE = voit('evalPortail');
+    if ((boardE || portailE) && AMX.evalDemandes && AMX.evalDemandes.enCache()) {
+      var cieE = AMX.compagnieChoisie('evaluations'), deAF = boardE ? (AMX.evalDemandes.aFairePourMoi(cieE) || []) : [], dePr = AMX.evalDemandes.pretesPourMoi(cieE) || [];
+      var lienRep = function (p) { return portailE ? AMX.lien('evalPortail', '', p && p.id ? { id: p.id } : undefined) : AMX.lien('demandesEval', '', Object.assign({ voir: 'deMoi' }, p || {})); };
+      var deAp = boardE && AMX.evalDemandes.aApprouver ? AMX.evalDemandes.aApprouver(cieE) : [], deCo = boardE && AMX.evalDemandes.aConfirmer ? AMX.evalDemandes.aConfirmer(cieE) : [];
+      if (deAp.length) out.push({ ton: 'violet', n: deAp.length, titre: 'Demandes d\'évaluation à approuver', detail: deAp.slice(0, 3).map(function (x) { return (x.vehicule || x.vin) + ' — ' + (x.demandeParNom || ''); }).join(' · ') + (deAp.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', '', { voir: 'direction' }), ic: 'outils' });
+      if (deCo.length) out.push({ ton: 'bleu', n: deCo.length, titre: 'Montants d\'évaluation à confirmer', detail: deCo.slice(0, 3).map(function (x) { return (x.vehicule || x.vin) + (x.valeurEvaluateur ? ' : ' + AMX.fmtArgent(x.valeurEvaluateur) : '') + ' — ' + (x.demandeParNom || ''); }).join(' · ') + (deCo.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', '', { voir: 'direction' }), ic: 'outils' });
       var retard = deAF.filter(function (x) { return x.enRetard; }).length;
       if (deAF.length) out.push({ ton: 'rouge', n: deAF.length, titre: 'Évaluations demandées, à faire pour vous', detail: (retard ? retard + ' en retard · ' : '') + deAF.slice(0, 3).map(function (x) { return (x.vehicule || x.vin) + ' — ' + (x.demandeParNom || ''); }).join(' · ') + (deAF.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', ''), ic: 'outils' });
-      if (dePr.length) out.push({ ton: 'vert', n: dePr.length, titre: 'Évaluations faites pour vos clients', detail: dePr.slice(0, 3).map(function (x) { return (x.client || x.vehicule || x.vin) + (x.valeur ? ' : ' + AMX.fmtArgent(x.valeur) : ''); }).join(' · ') + (dePr.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', ''), ic: 'outils' });
+      if (dePr.length) out.push({ ton: 'vert', n: dePr.length, titre: 'Évaluations faites pour vos clients', detail: dePr.slice(0, 3).map(function (x) { return (x.client || x.vehicule || x.vin) + (x.valeur ? ' : ' + AMX.fmtArgent(x.valeur) : ''); }).join(' · ') + (dePr.length > 3 ? '…' : ''), href: lienRep(), ic: 'outils' });
       var deQ = AMX.evalDemandes.questionsPourMoi ? (AMX.evalDemandes.questionsPourMoi(cieE) || []) : [];   /* l'évaluateur attend une réponse du représentant */
-      if (deQ.length) out.push({ ton: 'ambre', n: deQ.length, titre: 'Questions de l\'évaluateur sur vos demandes', detail: deQ.slice(0, 3).map(function (x) { return (x.vehicule || x.vin) + ' — ' + (x.evaluateurNom || ''); }).join(' · ') + (deQ.length > 3 ? '…' : ''), href: AMX.lien('demandesEval', '', { vue: 'deMoi', id: deQ[0].id }), ic: 'outils' });
+      if (deQ.length) out.push({ ton: 'ambre', n: deQ.length, titre: 'Questions de l\'évaluateur sur vos demandes', detail: deQ.slice(0, 3).map(function (x) { return (x.vehicule || x.vin) + ' — ' + (x.evaluateurNom || ''); }).join(' · ') + (deQ.length > 3 ? '…' : ''), href: lienRep({ id: deQ[0].id }), ic: 'outils' });
     }
     // Neufs : RDR à compléter chez le constructeur
     var rdr = AMX.neufs && AMX.neufs.aFaireConstructeur ? AMX.neufs.aFaireConstructeur() : null;

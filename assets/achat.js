@@ -298,7 +298,7 @@
       h('div.grille.c4', [
         date('f-date', 'Date'),
         champ('f-stock', 'Stock #', { mono: true }),
-        selection('f-compagnie', 'Compagnie', [['HAWKS', 'HAWKS'], ['STM', 'STM'], ['BMW', 'BMW']]),
+        selection('f-compagnie', 'Compagnie', Object.keys(AMX.COMPAGNIES).map(function (c) { return [c, c]; })),   /* 2 nov. : les cinq concessions (VW et Hyundai manquaient), selon la portée du compte */
         selection('f-destination', 'Destination inventaire', [['DETAIL', 'Detail'], ['US', 'É.-U.'], ['CAN', 'Canada']]),
         champ('f-niv', 'NIV', { mono: true, vin: true, placeholder: 'Numéro d\'identification' }),
         champ('f-marque', 'Marque'),

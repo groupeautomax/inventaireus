@@ -161,10 +161,11 @@
     },
     lireDocument: lireDocument,
     analyserTexte: analyserTexte,
-    /** Les consignes de cueillette pour Central Fleet : no de release, heures, instructions. */
+    /** Les consignes de cueillette pour Central Fleet : heures, lieu, instructions. Le no de release part à part
+        (release_number, montré au chauffeur « Release # … » par Central Fleet depuis le 2 nov.). */
     consignes: function (r) {
       r = r || {};
-      var instr = [r.no ? 'Release # ' + r.no : '', r.lieu ? 'Lieu : ' + r.lieu : '', r.heures ? 'Heures : ' + r.heures : '', r.note || ''].filter(Boolean).join(' · ');
+      var instr = [r.lieu ? 'Lieu : ' + r.lieu : '', r.heures ? 'Heures : ' + r.heures : '', r.note || ''].filter(Boolean).join(' · ');
       return { contact: r.contact || '', telephone: r.telephone || '', instructions: instr.slice(0, 500), release: r.no || '' };
     },
     modale: function (vin, ctx) { return modale(vin, ctx || {}); },
@@ -181,7 +182,7 @@
       boutons: [{ texte: 'Fermer' }, { texte: 'Enregistrer', classe: 'primaire', action: function (fermer) {
         var envoi = {}; Object.keys(champs).forEach(function (k) { var e = champs[k], x = e.type === 'checkbox' ? e.checked : e.value.trim(); if (String(x) !== String(original[k] === undefined ? '' : original[k])) envoi[k] = x; });
         if (!Object.keys(envoi).length) { fermer(); return false; }
-        return AMX.release.maj(vin, envoi).then(function (d) { AMX.toast(d.message || 'Release enregistré', 'ok'); m.modifie(false); if (ctx.onEnregistre) ctx.onEnregistre(d.release); fermer(); return false; }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+        return AMX.release.maj(vin, envoi).then(function (d) { AMX.toast(d.message || 'Release enregistré', d.centralFleet && !d.centralFleet.ok ? 'attention' : 'ok', d.centralFleet ? 10000 : undefined); m.modifie(false); if (ctx.onEnregistre) ctx.onEnregistre(d.release); fermer(); return false; }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
       } }] });
     AMX.release.vin(vin).then(function (d) {
       AMX.vider(corps);
@@ -203,11 +204,20 @@
         inp.addEventListener('change', function () { var f = inp.files && inp.files[0]; if (f) deposer(f); inp.value = ''; });
         doc.appendChild(inp);
         if (d.peutEcrire) doc.appendChild(h('button.btn.petit', { type: 'button', html: AMX.icones.plus + '<span>' + (rr.pdf ? 'Remplacer le document' : 'Déposer le release (PDF ou photo)') + '</span>', onclick: function () { inp.click(); } }));
+        // 2 nov. : le document chez Central Fleet (CentralFleet.gs › POST /releases). Parti tout seul s'il y a un transport ouvert.
+        if (rr.pdf && d.peutEcrire && AMX.transport && AMX.transport.envoyerRelease) {
+          var cf = rr.cf, envoye = cf && cf.le && !cf.erreur && !cf.ancien;
+          doc.appendChild(h('button.btn.petit', { type: 'button', text: envoye ? 'Renvoyer à Central Fleet' : 'Envoyer à Central Fleet', title: 'Le document et le no de release partent à Central Fleet. Sans demande de transport, Central Fleet le garde et le joint dès que la demande arrive.',
+            onclick: function (ev) { var b = ev.currentTarget; b.classList.add('occupe'); AMX.transport.envoyerRelease(vin, d.compagnie).then(function (x) { b.classList.remove('occupe'); if (x && x.ok && x.release) dessinerDoc(x.release); }); } }));
+        }
+        if (rr.cf) doc.appendChild(h('span.doux.petit', { style: rr.cf.erreur || rr.cf.ancien ? { color: 'var(--ambre)' } : null,
+          text: rr.cf.erreur ? 'Central Fleet : pas envoyé — ' + rr.cf.erreur
+            : 'Central Fleet : envoyé le ' + AMX.fmtDateCourte(String(rr.cf.le).slice(0, 10)) + (rr.cf.no ? ' (no ' + rr.cf.no + ')' : '') + (rr.cf.attente ? ', gardé jusqu\'à la demande de transport' : '') + (rr.cf.ancien ? ' — un autre document a été déposé depuis' : '') }));
       };
       var deposer = function (f) {
         AMX.toast('Envoi du release…', 'info');
         lireDocument(f).then(function (lu) { remplir(lu, 'le document'); });
-        AMX.release.deposer(vin, f).then(function (x) { AMX.toast(x.message || 'Release déposé', 'ok', 6000); champs.recu.value = champs.recu.value || x.release.recu; original.recu = x.release.recu; dessinerDoc(x.release); if (ctx.onEnregistre) ctx.onEnregistre(x.release); }, function (e) { AMX.toast('Release : ' + AMX.erreurTexte(e), 'erreur', 9000); });
+        AMX.release.deposer(vin, f).then(function (x) { AMX.toast(x.message || 'Release déposé', x.centralFleet && !x.centralFleet.ok ? 'attention' : 'ok', x.centralFleet ? 10000 : 6000); champs.recu.value = champs.recu.value || x.release.recu; original.recu = x.release.recu; dessinerDoc(x.release); if (ctx.onEnregistre) ctx.onEnregistre(x.release); }, function (e) { AMX.toast('Release : ' + AMX.erreurTexte(e), 'erreur', 9000); });
       };
       var remplir = function (s, quoi) {
         var n = 0;
@@ -221,7 +231,7 @@
         return h('button.btn.petit.fantome', { type: 'button', title: 'Remplir les cases vides avec ce que ' + s.libelle + ' sait', onclick: function () { remplir(s, s.libelle); if (!champs.source.value) champs.source.value = s.source; } }, [h('b', { text: s.libelle + ' : ' }), h('span', { text: t })]);
       });
       champs.source = h('input', { type: 'hidden', value: r.source || '' }); original.source = r.source || '';
-      corps.appendChild(h('p.doux.petit', { style: { marginTop: 0 }, text: 'Le release prouve que le véhicule est payé et qu\'on peut aller le chercher. Il reste dans la fiche d\'achat ; le no de release, les heures et le contact partent avec la demande de transport Central Fleet.' }));
+      corps.appendChild(h('p.doux.petit', { style: { marginTop: 0 }, text: 'Le release prouve que le véhicule est payé et qu\'on peut aller le chercher. Il reste dans la fiche d\'achat ; le no de release, les heures et le contact partent avec la demande de transport Central Fleet, et le document part à Central Fleet dès qu\'un transport existe (le transporteur l\'aura avec la cueillette).' }));
       if (sug.length) corps.appendChild(h('div.rel-sug', [h('span.doux.petit', { text: 'Où est le véhicule, selon :' })].concat(sug)));
       corps.appendChild(grille);
       corps.appendChild(h('div.rel-bas', [doc, h('label.case', [inutile, h('span', 'Déjà chez nous : pas de release ni de transport')])]));

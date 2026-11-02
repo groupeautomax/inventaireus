@@ -10,7 +10,7 @@
      - AMX.transport.carteAdmin() : Admin › Central Fleet — les jetons se collent ici, par le propriétaire.
    Le site ne voit JAMAIS un jeton : il envoie celui qu'on colle, le serveur le garde et n'en renvoie que l'état.
    Routes : GET ?transports=1 · ?transportDocument=1&commande=&doc= · ?cfEtat=1 ; POST transportDemander ·
-   transportActualiser · cfJeton · cfJetonRetirer.
+   transportActualiser · transportRelease (2 nov. : le release envoyé à Central Fleet) · cfJeton · cfJetonRetirer.
    ========================================================================= */
 (function () {
   'use strict';
@@ -107,6 +107,19 @@
       }).catch(function (e) { AMX.toast('Document : ' + AMX.erreurTexte(e), 'erreur'); });
     },
     demander: function (prefill) { return ouvrirDemande(prefill || {}); },
+    /** 2 nov. : envoie (ou renvoie) le release de la fiche d'achat à Central Fleet. Un nouvel envoi remplace l'ancien chez eux. */
+    envoyerRelease: function (vin, compagnie) {
+      AMX.toast('Envoi du release à Central Fleet…', 'info');
+      return AMX.post({ action: 'transportRelease', vin: String(vin || '').toUpperCase(), compagnie: compagnie || '' }, { delai: 90000, secours: false }).then(function (r) {
+        if (r && r.vehicules && r.ok !== false && r.envoye === undefined) throw new Error(SCRIPT_PAS_A_JOUR);
+        if (r && Array.isArray(r.transports)) AMX.transport.poser(r.transports);
+        if (AMX.release) { AMX.release.vider(); document.dispatchEvent(new CustomEvent('amx:releases')); }
+        if (!r || r.refuse || r.ok === false) { AMX.toast('Release : ' + ((r && r.erreur) || 'envoi refusé'), 'erreur', 12000); return r; }
+        AMX.toast(r.message || 'Release envoyé à Central Fleet', 'ok', 9000);
+        return r;
+      }, function (e) { AMX.toast('Release : ' + AMX.erreurTexte(e) + ' — vous pouvez réessayer (un nouvel envoi remplace l\'ancien).', 'erreur', 12000); return null; });
+    },
+    texteRelease: texteRelease,
     bloc: function (vin, conteneur, ctx) { return rendreBloc(vin, conteneur, ctx || {}); },
     ouvrir: function (t) { return ouvrirDetail(t); },
     carteAdmin: function () { return carteAdmin(); },
@@ -143,19 +156,38 @@
     if (t.joursTransit !== '' && t.joursTransit !== undefined && !t.livraison) l.push(['Transit', t.joursTransit + ' j']);
     if (t.cueillette) l.push(['Cueilli le', jour(t.cueillette)]); else if (t.cueilletteEstimee) l.push(['Cueillette prévue', jour(t.cueilletteEstimee)]); else if (t.dateSouhaitee) l.push(['Souhaitée le', jour(t.dateSouhaitee)]);
     if (t.livraison) l.push(['Livré le', jour(t.livraison)]); else if (t.livraisonEstimee) l.push(['Livraison prévue', jour(t.livraisonEstimee)]);
-    if (t.consignes && t.consignes.release) l.push(['Release', t.consignes.release + (t.consignes.refusees || t.consignes.lues === 'non' ? ' (à donner à Central Fleet)' : '')]);
+    var tr = texteRelease(t);
+    if (tr) l.push(['Release', tr]);
+    else if (t.consignes && t.consignes.release) l.push(['Release', t.consignes.release + (t.consignes.refusees || t.consignes.lues === 'non' ? ' (à donner à Central Fleet)' : '')]);
     if (t.facture) l.push(['Facture', t.facture + ' · ' + argent(t.totalFacture) + ' taxes incl.' + (t.statutFacture === 'paid' ? ' · payée' : (t.echeance ? ' · échéance ' + jour(t.echeance) : ''))]);
     return h('div.faits', l.map(function (x) { return h('span', [x[0] + ' : ', h('b', { text: x[1] })]); }));
   }
-  function ligneTransport(t, avecVehicule) {
-    var actions = [];
+  /** 2 nov. : ce que dit le release d'un transport — reçu par le transporteur, envoyé, en attente d'une demande, erreur. */
+  function texteRelease(t) {
+    var r = t && t.release; if (!r) return '';
+    var no = r.no ? ' — no ' + r.no : '';
+    if (r.recu) return 'reçu par le transporteur' + (r.recuLe ? ' le ' + jour(r.recuLe) : '') + no;
+    var e = r.envoye;
+    if (e && e.le && !e.erreur) return 'envoyé à Central Fleet le ' + jour(e.le) + (e.attente ? ' (gardé jusqu\'à la demande)' : '') + no;
+    if (e && e.erreur) return 'pas envoyé (voir ci-dessous)' + no;
+    if (r.recu === false) return 'pas encore reçu par le transporteur' + no;
+    return r.no ? 'no ' + r.no : '';
+  }
+  function ligneTransport(t, avecVehicule, apres) {
+    var actions = [], d = AMX.transport.enCache();
     if (t.statut === 'sent_to_customer' && !t.commande) actions.push(h('a.btn.petit.primaire', { href: PORTAIL, target: '_blank', rel: 'noopener', html: AMX.icones.externe + '<span>Accepter le prix chez Central Fleet</span>' }));
+    // 2 nov. : le release de la fiche d'achat envoyé à Central Fleet (le serveur dit s'il n'y a pas de document).
+    var rr = t.release || {}, deja = rr.envoye && rr.envoye.le && !rr.envoye.erreur;
+    if (t.ouvert && !t.test && !rr.recu && d && d.peutDemander) actions.push(h('button.btn.petit', { type: 'button', html: AMX.icones.courriel + '<span>' + (deja ? 'Renvoyer le release' : 'Envoyer le release à Central Fleet') + '</span>',
+      title: 'Le document du release déposé dans la fiche d\'achat part à Central Fleet avec le no de release ; un nouvel envoi remplace l\'ancien.',
+      onclick: function (ev) { ev.stopPropagation(); var b = ev.currentTarget; b.classList.add('occupe'); AMX.transport.envoyerRelease(t.vin, t.compagnie).then(function (r) { b.classList.remove('occupe'); if (r && apres) apres(r); }); } }));
     (t.documents || []).forEach(function (d) { actions.push(h('button.btn.petit', { type: 'button', html: AMX.icones.telecharger + '<span>' + AMX.esc(DOCS[d.type] || d.nom || 'Document') + '</span>', onclick: function (e) { e.stopPropagation(); AMX.transport.document(t, d); } })); });
     var tete = h('div.tete', [badge(t), h('span.trajet', { text: trajet(t) }), h('span.id', { text: t.id + (t.commande ? ' · ' + t.commande : '') })]);
     return h('div.tr-ligne', [
       avecVehicule ? h('div', [h('b', { text: t.vehicule || t.vin }), h('span.doux', { text: ' · ' + t.vin + (t.stock ? ' · #' + t.stock : '') })]) : null,
       tete, faits(t),
       t.erreur ? h('div.tr-avis.ambre', { text: t.erreur }) : null,
+      t.release && t.release.envoye && t.release.envoye.erreur ? h('div.tr-avis.ambre', { text: 'Release non envoyé à Central Fleet' + (t.release.envoye.erreurLe ? ' (' + jour(t.release.envoye.erreurLe) + ')' : '') + ' : ' + t.release.envoye.erreur }) : null,
       actions.length ? h('div.actions', actions) : null
     ]);
   }
@@ -169,7 +201,7 @@
       AMX.vider(conteneur);
       var liste = d.transports.filter(function (t) { return t.vin === vin; });
       var cie = String(ctx.compagnie || '').toUpperCase(), ouvert = liste.filter(function (t) { return t.ouvert; })[0];
-      var wrap = h('div.tr-bloc', liste.map(function (t) { return ligneTransport(t, false); }));
+      var wrap = h('div.tr-bloc', liste.map(function (t) { return ligneTransport(t, false, function () { rendreBloc(vin, conteneur, ctx); }); }));
       if (!ouvert && d.peutDemander) {
         if (cie && d.branches && d.branches[cie] === false) wrap.appendChild(h('p.tr-avis', { text: 'Central Fleet n\'est pas encore branché pour ' + nomCie(cie) + ' : le propriétaire colle le jeton de la concession dans Admin › Central Fleet.' }));
         else wrap.appendChild(h('div', [h('button.btn.primaire', { type: 'button', html: AMX.icones.plus + '<span>' + (liste.length ? 'Nouvelle demande de transport' : 'Demander le transport à Central Fleet') + '</span>',
@@ -212,14 +244,17 @@
         var etat = choix([['running', 'Roule'], ['non_running', 'Ne roule pas']], 'running'), couvert = choix([['open', 'Ouvert'], ['enclosed', 'Fermé']], 'open');
         var dep = p.depart || {}, arr = p.arrivee || liv(cie0);
         var depAdr = saisie(dep.adresse, { placeholder: 'Adresse civique (encan, vendeur…)' }), depVille = saisie(dep.ville), depProv = province(dep.province || 'QC');
+        var depCp = saisie(dep.codePostal, { maxlength: '10', style: { textTransform: 'uppercase' }, placeholder: 'J7R 5B6' });
         var arrAdr = saisie(arr.adresse), arrVille = saisie(arr.ville), arrProv = province(arr.province || (cie0 === 'HAWKS' ? 'ON' : 'QC'));
         var date = saisie('', { type: 'date' }), note = saisie('', { placeholder: 'Pour nous seulement (pas envoyé à Central Fleet)' });
         // 26 oct. : le release — consignes de cueillette envoyées à Central Fleet (no de release, heures, contact sur place).
         var cs = p.consignes || {}, rel = p.release || null;
         var csContact = saisie(cs.contact, { placeholder: 'Nom ou service' }), csTel = saisie(cs.telephone, { inputmode: 'tel' });
-        var csInstr = h('textarea.saisie', { rows: '2', maxlength: '500', placeholder: 'Release # …, heures du lot, porte à utiliser…' }); csInstr.value = cs.instructions || '';
+        var csInstr = h('textarea.saisie', { rows: '2', maxlength: '500', placeholder: 'Heures du lot, porte à utiliser…' }); csInstr.value = cs.instructions || '';
+        // 2 nov. : le document du release part avec la demande (Central Fleet le joint ; le no de release part avec la demande).
+        var joindre = h('input', { type: 'checkbox' }); joindre.checked = true;
         var avisRelease = null;
-        if (rel && rel.recu) avisRelease = h('p.avis', { style: { background: 'var(--vert-clair)', borderColor: 'var(--vert)', color: 'var(--vert-fonce)' }, text: 'Release reçu le ' + jour(rel.recu) + (rel.no ? ' — no ' + rel.no : '') + ' : le véhicule peut être cueilli.' });
+        if (rel && rel.recu) avisRelease = h('p.avis', { style: { background: 'var(--vert-clair)', borderColor: 'var(--vert)', color: 'var(--vert-fonce)' }, text: 'Release reçu le ' + jour(rel.recu) + (rel.no ? ' — no ' + rel.no : '') + ' : le véhicule peut être cueilli.' + (rel.doc ? ' Le document du release partira avec la demande.' : ' Déposez le document du release dans la fiche d\'achat : il partira tout seul à Central Fleet.') });
         else if (rel) avisRelease = h('p.avis', { text: (rel.paye ? 'Payé, mais le release n\'est pas encore reçu' : 'Ni payé ni release reçu') + ' : sans release, le transporteur ne pourra pas sortir le véhicule du lot (déplacement à vide possible). Vous pouvez demander le prix quand même ; déposez le release dans la fiche d\'achat dès qu\'il arrive.' });
         var test = h('input', { type: 'checkbox' });
         selCie.addEventListener('change', function () { var l = liv(selCie.value); if (!arrVille.value || arrVille.dataset.auto) { arrAdr.value = l.adresse || ''; arrVille.value = l.ville || ''; arrProv.value = l.province || ''; arrVille.dataset.auto = '1'; } });
@@ -231,8 +266,9 @@
           h('div.grille', [champ('NIV (17 caractères)', vin), champ('Année', annee), champ('Marque', marque), champ('Modèle', modele), champ('# stock (pour nous)', stock), champ('Type', type), champ('État', etat), champ('Transport', couvert)]),
           avisRelease,
           h('h4', 'Cueillette'),
-          h('div.grille', [champ('Adresse', depAdr), champ('Ville', depVille), champ('Province ou État', depProv, '2 lettres : QC, ON, NY…')]),
+          h('div.grille', [champ('Adresse', depAdr), champ('Ville', depVille), champ('Province ou État', depProv, '2 lettres : QC, ON, NY…'), champ('Code postal', depCp)]),
           h('div.grille', { style: { marginTop: '10px' } }, [champ('Contact sur place', csContact), champ('Téléphone sur place', csTel), champ('Consignes de cueillette (envoyées à Central Fleet)', csInstr)]),
+          rel && rel.doc ? h('label.case', { style: { marginTop: '10px' } }, [joindre, h('span', 'Joindre le release déposé dans la fiche d\'achat' + (rel.no ? ' (no ' + rel.no + ')' : '') + ' — le transporteur l\'aura avec la cueillette')]) : null,
           h('h4', 'Livraison'),
           h('div.grille', [champ('Adresse', arrAdr), champ('Ville', arrVille), champ('Province ou État', arrProv)]),
           h('div.grille', { style: { marginTop: '10px' } }, [champ('Cueillette souhaitée le', date), champ('Note', note)]),
@@ -242,10 +278,11 @@
           boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer à Central Fleet', classe: 'primaire', action: function (fermer) {
             var corpsPost = { action: 'transportDemander', compagnie: selCie.value, note: note.value.trim(), test: test.checked,
               vehicules: [{ vin: vin.value.trim().toUpperCase(), annee: annee.value.trim(), marque: marque.value.trim(), modele: modele.value.trim(), stock: stock.value.trim(), typeVehicule: type.value, etatVehicule: etat.value, typeTransport: couvert.value }],
-              depart: { adresse: depAdr.value.trim(), ville: depVille.value.trim(), province: depProv.value.trim().toUpperCase() },
+              depart: { adresse: depAdr.value.trim(), ville: depVille.value.trim(), province: depProv.value.trim().toUpperCase(), codePostal: depCp.value.trim().toUpperCase() },
               arrivee: { adresse: arrAdr.value.trim(), ville: arrVille.value.trim(), province: arrProv.value.trim().toUpperCase() },
               dateSouhaitee: date.value,
               consignes: { contact: csContact.value.trim(), telephone: csTel.value.trim(), instructions: csInstr.value.trim(), release: (cs.release || (rel && rel.no) || '') } };
+            if (rel && rel.doc) corpsPost.joindreRelease = joindre.checked;
             if (corpsPost.vehicules[0].vin.length !== 17) { AMX.toast('Le NIV doit avoir 17 caractères.', 'erreur'); return false; }
             if (!corpsPost.depart.ville || !/^[A-Z]{2}$/.test(corpsPost.depart.province) || !corpsPost.arrivee.ville || !/^[A-Z]{2}$/.test(corpsPost.arrivee.province)) { AMX.toast('Ville et province (2 lettres) de cueillette et de livraison obligatoires.', 'erreur'); return false; }
             // Jamais de requête de secours ni de rejeu : une demande créée deux fois serait un doublon chez Central Fleet.
@@ -351,7 +388,10 @@
         h('td', [h('span', { text: nomCie(x.compagnie) }), h('span.sous', { text: (x.registre === 'DETAIL' ? 'Detail' : x.registre === 'CAN' ? 'Canada' : 'É.-U.') + (x.jours !== null && x.jours !== undefined ? ' · acheté il y a ' + x.jours + ' j' : '') })]),
         h('td', [h('span', { text: x.lieu || x.source || '—' }), h('span.sous', { text: [x.ville, x.province].filter(Boolean).join(', ') })]),
         h('td', { text: x.paye === 'oui' ? 'oui' : (x.paye ? jour(x.paye) : '—') }),
-        h('td', [h('span', { text: x.recu ? jour(x.recu) : '—' }), h('span.sous.mono', { text: [x.no ? '# ' + x.no : '', x.doc ? 'document' : ''].filter(Boolean).join(' · ') })]),
+        h('td', [h('span', { text: x.recu ? jour(x.recu) : '—' }), h('span.sous.mono', { text: [x.no ? '# ' + x.no : '', x.doc ? 'document' : ''].filter(Boolean).join(' · ') }),
+          (x.transport && x.transport.release && x.transport.release.recu) ? h('span.sous', { text: 'Central Fleet : reçu par le transporteur' })
+            : (x.cf && x.cf.erreur ? h('span.sous', { style: { color: 'var(--ambre)' }, text: 'Central Fleet : pas envoyé' })
+              : (x.cf && x.cf.le ? h('span.sous', { text: 'Central Fleet : envoyé le ' + jour(x.cf.le) + (x.cf.attente ? ' (gardé)' : '') + (x.cf.ancien ? ' — document remplacé depuis' : '') }) : null))]),
         h('td', [AMX.release.badge(x.etat), x.transport ? h('span.sous.mono', { text: x.transport.id }) : null]),
         h('td', [demander])
       ]);
@@ -366,7 +406,7 @@
     AMX.release.vin(x.vin).then(function (d) {
       var r = d.release || {};
       return AMX.transport.demander({ vin: x.vin, compagnie: x.compagnie, stock: x.stock, annee: an, marque: mots.shift() || '', modele: mots.join(' '),
-        depart: { adresse: r.adresse, ville: r.ville || x.ville, province: r.province || x.province }, consignes: AMX.release.consignes(r), release: { recu: r.recu, paye: r.paye, no: r.no } });
+        depart: { adresse: r.adresse, ville: r.ville || x.ville, province: r.province || x.province, codePostal: r.codePostal }, consignes: AMX.release.consignes(r), release: { recu: r.recu, paye: r.paye, no: r.no, doc: r.pdf } });
     }).then(function (rep) { if (rep && rep.transports) { AMX.release.vider(); self.rendreReleases(); self.rendreVues(); } }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
   };
   VueTransports.prototype.construire = function () {

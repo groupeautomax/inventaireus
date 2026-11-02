@@ -229,10 +229,16 @@
   };
 
   /* ------------------------------ Toasts ------------------------------- */
-  AMX.toast = function (texte, type, duree) {
+  /* annuler (2 nov., facultatif) = { texte: 'Annuler', action: function () {} } : un bouton dans le toast, qui le ferme et
+     appelle action (par ex. remettre ce qu'on vient de retirer). */
+  AMX.toast = function (texte, type, duree, annuler) {
     var zone = document.getElementById('toasts');
     if (!zone) { zone = h('div#toasts'); document.body.appendChild(zone); }
     var t = h('div.toast' + (type ? '.' + type : ''), [h('span', { text: texte })]);
+    if (annuler && typeof annuler.action === 'function') {
+      cssGlisser();
+      t.appendChild(h('button.toast-action', { type: 'button', text: annuler.texte || 'Annuler', onclick: function () { t.remove(); annuler.action(); } }));
+    }
     zone.appendChild(t);
     setTimeout(function () { t.style.opacity = '0'; t.style.transition = 'opacity .25s'; setTimeout(function () { t.remove(); }, 260); }, duree || (type === 'erreur' ? 6000 : 3200));
     return t;
@@ -1448,6 +1454,122 @@
     }
     return { bouton: bouton, activer: activer, quitter: quitter, actif: function () { return actif; }, vins: function () { return Object.keys(sel); } };
   };
+
+  /* 2 nov. — Maxime : « retirer en glissant … et applique ce principe partout ». Pièce commune « glisser pour retirer » :
+     au doigt, glisser une ligne vers la gauche montre une bande rouge « Retirer » ; au-delà de seuil (96 px), relâcher
+     appelle o.action. À la souris, le bouton renvoyé (« Retirer ») paraît au survol de la ligne (toujours visible sur un
+     écran tactile). Le sens de « retirer » est celui de la liste : o.action ouvre SA confirmation (Livre des ventes : la vente
+     va dans Exclues ; ailleurs : ne plus suivre, supprimer du registre…), jamais une suppression directe.
+       var g = AMX.glisserPourRetirer(tr, { action: function () { … } });   // puis poser g.bouton dans la ligne
+     o = { action (obligatoire), texte ('Retirer'), titre (infobulle du bouton), seuil (96), bouton (false = pas de bouton),
+           classeBouton ('btn petit fantome'), icone (html : bouton en icône seule, texte en infobulle),
+           defile (élément qui défile de côté ; sinon le premier parent qui défile) }.
+     Ligne en grille (.ligne) : mettre la flèche et le bouton dans AMX.finLigne(fleche, g.bouton) — le bouton y prend la
+     place de la flèche au survol.
+     Le geste ne part que s'il est horizontal, vers la gauche, et quand le conteneur ne peut plus défiler vers la droite
+     (sinon on laisse défiler) ; rien en mode « Sélectionner ». Le clic qui suit un glissement n'ouvre pas la ligne.
+     Renvoie { bouton, detacher }. */
+  function cssGlisser() {
+    if (document.getElementById('css-glisser')) return;
+    var st = document.createElement('style'); st.id = 'css-glisser';
+    st.textContent = [
+      '.glisse-ligne.glisse-en-cours > * { transform: translateX(var(--glisse, 0)); background: var(--carte); }',
+      '.glisse-etiquette { position: fixed; z-index: 95; display: flex; align-items: center; justify-content: flex-end; padding: 0 14px; background: var(--rouge); color: #fff; font-weight: 600; font-size: 14px; overflow: hidden; white-space: nowrap; pointer-events: none; opacity: .75; }',
+      '.glisse-etiquette.pret { opacity: 1; }',
+      '.glisse-ligne .glisse-retirer { opacity: 0; } .glisse-ligne:hover .glisse-retirer, .glisse-retirer:focus-visible { opacity: 1; }',
+      '@media (hover: none) { .glisse-ligne .glisse-retirer { opacity: 1; } }',
+      '.toast .toast-action { margin-left: 10px; background: transparent; border: 1px solid currentColor; color: inherit; border-radius: 6px; padding: 2px 8px; cursor: pointer; font: inherit; }',
+      /* o.icone : bouton en icône seule. Dans une ligne en grille (.ligne), il prend la place de la flèche « Ouvrir » (.ligne-fin)
+         au survol — toute la ligne ouvre la fiche de toute façon. */
+      '.glisse-retirer.icone { width: 30px; height: 30px; min-height: 0; padding: 0; display: inline-grid; place-items: center; }',
+      '.glisse-retirer.icone svg { width: 16px; height: 16px; } .glisse-retirer.icone:hover { color: var(--rouge); }',
+      '.ligne-fin { position: relative; width: 30px; height: 30px; justify-self: end; }',
+      '.ligne-fin > .plus, .ligne-fin > .glisse-retirer { position: absolute; inset: 0; }',
+      '.glisse-ligne:hover .ligne-fin > .plus { opacity: 0; }',
+      '@media (hover: none) { .glisse-ligne .ligne-fin > .plus { opacity: 0; } }'
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+  AMX.glisserPourRetirer = function (ligne, o) {
+    o = o || {}; cssGlisser();
+    var texte = o.texte || 'Retirer', seuil = o.seuil || 96;
+    var lancer = function () { if (typeof o.action === 'function') o.action(); };
+    ligne.classList.add('glisse-ligne');
+    var bouton = o.bouton === false ? null : h('button.glisse-retirer.' + String(o.classeBouton || 'btn petit fantome').trim().split(/\s+/).join('.'), {
+      type: 'button', text: texte, title: o.titre || (texte + ' (au doigt : glisser la ligne vers la gauche)'), 'aria-label': o.titre || texte,
+      onclick: function (e) { e.stopPropagation(); e.preventDefault(); lancer(); }
+    });
+    if (bouton && o.icone) { bouton.innerHTML = o.icone; bouton.classList.add('icone'); }
+    var x0 = 0, y0 = 0, dx = 0, suivi = false, sens = '', boite = null, bande = null, recent = 0;
+    var defileDe = function (el) {
+      if (o.defile) return o.defile;
+      for (var p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        var ox = getComputedStyle(p).overflowX;
+        if ((ox === 'auto' || ox === 'scroll') && p.scrollWidth > p.clientWidth + 2) return p;
+      }
+      return null;
+    };
+    var nettoyer = function () {
+      ligne.classList.remove('glisse-en-cours'); ligne.style.removeProperty('--glisse');
+      if (bande) { bande.remove(); bande = null; }
+    };
+    var surDebut = function (e) {
+      suivi = false;
+      if (e.touches.length !== 1 || ligne.closest('.mode-selection')) return;
+      if (e.target.closest && e.target.closest('button, a, input, select, textarea, label')) return;
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; sens = ''; suivi = true; boite = defileDe(ligne);
+    };
+    var surMouve = function (e) {
+      if (!suivi) return;
+      var mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+      if (!sens) {
+        if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+        var auBout = !boite || boite.scrollLeft + boite.clientWidth >= boite.scrollWidth - 2;
+        sens = (mx < 0 && Math.abs(mx) > Math.abs(my) * 1.3 && auBout) ? 'h' : 'v';
+        if (sens !== 'h') { suivi = false; return; }
+        ligne.classList.add('glisse-en-cours');
+        bande = h('div.glisse-etiquette', [h('span', { text: texte })]);
+        document.body.appendChild(bande);
+      }
+      e.preventDefault();
+      dx = Math.min(0, mx);
+      ligne.style.setProperty('--glisse', dx + 'px');
+      var r = ligne.getBoundingClientRect();
+      bande.style.top = r.top + 'px'; bande.style.height = r.height + 'px';
+      bande.style.left = (r.right + dx) + 'px'; bande.style.width = (-dx) + 'px';
+      bande.classList.toggle('pret', -dx >= seuil);
+    };
+    var surFin = function () {
+      if (!suivi) return; suivi = false;
+      if (sens !== 'h') return;
+      var pret = -dx >= seuil;
+      nettoyer(); recent = Date.now();
+      if (pret) lancer();
+    };
+    var surAnnule = function () { suivi = false; nettoyer(); };
+    /* En capture sur la ligne : passe avant son propre onclick, qui n'ouvre donc pas la fiche juste après un glissement. */
+    var surClic = function (e) { if (Date.now() - recent < 450) { e.stopImmediatePropagation(); e.preventDefault(); } };
+    ligne.addEventListener('touchstart', surDebut, { passive: true });
+    ligne.addEventListener('touchmove', surMouve, { passive: false });
+    ligne.addEventListener('touchend', surFin);
+    ligne.addEventListener('touchcancel', surAnnule);
+    ligne.addEventListener('click', surClic, true);
+    return {
+      bouton: bouton,
+      detacher: function () {
+        nettoyer();
+        ligne.removeEventListener('touchstart', surDebut, { passive: true });
+        ligne.removeEventListener('touchmove', surMouve, { passive: false });
+        ligne.removeEventListener('touchend', surFin);
+        ligne.removeEventListener('touchcancel', surAnnule);
+        ligne.removeEventListener('click', surClic, true);
+        ligne.classList.remove('glisse-ligne');
+        if (bouton && bouton.parentNode) bouton.parentNode.removeChild(bouton);
+      }
+    };
+  };
+  /* Dernière case d'une ligne en grille : la flèche « Ouvrir » et, par-dessus au survol, le bouton de AMX.glisserPourRetirer. */
+  AMX.finLigne = function (fleche, bouton) { return bouton ? h('div.ligne-fin', [fleche, bouton]) : fleche; };
   /* v135 : en ui2, seuls `garder` restent visibles dans l'en-tête ; les autres boutons de `liste` descendent dans « … » (ce
      sont toujours les mêmes boutons). Hors ui2, `liste` telle quelle. */
   AMX.actionsEntete = function (liste, garder) {

@@ -259,6 +259,12 @@
       cacheRecap.quand = 0;
       document.dispatchEvent(new CustomEvent('amx:ventes'));
     },
+    /* 2 nov. : retirer une vente des ventes (glisser vers la gauche, ou le bouton « Retirer ») — elle va dans Exclues. */
+    /* o (facultatif) = { apres: function (vente) } : appelée quand la vente est retirée (ou remise) — le Board s'en sert. */
+    retirer: function (v, o) { return modaleRetirer(v, o); },
+    glisser: function (tr, v, o) { return boutonRetirer(tr, v, o); },
+    remettre: function (v, o) { return remettreVente(v, o); },
+    peutRetirer: function (v) { if (!v || v.horsVente) return false; if (!(AMX.ventes.peutCompleter() || AMX.estAdmin())) return false; return v.statut !== 'comptabilisee' || AMX.estAdmin(); },
     peutDeclarer: function () { var p = AMX.session && AMX.session.perms; if (cache.rep && cache.rep.peutDeclarer !== undefined) return !!cache.rep.peutDeclarer; if (p && p.ventesDeclarer !== undefined) return !!p.ventesDeclarer; return AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.estAdmin(); },
     /* Côté F&I : inscrire le profit F&I et les produits (droit « Ventes — F&I », ou l'ancien « compléter »). */
     peutCompleter: function () { var p = AMX.session && AMX.session.perms; if (cache.rep && cache.rep.peutCompleter !== undefined) return !!cache.rep.peutCompleter; if (p && (p.ventesFI || p.ventesCompleter)) return true; if (p && (p.ventesFI !== undefined || p.ventesCompleter !== undefined)) return false; return AMX.perm('modifierMontants') || AMX.estAdmin(); },
@@ -990,6 +996,7 @@
           ])
         ]));
         tr.addEventListener('click', function () { ouvrirFiche(v); });
+        if (AMX.ventes.peutRetirer(v)) tr.querySelector('td.actions').appendChild(boutonRetirer(tr, v));
         corps.appendChild(tr);
       });
       g.ajustements.forEach(function (a) { corps.appendChild(ligneAjustement(a, montants, sansFI)); });
@@ -1064,7 +1071,7 @@
     this.elFiltres.appendChild(segGenre); this.elFiltres.appendChild(segType);
     if (typeof XLSX !== 'undefined' && !(AMX.ui2 && AMX.ui2())) this.elFiltres.appendChild(h('button.btn.petit#ventes-ex-export', { type: 'button', onclick: function () { self.exporterExclues(); } }, [AMX.svg('telecharger'), ' Excel']));
     AMX.vider(this.elKpis);
-    this.elKpis.appendChild(h('p.ventes-aide', { text: 'Lignes Aftersale, Accommodation et Rachat de bail du livre : ce ne sont pas des ventes. Elles ne comptent dans aucun chiffre (ventes, moyennes, Board, Résultats) et restent ici pour consultation. Le livre Google n\'est pas touché.' }));
+    this.elKpis.appendChild(h('p.ventes-aide', { text: 'Lignes Aftersale, Accommodation et Rachat de bail du livre, et ventes retirées à la main : elles ne comptent dans aucun chiffre (ventes, moyennes, Board, Résultats) et restent ici pour consultation. Le livre Google n\'est pas touché.' }));
     this.rafraichirExclues();
   };
   VueVentes.prototype.rafraichirExclues = function () {
@@ -1082,7 +1089,7 @@
     if (!liste.length) { this.elListe.appendChild(h('div.carte', [h('div.ventes-vide', { text: (f.genre || f.type || q) ? 'Aucune ligne exclue pour ce filtre.' : 'Aucune ligne exclue pour cette période.' })])); return; }
     var entete = h('tr', ['Date', 'Ligne du livre', 'Véhicule', 'Client', 'Type', 'Conseiller'].map(function (t) { return h('th', { text: t }); })
       .concat(montants ? [h('th.num', { text: 'Prix' }), h('th.num', { text: 'Front', title: 'Réel inscrit par la comptabilité, sinon prévu' }), h('th.num', { text: 'F&I', title: 'Réel inscrit par la comptabilité, sinon prévu' })] : [])
-      .concat([h('th', { text: 'Livre' })]));
+      .concat([h('th', { text: 'Livre' }), h('th', { text: '' })]));
     var val = function (c, e) { return c !== null ? argent(c) : (e !== null ? argent(e) + ' prévu' : '—'); };
     var corps = h('tbody', liste.map(function (v) {
       return h('tr.cliquable' + (v.statut === 'annulee' ? '.annulee' : ''), { dataset: { id: v.id }, onclick: function () { ouvrirFiche(v); } }, [
@@ -1093,7 +1100,7 @@
         h('td', { text: TYPES[v.type] || v.type || '—' }),
         h('td', { text: v.conseiller || '—' })
       ].concat(montants ? [h('td.num', { text: argent(nombre(v.prixVente)) }), h('td.num', { text: val(frontC(v), frontE(v)) }), h('td.num', { text: v.type === 'wholesale' ? '—' : val(fiC(v), fiE(v)) })] : [])
-       .concat([h('td', [puceLivre(v)])]));
+       .concat([h('td', [puceLivre(v)]), h('td.actions', [estRetiree(v) && peutRemettre() ? h('button.btn.petit.ventes-remettre', { type: 'button', text: 'Remettre', title: 'Remettre cette vente dans les ventes', onclick: function (e) { e.stopPropagation(); remettreVente(v); } }) : null])]));
     }));
     this.elListe.appendChild(h('div.carte.ventes-defile', [h('table.ventes-table.ventes-ex-table', [h('thead', [entete]), corps])]));
   };
@@ -1338,7 +1345,10 @@
   }
   function boutonsFiche(v, fermer) {
     var boutons = [], ouverte = v.statut !== 'annulee', fiManque = v.statut === 'declaree' || besoinFI(v);
-    if (v.horsVente) { if (v.livreUrl) boutons.push({ texte: 'Ouvrir le livre', action: function () { window.open(v.livreUrl, '_blank', 'noopener'); return false; } }); boutons.push({ texte: 'Fermer' }); return boutons; }   /* 2 nov. : consultation seulement */
+    if (v.horsVente) {   /* 2 nov. : consultation seulement ; une vente retirée à la main peut être remise */
+      if (estRetiree(v) && peutRemettre()) boutons.push({ texte: 'Remettre dans les ventes', classe: 'primaire', action: function (f) { f(); remettreVente(v); return false; } });
+      if (v.livreUrl) boutons.push({ texte: 'Ouvrir le livre', action: function () { window.open(v.livreUrl, '_blank', 'noopener'); return false; } }); boutons.push({ texte: 'Fermer' }); return boutons;
+    }
     /* 26 oct. : trois fenêtres — la vente (direction des ventes), le F&I (directeur commercial), la comptabilité. */
     if (ouverte && v.type !== 'wholesale' && AMX.ventes.peutCompleter()) boutons.push({ texte: fiManque ? 'Inscrire les profits F&I' : 'Profits F&I', classe: fiManque ? 'primaire' : '', action: function (f) { f(); AMX.ventes.fi(v); return false; } });
     if (ouverte && AMX.ventes.peutCompta() && moisDeVente(v) && moisDeVente(v) < moisCourant()) {
@@ -1353,6 +1363,7 @@
       if (v.livre === 'erreur') boutons.push({ texte: 'Renvoyer au livre', action: function (f) { f(); renvoyer(v); return false; } });
       if (AMX.ventes.peutCompleter() || AMX.ventes.peutDeclarer()) boutons.push({ texte: 'Annuler la vente…', classe: 'danger fantome', action: function (f) { f(); modaleAnnuler(v); return false; } });
     }
+    if (AMX.ventes.peutRetirer(v)) boutons.push({ texte: 'Retirer des ventes…', classe: 'danger fantome', title: 'La ligne sort des ventes et va dans Exclues (rien n\'est effacé, le livre n\'est pas touché)', action: function (f) { f(); modaleRetirer(v); return false; } });
     if (v.livreUrl) boutons.push({ texte: 'Ouvrir le livre', action: function () { window.open(v.livreUrl, '_blank', 'noopener'); return false; } });
     boutons.push({ texte: 'Fermer' });
     return boutons;
@@ -1778,6 +1789,69 @@
         return AMX.post({ action: 'venteAnnuler', id: v.id, raison: raison }, { delai: 90000 }).then(function (r) { verifierPost(r); AMX.ventes.poser(r.vente); AMX.toast(r.message || 'Vente annulée', 'ok'); return true; }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
       } }]
     });
+  }
+
+  /* ------------------------------ Retirer une vente (2 nov.) ------------------------------ */
+  /* Maxime, 2 nov. : « je dois pouvoir supprimer facilement une ligne en glissant de droite à gauche ». Retirer n'efface rien
+     et n'écrit rien au livre de la comptabilité : la vente sort de tous les chiffres (ventes, moyennes, Board, Résultats) et va
+     dans Exclues (« Retirée à la main »), où on peut la remettre. Ne pas confondre avec « Annuler la vente », qui écrit
+     CANCELLÉ au livre. Au doigt : glisser la ligne vers la gauche ; à la souris : le bouton « Retirer » au survol — la pièce
+     commune AMX.glisserPourRetirer (app.js), aussi dans la liste du Board (AMX.ventes.glisser). */
+  function estRetiree(v) { return /^retir/i.test(String((v && v.horsVente) || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')); }
+  function peutRemettre() { return AMX.ventes.peutCompleter() || AMX.estAdmin(); }
+  /* La vente change de liste dans la réponse gardée (ventes ↔ horsVentes), puis la page se redessine. Seulement si la réponse
+     gardée la contenait : retirée depuis le Board, la page peut garder une autre concession ou un autre mois. */
+  function deplacerVente(v, versExclues) {
+    var d = cache.rep; cache.autres = {}; cacheRecap.quand = 0;
+    if (!d || !v) { document.dispatchEvent(new CustomEvent('amx:ventes')); return; }
+    var pareil = function (x) { return x.id === v.id; };
+    var etait = (d.ventes || []).some(pareil) || (d.horsVentes || []).some(pareil);
+    d.ventes = (d.ventes || []).filter(function (x) { return x.id !== v.id; });
+    d.horsVentes = (d.horsVentes || []).filter(function (x) { return x.id !== v.id; });
+    if (etait) { if (versExclues) d.horsVentes.unshift(v); else d.ventes.unshift(v); }
+    var n = { declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreurLivre: 0 };
+    d.ventes.forEach(function (x) { if (n[x.statut] !== undefined) n[x.statut]++; if (x.livre === 'erreur') n.erreurLivre++; });
+    d.compte = n;
+    document.dispatchEvent(new CustomEvent('amx:ventes'));
+  }
+  function envoyerRetrait(v, raison, o) {
+    return AMX.post({ action: 'venteRetirer', id: v.id, raison: raison || '' }, { delai: 90000 }).then(function (r) {
+      verifierPost(r); deplacerVente(r.vente, true);
+      AMX.toast((r.message || 'Vente retirée — elle est dans Exclues.'), 'ok', 7000, peutRemettre() ? { texte: 'Annuler', action: function () { remettreVente(r.vente, o); } } : null);
+      if (o && typeof o.apres === 'function') o.apres(r.vente, 'retiree');
+      return true;
+    });
+  }
+  function modaleRetirer(v, o) {
+    var raison = h('input.saisie#vente-retirer-raison', { type: 'text', maxlength: '120', placeholder: 'Doublon, essai, pas une vente…' });
+    AMX.modale({
+      titre: 'Retirer cette vente ?',
+      corps: h('div.ventes-form', [
+        h('p', [h('b', { text: vehiculeTexte(v) || 'Véhicule à préciser' }), h('span', { text: [v.stock ? ' · # ' + v.stock : '', v.client || v.venduA ? ' · ' + (v.client || v.venduA) : '', ' · ' + v.id].join('') })]),
+        h('p.ventes-aide', { text: 'Elle sort de tous les chiffres (ventes, moyennes, Board, Résultats) et va dans Exclues, où vous pourrez la remettre. Rien n\'est effacé et le livre de la comptabilité n\'est pas touché.' }),
+        v.statut === 'comptabilisee' ? h('p.ventes-aide.alerte', { text: 'Cette vente est comptabilisée.' }) : null,
+        h('div.champ', [h('label', { 'for': 'vente-retirer-raison', text: 'Pourquoi ? (facultatif)' }), raison])
+      ]),
+      boutons: [{ texte: 'Garder' }, { texte: 'Retirer', classe: 'danger', action: function () {
+        return envoyerRetrait(v, raison.value.trim(), o).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+      } }]
+    });
+    setTimeout(function () { try { raison.focus(); } catch (e) {} }, 30);
+  }
+  function remettreVente(v, o) {
+    return AMX.post({ action: 'venteRemettre', id: v.id }, { delai: 90000 }).then(function (r) {
+      verifierPost(r); deplacerVente(r.vente, false); AMX.toast(r.message || 'Vente remise dans les ventes.', 'ok');
+      if (o && typeof o.apres === 'function') o.apres(r.vente, 'remise');
+      return true;
+    }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+  }
+  /* Le geste commun (app.js) sur une ligne de vente : glisser vers la gauche au doigt, bouton « Retirer » au survol.
+     Renvoie le bouton, à poser dans la ligne. */
+  function boutonRetirer(tr, v, o) {
+    return AMX.glisserPourRetirer(tr, {
+      texte: 'Retirer', titre: 'Retirer la vente ' + v.id + ' des ventes : elle va dans Exclues (rien n\'est effacé). Au doigt : glisser la ligne vers la gauche.',
+      action: function () { modaleRetirer(v, o); }
+    }).bouton;
   }
 
   /* ------------------------------ Trouver le véhicule (neufs, registres) ------------------------------ */

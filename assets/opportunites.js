@@ -969,11 +969,13 @@
       ].filter(Boolean), { titre: 'Actions', petit: true })]);
     var r = h('div.occ-rangee' + (k.sousGros ? '.opp' : '') + (o.statut === 'ecartee' ? '.ecartee' : ''), { 'data-vin': o.vin }, [veh, vend, prix, gros, det, actions]);
     if (o.note) r.appendChild(h('div.occ-note', { text: 'Note : ' + o.note + (o.statutPar ? ' — ' + o.statutPar : '') }));
+    /* 2 nov. — retirer en glissant (au doigt, vers la gauche) = « Écarter », comme le menu ; « Annuler » dans le message la remet. */
+    if (o.statut !== 'ecartee' && o.statut !== 'achetee' && AMX.glisserPourRetirer) AMX.glisserPourRetirer(r, { texte: 'Écarter', bouton: false, action: function () { self.statut(o, 'ecartee', undefined, true); } });
     return r;
   };
 
   /* ------------------------------ Gestes ------------------------------ */
-  Opportunites.prototype.statut = function (o, st, note) {
+  Opportunites.prototype.statut = function (o, st, note, annulable) {
     var self = this, corps = { action: 'occasionStatut', vin: o.vin, statut: st };
     if (note !== undefined) corps.note = note;
     var ancien = { statut: o.statut, note: o.note };
@@ -982,7 +984,7 @@
       if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'Refusé');
       if (!r.vin && r.vehicules) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).');
       o.statutPar = r.statutPar; o.statutLe = r.statutLe; o.note = r.note;
-      AMX.toast(vehicule(o) + ' — ' + (STATUT_LIB[st] || 'À voir'), 'ok'); self.rafraichir();
+      AMX.toast(vehicule(o) + ' — ' + (STATUT_LIB[st] || 'À voir'), 'ok', annulable ? 6000 : 0, annulable ? { texte: 'Annuler', action: function () { self.statut(o, ancien.statut || ''); } } : null); self.rafraichir();
     }).catch(function (e) { o.statut = ancien.statut; o.note = ancien.note; self.rafraichir(); AMX.toast(AMX.erreurTexte(e), 'erreur'); });
   };
   Opportunites.prototype.note = function (o) {

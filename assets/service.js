@@ -691,6 +691,12 @@
       h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { self.selectionner(s.vin); });
+    /* 2 nov. — retirer en glissant (au doigt, vers la gauche ; à la souris, la corbeille prend la place de la flèche) : même
+       suppression du registre Detail que « Sélectionner » (taper SUPPRIMER). */
+    if (AMX.perm('supprimer') && AMX.glisserPourRetirer) {
+      var g = AMX.glisserPourRetirer(el, { texte: 'Supprimer', titre: 'Supprimer du registre Detail (au doigt : glisser la ligne vers la gauche)', icone: I.corbeille, action: function () { AMX.inventaire.supprimer([s.vin], { feuille: 'DETAIL' }); } });
+      if (g.bouton) el.appendChild(AMX.finLigne(el.lastChild, g.bouton));
+    }
     return el;
   };
 

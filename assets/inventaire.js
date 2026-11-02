@@ -860,7 +860,22 @@
       h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { if (autreRegistre) AMX.inventaire.aller(autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
+    /* 2 nov. — « retirer en glissant … applique ce principe partout » : au doigt, glisser la ligne vers la gauche ; à la souris,
+       la corbeille prend la place de la flèche. Même suppression que le panneau et « Sélectionner » (taper SUPPRIMER). */
+    if (AMX.perm('supprimer') && !autreRegistre && AMX.glisserPourRetirer) {
+      var g = AMX.glisserPourRetirer(el, { texte: 'Supprimer', titre: 'Supprimer du registre (au doigt : glisser la ligne vers la gauche)', icone: I.corbeille, action: function () { self.supprimerUn(v); } });
+      if (g.bouton) el.appendChild(AMX.finLigne(el.lastChild, g.bouton));
+    }
     return el;
+  };
+  Registre.prototype.supprimerUn = function (v) {
+    var self = this;
+    AMX.inventaire.supprimer([v.vin], { feuille: v._feuille || self.cfg.feuille }).then(function (faits) {
+      if (!faits || !faits.length) return;
+      if (faits.indexOf(String(self.selection || '').toUpperCase()) >= 0) self.selectionner('');
+      self.vehicules = AMX.inventaire.enCache(self.cfg.feuille) || self.vehicules;
+      self.construireRail(); self.rendre(); AMX.rafraichirSousBarre();
+    });
   };
 
   /* 26 oct. — Maxime : « mode glisser et cliquer », « effacer plus d'un véhicule à la fois ». « Sélectionner » : cliquer ou

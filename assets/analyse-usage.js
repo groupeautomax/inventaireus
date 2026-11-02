@@ -563,6 +563,9 @@
       if (AMX.prixDetail && AMX.prixDetail.peut()) det.insertBefore(h('div.anu-det-actions', [h('button.btn.petit' + ((a.action.code === 'baisser' || a.action.code === 'monter' || testPrix(a, '15') || a.plusVieux) ? '.primaire' : ''), { type: 'button', text: 'Modifier le prix…', onclick: function (e) { e.stopPropagation(); self.modifierPrix(a); } })]), det.firstChild);
       r.appendChild(det);
     }
+    /* 2 nov. — retirer en glissant (au doigt, vers la gauche) : même suppression que le menu (taper SUPPRIMER). À la souris,
+       le menu « Actions » a déjà « Supprimer du registre… ». */
+    if (AMX.perm('supprimer') && AMX.glisserPourRetirer) AMX.glisserPourRetirer(r, { texte: 'Supprimer', bouton: false, action: function () { AMX.inventaire.supprimer([a.vin], { feuille: 'DETAIL' }); } });
     return r;
   };
   VueAnalyse.prototype.modifierPrix = function (a) {

@@ -41,6 +41,7 @@
     '.lmb-alerte-n { min-width: 28px; height: 24px; border-radius: 999px; display: inline-grid; place-items: center; font-weight: 800; font-size: 12.5px; padding: 0 8px; }',
     '.lmb-alerte-n.rouge { background: var(--rouge-bg); color: var(--rouge); } .lmb-alerte-n.ambre { background: var(--ambre-bg); color: var(--ambre); } .lmb-alerte-n.ok { background: var(--vert-clair); color: var(--vert-fonce); }',
     '.lmb-table-cadre { overflow-x: auto; }',
+    '.lmb-table th.lmb-retirer, .lmb-table td.lmb-retirer { width: 38px; padding: 2px 4px; text-align: right; }',
     '.lmb-table td .s { display: block; color: var(--encre-3); font-size: 12px; }',
     '.lmb-table td.num, .lmb-table th.num { white-space: nowrap; text-align: right; }',
     '.lmb-table td.mono, .lmb-table td .mono { font-family: var(--mono); font-size: 12px; }',
@@ -760,9 +761,22 @@
     var max = 500, thead, corps = h('tbody');
     if (cols) thead = h('thead', [h('tr', cols.map(function (c) { return h('th' + (c[2] ? '.' + c[2] : ''), { text: c[0] }); }))]);
     else thead = h('thead', [h('tr', s.entetes.slice(0, 8).map(function (e) { return h('th', { text: e }); }))]);
+    /* 2 nov. — « retirer en glissant … applique ce principe partout » : au doigt, glisser la ligne vers la gauche ; à la souris,
+       le × de la dernière colonne. Même « Ne plus suivre » que la fiche et « Sélectionner » : rien n'est effacé du classeur. */
+    var glisse = !!AMX.glisserPourRetirer;
+    if (glisse) thead.firstChild.appendChild(h('th.lmb-retirer', { 'aria-label': 'Ne plus suivre' }));
     liste.slice(0, max).forEach(function (l) {
       var tds = cols ? cols.map(function (c) { return h('td' + (c[2] ? '.' + c[2] : ''), [c[1](l.f)]); }) : l.c.slice(0, 8).map(function (v) { return h('td', { text: v }); });
-      corps.appendChild(h('tr.cliquable', { 'data-vin': l.f._cle || '', onclick: function () { self.detail(s, l); } }, tds));
+      var tr = h('tr.cliquable', { 'data-vin': l.f._cle || '', onclick: function () { self.detail(s, l); } }, tds);
+      if (glisse) {
+        var td = h('td.lmb-retirer');
+        if (l.f._cle) {
+          var g = AMX.glisserPourRetirer(tr, { texte: 'Ne plus suivre', titre: 'Ne plus suivre cette ligne (au doigt : glisser la ligne vers la gauche) — le classeur ne change pas', icone: AMX.icones.fermer, action: function () { self.masquer([l], true); } });
+          if (g.bouton) td.appendChild(g.bouton);
+        }
+        tr.appendChild(td);
+      }
+      corps.appendChild(tr);
     });
     var bloc = h('div', [h('div.lmb-table-cadre', [h('table.tableau.lmb-table', [thead, corps])])]);
     if (liste.length > max) bloc.appendChild(h('p.doux', { text: max + ' premières lignes sur ' + AMX.fmtNombre(liste.length) + ' — précisez la recherche.' }));

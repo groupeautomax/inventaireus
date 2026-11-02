@@ -1817,6 +1817,9 @@
         h('td.num', [t ? h('span.badge.' + t.couleur + '.sans-point', { text: fmtJours(v.jours), title: v.recuLe ? 'Reçu le ' + AMX.fmtDate(v.recuLe) : '' }) : h('span', '—')])
       ].concat(d.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' }), h('td.num.col-detention', { text: v.coutDetention ? AMX.fmtArgent(v.coutDetention) : '—' })] : []).concat([cellNote]));
       tr.addEventListener('click', function () { self.ouvrir(v); });
+      /* 2 nov. — retirer en glissant (au doigt, vers la gauche) : le même « Retirer du suivi » que la fiche, réservé aux
+         administrateurs, avec sa confirmation. À la souris : la fiche. */
+      if (d.gererExclus && AMX.glisserPourRetirer) AMX.glisserPourRetirer(tr, { texte: 'Retirer du suivi', bouton: false, action: function () { self.exclure(v); } });
       corps.appendChild(tr);
     });
     this.elTable.appendChild(h('table.tableau', [h('thead', [entete]), corps]));

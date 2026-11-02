@@ -465,7 +465,7 @@
 
   /* o : { titre, sous, cat, type, ids (liste donnée : un représentant), filtre ({ id: 1 }), profit, note } */
   Board.prototype.ouvrirVentes = function (b, o) {
-    var d = this.donnees, corps = h('div', [h('p.doux', 'Lecture des ventes…')]);
+    var self = this, d = this.donnees, corps = h('div', [h('p.doux', 'Lecture des ventes…')]);
     var m = AMX.modale({ titre: o.titre, corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer', action: function (f) { f(); } }] });
     if (!AMX.ventes || !AMX.ventes.charger) { AMX.vider(corps); corps.appendChild(h('p.doux', 'Le Livre des ventes n\'est pas chargé.')); return; }
     AMX.ventes.charger(b.compagnie, 'tout').then(function (vd) {
@@ -487,7 +487,11 @@
       if (manquent > 0) corps.appendChild(h('p.mini', { style: { color: 'var(--ambre)' }, text: manquent + ' vente' + (manquent > 1 ? 's' : '') + ' du board introuvable' + (manquent > 1 ? 's' : '') + ' dans le Livre des ventes (effacée ou modifiée depuis) : rafraîchissez le board.' }));
       if (approx) corps.appendChild(h('p.mini', { style: { color: 'var(--ambre)' }, text: 'Le script n\'est pas encore à jour : les RDR du portail du constructeur ne sont pas dans cette liste.' }));
       if (!liste.length) { corps.appendChild(h('p.doux', 'Aucune vente.')); return; }
-      var tetes = ['Vente', 'Véhicule', 'Client', 'Conseiller', 'Vendue', 'Livrée', 'RDR'].concat(montre ? ['Front', 'F&I'] : []);
+      /* 2 nov. : retirer une vente d'ici aussi (glisser au doigt, bouton au survol) — même geste et mêmes règles que le Livre des
+         ventes (AMX.ventes.glisser) : la vente va dans Exclues, la ligne disparaît et le board se relit. */
+      var retirable = function (v) { return !!(AMX.ventes.glisser && AMX.ventes.peutRetirer && AMX.ventes.peutRetirer(v)); };
+      var avecRetrait = liste.some(retirable), sousTitre = corps.querySelector('.bv-liste-sous');
+      var tetes = ['Vente', 'Véhicule', 'Client', 'Conseiller', 'Vendue', 'Livrée', 'RDR'].concat(montre ? ['Front', 'F&I'] : []).concat(avecRetrait ? [''] : []);
       corps.appendChild(h('div', { style: { overflowX: 'auto' } }, [h('table.tableau.bv-liste-ventes', [h('thead', [h('tr', tetes.map(function (t, i) { return h(i > 6 ? 'th.num' : 'th', { text: t }); }))]),
         h('tbody', liste.map(function (v) {
           var veh = v.vehicule || [v.annee, v.marque, v.modele].filter(Boolean).join(' ');
@@ -496,7 +500,16 @@
             h('td', { text: v.client || v.venduA || '—' }), h('td', { text: v.conseiller || '—' }),
             h('td', { text: v.dateVente ? AMX.fmtDate(v.dateVente) : '—' }), h('td', { text: v.dateLivraison ? AMX.fmtDate(v.dateLivraison) : '—' }), h('td', { text: rdrTxt })];
           if (montre) cells.push(h('td.num', { text: v._f === null ? '—' : argent(v._f) }), h('td.num', { text: v._g === null ? '—' : argent(v._g) }));
-          return h('tr.cliquable', { title: 'Ouvrir la vente', onclick: function () { m.fermer(); AMX.aller('ventes', 'liste', { id: v.id }); } }, cells);
+          if (avecRetrait) cells.push(h('td.actions'));
+          var tr = h('tr.cliquable', { title: 'Ouvrir la vente', onclick: function () { m.fermer(); AMX.aller('ventes', 'liste', { id: v.id }); } }, cells);
+          if (retirable(v)) tr.lastChild.appendChild(AMX.ventes.glisser(tr, v, { apres: function (x, quoi) {
+            if (quoi === 'retiree') {
+              tr.remove(); liste = liste.filter(function (y) { return y.id !== v.id; });
+              if (sousTitre) sousTitre.textContent = sousTitre.textContent.replace(/\d+ ventes?\b/, liste.length + ' vente' + (liste.length > 1 ? 's' : ''));
+            }
+            self.charger(true, true);
+          } }));
+          return tr;
         }))])]));
     }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('p', { style: { color: 'var(--rouge)' }, text: AMX.erreurTexte(e) })); });
   };

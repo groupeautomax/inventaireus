@@ -36,7 +36,7 @@
 
   var A = AMX.achatsAuto = {
     charger: function (force) {
-      if (!force && cache.d && Date.now() - cache.le < DUREE_MS) return Promise.resolve(cache.d);
+      if (!force && cache.d && Date.now() - cache.le < AMX.dureeCopie(DUREE_MS)) return Promise.resolve(cache.d);
       if (cache.promesse) return cache.promesse;
       cache.promesse = AMX.get({ achatsAuto: 1 }, { secours: false, delai: 45000 }).then(function (d) {
         cache.promesse = null;
@@ -126,7 +126,7 @@
 
   var C = A.contrats = {
     charger: function (force) {
-      if (!force && cacheC.d && Date.now() - cacheC.le < DUREE_MS) return Promise.resolve(cacheC.d);
+      if (!force && cacheC.d && Date.now() - cacheC.le < AMX.dureeCopie(DUREE_MS)) return Promise.resolve(cacheC.d);
       if (cacheC.promesse) return cacheC.promesse;
       cacheC.promesse = AMX.get({ achatsCourriels: 1 }, { secours: false, delai: 45000 }).then(function (d) {
         cacheC.promesse = null;

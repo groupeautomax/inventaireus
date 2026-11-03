@@ -54,7 +54,7 @@
   var cache = {};
   function charger(cie, mois, force) {
     var cle = (cie || '*') + '|' + mois, c = cache[cle];
-    if (!force && c && c.rep && Date.now() - c.quand < 60000) return Promise.resolve(c.rep);
+    if (!force && c && c.rep && Date.now() - c.quand < AMX.dureeCopie(60000)) return Promise.resolve(c.rep);
     if (c && c.promesse) return c.promesse;
     var params = { boardVentes: 1, mois: mois }; if (cie) params.compagnie = cie;
     c = cache[cle] = cache[cle] || {};

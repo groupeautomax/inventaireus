@@ -63,7 +63,7 @@
   }
   AMX.transport = {
     charger: function (force) {
-      if (!force && cache.rep && Date.now() - cache.quand < 60000) return Promise.resolve(cache.rep);
+      if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(60000)) return Promise.resolve(cache.rep);
       if (cache.promesse) return cache.promesse;
       cache.promesse = AMX.get({ transports: 1 }, { secours: false, delai: 45000 }).then(function (d) {
         cache.promesse = null; verifier(d); cache.rep = d; cache.quand = Date.now();

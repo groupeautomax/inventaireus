@@ -2621,7 +2621,7 @@
     this.construire();
     this.appliquerParams(ctx);
     // 26 oct. : la concession choisie en haut du site change le registre sur place (sans recharger la page).
-    this.surCompagnie = function () { var k = AMX.COMPAGNIE_CONCESSION[AMX.compagnieChoisie('evaluations')] || ''; if (k !== self.concession) { self.concession = k; self.rendre(); } };
+    this.surCompagnie = function () { var k = AMX.COMPAGNIE_CONCESSION[AMX.compagnieChoisie('evaluations')] || ''; if (k !== self.concession) { self.concession = k; self.rendre(); if (AMX.gesteMenuRecent()) self.charger(); } };
     document.addEventListener('amx:compagnie', this.surCompagnie);
     this.charger(false);
   }
@@ -3005,7 +3005,7 @@
   AMX.evaluations = {
     aRelancer: aRelancer, concessionDe: concessionDe,
     charger: function () {
-      if (cacheEvals.d && Date.now() - cacheEvals.le < 120000) return Promise.resolve(cacheEvals.d);
+      if (cacheEvals.d && Date.now() - cacheEvals.le < AMX.dureeCopie(120000)) return Promise.resolve(cacheEvals.d);
       if (cacheEvals.promesse) return cacheEvals.promesse;
       cacheEvals.promesse = AMX.get({ evaluations: 1 }, { copie: 'evaluations', secours: false }).then(function (d) {
         cacheEvals.promesse = null;

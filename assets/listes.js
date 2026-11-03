@@ -371,7 +371,7 @@
   /* ------------------------------ Données ------------------------------ */
   var cache = { listes: null, quand: 0, promesse: null };
   function chargerListes(force) {
-    if (!force && cache.listes && Date.now() - cache.quand < 60000) return Promise.resolve(cache.listes);
+    if (!force && cache.listes && Date.now() - cache.quand < AMX.dureeCopie(60000)) return Promise.resolve(cache.listes);
     if (cache.promesse) return cache.promesse;
     cache.promesse = AMX.get({ listesDepot: 1 }, { secours: false }).then(function (d) {
       cache.promesse = null;
@@ -419,7 +419,7 @@
     this.sources = null; this.idx = null;
     this.el = h('div.page.lst-page');
     conteneur.appendChild(this.el);
-    this.surCie = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('inventaire') || ''; if (!self.liste) self.rendre(); } };
+    this.surCie = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('inventaire') || ''; if (!self.liste) self.rendre(); if (AMX.gesteMenuRecent()) self.charger(); } };
     document.addEventListener('amx:compagnie', this.surCie);
     this.naviguer(ctx || {});
   }

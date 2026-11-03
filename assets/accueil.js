@@ -295,7 +295,7 @@
      ouvre la page déjà filtrée. Les listes se chargent en arrière-plan (caches des modules) et la liste se complète. */
   var offresCache = { liste: null, quand: 0, promesse: null };
   function chargerOffres() {
-    if (offresCache.liste && Date.now() - offresCache.quand < 120000) return Promise.resolve(offresCache.liste);
+    if (offresCache.liste && Date.now() - offresCache.quand < AMX.dureeCopie(120000)) return Promise.resolve(offresCache.liste);
     if (offresCache.promesse) return offresCache.promesse;
     offresCache.promesse = AMX.post({ action: 'offresRecues' }).then(function (d) { offresCache.promesse = null; offresCache.liste = (d && d.offres) || []; offresCache.quand = Date.now(); return offresCache.liste; },
       function (e) { offresCache.promesse = null; offresCache.quand = Date.now(); offresCache.liste = offresCache.liste || []; throw e; });
@@ -338,7 +338,7 @@
     if (!voitImports()) return Promise.resolve(null);
     var qui = String(AMX.session.courriel || '');
     if (importsCache.qui !== qui) importsCache = { d: null, quand: 0, promesse: null, erreur: '', qui: qui };   // jamais l'état d'une autre personne
-    if ((importsCache.d || importsCache.erreur) && Date.now() - importsCache.quand < 120000) return Promise.resolve(importsCache.d);
+    if ((importsCache.d || importsCache.erreur) && Date.now() - importsCache.quand < AMX.dureeCopie(120000)) return Promise.resolve(importsCache.d);
     if (importsCache.promesse) return importsCache.promesse;
     var c = importsCache;
     c.promesse = AMX.get({ importsEtat: 1 }, { secours: false }).then(function (d) {

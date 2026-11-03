@@ -159,7 +159,7 @@
   AMX.avis = {
     enCache: function () { return cache.reponse; },
     charger: function (force) {
-      if (!force && cache.reponse && Date.now() - cache.quand < 60000) return Promise.resolve(cache.reponse);
+      if (!force && cache.reponse && Date.now() - cache.quand < AMX.dureeCopie(60000)) return Promise.resolve(cache.reponse);
       // v100 : un rechargement forcé après une écriture ne se contente pas d'un chargement déjà en vol (parti AVANT l'écriture,
       // il ramènerait la liste d'avant — p. ex. un avis sans sa réponse fraîchement publiée) : il en relance un après.
       if (promesse) return force ? promesse.then(function () { return AMX.avis.charger(true); }, function () { return AMX.avis.charger(true); }) : promesse;

@@ -53,7 +53,7 @@
     if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre();
   }
   function charger(force) {
-    if (!force && cache.rep && Date.now() - cache.quand < 30000) return Promise.resolve(cache.rep);
+    if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(30000)) return Promise.resolve(cache.rep);
     if (cache.promesse) return cache.promesse;
     cache.promesse = AMX.get({ evalDemandes: 1 }, { secours: false }).then(function (d) {
       cache.promesse = null;
@@ -564,7 +564,7 @@
     this.construire();
     this.charger(false);
     this.surMaj = function () { if (!self.detruit) self.rendre(); };
-    this.surCie = function () { if (!self.detruit) self.rendre(); };
+    this.surCie = function () { if (!self.detruit) { self.rendre(); if (AMX.gesteMenuRecent()) self.charger(false, true); } };
     document.addEventListener('amx:evalDemandes', this.surMaj);
     document.addEventListener('amx:compagnie', this.surCie);
     this.minuterie = setInterval(function () { if (!self.detruit && !document.hidden) self.charger(true, true); }, 60000);

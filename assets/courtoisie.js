@@ -158,7 +158,7 @@
     var relancer = AMX.debounce(function () { self.q = self.inRecherche.value; self.rafraichir(); }, 160);
     this.inRecherche.addEventListener('input', relancer);
     this.inRecherche.addEventListener('keydown', function (e) { if (e.key === 'Escape') { self.inRecherche.value = ''; self.q = ''; self.rafraichir(); } });
-    this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.rendre(); };
+    this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.rendre(); if (!self.detruit && AMX.gesteMenuRecent()) self.charger(); };
     document.addEventListener('amx:compagnie', this.surCie);
     if (cache.rep) { this.rep = cache.rep; this.rendre(); }
     else {

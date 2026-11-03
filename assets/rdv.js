@@ -210,7 +210,7 @@
   AMX.rdv = {
     charger: function (cie, du, au, force) {
       var cle = [cie || '', du, au].join('|');
-      if (!force && cache.reponse && cache.cle === cle && Date.now() - cache.quand < 45000) return Promise.resolve(cache.reponse);
+      if (!force && cache.reponse && cache.cle === cle && Date.now() - cache.quand < AMX.dureeCopie(45000)) return Promise.resolve(cache.reponse);
       if (cache.promesse && cache.cleEnCours === cle && !force) return cache.promesse;
       cache.cleEnCours = cle;
       var q = { rdv: 1, du: du, au: au }; if (cie) q.compagnie = cie;

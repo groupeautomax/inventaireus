@@ -30,7 +30,7 @@
   function peut() { return AMX.perm('modifierMontants') || AMX.estAdmin() || ROLES.indexOf(AMX.session.role) >= 0; }
 
   function charger(force) {
-    if (!force && cache.d && Date.now() - cache.quand < 60000) return Promise.resolve(cache.d);
+    if (!force && cache.d && Date.now() - cache.quand < AMX.dureeCopie(60000)) return Promise.resolve(cache.d);
     if (cache.promesse) return cache.promesse;
     cache.promesse = AMX.get({ prixDetail: 1 }, { secours: false }).then(function (d) {
       cache.promesse = null;

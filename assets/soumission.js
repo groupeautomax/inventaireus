@@ -129,7 +129,7 @@
   function verifierScript(d) { if (d && d.ok && !d.soumission && !d.id && Array.isArray(d.vehicules)) throw new Error(SCRIPT_PAS_A_JOUR); }
   AMX.soumission = {
     charger: function (force) {
-      if (!force && cache.liste && Date.now() - cache.le < DUREE_CACHE_MS) return Promise.resolve(cache.liste);
+      if (!force && cache.liste && Date.now() - cache.le < AMX.dureeCopie(DUREE_CACHE_MS)) return Promise.resolve(cache.liste);
       if (cache.promesse) return cache.promesse;
       cache.promesse = AMX.get({ soumissions: 1 }, { secours: false, copie: 'soumissions' }).then(function (d) {
         cache.promesse = null;
@@ -253,7 +253,7 @@
     conteneur.appendChild(this.el);
     var moi = this;
     this.surProfil = function () { moi.compagnie = AMX.compagnieChoisie('inventaire'); if (moi.mode === 'liste') moi.rendreListe(); };
-    this.surCompagnie = function (e) { moi.compagnie = (e.detail && e.detail.compagnie) || ''; if (moi.mode === 'liste') moi.rendreListe(); };
+    this.surCompagnie = function (e) { moi.compagnie = (e.detail && e.detail.compagnie) || ''; if (moi.mode === 'liste') { moi.rendreListe(); if (AMX.gesteMenuRecent()) moi.charger(); } };
     document.addEventListener('amx:profil', this.surProfil);
     document.addEventListener('amx:compagnie', this.surCompagnie);
     this.naviguer(ctx || {});

@@ -399,17 +399,48 @@
   // en petit en haut. AMX.get(…, { discret: true }) = lecture de fond, jamais montrée ;
   // { attente: true } = toujours montrée ; AMX.patienter(promesse) pour tout le reste.
   var GESTE_MS = 700, dernierGeste = 0;
-  var MENU_SEL = 'select, input[type=radio], input[type=checkbox], input[type=date], input[type=month], [role=menuitem], [role=tab], [aria-pressed], .segment button, .choix-cie button, .barre-cies button, .inv2-statuts button, .entete-page button';
+  var NAV_SEL = '#cote a, #sous-barre a, #barre nav a, a.hub-tuile';
+  var MENU_SEL = 'select, input[type=radio], input[type=checkbox], input[type=date], input[type=month], [role=menuitem], [role=tab], [aria-pressed], .segment button, .choix-cie button, .barre-cies button, .inv2-statuts button, .entete-page button, ' + NAV_SEL;
   function gesteMenu(cible) {
     if (!cible || !cible.closest) return false;
     if (cible.closest('.voile, #maxai-panneau')) return false;   // une fenêtre ouverte ou Einstein : pas la page derrière
     return !!cible.closest(MENU_SEL);
   }
-  document.addEventListener('change', function (e) { if (gesteMenu(e.target)) dernierGeste = Date.now(); }, true);
+  /* 3 nov. (Maxime : « à chaque fois qu'on change un menu ou une concession, il faut que les données se rafraîchissent et
+     qu'on voie le cycle Automax — c'est pas toujours le cas ») : la roue ne partait que si la page relisait le serveur ;
+     une page qui refiltrait sa copie en mémoire (concession, onglet, pastille, mois déjà lu) changeait sans rien montrer.
+     Maintenant : (1) tout changement de menu, d'onglet, de pastille, de concession ou de page montre la roue, au moins le
+     temps du redessin ; une lecture au serveur lancée par le même geste la prolonge jusqu'à la réponse ; (2) juste après
+     ce geste, une copie gardée par une page depuis plus de RELIRE_MS est relue au serveur (AMX.dureeCopie, utilisée par
+     les caches des pages ; AMX.relireDemande pour une page qui garde sa propre copie). Les champs d'un formulaire (fiche
+     d'achat, évaluation, panneau, fenêtre) ne font pas tourner la roue : ce sont des saisies, pas des menus. */
+  var RELIRE_MS = 15000;
+  AMX.RELIRE_MS = RELIRE_MS;
+  var CYCLE_SEL = 'select, input[type=radio], input[type=checkbox], input[type=date], input[type=month], [role=tab], [aria-pressed], .segment button, .choix-cie button, .barre-cies button, .inv2-statuts button, ' + NAV_SEL;
+  var SAISIE_SEL = '.voile, #maxai-panneau, .panneau, form, .achat-page, .eval-page:not(.registre-page), [data-sans-cycle]';
+  function gesteCycle(cible) {
+    if (!cible || !cible.closest || cible.closest(SAISIE_SEL)) return false;
+    return !!cible.closest(CYCLE_SEL);
+  }
+  var CYCLE_MS = 350, dernierCycle = 0;
+  function cycleMenu() {
+    if (Date.now() - dernierCycle < 400) return;   // un clic sur une case donne aussi un « change » : une seule roue
+    dernierCycle = Date.now();
+    AMX.patienter(attendre(CYCLE_MS));
+  }
+  document.addEventListener('change', function (e) {
+    if (gesteMenu(e.target)) dernierGeste = Date.now();
+    if (gesteCycle(e.target)) cycleMenu();
+  }, true);
   document.addEventListener('click', function (e) {
     var t = e.target;
     if (t && t.closest && t.closest('button, a, [role=menuitem], [role=tab]') && gesteMenu(t)) dernierGeste = Date.now();
+    if (t && t.closest && t.closest('button, a, [role=tab]') && gesteCycle(t)) cycleMenu();
   }, true);
+  // Un changement de concession (barre du haut, pastilles d'une page, « Voir toutes les concessions ») : roue et relecture.
+  document.addEventListener('amx:compagnie', function () { dernierGeste = Date.now(); cycleMenu(); }, true);
+  AMX.dureeCopie = function (ms) { return AMX.gesteMenuRecent() ? Math.min(ms, RELIRE_MS) : ms; };
+  AMX.relireDemande = function (quand) { return AMX.gesteMenuRecent() && Date.now() - (quand || 0) > RELIRE_MS; };
   var MAJ = { n: 0, carte: null, montreLe: 0, tMontrer: null, tLong: null, tCacher: null };
   function montrerMaj() {
     MAJ.tMontrer = null;

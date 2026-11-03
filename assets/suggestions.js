@@ -27,7 +27,7 @@
   var cache = { rep: null, quand: 0, promesse: null };
   AMX.suggestions = {
     charger: function (force) {
-      if (!force && cache.rep && Date.now() - cache.quand < 60000) return Promise.resolve(cache.rep);
+      if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(60000)) return Promise.resolve(cache.rep);
       if (cache.promesse) return cache.promesse;
       cache.promesse = AMX.get({ suggestions: 1 }).then(function (d) {
         cache.promesse = null;

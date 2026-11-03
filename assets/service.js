@@ -65,7 +65,7 @@
     etapes: function () { return (cache.reponse && cache.reponse.etapes) || ETAPES; },
     cibles: function () { return (cache.reponse && cache.reponse.cibles) || { etapes: {}, total: 5 }; },
     charger: function (force) {
-      if (!force && cache.reponse && Date.now() - cache.quand < 60000) return Promise.resolve(cache.reponse);
+      if (!force && cache.reponse && Date.now() - cache.quand < AMX.dureeCopie(60000)) return Promise.resolve(cache.reponse);
       if (promesse) return promesse;
       // force (bouton Rafraîchir, après une écriture) : frais=1 saute le cache serveur (120 s).
       promesse = AMX.get(force ? { service: 1, tout: 1, frais: 1 } : { service: 1, tout: 1 }).then(function (d) {
@@ -109,7 +109,7 @@
   (function () { var o = AMX.cacheLocal && AMX.cacheLocal.lire('demandes', 7 * 86400000); if (o && o.donnees && Array.isArray(o.donnees.demandes)) { demCache.rep = o.donnees; demCache.quand = 0; } })();
   AMX.demandes = {
     charger: function (force) {
-      if (!force && demCache.rep && Date.now() - demCache.quand < 60000) return Promise.resolve(demCache.rep);
+      if (!force && demCache.rep && Date.now() - demCache.quand < AMX.dureeCopie(60000)) return Promise.resolve(demCache.rep);
       if (demCache.promesse) return demCache.promesse;
       demCache.promesse = AMX.get({ demandes: 1, tout: 1 }).then(function (d) {
         demCache.promesse = null;
@@ -248,7 +248,7 @@
     this.tri = AMX.memo.lire('svc_tri', 'jours');
     this.ecritures = 0; this.generation = 0;
     this.ui2 = !!(AMX.ui2 && AMX.ui2());   /* v133 : page refaite dans la nouvelle interface */
-    this.surCie = function () { if (self.detruit) return; self.filtres.compagnie = AMX.compagnieChoisie('service'); self.construireRail(); self.rendre(); };
+    this.surCie = function () { if (self.detruit) return; self.filtres.compagnie = AMX.compagnieChoisie('service'); self.construireRail(); self.rendre(); if (AMX.gesteMenuRecent()) self.charger(); };   /* 3 nov. : relit si la copie a plus de 15 s (AMX.dureeCopie) */
     document.addEventListener('amx:compagnie', this.surCie);
     this.construire();
     this.charger();

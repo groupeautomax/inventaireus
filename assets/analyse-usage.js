@@ -65,7 +65,7 @@
   /* ------------------------------ Données ------------------------------ */
   var cacheA = { rep: null, quand: 0, promesse: null };
   function chargerAnalyse(force) {
-    if (!force && cacheA.rep && Date.now() - cacheA.quand < 5 * 60000) return Promise.resolve(cacheA.rep);
+    if (!force && cacheA.rep && Date.now() - cacheA.quand < AMX.dureeCopie(5 * 60000)) return Promise.resolve(cacheA.rep);
     if (cacheA.promesse) return cacheA.promesse;
     cacheA.promesse = AMX.get({ analyseUsage: 1 }, { copie: 'analyse_usage', secours: false, delai: 60000 }).then(function (d) {
       cacheA.promesse = null;
@@ -242,7 +242,7 @@
     this.f = { q: (ctx && ctx.params && ctx.params.q) || '', action: (ctx && ctx.params && ctx.params.action) || AMX.memo.lire('anu_action', '') || '', tranche: '', tri: AMX.memo.lire('anu_tri', 'priorite'),
       prix: (ctx && ctx.params && (ctx.params.prix15 === '1' || ctx.params.prix15 === 1)) ? '15' : '' };
     this.construire();
-    this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.limite = LIMITE; self.rendre(); };
+    this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.limite = LIMITE; self.rendre(); if (AMX.gesteMenuRecent()) self.charger(); };
     this.surDonnees = function () { self.rendre(); };
     this.surPrix = function () { var d = AMX.prixDetail && AMX.prixDetail.enCache(); self.pxdQuand = Date.now(); self._cle = null; self.rendre(); void d; };
     window.addEventListener('amx:prixDetail', this.surPrix);

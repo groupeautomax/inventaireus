@@ -344,7 +344,7 @@
   var DUREE_CACHE_MS = 5 * 60000;
   AMX.neufs = {
     charger: function (force) {
-      if (!force && cache.donnees && Date.now() - cache.le < DUREE_CACHE_MS) return Promise.resolve(cache.donnees);
+      if (!force && cache.donnees && Date.now() - cache.le < AMX.dureeCopie(DUREE_CACHE_MS)) return Promise.resolve(cache.donnees);
       if (cache.promesse) return cache.promesse;
       cache.promesse = AMX.get({ neufs: 1 }, { gz: true, copie: 'neufs' }).then(function (d) {
         cache.promesse = null;
@@ -383,7 +383,7 @@
     vider: function () { cache.donnees = null; cache.le = 0; cache.copieLe = 0; cachePortail.donnees = null; cachePortail.copieLe = 0; AMX.cacheLocal.oublier('neufs'); AMX.cacheLocal.oublier('constructeur'); },
     // Portails des constructeurs (?constructeur=1) : ventes déclarées, commandes en attente, factures, état des lectures.
     chargerPortail: function (force) {
-      if (!force && cachePortail.donnees && Date.now() - cachePortail.le < DUREE_CACHE_MS) return Promise.resolve(cachePortail.donnees);
+      if (!force && cachePortail.donnees && Date.now() - cachePortail.le < AMX.dureeCopie(DUREE_CACHE_MS)) return Promise.resolve(cachePortail.donnees);
       if (cachePortail.promesse) return cachePortail.promesse;
       cachePortail.promesse = AMX.get({ constructeur: 1 }, { gz: true, copie: 'constructeur' }).then(function (d) {
         cachePortail.promesse = null;
@@ -512,7 +512,8 @@
     this.charger();
     this.surProfil = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('inventaire'); self.rendre(); } };
     document.addEventListener('amx:profil', this.surProfil);
-    document.addEventListener('amx:compagnie', this.surProfil);
+    this.surCie = function () { self.surProfil(); if (!self.detruit && AMX.gesteMenuRecent()) self.charger(); };   /* 3 nov. : relit si la copie a plus de 15 s */
+    document.addEventListener('amx:compagnie', this.surCie);
     /* 21 oct. : les ventes déclarées (Vente › Ventes) — puce « Vente V-101 · client » sur la ligne, bouton « Vente » sinon.
        Chargées une fois en arrière-plan (toutes concessions, période courante) ; la table se redessine quand elles arrivent. */
     this.surVentes = function () { if (!self.detruit && self.donnees) self.rendreTable(); };
@@ -522,7 +523,7 @@
     document.addEventListener('amx:neufs', this.surNeufs);
     if (AMX.ventes && AMX.ventes.charger && !AMX.ventes.enCache()) setTimeout(function () { if (!self.detruit) AMX.ventes.charger('', '').catch(function () {}); }, 400);
   }
-  VueNeufs.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:compagnie', this.surProfil); document.removeEventListener('amx:ventes', this.surVentes); document.removeEventListener('amx:neufs', this.surNeufs); };
+  VueNeufs.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:ventes', this.surVentes); document.removeEventListener('amx:neufs', this.surNeufs); };
   // Même section, nouvelle adresse (ex. recherche globale avec un NIV).
   VueNeufs.prototype.naviguer = function (ctx) {
     if (ctx.params && ctx.params.vin) { this.filtres.recherche = String(ctx.params.vin).toUpperCase(); this.elRecherche.value = this.filtres.recherche; this.vinDemande = true; this.rendre(); }

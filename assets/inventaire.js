@@ -231,7 +231,7 @@
     this.observateur = null;
     this.ui2 = !!(AMX.ui2 && AMX.ui2());   /* v131 : nouvelle interface (page refaite) */
     // v131 : la concession choisie dans la barre du haut (ou ailleurs) s'applique tout de suite.
-    this.surCie = function () { if (self.detruit) return; self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); };
+    this.surCie = function () { if (self.detruit) return; self.filtres.compagnie = AMX.compagnieChoisie('inventaire'); self.construireRail(); self.rendre(); if (AMX.relireDemande(AMX.inventaire.quand(self.cfg.feuille))) self.charger(); };   /* 3 nov. : relit le serveur si la copie a plus de 15 s */
     document.addEventListener('amx:compagnie', this.surCie);
 
     this.construire();

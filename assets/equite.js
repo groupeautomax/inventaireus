@@ -163,7 +163,7 @@
   var DUREE_CACHE_MS = 5 * 60000;
   AMX.equite = {
     charger: function (force) {
-      if (!force && cache.donnees && Date.now() - cache.le < DUREE_CACHE_MS) return Promise.resolve(cache.donnees);
+      if (!force && cache.donnees && Date.now() - cache.le < AMX.dureeCopie(DUREE_CACHE_MS)) return Promise.resolve(cache.donnees);
       if (cache.promesse) return cache.promesse;
       cache.promesse = AMX.get({ equite: 1 }, { gz: true, copie: 'equite' }).then(function (d) {
         cache.promesse = null;

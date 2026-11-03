@@ -241,7 +241,7 @@
   AMX.texto = {
     charger: function (cie, force) {
       var cle = cie || '';
-      if (!force && cache.reponse && cache.cle === cle && Date.now() - cache.quand < 45000) return Promise.resolve(cache.reponse);
+      if (!force && cache.reponse && cache.cle === cle && Date.now() - cache.quand < AMX.dureeCopie(45000)) return Promise.resolve(cache.reponse);
       if (cache.promesse && cache.cleEnCours === cle && !force) return cache.promesse;
       cache.cleEnCours = cle;
       var q = { texto: 1 }; if (cie) q.compagnie = cie;

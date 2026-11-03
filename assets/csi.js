@@ -123,9 +123,10 @@
     this.construire();
     this.charger(false);
     this.surProfil = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('resultats') || ''; self.rendre(); } };
-    document.addEventListener('amx:compagnie', this.surProfil);
+    this.surCie = function () { self.surProfil(); if (!self.detruit && AMX.gesteMenuRecent()) self.charger(false); };   /* 3 nov. : relit les scores */
+    document.addEventListener('amx:compagnie', this.surCie);
   }
-  Csi.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:compagnie', this.surProfil); };
+  Csi.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:compagnie', this.surCie); };
 
   Csi.prototype.construire = function () {
     var self = this;

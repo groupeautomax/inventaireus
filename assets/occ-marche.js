@@ -52,7 +52,7 @@
   /* ------------------------------ Données ------------------------------ */
   var cache = { rep: null, quand: 0, promesse: null, copieLe: 0 };
   function charger(force) {
-    if (!force && cache.rep && Date.now() - cache.quand < 5 * 60000) return Promise.resolve(cache.rep);
+    if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(5 * 60000)) return Promise.resolve(cache.rep);
     if (cache.promesse) return cache.promesse;
     // Sans les annonces (10 000 depuis le 25 oct.) : l'onglet Concurrents les demande à part, quand il s'ouvre.
     cache.promesse = AMX.get({ occasionsMarche: 1, sansAnnonces: 1 }, { gz: true, copie: 'occ_marche', secours: false, delai: 90000 }).then(function (d) {

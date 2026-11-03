@@ -95,7 +95,7 @@
   /* ------------------------------ Données ------------------------------ */
   var cache = { rep: null, quand: 0, promesse: null };
   function charger(force) {
-    if (!force && cache.rep && Date.now() - cache.quand < 2 * 60000) return Promise.resolve(cache.rep);
+    if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(2 * 60000)) return Promise.resolve(cache.rep);
     if (cache.promesse) return cache.promesse;
     cache.promesse = AMX.get({ occasions: 1 }, { gz: true, copie: 'occasions', secours: false, delai: 60000 }).then(function (d) {
       cache.promesse = null;

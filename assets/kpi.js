@@ -93,7 +93,7 @@
   /* ------------------------------ Données ------------------------------ */
   var cache = { rep: null, quand: 0, promesse: null, copieLe: 0 };
   function chargerKpi(force) {
-    if (!force && cache.rep && Date.now() - cache.quand < 5 * 60000) return Promise.resolve(cache.rep);
+    if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(5 * 60000)) return Promise.resolve(cache.rep);
     if (cache.promesse) return cache.promesse;
     cache.promesse = AMX.get({ kpi: 1 }, { gz: true, copie: 'kpi', secours: false }).then(function (d) {
       cache.promesse = null;
@@ -227,7 +227,7 @@
     this.tendance = 'profit_net';
     this.construire();
     this.charger(false);
-    this.surCie = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('resultats') || ''; self.rendre(); } };
+    this.surCie = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('resultats') || ''; self.rendre(); if (AMX.gesteMenuRecent()) self.charger(); } };
     document.addEventListener('amx:compagnie', this.surCie);
   }
   Kpi.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:compagnie', this.surCie); };

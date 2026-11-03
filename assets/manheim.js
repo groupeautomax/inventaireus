@@ -24,7 +24,7 @@
   function couleurCote(c) { return !nb(c) ? 'gris' : (c >= 4 ? 'vert' : (c >= 3 ? 'ambre' : 'rouge')); }
 
   function charger(force) {
-    if (!force && cache.rep && Date.now() - cache.quand < 5 * 60000) return Promise.resolve(cache.rep);
+    if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(5 * 60000)) return Promise.resolve(cache.rep);
     if (cache.promesse) return cache.promesse;
     if (!cache.rep) { try { var c = AMX.cacheLocal && AMX.cacheLocal.lire('manheim', 7 * 86400000); if (c && c.donnees) cache.rep = c.donnees; } catch (e) {} }
     cache.promesse = AMX.get({ manheim: 1 }, { delai: 60000, secours: false }).then(function (d) {

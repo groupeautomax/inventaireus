@@ -111,10 +111,31 @@
   }
   /* Lien avec le système de commande (Maxime : « indique si le statut est vendu chez le manufacturier ») : étape « Livré au client » /
      « Retailed », commande vendue (SRE), ou RDR déclaré au portail pour ce NIV (rdrParVin, rempli quand le portail est chargé). */
-  var rdrParVin = {};
-  function indexerRdr(p) { rdrParVin = {}; ((p && p.ventes) || []).forEach(function (x) { if (x && x.vin) { var k = String(x.compagnie || '').toUpperCase() + '|' + String(x.vin).toUpperCase(); if (!rdrParVin[k] || String(x.dateVente || '') > String(rdrParVin[k].dateVente || '')) rdrParVin[k] = x; } }); }
+  var rdrParVin = {}, rdrDemoVin8 = {};
+  function indexerRdr(p) {
+    rdrParVin = {}; rdrDemoVin8 = {};
+    ((p && p.ventes) || []).forEach(function (x) {
+      if (!x || !x.vin) return;
+      var cie = String(x.compagnie || '').toUpperCase(), k = cie + '|' + String(x.vin).toUpperCase();
+      if (!rdrParVin[k] || String(x.dateVente || '') > String(rdrParVin[k].dateVente || '')) rdrParVin[k] = x;
+      if (rdrDemo(x)) rdrDemoVin8[cie + '|' + String(x.vin).toUpperCase().slice(-8)] = x;
+    });
+  }
   function rdrDe(v) { return rdrParVin[String(v.compagnie || '').toUpperCase() + '|' + String(v.vin || '').toUpperCase()] || null; }
-  function rdrDemo(r) { return !!r && /courtesy|courtoisie|demo|démo|ctp|\bD\b/i.test(String(r.typeVente || '') + ' ' + String(r.typeCode || '')); }
+  /* Un RDR de démo : BMW « Démo » (code D), GM « Courtesy Transportation Program » (025), Hyundai « Dealer Demo / SLC ».
+     2 nov. : avant, « \bD\b » prenait aussi le D de « Détail » (é n'est pas une lettre pour \b) — un RDR au détail passait pour
+     une démo, et le véhicule n'était pas « Vendu (manufacturier) ». */
+  function rdrDemo(r) {
+    if (!r) return false;
+    var code = String(r.typeCode || '').trim().toUpperCase();
+    return code === 'D' || code === '025' || /courtesy|courtoisie|d[ée]mo(?![a-zà-ÿ])|d[ée]monstrat|\bctp\b|\bslc\b/i.test(String(r.typeVente || ''));
+  }
+  /* 2 nov. (Maxime : « quand une unité est démonstrateur chez le manufacturier il faut la considérer comme étant vue dans le
+     manufacturier ») : pour la comparaison avec le DMS, une démo chez le manufacturier — une ligne « Démo / courtoisie » du
+     portail, même sortie de son stock (RDR démo, courtoisie CTP, « Démonstrateur / usage interne »), ou un RDR de démo pour le
+     NIV — compte comme vue au portail : elle n'est plus « absente du manufacturier ». */
+  function demoConstructeur(v) { return !!v && origineDe(v) === 'constructeur' && (statutNorme(v) === 'Démo / courtoisie' || /d[ée]monstrat|courtoisie|courtesy/i.test(String((v.extra || {}).etape || ''))); }
+  function rdrDemoDe(cie, vin) { var c = String(cie || '').toUpperCase(), n = String(vin || '').toUpperCase(); var r = n.length === 17 ? rdrParVin[c + '|' + n] : null; return (r && rdrDemo(r) ? r : null) || (n.length >= 8 ? rdrDemoVin8[c + '|' + n.slice(-8)] || null : null); }
   function venduConstructeur(v) {
     if (v.venduConstructeur) return true;
     var x = v.extra || {};
@@ -730,14 +751,26 @@
   };
   /* Écarts entre les deux origines pour la concession choisie (véhicules en stock, par NIV). */
   VueNeufs.prototype.ecarts = function () {
-    var d = this.donnees, c = this.compagnie, parCie = {};
+    var d = this.donnees, c = this.compagnie, parCie = {}, demos = {};
     if (!d) return null;
-    d.vehicules.forEach(function (v) { if (!v.enStock || (c && v.compagnie !== c)) return; var k = parCie[v.compagnie] || (parCie[v.compagnie] = { dms: {}, constructeur: {} }); k[origineDe(v)][v.vin] = v; });
-    var out = { dmsSeul: [], constructeurSeul: [], statut: [], communs: 0, total: 0, cies: [] };
+    d.vehicules.forEach(function (v) {
+      if (c && v.compagnie !== c) return;
+      if (demoConstructeur(v)) demos[v.compagnie + '|' + v.vin] = v;   /* une démo du manufacturier, même sortie de son stock */
+      if (!v.enStock) return;
+      var k = parCie[v.compagnie] || (parCie[v.compagnie] = { dms: {}, constructeur: {} }); k[origineDe(v)][v.vin] = v;
+    });
+    var out = { dmsSeul: [], constructeurSeul: [], statut: [], demosManuf: [], communs: 0, total: 0, cies: [] };
     Object.keys(parCie).sort().forEach(function (cie) {
       var k = parCie[cie]; if (!Object.keys(k.dms).length || !Object.keys(k.constructeur).length) return;
       out.cies.push(cie);
-      Object.keys(k.dms).forEach(function (vin) { var a = k.dms[vin], b = k.constructeur[vin]; if (!b) out.dmsSeul.push(a); else { out.communs++; if (statutNorme(a) !== statutNorme(b)) out.statut.push({ dms: a, constructeur: b }); } });
+      Object.keys(k.dms).forEach(function (vin) {
+        var a = k.dms[vin], b = k.constructeur[vin];
+        if (!b) {
+          var dm = demos[cie + '|' + vin], rd = dm ? null : rdrDemoDe(cie, vin);
+          if (dm || rd) { out.communs++; out.demosManuf.push({ dms: a, constructeur: dm || null, rdr: rd || null }); }   /* vu comme démo chez le manufacturier */
+          else out.dmsSeul.push(a);
+        } else { out.communs++; if (statutNorme(a) !== statutNorme(b)) out.statut.push({ dms: a, constructeur: b }); }
+      });
       Object.keys(k.constructeur).forEach(function (vin) { if (!k.dms[vin]) out.constructeurSeul.push(k.constructeur[vin]); });
     });
     out.total = out.dmsSeul.length + out.constructeurSeul.length + out.statut.length;
@@ -877,7 +910,7 @@
     var carte = function (cls, nom, n, bas) { return h('div.neufs-carte.' + cls, [h('div.nom', { text: nom }), h('div.n', { text: AMX.fmtNombre(n) }), bas ? h('div.bas', { text: bas }) : null]); };
     var tuiles = h('div.neufs-cartes', { style: { marginBottom: '0' } }, [
       carte(lignes.length ? 'rouge' : 'vert', 'Absents du DMS', lignes.length, 'au portail du manufacturier, pas au DMS / sur la feuille'),
-      e ? carte('vert', 'Dans les deux', e.communs, 'même NIV au DMS et chez le manufacturier') : null,
+      e ? carte('vert', 'Dans les deux', e.communs, 'même NIV au DMS et chez le manufacturier' + (e.demosManuf.length ? ' (dont ' + e.demosManuf.length + ' démo' + (e.demosManuf.length > 1 ? 's' : '') + ' chez le manufacturier)' : '')) : null,
       e ? carte(e.statut.length ? 'rouge' : 'vert', 'Statut différent', e.statut.length, 'en stock d\'un côté, transit ou démo de l\'autre') : null
     ]);
     var rangee = function (v) {
@@ -962,6 +995,7 @@
     var rows = e.dmsSeul.map(function (v) { return ligne(v, 'DMS seulement'); }).concat(e.constructeurSeul.map(function (v) { return ligne(v, 'Manufacturier seulement'); })).concat(e.statut.map(function (x) { return ligne(x.dms, 'Statut différent', x.constructeur); }));
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Écarts');
+    if (e.demosManuf.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(e.demosManuf.map(function (x) { return { 'Concession': nomCie(x.dms.compagnie), 'NIV': x.dms.vin, '# Stock': x.dms.stock || '', 'Année': x.dms.annee, 'Marque': x.dms.marque, 'Modèle': x.dms.modele, 'Statut DMS': statutNorme(x.dms), 'Chez le manufacturier': texteDemoManuf(x) }; })), 'Démos manufacturier');
     XLSX.writeFile(wb, 'neufs-ecarts-' + (this.compagnie || 'groupe').toLowerCase() + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
     AMX.toast('Export des écarts — ' + rows.length + ' NIV', 'ok');
   };
@@ -974,7 +1008,7 @@
   VueNeufs.prototype.absentsConstructeur = function () {
     var d = this.donnees, c = this.compagnie, self = this;
     if (!d) return null;
-    var cies = c ? [c] : Object.keys(AMX.COMPAGNIES_TOUTES || AMX.COMPAGNIES), lignes = [], sources = {}, parCie = {};
+    var cies = c ? [c] : Object.keys(AMX.COMPAGNIES_TOUTES || AMX.COMPAGNIES), lignes = [], sources = {}, parCie = {}, demos = [];
     d.vehicules.forEach(function (v) { var k = parCie[v.compagnie] || (parCie[v.compagnie] = { dms: 0, constructeur: 0 }); if (v.enStock) k[origineDe(v)]++; });
     var e = null;
     cies.forEach(function (cie) {
@@ -983,6 +1017,7 @@
       if (k.dms) {
         sources[cie] = { type: 'dms', texte: 'l\'export du DMS' };
         e = e || self.ecarts();
+        e.demosManuf.forEach(function (x) { if (x.dms.compagnie === cie) demos.push({ compagnie: cie, vin: x.dms.vin, vin8: String(x.dms.vin).slice(-8), stock: x.dms.stock || '', modele: nomVehicule(x.dms), statut: statutNorme(x.dms), texte: texteDemoManuf(x), jours: x.dms.jours, v: x.dms }); });
         e.dmsSeul.forEach(function (v) { if (v.compagnie !== cie) return; lignes.push({ compagnie: cie, vin: v.vin, vin8: String(v.vin).slice(-8), stock: v.stock || '', modele: nomVehicule(v), couleur: v.couleur || '', statut: statutNorme(v) + (v.emplacement ? ' · ' + v.emplacement : ''), onglet: 'DMS', etat: 'jamais', sortiLe: '', jours: v.jours, v: v }); });
         return;
       }
@@ -991,13 +1026,22 @@
       sources[cie] = self.referenceAbsents(cie) || { type: 'feuille', texte: 'la feuille Google', source: 'feuille Google' };
       abs.forEach(function (a) {
         var v = a.vin ? d.vehicules.filter(function (x) { return x.compagnie === cie && x.vin === a.vin && origineDe(x) === 'constructeur'; })[0] : null;
+        // 2 nov. : une démo du manufacturier (ligne Démo du portail, même sortie, ou RDR de démo) compte comme vue.
+        var v8 = String(a.vin || a.vin8 || '').toUpperCase().slice(-8);
+        var rdD = rdrDemoDe(cie, a.vin || a.vin8), lgD = rdD ? null : d.vehicules.filter(function (x) { return x.compagnie === cie && String(x.vin || '').toUpperCase().slice(-8) === v8 && demoConstructeur(x); })[0];
+        if (rdD || lgD) { demos.push({ compagnie: cie, vin: a.vin || '', vin8: a.vin8, stock: a.stock || '', modele: a.modele || '', statut: a.statut || '', texte: texteDemoManuf({ constructeur: lgD || null, rdr: rdD || null }), jours: v ? v.jours : null, v: v || null }); return; }
         lignes.push({ compagnie: cie, vin: a.vin || '', vin8: a.vin8, stock: a.stock || '', modele: a.modele || '', couleur: a.couleur || '', statut: a.statut || '', onglet: a.onglet || '', etat: a.etat, sortiLe: a.sortiLe || '', jours: v ? v.jours : null, v: v || null });
       });
     });
     if (!Object.keys(sources).length) return null;
     lignes.sort(function (a, b) { return (a.etat === b.etat ? 0 : (a.etat === 'jamais' ? -1 : 1)) || String(a.compagnie).localeCompare(String(b.compagnie)) || String(a.stock).localeCompare(String(b.stock)); });
-    return { lignes: lignes, sources: sources, cies: Object.keys(sources) };
+    return { lignes: lignes, sources: sources, cies: Object.keys(sources), demos: demos };
   };
+  function texteDemoManuf(x) {
+    if (x.constructeur) { var et = (x.constructeur.extra || {}).etape || ''; return 'Démo au portail' + (et ? ' · ' + et : '') + (x.constructeur.enStock ? '' : ' (sortie de son stock)'); }
+    if (x.rdr) return 'RDR de démo' + (x.rdr.dateVente ? ' du ' + AMX.fmtDateCourte(String(x.rdr.dateVente).slice(0, 10)) : '') + (x.rdr.typeVente ? ' · ' + x.rdr.typeVente : '');
+    return 'Démo chez le manufacturier';
+  }
   function texteEtatAbsent(l) { return l.etat === 'sorti' ? 'Sorti du portail' + (l.sortiLe ? ' le ' + AMX.fmtDateCourte(l.sortiLe) : '') + ' (vendu ou transféré)' : 'Jamais vu au portail'; }
   VueNeufs.prototype.rendreAbsents = function () {
     var self = this;
@@ -1027,10 +1071,20 @@
       return tr;
     };
     var entetes = (c ? [] : ['Concession']).concat(['# Stock', 'Véhicule', 'Couleur', 'Statut (DMS / feuille)', 'Onglet / source', 'Au manufacturier']);
+    var nDemos = (ab.demos || []).length;
     var corps = [tuiles,
+      nDemos ? h('p.doux.petit', { style: { margin: '10px 0 0' }, text: nDemos + ' démo' + (nDemos > 1 ? 's' : '') + ' chez le manufacturier (RDR de démo, courtoisie, démonstrateur) ' + (nDemos > 1 ? 'sont comptées' : 'est comptée') + ' comme vue' + (nDemos > 1 ? 's' : '') + ' au portail : pas dans la liste des absents (détail au bas de l\'onglet).' }) : null,
       h('p.doux.petit', { style: { margin: '10px 0 0' }, text: 'Côté DMS — ' + cote + '. Portail du manufacturier lu : ' + (luCon || 'pas de lecture') + '. Un NIV « jamais vu au portail » est en général un échange concessionnaire (le véhicule vient d\'un autre concessionnaire et n\'a pas été transféré dans Global Connect) ou un NIV mal tapé ; un NIV « sorti du portail » a été vendu / livré ou transféré côté manufacturier mais figure encore au DMS / sur la feuille. Exportez la liste pour demander les corrections.' }),
       ab.lignes.length ? h('div.neufs-table.neufs-ecarts', { style: { marginTop: '14px' } }, [h('table.tableau', [h('thead', [h('tr', entetes.map(function (x) { return h('th', x); }))]), h('tbody', ab.lignes.slice(0, 300).map(rangee))])]) : h('div.neufs-vide', { text: 'Tout ce que le DMS / la feuille connaît est au portail du manufacturier.' }),
-      ab.lignes.length > 300 ? h('p.doux.petit', { text: '… et ' + (ab.lignes.length - 300) + ' autres (export Excel pour le tout).' }) : null
+      ab.lignes.length > 300 ? h('p.doux.petit', { text: '… et ' + (ab.lignes.length - 300) + ' autres (export Excel pour le tout).' }) : null,
+      // 2 nov. : les démos chez le manufacturier, comptées comme vues — pour vérifier, sans les mêler aux absents.
+      nDemos ? h('details', { style: { marginTop: '16px' } }, [h('summary', { style: { cursor: 'pointer', fontWeight: '600' }, text: 'Démos chez le manufacturier, comptées comme vues (' + nDemos + ')' }),
+        h('div.neufs-table.neufs-ecarts', { style: { marginTop: '8px' } }, [h('table.tableau', [h('thead', [h('tr', (c ? [] : ['Concession']).concat(['# Stock', 'Véhicule', 'Statut (DMS / feuille)', 'Chez le manufacturier']).map(function (x) { return h('th', x); }))]),
+          h('tbody', ab.demos.slice(0, 300).map(function (l) {
+            var tr = h('tr.ecart', (c ? [] : [h('td', { text: nomCie(l.compagnie) })]).concat([h('td', { text: l.stock || '—' }), h('td.vehicule', [h('div.nom', { text: l.modele || '—' }), h('div.vin', { text: l.vin || ('…' + l.vin8) })]), h('td', { text: l.statut || '—' }), h('td', [h('span.neufs-marq-chip.bleu', { text: l.texte || 'Démo chez le manufacturier' })])]));
+            if (l.v) tr.addEventListener('click', function () { self.ouvrir(l.v); }); else tr.style.cursor = 'default';
+            return tr;
+          }))])])]) : null
     ];
     this.elAbsents.appendChild(h('div.carte', [
       h('div.carte-entete', [h('h2', ['Au DMS / sur la feuille, absents du manufacturier', h('span.sous', { text: ab.lignes.length ? ab.lignes.length + ' NIV à vérifier' : 'rien à signaler' })]), h('button.btn.petit', { type: 'button', html: I.telecharger + '<span>Exporter</span>', onclick: function () { self.exporterAbsents(); } })]),

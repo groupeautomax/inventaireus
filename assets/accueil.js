@@ -354,7 +354,9 @@
     return d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' });
   }
   function jourImp(iso) { var d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'short' }) : ''; }
-  function texteEtatImp(x) { return x.etat === 'fait' ? 'Fait ' + quandImp(x.le) : (x.jamais ? 'À faire — jamais fait' : 'À faire — dernier ' + quandImp(x.le)); }
+  /* 2 nov. : x.rien = rien à importer (D2C là où l'export du DMS est maître) — vert, sans date qui ferait croire à un import. */
+  function texteEtatImp(x) { if (x.rien) return 'Rien à importer'; return x.etat === 'fait' ? 'Fait ' + quandImp(x.le) : (x.jamais ? 'À faire — jamais fait' : 'À faire — dernier ' + quandImp(x.le)); }
+  function detailImp(x) { return x.rien ? 'Rien à importer — ' + String(x.info || '').replace(/^rien à importer : /, '') : texteEtatImp(x) + (x.info ? ' · ' + x.info : ''); }
   function lignesImports(cie) {
     var d = importsCache.d, out = [], rang = { favori: 0, tache: 1, auto: 2 };
     if (!d) return out;
@@ -371,10 +373,10 @@
     var lien = ongletVoit('outils', 'imports') ? AMX.lien('outils', 'imports', { imp: im.id }) : (im.lien && voit(im.lien[0]) ? AMX.lien(im.lien[0], im.lien[1] || '', im.lien[2]) : '');   /* 27 oct. : la page Outils › Imports explique chaque import */
     var portail = typeof im.portail === 'string' ? im.portail : ((im.portail || {})[l.rouges[0] || l.codes[0]] || '');
     var etat = seul
-      ? h('div.d', { text: texteEtatImp(seul) + (seul.info ? ' · ' + seul.info : '') + (seul.etat === 'fait' && seul.avant ? ' · à refaire d\'ici ' + jourImp(seul.avant) : '') })
+      ? h('div.d', { text: detailImp(seul) + (seul.etat === 'fait' && seul.avant ? ' · à refaire d\'ici ' + jourImp(seul.avant) : '') })
       : h('div.cies', l.codes.map(function (c) {
           var x = im.cies[c];
-          return h('span.imp-cie.' + (x.etat === 'fait' ? 'vert' : 'rouge'), { title: (COURT_CIE[c] || c) + ' : ' + texteEtatImp(x) + (x.info ? ' · ' + x.info : '') }, [h('i'), COURT_CIE[c] || c, h('small', { text: x.etat === 'fait' ? quandImp(x.le) : (x.jamais ? 'jamais fait' : 'à faire (' + quandImp(x.le) + ')') })]);
+          return h('span.imp-cie.' + (x.etat === 'fait' ? 'vert' : 'rouge'), { title: (COURT_CIE[c] || c) + ' : ' + detailImp(x) }, [h('i'), COURT_CIE[c] || c, h('small', { text: x.rien ? 'rien à importer' : (x.etat === 'fait' ? quandImp(x.le) : (x.jamais ? 'jamais fait' : 'à faire (' + quandImp(x.le) + ')')) })]);
         }));
     return h('div.acc-imp.' + (rouge ? 'rouge' : 'vert'), { role: 'listitem', title: im.quoi + ' — ' + im.cadence + '.' }, [
       h('span.pt', { 'aria-label': rouge ? 'À faire' : 'Fait' }),

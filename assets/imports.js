@@ -97,6 +97,7 @@
     return d.toLocaleDateString('fr-CA', long ? { weekday: 'long', day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short' }) + (long ? '' : ' ' + heure);
   }
   function texteEtat(x) {
+    if (x.rien) return x.info ? x.info.charAt(0).toUpperCase() + x.info.slice(1) : 'Rien à importer';   /* 2 nov. : D2C là où l'export du DMS est maître */
     if (x.etat === 'fait') return 'Fait ' + quand(x.le) + (x.info ? ' · ' + x.info : '') + (x.avant ? ' · à refaire d\'ici ' + quand(x.avant, true) : '');
     return x.jamais ? 'À faire — jamais fait' : 'À faire — dernier ' + quand(x.le) + (x.info ? ' · ' + x.info : '');
   }

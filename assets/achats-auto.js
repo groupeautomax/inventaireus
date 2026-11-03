@@ -91,7 +91,7 @@
       var details = [
         a.acheteLe ? 'acheté le ' + jour(a.acheteLe) : '',
         a.prix ? argent(a.prix) + (a.frais ? ' + ' + argent(a.frais) + ' de frais' : '') : '',
-        a.paye ? 'payé' + (/^\d{4}-/.test(a.paye) ? ' le ' + jour(a.paye) : '') : 'pas encore payé',
+        a.paye ? 'payé' + (/^\d{4}-/.test(a.paye) ? ' le ' + jour(a.paye) : '') : (a.source === 'eblock' || a.source === 'courriel' ? '' : 'pas encore payé'),   // eBlock et les courriels ne disent pas si c'est payé
         a.vendeur || ''
       ].filter(Boolean).join(' · ');
       var etat = h('span.doux.petit');

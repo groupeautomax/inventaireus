@@ -42,10 +42,31 @@
     var v = num(o.valeurMarche), e = num(o.ecartMarche);
     return h('span.puce.' + c.c, { text: c.t, title: 'Cote CarGurus' + (nb(v) ? ' · valeur du marché ' + AMX.fmtArgent(v) : '') + (nb(e) ? ' · ' + (e > 0 ? '+' : e < 0 ? '−' : '') + AMX.fmtArgent(Math.abs(e)) + ' par rapport au marché' : '') });
   }
-  var SOURCES = [['', 'Toutes les sources'], ['marketcheck', 'Concessionnaires (MarketCheck)'], ['gmf', 'GM Financial DealerSource'], ['manheim', 'Manheim (BMW Financial Services)'], ['particulier', 'Particuliers (tous les sites)'],
-    ['autotrader', 'AutoTrader.ca'], ['kijiji', 'Kijiji'], ['cargurus', 'CarGurus.ca'], ['carpages', 'Carpages.ca']];
   var SITES_ANNONCES = { autotrader: 'AutoTrader.ca', kijiji: 'Kijiji', cargurus: 'CarGurus.ca', carpages: 'Carpages.ca' };
   function estParticulier(o) { return o.typeInv === 'Particulier' || o.vendeur === 'Particulier'; }
+  /* 3 nov. (Maxime : « enlève les sources des filtres et mets-les en haut ; seulement ce qui s'applique aux marques de la
+     concession, donc pas GMF dans BMW ; regroupe CarGurus, Kijiji, AutoTrader, Carpages dans une icône ; MarketCheck et
+     particuliers en premier ») : une rangée d'icônes au-dessus des filtres. Les quatre sites d'annonces n'en font qu'une ; les
+     particuliers (tous les sites) sont à part, donc « Sites d'annonces » = les concessionnaires qui y affichent. DealerSource
+     (marques GM) et Manheim (BMW, MINI) ne paraissent que pour une concession qui vend ces marques (réglage `marques`). */
+  var SVG_SRC = {
+    mc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 5 4h14l2 5.5"/><path d="M3 9.5h18v1a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13.5V20h14v-6.5"/><path d="M10 20v-4h4v4"/></svg>',
+    part: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>',
+    sites: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg>',
+    gmf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14l2-5a2 2 0 0 1 1.9-1.3h10.2A2 2 0 0 1 19 9l2 5v4h-2"/><path d="M5 18H3v-4h18"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/><path d="M9.3 18h5.4"/></svg>',
+    mh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 4 6 6"/><path d="m11 7 6 6"/><path d="m12.5 5.5-5 5 6 6 5-5"/><path d="M10 13 3 20"/><path d="M13 21h8"/></svg>'
+  };
+  var ICONES_SOURCES = [
+    { id: 'marketcheck', nom: 'Concessionnaires', sous: 'MarketCheck', ico: 'mc', etat: 'mc' },
+    { id: 'particulier', nom: 'Particuliers', sous: 'tous les sites', ico: 'part', etat: 'sites' },
+    { id: 'sites', nom: 'Sites d\'annonces', sous: 'AutoTrader · Kijiji · CarGurus · Carpages', ico: 'sites', etat: 'sites' },
+    { id: 'gmf', nom: 'DealerSource', sous: 'GM Financial', ico: 'gmf', etat: 'gmf', marques: ['CHEVROLET', 'GMC', 'BUICK', 'CADILLAC'], defaut: ['STM', 'HAWKS'] },
+    { id: 'manheim', nom: 'Manheim', sous: 'BMW Financial Services', ico: 'mh', etat: 'manheim', marques: ['BMW', 'MINI'], defaut: ['BMW'] }
+  ];
+  function sourceDe(o) { if (estParticulier(o)) return 'particulier'; if (SITES_ANNONCES[o.source]) return 'sites'; if (o.source === 'gmf' || o.source === 'manheim') return o.source; return 'marketcheck'; }
+  /* Une ancienne recherche gardée peut viser un seul site (« kijiji ») : c'est l'icône « Sites d'annonces ». */
+  function sourceFiltre(s) { return SITES_ANNONCES[s] ? 'sites' : (s || ''); }
+  function nomSource(s) { var x = ICONES_SOURCES.filter(function (i) { return i.id === sourceFiltre(s); })[0]; return x ? x.nom + (x.id === 'marketcheck' ? ' (MarketCheck)' : '') : s; }
   function libelleSource(o) { return o.source === 'gmf' ? 'GM Financial DealerSource' : o.source === 'manheim' ? 'Manheim (BMW Financial Services)' : (SITES_ANNONCES[o.source] ? SITES_ANNONCES[o.source] + (estParticulier(o) ? ' (particulier)' : '') : 'Concessionnaire (MarketCheck)'); }
   var COURTS = { STM: 'Ste Marie', HAWKS: 'Hawkesbury', BMW: 'BMW Sherbrooke', VW: 'VW Brossard', HYUNDAI: 'Hyundai Longueuil' };
   var LIMITE = 150;
@@ -176,7 +197,7 @@
     this.elSeul = h('div.segment#occ-vue');
     this.elGroupe = h('div.segment.occ-groupe#occ-groupe');
     this.construireModeles();
-    this.elSource = h('select.saisie#occ-source', { onchange: function () { self.f.source = self.elSource.value; self.rafraichir(); } }, SOURCES.map(function (s) { return h('option', { value: s[0], text: s[1] }); }));
+    this.elSources = h('div.occ-srcic#occ-sources', { role: 'group', 'aria-label': 'Sources' });
     this.elProv = h('select.saisie#occ-province', { onchange: function () { self.f.province = self.elProv.value; self.rafraichir(); } });
     this.elCote = h('select.saisie#occ-cote', { onchange: function () { self.f.cote = self.elCote.value; self.rafraichir(); } }, FILTRES_COTE.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
     this.elStatut = h('select.saisie#occ-statut', { onchange: function () { self.f.statut = self.elStatut.value; self.limite = LIMITE; self.rafraichir(); } }, STATUTS.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
@@ -185,6 +206,7 @@
     this.construireRecherches();
     this.elCouverture = h('div.occ-couverture');
     var filtres = h('div.carte.occ-filtres', [h('div.carte-corps', [
+      h('div.occ-ligne.occ-ligne-src', [this.elSources]),
       h('div.occ-ligne', [this.elGroupe, h('div.recherche', [h('span', { html: I.recherche }), this.elQ, this.elSuggestions]), this.elPlusEnv, this.elModelesEnv, this.elRechEnv, this.elTri]),
       h('div.occ-ligne', [this.elSeul, this.elMarques])
     ])]);
@@ -271,7 +293,7 @@
     });
     this.elModelesEnv = h('div.inv2-plus-env.occ-modeles-env', [this.btnModeles, this.popModeles]);
   };
-  /* « Filtres » : source, province, cote CarGurus, prix, km, année, distance — dans un panneau, pour une barre plus simple. */
+  /* « Filtres » : province, cote CarGurus, prix, km, année, distance, statut — dans un panneau (la source est en icônes, en haut). */
   Opportunites.prototype.construirePlus = function () {
     var self = this;
     var champNb = function (id, place, pas, cle) {
@@ -285,9 +307,9 @@
     var ligne = function (titre, el) { return h('label.occ-plus-champ', [h('span', { text: titre }), el]); };
     this.popPlus = h('div.inv2-pop.occ-pop-plus', { hidden: true, role: 'dialog', 'aria-label': 'Filtres' }, [
       h('div.occ-plus-grille', [ligne('Prix demandé maximal ($)', this.elPrixMax), ligne('Kilométrage maximal', this.elKmMax), ligne('Année-modèle minimale', this.elAnneeMin),
-        ligne('Distance maximale (km de route)', this.elDistMax), ligne('Source', this.elSource), ligne('Province', this.elProv), ligne('Cote CarGurus', this.elCote), ligne('Statut', this.elStatut)]),
+        ligne('Distance maximale (km de route)', this.elDistMax), ligne('Province', this.elProv), ligne('Cote CarGurus', this.elCote), ligne('Statut', this.elStatut)]),
       h('div.occ-mod-pied', [h('button.btn.petit.fantome', { type: 'button', text: 'Effacer ces filtres', onclick: function () {
-        ['prixMax', 'kmMax', 'anneeMin', 'distMax'].forEach(function (k) { self.f[k] = 0; }); self.f.source = ''; self.f.province = ''; self.f.cote = ''; self.f.statut = ''; self.limite = LIMITE; self.synchroniserChamps(); self.rafraichir();
+        ['prixMax', 'kmMax', 'anneeMin', 'distMax'].forEach(function (k) { self.f[k] = 0; }); self.f.province = ''; self.f.cote = ''; self.f.statut = ''; self.limite = LIMITE; self.synchroniserChamps(); self.rafraichir();
       } })])
     ]);
     var dehors = function (e) { if (!self.elPlusEnv.contains(e.target)) { self.popPlus.hidden = true; self.btnPlus.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); } };
@@ -297,13 +319,13 @@
     });
     this.elPlusEnv = h('div.inv2-plus-env.occ-plus-env', [this.btnPlus, this.popPlus]);
   };
-  Opportunites.prototype.nbPlus = function () { var f = this.f; return ['prixMax', 'kmMax', 'anneeMin', 'distMax', 'source', 'province', 'cote', 'statut'].filter(function (k) { return !!f[k]; }).length; };
+  Opportunites.prototype.nbPlus = function () { var f = this.f; return ['prixMax', 'kmMax', 'anneeMin', 'distMax', 'province', 'cote', 'statut'].filter(function (k) { return !!f[k]; }).length; };
   Opportunites.prototype.synchroniserChamps = function () {
     var f = this.f, val = function (el, v) { var t = v ? String(v) : ''; if (el.value !== t) el.value = t; };
     if (this.elQ.value !== (f.q || '')) this.elQ.value = f.q || '';
     val(this.elPrixMax, f.prixMax); val(this.elKmMax, f.kmMax); val(this.elDistMax, f.distMax);
     this.elAnneeMin.value = f.anneeMin ? String(f.anneeMin) : '';
-    this.elSource.value = f.source || ''; this.elCote.value = f.cote || ''; this.elTri.value = f.tri;
+    this.elCote.value = f.cote || ''; this.elTri.value = f.tri;
     this.elStatut.value = STATUTS.some(function (x) { return x[0] === f.statut; }) ? f.statut : '';
     if ([].some.call(this.elProv.options, function (o) { return o.value === (f.province || ''); })) this.elProv.value = f.province || '';
   };
@@ -368,7 +390,7 @@
     if (f.kmMax) ajout(AMX.fmtNombre(f.kmMax) + ' km au plus', function () { f.kmMax = 0; });
     if (f.anneeMin) ajout(f.anneeMin + ' et plus', function () { f.anneeMin = 0; });
     if (f.distMax) ajout('à ' + AMX.fmtNombre(f.distMax) + ' km au plus', function () { f.distMax = 0; });
-    if (f.source) ajout(SOURCES.filter(function (s) { return s[0] === f.source; })[0][1], function () { f.source = ''; });
+    if (f.source) ajout(nomSource(f.source), function () { f.source = ''; });
     if (f.province) ajout(f.province, function () { f.province = ''; });
     if (f.cote) ajout(FILTRES_COTE.filter(function (x) { return x[0] === f.cote; })[0][1], function () { f.cote = ''; });
     if (f.statut) ajout((STATUTS.filter(function (s) { return s[0] === f.statut; })[0] || [0, f.statut])[1], function () { f.statut = ''; });
@@ -515,7 +537,7 @@
       if (sauf !== 'statut') { if (f.statut === '' && (o.statut === 'ecartee' || o.statut === 'achetee')) return false; if (f.statut && f.statut !== 'tous' && o.statut !== f.statut) return false; }
       if (sauf !== 'modeles' && mods.liste.length) { var dans = mods.liste.indexOf(cleModele(o)) >= 0; if (mods.mode === 'inclure' ? !dans : dans) return false; }
       if (sauf !== 'marque' && f.marque && String(o.marque || '').toUpperCase() !== f.marque) return false;
-      if (sauf !== 'source' && f.source && (f.source === 'particulier' ? !estParticulier(o) : (o.source || 'marketcheck') !== f.source)) return false;
+      if (sauf !== 'source' && f.source && sourceDe(o) !== sourceFiltre(f.source)) return false;
       if (sauf !== 'province' && f.province && String(o.province || '').toUpperCase() !== f.province) return false;
       if (sauf !== 'cote' && f.cote) { if (f.cote === 'sans' ? !!COTES[o.coteCg] : rangCote(o) < COTES[f.cote].r) return false; }
       if (f.prixMax && !(num(o.prix) <= f.prixMax)) return false;
@@ -817,6 +839,7 @@
   Opportunites.prototype.rafraichir = function () {
     var self = this, d = this.donnees; if (!d || d.refuse) return;
     var f = this.f, p = d.params || {};
+    this.rendreIconesSources();
     // Marques (pastilles) — nombre avec les autres filtres
     AMX.vider(this.elMarques);
     var pourMarque = this.filtrer('marque'), parM = {};
@@ -880,6 +903,42 @@
     this.rendreKpis(liste, p);
     this.rendreListe(liste, p);
     this.rendreOnglets();
+  };
+  /* Les sources qui s'appliquent : MarketCheck, particuliers et sites d'annonces partout ; DealerSource et Manheim seulement
+     pour une concession qui vend leurs marques (et jamais dans « Autres marques » : ils n'en importent pas). */
+  Opportunites.prototype.sourcesApplicables = function () {
+    var d = this.donnees || {}, marques = (d.params || {}).marques || {}, cie = this.compagnie, autres = this.f.groupe === 'autres';
+    return ICONES_SOURCES.filter(function (s) {
+      if (!s.marques) return true;
+      if (autres) return false;
+      if (!cie) return true;
+      var cies = {};
+      Object.keys(marques).forEach(function (k) { if (s.marques.indexOf(String(k).toUpperCase()) >= 0) (marques[k] || []).forEach(function (c) { cies[c] = true; }); });
+      if (!Object.keys(cies).length) (s.defaut || []).forEach(function (c) { cies[c] = true; });
+      return !!cies[cie];
+    });
+  };
+  Opportunites.prototype.rendreIconesSources = function () {
+    var self = this, f = this.f, el = this.elSources;
+    var appl = this.sourcesApplicables();
+    if (f.source && !appl.some(function (s) { return s.id === sourceFiltre(f.source); })) f.source = '';
+    var etats = {}; this.sourcesEtat().forEach(function (x) { etats[x.id] = x; });
+    var pour = this.filtrer('source'), par = {};
+    pour.forEach(function (o) { var k = sourceDe(o); par[k] = (par[k] || 0) + 1; });
+    var actif = sourceFiltre(f.source);
+    AMX.vider(el);
+    var bouton = function (id, nom, sous, ico, n, etat) {
+      var titre = nom + (sous ? ' — ' + sous : '') + (etat ? ' · ' + etat.nom + ' : ' + etat.texte : '') + (id === 'sites' ? ' (les particuliers sont dans « Particuliers »)' : '');
+      return h('button.occ-srcic-b' + (actif === id ? '.actif' : '') + (n ? '' : '.zero'), { type: 'button', 'data-source': id, 'aria-pressed': actif === id ? 'true' : 'false', title: titre,
+        onclick: function () { f.source = actif === id ? '' : id; self.limite = LIMITE; self.rafraichir(); } }, [
+        ico ? h('span.ic', { html: SVG_SRC[ico] }) : null,
+        h('span.t', [h('span', { text: nom }), sous ? h('small', { text: sous }) : null]),
+        h('b', { text: AMX.fmtNombre(n) }),
+        etat ? h('i.pt.' + etat.etat, { title: etat.nom + ' : ' + etat.texte }) : null
+      ]);
+    };
+    el.appendChild(bouton('', 'Toutes les sources', '', '', pour.length, null));
+    appl.forEach(function (s) { el.appendChild(bouton(s.id, s.nom, s.sous, s.ico, par[s.id] || 0, etats[s.etat])); });
   };
   /* 24 oct. (Maxime : « les 15 BMW qui sortent sont des X3 ») : le robot lit un modèle-année à la fois ; tant qu'une marque
      n'est pas entièrement lue, on le dit sous la marque choisie (et un administrateur peut la lire tout de suite). */
@@ -1127,6 +1186,18 @@
       '.occ-pastille { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--trait); background: var(--carte, #fff); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; color: var(--encre-2); }',
       '.occ-pastille b { font-weight: 700; color: var(--encre-1); }',
       '.occ-pastille.actif { background: var(--vert-clair); border-color: var(--vert); color: var(--vert-fonce); }',
+      '.occ-srcic { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 8px; width: 100%; }',
+      '.occ-srcic-b { display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--trait); background: var(--carte, #fff); border-radius: 12px; padding: 8px 12px; font: inherit; cursor: pointer; color: var(--encre-2); text-align: left; min-height: 48px; }',
+      '.occ-srcic-b:hover { border-color: var(--vert); }',
+      '.occ-srcic-b .ic { display: inline-flex; color: var(--encre-3); } .occ-srcic-b .ic svg { width: 22px; height: 22px; }',
+      '.occ-srcic-b .t { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }',
+      '.occ-srcic-b .t > span { font-weight: 600; color: var(--encre-1); font-size: 14px; } .occ-srcic-b .t small { font-size: 12px; color: var(--encre-3); }',
+      '.occ-srcic-b > b { font-size: 15px; font-weight: 700; color: var(--encre-1); margin-left: 2px; }',
+      '.occ-srcic-b.actif { background: var(--vert-clair); border-color: var(--vert); } .occ-srcic-b.actif .ic { color: var(--vert-fonce); }',
+      '.occ-srcic-b.zero > b { color: var(--encre-3); }',
+      '.occ-srcic-b .pt.vert { background: var(--vert); } .occ-srcic-b .pt.ambre { background: #D97706; } .occ-srcic-b .pt.rouge { background: var(--rouge); } .occ-srcic-b .pt.bleu { background: var(--bleu); }',
+      '.occ-srcic-b { min-width: 0; } .occ-srcic-b .t { flex: 1 1 auto; } .occ-srcic-b .t > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .occ-srcic-b > b { margin-left: auto; }',
+      '@media (max-width: 640px) { .occ-srcic { display: flex; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; } .occ-srcic::-webkit-scrollbar { display: none; } .occ-srcic-b { flex: 0 0 auto; min-height: 44px; padding: 6px 10px; gap: 8px; } .occ-srcic-b .t small { display: none; } .occ-srcic-b .ic svg { width: 18px; height: 18px; } }',
       '.occ-select { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--encre-3); }',
       '.occ-select > span { font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }',
       '.occ-kpis { margin-bottom: 14px; }',

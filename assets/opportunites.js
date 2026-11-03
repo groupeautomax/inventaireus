@@ -57,7 +57,7 @@
   function km(v) { return nb(num(v)) ? AMX.fmtNombre(Math.round(num(v))) + ' km' : '—'; }
   function ageJ(iso) { if (!iso) return Infinity; var t = new Date(iso).getTime(); return isFinite(t) ? (Date.now() - t) / 86400000 : Infinity; }
   function vehicule(o) { return [o.annee, o.marque, o.modele, o.version].filter(Boolean).join(' '); }
-  function nomMarque(m) { var x = String(m || ''); if (/^(GMC|BMW|VW)$/i.test(x)) return x.toUpperCase(); return x.charAt(0).toUpperCase() + x.slice(1).toLowerCase(); }
+  function nomMarque(m) { var x = String(m || ''); if (/^(GMC|BMW|VW|MINI)$/i.test(x)) return x.toUpperCase(); return x.charAt(0).toUpperCase() + x.slice(1).toLowerCase(); }
   /* Même score que le serveur (OCC_score_) : les bons achats (prix ≤ gros OpenLane) d'abord, par profit rendu chez nous ;
      puis les autres avec prévision ; puis sans prévision ; un prix à vérifier en dernier. */
   function scoreDe(k, marge) {

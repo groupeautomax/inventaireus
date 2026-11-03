@@ -871,8 +871,8 @@
     var NOMS = { BMW: 'BMW', STM: 'Ste Marie', HAWKS: 'Hawkesbury', VW: 'VW', HYUNDAI: 'Hyundai' };
     var COLS = [
       ['rdr', 'RDR manuf.', 'RDR reçus par le constructeur ce mois-ci'],
-      ['rdrLivres', 'RDR livrés', 'RDR du constructeur dont la vente est livrée (date de livraison au livre)'],
-      ['rdrNonLivres', 'RDR non livrés', 'RDR du constructeur dont la vente n\'est pas encore livrée'],
+      ['rdrLivres', 'RDR livrés', 'RDR du constructeur dont la vente est livrée dans le mois (date de livraison au livre)'],
+      ['rdrNonLivres', 'RDR non livrés', 'RDR du constructeur dont la vente n\'est pas livrée dans le mois : pas encore livrée, ou livrée un autre mois'],
       ['rdrSansVente', 'Pas au livre', 'RDR du constructeur sans vente au Livre des ventes (NIV introuvable)'],
       ['commandes', 'Commandes vendues', 'Neufs vendus, pas livrés, sans RDR chez le constructeur'],
       ['comptabilises', 'Compta.', 'RDR livrés que la comptabilité a comptabilisés']
@@ -933,7 +933,7 @@
       var demoVente = function (y) { return /^(demo|courtoisie)$/.test(String(y.categorie || (y.vente && y.vente.categorie) || '')); };
       rows.push({ cle: 'detail', titre: 'RDR manuf. détail', g: rdrSousGroupe(gr.detail, function (y) { return !demoRdr(y); }, function (y) { return !demoVente(y); }) });
       rows.push({ cle: 'demo', titre: 'RDR démo', g: rdrSousGroupe(gr.detail, demoRdr, demoVente) });
-      if (!rdrVide(gr.flotte)) rows.push({ cle: 'flotte', titre: 'Flotte', g: gr.flotte });
+      rows.push({ cle: 'flotte', titre: 'RDR employé', g: gr.flotte });   /* 3 nov. : chez BMW, la flotte = statut « Fleet/Employé » du livre */
       rows.push({ cle: 'total', titre: 'Total du mois', g: rdrFusion([gr.detail, gr.flotte]), total: true });
       return rows;
     }
@@ -954,7 +954,11 @@
     var vente = function (v) { return v ? [ouvrir(v.id), h('span', { text: (v.stock ? ' · # ' + v.stock : '') + (v.client ? ' · ' + v.client : '') + (v.parStock ? ' · relié par le # stock' : '') })] : [h('span.puce.alerte', { text: 'aucune vente au livre' })]; };
     var SECTIONS = {
       rdrLivres: ['RDR livrés', ['Date RDR', 'Véhicule', 'NIV', 'Vente', 'Livrée le'], function (y) { return h('tr', [h('td', { text: date(y.date) }), h('td', { text: y.vehicule + (y.type ? ' · ' + y.type : '') }), h('td.mono', { text: y.vin }), h('td', vente(y.vente)), h('td', { text: date(y.vente && y.vente.dateLivraison) + (y.vente && y.vente.comptabilisee ? ' · comptabilisée' : '') })]); }],
-      rdrNonLivres: ['RDR non livrés', ['Date RDR', 'Véhicule', 'NIV', 'Vente', 'Vendue le'], function (y) { return h('tr', [h('td', { text: date(y.date) }), h('td', { text: y.vehicule + (y.type ? ' · ' + y.type : '') }), h('td.mono', { text: y.vin }), h('td', vente(y.vente)), h('td', { text: date(y.vente && y.vente.dateVente) + (y.vente && y.vente.dateLivraison ? ' · livraison prévue ' + date(y.vente.dateLivraison) : '') })]); }],
+      rdrNonLivres: ['RDR non livrés dans le mois', ['Date RDR', 'Véhicule', 'NIV', 'Vente', 'Vendue le'], function (y) {
+        var dl = y.vente && y.vente.dateLivraison, passee = dl && dl <= isoLocal(new Date());
+        var quand = !dl ? '' : (y.livraisonAutreMois ? (passee ? ' · livrée le ' : ' · livraison prévue ') + date(dl) : ' · livraison prévue ' + date(dl));
+        return h('tr', [h('td', { text: date(y.date) }), h('td', { text: y.vehicule + (y.type ? ' · ' + y.type : '') }), h('td.mono', { text: y.vin }), h('td', vente(y.vente)),
+          h('td', [h('span', { text: date(y.vente && y.vente.dateVente) + quand }), y.livraisonAutreMois ? h('span.puce.attention', { text: 'livrée en ' + moisLibelle(y.livraisonAutreMois), title: 'Vente livrée un autre mois que le RDR : RDR manufacturier et non livré dans ce mois' }) : null])]); }],
       rdrSansVente: ['RDR pas au livre', ['Date RDR', 'Véhicule', 'NIV', 'Type au portail'], function (y) { return h('tr', [h('td', { text: date(y.date) }), h('td', { text: y.vehicule }), h('td.mono', { text: y.vin }), h('td', { text: y.type || '—' })]); }],
       commandes: ['Commandes vendues', ['Vendue le', 'Vente', 'Véhicule', 'NIV'], function (y) { return h('tr', [h('td', { text: date(y.dateVente) }), h('td', [ouvrir(y.id), h('span', { text: (y.stock ? ' · # ' + y.stock : '') + (y.client ? ' · ' + y.client : '') })]), h('td', { text: y.vehicule }), h('td', y.sansNiv ? [h('span.puce', { text: 'sans NIV', title: 'Le livre n\'a ni NIV ni # stock reconnu : on ne peut pas savoir si le constructeur a le RDR' })] : [h('span.mono', { text: y.vin })])]); }],
       livresSansRdr: ['Livrés ce mois-ci sans RDR chez le constructeur', ['Livrée le', 'Vente', 'Véhicule', 'NIV'], function (y) { return h('tr', [h('td', { text: date(y.dateLivraison) }), h('td', [ouvrir(y.id), h('span', { text: (y.stock ? ' · # ' + y.stock : '') + (y.client ? ' · ' + y.client : '') })]), h('td', { text: y.vehicule }), h('td', y.sansNiv ? [h('span.puce', { text: 'sans NIV' })] : [h('span.mono', { text: y.vin })])]); }]
@@ -970,7 +974,7 @@
         if (!filtre.cote && rg.total) return;   /* « Voir le détail » : les sous-totaux, pas le total en double */
         var g = rg.g, n = g.n;
         corps.appendChild(h('h4', { text: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + rg.titre }));
-        if (!filtre.cat) corps.appendChild(h('p.ventes-aide', { text: capitale(r.moisLibelle) + (textePeriodeManuf(r.periode || periodeManuf(r.mois)) ? ' (' + textePeriodeManuf(r.periode || periodeManuf(r.mois)).replace(' (mois du manufacturier)', '') + ')' : '') + ' : ' + n.rdr + ' RDR chez ' + x.portail + ' — ' + n.rdrLivres + ' livré' + (n.rdrLivres > 1 ? 's' : '') + ', ' + n.rdrNonLivres + ' pas encore livré' + (n.rdrNonLivres > 1 ? 's' : '') + ', ' + n.rdrSansVente + ' pas au livre ; ' + (function () { var pa = commandesParAge(g, r.mois); return pa.nRecentes + ' commande' + (pa.nRecentes > 1 ? 's' : '') + ' vendue' + (pa.nRecentes > 1 ? 's' : '') + ' de moins de ' + COMMANDES_JOURS + ' jours sans RDR' + (pa.nVieilles ? ' (+ ' + pa.nVieilles + ' plus vieilles)' : ''); })() + '.' + (x.lu ? ' Portail lu le ' + AMX.fmtDate(x.lu, true) + '.' : ' Le portail n\'a jamais été lu.') }));
+        if (!filtre.cat) corps.appendChild(h('p.ventes-aide', { text: capitale(r.moisLibelle) + (textePeriodeManuf(r.periode || periodeManuf(r.mois)) ? ' (' + textePeriodeManuf(r.periode || periodeManuf(r.mois)).replace(' (mois du manufacturier)', '') + ')' : '') + ' : ' + n.rdr + ' RDR chez ' + x.portail + ' — ' + n.rdrLivres + ' livré' + (n.rdrLivres > 1 ? 's' : '') + ' dans le mois, ' + n.rdrNonLivres + ' non livré' + (n.rdrNonLivres > 1 ? 's' : '') + ' dans le mois, ' + n.rdrSansVente + ' pas au livre ; ' + (function () { var pa = commandesParAge(g, r.mois); return pa.nRecentes + ' commande' + (pa.nRecentes > 1 ? 's' : '') + ' vendue' + (pa.nRecentes > 1 ? 's' : '') + ' de moins de ' + COMMANDES_JOURS + ' jours sans RDR' + (pa.nVieilles ? ' (+ ' + pa.nVieilles + ' plus vieilles)' : ''); })() + '.' + (x.lu ? ' Portail lu le ' + AMX.fmtDate(x.lu, true) + '.' : ' Le portail n\'a jamais été lu.') }));
         var vides = true;
         ordre.forEach(function (cat) {
           var s = SECTIONS[cat], tabs;

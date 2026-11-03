@@ -249,7 +249,7 @@
     this.el.appendChild(h('div.acc-titre', [h('h2', 'Où aller'), h('span', 'L\'étoile fixe la page de départ')]));
     var tuiles = h('div.acc-tuiles');
     AMX.listeSections().filter(function (s) { return s.id !== 'accueil'; }).forEach(function (s) {
-      var onglets = (s.onglets || []).filter(function (o) { return !o.visible || o.visible(); });
+      var onglets = AMX.ongletsMenu ? AMX.ongletsMenu(s) : (s.onglets || []).filter(function (o) { return !o.visible || o.visible(); });   /* 3 nov. : sans les pages rangées dans une page de choix */
       var premier = onglets[0] ? onglets[0].id : '';
       var estDepart = !!depart && depart.section === s.id;
       var btnDepart = h('button.depart' + (estDepart ? '.actif' : ''), { type: 'button', title: estDepart ? 'Le site s\'ouvre ici — cliquez pour revenir à l\'Accueil' : 'Ouvrir le site ici par défaut', 'aria-label': 'Page de départ', html: estDepart ? ETOILE_PLEINE : ETOILE, onclick: function (e) { e.preventDefault(); e.stopPropagation(); AMX.accueil.choisirDepart(estDepart ? '' : s.id, premier); } });
@@ -269,8 +269,9 @@
     /* ---- bas : page de départ + nouveautés ---- */
     var options = [{ v: '', t: 'Accueil (cette page)' }];
     AMX.listeSections().filter(function (s) { return s.id !== 'accueil'; }).forEach(function (s) {
-      var onglets = (s.onglets || []).filter(function (o) { return !o.visible || o.visible(); });
-      if (onglets.length > 1) onglets.forEach(function (o) { options.push({ v: s.id + '/' + o.id, t: s.titre + ' › ' + o.titre }); });
+      var onglets = (s.onglets || []).filter(function (o) { return (!o.visible || o.visible()) && !(o.horsMenu && o.horsMenu()); });
+      var titreDe = function (id) { var x = onglets.filter(function (y) { return y.id === id; })[0]; return x ? x.titre + ' › ' : ''; };   /* 3 nov. : « Inventaire › Occasion › Analyse » */
+      if (onglets.length > 1) onglets.forEach(function (o) { options.push({ v: s.id + '/' + o.id, t: s.titre + ' › ' + (o.parent ? titreDe(o.parent) : '') + o.titre }); });
       else options.push({ v: s.id + '/' + (onglets[0] ? onglets[0].id : ''), t: s.titre });
     });
     var actuel = depart ? depart.section + '/' + depart.onglet : '';
@@ -300,9 +301,10 @@
       function (e) { offresCache.promesse = null; offresCache.quand = Date.now(); offresCache.liste = offresCache.liste || []; throw e; });
     return offresCache.promesse;
   }
-  function voit(id) { var s = (AMX.sources && AMX.sources[id]) || AMX.sections[id]; return !!s && (!s.visible || s.visible()); }
+  /* 3 nov. : AMX.voitSource tient compte des onglets cachés par le rôle (app.js) — rien à faire n'est montré pour une page cachée. */
+  function voit(id) { if (AMX.voitSource) return AMX.voitSource(id); var s = (AMX.sources && AMX.sources[id]) || AMX.sections[id]; return !!s && (!s.visible || s.visible()); }
   function ongletDe(src, id) { var s = (AMX.sources && AMX.sources[src]) || AMX.sections[src]; return s ? (s.onglets || []).filter(function (o) { return o.id === id; })[0] || null : null; }
-  function ongletVoit(src, id) { if (!voit(src)) return false; var o = ongletDe(src, id); return !!o && (!o.visible || o.visible()); }
+  function ongletVoit(src, id) { if (!voit(src) || (AMX.voitSource && !AMX.voitSource(src, id))) return false; var o = ongletDe(src, id); return !!o && (!o.visible || o.visible()); }
   function compteurOnglet(src, id) { var o = ongletDe(src, id), n = 0; try { n = o && o.compteur ? Number(o.compteur()) || 0 : 0; } catch (e) {} return n; }
   function jourLocal() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function deCie(c, choisie) { return !choisie || String(c || '').toUpperCase() === choisie; }
@@ -440,7 +442,7 @@
     }
     // 27 oct. : demandes d'évaluation — à faire pour moi (évaluateur, rouge), faites pour moi (représentant, vert, 2 jours)
     // 2 nov. : circuit du directeur — à approuver, montants à confirmer (direction) ; le représentant passe par son portail.
-    var boardE = voit('demandesEval'), portailE = voit('evalPortail');
+    var boardE = voit('demandesEval'), portailE = voit('evalPortail') && !!(AMX.representantEval && AMX.representantEval());   /* 3 nov. : le portail = celui du représentant */
     if ((boardE || portailE) && AMX.evalDemandes && AMX.evalDemandes.enCache()) {
       var cieE = AMX.compagnieChoisie('evaluations'), deAF = boardE ? (AMX.evalDemandes.aFairePourMoi(cieE) || []) : [], dePr = AMX.evalDemandes.pretesPourMoi(cieE) || [];
       var lienRep = function (p) { return portailE ? AMX.lien('evalPortail', '', p && p.id ? { id: p.id } : undefined) : AMX.lien('demandesEval', '', Object.assign({ voir: 'deMoi' }, p || {})); };

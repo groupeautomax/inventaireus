@@ -1070,7 +1070,8 @@
 
     // Évaluation (Inventaire › Évaluations) : ce qu'on en sait, depuis la fiche d'inventaire (7 oct.).
     // 2 nov. : un représentant ne voit pas l'analyse de l'évaluation (il passe par Vente › Évaluations demandées).
-    var voitEval = !AMX.voitEvaluations || AMX.voitEvaluations();
+    // 3 nov. : l'onglet Évaluation peut aussi être caché par le rôle (service, marketing, utilisateur).
+    var voitEval = (!AMX.voitEvaluations || AMX.voitEvaluations()) && (!AMX.voitOnglet || AMX.voitOnglet('inventaire', 'evaluations'));
     var blocEval = voitEval ? h('div.bloc', [h('h3', ['Évaluation', h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.vin }), text: 'Ouvrir' })])]) : null;
     var zoneEval = h('div.doux.petit', 'Chargement…');
     if (blocEval) blocEval.appendChild(zoneEval);
@@ -1137,12 +1138,14 @@
     var sticker = stickerUrl(v);
     // v130 (rapport « Refonte ergonomique », gain rapide 12) : les gestes principaux en haut du panneau, juste sous
     // l'en-tête — avant, « Déclarer la vente » était dans l'avant-dernier bloc.
+    // 3 nov. : un bouton ne mène jamais à un onglet que le rôle du compte cache (Onglets du portail).
+    var voitOng = function (t, o) { return !AMX.voitOnglet || AMX.voitOnglet(t, o); };
     var blocActions = h('div.bloc.inv-actions', [h('h3', 'Actions'),
       h('div.actions-ligne', [
         // 21 oct. : déclarer la vente (ventes.js) — le script remplit le Livre des ventes (détail ou wholesale selon le registre).
-        (AMX.ventes && AMX.ventes.peutDeclarer() && ['comptabilise'].indexOf(v.statut) < 0) ? h('button.btn.primaire.inv-vendre', { type: 'button', title: 'Déclarer la vente de ce véhicule — ScanAutomax écrit la ligne dans le Livre des ventes', html: I.vente + '<span>Déclarer la vente</span>', onclick: function () { AMX.ventes.declarer({ compagnie: v.compagnie, type: cfg.feuille === 'DETAIL' ? 'usage' : 'wholesale', vin: v.vin, stock: v.stock, modeleTexte: v.modele, coutant: v.cout, source: 'Inventaire › Occasion › ' + cfg.titre, resterIci: true }); } }) : null,
+        (AMX.ventes && AMX.ventes.peutDeclarer() && voitOng('vente', 'ventes') && ['comptabilise'].indexOf(v.statut) < 0) ? h('button.btn.primaire.inv-vendre', { type: 'button', title: 'Déclarer la vente de ce véhicule — ScanAutomax écrit la ligne dans le Livre des ventes', html: I.vente + '<span>Déclarer la vente</span>', onclick: function () { AMX.ventes.declarer({ compagnie: v.compagnie, type: cfg.feuille === 'DETAIL' ? 'usage' : 'wholesale', vin: v.vin, stock: v.stock, modeleTexte: v.modele, coutant: v.cout, source: 'Inventaire › Occasion › ' + cfg.titre, resterIci: true }); } }) : null,
         // 14 oct. (Maxime) : « un véhicule disponible à la vente doit pouvoir être envoyé à un acheteur inscrit, par texto et par courriel ».
-        (AMX.offres && AMX.offres.envoyerAcheteurs && (AMX.perm('changerStatut') || AMX.perm('voirResultats')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0) ? h('button.btn', { type: 'button', title: 'Envoyer la page publique de ce véhicule à des acheteurs inscrits, par courriel et par texto (publié dans la vitrine si besoin)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(v.vin, { concession: AMX.COMPAGNIE_CONCESSION[String(v.compagnie || '').toUpperCase()] || '' }); } }) : null,
+        (AMX.offres && AMX.offres.envoyerAcheteurs && (voitOng('vente', 'acheteurs') || voitOng('vente', 'envente')) && (AMX.perm('changerStatut') || AMX.perm('voirResultats')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0) ? h('button.btn', { type: 'button', title: 'Envoyer la page publique de ce véhicule à des acheteurs inscrits, par courriel et par texto (publié dans la vitrine si besoin)', html: I.courriel + '<span>Envoyer à un acheteur</span>', onclick: function () { AMX.offres.envoyerAcheteurs(v.vin, { concession: AMX.COMPAGNIE_CONCESSION[String(v.compagnie || '').toUpperCase()] || '' }); } }) : null,
         // 26 oct. (Louis Prassinos) : changer le prix de détail — courriel aux vendeurs, puis inscrit sur le site par le favori D2C.
         (cfg.feuille === 'DETAIL' && AMX.prixDetail && AMX.prixDetail.peut() && ['achete', 'transitqc', 'stock'].indexOf(v.statut) >= 0) ? h('button.btn', { type: 'button', title: 'Changer le prix de détail affiché sur le site de la concession', html: (I.argent || I.offres || '') + '<span>Modifier le prix</span>', onclick: function () {
           var m = AMX.occMarche && AMX.occMarche.enCache && AMX.occMarche.enCache(), mv = m && (m.vehicules || []).filter(function (x) { return String(x.vin || '').toUpperCase() === String(v.vin || '').toUpperCase(); })[0];
@@ -1154,8 +1157,8 @@
           if (dv && (dv.etat === 'envoyee' || dv.etat === 'retournee')) { AMX.toast('Une demande est déjà en attente du service pour ce véhicule (' + (dv.type === 'retouche' ? 'retouche' : 'mise en marché') + ') : ouvrez-la dans Service › Suivi.', 'attention', 7000); return; }
           AMX.demandes.retouche(v);
         } }) : null,
-        AMX.sections.offres ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
-        h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' })
+        (AMX.sections.offres && voitOng('vente', 'envente')) ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
+        voitOng('inventaire', 'achat') ? h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }) : null
       ])
     ]);
     if (!blocActions.querySelector('.actions-ligne').children.length) blocActions = null;

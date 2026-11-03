@@ -485,7 +485,7 @@
   Fiche.prototype.verifierEvaluation = function (vin, importer) {
     var self = this;
     vin = String(vin || '').trim().toUpperCase();
-    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) || (AMX.voitEvaluations && !AMX.voitEvaluations())) { this.evaluation = null; this.rendreEvaluation(); return Promise.resolve(); }   /* 2 nov. : rien pour un représentant */
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) || (AMX.voitEvaluations && !AMX.voitEvaluations()) || (AMX.voitOnglet && !AMX.voitOnglet('inventaire', 'evaluations'))) { this.evaluation = null; this.rendreEvaluation(); return Promise.resolve(); }   /* 2 nov. : rien pour un représentant ; 3 nov. : ni pour un compte sans l'onglet Évaluation */
     this.evalVerifiee = vin;
     return AMX.get('evalVin=' + encodeURIComponent(vin)).then(function (d) {
       if (String(self.vinCourant || '').toUpperCase() !== vin) return;

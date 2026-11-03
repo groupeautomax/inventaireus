@@ -344,7 +344,7 @@
       '.ventes-page .ventes-defile { overflow-x: auto; } .ventes-table td.num, .ventes-table th.num { white-space: nowrap; } .ventes-table td.vehicule { min-width: 170px; }',
       '.ventes-page .ventes-comp { min-width: 250px; } .ventes-comp .titre { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); margin-bottom: 4px; }',
       '.ventes-rdr-comp h5 { margin: 12px 0 6px; font-size: 13px; } .ventes-rdr-portail .btn { margin-top: 6px; } .ventes-page .ventes-rdr-portail { min-width: max-content; }',
-      '.ventes-rdr-portail .rdr-groupes tr.flotte th .rdr-cote { color: var(--sarcelle); } .ventes-rdr-portail .rdr-groupes th .rdr-cote { font-weight: 500; color: var(--encre-3); } .ventes-rdr-portail button.rdr-num { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--bleu); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; } .ventes-rdr-portail td.ecart-moins button.rdr-num { color: var(--rouge); } .ventes-rdr-portail > .sous { margin-top: 4px; font-size: 12px; color: var(--encre-3); } .ventes-rdr-portail .rdr-vieilles { font-weight: 500; font-size: 12px; color: var(--ambre); }',   /* 1er nov., soir : détail / flotte, chiffres cliquables */   /* 1er nov. : la carte prend la largeur de son tableau (la colonne Écarts était coupée) */
+      '.ventes-rdr-portail .rdr-groupes tr.total th, .ventes-rdr-portail .rdr-groupes tr.total td { font-weight: 800; border-top: 1px solid var(--ligne-forte); } .ventes-rdr-portail .rdr-groupes tr.total th .rdr-cote { color: var(--encre); font-weight: 800; } .ventes-rdr-portail .rdr-groupes tr.demo th .rdr-cote { color: var(--violet); } .ventes-rdr-portail .rdr-groupes tr.flotte th .rdr-cote { color: var(--sarcelle); } .ventes-rdr-portail .rdr-groupes th .rdr-cote { font-weight: 500; color: var(--encre-3); } .ventes-rdr-portail button.rdr-num { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--bleu); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; } .ventes-rdr-portail td.ecart-moins button.rdr-num { color: var(--rouge); } .ventes-rdr-portail > .sous { margin-top: 4px; font-size: 12px; color: var(--encre-3); } .ventes-rdr-portail .rdr-vieilles { font-weight: 500; font-size: 12px; color: var(--ambre); }',   /* 1er nov., soir : détail / flotte, chiffres cliquables */   /* 1er nov. : la carte prend la largeur de son tableau (la colonne Écarts était coupée) */
       '.ventes-moy-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; } .ventes-moy-table th, .ventes-moy-table td { padding: 3px 6px; white-space: nowrap; } .ventes-moy-table thead th { font-size: 12px; font-weight: 600; color: var(--encre-3); text-align: right; border-bottom: 1px solid var(--ligne); } .ventes-moy-table tbody th { text-align: left; font-weight: 600; color: var(--encre-2); } .ventes-moy-table td.num { text-align: right; font-weight: 700; } .ventes-moy-table tr.total th, .ventes-moy-table tr.total td { border-top: 1px solid var(--ligne); } .ventes-moy-table tr.prix td.doux { font-weight: 400; color: var(--encre-3); font-size: 12px; } .ventes-page .ventes-moy { min-width: 330px; }',
       '.ventes-table tr.ajustement.hv-renversement td { background: var(--rouge-bg, #fdecec); } .hv-unites { font-size: 12px; color: var(--encre-3); font-weight: 600; } #hv-genre { margin-bottom: 10px; } ' +
       '.ventes-comp .cmp-aj { margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--ligne); } .ventes-table tr.ajustement td { background: var(--bleu-bg); } .ventes-table tr.ajustement .nom { font-style: italic; } .ventes-table td.num.avec-aj, .tableau td.num.avec-aj { text-decoration: underline dotted; }',
@@ -877,8 +877,8 @@
       ['commandes', 'Commandes vendues', 'Neufs vendus, pas livrés, sans RDR chez le constructeur'],
       ['comptabilises', 'Compta.', 'RDR livrés que la comptabilité a comptabilisés']
     ];
-    var cellule = function (c, cote, col) {
-      var g = r.cies[c].groupes[cote], n = g.n[col[0]] || 0;
+    var cellule = function (c, cote, col, gRang) {
+      var g = gRang || r.cies[c].groupes[cote], n = g.n[col[0]] || 0;
       if (col[0] === 'commandes') {
         var pa = commandesParAge(g, m), nr = pa.nRecentes, tt = col[2] + ' — moins de ' + COMMANDES_JOURS + ' jours' + (pa.nVieilles ? ' ; ' + pa.nVieilles + ' de plus de ' + COMMANDES_JOURS + ' jours à vérifier' : '');
         if (!nr && !pa.nVieilles) return h('td.num.doux', { text: '0', title: tt });
@@ -891,21 +891,56 @@
     };
     var lignes = [];
     codes.forEach(function (c) {
-      var x = r.cies[c], gr = x.groupes;
-      ['detail', 'flotte'].forEach(function (cote) {
-        var n = gr[cote].n;
-        if (cote === 'flotte' && !n.rdr && !n.commandes) return;
-        lignes.push(h('tr' + (cote === 'flotte' ? '.flotte' : ''), [h('th', { scope: 'row', title: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + x.portail + (x.lu ? ', lu le ' + AMX.fmtDate(x.lu, true) : ', jamais lu') }, [
-          h('span', { text: (NOMS[c] || c) + ' · ' }), h('span.rdr-cote', { text: cote === 'flotte' ? 'Flotte' : 'Détail' })])].concat(COLS.map(function (col) { return cellule(c, cote, col); }))));
+      var x = r.cies[c];
+      rangeesRdr(c, x).forEach(function (rg) {   /* 3 nov. : BMW — sous-totaux détail / démo, puis le total du mois */
+        lignes.push(h('tr.' + rg.cle, [h('th', { scope: 'row', title: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + x.portail + (x.lu ? ', lu le ' + AMX.fmtDate(x.lu, true) : ', jamais lu') + (rg.total ? ' — ce que compte le rapport de fin de mois du constructeur' : '') }, [
+          h('span', { text: (NOMS[c] || c) + ' · ' }), h('span.rdr-cote', { text: rg.titre })])].concat(COLS.map(function (col) { return cellule(c, rg.cle, col, rg.g); }))));
       });
     });
     carte.appendChild(h('table.ventes-moy-table.rdr-groupes', [h('thead', [h('tr', [h('th', { text: '' })].concat(COLS.map(function (col) { return h('th.num', { text: col[1], title: col[2] }); })))]), h('tbody', lignes)]));
     var lu = codes.map(function (c) { return r.cies[c].lu; }).filter(Boolean).sort()[0];
-    var vieilles = 0; codes.forEach(function (c) { ['detail', 'flotte'].forEach(function (cote) { vieilles += commandesParAge(r.cies[c].groupes[cote], m).nVieilles; }); });
+    var vieilles = 0; codes.forEach(function (c) { ['detail', 'flotte'].forEach(function (cote) { vieilles += commandesParAge(r.cies[c].groupes[cote], m).nVieilles; }); });   /* les groupes du serveur : les sous-totaux de BMW ne comptent pas deux fois */
     carte.appendChild(h('div.sous', { text: (lu ? 'Portail lu le ' + AMX.fmtDate(lu, true) : 'Portail jamais lu') + ' · commandes vendues de moins de ' + COMMANDES_JOURS + ' jours' + (vieilles ? ' (+ ' + vieilles + ' plus vieilles à vérifier)' : '') }));
     carte.appendChild(h('button.btn.petit#ventes-rdr-comparer', { type: 'button', text: 'Voir le détail', onclick: function (ev) { ev.stopPropagation(); ouvrirRdrGroupes(r, {}); } }));
     return carte;
   };
+  /* 3 nov. (Maxime : « les RDR démo et fleet employé comptent pour le manufacturier chez BMW, dans le compte séparé : RDR manuf.
+     détail, RDR démo, RDR employé en sous-total pour faire le total du mois ») : chez BMW, la ligne « Détail » du serveur (RDR N
+     et D ; les P « changement de propriétaire », U et W ne comptent pas) est séparée en sous-totaux — Détail (N) et Démo (D) —
+     puis « Total du mois » = ce que le rapport de fin de mois de BMW compte (New & Demo). Calculé ici à partir des listes
+     renvoyées par VENTE_rdrGroupes_ (aucun changement de script) ; si une liste a été coupée (plus de 300), pas de séparation. */
+  var RDR_CATS = ['rdrLivres', 'rdrNonLivres', 'rdrSansVente', 'commandes', 'livresSansRdr'];
+  function rdrComplet(g) { return !!g && RDR_CATS.every(function (k) { return (g[k] || []).length === (g.n[k] || 0); }); }
+  function rdrVide(g) { var n = g.n; return !n.rdr && !n.commandes && !n.livresSansRdr; }
+  function rdrSousGroupe(g, gardeRdr, gardeVente) {
+    var out = { n: { rdr: 0, rdrLivres: 0, rdrNonLivres: 0, rdrSansVente: 0, commandes: 0, livresSansRdr: 0, comptabilises: 0 } };
+    ['rdrLivres', 'rdrNonLivres', 'rdrSansVente'].forEach(function (k) { out[k] = (g[k] || []).filter(gardeRdr); out.n[k] = out[k].length; out.n.rdr += out[k].length; });
+    out.n.comptabilises = out.rdrLivres.filter(function (y) { return y.vente && y.vente.comptabilisee; }).length;
+    ['commandes', 'livresSansRdr'].forEach(function (k) { out[k] = (g[k] || []).filter(gardeVente); out.n[k] = out[k].length; });
+    return out;
+  }
+  function rdrFusion(gs) {
+    var out = { n: { rdr: 0, rdrLivres: 0, rdrNonLivres: 0, rdrSansVente: 0, commandes: 0, livresSansRdr: 0, comptabilises: 0 } };
+    RDR_CATS.forEach(function (k) { out[k] = []; });
+    gs.forEach(function (g) { Object.keys(out.n).forEach(function (k) { out.n[k] += g.n[k] || 0; }); RDR_CATS.forEach(function (k) { out[k] = out[k].concat(g[k] || []); }); });
+    return out;
+  }
+  /* Les lignes d'une concession dans la carte et la fenêtre : { cle, titre, g, total }. */
+  function rangeesRdr(c, x) {
+    var gr = x.groupes, rows = [];
+    if (c === 'BMW' && rdrComplet(gr.detail) && rdrComplet(gr.flotte)) {
+      var demoRdr = function (y) { return /d[ée]mo/i.test(String(y.type || '')); };
+      var demoVente = function (y) { return /^(demo|courtoisie)$/.test(String(y.categorie || (y.vente && y.vente.categorie) || '')); };
+      rows.push({ cle: 'detail', titre: 'RDR manuf. détail', g: rdrSousGroupe(gr.detail, function (y) { return !demoRdr(y); }, function (y) { return !demoVente(y); }) });
+      rows.push({ cle: 'demo', titre: 'RDR démo', g: rdrSousGroupe(gr.detail, demoRdr, demoVente) });
+      if (!rdrVide(gr.flotte)) rows.push({ cle: 'flotte', titre: 'Flotte', g: gr.flotte });
+      rows.push({ cle: 'total', titre: 'Total du mois', g: rdrFusion([gr.detail, gr.flotte]), total: true });
+      return rows;
+    }
+    rows.push({ cle: 'detail', titre: 'Détail', g: gr.detail });
+    if (!rdrVide(gr.flotte)) rows.push({ cle: 'flotte', titre: 'Flotte', g: gr.flotte });
+    return rows;
+  }
   /* Les listes derrière la carte : une concession / un côté / une case (filtre), ou tout. */
   function ouvrirRdrGroupes(r, filtre) {
     filtre = filtre || {};
@@ -928,12 +963,13 @@
     var titreModale = filtre.cat ? SECTIONS[filtre.cat][0] : 'RDR manufacturier et ventes neuves';
     Object.keys(r.cies).forEach(function (c) {
       if (filtre.cie && c !== filtre.cie) return;
-      var x = r.cies[c], gr = x.groupes;
-      ['detail', 'flotte'].forEach(function (cote) {
+      var x = r.cies[c];
+      rangeesRdr(c, x).forEach(function (rg) {
+        var cote = rg.cle;
         if (filtre.cote && cote !== filtre.cote) return;
-        var g = gr[cote], n = g.n;
-        if (!filtre.cote && cote === 'flotte' && !n.rdr && !n.commandes && !n.livresSansRdr) return;
-        corps.appendChild(h('h4', { text: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + (cote === 'flotte' ? 'Flotte' : 'Détail') }));
+        if (!filtre.cote && rg.total) return;   /* « Voir le détail » : les sous-totaux, pas le total en double */
+        var g = rg.g, n = g.n;
+        corps.appendChild(h('h4', { text: (AMX.COMPAGNIES_TOUTES[c] || c) + ' — ' + rg.titre }));
         if (!filtre.cat) corps.appendChild(h('p.ventes-aide', { text: capitale(r.moisLibelle) + (textePeriodeManuf(r.periode || periodeManuf(r.mois)) ? ' (' + textePeriodeManuf(r.periode || periodeManuf(r.mois)).replace(' (mois du manufacturier)', '') + ')' : '') + ' : ' + n.rdr + ' RDR chez ' + x.portail + ' — ' + n.rdrLivres + ' livré' + (n.rdrLivres > 1 ? 's' : '') + ', ' + n.rdrNonLivres + ' pas encore livré' + (n.rdrNonLivres > 1 ? 's' : '') + ', ' + n.rdrSansVente + ' pas au livre ; ' + (function () { var pa = commandesParAge(g, r.mois); return pa.nRecentes + ' commande' + (pa.nRecentes > 1 ? 's' : '') + ' vendue' + (pa.nRecentes > 1 ? 's' : '') + ' de moins de ' + COMMANDES_JOURS + ' jours sans RDR' + (pa.nVieilles ? ' (+ ' + pa.nVieilles + ' plus vieilles)' : ''); })() + '.' + (x.lu ? ' Portail lu le ' + AMX.fmtDate(x.lu, true) + '.' : ' Le portail n\'a jamais été lu.') }));
         var vides = true;
         ordre.forEach(function (cat) {

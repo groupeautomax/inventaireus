@@ -1136,3 +1136,51 @@ body.avec-barre-selection #maxai-bulle { display: none; }
   .barre-selection { left: 8px; right: 8px; transform: none; max-width: none; bottom: calc(68px + env(safe-area-inset-bottom)); }
   body.avec-barre-selection #vue { padding-bottom: calc(180px + env(safe-area-inset-bottom)); }
 }
+
+/* ---------- 3 nov. 2026 : pages de choix (Occasion, Offre au marché, Import) ----------
+   Maxime : « quand on clique sur l'onglet on voit clairement les choix de sous-menu en gros et non le détail ». */
+.hub-page .entete-page .sous { max-width: 720px; }
+.hub-tuiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 6px; }
+.hub-tuiles.quatre { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hub-tuiles.deux { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 900px; }
+@media (min-width: 1400px) { .hub-tuiles.quatre { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .hub-tuiles, .hub-tuiles.quatre, .hub-tuiles.deux { grid-template-columns: 1fr; gap: 12px; } }
+.hub-tuile { --acc: var(--encre-2); --acc-bg: var(--gris-bg); position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 190px; padding: 22px 22px 18px;
+  background: var(--carte); border: 1px solid var(--ligne); border-radius: 16px; box-shadow: var(--ombre); color: inherit; text-decoration: none; overflow: hidden;
+  transition: transform .14s, box-shadow .14s, border-color .14s; }
+.hub-tuile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--acc); opacity: .85; }
+.hub-tuile:hover, .hub-tuile:focus-visible { text-decoration: none; transform: translateY(-2px); box-shadow: 0 10px 26px rgba(16,24,40,.10); border-color: var(--ligne-forte); }
+.hub-tuile .haut { display: flex; align-items: center; gap: 14px; }
+.hub-tuile .ic { width: 56px; height: 56px; border-radius: 15px; background: var(--acc-bg); color: var(--acc); display: flex; align-items: center; justify-content: center; flex: none; }
+.hub-tuile .ic svg { width: 28px; height: 28px; }
+.hub-tuile h2 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -.01em; line-height: 1.2; }
+.hub-tuile .haut .n { margin-left: auto; flex: none; min-width: 28px; text-align: center; font-size: 13px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--acc); color: #fff; font-variant-numeric: tabular-nums; }
+.hub-tuile p { margin: 0; color: var(--encre-3); font-size: 14px; line-height: 1.5; }
+.hub-tuile .ouvrir { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; color: var(--acc); }
+.hub-tuile .ouvrir svg { width: 16px; height: 16px; }
+.hub-tuile .vues-tuile { margin-top: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.hub-tuile .vues-tuile a { font-size: 13px; padding: 5px 11px; border-radius: 999px; background: var(--carte-2); border: 1px solid var(--ligne); color: var(--encre-2); text-decoration: none; }
+.hub-tuile .vues-tuile a:hover { background: var(--acc-bg); border-color: var(--acc); color: var(--acc); }
+.hub-tuile.vert { --acc: var(--vert); --acc-bg: var(--vert-clair); }
+.hub-tuile.bleu { --acc: var(--bleu); --acc-bg: var(--bleu-bg); }
+.hub-tuile.violet { --acc: var(--violet); --acc-bg: var(--violet-bg); }
+.hub-tuile.ambre { --acc: var(--ambre); --acc-bg: var(--ambre-bg); }
+.hub-tuile.sarcelle { --acc: var(--sarcelle); --acc-bg: var(--sarcelle-bg); }
+.hub-tuile.prune { --acc: var(--prune); --acc-bg: var(--prune-bg); }
+/* 3 nov. : sur téléphone, des tuiles compactes (une colonne, pas de hauteur imposée). */
+@media (max-width: 900px) { .hub-tuile { min-height: 0; padding: 18px; gap: 10px; } .hub-tuile .ic { width: 46px; height: 46px; } .hub-tuile .ic svg { width: 24px; height: 24px; } .hub-tuile h2 { font-size: 19px; } }
+/* Au-dessus d'une page rangée sous une page de choix : le retour et les pages sœurs. */
+.hub-fil { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; max-width: 1600px; margin: 0 auto -6px; padding: 14px 16px 0; }
+.hub-fil[hidden] { display: none; }
+.hub-retour { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--encre-2); text-decoration: none; padding: 5px 10px 5px 6px; border-radius: 8px; border: 1px solid var(--ligne); background: var(--carte); }
+.hub-retour svg { width: 15px; height: 15px; transform: rotate(180deg); }
+.hub-retour:hover { text-decoration: none; background: var(--gris-bg); color: var(--encre); }
+.hub-soeurs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; border-radius: 10px; background: var(--gris-bg); }
+.hub-soeurs a { font-size: 13px; padding: 5px 12px; border-radius: 8px; color: var(--encre-2); text-decoration: none; white-space: nowrap; }
+.hub-soeurs a:hover { background: var(--carte); color: var(--encre); text-decoration: none; }
+.hub-soeurs a.actif { background: var(--carte); color: var(--vert-fonce); font-weight: 700; box-shadow: var(--ombre); }
+.cote-enfants { list-style: none; margin: 2px 0 4px 12px; padding: 0 0 0 8px; border-left: 1px dashed var(--ligne); }
+.cote-enfants a { display: flex; align-items: center; min-height: 30px; padding: 0 10px; border-radius: 7px; color: var(--encre-3); text-decoration: none; font-size: 13px; }
+.cote-enfants a:hover { background: var(--gris-bg); color: var(--encre); text-decoration: none; }
+.cote-enfants a.actif { color: var(--vert-fonce); font-weight: 700; }
+.cie-point.lmb { background: var(--prune); }

@@ -389,6 +389,16 @@
       '.admin-role-aide { font-size: 12px; color: var(--encre-3); line-height: 1.4; margin: 4px 0 0; min-height: 16px; }',
       // Grille des accès supplémentaires : une ligne par concession, une case par domaine.
       '.admin-acces { width: 100%; border-collapse: collapse; font-size: 12.5px; }',
+      '.admin-onglets { display: grid; gap: 10px; }',
+      '.admin-onglets .groupe-ong h4 { margin: 0 0 4px; font-size: 12px; font-weight: 700; color: var(--encre-3); text-transform: uppercase; letter-spacing: .03em; }',
+      '.admin-ong { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--ligne); }',
+      '.admin-ong:last-child { border-bottom: 0; }',
+      '.admin-ong .nom { font-size: 13px; font-weight: 600; color: var(--encre); }',
+      '.admin-ong .etat { font-size: 12px; color: var(--encre-3); }',
+      '.admin-ong .etat b.oui { color: var(--vert-fonce); } .admin-ong .etat b.non { color: var(--rouge); }',
+      '.admin-ong.perso .nom::after { content: "modifié"; margin-left: 6px; font-size: 11.5px; font-weight: 600; color: var(--ambre); }',
+      '.admin-ong .segment button { padding: 4px 9px; font-size: 12px; }',
+      '@media (max-width: 640px) { .admin-ong { grid-template-columns: 1fr; } }',
       '.admin-acces th, .admin-acces td { padding: 5px 2px; border-bottom: 1px solid var(--ligne); text-align: center; }',
       '.admin-acces th { font-weight: 600; color: var(--encre-3); font-size: 12px; line-height: 1.2; vertical-align: bottom; }',
       '.admin-acces td:first-child { font-size: 12px; line-height: 1.25; }',
@@ -463,6 +473,9 @@
     this.enChargement = false;
     this.selection = (ctx && ctx.params && ctx.params.u) ? String(ctx.params.u) : '';   // #/admin?u=courriel
     this.brouillons = {};         // courriel (minuscule) → { role, actif, acheteur, note, ecarts, departement… }
+    this.onglets = null;          // 3 nov. : exceptions d'onglets par compte (GET ?utilisateursOnglets=1) — { courriel: { 'tuile/onglet': bool } }
+    this.ongletsInfo = null;      // { cles, roles } du serveur, ou { erreur }
+    this.ongletsBrouillons = {};  // courriel (minuscule) → { 'tuile/onglet': bool } en cours d'édition
     this.filtres = { recherche: '', groupe: '', concession: '' };
     this.vue = lireLocal('amx_admin_vue', 'liste') === 'tableau' ? 'tableau' : 'liste';
     this.tri = { cle: 'nom', sens: 1 };
@@ -1261,6 +1274,7 @@
     this.chargerDemandes();
     this.chargerIa();
     if (this.elRevue) this.chargerRevue();
+    this.chargerOnglets();
     return AMX.get('utilisateurs=1').then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false;
@@ -1682,6 +1696,8 @@
 
     // Accès supplémentaires : d'autres concessions, en entier ou par domaine (compte limité à une concession seulement).
     var blocAcces = this.rendreAcces(u, b, { verrou: verrou, moi: moi, rafraichir: rafraichir });
+    // Onglets du portail (3 nov.) : le rôle décide, une exception par compte peut montrer ou cacher un onglet.
+    var blocOnglets = this.rendreOnglets(u, b, { verrou: verrou, moi: moi });
 
     // Actions
     var btnEnregistrer = h('button.btn.primaire', { type: 'button', disabled: verrou, html: I.ok + '<span>Enregistrer</span>', onclick: function () { self.enregistrer(u, btnEnregistrer); } });
@@ -1689,7 +1705,7 @@
     var btnSupprimer = (moi || verrou) ? null : h('button.btn.danger', { type: 'button', html: I.corbeille + '<span>Supprimer</span>', onclick: function () { self.supprimer(u, btnSupprimer); } });
     var blocActions = h('div.bloc', [h('div.actions-ligne', [btnEnregistrer, this.pBtnAnnuler, btnSupprimer])]);
 
-    this.elPanneau.appendChild(h('div.carte', [entete, blocCompte, blocDroits, blocAcces, blocActions]));
+    this.elPanneau.appendChild(h('div.carte', [entete, blocCompte, blocDroits, blocAcces, blocOnglets, blocActions]));
     this.rendreSous(u);
   };
 
@@ -1753,6 +1769,125 @@
       h('p.admin-pied', { style: { margin: '0 0 8px' }, text: resume ? 'Ce compte voit : ' + nomsConcessions(b.concession, a, moiInfo) + (Object.keys(a.domaines).length ? ' · ' + accesTexte({ domaines: a.domaines }, moiInfo) : '') + '.' : 'Ce compte ne voit que ' + nomConcession(b.concession, moiInfo) + '. Pour une deuxième concession, cochez-la dans « Concessions » plus haut.' }),
       details
     ]);
+  };
+
+  /* --------------------- Onglets du portail (3 nov.) --------------------- */
+  // Les onglets qu'une exception peut toucher, par tuile (même liste que Onglets.gs, ONG_CLES_ ; le serveur la renvoie).
+  var ONGLETS_NOMS = {
+    'vente/ventes': 'Livre des ventes', 'vente/offres': 'Offres reçues', 'vente/envente': 'En vente', 'vente/acheteurs': 'Acheteurs',
+    'vente/echanges': 'Échanges de neufs',
+    'inventaire/neufs': 'Neufs', 'inventaire/analyse': 'Analyse occasion', 'inventaire/achat': 'Fiche d\'achat',
+    'inventaire/evaluations': 'Évaluation', 'inventaire/listes': 'Listes et audits', 'inventaire/transports': 'Transports',
+    'relance/equite': 'Équité', 'relance/leads': 'Leads', 'relance/avis': 'Avis Google',
+    'service/suivi': 'Suivi service', 'service/rendezvous': 'Rendez-vous', 'service/texto': 'Texto',
+    'outils/opportunites': 'Opportunités d\'achat', 'outils/eblock': 'Fiches eBlock', 'outils/openlane': 'Valeurs OpenLane',
+    'outils/d2c': 'Import D2C', 'outils/verification': 'Vérification Excel'
+  };
+  var ONGLETS_TUILES = [['vente', 'Vente'], ['inventaire', 'Inventaire'], ['relance', 'Relance'], ['service', 'Service'], ['outils', 'Outils']];
+  function ongletsNorm(o) {
+    var out = {};
+    if (!o || typeof o !== 'object') return out;
+    Object.keys(o).forEach(function (k) { if (/^[a-z]+\/[a-z]+$/.test(k) && (o[k] === true || o[k] === false)) out[k] = o[k]; });
+    return out;
+  }
+  function ongletsCle(o) { return JSON.stringify(Object.keys(o || {}).sort().map(function (k) { return [k, o[k]]; })); }
+
+  VueAdmin.prototype.chargerOnglets = function () {
+    var self = this;
+    return AMX.get('utilisateursOnglets=1').then(function (d) {
+      if (self.detruit) return;
+      if (d && d.refuse) { self.onglets = {}; self.ongletsInfo = { erreur: d.erreur || 'Refusé par le serveur.' }; }
+      else if (!d || d.ok === false || !d.onglets || typeof d.onglets !== 'object') {
+        self.onglets = {}; self.ongletsInfo = { erreur: 'Le script n\'est pas à jour (Onglets.gs) : les exceptions par compte seront offertes après le déploiement.' };
+      } else {
+        var o = {};
+        Object.keys(d.onglets).forEach(function (c) { o[nomCle(c)] = ongletsNorm(d.onglets[c]); });
+        self.onglets = o; self.ongletsInfo = { cles: d.cles || null, roles: d.roles || null };
+      }
+      if (self.selection) self.rendrePanneau();
+    }, function (e) {
+      if (self.detruit) return;
+      self.onglets = {}; self.ongletsInfo = { erreur: 'Lecture impossible — ' + AMX.erreurTexte(e) };
+      if (self.selection) self.rendrePanneau();
+    });
+  };
+
+  // Caché par le rôle ? (la table du serveur si elle est venue, sinon celle du site)
+  VueAdmin.prototype.ongletCacheRole = function (cle, role) {
+    var roles = this.ongletsInfo && this.ongletsInfo.roles;
+    if (roles && typeof roles === 'object') {
+      return (roles[String(role || '').toLowerCase()] || []).some(function (k) { return k === cle || (k.slice(-2) === '/*' && cle.indexOf(k.slice(0, -1)) === 0); });
+    }
+    return AMX.ongletCache ? AMX.ongletCache(cle, role, {}) : false;
+  };
+
+  VueAdmin.prototype.rendreOnglets = function (u, b, o) {
+    var self = this, cle = nomCle(u.nom);
+    var noms = (this.ongletsInfo && this.ongletsInfo.cles) || ONGLETS_NOMS;
+    var enregistrees = (this.onglets && this.onglets[cle]) || {};
+    if (!this.ongletsBrouillons[cle]) this.ongletsBrouillons[cle] = ongletsNorm(enregistrees);
+    var br = this.ongletsBrouillons[cle];
+    var erreur = this.ongletsInfo && this.ongletsInfo.erreur;
+    var bloque = o.verrou || o.moi || !!erreur || this.onglets === null;
+    var nPerso = Object.keys(br).length;
+    var modifie = ongletsCle(br) !== ongletsCle(enregistrees);
+    var corps = h('div.admin-onglets');
+    var rendreCorps = function () { self.rendrePanneau(); };
+    ONGLETS_TUILES.forEach(function (t) {
+      var cles = Object.keys(noms).filter(function (k) { return k.indexOf(t[0] + '/') === 0; });
+      if (!cles.length) return;
+      corps.appendChild(h('div.groupe-ong', [h('h4', { text: t[1] })].concat(cles.map(function (k) {
+        var parRole = !self.ongletCacheRole(k, b.role);   // vrai = le rôle le montre
+        var choix = br[k] === true ? 'montrer' : br[k] === false ? 'cacher' : 'role';
+        var montre = br[k] === true ? true : br[k] === false ? false : parRole;
+        var bouton = function (val, texte) {
+          return h('button' + (choix === val ? '.actif' : ''), { type: 'button', text: texte, disabled: bloque, onclick: function () {
+            if (val === 'role') delete br[k]; else br[k] = (val === 'montrer');
+            rendreCorps();
+          } });
+        };
+        return h('div.admin-ong' + (choix !== 'role' ? '.perso' : ''), [
+          h('div', [h('div.nom', { text: noms[k] || k }),
+            h('div.etat', ['Rôle : ' + (parRole ? 'montré' : 'caché') + ' · pour ce compte : ', h('b.' + (montre ? 'oui' : 'non'), { text: montre ? 'montré' : 'caché' })])]),
+          h('div.segment', [bouton('role', 'Selon le rôle'), bouton('montrer', 'Montrer'), bouton('cacher', 'Cacher')])
+        ]);
+      }))));
+    });
+    var btnEnr = h('button.btn.primaire.petit', { type: 'button', disabled: bloque || !modifie, html: I.ok + '<span>Enregistrer les onglets</span>', onclick: function () { self.enregistrerOnglets(u, btnEnr); } });
+    var btnRole = h('button.btn.petit', { type: 'button', text: 'Tout selon le rôle', disabled: bloque || !nPerso, onclick: function () { self.ongletsBrouillons[cle] = {}; rendreCorps(); } });
+    var btnAnn = h('button.btn.petit.fantome', { type: 'button', text: 'Annuler', disabled: !modifie, onclick: function () { delete self.ongletsBrouillons[cle]; rendreCorps(); } });
+    var details = h('details.admin-details', [
+      h('summary', ['Onglets du portail', nPerso ? h('span.puce.attention', { text: nPerso + ' exception' + (nPerso > 1 ? 's' : '') }) : h('span.puce', { text: 'selon le rôle' }), modifie ? h('span.puce.info', { text: 'non enregistré' }) : null]),
+      h('div.admin-details-corps', [
+        h('p.admin-pied', { style: { margin: '0 0 8px' }, text: 'Le rôle ' + libelleRole(b.role) + ' décide des onglets montrés. Montrer ou cacher un onglet ici ne vaut que pour ce compte ; le serveur refuse aussi les données d\'un onglet caché.' }),
+        erreur ? h('div.alerte-bloc.info.admin-avis', [h('span', { html: I.info }), h('div', { text: erreur })]) : null,
+        o.moi ? h('div.alerte-bloc.info.admin-avis', [h('span', { html: I.info }), h('div', 'Vos propres onglets se règlent par le propriétaire.')]) : null,
+        this.onglets === null ? h('p.admin-pied', 'Lecture des exceptions…') : corps,
+        h('div.actions-ligne', { style: { marginTop: '8px' } }, [btnEnr, btnRole, btnAnn])
+      ])
+    ]);
+    if (nPerso || modifie || this.ongletsOuvert === cle) details.open = true;
+    details.addEventListener('toggle', function () { self.ongletsOuvert = details.open ? cle : ''; });
+    return h('div.bloc.admin-bloc-onglets', [details]);
+  };
+
+  VueAdmin.prototype.enregistrerOnglets = function (u, btn) {
+    var self = this, cle = nomCle(u.nom);
+    var voulu = ongletsNorm(this.ongletsBrouillons[cle] || {});
+    if (btn) btn.classList.add('occupe');
+    return AMX.post({ action: 'utilisateurOnglets', compte: u.nom, onglets: voulu }, { rejouer: true }).then(function (r) {
+      if (r && r.vehicules) throw new Error('Le script n\'est pas à jour (Onglets.gs) : demandez au propriétaire de le déployer.');
+      AMX.verifier(r, 'Changement refusé par le serveur');
+      if (!r || r.ok !== true) throw new Error((r && (r.erreur || r.message)) || 'Le serveur n\'a pas confirmé le changement.');
+      if (!self.onglets) self.onglets = {};
+      self.onglets[cle] = ongletsNorm(r.onglets || voulu);
+      delete self.ongletsBrouillons[cle];
+      AMX.toast('Onglets enregistrés pour ' + (u.nomComplet || u.nom) + ' — la personne les verra à sa prochaine ouverture du site ou de l\'app.', 'ok');
+      self.rendrePanneau();
+    }).catch(function (e) {
+      if (btn) btn.classList.remove('occupe');
+      AMX.toast('Onglets non enregistrés — ' + AMX.erreurTexte(e), 'erreur');
+    });
   };
 
   // Sous-titre du panneau (badge, département, « Vous », « Non enregistrée ») et état du bouton Annuler.

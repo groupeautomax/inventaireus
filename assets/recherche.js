@@ -23,7 +23,7 @@
   function norm(s) { return String(s === undefined || s === null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
   function chiffres(s) { return String(s || '').replace(/\D/g, ''); }
   function vinDe(x) { var v = String(x || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase(); return v.length === 17 ? v : ''; }
-  function visible(id) { var s = (AMX.sections && AMX.sections[id]) || (AMX.sources && AMX.sources[id]); return !!s && (!s.visible || s.visible()); }
+  function visible(id, onglet) { if (AMX.voitSource) return AMX.voitSource(id, onglet); var s = (AMX.sections && AMX.sections[id]) || (AMX.sources && AMX.sources[id]); return !!s && (!s.visible || s.visible()); }   /* 3 nov. : selon le rôle aussi (onglets cachés) */
   function nomCie(c) { return (AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[c]) || c || ''; }
   function cieDeConcession(id) { return (AMX.CONCESSION_COMPAGNIE && AMX.CONCESSION_COMPAGNIE[String(id || '').toLowerCase()]) || ''; }
   function jour(d) { var t = AMX.fmtDate ? AMX.fmtDate(d) : String(d || '').slice(0, 10); return t || ''; }
@@ -34,16 +34,16 @@
      charger() → Promise<liste> ; cie(x) → code concession ; champs(x) → texte cherché ; tel(x) → téléphones ;
      vin(x) ; puce(x) → { t, c (couleur), href | action, titre } ; titre(x) / sous(x) pour les résultats sans NIV. */
   var SOURCES = [
-    { id: 'usage', nom: 'Occasion', section: 'inventaire', charger: function () { return AMX.inventaire.tout(); },
+    { id: 'usage', nom: 'Occasion', section: 'inventaire', onglet: 'usage',  charger: function () { return AMX.inventaire.tout(); },
       cie: function (v) { return v.compagnie; }, vin: function (v) { return v.vin; }, champs: function (v) { return [v.vin, v.stock, v.modele, v.compagnie].join(' '); },
       modele: function (v) { return v.modele; }, stock: function (v) { return v.stock; },
       actif: function (v) { return v.statut !== 'arrive' && v.statut !== 'comptabilise'; },
       puce: function (v) { var s = AMX.statut(v.statut, v._feuille); return { t: 'Occasion · ' + AMX.inventaire.nomFeuille(v._feuille) + ' · ' + s.libelle, c: s.couleur, href: AMX.lien('inventaire', String(v._feuille || '').toLowerCase(), { vin: v.vin }), principal: true }; } },
-    { id: 'neuf', nom: 'Neufs', section: 'inventaire', charger: function () { return AMX.neufs ? AMX.neufs.charger().then(function () { var d = AMX.neufs.enCache(); return d ? d.vehicules : []; }) : Promise.resolve([]); },
+    { id: 'neuf', nom: 'Neufs', section: 'inventaire', onglet: 'neufs',  charger: function () { return AMX.neufs ? AMX.neufs.charger().then(function () { var d = AMX.neufs.enCache(); return d ? d.vehicules : []; }) : Promise.resolve([]); },
       cie: function (v) { return v.compagnie; }, vin: function (v) { return v.vin; }, champs: function (v) { return [v.vin, v.stock, v.annee, v.marque, v.modele, v.version, v.couleur].join(' '); },
       modele: function (v) { return vehiculeTexte(v); }, stock: function (v) { return v.stock; }, actif: function (v) { return !v.sortiLe; },
       puce: function (v) { return { t: 'Neuf · ' + (v.sortiLe ? 'sorti' : (v.statutLibelle || 'en stock')) + (v.origine === 'constructeur' ? ' (manufacturier)' : ''), c: v.sortiLe ? 'gris' : 'bleu', href: AMX.lien('inventaire', 'neufs', { vin: v.vin }), principal: true }; } },
-    { id: 'evaluation', nom: 'Évaluations', section: 'outils', charger: function () { return AMX.get({ evaluations: 1 }, { copie: 'evaluations', secours: false }).then(function (d) { return (d && d.evaluations) || []; }); },
+    { id: 'evaluation', nom: 'Évaluations', section: 'outils', onglet: 'evaluation',  charger: function () { return AMX.get({ evaluations: 1 }, { copie: 'evaluations', secours: false }).then(function (d) { return (d && d.evaluations) || []; }); },
       cie: function (e) { return cieDeConcession(e.concession); }, vin: function (e) { return e.vin; },
       champs: function (e) { var s = e.suivi || {}; return [e.vin, e.annee, e.marque, e.modele, e.version, s.client, s.courriel, s.conseiller, e.par].join(' '); }, tel: function (e) { return (e.suivi || {}).telephone; },
       modele: function (e) { return vehiculeTexte(e); },
@@ -54,14 +54,14 @@
       modele: function (v) { return vehiculeTexte(v); }, stock: function (v) { return v.stock; },
       puce: function (v) { return { t: 'Vente ' + v.id + ' · ' + jour(v.dateLivraison || v.dateVente) + (v.client ? ' · ' + v.client : '') + (v.statut === 'annulee' ? ' (annulée)' : ''), c: v.statut === 'annulee' ? 'gris' : 'vert', href: AMX.lien('vente', 'ventes', { id: v.id }) }; },
       titre: function (v) { return vehiculeTexte(v) || 'Vente ' + v.id; }, sous: function (v) { return [v.id, v.stock ? '# ' + v.stock : '', v.client, jour(v.dateVente)].filter(Boolean).join(' · '); } },
-    { id: 'service', nom: 'Suivi service', section: 'service', charger: function () { return AMX.service ? AMX.service.charger().then(function () { return AMX.service.enCache() || []; }) : Promise.resolve([]); },
+    { id: 'service', nom: 'Suivi service', section: 'service', onglet: 'encours',  charger: function () { return AMX.service ? AMX.service.charger().then(function () { return AMX.service.enCache() || []; }) : Promise.resolve([]); },
       cie: function (s) { return s.compagnie; }, vin: function (s) { return s.vin; }, champs: function (s) { return [s.vin, s.stock, s.modele].join(' '); },
       modele: function (s) { return s.modele; }, stock: function (s) { return s.stock; },
       puce: function (s) { return { t: 'Service · ' + (s.statut === 'termine' ? 'terminé' : s.statut === 'refuse' ? 'refusé au détail' : (etapeLibelle(s.etapeCourante) || 'en cours')), c: 'sarcelle', href: AMX.lien('service', s.statut === 'termine' ? 'termines' : 'encours', { vin: s.vin }) }; } },
-    { id: 'demande', nom: 'Demandes de travaux', section: 'service', charger: function () { return AMX.demandes ? AMX.demandes.charger().then(function () { return AMX.demandes.enCache() || []; }) : Promise.resolve([]); },
+    { id: 'demande', nom: 'Demandes de travaux', section: 'service', onglet: 'encours',  charger: function () { return AMX.demandes ? AMX.demandes.charger().then(function () { return AMX.demandes.enCache() || []; }) : Promise.resolve([]); },
       cie: function (d) { return d.compagnie; }, vin: function (d) { return d.vin; }, champs: function (d) { return [d.vin, d.stock, d.vehicule, d.btNo].join(' '); },
       puce: function (d) { return { t: 'Demande de travaux · ' + ({ envoyee: 'envoyée', approuvee: 'BT ' + (d.btNo || 'approuvé'), retournee: 'retournée', annulee: 'annulée' }[d.etat] || d.etat || ''), c: 'ambre', href: AMX.lien('service', 'encours', { vin: d.vin }) }; } },
-    { id: 'offre', nom: 'Offres reçues', section: 'offres', charger: function () { return AMX.post({ action: 'offresRecues' }).then(function (d) { return (d && d.offres) || []; }); },
+    { id: 'offre', nom: 'Offres reçues', section: 'offres', onglet: 'recues',  charger: function () { return AMX.post({ action: 'offresRecues' }).then(function (d) { return (d && d.offres) || []; }); },
       cie: function (o) { var v = AMX.inventaire.parVin ? AMX.inventaire.parVin(o.vin) : null; return o.compagnie || (v && v.compagnie) || ''; }, vin: function (o) { return o.vin; },
       champs: function (o) { return [o.id, o.vin, o.modele, o.nom, o.entreprise, o.courriel].join(' '); }, tel: function (o) { return o.telephone; }, modele: function (o) { return o.modele; },
       puce: function (o) { var st = (AMX.STATUTS_OFFRE || {})[o.statut] || { libelle: o.statut || 'offre', couleur: 'gris' }; return { t: 'Offre · ' + st.libelle + (o.nom || o.entreprise ? ' · ' + (o.entreprise || o.nom) : ''), c: st.couleur, href: AMX.lien('offres', 'recues', { o: o.id }) }; } },
@@ -70,7 +70,7 @@
       modele: function (s) { return s.vehicule || vehiculeTexte(s); },
       puce: function (s) { return { t: 'Soumission ' + s.id + (s.client ? ' · ' + s.client : ''), c: 'prune', href: AMX.lien('inventaire', 'soumissions', { id: s.id }) }; },
       titre: function (s) { return s.titre || s.vehicule || vehiculeTexte(s) || s.id; }, sous: function (s) { return [s.id, s.client, s.statut].filter(Boolean).join(' · '); } },
-    { id: 'torque', nom: 'Archive Torque', section: 'outils', lourd: true, charger: function () { return AMX.get({ torque: 1 }, { copie: 'torque', secours: false, delai: 60000 }).then(function (d) { return (d && d.evaluations) || []; }); },
+    { id: 'torque', nom: 'Archive Torque', section: 'outils', onglet: 'torque',  lourd: true, charger: function () { return AMX.get({ torque: 1 }, { copie: 'torque', secours: false, delai: 60000 }).then(function (d) { return (d && d.evaluations) || []; }); },
       cie: function (r) { return cieDeConcession(r.concession); }, vin: function (r) { return r.vin; }, champs: function (r) { return [r.vin, r.annee, r.marque, r.modele, r.client, r.conseiller].join(' '); }, tel: function (r) { return r.telephone; },
       modele: function (r) { return vehiculeTexte(r); },
       puce: function (r) { return { t: 'Torque · ' + jour(r.creeLe) + (r.client ? ' · ' + r.client : ''), c: 'gris', href: AMX.lien('outils', 'torque', { vin: r.vin, id: r.id }) }; } }
@@ -98,7 +98,7 @@
     return e.promesse;
   }
   /* 2 nov. : un représentant ne voit ni les évaluations ni l'archive Torque (AMX.voitEvaluations, app.js). */
-  function sourcesActives() { return SOURCES.filter(function (s) { return visible(s.section) && !((s.id === 'evaluation' || s.id === 'torque') && AMX.voitEvaluations && !AMX.voitEvaluations()); }); }
+  function sourcesActives() { return SOURCES.filter(function (s) { return visible(s.section, s.onglet) && !((s.id === 'evaluation' || s.id === 'torque') && AMX.voitEvaluations && !AMX.voitEvaluations()); }); }
   function prechauffer(apres) {
     sourcesActives().forEach(function (s) { charger(s, apres); });
     if (AMX.carfax) AMX.carfax.charger().then(apres, function () {});

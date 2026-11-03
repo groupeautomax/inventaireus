@@ -546,9 +546,9 @@
   /* 2 nov. : Vente › Évaluations demandées — le portail de celui qui demande (le représentant) : ses demandes, sans
      l'analyse, le montant une fois confirmé par la direction. */
   AMX.section('evalPortail', {
-    titre: 'Évaluations demandées', icone: 'outils', ordre: 24,
+    titre: 'Mes demandes d\'évaluation', icone: 'outils', ordre: 24,
     visible: function () { return AMX.perm('consulter') || AMX.estAdmin(); },
-    onglets: [{ id: '', titre: 'Évaluations demandées', compteur: function () { var c = AMX.compagnieChoisie('evaluations'); var l = (pretesPourMoi(c) || []).length + (questionsPourMoi(c) || []).length; return l ? String(l) : ''; } }],
+    onglets: [{ id: '', titre: 'Mes demandes', compteur: function () { var c = AMX.compagnieChoisie('evaluations'); var l = (pretesPourMoi(c) || []).length + (questionsPourMoi(c) || []).length; return l ? String(l) : ''; } }],
     monter: function (conteneur, ctx) { return new Vue(conteneur, ctx, { portail: true }); }
   });
 
@@ -585,7 +585,7 @@
   Vue.prototype.construire = function () {
     var self = this;
     this.btnDemander = h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Demander une évaluation</span>', onclick: function () { demander({ compagnie: AMX.compagnieChoisie('evaluations') }); } });
-    var titrePage = this.portail ? 'Évaluations demandées' : 'Demandes d\'évaluation';
+    var titrePage = this.portail ? 'Mes demandes d\'évaluation' : 'Demandes d\'évaluation';   /* 3 nov. : dans Inventaire › Occasion › Évaluation */
     this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnPlein = h('button.btn', { type: 'button', html: I.externe + '<span>Plein écran</span>', onclick: function () { self.pleinEcran(); } });
     this.elSous = h('p.sous-titre');

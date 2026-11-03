@@ -176,9 +176,10 @@
     this.btnReglages = h('button.btn', { type: 'button', text: 'Réglages', onclick: function () { self.reglages(); } });
     this.btnBalayer = h('button.btn', { type: 'button', text: 'Balayer maintenant', title: 'Un passage tout de suite, dans le budget d\'appels du jour', onclick: function () { self.balayer(); } });
     this.btnSourcesTout = h('button.btn', { type: 'button', text: 'Sources des données', onclick: function () { self.sourcesModale(''); } });
+    this.btnSync = h('button.btn.occ-sync#occ-sync', { type: 'button', disabled: true, onclick: function () { self.synchroniser(); } });
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Opportunités d\'achat'), this.elEtat]),
-      h('div.actions', [AMX.menuActions([{ bouton: this.btnRafraichir }, { bouton: this.btnExport }, { bouton: this.btnBalayer }], { titre: 'Autres actions' }), this.btnReglages])
+      h('div.actions', [AMX.menuActions([{ bouton: this.btnRafraichir }, { bouton: this.btnExport }, { bouton: this.btnBalayer }], { titre: 'Autres actions' }), this.btnSync, this.btnReglages])
     ]);
     // Sources : une ligne de pastilles (état et fraîcheur) ; le détail s'ouvre d'un clic.
     // 26 oct. (Maxime : « cache les sources ») : la rangée de pastilles n'est plus montrée ; l'état et les gestes de chaque
@@ -469,7 +470,7 @@
     }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
   };
 
-  Opportunites.prototype.charger = function (manuel) {
+  Opportunites.prototype.charger = function (manuel, silencieux) {
     var self = this, gen = ++this.generation;
     if (manuel) this.btnRafraichir.classList.add('occupe');
     if (!this.donnees) {
@@ -484,7 +485,7 @@
       self.btnRafraichir.classList.remove('occupe');
       self.donnees = d; self.erreur = ''; self.copieLe = 0;
       self.rendre();
-      if (manuel && !d.refuse) AMX.toast(d.occasions.length + ' annonce' + (d.occasions.length > 1 ? 's' : '') + ' suivie' + (d.occasions.length > 1 ? 's' : ''), 'ok');
+      if (manuel && !silencieux && !d.refuse) AMX.toast(d.occasions.length + ' annonce' + (d.occasions.length > 1 ? 's' : '') + ' suivie' + (d.occasions.length > 1 ? 's' : ''), 'ok');
     }, function (e) {
       if (gen !== self.generation) return;
       self.btnRafraichir.classList.remove('occupe');
@@ -899,6 +900,7 @@
       if (nAutres) this.elPortee.appendChild(h('div.occ-autres', [h('span', { text: AMX.fmtNombre(nAutres) + ' annonce' + (nAutres > 1 ? 's' : '') + ' d\'autres marques (' + Object.keys(autres).sort().join(', ') + ') : ' + (COURTS[this.compagnie] || this.compagnie) + ' ne les vend pas.' }),
         h('button.btn.petit#occ-toutes-cies', { type: 'button', text: 'Voir toutes les concessions', onclick: function () { AMX.choisirCompagnie(''); self.compagnie = ''; self.rendre(); } })]));
     }
+    this.majSync(liste);
     this.rendreCouverture();
     this.rendreKpis(liste, p);
     this.rendreListe(liste, p);
@@ -1052,6 +1054,53 @@
     AMX.modale({ titre: 'Note — ' + vehicule(o), corps: zone, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () { return self.statut(o, o.statut || '', zone.value.trim()); } }] });
     setTimeout(function () { zone.focus(); }, 50);
   };
+  /* 3 nov. (Maxime : « un bouton d'une autre couleur pour synchroniser les valeurs, pour ne pas voir « prévision à lire » mais
+     les valeurs instantanément ») : « Synchroniser les valeurs » lit tout de suite la prévision OpenLane des annonces de la
+     liste affichée qui n'en ont pas encore (au lieu d'attendre les passages de l'horloge), 40 par appel, 240 au plus par clic. */
+  function aSynchroniser(o) { var k = num(o.km); return !nb(num(o.olPrix)) && !o.olErreur && o.statut !== 'ecartee' && o.statut !== 'achetee' && nb(k) && k >= 1000; }
+  Opportunites.prototype.majSync = function (liste) {
+    if (this.syncEnCours) return;
+    this.listeSync = (liste || []).filter(aSynchroniser).map(function (o) { return o.vin; });
+    var n = this.listeSync.length, b = this.btnSync;
+    b.disabled = !n; b.classList.toggle('a-jour', !n);
+    b.innerHTML = I.rafraichir + '<span>' + (n ? 'Synchroniser les valeurs' : 'Valeurs à jour') + '</span>' + (n ? '<b>' + AMX.fmtNombre(n) + '</b>' : '');
+    b.title = n ? AMX.fmtNombre(n) + ' annonce' + (n > 1 ? 's' : '') + ' de la liste sans prévision OpenLane : lire leur valeur de gros maintenant' : 'Toutes les annonces de la liste ont leur prévision OpenLane';
+  };
+  Opportunites.prototype.synchroniser = function () {
+    var self = this, d = this.donnees, vins = (this.listeSync || []).slice(0, 240), total = vins.length, faits = 0, avec = 0, sans = 0;
+    if (!total || this.syncEnCours || !d) return;
+    var b = this.btnSync, parVin = {};
+    (d.occasions || []).forEach(function (o) { parVin[o.vin] = o; });
+    this.syncEnCours = true; b.classList.add('occupe'); b.disabled = true;
+    var texte = function () { b.innerHTML = I.rafraichir + '<span>Synchronisation… ' + AMX.fmtNombre(faits) + ' / ' + AMX.fmtNombre(total) + '</span>'; };
+    var bilan = function () { return AMX.fmtNombre(faits) + ' valeur' + (faits > 1 ? 's' : '') + ' lue' + (faits > 1 ? 's' : '') + ' chez OpenLane : ' + AMX.fmtNombre(avec) + ' avec une prévision' + (sans ? ', ' + AMX.fmtNombre(sans) + ' sans prévision' : '') + '.'; };
+    var fin = function (msg, type) { self.syncEnCours = false; b.classList.remove('occupe'); if (msg) AMX.toast(msg, type || 'ok', 9000); self.charger(true, true); };
+    texte();
+    var suite = function (reste) {
+      if (!reste.length) { fin(bilan()); return; }
+      var lot = reste.slice(0, 40);
+      AMX.post({ action: 'occasionOpenlane', vins: lot }, { delai: 300000, secours: false }).then(function (r) {
+        if (r && r.refuse) { fin(r.erreur || 'Refusé', 'erreur'); return; }
+        if (r && !('resultats' in r) && (r.nonConnecte || r.reessayer)) { fin((faits ? bilan() + ' ' : '') + r.erreur, 'attention'); return; }
+        if (!r || !('resultats' in r)) { fin('Le script n\'est pas à jour : déployez une nouvelle version (Occasions.gs).', 'erreur'); return; }
+        Object.keys(r.resultats || {}).forEach(function (v) { var o = parVin[v], x = r.resultats[v]; if (o) Object.keys(x).forEach(function (c) { o[c] = x[c]; }); });
+        faits += r.lus || 0; avec += r.avecPrevision || 0; sans += r.sansPrevision || 0;
+        if (r.ok === false) { fin((faits ? bilan() + ' ' : '') + (r.erreur || 'OpenLane a refusé la lecture.'), 'attention'); return; }
+        texte(); self.rafraichirListeSeule();
+        var restants = (r.restants || []).filter(function (v) { return lot.indexOf(v) >= 0; });
+        if (!r.lus && restants.length) { fin(bilan() + ' OpenLane est lent : recliquez pour lire le reste.', 'attention'); return; }
+        suite(restants.concat(reste.slice(lot.length)));
+      }).catch(function (e) { fin((faits ? bilan() + ' ' : '') + AMX.erreurTexte(e), 'erreur'); });
+    };
+    suite(vins);
+  };
+  /* Redessine la liste et les chiffres pendant la synchronisation (sans toucher au bouton). */
+  Opportunites.prototype.rafraichirListeSeule = function () {
+    if (!this.donnees) return;
+    var liste = this.trier(this.filtrer()), p = this.donnees.params || {};
+    this.rendreKpis(liste, p);
+    this.rendreListe(liste, p);
+  };
   Opportunites.prototype.relireOl = function (o) {
     var self = this;
     AMX.toast('Lecture de la prévision OpenLane…', 'info');
@@ -1186,6 +1235,11 @@
       '.occ-pastille { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--trait); background: var(--carte, #fff); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; color: var(--encre-2); }',
       '.occ-pastille b { font-weight: 700; color: var(--encre-1); }',
       '.occ-pastille.actif { background: var(--vert-clair); border-color: var(--vert); color: var(--vert-fonce); }',
+      '.btn.occ-sync { background: var(--bleu); border-color: var(--bleu); color: #fff; font-weight: 600; } .btn.occ-sync svg { color: #fff; }',
+      '.btn.occ-sync:hover:not(:disabled) { background: var(--bleu); filter: brightness(.9); color: #fff; }',
+      '.btn.occ-sync b { background: rgba(255,255,255,.25); border-radius: 999px; padding: 0 7px; margin-left: 2px; font-size: 12px; }',
+      '.btn.occ-sync:disabled { background: var(--carte, #fff); border-color: var(--trait); color: var(--encre-3); font-weight: 500; } .btn.occ-sync:disabled svg { color: var(--encre-3); }',
+      '.btn.occ-sync.occupe { background: var(--bleu); border-color: var(--bleu); color: #fff; opacity: .85; } .btn.occ-sync.occupe svg { color: #fff; }',
       '.occ-srcic { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 8px; width: 100%; }',
       '.occ-srcic-b { display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--trait); background: var(--carte, #fff); border-radius: 12px; padding: 8px 12px; font: inherit; cursor: pointer; color: var(--encre-2); text-align: left; min-height: 48px; }',
       '.occ-srcic-b:hover { border-color: var(--vert); }',

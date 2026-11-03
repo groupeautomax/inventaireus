@@ -78,6 +78,10 @@
   /* 22 oct. (Maxime) : une vente compte dans le mois de sa LIVRAISON (sinon de sa vente) — le serveur envoie `mois` calculé ainsi. */
   function dateLivraisonOk(v) { return /^\d{4}-\d{2}-\d{2}/.test(String(v.dateLivraison || '')); }
   function moisDeVente(v) { return v.mois || String((dateLivraisonOk(v) ? v.dateLivraison : '') || v.dateVente || v.declareLe || '').slice(0, 7); }
+  /* 3 nov. (Maxime : « dans usagé, une grosse case vendu (dans le mois civil) et une autre livraison (livré dans le mois) ») :
+     vendue = date de vente dans le mois ; livrée = date de livraison dans le mois et déjà passée. Une vente annulée ne compte pas. */
+  function vendueDans(v, m) { return !!m && v.statut !== 'annulee' && String(v.dateVente || '').slice(0, 7) === m; }
+  function livreeDans(v, m) { var l = String(v.dateLivraison || '').slice(0, 10); return !!m && v.statut !== 'annulee' && dateLivraisonOk(v) && l.slice(0, 7) === m && l <= isoLocal(new Date()); }
   /* 1er nov. (Maxime : « ajouter un onglet vente reportée qu'on appelle les commandes vendues ») : vendue, pas encore livrée
      (pas de date de livraison, ou une date à venir), ni annulée, ni comptabilisée, ni wholesale. Au-delà de 120 jours depuis la
      vente (comme « à livrer » du Board), elle est mise à part : souvent une livraison jamais inscrite au livre. */
@@ -336,6 +340,7 @@
     s.id = 'css-ventes';
     s.textContent = [
       '.ventes-page .kpis { margin-bottom: 12px; flex-wrap: wrap; overflow: visible; } .ventes-page .kpis > .kpi { border-bottom: 1px solid var(--ligne); margin-bottom: -1px; }',   /* 26 oct. : les cartes passent à la ligne au lieu de défiler de côté */
+      '.ventes-page .kpi.ventes-kpi-civil { min-width: 170px; border-left: 4px solid var(--vert); } .ventes-page .kpi.ventes-kpi-civil .valeur { font-size: 34px; line-height: 1.1; } .ventes-page .kpi.ventes-kpi-civil .libelle { font-size: 15px; font-weight: 700; color: var(--encre); } .ventes-page .kpi.ventes-kpi-civil .sous { font-size: 12px; color: var(--encre-3); margin-top: 2px; }',   /* 3 nov. : grosses cases Vendues / Livrées (Occasion) */
       '.ventes-filtres { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }',
       '.ventes-onglets-type { display: flex; gap: 10px; margin: 2px 0 14px; } .ventes-onglet-type { flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 12px 18px; border: 1px solid var(--ligne); border-radius: 12px; background: var(--fond-carte, #fff); color: var(--encre-2); font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; } .ventes-onglet-type:hover { border-color: var(--vert); color: var(--encre); } .ventes-onglet-type.actif { background: var(--vert); border-color: var(--vert); color: #fff; } .ventes-onglet-type .n { font-size: 14px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--fond, #f2f4f5); color: var(--encre-2); } .ventes-onglet-type.actif .n { background: rgba(255,255,255,.22); color: #fff; } @media (max-width: 640px) { .ventes-onglets-type { gap: 6px; } .ventes-onglet-type { min-height: 46px; padding: 8px 6px; font-size: 15px; gap: 6px; } .ventes-onglet-type .n { font-size: 12px; padding: 1px 7px; } }',   /* 3 nov. : Neuf · Occasion · Wholesale, premier choix de la page */
       '.ventes-filtres input { height: 32px; min-width: 220px; }',
@@ -628,6 +633,7 @@
     this.filtres.type = t; AMX.memo.ecrire('ventes_onglet', t);
     if (t === 'wholesale' && this.filtres.drapeau === 'sansFI') this.filtres.drapeau = '';
     if (t !== 'neuf' && (this.filtres.drapeau === 'rdr' || this.filtres.drapeau === 'sansRdr')) this.filtres.drapeau = '';
+    if (t !== 'usage' && (this.filtres.drapeau === 'vendues' || this.filtres.drapeau === 'livrees')) this.filtres.drapeau = '';
     if (this.vue === 'recap') { this.rendreTypes(); this.chargerRecap(false); return; }
     this.rendre();
   };
@@ -688,7 +694,19 @@
      livre, le calcul doit changer pour représenter Au livre ») : filtres → « Chiffres et liste : … » → chiffres → liste.
      Les chiffres (moyennes, front, F&I, F&I à inscrire) portent sur les ventes que les filtres gardent ; le nombre d'une
      pastille est ce qu'on verra en la choisissant (les autres filtres appliqués). */
-  VueVentes.prototype.rafraichir = function () { this.majCompteurs(); this.rendreTypes(); this.rendrePortee(); this.rendreKpis(); this.rendreListe(); };
+  VueVentes.prototype.rafraichir = function () {
+    if ((this.filtres.drapeau === 'vendues' || this.filtres.drapeau === 'livrees') && !this.moisCivil()) this.filtres.drapeau = '';
+    this.majCompteurs(); this.rendreTypes(); this.rendrePortee(); this.rendreKpis(); this.rendreListe();
+  };
+  /* 3 nov. : cases « Vendues » et « Livrées » de l'onglet Occasion, pour un mois précis de la liste. Les ventes vendues dans le
+     mois mais livrées un autre mois arrivent à part (venduesAutres) ; elles ne s'ajoutent à la liste que sous « Vendues ». */
+  VueVentes.prototype.moisCivil = function () { return this.filtres.type === 'usage' ? this.moisRdr() : ''; };
+  VueVentes.prototype.venduesAutres = function () {
+    var d = cache.rep; if (!d || !this.moisCivil() || !Array.isArray(d.venduesAutres)) return [];
+    var ids = {}; d.ventes.forEach(function (v) { ids[v.id] = 1; });
+    return d.venduesAutres.filter(function (v) { return !ids[v.id]; });
+  };
+  VueVentes.prototype.source = function () { var d = cache.rep; if (!d) return []; return this.filtres.drapeau === 'vendues' ? d.ventes.concat(this.venduesAutres()) : d.ventes; };
   /* Une vente passe-t-elle les filtres ? `sauf` = le filtre à ne pas appliquer ('etat' ou 'type') pour compter une pastille. */
   VueVentes.prototype.garde = function (v, sauf) {
     var f = this.filtres, q = f.recherche || '';
@@ -699,6 +717,8 @@
     if (sauf !== 'drapeau' && f.drapeau === 'erreur' && v.livre !== 'erreur') return false;
     if (sauf !== 'drapeau' && f.drapeau === 'rdr' && !this.estRdr(v)) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'sansRdr' && !this.sansRdr(v)) return false;
+    if (sauf !== 'drapeau' && f.drapeau === 'vendues' && !vendueDans(v, this.moisCivil())) return false;
+    if (sauf !== 'drapeau' && f.drapeau === 'livrees' && !livreeDans(v, this.moisCivil())) return false;
     if (q && !AMX.correspond([v.client, v.noClient, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin], q)) return false;   /* v138 : AMX.correspond */
     return true;
   };
@@ -715,14 +735,14 @@
   };
   VueVentes.prototype.visibles = function () {
     var d = cache.rep, self = this; if (!d) return [];
-    return d.ventes.filter(function (v) { return self.garde(v); });
+    return this.source().filter(function (v) { return self.garde(v); });
   };
   /* « F&I à inscrire » et « Pas au livre » se combinent avec l'onglet d'état (Au livre + F&I à inscrire) ; une adresse
      d'avant (?etat=sansFI, depuis l'Accueil ou le récapitulatif) est remise dans `drapeau`. */
   VueVentes.prototype.normaliserFiltres = function () {
     var f = this.filtres;
-    if (f.etat === 'sansFI' || f.etat === 'erreur' || f.etat === 'rdr' || f.etat === 'sansRdr') { f.drapeau = f.etat; f.etat = ''; }
-    if (['sansFI', 'erreur', 'rdr', 'sansRdr'].indexOf(f.drapeau) < 0) f.drapeau = '';
+    if (f.etat === 'sansFI' || f.etat === 'erreur' || f.etat === 'rdr' || f.etat === 'sansRdr' || f.etat === 'vendues' || f.etat === 'livrees') { f.drapeau = f.etat; f.etat = ''; }
+    if (['sansFI', 'erreur', 'rdr', 'sansRdr', 'vendues', 'livrees'].indexOf(f.drapeau) < 0) f.drapeau = '';
   };
   /* 26 oct. (Maxime : « il faut aussi un compteur de RDR du mois et la date est dans le livre des ventes ») : la Date RDR vient du
      livre. « RDR du mois » = Date RDR dans le mois affiché ; « sans RDR » = neuf livré dans le mois sans Date RDR, seulement pour
@@ -733,13 +753,17 @@
   /* Les nombres des pastilles : état (sans le filtre d'état), type (sans le filtre de type), F&I à inscrire / pas au livre
      (sans ce drapeau) — chaque nombre est ce qu'on verra en cliquant. */
   VueVentes.prototype.compteurs = function () {
-    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0, rdr: 0, sansRdr: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 }, a = { '': 0, recentes: 0, vieilles: 0 };
+    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0, rdr: 0, sansRdr: 0, vendues: 0, livrees: 0, venduesAutres: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 }, a = { '': 0, recentes: 0, vieilles: 0 };
     if (!d) return { etat: e, type: t, age: a };
-    d.ventes.forEach(function (v) {
+    var mc = this.moisCivil(), autres = this.venduesAutres(), avecAutres = this.filtres.drapeau === 'vendues';
+    d.ventes.concat(autres).forEach(function (v, i) {
+      var autre = i >= d.ventes.length;   /* vendue dans le mois, livrée un autre mois */
+      if (autre && self.garde(v, 'drapeau') && vendueDans(v, mc)) { e.vendues++; e.venduesAutres++; }
+      if (autre && !avecAutres) return;   /* ailleurs, elles ne sont pas dans la liste du mois */
       if (self.vue === 'commandes' && self.garde(v, 'age')) { a['']++; a[ageCommande(v)]++; }
       if (self.garde(v, 'etat')) { e['']++; if (e[v.statut] !== undefined) e[v.statut]++; }
       if (self.garde(v, 'type')) { t['']++; if (t[v.type] !== undefined) t[v.type]++; }
-      if (self.garde(v, 'drapeau')) { if (v.livre === 'erreur') e.erreur++; if (besoinFI(v)) e.sansFI++; if (self.estRdr(v)) e.rdr++; if (self.sansRdr(v)) e.sansRdr++; }
+      if (!autre && self.garde(v, 'drapeau')) { if (v.livre === 'erreur') e.erreur++; if (besoinFI(v)) e.sansFI++; if (self.estRdr(v)) e.rdr++; if (self.sansRdr(v)) e.sansRdr++; if (vendueDans(v, mc)) e.vendues++; if (livreeDans(v, mc)) e.livrees++; }
     });
     return { etat: e, type: t, age: a };
   };
@@ -752,7 +776,7 @@
   var TYPES_ONGLET = [['neuf', 'Neuf'], ['usage', 'Occasion'], ['wholesale', 'Wholesale']];
   function typeOnglet(t) { return t === 'neuf' || t === 'usage' || t === 'wholesale' ? t : ''; }
   function libelleTypeOnglet(t) { var x = TYPES_ONGLET.filter(function (y) { return y[0] === t; })[0]; return x ? x[1] : ''; }
-  function libelleEtatVente(e) { if (e === 'sansFI') return 'F&I à inscrire'; if (e === 'erreur') return 'Pas au livre'; if (e === 'rdr') return 'RDR du mois'; if (e === 'sansRdr') return 'Neufs livrés sans RDR'; for (var i = 0; i < ETATS_VENTE.length; i++) if (ETATS_VENTE[i][0] === e) return ETATS_VENTE[i][1]; return e; }
+  function libelleEtatVente(e) { if (e === 'sansFI') return 'F&I à inscrire'; if (e === 'vendues') return 'Vendues dans le mois'; if (e === 'livrees') return 'Livrées dans le mois'; if (e === 'erreur') return 'Pas au livre'; if (e === 'rdr') return 'RDR du mois'; if (e === 'sansRdr') return 'Neufs livrés sans RDR'; for (var i = 0; i < ETATS_VENTE.length; i++) if (ETATS_VENTE[i][0] === e) return ETATS_VENTE[i][1]; return e; }
   /* La barre de filtres, dessinée une fois par rendu : la recherche garde le curseur, les nombres changent sur place. */
   VueVentes.prototype.rendreFiltres = function () {
     var self = this, ui2 = AMX.ui2 && AMX.ui2();
@@ -797,7 +821,7 @@
     AMX.vider(this.elKpis);
     if (!d) return;
     var kpi = function (etat, libelle, valeur, cls) {
-      var champ = (etat === 'sansFI' || etat === 'erreur' || etat === 'rdr' || etat === 'sansRdr') ? 'drapeau' : 'etat', actif = self.filtres[champ] === etat;
+      var champ = (etat === 'sansFI' || etat === 'erreur' || etat === 'rdr' || etat === 'sansRdr' || etat === 'vendues' || etat === 'livrees') ? 'drapeau' : 'etat', actif = self.filtres[champ] === etat;
       return h('div.kpi' + (cls ? '.' + cls : '') + (actif ? '.actif' : ''), { role: 'button', tabindex: '0', 'data-etat': etat, 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres[champ] = actif ? '' : etat; self.rendre(); } }, [h('div.valeur', { text: String(valeur || 0) }), h('div.libelle', { text: libelle })]);
     };
     /* v133 : en ui2, les états sont des pastilles dans la barre de filtres ; ici, l'ancienne interface garde ses tuiles. */
@@ -847,6 +871,20 @@
       var nVentes = this.visibles().filter(function (v) { return v.statut !== 'annulee'; }).length;
       this.elKpis.appendChild(h('div.kpi.neutre#ventes-kpi-hors', { title: resumeHors(hv, !!d.montants) }, [h('div.valeur', { text: String(nVentes + shv.u) }), h('div.libelle', { text: 'Unités nettes' }),
         h('div.sous', { text: pluriel(nVentes, 'vente') + (shv.u ? ' ' + (shv.u > 0 ? '+ ' : '− ') + pluriel(Math.abs(shv.u), 'unité') + ' hors vente' : '') + ' · ' + pluriel(shv.n, 'entrée') + ' hors vente' })]));
+    }
+    /* 3 nov. (Maxime : « dans usagé, une grosse case vendu (dans le mois civil) et une autre livraison (livré dans le mois), à côté
+       de F&I à remplir ») : deux grosses cases, cliquables comme « F&I à inscrire ». */
+    var mc = this.moisCivil();
+    if (mc) {
+      var nomMois = moisLibelle(mc), avant = !Array.isArray(d.venduesAutres);
+      var tV = kpi('vendues', 'Vendues', c.etat.vendues, 'ventes-kpi-civil');
+      tV.id = 'ventes-kpi-vendues';
+      tV.appendChild(h('div.sous', { text: 'date de vente en ' + nomMois + (c.etat.venduesAutres ? ' · dont ' + c.etat.venduesAutres + ' livrée' + (c.etat.venduesAutres > 1 ? 's' : '') + ' un autre mois ou pas encore' : '') }));
+      if (avant) tV.title = 'Redéployez le script : les ventes de ' + nomMois + ' livrées un autre mois ne sont pas encore comptées.';
+      var tL = kpi('livrees', 'Livrées', c.etat.livrees, 'ventes-kpi-civil');
+      tL.id = 'ventes-kpi-livrees';
+      tL.appendChild(h('div.sous', { text: 'livrées en ' + nomMois + (mc === moisCourant() ? ', à ce jour' : '') }));
+      this.elKpis.appendChild(tV); this.elKpis.appendChild(tL);
     }
     if (!sansFI) this.elKpis.appendChild(kpi('sansFI', 'F&I à inscrire', c.etat.sansFI, c.etat.sansFI ? 'alerte' : ''));
     /* 26 oct. : compteur des RDR du mois (Date RDR du livre) */
@@ -1961,6 +1999,7 @@
     d.ventes = (d.ventes || []).filter(function (x) { return x.id !== v.id; });
     d.horsVentes = (d.horsVentes || []).filter(function (x) { return x.id !== v.id; });
     if (etait) { if (versExclues) d.horsVentes.unshift(v); else d.ventes.unshift(v); }
+    if (Array.isArray(d.venduesAutres)) { var dansAutres = d.venduesAutres.some(pareil); d.venduesAutres = d.venduesAutres.filter(function (x) { return x.id !== v.id; }); if (dansAutres && !versExclues) d.venduesAutres.unshift(v); }   /* 3 nov. : vendues dans le mois, livrées un autre mois */
     var n = { declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreurLivre: 0 };
     d.ventes.forEach(function (x) { if (n[x.statut] !== undefined) n[x.statut]++; if (x.livre === 'erreur') n.erreurLivre++; });
     d.compte = n;

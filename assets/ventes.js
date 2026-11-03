@@ -621,8 +621,8 @@
     });
   };
   /* Qui reçoit les courriels « vente inscrite » (droit « Ventes — F&I »), affiché sous la rangée des concessions. */
-  /* 3 nov. : les gros onglets Neuf · Occasion · Wholesale — premier choix de la page. Le nombre = les ventes de ce type que
-     les autres filtres gardent (rien au récapitulatif, qui ne lit qu'un type à la fois). */
+  /* 3 nov. : les gros onglets Neuf · Occasion · Wholesale — premier choix de la page. Sans nombre (Maxime : « ça porte à
+     confusion, on a le détail plus bas »). */
   VueVentes.prototype.choisirType = function (t) {
     if (!typeOnglet(t) || t === this.filtres.type) return;
     this.filtres.type = t; AMX.memo.ecrire('ventes_onglet', t);
@@ -632,18 +632,12 @@
     this.rendre();
   };
   VueVentes.prototype.rendreTypes = function () {
-    var self = this, d = cache.rep, el = this.elTypes, t0 = this.filtres.type, nb = null;
+    var self = this, el = this.elTypes, t0 = this.filtres.type;
     if (!el) return;
-    if (d && this.vue !== 'recap' && !(cache.vue && cache.cle !== cache.vue)) {
-      nb = {};
-      var liste = (this.vue === 'exclues' || this.vue === 'refusees') ? this.horsVentesVue() : (d.ventes || []).filter(function (v) { return self.garde(v, 'type'); });
-      liste.forEach(function (v) { nb[v.type] = (nb[v.type] || 0) + 1; });
-    }
     AMX.vider(el);
     TYPES_ONGLET.forEach(function (t) {
       var actif = t[0] === t0;
-      el.appendChild(h('button.ventes-onglet-type' + (actif ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': actif ? 'true' : 'false', 'data-type': t[0], onclick: function () { self.choisirType(t[0]); } },
-        [h('span.nom', { text: t[1] }), nb ? h('span.n', { text: String(nb[t[0]] || 0) }) : null]));
+      el.appendChild(h('button.ventes-onglet-type' + (actif ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': actif ? 'true' : 'false', 'data-type': t[0], onclick: function () { self.choisirType(t[0]); } }, [h('span.nom', { text: t[1] })]));
     });
   };
   VueVentes.prototype.rendreFi = function () {

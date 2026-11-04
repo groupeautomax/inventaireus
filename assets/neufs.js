@@ -199,11 +199,15 @@
   function puceExportable(v) { var e = estExportable(v); return e ? h('span.badge.sans-point.' + (e === 'oui' ? 'sarcelle' : 'gris'), { text: EXPORTABLES[e], title: e === 'oui' ? 'Le NIV peut être exporté' : 'Le NIV ne doit pas être exporté' }) : null; }
   /* 21 oct. (Maxime : « enlever les onglets de la deuxième barre sauf DMS absent et manufacturier absent ») : la barre de la
      page n'a plus que Liste · Absents du DMS · Absents du manufacturier. Commandes et Ventes déclarées sont des pastilles de
-     la liste (VUES_LISTE), Analyse un bouton de l'en-tête, Échanges vit dans Vente › Échanges de neufs (mode « seul »),
-     Équité dans Relance (assets/relance.js). Les anciens ids (commandes, ventes, ecarts, echanges, equite) sont traduits. */
-  var ONGLETS_NEUFS = ['liste', 'absentsDms', 'absents', 'analyse'];
+     la liste (VUES_LISTE), Analyse un bouton de l'en-tête, Équité dans Relance (assets/relance.js). Les anciens ids
+     (commandes, ventes, ecarts, equite) sont traduits. 4 nov. : Échanges revient ici, par la bulle « Échanges » du haut. */
+  var ONGLETS_NEUFS = ['liste', 'absentsDms', 'absents', 'analyse', 'echanges'];
   var VUES_LISTE = ['table', 'commandes', 'ventes'];
-  var ANCIENS_ONGLETS = { commandes: { onglet: 'liste', vue: 'commandes' }, ventes: { onglet: 'liste', vue: 'ventes' }, ecarts: { onglet: 'absentsDms' }, echanges: { onglet: 'liste' }, equite: { onglet: 'liste' } };
+  var ANCIENS_ONGLETS = { commandes: { onglet: 'liste', vue: 'commandes' }, ventes: { onglet: 'liste', vue: 'ventes' }, ecarts: { onglet: 'absentsDms' }, equite: { onglet: 'liste' } };
+  /* 4 nov. (Maxime : « l'onglet échange devrait être dans le neuf, mais uniquement pour Hawks et STM, dans une bulle en haut ») :
+     les échanges de neufs par texto se font entre Ste-Marie et Hawkesbury seulement. */
+  var CIES_ECHANGES = ['STM', 'HAWKS'];
+  function cieEchange(c) { return CIES_ECHANGES.indexOf(c) >= 0; }
   function ongletDemande(id) { if (ANCIENS_ONGLETS[id]) return ANCIENS_ONGLETS[id]; return ONGLETS_NEUFS.indexOf(id) >= 0 ? { onglet: id } : null; }
   /* Demandes d'échange (cache du module) : le compteur de Vente › Échanges de neufs sans monter la page. */
   var cacheEchanges = null;
@@ -268,6 +272,8 @@
       '@media (max-width: 640px) { .neufs-pipeline .neufs-etapes { flex-wrap: wrap; overflow: visible; } .neufs-etapes .fleche { display: none; } .neufs-etape { flex: 1 1 calc(50% - 4px); min-width: 0; } }',
       '.neufs-etape .n { font-size: 24px; font-weight: 700; line-height: 1.1; } .neufs-etape .nom { font-size: 12px; font-weight: 600; margin-top: 2px; } .neufs-etape .sous { font-size: 12px; color: var(--encre-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
       /* Onglets de la page */
+      /* 4 nov. : bulle « Échanges » à côté du titre (Ste-Marie et Hawkesbury) */
+      '.neufs-titre { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .neufs-bulle-ech { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--vert-clair); background: var(--vert-clair); color: var(--vert-fonce); border-radius: 999px; padding: 4px 12px 4px 10px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; cursor: pointer; white-space: nowrap; } .neufs-bulle-ech .ico svg { width: 15px; height: 15px; display: block; } .neufs-bulle-ech b { font-size: 12px; font-weight: 700; color: var(--vert-fonce); background: #fff; border-radius: 999px; padding: 1px 7px; } .neufs-bulle-ech b.rouge { color: #fff; background: var(--rouge); } .neufs-bulle-ech:hover { border-color: var(--vert); } .neufs-bulle-ech.actif { background: var(--vert); border-color: var(--vert); color: #fff; } .neufs-bulle-ech.actif b { background: rgba(255,255,255,.25); color: #fff; } .neufs-bulle-ech.actif b.rouge { background: var(--rouge); } .neufs-bulle-ech .bulle-x { font-size: 16px; line-height: 1; margin-left: 2px; color: inherit; }',
       '.neufs-onglets { display: flex; gap: 4px; border-bottom: 1px solid var(--ligne); margin: 2px 0 12px; overflow-x: auto; } .neufs-onglets button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 8px 12px; font: inherit; font-size: 13.5px; color: var(--encre-3); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; margin-bottom: -1px; } .neufs-onglets button b { font-weight: 600; font-size: 12px; color: var(--encre-3); background: var(--gris-bg); border-radius: 999px; padding: 1px 7px; } .neufs-onglets button:hover { color: var(--encre); } .neufs-onglets button.actif { color: var(--vert); border-bottom-color: var(--vert); font-weight: 600; } .neufs-onglets button.actif b { color: var(--vert); background: var(--vert-clair); } .neufs-onglets button b.rouge, .neufs-onglets button.actif b.rouge { color: #fff; background: var(--rouge, #B42318); }',
       '.neufs-panneau.cache { display: none; }',
       '.neufs-cmd .tableau { min-width: 640px; } .neufs-cmd td.num, .neufs-cmd th.num { text-align: right; font-variant-numeric: tabular-nums; } .neufs-cmd tr.modele { cursor: pointer; } .neufs-cmd tr.modele:hover td { background: var(--carte-2); } .neufs-cmd tr.modele.ouvert td { background: var(--carte-2); } .neufs-cmd tr.version td:first-child { padding-left: 26px; color: var(--encre-2); } .neufs-cmd tr.version.cache { display: none; } .neufs-cmd tr.total td { font-weight: 700; border-top: 2px solid var(--ligne-forte); }',
@@ -420,10 +426,18 @@
   };
   AMX.neufs.echangesEnCache = function () { return cacheEchanges; };
   AMX.neufs.compteurEchanges = function () {
-    if (!cacheEchanges) return '';
+    if (!cacheEchanges || !AMX.neufs.echangesOfferts()) return '';
     var c = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
     var n = (cacheEchanges.echanges || []).filter(function (o) { return o.statut === 'en_attente' && (!c || o.deCompagnie === c || o.aCompagnie === c); }).length;
     return n || '';
+  };
+  /* 4 nov. : la bulle « Échanges » de Neufs paraît quand la concession choisie est Ste-Marie ou Hawkesbury (ou tout le groupe, si
+     la personne voit l'une des deux) et que son rôle a l'onglet (clé 'vente/echanges', inchangée : Admin et Onglets.gs). */
+  AMX.neufs.echangesOfferts = function (c) {
+    if (AMX.voitOnglet && !AMX.voitOnglet('vente', 'echanges')) return false;
+    if (c === undefined) c = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
+    if (c) return cieEchange(c);
+    return (AMX.codesPour ? AMX.codesPour('inventaire') : Object.keys(AMX.COMPAGNIES || {})).some(cieEchange);
   };
 
   /** Groupes modèle › version : en stock, tranches, sorties 90 j, jours d'approvisionnement, âge moyen. */
@@ -503,11 +517,10 @@
     this.flotte = AMX.memo.lire('neufs_flotte', 'detail'); if (['detail', 'flotte', 'tout'].indexOf(this.flotte) < 0) this.flotte = 'detail';   /* détail par défaut : la flotte fausse les jours d'appro et l'âge */
     this.origine = AMX.memo.lire('neufs_origine', ''); if (['dms', 'constructeur'].indexOf(this.origine) < 0) this.origine = '';   /* '' = l'origine par défaut (DMS s'il y en a un) */
     this.tri = AMX.memo.lire('neufs_tri', { cle: 'jours', desc: true });
-    this.seul = !!(ctx && ctx.params && ctx.params.seul === 'echanges');   /* 21 oct. : Vente › Échanges de neufs = cette page, réduite aux demandes d'échange */
     this.vue = AMX.memo.lire('neufs_vue', 'table'); if (VUES_LISTE.indexOf(this.vue) < 0) this.vue = 'table';   /* 21 oct. : table · commandes · ventes déclarées (pastilles de la liste) */
     this.construire();
     if (ctx && ctx.params && ctx.params.vin) { this.filtres.recherche = String(ctx.params.vin).toUpperCase(); this.elRecherche.value = this.filtres.recherche; this.vinDemande = true; }
-    var od = ctx && ctx.params ? ongletDemande(ctx.params.onglet) : null;   /* #/inventaire/neufs?onglet=ventes (tuile de l'accueil) */
+    var od = ctx && ctx.params ? ongletDemande(ctx.params.onglet || (ctx.params.seul === 'echanges' ? 'echanges' : '')) : null;   /* #/inventaire/neufs?onglet=ventes (tuile de l'accueil) ; ?onglet=echanges (bulle) */
     if (od) { this.onglet = od.onglet; if (od.vue) this.vue = od.vue; }
     this.charger();
     this.surProfil = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('inventaire'); self.rendre(); } };
@@ -542,16 +555,17 @@
     // 21 oct. (Maxime : « dans Inventaire, commencer par le choix de la concession, après DMS ou manufacturier, après détail ou
     // flotte, après les menus ») : concession → origine → type → barre (Liste · Absents) → menus → liste. Analyse = bouton.
     this.btnAnalyse = h('button.btn#neufs-analyse', { type: 'button', html: I.resultat + '<span>Analyse</span>', title: 'Vieillissement, jours d\'approvisionnement, revue des modèles', onclick: function () { self.montrer(self.onglet === 'analyse' ? 'liste' : 'analyse'); } });
-    var titre = this.seul ? 'Échanges de neufs' : 'Neufs';
-    var actionsEntete = this.seul ? ((AMX.ui2 && AMX.ui2()) ? [] : [this.btnRafraichir]) : [this.btnAnalyse, this.btnPortail, this.btnRafraichir, this.btnExport];   /* v136 : Échanges, la carte a déjà son « Rafraîchir » */
-    if (AMX.ui2 && AMX.ui2() && !this.seul) {
+    var actionsEntete = [this.btnAnalyse, this.btnPortail, this.btnRafraichir, this.btnExport];
+    if (AMX.ui2 && AMX.ui2()) {
       /* v134 (nouvelle interface) : Rafraîchir et Exporter descendent dans « … ». */
       actionsEntete = [AMX.menuActions([
         { texte: 'Rafraîchir', icone: I.rafraichir, action: function () { self.charger(true); } },
         { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } }
       ]), this.btnAnalyse, this.btnPortail];
     }
-    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', titre), this.elEtat]), h('div.actions', actionsEntete)]);
+    /* 4 nov. : bulle « Échanges » à côté du titre (Ste-Marie et Hawkesbury) — un clic montre les demandes, un 2e clic la liste. */
+    this.elBulle = h('button.neufs-bulle-ech.cache', { type: 'button', 'aria-pressed': 'false', onclick: function () { if (self.onglet === 'echanges') { self.montrer('liste'); return; } self.montrer('echanges'); self.chargerEchanges(); } });   /* ouvrir = relire les demandes (la roue Automax tourne) */
+    var entete = h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('div.neufs-titre', [h('h1', 'Neufs'), this.elBulle]), this.elEtat]), h('div.actions', actionsEntete)]);
     this.elChoix = h('div.barre-cies.neufs-concessions');   /* 16 oct. : même rangée de concessions que partout (AMX.barreConcessions) */
     this.elEtapeOrigine = h('div.neufs-palier', [h('span.etiquette', { text: 'Inventaire' }), this.elOrigine]);
     this.elEtapeFlotte = h('div.neufs-palier.cache', [h('span.etiquette', { text: 'Type' }), this.elFlotte]);
@@ -562,7 +576,7 @@
     this.elOnglets = h('div.neufs-onglets', { role: 'tablist' });
     // Deuxième barre : Liste · Absents du DMS · Absents du manufacturier — un seul panneau affiché à la fois.
     this.onglet = AMX.memo.lire('neufs_onglet', 'liste'); if (ONGLETS_NEUFS.indexOf(this.onglet) < 0) this.onglet = (ANCIENS_ONGLETS[this.onglet] || {}).onglet || 'liste';
-    if (this.onglet === 'analyse') this.onglet = 'liste';   /* l'analyse ne se mémorise pas : on rouvre toujours sur la liste */
+    if (this.onglet === 'analyse' || this.onglet === 'echanges') this.onglet = 'liste';   /* l'analyse et les échanges ne se mémorisent pas : on rouvre toujours sur la liste */
     this.elVieillissement = h('div.carte');
     this.elRevue = h('div.carte');
     this.elGroupes = h('div.carte');
@@ -571,7 +585,7 @@
     this.elEcarts = h('div.neufs-panneau');   /* DMS vs constructeur (11 oct.) — rendu au bas d'« Absents du DMS » (21 oct.) */
     this.elAbsentsDms = h('div.neufs-panneau');   /* 21 oct. : en stock au portail du manufacturier, absents du DMS */
     this.elAbsents = h('div.neufs-panneau');   /* 12 oct. (Maxime : « absent de Global mais dans le DMS, comme onglet ») */
-    this.elEchanges = h('div.neufs-panneau');   /* 12 oct. : demandes d'échange entre concessions, par texto — page Vente › Échanges de neufs (21 oct.) */
+    this.elEchanges = h('div.neufs-panneau.cache');   /* 12 oct. : demandes d'échange entre concessions, par texto — 4 nov. : par la bulle « Échanges » */
     this.elRecherche = h('input.saisie', { type: 'search', placeholder: 'NIV, # stock, modèle, version, couleur…', autocomplete: 'off', oninput: AMX.debounce(function (e) { self.filtres.recherche = e.target.value; if (AMX.ui2 && AMX.ui2()) self.rendreSelects(); self.rendreTable(); }, 120) });
     this.selModele = h('select.saisie', { 'aria-label': 'Modèle', onchange: function (e) { self.filtres.modele = e.target.value; self.filtres.version = ''; self.rendreTable(); self.rendreSelects(); } });
     this.selVersion = h('select.saisie', { 'aria-label': 'Version', onchange: function (e) { self.filtres.version = e.target.value; self.rendreTable(); } });
@@ -621,9 +635,7 @@
     } else this.elTete = h('div.neufs-tete', [this.elMarques, this.elPipeline, this.elCartes, barre]);
     this.elListe = h('div.neufs-panneau', [this.elCarteTable]);
     this.elAnalyse = h('div.neufs-panneau', [this.elVieillissement, this.elGroupes, this.elRevue]);
-    this.el = this.seul
-      ? h('div.page.neufs-page', [entete, this.elChoix, this.elEchanges])
-      : h('div.page.neufs-page', [entete, this.elChoix, this.elEtapes, this.elOnglets, this.elTete, this.elListe, this.elCommandes, this.elVentes, this.elAbsentsDms, this.elAbsents, this.elAnalyse]);
+    this.el = h('div.page.neufs-page', [entete, this.elChoix, this.elEtapes, this.elOnglets, this.elTete, this.elListe, this.elCommandes, this.elVentes, this.elAbsentsDms, this.elAbsents, this.elAnalyse, this.elEchanges]);
     this.conteneur.appendChild(this.el);
   };
   /* Sélecteur Détail · Flotte · Tout (GM seulement : les unités FNR / FCN du portail sont de la flotte) — rangée « Type », sous
@@ -671,15 +683,17 @@
     var ancien = ANCIENS_ONGLETS[onglet];   /* commandes / ventes → la liste, dans cette vue ; ecarts → Absents du DMS ; echanges / equite → la liste */
     if (ancien) { if (ancien.vue) { this.choisirVue(ancien.vue, true); if (this.donnees) this.rendreSelects(); } onglet = ancien.onglet; }
     if (ONGLETS_NEUFS.indexOf(onglet) < 0) onglet = 'liste';
-    if (this.seul) onglet = 'liste';
-    this.onglet = onglet; if (onglet !== 'analyse') AMX.memo.ecrire('neufs_onglet', onglet);
-    [['absentsDms', this.elAbsentsDms], ['absents', this.elAbsents], ['analyse', this.elAnalyse]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
+    if (onglet === 'echanges' && !AMX.neufs.echangesOfferts(this.compagnie)) onglet = 'liste';   /* BMW, VW, Hyundai : pas d'échanges */
+    this.onglet = onglet; if (onglet !== 'analyse' && onglet !== 'echanges') AMX.memo.ecrire('neufs_onglet', onglet);
+    [['absentsDms', this.elAbsentsDms], ['absents', this.elAbsents], ['analyse', this.elAnalyse], ['echanges', this.elEchanges]].forEach(function (p) { p[1].classList.toggle('cache', p[0] !== onglet); });
     this.elTete.classList.toggle('cache', onglet !== 'liste');
+    this.elEtapes.classList.toggle('cache', onglet === 'echanges');   /* DMS / manufacturier, type, marque : rien à voir avec les échanges */
+    this.rendreBulle();
     this.btnAnalyse.classList.toggle('actif', onglet === 'analyse');
     this.btnAnalyse.querySelector('span').textContent = onglet === 'analyse' ? 'Retour à la liste' : 'Analyse';
     this.montrerVue();
     this.rendreOnglets();
-    if (options && options.defiler) { var cible = { liste: this.vue === 'table' ? this.elBarre : (this.vue === 'commandes' ? this.elCommandes : this.elVentes), absentsDms: this.elAbsentsDms, absents: this.elAbsents, analyse: this.elAnalyse }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    if (options && options.defiler) { var cible = { liste: this.vue === 'table' ? this.elBarre : (this.vue === 'commandes' ? this.elCommandes : this.elVentes), absentsDms: this.elAbsentsDms, absents: this.elAbsents, analyse: this.elAnalyse, echanges: this.elEchanges }[onglet]; if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
   /* Nombre d'unités en stock au portail du manufacturier mais absentes du DMS (ou de la feuille de référence), dans la portée. */
   VueNeufs.prototype.nAbsentsDms = function () {
@@ -691,7 +705,7 @@
   VueNeufs.prototype.rendreOnglets = function () {
     var self = this, d = this.donnees;
     AMX.vider(this.elOnglets);
-    if (!d || this.seul) return;
+    if (!d) return;
     var enStock = this.visibles().filter(function (v) { return v.enStock; }).length;
     var ab = this.absentsConstructeur();
     var o = this.originesDispo(), nAbs = o.constructeur ? this.nAbsentsDms() : null;   /* sans inventaire du manufacturier : rien à comparer */
@@ -700,7 +714,24 @@
       if (x[2] === null && x[0] !== 'liste') return;   /* concession sans portail (ou sans rien à comparer) : pas d'onglets vides */
       self.elOnglets.appendChild(h('button' + (self.onglet === x[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === x[0] ? 'true' : 'false', 'data-onglet': x[0], onclick: function () { self.montrer(x[0]); } }, [h('span', { text: x[1] }), x[2] !== null ? h('b' + (x[0] !== 'liste' && x[2] ? '.rouge' : ''), { text: AMX.fmtNombre(x[2]) }) : null]));
     });
-    if (this.onglet !== 'analyse' && !this.elOnglets.querySelector('button.actif')) { this.onglet = 'liste'; this.montrer('liste'); }
+    if (this.onglet !== 'analyse' && this.onglet !== 'echanges' && !this.elOnglets.querySelector('button.actif')) { this.onglet = 'liste'; this.montrer('liste'); }
+  };
+  /* La bulle « Échanges » (4 nov.) : cachée hors de Ste-Marie et Hawkesbury ; le nombre = demandes en attente (rouge s'il y en
+     a à répondre pour moi). Ouverte, elle est verte et ramène à la liste au clic. */
+  VueNeufs.prototype.rendreBulle = function () {
+    var b = this.elBulle; if (!b) return;
+    var offert = AMX.neufs.echangesOfferts(this.compagnie);
+    b.classList.toggle('cache', !offert);
+    if (!offert) { if (this.onglet === 'echanges') this.montrer('liste'); return; }
+    var ouvert = this.onglet === 'echanges', att = this.echangesEnAttente(), aMoi = att.filter(function (o) { return o.peutRepondre; }).length;
+    AMX.vider(b);
+    b.classList.toggle('actif', ouvert);
+    b.setAttribute('aria-pressed', ouvert ? 'true' : 'false');
+    b.title = ouvert ? 'Retour à la liste des neufs' : 'Demandes d\'échange de neufs par texto entre Ste-Marie et Hawkesbury';
+    b.appendChild(h('span.ico', { html: I.texto }));
+    b.appendChild(h('span', { text: 'Échanges' }));
+    if (this.echanges && att.length) b.appendChild(h('b' + (aMoi ? '.rouge' : ''), { text: AMX.fmtNombre(att.length), title: att.length + ' en attente' + (aMoi ? ' · ' + aMoi + ' à répondre' : '') }));
+    if (ouvert) b.appendChild(h('span.bulle-x', { text: '×', 'aria-hidden': 'true' }));
   };
 
   VueNeufs.prototype.charger = function (force) {
@@ -853,15 +884,6 @@
     }   /* NIV demandé (recherche globale) caché par l'origine, le mode ou la marque : on bascule */
     var tous = this.donnees ? this.donnees.vehicules : [];
     var def = AMX.neufs.originesDefaut ? AMX.neufs.originesDefaut() : {}, oc = this.origineCourante();
-    if (this.seul) {   /* Vente › Échanges de neufs : la concession, puis les demandes (le compte = demandes en attente) */
-      AMX.barreConcessions(this.elChoix, { domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { var e = (self.echanges && self.echanges.echanges) || []; return self.echanges ? e.filter(function (o) { return o.statut === 'en_attente' && (!c || o.deCompagnie === c || o.aCompagnie === c); }).length : null; }, onchange: function (c) { self.compagnie = c; self.rendre(); } });
-      var att = this.echangesEnAttente();
-      this.elEtat.textContent = !this.echanges ? 'Chargement des demandes…' : (this.compagnie ? nomCie(this.compagnie) : 'Tout le groupe') + ' · ' + att.length + ' demande' + (att.length > 1 ? 's' : '') + ' en attente' + (this.echanges.textosActifs ? ' · réponses par texto' : '');
-      if (this.erreur && !this.donnees) { this.elEtat.textContent = this.erreur; return; }
-      if (!this.donnees) return;
-      this.rendreEchanges();
-      return;
-    }
     AMX.barreConcessions(this.elChoix, { domaine: 'inventaire', valeur: this.compagnie, compte: function (c) { return tous.filter(function (v) { return v.enStock && (!c || v.compagnie === c) && origineDe(v) === (c ? (self.origine && self.compagnie === c ? oc : def[c]) : def[v.compagnie]) && self.garde(estFlotte(v)); }).length; }, onchange: function (c) { self.compagnie = c; self.typeParVin = null; self.filtres.modele = ''; self.filtres.version = ''; self.filtres.statut = ''; self.rendre(); if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre(); } });
     this.rendreOrigine();
     this.rendreFlotte();
@@ -892,6 +914,7 @@
     this.rendreExclus();
     this.rendreAbsentsDms();
     this.rendreAbsents();
+    this.rendreEchanges();
     this.montrer(this.onglet);
   };
   /* Onglet « Absents du DMS » (21 oct.) : en stock au portail du manufacturier (livré au concessionnaire) mais pas dans l'export du
@@ -1117,20 +1140,20 @@
       /* L'ancien script répond à un GET inconnu par la liste de l'inventaire (ok + vehicules) : sans tableau echanges, la route n'est pas déployée. */
       self.echanges = d;
       if (d.indisponible === 'route absente') d.indisponible = 'route absente — redéployez le script (Echange.gs)';
-      if (self.seul) self.rendre(); else { self.rendreEchanges(); self.rendreOnglets(); }
-      if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre();   /* compteur de Vente › Échanges de neufs */
-    }).catch(function (e) { if (self.detruit) return; self.echanges = { echanges: [], peutDemander: false, textosActifs: false, indisponible: AMX.erreurTexte(e) }; if (self.seul) self.rendre(); else { self.rendreEchanges(); self.rendreOnglets(); } });
+      self.rendreEchanges(); self.rendreBulle();
+    }).catch(function (e) { if (self.detruit) return; self.echanges = { echanges: [], peutDemander: false, textosActifs: false, indisponible: AMX.erreurTexte(e) }; self.rendreEchanges(); self.rendreBulle(); });
   };
   VueNeufs.prototype.echangesEnAttente = function () {
     var c = this.compagnie;
     return ((this.echanges && this.echanges.echanges) || []).filter(function (o) { return o.statut === 'en_attente' && (!c || o.deCompagnie === c || o.aCompagnie === c); });
   };
-  /* Les concessions au nom desquelles je peux demander (portée inventaire), sans celle qui a le véhicule. */
+  /* Les concessions au nom desquelles je peux demander (portée inventaire), sans celle qui a le véhicule — Ste-Marie et
+     Hawkesbury seulement (4 nov.). */
   VueNeufs.prototype.concessionsDemandeuses = function (sauf) {
-    return (AMX.codesPour ? AMX.codesPour('inventaire') : Object.keys(AMX.COMPAGNIES)).filter(function (c) { return c !== sauf; });
+    return (AMX.codesPour ? AMX.codesPour('inventaire') : Object.keys(AMX.COMPAGNIES)).filter(function (c) { return c !== sauf && cieEchange(c); });
   };
   VueNeufs.prototype.peutDemanderEchange = function (v) {
-    return !!(v && v.enStock && this.echanges && this.echanges.peutDemander && this.concessionsDemandeuses(v.compagnie).length);
+    return !!(v && v.enStock && cieEchange(v.compagnie) && AMX.neufs.echangesOfferts(v.compagnie) && this.echanges && this.echanges.peutDemander && this.concessionsDemandeuses(v.compagnie).length);
   };
   function textoEchange(o) {
     var veh = [o.modele, o.stock ? '# ' + o.stock : '', o.vin ? '(NIV …' + String(o.vin).slice(-8) + ')' : ''].filter(Boolean).join(' '), msg = String(o.message || '').trim();
@@ -1141,6 +1164,7 @@
     AMX.vider(this.elEchanges);
     if (!this.donnees) return;
     var liste = ((e && e.echanges) || []).filter(function (o) { return !c || o.deCompagnie === c || o.aCompagnie === c; });
+    if (!AMX.neufs.echangesOfferts(c)) return;
     var attente = liste.filter(function (o) { return o.statut === 'en_attente'; }), aMoi = attente.filter(function (o) { return o.peutRepondre; });
     var btnDemander = e && e.peutDemander ? h('button.btn.primaire.petit.neufs-echange-nouvelle', { type: 'button', html: I.texto + '<span>Demander un échange…</span>', onclick: function () { self.demanderEchange(null); } }) : null;
     var btnRafraichir = h('button.btn.petit', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { btnRafraichir.classList.add('occupe'); self.chargerEchanges().then(function () { btnRafraichir.classList.remove('occupe'); }); } });
@@ -1166,21 +1190,21 @@
     };
     function this_veh(o) { if (!o.vin) return null; return (self.donnees.vehicules || []).filter(function (v) { return v.compagnie === o.aCompagnie && v.vin === o.vin; })[0] || null; }
     var corps = [
-      h('p.doux.petit', { style: { margin: 0 }, text: 'Un responsable de la feuille des neufs demande un véhicule à une autre concession du groupe : le site envoie un texto aux responsables de cette concession (admins, gestionnaires, direction des ventes et comptes avec le droit « Neufs — responsable de la feuille », qui ont un numéro de cellulaire). Ils répondent « OUI E101 » ou « NON E101 » par texto — ou ici, Accepter / Refuser. Un OUI marque aussitôt le véhicule « Échangé » à la concession demandeuse (comme un marquage) et prévient le demandeur par texto et courriel.' }),
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Entre Ste-Marie et Hawkesbury, un responsable de la feuille des neufs demande un véhicule à l\'autre concession : le site envoie un texto aux responsables de cette concession (admins, gestionnaires, direction des ventes et comptes avec le droit « Neufs — responsable de la feuille », qui ont un numéro de cellulaire). Ils répondent « OUI E101 » ou « NON E101 » par texto — ou ici, Accepter / Refuser. Un OUI marque aussitôt le véhicule « Échangé » à la concession demandeuse (comme un marquage) et prévient le demandeur par texto et courriel.' }),
       e && e.indisponible ? h('p.neufs-absent-dms', { text: 'Les échanges ne sont pas disponibles : ' + e.indisponible }) : null,
       e && !e.indisponible && !e.textosActifs ? h('p.neufs-absent-dms', { text: 'Les textos ne sont pas activés (Outils › Comptes et droits › Alertes aux directeurs (textos) : compte Infobip) : les demandes seront enregistrées mais aucun texto ne partira.' }) : null,
       e && !e.indisponible && e.textosActifs && e.lectureInstallee === false && AMX.estAdmin() ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Les réponses par texto ne sont pas encore lues automatiquement : Outils › Comptes et droits › Réponses par texto › Installer la lecture (toutes les minutes).' }) : null,
       liste.length ? h('div.neufs-table.neufs-echanges', { style: { marginTop: '14px' } }, [h('table.tableau', [h('thead', [h('tr', ['#', 'Demandé par', 'À', 'Véhicule', 'Message', 'Statut', 'Réponse / textos', ''].map(function (x) { return h('th', x); }))]), h('tbody', liste.slice(0, 200).map(rangee))])]) : h('div.neufs-vide', { style: { marginTop: '14px' }, text: e && e.indisponible ? '' : 'Aucune demande d\'échange' + (c ? ' pour ' + nomCie(c) : '') + '.' })
     ];
     this.elEchanges.appendChild(h('div.carte', [
-      h('div.carte-entete', [h('h2', ['Demandes d\'échange entre concessions', h('span.sous', { text: attente.length ? attente.length + ' en attente' + (aMoi.length ? ' · ' + aMoi.length + ' à répondre' : '') : (liste.length ? 'aucune en attente' : 'par texto') })]), h('div.actions', [btnRafraichir, btnDemander])]),
+      h('div.carte-entete', [h('h2', ['Échanges de neufs — Ste-Marie et Hawkesbury', h('span.sous', { text: attente.length ? attente.length + ' en attente' + (aMoi.length ? ' · ' + aMoi.length + ' à répondre' : '') : (liste.length ? 'aucune en attente' : 'par texto') })]), h('div.actions', [btnRafraichir, btnDemander])]),
       h('div.carte-corps', corps)
     ]));
   };
   /* Formulaire de demande : concession demandeuse, concession qui a le véhicule, véhicule (fiche) ou modèle recherché, message, aperçu du texto. */
   VueNeufs.prototype.demanderEchange = function (v) {
     var self = this, e = this.echanges || {};
-    var codesDe = this.concessionsDemandeuses(v ? v.compagnie : ''), tous = Object.keys(AMX.COMPAGNIES_TOUTES || AMX.COMPAGNIES);
+    var codesDe = this.concessionsDemandeuses(v ? v.compagnie : ''), tous = CIES_ECHANGES.slice();
     if (!codesDe.length) { AMX.toast('Aucune concession au nom de laquelle demander.', 'attention'); return; }
     var maCie = AMX.maConcession ? AMX.maConcession() : '';
     var deDefaut = (maCie && codesDe.indexOf(maCie) >= 0) ? maCie : ((this.compagnie && codesDe.indexOf(this.compagnie) >= 0 && (!v || this.compagnie !== v.compagnie)) ? this.compagnie : codesDe[0]);

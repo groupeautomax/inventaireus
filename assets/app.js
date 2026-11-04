@@ -898,7 +898,9 @@
       { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente', parent: 'marche', icone: 'vente', couleur: 'bleu', desc: 'Les véhicules publiés sur la vitrine et l\'envoi du lien à un acheteur.' },
       { id: 'acheteurs', titre: 'Acheteurs', de: 'offres', onglet: 'acheteurs', parent: 'marche', icone: 'admin', couleur: 'violet', desc: 'Les concessionnaires acheteurs inscrits : inviter, envoyer un véhicule.' },
       /* 27 oct. (Maxime) : « enlève l'onglet Soumission, inutile » — la page (soumission.js) reste, sans onglet. */
-      { id: 'echanges', titre: 'Échanges de neufs', de: 'inventaire', onglet: 'neufs', fixes: { seul: 'echanges' }, compteur: function () { return AMX.neufs && AMX.neufs.compteurEchanges ? AMX.neufs.compteurEchanges() : ''; } },
+      /* 4 nov. : les échanges de neufs vivent dans Inventaire › Neufs (bulle « Échanges », Ste-Marie et Hawkesbury). L'entrée
+         reste, hors des menus, pour la clé de rôle 'vente/echanges' (Admin, Onglets.gs) et AMX.voitOnglet. */
+      { id: 'echanges', titre: 'Échanges de neufs', de: 'inventaire', onglet: 'neufs', fixes: { onglet: 'echanges' }, horsMenu: function () { return true; } },
       { id: 'resultats', titre: 'Résultats', de: 'resultat', vues: [{ id: 'us', titre: 'É.-U.' }, { id: 'can', titre: 'Wholesale Canada' }, { id: 'neuf', titre: 'Neufs' }] },
       { id: 'kpi', titre: 'KPI', de: 'kpi', vues: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }] },   /* 22 oct. : le tableau de bord KPI du Groupe (Réalisés et états financiers lus dans les Drive partagés, kpi.js) */
       /* 29 oct. : Location LMB, réservé au propriétaire (lmb.js, Lmb.gs). 3 nov. (Maxime : « fais apparaître LMB comme une
@@ -1239,6 +1241,8 @@
     if (r.section === 'outils' && r.onglet === 'carfax') { AMX.aller('outils', 'imports'); return; }
     // 3 nov. : « Évaluations demandées » a quitté Vente — Inventaire › Occasion › Évaluation (vue « Mes demandes » pour le
     // représentant). Les liens des courriels et textos déjà envoyés (DemandesEval.gs) passent par ici.
+    // 4 nov. : « Échanges de neufs » a quitté Vente — la bulle « Échanges » d'Inventaire › Neufs.
+    if (r.section === 'vente' && r.onglet === 'echanges') { var px = { onglet: 'echanges' }; Object.keys(r.params || {}).forEach(function (k) { if (k !== 'seul') px[k] = r.params[k]; }); AMX.aller('inventaire', 'neufs', px); return; }
     if (r.section === 'vente' && r.onglet === 'evaldemandes') { var pe = { vue: 'portail' }; Object.keys(r.params || {}).forEach(function (k) { pe[k] = r.params[k]; }); AMX.aller('inventaire', 'evaluations', pe); return; }
     // 21 oct. : anciennes sections (offres, resultat, achat, avis, csi, admin…) et anciens onglets → leur tuile.
     var trad = AMX.traduire(r.section, r.onglet, r.params);

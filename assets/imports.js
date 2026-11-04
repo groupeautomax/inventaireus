@@ -63,6 +63,10 @@
       etapes: ['Connectez-vous à GM Dealer Direct (bouton « Ouvrir le portail ») au nom de la concession.',
         'Sur n\'importe quelle page de GM Dealer Direct, cliquez le favori « Automax ← Constructeur ».',
         'Restez sur l\'onglet quelques minutes : il lit les clients de la Financière GM (location, échéances, DealDriver) et la fiche de chacun. Rien n\'est écrit dans GM Dealer Direct.'] },
+    vwf: { court: 'VW Finance (équité)', favori: 'constructeur', page: ['relance', 'equite'], pageTexte: 'Équité',   /* 4 nov. */
+      etapes: ['Connectez-vous au Dealer Extranet de VW Finance (bouton « Ouvrir le portail ») et ouvrez Portfolio Manager.',
+        'Cliquez le favori « Automax ← Constructeur » et restez sur l\'onglet 5 à 8 minutes : il passe les quatre tranches (0 à 12 mois) et ouvre chaque fiche.',
+        'Rien n\'est écrit chez VW. Les contrats qui finissent dans plus de 12 mois ne sont pas offerts par ce portail.'] },
     banque: { court: 'transactions bancaires InfoBahn', favori: 'infobahn', page: ['outils', 'equite'], pageTexte: 'Portefeuille BMW',
       etapes: ['Dans InfoBahn, ouvrez Payments › Bank Transactions (bouton « Ouvrir le portail »).',
         'Choisissez la période au besoin (Date Range › Filter).',

@@ -216,9 +216,11 @@
       var cands = parSerie[r.serie] || [], voisine = '';
       if (!cands.length) { famille(r.serie).some(function (s) { if (parSerie[s] && parSerie[s].length) { cands = parSerie[s]; voisine = s; return true; } return false; }); }
       r.neuf = cands[0] || null; r.neufVoisin = voisine; r.alternatives = Math.max(0, cands.length - 1);
-      /* GM : le scénario DealDriver le moins cher (calculé par GM avec les programmes du mois) passe avant notre calcul. */
-      r.propositions = gm ? (c.propositions || []) : [];
-      var prop = gm ? meilleureProposition(r.propositions) : null;
+      /* 4 nov. (Maxime) : « je veux aucune valeur de reprise de GM, juste les comparables OpenLane ». Les scénarios DealDriver
+         sont calculés par GM avec SA valeur de reprise : ils ne servent plus au calcul. Pour GM comme pour BMW et VW, la nouvelle
+         mensualité part de la valeur OpenLane, du neuf semblable en stock et du taux et du terme de la page. */
+      r.propositions = [];
+      var prop = null;
       r.proposition = prop;
       if (prop) {
         r.mensualite = nombre(prop.mensualite); r.finance = null; r.taxes = null; r.prixNeuf = null;
@@ -421,7 +423,7 @@
     var carte = function (cls, nom, n, bas, quoi) { var b = h('button.neufs-carte.' + cls + (self.filtres.quoi === quoi ? '.actif' : ''), { type: 'button' }, [h('div.nom', { text: nom }), h('div.n', { text: AMX.fmtNombre(n) }), bas ? h('div.bas', { text: bas }) : null]); b.addEventListener('click', function () { self.filtres.quoi = quoi; self.rendre(); }); return b; };
     var tuiles = h('div.neufs-cartes', [
       carte('sombre', 'Comptes actifs', lignes.length, lignes.filter(function (r) { return r.location; }).length + ' locations · ' + lignes.filter(function (r) { return !r.location; }).length + ' financements', 'tous'),
-      carte('vert', 'Cibles', nCibles, 'nouvelle mensualité ≤ actuelle + ' + fmt$(this.params.marge) + (estGm(this.cie) ? ' (scénarios GM)' : ''), 'cibles'),
+      carte('vert', 'Cibles', nCibles, 'nouvelle mensualité ≤ actuelle + ' + fmt$(this.params.marge), 'cibles'),
       carte('bleu', 'Équité positive', nEquite, 'valeur > solde (aujourd\'hui)', 'equite'),
       carte('ambre', 'Échéance ≤ 6 mois', nProches, 'contrats qui finissent bientôt', 'proches'),
       carte(nSans ? 'rouge' : 'gris', 'Sans valeur', nSans, nSans ? (this.sync && this.sync.enCours ? 'lecture OpenLane en cours' : 'OpenLane n\'a pas de valeur') : 'tout est valorisé', 'sansValeur'),
@@ -435,7 +437,7 @@
     var params = h('div.eq-params', [
       champ('taux', 'Taux %', '0.01', 'Taux annuel du financement du neuf (' + preteur(this.cie) + ', programme du mois)'), champ('terme', 'Terme (mois)', '1'), champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
       champ('marge', 'Marge $/mois', '1', 'Une cible peut payer jusqu\'à ce montant de plus par mois'), champ('taxes', 'Taxes %', '0.001', 'TPS + TVQ sur la différence prix − valeur de l\'échange'), champ('comptant', 'Comptant $', '1'), champ('kmAn', 'Km / an', '1000', 'Km estimé d\'un véhicule financé (pour OpenLane)'),
-      h('span.doux.petit', { style: { alignSelf: 'center' } }, estGm(this.cie) ? 'Nouvelle mensualité : le scénario DealDriver le moins cher, calculé par GM avec les programmes du mois. Sans scénario : (PDSF + frais − valeur) + taxes + solde, financé au taux et au terme choisis.' : 'Nouvelle mensualité = (PDSF + frais − valeur) + taxes + solde, financé au taux et au terme choisis. Estimation : sans incitatifs ni programme de location.')
+      h('span.doux.petit', { style: { alignSelf: 'center' } }, 'Nouvelle mensualité = (PDSF + frais − valeur) + taxes + solde, financé au taux et au terme choisis. Estimation : sans incitatifs ni programme de location.')
     ]);
     /* Filtres */
     var conseillers = {}; lignes.forEach(function (r) { conseillers[r.compte.conseiller || '—'] = 1; });
@@ -558,7 +560,7 @@
     var valeurEl = r.valeur !== null ? h('div', [h('div', { text: fmt$(r.valeur) }), h('div.sous', { text: 'OpenLane' + (r.kmEstime ? ' · ' + AMX.fmtNombre(r.kmEstime) + ' km est.' : '') })]) : h('div', [h('span.valeur', { text: 'à lire' }), AMX.openlane ? h('div', [h('button.btn.petit', { type: 'button', text: 'OpenLane', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } })]) : null]);
     var autres = r.proposition && r.propositions.length > 1 ? r.propositions.filter(function (p) { return p !== r.proposition; }).map(function (p) { return p.vehicule + ' — ' + fmt$(p.mensualite) + ' / mois · ' + texteProposition(p); }).join('\n') : '';
     var neufEl = r.proposition ? h('div', { title: autres ? 'Autres scénarios DealDriver :\n' + autres : '' }, [h('div.nom', { text: r.proposition.vehicule || '—' }), h('div.sous', { text: texteProposition(r.proposition) + ' · DealDriver' + (r.propositions.length > 1 ? ' · +' + (r.propositions.length - 1) + ' autre' + (r.propositions.length > 2 ? 's' : '') : '') })])
-      : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: 'PDSF ' + fmt$(r.neuf.prix) + ' · ' + (r.neuf.enStock ? 'en stock' : 'en route') + (r.alternatives ? ' · +' + r.alternatives + ' autre' + (r.alternatives > 1 ? 's' : '') : '') + (r.neufVoisin ? ' · série voisine' : '') })]) : h('span.sous', { text: 'aucun ' + (r.gm ? (c.modele || 'modèle semblable') : r.serie) + ' en stock' + (r.gm ? ' · aucun scénario DealDriver' : '') });
+      : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: 'PDSF ' + fmt$(r.neuf.prix) + ' · ' + (r.neuf.enStock ? 'en stock' : 'en route') + (r.alternatives ? ' · +' + r.alternatives + ' autre' + (r.alternatives > 1 ? 's' : '') : '') + (r.neufVoisin ? ' · série voisine' : '') })]) : h('span.sous', { text: 'aucun ' + (r.gm ? (c.modele || 'modèle semblable') : r.serie) + ' en stock' });
     var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance))) })]) : h('span.eq-nul', '—');
     var selSuivi = h('select.suivi', SUIVIS_ORDRE.map(function (k) { return h('option', { value: k, text: SUIVIS[k] }); }));
     selSuivi.value = c.suivi || '';
@@ -627,7 +629,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Solde': r.solde, 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Équité (constructeur)': c.equiteBmw, 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'Scénario': r.proposition ? texteProposition(r.proposition) + ' (DealDriver)' : '', 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Solde': r.solde, 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');
@@ -639,21 +641,54 @@
   /* 26 oct. : favori « Automax ← InfoBahn (banque) » (mock/signet-infobahn.src.js, généré par mock/signet-infobahn-build.py). */
   var CODE_SIGNET_INFOBAHN = "javascript:(function () { var SITE = " + JSON.stringify(AMX.SITE) + "; var ORIGINE_SITE = SITE.replace(/^(https?:\\/\\/[^\\/]+).*$/, '$1'); if (!/infobahn\\.bmwgroup\\.com$/.test(location.hostname)) { alert('Cliquez ce favori dans InfoBahn (infobahn.bmwgroup.com), \u00e0 la page Payments \u203a Bank Transactions.'); return; } if (window.__amxBanque) { alert('Une lecture est d\u00e9j\u00e0 en cours dans cette page.'); return; } window.__amxBanque = true; var bande = document.createElement('div'); bande.setAttribute('style', 'position:fixed;left:16px;right:16px;bottom:16px;z-index:2147483647;background:#0F7B4F;color:#fff;font:14px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;padding:12px 16px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;gap:12px;align-items:center;'); var etiquette = document.createElement('div'); etiquette.style.flex = '1'; var fermer = document.createElement('button'); fermer.textContent = 'Fermer'; fermer.setAttribute('style', 'background:rgba(255,255,255,.18);border:0;color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit;'); bande.appendChild(etiquette); bande.appendChild(fermer); document.body.appendChild(bande); var pont = null; fermer.onclick = function () { bande.remove(); window.__amxBanque = false; try { if (pont && !pont.closed) pont.close(); } catch (e) {} }; function dire(t) { etiquette.textContent = 'InfoBahn (banque) \u2014 ' + t; } function erreur(t) { bande.style.background = '#B42318'; dire(t); window.__amxBanque = false; try { if (pont && !pont.closed) pont.close(); } catch (e) {} } if (!/banktransactions/i.test(location.pathname)) { erreur('ouvrez Payments \u203a Bank Transactions (menu \u2630 \u203a Payments, onglet Bank Transactions), puis recliquez le favori.'); return; } pont = window.open(SITE + 'pont.html?v=' + Date.now(), 'amxPont', 'width=460,height=240,menubar=no,toolbar=no,location=no,status=no'); if (!pont) { erreur('Chrome a bloqu\u00e9 la petite fen\u00eatre du site : autorisez les fen\u00eatres pop-up pour infobahn.bmwgroup.com, puis recliquez le favori.'); return; } var attentes = {}, compteur = 0, pret = null; window.addEventListener('message', function (ev) { if (ev.source !== pont) return; var m = ev.data || {}; if (m.type === 'amx:pret' && pret) { pret(m); pret = null; } if (m.type === 'amx:resultat' && attentes[m.id]) { attentes[m.id](m.resultat); delete attentes[m.id]; } }); function attendrePont() { return new Promise(function (res, rej) { var fini = false, essais = 0; pret = function (m) { fini = true; res(m); }; (function ping() { if (fini) return; essais++; try { pont.postMessage({ type: 'amx:ping' }, ORIGINE_SITE); } catch (e) {} if (pont.closed) { rej(new Error('La petite fen\u00eatre du site a \u00e9t\u00e9 ferm\u00e9e : recliquez le favori et laissez-la ouverte.')); return; } if (essais > 60) { rej(new Error('Le site d\\'inventaire ne r\u00e9pond pas.')); return; } setTimeout(ping, 500); })(); }); } function envoyer(corps) { return new Promise(function (res) { var id = 'lot' + (++compteur); attentes[id] = res; pont.postMessage({ type: 'amx:lot', id: id, corps: corps }, ORIGINE_SITE); setTimeout(function () { if (attentes[id]) { delete attentes[id]; res({ ok: false, erreur: 'Pas de r\u00e9ponse du site (d\u00e9lai).' }); } }, 280000); }); } function texte(e) { return String((e && (e.innerText || e.textContent)) || '').replace(/\\s+/g, ' ').trim(); } function lireTableau() { var tete = document.querySelectorAll('mat-header-cell').length ? 'mat-header-cell' : 'thead th', rangs = document.querySelectorAll('mat-row').length ? 'mat-row' : 'tbody tr'; var entetes = Array.prototype.map.call(document.querySelectorAll(tete), function (c) { return texte(c).toLowerCase(); }); var idx = function (re, defaut) { for (var i = 0; i < entetes.length; i++) if (re.test(entetes[i])) return i; return defaut; }; var iNom = idx(/customer/, 0), iCompte = idx(/account number/, 1), iVin = idx(/^vin/, 2), iType = idx(/^type/, 3), iBanque = idx(/bank account/, 4), iDate = idx(/date/, 5), iMontant = idx(/amount/, 6); var lignes = []; Array.prototype.forEach.call(document.querySelectorAll(rangs), function (r) { var el = r.querySelectorAll('mat-cell, td'), c = Array.prototype.map.call(el, texte); if (c.length < 7 || !/\\d{1,2}\\/\\d{1,2}\\/\\d{4}/.test(c[iDate] || '')) return; var montant = c[iMontant] || '', cm = el[iMontant]; var signe = cm && cm.querySelector('.fa-minus, .minus') ? -1 : (cm && cm.querySelector('.fa-plus, .plus') ? 1 : 0); var neg = signe ? signe < 0 : (/[\\u2212-]/.test(montant) || /payoff/i.test(c[iType] || '')); lignes.push({ nom: c[iNom], compte: c[iCompte], vin: c[iVin], type: c[iType], banque: c[iBanque], date: c[iDate], montant: (neg ? '-' : '') + montant.replace(/[\u2212+-]/g, '').trim() }); }); return lignes; } (async function () { try { dire('ouverture du pont vers le site\u2026'); var p = await attendrePont(); if (!p.connecte) { erreur('Vous n\\'\u00eates pas connect\u00e9 au site d\\'inventaire dans ce navigateur : ouvrez ' + SITE + ' dans un onglet, connectez-vous, puis recliquez le favori.'); return; } var lignes = lireTableau(); if (!lignes.length) { erreur('Aucune transaction dans le tableau : choisissez une p\u00e9riode (Date Range \u203a Filter), puis recliquez le favori.'); return; } dire(lignes.length + ' transactions lues \u2014 envoi au site (dates de d\u00e9bours\u00e9, liens pay\u00e9s)\u2026'); var rep = await envoyer({ action: 'banqueImporter', compagnie: 'BMW', lignes: lignes }); if (rep && rep.refuse && !rep.erreur) throw new Error('Votre session du site d\\'inventaire a expir\u00e9 : reconnectez-vous, puis recliquez le favori.'); if (!rep || rep.ok === false || rep.refuse) throw new Error('Le site a refus\u00e9 l\\'envoi : ' + ((rep && rep.erreur) || 'erreur inconnue')); if (rep.vehicules && rep.nouvelles === undefined) throw new Error('Le script du site n\\'est pas \u00e0 jour (Banque.gs) : il faut le d\u00e9ployer.'); var al = (rep.alertes || []).length; dire('termin\u00e9 : ' + lignes.length + ' lues, ' + rep.nouvelles + ' nouvelles \u00b7 ' + rep.deboursements + ' date(s) de d\u00e9bours\u00e9 inscrite(s) au livre \u00b7 ' + rep.liens + ' lien(s) pay\u00e9(s) not\u00e9(s)' + (rep.sansVente ? ' \u00b7 ' + rep.sansVente + ' sans vente (repris au prochain passage)' : '') + (al ? ' \u00b7 \u26a0 ' + al + ' montant(s) en double : courriel envoy\u00e9' : '') + (rep.erreurs && rep.erreurs.length ? ' \u00b7 ' + rep.erreurs.length + ' erreur(s) : ' + rep.erreurs[0] : '') + '.'); if (al) bande.style.background = '#B54708'; window.__amxBanque = false; setTimeout(function () { try { if (!pont.closed) pont.close(); } catch (e) {} }, 1500); } catch (e) { erreur('Arr\u00eat : ' + (e && e.message || e)); } })(); })();";
   (AMX.signets = AMX.signets || {}).infobahn = { nom: 'Automax ← InfoBahn (banque)', code: CODE_SIGNET_INFOBAHN };   /* 27 oct. : registre des favoris (Outils › Imports) */
+  /* 4 nov. (Maxime : « je vois la procédure BMW dans VW dans Équité ») : la page suit la concession choisie en haut du site.
+     BMW (ou tout le groupe) = dépôt de l'export InfoBahn ; GM (Ste-Marie, Hawkesbury) et VW = le favori dans leur portail. */
+  function cieImport() { var c = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : ''; return (c && modeCie(c) !== 'bmw') ? c : 'BMW'; }
   function ImportPortefeuille(ctx) {
     injecterCss();
     this.ctx = ctx || {};
-    this.cie = 'BMW';
+    this.cie = cieImport();
     this.lu = null; this.nomFichier = '';
+    this.el = h('div.page.etroite.outils-page.eq-page', { 'data-etat': 'attente' });
     this.construire();
     var self = this;
-    AMX.equite.charger().then(function () { self.rendreEtat(); }, function () { self.rendreEtat(); });
-    this.chargerBanque();
+    this.surCie = function () { var c = cieImport(); if (c === self.cie || !self.el.isConnected) return; self.cie = c; self.lu = null; self.nomFichier = ''; self.construire(); };
+    document.addEventListener('amx:compagnie', this.surCie);
   }
   AMX.vues = AMX.vues || {};
   AMX.vues.ImportPortefeuille = ImportPortefeuille;
-  ImportPortefeuille.prototype.demonter = function () {};
+  ImportPortefeuille.prototype.demonter = function () { document.removeEventListener('amx:compagnie', this.surCie); };
   ImportPortefeuille.prototype.naviguer = function () {};
   ImportPortefeuille.prototype.construire = function () {
+    var self = this;
+    AMX.vider(this.el);
+    this.el.setAttribute('data-etat', 'attente');
+    this.elEtat = h('div');
+    AMX.equite.charger().then(function () { self.rendreEtat(); }, function () { self.rendreEtat(); });
+    if (modeCie(this.cie) !== 'bmw') { this.construirePortail(); return; }
+    this.construireBmw();
+    this.chargerBanque();
+  };
+  /* GM Dealer Direct ou VW Finance : rien à déposer, le favori « Automax ← Constructeur » lit le portail et envoie au site. */
+  ImportPortefeuille.prototype.construirePortail = function () {
+    var vw = estVw(this.cie), nom = nomCie(this.cie), url = URL_PORTAIL[modeCie(this.cie)];
+    var sig = AMX.signets && AMX.signets.constructeur;
+    var signet = sig ? h('a.btn', { href: sig.code, text: sig.nom, title: 'Glissez ce bouton dans votre barre de favoris (une seule fois)', draggable: 'true', onclick: function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome, puis cliquez-le dans le portail.', 'attention', 5000); } }) : null;
+    var etapes = vw ? [
+      h('li', ['Ouvrez ', h('a', { href: url, target: '_blank', rel: 'noopener', text: 'VW Finance › Portfolio Manager' }), ' (Dealer Extranet, connecté au nom de ' + nom + '), onglet « Active Contracts ».']),
+      h('li', 'Cliquez le favori « Automax ← Constructeur » dans votre barre de favoris. Il lit les prêts et les locations qui finissent dans les 12 prochains mois, puis la fiche de chaque client, et envoie au site toutes les 20 fiches.'),
+      h('li', 'Laissez l\'onglet ouvert pendant la lecture (environ 20 minutes pour 300 contrats). Si VW vous déconnecte, reconnectez-vous, rouvrez Portfolio Manager et recliquez le favori : il reprend où il était.')
+    ] : [
+      h('li', ['Ouvrez ', h('a', { href: url, target: '_blank', rel: 'noopener', text: 'GM Dealer Direct' }), ' connecté au nom de ' + nom + ' (le compte de la concession).']),
+      h('li', 'Cliquez le favori « Automax ← Constructeur » dans votre barre de favoris, sur n\'importe quelle page de GM Dealer Direct. Il lit les clients en location de la Financière GM et leur fiche (environ 3 minutes).')
+    ];
+    if (signet) etapes.push(h('li', ['Pas encore le favori ? Glissez une fois ce bouton dans la barre de favoris : ', signet]));
+    this.el.appendChild(h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Portefeuille ' + (vw ? 'VW Finance' : 'Financière GM') + ' — ' + nom), h('p', vw ? 'Les prêts et les locations de VW Credit Canada qui finissent dans les 12 prochains mois : la base de Relance › Équité pour ' + nom + '.' : 'Les clients en location de la Financière GM, lus dans GM Dealer Direct : la base de Relance › Équité pour ' + nom + '.')])]));
+    this.el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Dernier import')]), h('div.carte-corps', [this.elEtat])]));
+    this.el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Lire le portefeuille')]), h('div.carte-corps', [h('ol.eq-etapes', etapes), h('div.actions-ligne', { style: { marginTop: '12px' } }, [h('a.btn.primaire', { href: url, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir ' + (vw ? 'VW Finance' : 'GM Dealer Direct') + '</span>' })])])]));
+    this.el.appendChild(h('p.outils-note', 'Rien n\'est écrit dans le portail : le favori lit seulement. La valeur des véhicules vient d\'OpenLane, jamais du prêteur. Pour BMW Sherbrooke (export InfoBahn), choisissez BMW Sherbrooke en haut de la page.'));
+  };
+  ImportPortefeuille.prototype.construireBmw = function () {
     var self = this;
     var input = h('input', { type: 'file', id: 'eq-fichier', accept: '.xls,.xlsx,.csv,.html,.htm' });
     input.addEventListener('change', function () { if (input.files && input.files[0]) self.lireFichier(input.files[0]); });
@@ -663,10 +698,9 @@
     zone.addEventListener('drop', function (e) { var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) self.lireFichier(f); });
     this.elZone = zone;
     this.elResume = h('div');
-    this.elEtat = h('div');
     this.btnEnvoyer = h('button.btn.primaire', { type: 'button', id: 'eq-envoyer', disabled: 'disabled', text: 'Envoyer au site' });
     this.btnEnvoyer.addEventListener('click', function () { self.envoyer(); });
-    this.el = h('div.page.etroite.outils-page.eq-page', { 'data-etat': 'attente' }, [
+    [
       h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Portefeuille BMW (InfoBahn)'), h('p', 'Les clients financés ou en location chez BMW Financial Services, avec le solde et la valeur estimés par BMW : la base de Relance › Équité (clients à relancer).')])]),
       h('div.carte', [h('div.carte-entete', [h('h2', 'Dernier import')]), h('div.carte-corps', [this.elEtat])]),
       h('div.carte', [h('div.carte-entete', [h('h2', '1. Exporter le portefeuille d\'InfoBahn')]), h('div.carte-corps', [
@@ -679,7 +713,7 @@
       h('div.carte', [h('div.carte-entete', [h('h2', '2. Déposer le fichier ici')]), h('div.carte-corps', [zone, this.elResume, h('div.actions-ligne', { style: { marginTop: '12px' } }, [this.btnEnvoyer])])]),
       this.construireBanque(),
       h('p.outils-note', 'Rien n\'est modifié dans InfoBahn. Les coordonnées des clients ne sont visibles sur le site que pour les comptes qui peuvent lire les portails (fiche d\'achat, changer le statut, gérer les utilisateurs). Usage interne seulement.')
-    ]);
+    ].forEach(function (x) { self.el.appendChild(x); });
   };
   /* 26 oct. (Maxime : « dans InfoBahn va chercher les bank transactions pour avoir les dates de déboursé et inscris-les
      automatiquement ; les + sont des paiements, les − des liens payés ; un montant qui revient deux fois → courriel à Claude
@@ -718,7 +752,7 @@
     if (!e || !e.le) { this.elEtat.appendChild(h('p.doux', { style: { margin: 0 }, text: 'Aucun portefeuille importé pour ' + nomCie(this.cie) + '.' })); return; }
     var r = e.resume || {};
     this.elEtat.appendChild(h('p', { style: { margin: 0 } }, [h('b', { text: n + ' comptes actifs' }), ' — lu le ' + AMX.fmtDate(e.le, true) + (e.par ? ' par ' + String(e.par).split('@')[0] : '') + (r.location !== undefined ? ' · ' + r.location + ' locations, ' + r.financement + ' financements' : '') + (r.equitePositiveBmw !== undefined ? ' · ' + r.equitePositiveBmw + ' en équité positive selon BMW' : '') + (r.inactives ? ' · ' + r.inactives + ' contrat' + (r.inactives > 1 ? 's' : '') + ' terminé' + (r.inactives > 1 ? 's' : '') + ' au dernier passage' : '') + '.']));
-    this.elEtat.appendChild(h('p', { style: { margin: '8px 0 0' } }, [h('a.btn.petit', { href: AMX.lien('inventaire', 'neufs', { onglet: 'equite' }), text: 'Voir l\'onglet Équité' })]));
+    this.elEtat.appendChild(h('p', { style: { margin: '8px 0 0' } }, [h('a.btn.petit', { href: AMX.lien('relance', 'equite', { vue: 'clients' }), text: 'Voir l\'onglet Équité' })]));
   };
   ImportPortefeuille.prototype.lireFichier = function (fichier) {
     var self = this, lecteur = new FileReader();
@@ -762,7 +796,7 @@
       self.btnEnvoyer.textContent = 'Envoyer au site'; self.btnEnvoyer.classList.remove('occupe'); self.el.dataset.etat = 'termine';
       var r = resume || {};
       AMX.vider(self.elResume);
-      self.elResume.appendChild(h('div.eq-resume.ok', { id: 'eq-fini' }, [h('b', { text: 'Importé — ' + (r.total || lu.lignes.length) + ' comptes actifs' }), ' · ' + (r.ajoutes || 0) + ' nouveaux, ' + (r.modifies || 0) + ' modifiés' + (r.inactives ? ', ' + r.inactives + ' terminés' : '') + ' · ' + (r.location || 0) + ' locations, ' + (r.financement || 0) + ' financements.', ' ', h('a', { href: AMX.lien('inventaire', 'neufs', { onglet: 'equite' }), text: 'Voir l\'onglet Équité' })]));
+      self.elResume.appendChild(h('div.eq-resume.ok', { id: 'eq-fini' }, [h('b', { text: 'Importé — ' + (r.total || lu.lignes.length) + ' comptes actifs' }), ' · ' + (r.ajoutes || 0) + ' nouveaux, ' + (r.modifies || 0) + ' modifiés' + (r.inactives ? ', ' + r.inactives + ' terminés' : '') + ' · ' + (r.location || 0) + ' locations, ' + (r.financement || 0) + ' financements.', ' ', h('a', { href: AMX.lien('relance', 'equite', { vue: 'clients' }), text: 'Voir l\'onglet Équité' })]));
       AMX.equite.vider();
       AMX.toast('Portefeuille BMW importé : ' + (r.total || lu.lignes.length) + ' comptes.', 'ok', 5000);
       return AMX.equite.charger(true).then(function () { self.rendreEtat(); });

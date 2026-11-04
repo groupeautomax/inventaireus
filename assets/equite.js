@@ -18,6 +18,13 @@
      Cibles = nouvelle mensualité ≤ actuelle + marge. Suivi par client (contacté, rendez-vous, vendu…),
      export Excel, lecture OpenLane à la demande (un client ou les N suivants).
 
+   GM (4 novembre 2026) — Hawkesbury et Ste-Marie : le favori « Automax ← Constructeur », cliqué dans GM Dealer
+   Direct (www.gmdealerdirect.ca), envoie les clients de la Financière GM (même phase « portefeuille », source gm).
+   Pour eux : solde = rachat de GM, valeur = OpenLane sinon l'évaluation de la reprise de GM, équité GM = « avoir
+   net », km estimé de GM, et la nouvelle mensualité vient d'abord des scénarios DealDriver (calculés par GM avec
+   les programmes du mois : location / financement, semblable / alternatif, « sur terrain » = notre stock) ; sans
+   scénario, le même calcul que BMW avec nos neufs. Rien n'est écrit dans GM Dealer Direct.
+
    Calculs purs exposés (tests, app) : AMX.equite.lireExport, serieDe, analyser, pmt, famille. */
 (function () {
   'use strict';
@@ -48,7 +55,65 @@
   }
   function moisEntre(deIso, aIso) { var a = new Date(deIso + 'T12:00:00'), b = new Date(aIso + 'T12:00:00'); if (isNaN(a) || isNaN(b)) return null; return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() > a.getDate() ? 1 : 0); }
   function nomCie(code) { return (AMX.COMPAGNIES_TOUTES[code] || code || '').replace(' Chevrolet Buick Cadillac', ''); }
-  function estLocation(c) { return /lease/i.test(texte(c.typeContrat)); }
+  function estLocation(c) { return /lease|location/i.test(texte(c.typeContrat)); }
+  /* 4 nov. : GM (Hawkesbury, Ste-Marie) — portefeuille de la Financière GM lu dans GM Dealer Direct. */
+  var CIES_GM = { HAWKS: 1, STM: 1 };
+  function estGm(cie) { return !!CIES_GM[cie]; }
+  function preteur(cie) { return estGm(cie) ? 'Financière GM' : 'BMW Financial Services'; }
+  function libConst(cie) { return estGm(cie) ? 'GM' : 'BMW'; }
+  function cle(t) { return AMX.texteCherche ? AMX.texteCherche(t) : texte(t).toLowerCase(); }
+  /** Meilleur scénario DealDriver : la plus basse mensualité, semblable avant alternatif à égalité ; notre stock signalé. */
+  function meilleureProposition(liste) {
+    var ps = (liste || []).filter(function (p) { return p && nombre(p.mensualite) > 0; });
+    if (!ps.length) return null;
+    ps.sort(function (a, b) { return (nombre(a.mensualite) - nombre(b.mensualite)) || ((a.groupe === 'alternatif') - (b.groupe === 'alternatif')) || ((b.terrain ? 1 : 0) - (a.terrain ? 1 : 0)); });
+    return ps[0];
+  }
+  /* 4 nov. : questions à Einstein AI — le serveur (EQ_demander) rend des filtres { champ, op, valeur, valeur2 } ;
+     la page les applique ici aux clients qu'elle a déjà. Einstein ne voit aucune donnée de client. */
+  function valeurChamp(r, champ) {
+    var c = r.compte;
+    switch (champ) {
+      case 'taux': return nombre(c.taux); case 'paiement': return nombre(c.paiement); case 'terme': return nombre(c.terme);
+      case 'moisRestants': return r.moisRestants; case 'echeance': return texte(c.echeance); case 'dateContrat': return texte(c.dateContrat);
+      case 'typeContrat': return r.location ? 'location' : 'financement'; case 'annee': return nombre(c.annee);
+      case 'marque': return texte(c.marque); case 'modele': return texte(c.modele); case 'version': return texte(c.version);
+      case 'valeur': return r.valeur; case 'solde': return r.solde; case 'equite': return r.equite; case 'equiteConstructeur': return nombre(c.equiteBmw);
+      case 'residuel': return nombre(c.residuel); case 'kmEstime': return r.kmEstime; case 'kmContrat': return nombre(c.kmContrat); case 'kmFin': return nombre(c.kmFin);
+      case 'depassement': return nombre(c.coutDepassement); case 'nouvelleMensualite': return r.mensualite; case 'ecart': return r.ecart;
+      case 'cible': return r.cible ? 'oui' : 'non'; case 'scenarioStock': return (r.propositions || []).some(function (p) { return p.terrain; }) ? 'oui' : 'non';
+      case 'conseiller': return texte(c.conseiller); case 'ville': return texte(c.ville); case 'suivi': return texte(c.suivi);
+      case 'ndnc': return r.ndnc ? 'oui' : 'non'; case 'listes': return texte(c.listes); case 'etatLead': return texte(c.etatLead); case 'pdsf': return nombre(c.pdsf);
+    }
+    return null;
+  }
+  function condRespectee(r, k) {
+    var v = valeurChamp(r, k.champ), op = k.op;
+    var vide = v === null || v === undefined || v === '';
+    if (op === 'vide') return vide;
+    if (op === 'nonVide') return !vide;
+    if (vide) return op === '!=';
+    var a = texte(k.valeur), b = texte(k.valeur2);
+    if (typeof v === 'number') {
+      var na = nombre(a), nb = nombre(b);
+      if (na === null) return false;
+      if (op === '>') return v > na; if (op === '>=') return v >= na; if (op === '<') return v < na; if (op === '<=') return v <= na;
+      if (op === '=') return Math.abs(v - na) < 0.005; if (op === '!=') return Math.abs(v - na) >= 0.005;
+      if (op === 'entre') return nb !== null && v >= Math.min(na, nb) && v <= Math.max(na, nb);
+      return String(v).indexOf(a) >= 0;
+    }
+    var tv = cle(v), ta = cle(a), tb = cle(b);
+    if (op === 'contient') return tv.indexOf(ta) >= 0;
+    if (op === '=') return tv === ta; if (op === '!=') return tv !== ta;
+    if (op === '>') return tv > ta; if (op === '>=') return tv >= ta; if (op === '<') return tv < ta; if (op === '<=') return tv <= ta;
+    if (op === 'entre') return tv >= (ta < tb ? ta : tb) && tv <= (ta < tb ? tb : ta);
+    return false;
+  }
+  function texteCondition(k) {
+    var lib = { '>': 'plus de', '>=': 'au moins', '<': 'moins de', '<=': 'au plus', '=': '=', '!=': '≠', contient: 'contient', entre: 'entre', vide: 'vide', nonVide: 'rempli' }[k.op] || k.op;
+    return k.champ + ' ' + lib + (k.op === 'vide' || k.op === 'nonVide' ? '' : ' ' + k.valeur + (k.op === 'entre' ? ' et ' + k.valeur2 : ''));
+  }
+  function texteProposition(p) { return (p.type === 'financement' ? 'Financement' : 'Location') + (p.terme ? ' ' + p.terme + ' mois' : '') + (p.taux !== null && p.taux !== undefined && p.taux !== '' ? ' à ' + String(p.taux).replace('.', ',') + ' %' : '') + (p.groupe === 'alternatif' ? ' · autre modèle' : '') + (p.terrain ? ' · en stock' : ''); }
   function nomClient(c) { return [c.prenom, c.nom].filter(Boolean).join(' ') || c.compte; }
   function vehiculeTexte(c) { return [c.annee, c.marque, c.modele, c.version].filter(Boolean).join(' ') || c.vehicule || '—'; }
 
@@ -112,28 +177,30 @@
   function analyser(comptes, neufs, params, options) {
     params = Object.assign({}, PARAMS_DEFAUT, params || {}); options = options || {};
     var ajd = iso(new Date());
-    var stock = (neufs || []).filter(function (v) { return v && v.enStock && (v.origine === 'constructeur' || /^portail-/.test(String(v.source || ''))) && String(v.marque || '').toUpperCase() === 'BMW'; });
+    var gm = !!options.gm;
+    var stock = (neufs || []).filter(function (v) { return v && v.enStock && (v.origine === 'constructeur' || /^portail-/.test(String(v.source || ''))) && (gm || String(v.marque || '').toUpperCase() === 'BMW'); });
     var parSerie = {};
-    stock.forEach(function (v) { var prix = nombre(v.prix) || nombre(v.extra && v.extra.pdsf); if (!prix) return; var s = texte(v.modele); (parSerie[s] = parSerie[s] || []).push({ vin: v.vin, annee: v.annee, modele: v.modele, version: v.version, couleur: v.couleur, prix: prix, enStock: !/TRANSIT/.test(String(v.statutLibelle || v.statut || '').toUpperCase()), statut: v.statutLibelle || v.statut || '', v: v }); });
+    stock.forEach(function (v) { var prix = nombre(v.prix) || nombre(v.extra && v.extra.pdsf); if (!prix) return; var s = gm ? cle(v.modele) : texte(v.modele); (parSerie[s] = parSerie[s] || []).push({ vin: v.vin, annee: v.annee, modele: v.modele, version: v.version, couleur: v.couleur, prix: prix, enStock: !/TRANSIT/.test(String(v.statutLibelle || v.statut || '').toUpperCase()), statut: v.statutLibelle || v.statut || '', v: v }); });
     Object.keys(parSerie).forEach(function (s) { parSerie[s].sort(function (a, b) { return (b.enStock - a.enStock) || (a.prix - b.prix); }); });
     return (comptes || []).filter(function (c) { return c.actif !== false; }).map(function (c) {
-      var r = { compte: c, location: estLocation(c), serie: c.modele || serieDe(c.vehicule) };
+      var r = { compte: c, location: estLocation(c), serie: gm ? cle(c.modele) : (c.modele || serieDe(c.vehicule)), gm: gm };
       r.moisRestants = c.echeance ? Math.max(0, moisEntre(ajd, c.echeance) || 0) : null;
       r.moisEcoules = c.dateContrat ? Math.max(0, moisEntre(c.dateContrat, ajd) || 0) : null;
       r.echeanceProche = r.moisRestants !== null && r.moisRestants <= 6;
       var paiement = nombre(c.paiement) || 0;
       /* Km estimé : location → allocation du contrat au prorata ; financement → kmAn par année. */
-      if (r.location && nombre(c.kmContrat) && nombre(c.terme)) r.kmEstime = Math.round(nombre(c.kmContrat) * Math.min(1, (r.moisEcoules || 0) / nombre(c.terme)));
+      if (gm && nombre(c.kmEstime)) r.kmEstime = Math.round(nombre(c.kmEstime));   /* GM estime le km du client */
+      else if (r.location && nombre(c.kmContrat) && nombre(c.terme)) r.kmEstime = Math.round(nombre(c.kmContrat) * Math.min(1, (r.moisEcoules || 0) / nombre(c.terme)));
       else r.kmEstime = r.moisEcoules !== null ? Math.round(params.kmAn * r.moisEcoules / 12) : null;
       /* Solde : financement → payoff BMW ; location → résiduel + paiements restants (rachat maintenant) ; à l'échéance = résiduel. */
-      if (r.location) { var res = nombre(c.residuel); r.solde = res !== null ? res + paiement * (r.moisRestants || 0) : null; r.soldeEcheance = res; }
+      if (r.location) { var res = nombre(c.residuel); r.solde = gm && nombre(c.payoffBmw) !== null ? nombre(c.payoffBmw) : (res !== null ? res + paiement * (r.moisRestants || 0) : null); r.soldeEcheance = res; }   /* GM : le rachat de GM */
       else { r.solde = nombre(c.payoffBmw); if (r.solde === null && r.moisRestants !== null) r.solde = paiement * r.moisRestants; r.soldeEcheance = 0; }
       /* Valeur : OpenLane (prévision, sinon ajusté au km, sinon moyenne des ventes) ; sinon l'estimation BMW (financement). */
       var ol = options.valeurs ? options.valeurs(c.vin) : null;
       r.openlane = ol || null;
       var vOl = ol ? (nombre(ol.prevision) || (AMX.openlane && AMX.openlane.ajuste ? AMX.openlane.ajuste(ol, r.kmEstime) : null) || nombre(ol.prixMoy)) : null;
       if (vOl) { r.valeur = vOl; r.valeurSource = 'openlane'; }
-      else if (nombre(c.valeurBmw)) { r.valeur = nombre(c.valeurBmw); r.valeurSource = 'bmw'; }
+      else if (nombre(c.valeurBmw)) { r.valeur = nombre(c.valeurBmw); r.valeurSource = gm ? 'gm' : 'bmw'; }
       else { r.valeur = null; r.valeurSource = ''; }
       r.equite = r.valeur !== null && r.solde !== null ? r.valeur - r.solde : null;
       r.equiteEcheance = r.valeur !== null && r.soldeEcheance !== null ? r.valeur - r.soldeEcheance : null;
@@ -142,7 +209,15 @@
       var cands = parSerie[r.serie] || [], voisine = '';
       if (!cands.length) { famille(r.serie).some(function (s) { if (parSerie[s] && parSerie[s].length) { cands = parSerie[s]; voisine = s; return true; } return false; }); }
       r.neuf = cands[0] || null; r.neufVoisin = voisine; r.alternatives = Math.max(0, cands.length - 1);
-      if (r.neuf) {
+      /* GM : le scénario DealDriver le moins cher (calculé par GM avec les programmes du mois) passe avant notre calcul. */
+      r.propositions = gm ? (c.propositions || []) : [];
+      var prop = gm ? meilleureProposition(r.propositions) : null;
+      r.proposition = prop;
+      if (prop) {
+        r.mensualite = nombre(prop.mensualite); r.finance = null; r.taxes = null; r.prixNeuf = null;
+        r.ecart = r.mensualite !== null && paiement ? r.mensualite - paiement : null;
+        r.cible = r.ecart !== null && r.ecart <= (nombre(params.marge) || 0);
+      } else if (r.neuf) {
         var prix = r.neuf.prix + (nombre(params.frais) || 0);
         var valeur = r.valeur !== null ? r.valeur : 0;
         var taxable = Math.max(0, prix - valeur), taxes = taxable * (nombre(params.taxes) || 0) / 100;
@@ -153,6 +228,7 @@
         r.cible = r.valeur !== null && r.ecart !== null && r.ecart <= (nombre(params.marge) || 0);
       } else { r.finance = null; r.mensualite = null; r.ecart = null; r.cible = false; }
       r.sansValeur = r.valeur === null;
+      r.ndnc = c.ndnc === 'oui';
       r.score = (r.cible ? 100000 : 0) + (r.equite || 0) + (r.echeanceProche ? 5000 : 0);
       return r;
     }).sort(function (a, b) { return b.score - a.score; });
@@ -208,6 +284,8 @@
       '.eq-page .eq-zone { display: block; border: 1.5px dashed var(--ligne-forte); border-radius: var(--rayon-s); padding: 22px 14px; text-align: center; cursor: pointer; color: var(--encre-3); font-size: 13px; } .eq-page .eq-zone:hover, .eq-page .eq-zone.survol { border-color: var(--vert); background: var(--vert-clair); } .eq-page .eq-zone input { display: none; } .eq-page .eq-zone.charge { border-style: solid; border-color: var(--vert); color: var(--vert); font-weight: 600; }',
       '.eq-page .eq-resume { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--fond-2, #F4F6F8); font-size: 13px; } .eq-page .eq-resume.ok { background: var(--vert-bg, #E6F4EC); } .eq-page .eq-resume.erreur { background: var(--rouge-bg); }',
       '.eq-page .eq-etapes { margin: 0; padding-left: 18px; line-height: 1.6; font-size: 13px; }',
+      '.eq-ia { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; } .eq-ia .eq-ia-champ { flex: 1 1 auto; height: 34px; } .eq-ia .maxai-avatar, .eq-ia img { flex: 0 0 auto; }',
+      '.eq-ia-res { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 12px; border-radius: 10px; background: var(--vert-clair); font-size: 13px; } .eq-ia-res .sous { color: var(--encre-3); font-size: 12px; flex: 1 1 200px; }',
       '@media (max-width: 860px) { .eq-params .champ { width: 46%; } }'
     ].join('\n');
     document.head.appendChild(s);
@@ -221,6 +299,7 @@
     this.el = conteneur; this.cie = cie || 'BMW'; this.ctx = ctx || {};
     this.params = AMX.equite.params();
     this.filtres = { quoi: 'cibles', type: '', echeance: '', conseiller: '', q: '' };
+    this.ia = null;   /* filtres rendus par Einstein AI : { question, resume, conditions, tri, sens } */
     this.lignes = []; this.lecture = null;
     this.rendre();
     var self = this;
@@ -233,14 +312,15 @@
   VueEquite.prototype.analyser = function () {
     var comptes = AMX.equite.comptes(this.cie);
     var valeurs = AMX.openlane && AMX.openlane.valeur ? function (vin) { var r = AMX.openlane.valeur(vin); return r && r.luLe ? r : null; } : null;
-    this.lignes = analyser(comptes, this.neufs(), this.params, { valeurs: valeurs });
+    this.lignes = analyser(comptes, this.neufs(), this.params, { valeurs: valeurs, gm: estGm(this.cie) });
     return this.lignes;
   };
   VueEquite.prototype.visibles = function () {
-    var f = this.filtres, q = f.q.toLowerCase();
-    return this.lignes.filter(function (r) {
+    var f = this.filtres, q = f.q.toLowerCase(), ia = this.ia;
+    var liste = this.lignes.filter(function (r) {
       var c = r.compte;
-      if (f.quoi === 'cibles' && !r.cible) return false;
+      if (ia && !ia.conditions.every(function (k) { return condRespectee(r, k); })) return false;
+      if (!ia && f.quoi === 'cibles' && !r.cible) return false;
       if (f.quoi === 'equite' && !(r.equite !== null && r.equite > 0)) return false;
       if (f.quoi === 'sansValeur' && !r.sansValeur) return false;
       if (f.quoi === 'suivi' && !c.suivi) return false;
@@ -251,17 +331,42 @@
       if (q && [c.nom, c.prenom, c.vin, c.vehicule, c.compte, c.ville, c.conseiller].join(' ').toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
+    if (ia && ia.tri) {
+      var sens = ia.sens === 'croissant' ? 1 : -1;
+      liste.sort(function (a, b) { var x = valeurChamp(a, ia.tri), y = valeurChamp(b, ia.tri); if (x === null || x === '') return 1; if (y === null || y === '') return -1; return (x > y ? 1 : x < y ? -1 : 0) * sens; });
+    }
+    return liste;
+  };
+  /** Question à Einstein AI → filtres (POST equiteDemander). */
+  VueEquite.prototype.demander = function (question, bouton) {
+    var self = this;
+    question = texte(question);
+    if (question.length < 3) { AMX.toast('Écrivez une question, par exemple « taux de plus de 5 % ».', 'attention'); return; }
+    if (bouton) { bouton.disabled = true; bouton.classList.add('occupe'); }
+    AMX.post({ action: 'equiteDemander', question: question }, { secours: false }).then(function (r) {
+      if (bouton) { bouton.disabled = false; bouton.classList.remove('occupe'); }
+      if (r && r.vehicules && r.comprise === undefined) throw new Error('Le script n\'est pas à jour : déployez Equite.gs.');
+      AMX.verifier(r, 'Einstein AI n\'a pas répondu');
+      if (!r.comprise) { AMX.toast('Einstein AI : ' + (r.resume || 'question pas comprise, reformulez.'), 'attention', 7000); return; }
+      self.ia = { question: question, resume: r.resume, conditions: r.conditions || [], tri: r.tri || '', sens: r.sens || '' };
+      self.rendre();
+    }).catch(function (e) {
+      if (bouton) { bouton.disabled = false; bouton.classList.remove('occupe'); }
+      AMX.toast('Einstein AI — ' + AMX.erreurTexte(e), 'erreur', 7000);
+    });
   };
   VueEquite.prototype.rendre = function () {
     var self = this, el = this.el;
     AMX.vider(el);
     var d = AMX.equite.enCache();
-    if (!d) { el.appendChild(AMX.chargeur('Portefeuille BMW')); AMX.equite.charger().then(function () { self.rendre(); }, function (e) { AMX.vider(el); el.appendChild(h('p.doux', { text: 'Portefeuille non lu : ' + AMX.erreurTexte(e) })); }); return; }
+    if (!d) { el.appendChild(AMX.chargeur('Portefeuille ' + libConst(this.cie))); AMX.equite.charger().then(function () { self.rendre(); }, function (e) { AMX.vider(el); el.appendChild(h('p.doux', { text: 'Portefeuille non lu : ' + AMX.erreurTexte(e) })); }); return; }
     var etat = AMX.equite.etat(this.cie), comptes = AMX.equite.comptes(this.cie);
     if (!comptes.length) {
       el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Équité — clients ' + nomCie(this.cie))]), h('div.carte-corps', [
-        h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille importé pour ' + nomCie(this.cie) + '. Exportez le portefeuille d\'InfoBahn (Portfolio › Entire Portfolio › « … » › Export) et déposez le fichier dans Relance › Équité › Importer le portefeuille.'),
-        h('a.btn', { href: AMX.lien('relance', 'equite', { vue: 'import' }) }, 'Importer le portefeuille')
+        estGm(this.cie)
+          ? h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille lu pour ' + nomCie(this.cie) + '. Dans Chrome, connecté à GM Dealer Direct (www.gmdealerdirect.ca) au nom de ' + nomCie(this.cie) + ', cliquez le favori « Automax ← Constructeur » : il lit les clients de la Financière GM (location, échéances, DealDriver) et leur fiche. Rien n\'est écrit dans GM Dealer Direct.')
+          : h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille importé pour ' + nomCie(this.cie) + '. Exportez le portefeuille d\'InfoBahn (Portfolio › Entire Portfolio › « … » › Export) et déposez le fichier dans Relance › Équité › Importer le portefeuille.'),
+        estGm(this.cie) ? h('a.btn', { href: 'https://www.gmdealerdirect.ca/lm/Lead/myLeadLists.aspx', target: '_blank', rel: 'noopener' }, 'Ouvrir GM Dealer Direct') : h('a.btn', { href: AMX.lien('relance', 'equite', { vue: 'import' }) }, 'Importer le portefeuille')
       ])]));
       return;
     }
@@ -270,7 +375,7 @@
     var carte = function (cls, nom, n, bas, quoi) { var b = h('button.neufs-carte.' + cls + (self.filtres.quoi === quoi ? '.actif' : ''), { type: 'button' }, [h('div.nom', { text: nom }), h('div.n', { text: AMX.fmtNombre(n) }), bas ? h('div.bas', { text: bas }) : null]); b.addEventListener('click', function () { self.filtres.quoi = quoi; self.rendre(); }); return b; };
     var tuiles = h('div.neufs-cartes', [
       carte('sombre', 'Comptes actifs', lignes.length, lignes.filter(function (r) { return r.location; }).length + ' locations · ' + lignes.filter(function (r) { return !r.location; }).length + ' financements', 'tous'),
-      carte('vert', 'Cibles', nCibles, 'nouvelle mensualité ≤ actuelle + ' + fmt$(this.params.marge), 'cibles'),
+      carte('vert', 'Cibles', nCibles, 'nouvelle mensualité ≤ actuelle + ' + fmt$(this.params.marge) + (estGm(this.cie) ? ' (scénarios GM)' : ''), 'cibles'),
       carte('bleu', 'Équité positive', nEquite, 'valeur > solde (aujourd\'hui)', 'equite'),
       carte('ambre', 'Échéance ≤ 6 mois', nProches, 'contrats qui finissent bientôt', 'proches'),
       carte(nSans ? 'rouge' : 'gris', 'Sans valeur', nSans, nSans ? 'à lire sur OpenLane' : 'tout est valorisé', 'sansValeur'),
@@ -280,9 +385,9 @@
     /* Paramètres du calcul */
     var champ = function (cle, libelle, pas, aide) { var inp = h('input', { type: 'number', step: pas || '0.01', value: String(self.params[cle]), title: aide || '' }); inp.addEventListener('change', function () { var v = nombre(inp.value); if (v === null) return; self.params[cle] = v; AMX.equite.poserParams(self.params); try { inp.blur(); } catch (e) {} setTimeout(function () { self.rendre(); }, 0); });   /* redessin différé : retirer le champ pendant son propre « change » fait échouer removeChild */ return h('div.champ', [h('label', { text: libelle }), inp]); };
     var params = h('div.eq-params', [
-      champ('taux', 'Taux %', '0.01', 'Taux annuel du financement du neuf (BMW FS, programme du mois)'), champ('terme', 'Terme (mois)', '1'), champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
+      champ('taux', 'Taux %', '0.01', 'Taux annuel du financement du neuf (' + preteur(this.cie) + ', programme du mois)'), champ('terme', 'Terme (mois)', '1'), champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
       champ('marge', 'Marge $/mois', '1', 'Une cible peut payer jusqu\'à ce montant de plus par mois'), champ('taxes', 'Taxes %', '0.001', 'TPS + TVQ sur la différence prix − valeur de l\'échange'), champ('comptant', 'Comptant $', '1'), champ('kmAn', 'Km / an', '1000', 'Km estimé d\'un véhicule financé (pour OpenLane)'),
-      h('span.doux.petit', { style: { alignSelf: 'center' } }, 'Nouvelle mensualité = (PDSF + frais − valeur) + taxes + solde, financé au taux et au terme choisis. Estimation : sans incitatifs ni programme de location.')
+      h('span.doux.petit', { style: { alignSelf: 'center' } }, estGm(this.cie) ? 'Nouvelle mensualité : le scénario DealDriver le moins cher, calculé par GM avec les programmes du mois. Sans scénario : (PDSF + frais − valeur) + taxes + solde, financé au taux et au terme choisis.' : 'Nouvelle mensualité = (PDSF + frais − valeur) + taxes + solde, financé au taux et au terme choisis. Estimation : sans incitatifs ni programme de location.')
     ]);
     /* Filtres */
     var conseillers = {}; lignes.forEach(function (r) { conseillers[r.compte.conseiller || '—'] = 1; });
@@ -299,10 +404,25 @@
       h('button.btn.petit', { type: 'button', html: I.externe + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
       (AMX.openlane && nSans) ? h('button.btn.petit', { type: 'button', text: 'Lire OpenLane (' + Math.min(12, nSans) + ' suivants)', onclick: function () { self.lireOpenlane(12); } }) : null
     ]);
-    var entete = h('div.carte-entete', [h('h2', ['Équité — clients ' + nomCie(this.cie) + ' (BMW Financial Services)', h('span.sous', { text: etat && etat.le ? 'portefeuille lu le ' + AMX.fmtDate(etat.le, true) + (etat.par ? ' par ' + String(etat.par).split('@')[0] : '') : '' })]),
-      h('div.actions-ligne', [h('a.btn.petit', { href: AMX.lien('outils', 'equite'), html: I.rafraichir + '<span>Importer un nouvel export</span>' })])]);
+    var entete = h('div.carte-entete', [h('h2', ['Équité — clients ' + nomCie(this.cie) + ' (' + preteur(this.cie) + ')', h('span.sous', { text: etat && etat.le ? 'portefeuille lu le ' + AMX.fmtDate(etat.le, true) + (etat.par ? ' par ' + String(etat.par).split('@')[0] : '') : '' })]),
+      h('div.actions-ligne', [estGm(this.cie) ? h('a.btn.petit', { href: 'https://www.gmdealerdirect.ca/lm/Lead/myLeadLists.aspx', target: '_blank', rel: 'noopener', html: I.externe + '<span>GM Dealer Direct</span>', title: 'Relire : cliquez le favori « Automax ← Constructeur » dans GM Dealer Direct' }) : h('a.btn.petit', { href: AMX.lien('outils', 'equite'), html: I.rafraichir + '<span>Importer un nouvel export</span>' })])]);
+    /* Einstein AI : une question en français, des filtres en retour (rien des clients n'est envoyé). */
+    var champQ = h('input.recherche.eq-ia-champ', { type: 'search', placeholder: 'Demandez à Einstein : « taux de plus de 5 % », « paiement de plus de 1 200 $ », « finit dans 6 mois et équité positive »…', value: this.ia ? this.ia.question : '' });
+    var btnQ = h('button.btn.primaire.petit', { type: 'button', text: 'Demander' });
+    btnQ.addEventListener('click', function () { self.demander(champQ.value, btnQ); });
+    champQ.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); self.demander(champQ.value, btnQ); } });
+    var avatar = AMX.maxai && AMX.maxai.avatar ? AMX.maxai.avatar(28) : null;
+    var iaBarre = h('div.eq-ia', [avatar, champQ, btnQ]);
+    var iaRes = null;
+    if (this.ia) {
+      var nIa = this.visibles().length;
+      var effacer = h('button.btn.petit.fantome', { type: 'button', text: '× Effacer', title: 'Revenir à la liste complète' });
+      effacer.addEventListener('click', function () { self.ia = null; self.rendre(); });
+      iaRes = h('div.eq-ia-res', [h('span', [h('b', { text: 'Einstein : ' }), this.ia.resume || this.ia.question, ' — ', h('b', { text: AMX.fmtNombre(nIa) + ' client' + (nIa > 1 ? 's' : '') })]),
+        h('span.sous', { text: this.ia.conditions.map(texteCondition).join(' · ') + (this.ia.tri ? ' · trié par ' + this.ia.tri + (this.ia.sens === 'croissant' ? ' ↑' : ' ↓') : '') }), effacer]);
+    }
     this.elTable = h('div.eq-table');
-    el.appendChild(h('div.carte', [entete, h('div.carte-corps', [tuiles, params, filtres, this.elTable])]));
+    el.appendChild(h('div.carte', [entete, h('div.carte-corps', [iaBarre, iaRes, tuiles, params, filtres, this.elTable])]));
     this.rendreTable();
   };
   VueEquite.prototype.rendreTable = function () {
@@ -318,9 +438,11 @@
     var cls = (r.cible ? '.cible' : '') + (r.sansValeur ? '.sans' : '');
     var contactEl = contact ? h('div.sous.eq-contact', [c.telephone ? h('a', { href: 'tel:' + c.telephone.replace(/[^\d+]/g, ''), text: c.telephone }) : null, c.courriel ? h('span', [' · ', h('a', { href: 'mailto:' + c.courriel, text: c.courriel })]) : null]) : null;
     var eqCls = r.equite === null ? '.eq-nul' : (r.equite >= 0 ? '.eq-pos' : '.eq-neg');
-    var valeurEl = r.valeur !== null ? h('div', [h('div', { text: fmt$(r.valeur) }), h('div.sous', { text: r.valeurSource === 'openlane' ? 'OpenLane' + (r.kmEstime ? ' · ' + AMX.fmtNombre(r.kmEstime) + ' km est.' : '') : 'estimation BMW' })]) : h('div', [h('span.valeur', { text: 'à lire' }), AMX.openlane ? h('div', [h('button.btn.petit', { type: 'button', text: 'OpenLane', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } })]) : null]);
-    var neufEl = r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: 'PDSF ' + fmt$(r.neuf.prix) + ' · ' + (r.neuf.enStock ? 'en stock' : 'en route') + (r.alternatives ? ' · +' + r.alternatives + ' autre' + (r.alternatives > 1 ? 's' : '') : '') + (r.neufVoisin ? ' · série voisine' : '') })]) : h('span.sous', { text: 'aucun ' + r.serie + ' en stock' });
-    var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance)) })]) : h('span.eq-nul', '—');
+    var valeurEl = r.valeur !== null ? h('div', [h('div', { text: fmt$(r.valeur) }), h('div.sous', { text: r.valeurSource === 'openlane' ? 'OpenLane' + (r.kmEstime ? ' · ' + AMX.fmtNombre(r.kmEstime) + ' km est.' : '') : (r.valeurSource === 'gm' ? 'reprise selon GM' : 'estimation BMW') })]) : h('div', [h('span.valeur', { text: 'à lire' }), AMX.openlane ? h('div', [h('button.btn.petit', { type: 'button', text: 'OpenLane', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } })]) : null]);
+    var autres = r.proposition && r.propositions.length > 1 ? r.propositions.filter(function (p) { return p !== r.proposition; }).map(function (p) { return p.vehicule + ' — ' + fmt$(p.mensualite) + ' / mois · ' + texteProposition(p); }).join('\n') : '';
+    var neufEl = r.proposition ? h('div', { title: autres ? 'Autres scénarios DealDriver :\n' + autres : '' }, [h('div.nom', { text: r.proposition.vehicule || '—' }), h('div.sous', { text: texteProposition(r.proposition) + ' · DealDriver' + (r.propositions.length > 1 ? ' · +' + (r.propositions.length - 1) + ' autre' + (r.propositions.length > 2 ? 's' : '') : '') })])
+      : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.gm ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: 'PDSF ' + fmt$(r.neuf.prix) + ' · ' + (r.neuf.enStock ? 'en stock' : 'en route') + (r.alternatives ? ' · +' + r.alternatives + ' autre' + (r.alternatives > 1 ? 's' : '') : '') + (r.neufVoisin ? ' · série voisine' : '') })]) : h('span.sous', { text: 'aucun ' + (r.gm ? (c.modele || 'modèle semblable') : r.serie) + ' en stock' + (r.gm ? ' · aucun scénario DealDriver' : '') });
+    var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance))) })]) : h('span.eq-nul', '—');
     var selSuivi = h('select.suivi', SUIVIS_ORDRE.map(function (k) { return h('option', { value: k, text: SUIVIS[k] }); }));
     selSuivi.value = c.suivi || '';
     selSuivi.disabled = !contact;
@@ -331,13 +453,13 @@
       else fin(note);
     });
     return h('tr' + cls, [
-      h('td', [h('div.nom', { text: nomClient(c) }), h('div.sous', { text: [c.ville, c.compte].filter(Boolean).join(' · ') }), contactEl]),
+      h('td', [h('div.nom', { text: nomClient(c) }), h('div.sous', { text: [c.ville, r.gm ? c.etatLead : c.compte].filter(Boolean).join(' · ') }), contactEl, r.ndnc ? h('div.sous.eq-neg', { text: 'Ne pas téléphoner (LCAP)', title: 'Inscrit à la Liste nationale de numéros de télécommunication exclus ou à la liste interne de la concession, selon GM Dealer Direct' }) : null]),
       h('td', [h('div', { text: vehiculeTexte(c) }), h('div.vin', { text: c.vin || '' }), c.neufUsage && /used|pre/i.test(c.neufUsage) ? h('div.sous', { text: 'acheté d\'occasion' }) : null]),
       h('td', [h('div', { text: (r.location ? 'Location' : 'Financement') + (c.terme ? ' ' + c.terme + ' mois' : '') + (c.taux !== null && c.taux !== undefined ? ' · ' + c.taux + ' %' : '') }), h('div.sous' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'échéance ' + AMX.fmtDate(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' mois)' : '') : '' }), r.location && c.kmContrat ? h('div.sous', { text: AMX.fmtNombre(c.kmContrat) + ' km au contrat' + (c.usure === 'oui' ? ' · usure' : '') }) : null]),
       h('td.num', { text: fmt$(c.paiement) }),
       h('td.num', [valeurEl]),
-      h('td.num', [h('div', { text: fmt$(r.solde) }), r.location && r.soldeEcheance !== null ? h('div.sous', { text: 'résiduel ' + fmt$(r.soldeEcheance) }) : null]),
-      h('td.num', [h('div' + eqCls, { text: r.equite === null ? '—' : fmtSigne(r.equite) }), r.equiteBmw !== null && !r.location ? h('div.sous', { text: 'BMW ' + fmtSigne(r.equiteBmw) }) : null, r.location && r.equiteEcheance !== null ? h('div.sous', { text: 'à l\'échéance ' + fmtSigne(r.equiteEcheance) }) : null]),
+      h('td.num', [h('div', { text: fmt$(r.solde) }), r.gm && nombre(c.payoffBmw) !== null ? h('div.sous', { text: 'rachat GM' }) : null, r.location && r.soldeEcheance !== null ? h('div.sous', { text: 'résiduel ' + fmt$(r.soldeEcheance) }) : null]),
+      h('td.num', [h('div' + eqCls, { text: r.equite === null ? '—' : fmtSigne(r.equite) }), r.equiteBmw !== null && (!r.location || r.gm) ? h('div.sous', { text: (r.gm ? 'GM ' : 'BMW ') + fmtSigne(r.equiteBmw) }) : null, r.location && r.equiteEcheance !== null ? h('div.sous', { text: 'à l\'échéance ' + fmtSigne(r.equiteEcheance) }) : null]),
       h('td', [neufEl]),
       h('td.num', [mensEl]),
       h('td', { text: c.conseiller || '—' }),
@@ -363,7 +485,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Solde': r.solde, 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Équité BMW': c.equiteBmw, 'Neuf proposé': r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : '', 'PDSF neuf': r.neuf ? r.neuf.prix : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Solde': r.solde, 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Équité (constructeur)': c.equiteBmw, 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'Scénario': r.proposition ? texteProposition(r.proposition) + ' (DealDriver)' : '', 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');

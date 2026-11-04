@@ -59,6 +59,10 @@
       etapes: ['Dans InfoBahn › Portfolio (bouton « Ouvrir le portail »), choisissez « Entire Portfolio ».',
         'Menu « … » de la liste › Export : le fichier SearchResults.xls se télécharge.',
         'Déposez-le dans Outils › Portefeuille BMW (bouton « Déposer le fichier »).'] },
+    gmdd: { court: 'GM Dealer Direct (équité)', favori: 'constructeur', page: ['relance', 'equite'], pageTexte: 'Équité',   /* 4 nov. */
+      etapes: ['Connectez-vous à GM Dealer Direct (bouton « Ouvrir le portail ») au nom de la concession.',
+        'Sur n\'importe quelle page de GM Dealer Direct, cliquez le favori « Automax ← Constructeur ».',
+        'Restez sur l\'onglet quelques minutes : il lit les clients de la Financière GM (location, échéances, DealDriver) et la fiche de chacun. Rien n\'est écrit dans GM Dealer Direct.'] },
     banque: { court: 'transactions bancaires InfoBahn', favori: 'infobahn', page: ['outils', 'equite'], pageTexte: 'Portefeuille BMW',
       etapes: ['Dans InfoBahn, ouvrez Payments › Bank Transactions (bouton « Ouvrir le portail »).',
         'Choisissez la période au besoin (Date Range › Filter).',

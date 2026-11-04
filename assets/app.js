@@ -928,7 +928,6 @@
           { id: 'evaluations', titre: 'Registre', visible: function () { return AMX.voitEvaluations(); } },
           { id: 'torque', titre: 'Archive Torque', visible: function () { return AMX.voitEvaluations(); } }
         ] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
-      { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '' },   /* 22 oct. : dépôt d'une liste (PDF, Excel, CSV) → où est chaque véhicule ; audit dans l'app (listes.js) */
       { id: 'transports', titre: 'Transports', de: 'transports', onglet: '', compteur: function () { return AMX.transport ? AMX.transport.compteur() : ''; } }   /* 23 oct. : transport des achats par Central Fleet (transport.js) */
     ] },
     { id: 'relance', titre: 'Relance', icone: 'relance', ordre: 30, onglets: [
@@ -952,7 +951,12 @@
       { id: 'openlane', titre: 'Valeurs OpenLane', de: 'outils', onglet: 'openlane', parent: 'import', icone: 'resultat', couleur: 'violet', desc: 'Les ventes et la prévision de gros OpenLane pour nos véhicules.' },
       { id: 'd2c', titre: 'Import D2C', de: 'outils', onglet: 'd2c', parent: 'import', icone: 'rafraichir', couleur: 'sarcelle', desc: 'L\'inventaire que D2C Media reçoit du DMS : neufs, occasions, km et CARFAX.' },
       { id: 'opportunites', titre: 'Opportunités d\'achat', de: 'outils', onglet: 'opportunites' },   /* 24 oct. : Occasions.gs */
-      { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification' },
+      /* 4 nov. (Maxime : « il faut que l'onglet liste et audit et vérification excel soit ensemble dans outils et on peut
+         l'appeler audit ») : une page de choix. « Listes et audits » quitte Inventaire mais garde sa clé de rôle
+         « inventaire/listes » (`cle`) : mêmes droits sur le site, dans l'app (Audit) et au serveur (Onglets.gs). */
+      { id: 'audit', titre: 'Audit', hub: true, icone: 'scan', desc: 'Vérifier où sont les véhicules : une liste déposée (prêteur, plan de financement) ou un fichier Excel comparé aux registres.' },
+      { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '', parent: 'audit', cle: 'inventaire/listes', icone: 'achat', couleur: 'vert', desc: 'Déposer une liste (PDF, Excel, CSV) : ScanAutomax dit où est chaque véhicule. L\'audit sur le terrain se fait dans l\'app.' },   /* 22 oct. : listes.js */
+      { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification', parent: 'audit', icone: 'ok', couleur: 'bleu', desc: 'Comparer un fichier Excel (DMS, transporteur…) aux registres : ce qui manque d\'un côté ou de l\'autre.' },
       { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '' }
     ] },
     { id: 'aide', titre: 'Aide', icone: 'aide', ordre: 60, onglets: [{ de: 'aide', tous: true }] }
@@ -1036,7 +1040,7 @@
     var def = { id: t.id, titre: t.titre, court: t.court, icone: t.icone, ordre: t.ordre, tuile: true };
     def.onglets = onglets.map(function (o) {
       var src = function () { return o.de ? (AMX.sources[o.de] || AMX.sections[o.de]) : null; };
-      var cle = t.id + '/' + (o.id || '');
+      var cle = o.cle || (t.id + '/' + (o.id || ''));   /* `cle` : clé de rôle gardée par une page qui a changé de tuile */
       var enfants = function () { return def.onglets.filter(function (e) { return e.parent === o.id; }); };
       return {
         id: o.id, titre: o.titre, de: o.de, onglet: o.onglet, fixes: o.fixes, vues: o.vues, monter: o.monter,
@@ -1239,6 +1243,8 @@
     if (r.section === 'inventaire' && /^(us|can|detail)$/.test(r.onglet) && AMX.inventaire && AMX.inventaire.registres) { var pr = { registre: r.onglet }; Object.keys(r.params || {}).forEach(function (k) { pr[k] = r.params[k]; }); AMX.aller('inventaire', 'usage', pr); return; }
     // 27 oct. : l'onglet « Import CARFAX » est retiré (l'API officielle de CARFAX lit les rapports) — l'ancienne adresse mène à Outils › Imports.
     if (r.section === 'outils' && r.onglet === 'carfax') { AMX.aller('outils', 'imports'); return; }
+    // 4 nov. : « Listes et audits » a quitté Inventaire — Outils › Audit.
+    if (r.section === 'inventaire' && r.onglet === 'listes') { AMX.aller('outils', 'listes', r.params); return; }
     // 3 nov. : « Évaluations demandées » a quitté Vente — Inventaire › Occasion › Évaluation (vue « Mes demandes » pour le
     // représentant). Les liens des courriels et textos déjà envoyés (DemandesEval.gs) passent par ici.
     // 4 nov. : « Échanges de neufs » a quitté Vente — la bulle « Échanges » d'Inventaire › Neufs.

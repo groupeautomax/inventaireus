@@ -8,7 +8,9 @@
 (function () {
   'use strict';
   var h = AMX.h, I = AMX.icones;
-  var CIE_DEFAUT = 'BMW';   /* seule concession avec un portefeuille aujourd'hui */
+  var CIE_DEFAUT = 'BMW';   /* BMW (InfoBahn) ; depuis le 4 nov. aussi Hawkesbury et Ste-Marie (GM Dealer Direct) */
+  var CIES_GM = { HAWKS: 1, STM: 1 };
+  var URL_GMDD = 'https://www.gmdealerdirect.ca/lm/Lead/myLeadLists.aspx';
 
   function nomCie(code) { return (AMX.COMPAGNIES_TOUTES[code] || code || '').replace(' Chevrolet Buick Cadillac', ''); }
 
@@ -61,6 +63,12 @@
     var self = this, d = AMX.equite.enCache();
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.cie, sansToutes: true, compte: function (c) { return d ? AMX.equite.comptes(c).length : null; }, onchange: function (c) { self.cie = c || CIE_DEFAUT; self.rendre(); } });
     var comptes = d ? AMX.equite.comptes(this.cie) : [], etat = d ? AMX.equite.etat(this.cie) : null;
+    /* Le bouton suit la concession : BMW = dépôt de l'export InfoBahn ; GM = GM Dealer Direct et le favori Constructeur. */
+    var gm = !!CIES_GM[this.cie];
+    this.btnImporter.setAttribute('href', gm ? URL_GMDD : AMX.lien('relance', 'equite', { vue: 'import' }));
+    if (gm) { this.btnImporter.setAttribute('target', '_blank'); this.btnImporter.setAttribute('rel', 'noopener'); } else { this.btnImporter.removeAttribute('target'); this.btnImporter.removeAttribute('rel'); }
+    this.btnImporter.innerHTML = (gm ? I.externe : I.telecharger) + '<span>' + (gm ? 'Ouvrir GM Dealer Direct' : 'Importer le portefeuille') + '</span>';
+    this.btnImporter.title = gm ? 'Puis cliquez le favori « Automax ← Constructeur » dans GM Dealer Direct' : 'Déposer l\'export InfoBahn (BMW Financial Services)';
     this.elEtat.textContent = !d ? 'Chargement du portefeuille…'
       : (nomCie(this.cie) + ' · ' + AMX.fmtNombre(comptes.length) + ' client' + (comptes.length > 1 ? 's' : '') + ' financé' + (comptes.length > 1 ? 's' : '') + (etat && etat.le ? ' · portefeuille du ' + AMX.fmtDate(etat.le, true) : (comptes.length ? '' : ' · aucun portefeuille importé')));
   };

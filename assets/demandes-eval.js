@@ -36,6 +36,12 @@
    l'évaluation à l'évaluateur). Vue « Direction » (À approuver / À confirmer) pour le DG et la direction des ventes
    (moi.diriger). Le représentant a son portail, Vente › Évaluations demandées (section evalPortail, même code en mode
    portail) : ses demandes seulement, sans lien vers l'évaluation, le montant une fois confirmé.
+
+   Plusieurs évaluateurs (4 nov.) — Maxime : « on doit pouvoir envoyer à plus d'une personne » ; « le premier qui le
+   prend » ; « le directeur ou les évaluateurs peuvent transférer l'évaluation même s'ils l'ont prise » ; la direction des
+   ventes approuve et confirme sans évaluer. choixEvaluateurs() (Premier disponible, Tous les présents, ou une ou plusieurs
+   personnes) sert à l'envoi par la direction, à l'approbation et au transfert (op transferer { evaluateurs }). Une demande
+   prise par quelqu'un d'autre montre « Prise par … » et ne s'évalue plus ici : on la transfère.
    ========================================================================= */
 (function () {
   'use strict';
@@ -287,7 +293,7 @@
     if (!codes.length) codes = AMX.codesPour ? AMX.codesPour('evaluations') : Object.keys(AMX.COMPAGNIES || {});
     var cie = prefill.compagnie && codes.indexOf(prefill.compagnie) >= 0 ? prefill.compagnie : (AMX.compagnieChoisie('evaluations') || (AMX.maConcession && AMX.maConcession()) || '');
     if (codes.indexOf(cie) < 0) cie = codes.length === 1 ? codes[0] : '';
-    var choix = AMX.memo.lire('evalDemande_evaluateur', 'disponible');
+    var memoChoix = String(AMX.memo.lire('evalDemande_evaluateur', 'disponible') || 'disponible').split(',').filter(Boolean), picker = null;
     var selCie = h('select.saisie', [h('option', { value: '', text: 'Choisir la concession' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c), selected: c === cie }); })));
     var inVin = h('input.saisie.mono', { type: 'text', maxlength: '17', autocomplete: 'off', spellcheck: 'false', placeholder: 'NIV (17 caractères)', value: prefill.vin || '', style: { textTransform: 'uppercase' } });
     var elVeh = h('div.mini.de-veh', { text: prefill.vehicule || '' });
@@ -303,25 +309,14 @@
     inPhotos.onchange = function () { var n = inPhotos.files.length; elPhotos.textContent = n ? n + ' photo' + (n > 1 ? 's' : '') + ' prête' + (n > 1 ? 's' : '') : 'aucune photo'; };
     var elEval = h('div.de-evaluateurs'), elAvis = h('div.mini.de-avis-eval');
     var dessinerEvaluateurs = function () {
-      AMX.vider(elEval); elAvis.textContent = '';
+      AMX.vider(elEval); elAvis.textContent = ''; picker = null;
       if (sansChoix) return;
       var liste = (d.evaluateurs[selCie.value] || []);
       if (!selCie.value) { elEval.appendChild(h('span.mini', 'Choisissez d\'abord la concession.')); return; }
       if (!liste.length) { elEval.appendChild(h('span.mini', { style: { color: 'var(--rouge)' }, text: 'Aucun évaluateur pour cette concession : la direction coche le droit « Évaluateur » dans Admin.' })); return; }
-      if (choix !== 'disponible' && !liste.some(function (x) { return x.courriel === choix; })) choix = 'disponible';
-      var presents = liste.filter(function (x) { return !x.groupe && x.presence !== 'absent'; }).length;
-      var bouton = function (val, titre, sous, ton, attenue) {
-        return h('button.de-eval' + (choix === val ? '.choisi' : '') + (attenue ? '.attenue' : ''), { type: 'button', 'aria-pressed': String(choix === val), onclick: function () { choix = val; dessinerEvaluateurs(); } },
-          [h('b', [ton ? h('i.de-point.' + ton) : null, titre]), h('span', { text: sous })]);
-      };
-      elEval.appendChild(bouton('disponible', 'Premier disponible', presents ? 'saute les absents, le moins occupé' : 'personne n\'est disponible : le moins chargé', presents ? 'vert' : 'gris'));
-      liste.forEach(function (x) {
-        var sous = [textePresence(x), x.ouvertes ? x.ouvertes + ' en cours' : 'libre', x.groupe ? 'groupe' : ''].filter(Boolean).join(' · ');
-        elEval.appendChild(bouton(x.courriel, x.nom, sous, TON_PRESENCE[x.presence || 'disponible'], x.presence === 'absent'));
-      });
-      var choisi = liste.filter(function (x) { return x.courriel === choix; })[0];
-      if (choisi && choisi.presence === 'absent') elAvis.textContent = choisi.nom + ' est indiqué absent : la demande partira quand même, mais elle risque d\'attendre.';
-      else if (choisi && choisi.ouvertes >= R.maxOuvertes) elAvis.textContent = choisi.nom + ' a déjà ' + choisi.ouvertes + ' demandes en cours.';
+      /* 4 nov. : une ou plusieurs personnes — le premier qui la prend la fait */
+      picker = choixEvaluateurs(liste, memoChoix, { maxOuvertes: R.maxOuvertes });
+      elEval.appendChild(picker.el);
     };
     selCie.onchange = dessinerEvaluateurs;
     var decoder = function () {
@@ -341,7 +336,7 @@
       detail ? detail.el : null,
       h('div.champ.large', [h('span', 'Photos du véhicule (tableau de bord, 4 côtés, intérieur, dommages)'), h('div.actions-ligne', { style: { alignItems: 'center', gap: '10px' } }, [btnPhotos, elPhotos, inPhotos])]),
       h('label.champ.large', [h('span', 'Note pour l\'évaluateur'), inNote]),
-      sansChoix ? null : h('div.champ.large', [h('span', moiF.diriger ? 'Évaluateur' : 'Évaluateur proposé'), elEval, elAvis]),
+      sansChoix ? null : h('div.champ.large', [h('span', moiF.diriger ? 'Évaluateurs (un ou plusieurs)' : 'Évaluateur proposé'), elEval, elAvis]),
       moiF.diriger ? null : h('p.mini.large.de-circuit', { text: 'Votre demande va d\'abord à la direction, qui l\'approuve et l\'envoie à l\'évaluateur. Le montant vous revient par texto une fois confirmé par la direction.' })
     ]));
     dessinerEvaluateurs();
@@ -354,9 +349,10 @@
       if (!sansChoix && !(d.evaluateurs[selCie.value] || []).length) { AMX.toast('Aucun évaluateur pour cette concession.', 'erreur'); return; }
       var fichiers = [].slice.call(inPhotos.files || []);
       btnEnvoyer.classList.add('occupe');
-      if (!sansChoix) AMX.memo.ecrire('evalDemande_evaluateur', choix);
+      var choisis = picker ? picker.valeur() : ['disponible'];
+      if (!sansChoix) AMX.memo.ecrire('evalDemande_evaluateur', choisis.join(','));
       AMX.post({ action: 'evalDemander', compagnie: selCie.value, vin: vin, km: inKm.value, client: inClient.value, telephone: inTel.value, note: inNote.value, photos: fichiers.length,
-        annee: elVeh.dataset.annee || '', marque: elVeh.dataset.marque || '', modele: elVeh.dataset.modele || '', evaluateur: sansChoix ? 'disponible' : choix,
+        annee: elVeh.dataset.annee || '', marque: elVeh.dataset.marque || '', modele: elVeh.dataset.modele || '', evaluateur: sansChoix ? 'disponible' : choisis.join(','), evaluateurs: sansChoix ? [] : choisis,
         detail: detail ? detail.get() : null }, { secours: false, delai: 60000 }).then(function (x) {
         if (!x || x.refuse || x.ok === false) throw new Error((x && x.erreur) || 'Refusé');
         if (!x.demande) throw new Error(SCRIPT_PAS_A_JOUR);
@@ -385,10 +381,12 @@
   function droits(x, d, portail) {
     var moi = (d && d.moi) || {}, ouverte = estOuverte(x);
     return {
-      evaluer: !portail && ouverte && (x.pourMoi || ((moi.evaluateur || moi.direction) && !x.deMoi)),
-      prendre: !portail && x.etat === 'afaire' && !x.pourMoi && !x.deMoi && (moi.evaluateur || moi.direction),
+      /* 4 nov. : la direction des ventes n'évalue pas (droit « Évaluateur » seulement) ; une demande prise par quelqu'un
+         d'autre ne s'évalue pas ici (on la transfère) */
+      evaluer: !portail && ouverte && !priseParAutre(x) && (x.pourMoi || (moi.evaluateur && !x.deMoi)),
+      prendre: !portail && x.etat === 'afaire' && !x.pourMoi && !x.deMoi && !priseParAutre(x) && !!moi.evaluateur,
       piloter: enCours(x) && (x.deMoi || moi.direction),
-      reassigner: !portail && (ouverte || x.etat === 'approbation') && (x.deMoi || x.pourMoi || moi.direction),
+      transferer: !portail && (ouverte || (x.etat === 'approbation' && !!moi.diriger)) && (moi.direction || moi.evaluateur || x.pourMoi),
       resultat: x.etat === 'faite' && (x.deMoi || x.pourMoi || moi.direction),
       reevaluer: (x.etat === 'faite' || x.etat === 'annulee' || x.etat === 'refusee') && !x.remplaceePar && (x.deMoi || moi.direction),
       ecrire: x.deMoi || x.pourMoi || moi.direction || moi.evaluateur,
@@ -399,9 +397,18 @@
       voirEvaluation: !portail && !!x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer')
     };
   }
+  function priseParAutre(x) { return !!x.prise && !x.pourMoi; }
+  /* « Claude, Tristan (le premier qui la prend) » ; « Tristan (l'a prise) » ; un seul : son nom. */
+  function texteEvaluateurs(x) {
+    var dest = x.destinataires || [];
+    if (x.prise) return (x.prisParNom || x.evaluateurNom || '—') + ' (l\'a prise)';
+    if (dest.length > 1) return dest.map(function (e) { return e.nom; }).join(', ') + ' (le premier qui la prend)';
+    return x.evaluateurNom || (dest[0] && dest[0].nom) || '—';
+  }
   function evaluer(x) {
     var aller = function () { AMX.aller('outils', 'evaluation', { vin: x.vin, demande: x.id }); };
-    if (x.etat === 'afaire') action(x.id, 'prendre').then(aller).catch(function (e) { erreur(e); aller(); });
+    /* 4 nov. : le premier qui la prend la fait — arrivé deuxième, on ne va pas plus loin */
+    if (x.etat === 'afaire') action(x.id, 'prendre').then(aller).catch(function (e) { erreur(e); if (!/Déjà prise/.test((e && e.message) || '')) aller(); else charger(true); });
     else aller();
   }
   function choisirIssue(x, issue) {
@@ -428,37 +435,80 @@
         return action(x.id, 'reevaluer', { km: inKm.value, note: inNote.value }).then(function (r) { AMX.toast(r.message, r.deja ? 'attention' : 'ok', 6000); }).catch(function (e) { erreur(e); return false; });
       } }] });
   }
-  function reassigner(x, d) {
-    var liste = (d.evaluateurs[x.compagnie] || []).filter(function (e) { return e.courriel !== x.evaluateur; });
+  /* 4 nov. (Maxime) : « le directeur ou les évaluateurs peuvent transférer l'évaluation même s'ils l'ont prise » — à une ou
+     plusieurs personnes ; la demande repart (texto aux nouveaux), le premier qui la prend la fait. */
+  function transferer(x, d) {
+    var moiC = String(((d && d.moi) || {}).courriel || '').toLowerCase();
+    var liste = (((d && d.evaluateurs) || {})[x.compagnie] || []).filter(function (e) { return e.courriel !== moiC && !(x.prise && e.courriel === x.evaluateur); });
     if (!liste.length) { AMX.toast('Aucun autre évaluateur pour cette concession.', 'attention'); return; }
-    var m = AMX.modale({ titre: 'Réassigner ' + x.id, corps: h('div.de-evaluateurs', [h('button.de-eval', { type: 'button', onclick: function () { go('disponible'); } }, [h('b', [h('i.de-point.vert'), 'Premier disponible']), h('span', 'saute les absents')])].concat(liste.map(function (e) {
-      return h('button.de-eval' + (e.presence === 'absent' ? '.attenue' : ''), { type: 'button', onclick: function () { go(e.courriel); } }, [h('b', [h('i.de-point.' + TON_PRESENCE[e.presence || 'disponible']), e.nom]), h('span', { text: textePresence(e) + ' · ' + (e.ouvertes ? e.ouvertes + ' en cours' : 'libre') })]);
-    }))), boutons: [{ texte: 'Annuler', action: function (f) { f(); } }] });
-    function go(c) { m.fermer(); action(x.id, 'reassigner', { evaluateur: c }).then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); }
+    var avant = x.etat === 'approbation';
+    var picker = choixEvaluateurs(liste, avant ? (x.destinataires || []).map(function (e) { return e.courriel; }) : [], {});
+    AMX.modale({ titre: (avant ? 'Évaluateurs proposés — ' : 'Transférer ') + (x.vehicule || x.id), corps: h('div', [
+      h('p.mini', { text: avant ? 'La demande attend toujours votre approbation : rien ne part tout de suite.'
+        : (x.prise ? (x.prisParNom || 'L\'évaluateur') + ' l\'a prise ; ' : '') + 'les personnes choisies reçoivent un texto (ou un courriel) ; la première qui la prend la fait.' }),
+      picker.el]),
+      boutons: [{ texte: 'Annuler' }, { texte: avant ? 'Enregistrer' : 'Transférer', classe: 'primaire', action: function () {
+        var v = picker.valeur();
+        return action(x.id, 'transferer', { evaluateurs: v, evaluateur: v.join(',') }).then(function (r) { AMX.toast(r.message, 'ok', 6000); }).catch(function (e) { erreur(e); return false; });
+      } }] });
+  }
+  /* 4 nov. : choisir un ou plusieurs évaluateurs. « Premier disponible » est seul ; sinon on coche une ou plusieurs
+     personnes (« Tous les présents » d'un clic). Renvoie { el, valeur() } : ['disponible'] ou les courriels choisis. */
+  function choixEvaluateurs(liste, depart, opts) {
+    opts = opts || {};
+    var choisis = (depart || []).filter(function (c) { return c === 'disponible' || liste.some(function (e) { return e.courriel === c; }); });
+    if (!choisis.length || choisis.indexOf('disponible') >= 0) choisis = ['disponible'];
+    var presents = liste.filter(function (e) { return !e.groupe && e.presence !== 'absent'; });
+    var grille = h('div.de-evaluateurs'), avis = h('div.mini.de-avis-eval'), el = h('div', [grille, avis]);
+    var basculer = function (val) {
+      if (val === 'disponible') choisis = ['disponible'];
+      else if (val === 'tous') choisis = presents.map(function (e) { return e.courriel; });
+      else {
+        if (choisis[0] === 'disponible') choisis = [];
+        var i = choisis.indexOf(val); if (i >= 0) choisis.splice(i, 1); else choisis.push(val);
+        if (!choisis.length) choisis = ['disponible'];
+      }
+      dessiner();
+    };
+    var dessiner = function () {
+      AMX.vider(grille);
+      var dispo = choisis[0] === 'disponible';
+      var tous = presents.length > 1 && choisis.length === presents.length && presents.every(function (e) { return choisis.indexOf(e.courriel) >= 0; });
+      var bouton = function (val, titre, sous, ton, on, attenue) {
+        return h('button.de-eval' + (on ? '.choisi' : '') + (attenue ? '.attenue' : ''), { type: 'button', 'aria-pressed': String(on), onclick: function () { basculer(val); } }, [h('b', [ton ? h('i.de-point.' + ton) : null, titre]), h('span', { text: sous })]);
+      };
+      grille.appendChild(bouton('disponible', 'Premier disponible', presents.length ? 'saute les absents, le moins occupé' : 'personne n\'est disponible : le moins chargé', presents.length ? 'vert' : 'gris', dispo));
+      if (presents.length > 1) grille.appendChild(bouton('tous', 'Tous les présents (' + presents.length + ')', 'le premier qui la prend la fait', null, tous));
+      liste.forEach(function (e) {
+        var sous = [textePresence(e), e.ouvertes ? e.ouvertes + ' en cours' : 'libre', e.groupe ? 'groupe' : ''].filter(Boolean).join(' · ');
+        grille.appendChild(bouton(e.courriel, e.nom, sous, TON_PRESENCE[e.presence || 'disponible'], !dispo && choisis.indexOf(e.courriel) >= 0, e.presence === 'absent'));
+      });
+      var noms = liste.filter(function (e) { return choisis.indexOf(e.courriel) >= 0; });
+      var absents = noms.filter(function (e) { return e.presence === 'absent'; }).map(function (e) { return e.nom; });
+      var pleins = noms.filter(function (e) { return opts.maxOuvertes && e.ouvertes >= opts.maxOuvertes; }).map(function (e) { return e.nom; });
+      avis.textContent = noms.length > 1 ? noms.length + ' évaluateurs reçoivent le texto : le premier qui la prend la fait.' + (absents.length ? ' (' + absents.join(', ') + ' : absent)' : '')
+        : (absents.length ? absents[0] + ' est indiqué absent : la demande partira quand même, mais elle risque d\'attendre.' : (pleins.length ? pleins[0] + ' a déjà plusieurs demandes en cours.' : ''));
+    };
+    dessiner();
+    return { el: el, valeur: function () { return choisis.slice(); } };
   }
   function message(id, texte, info) { return action(id, 'message', { texte: texte, info: !!info }); }
 
   /* ------------------------------ Circuit du directeur (2 nov.) ------------------------------ */
   function approuver(x, d) {
-    var liste = ((d && d.evaluateurs) || {})[x.compagnie] || [], choix = x.evaluateur || 'disponible';
-    if (!liste.some(function (e) { return e.courriel === choix; })) choix = 'disponible';
-    var elEval = h('div.de-evaluateurs');
-    var dessiner = function () {
-      AMX.vider(elEval);
-      var bouton = function (val, titre, sous, ton, attenue) {
-        return h('button.de-eval' + (choix === val ? '.choisi' : '') + (attenue ? '.attenue' : ''), { type: 'button', 'aria-pressed': String(choix === val), onclick: function () { choix = val; dessiner(); } }, [h('b', [ton ? h('i.de-point.' + ton) : null, titre]), h('span', { text: sous })]);
-      };
-      elEval.appendChild(bouton('disponible', 'Premier disponible', 'saute les absents, le moins occupé', 'vert'));
-      liste.forEach(function (e) { elEval.appendChild(bouton(e.courriel, e.nom + (e.courriel === x.evaluateur ? ' (proposé)' : ''), textePresence(e) + ' · ' + (e.ouvertes ? e.ouvertes + ' en cours' : 'libre') + (e.groupe ? ' · groupe' : ''), TON_PRESENCE[e.presence || 'disponible'], e.presence === 'absent')); });
-    };
-    dessiner();
+    /* 4 nov. : un ou plusieurs évaluateurs (le premier qui la prend la fait) ; par défaut ceux proposés à l'envoi. */
+    var liste = ((d && d.evaluateurs) || {})[x.compagnie] || [];
+    var proposes = (x.destinataires || []).map(function (e) { return e.courriel; }).filter(Boolean);
+    var picker = choixEvaluateurs(liste, proposes.length ? proposes : ['disponible'], { maxOuvertes: reglages(d).maxOuvertes });
     AMX.modale({ titre: 'Approuver la demande', corps: h('div', [
       h('p', [h('b', { text: x.vehicule || x.vin }), h('span.mini', { text: (x.vehicule ? ' · ' + x.vin : '') + (x.km ? ' · ' + AMX.fmtNombre(Number(x.km)) + ' km' : '') })]),
       h('p.mini', { text: 'Demandée par ' + (x.demandeParNom || '—') + (x.client ? ' pour ' + x.client : '') + ' · ' + quand(x.creeLe) }),
       x.note ? h('div.de-note', { text: x.note }) : null,
-      h('p.mini', { style: { marginTop: '10px' }, text: 'Choisissez l\'évaluateur : il reçoit la demande par texto (ou courriel) dès l\'approbation.' }), elEval]),
+      h('p.mini', { style: { marginTop: '10px' }, text: 'Vous approuvez sans évaluer. Choisissez un ou plusieurs évaluateurs : chacun reçoit un texto (ou un courriel) ; le premier qui la prend la fait, puis le montant vous revient pour confirmation.' }),
+      picker.el]),
       boutons: [{ texte: 'Annuler' }, { texte: 'Approuver et envoyer', classe: 'primaire', action: function () {
-        return action(x.id, 'approuver', { evaluateur: choix }).then(function (r) { AMX.toast(r.message || 'Approuvée', /absent/.test(r.message || '') ? 'attention' : 'ok', 6000); }).catch(function (e) { erreur(e); return false; });
+        var v = picker.valeur();
+        return action(x.id, 'approuver', { evaluateurs: v, evaluateur: v.join(',') }).then(function (r) { AMX.toast(r.message || 'Approuvée', /absent/.test(r.message || '') ? 'attention' : 'ok', 6000); }).catch(function (e) { erreur(e); return false; });
       } }] });
   }
   function refuser(x) {
@@ -473,7 +523,12 @@
     var inVal = h('input.saisie', { type: 'text', inputmode: 'numeric', value: valEv ? String(valEv) : '', placeholder: 'Montant ($)' });
     var inNote = h('input.saisie', { type: 'text', maxlength: '300', placeholder: 'Note au représentant (facultatif) : ce qui a fait baisser la valeur, conditions…' });
     var elEcart = h('p.mini');
-    var majEcart = function () { var v = Math.round(parseFloat(String(inVal.value).replace(/[^\d.,]/g, '').replace(',', '.')) || 0); elEcart.textContent = valEv && v && v !== valEv ? 'Ajusté : ' + (v > valEv ? '+' : '−') + argent(Math.abs(v - valEv)) + ' par rapport à l\'évaluateur.' : ''; };
+    var majEcart = function () {
+      var v = Math.round(parseFloat(String(inVal.value).replace(/[^\d.,]/g, '').replace(',', '.')) || 0);
+      /* 4 nov. (Maxime) : une hausse part d'office par texto à Marc-André Mongeon */
+      elEcart.textContent = valEv && v && v !== valEv ? 'Ajusté : ' + (v > valEv ? '+' : '−') + argent(Math.abs(v - valEv)) + ' par rapport à l\'évaluateur.' + (v > valEv ? ' Une hausse envoie un texto à Marc-André Mongeon.' : '') : '';
+      elEcart.classList.toggle('de-hausse', !!(valEv && v > valEv));
+    };
     inVal.addEventListener('input', majEcart);
     AMX.modale({ titre: 'Confirmer le montant', corps: h('div.de-grille', [
       h('div.large', [h('b', { text: x.vehicule || x.vin }), h('span.mini', { text: (x.vehicule ? ' · ' + x.vin : '') + (x.client ? ' · ' + x.client : '') })]),
@@ -794,7 +849,7 @@
       menu.push({ texte: attendDirection(x) ? 'Relancer la direction (texto)' : 'Relancer l\'évaluateur (courriel + texto)', action: function () { action(x.id, 'relancer').then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); } });
       menu.push({ texte: 'Annuler la demande', action: function () { AMX.confirmer('Annuler la demande ?', (x.vehicule || 'Véhicule') + ' · ' + x.vin, { ok: 'Annuler la demande', danger: true }).then(function (ok) { if (ok) action(x.id, 'annuler', { raison: '' }).then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); }); } });
     }
-    if (dr.reassigner) menu.push({ texte: 'Réassigner…', action: function () { reassigner(x, d); } });
+    if (dr.transferer) menu.push({ texte: x.etat === 'approbation' ? 'Changer les évaluateurs proposés…' : 'Transférer…', action: function () { transferer(x, d); } });
     if (menu.length && AMX.menuActions) boutons.push(AMX.menuActions(menu, { petit: true }));
 
     var tete = h('div.de-tete', [
@@ -819,7 +874,9 @@
     function etape(t, fait, sous) { return h('div.de-etape' + (fait ? '.fait' : ''), [h('i'), h('b', { text: t }), sous ? h('span', { text: sous }) : null]); }
     var gauche = h('div', [
       x.client ? h('div', [h('span.mini', 'Client : '), h('b', { text: x.client }), x.telephone ? h('span.mini', { text: ' · ' + x.telephone }) : null]) : null,
-      h('div.mini', { text: 'De ' + (x.demandeParNom || '—') + ' → ' + (x.evaluateurNom || '—') + (x.mode === 'disponible' ? ' (premier disponible)' : '') + ' · ' + nomCie(x.compagnie) + ' · ' + x.id + (x.photos ? ' · ' + pluriel(x.photos, 'photo') : '') }),
+      h('div.mini', { text: 'De ' + (x.demandeParNom || '—') + ' → ' + texteEvaluateurs(x) + (x.mode === 'disponible' && !x.prise ? ' (premier disponible)' : '') + ' · ' + nomCie(x.compagnie) + ' · ' + x.id + (x.photos ? ' · ' + pluriel(x.photos, 'photo') : '') }),
+      priseParAutre(x) && !self.portail && estOuverte(x) ? h('div.mini.de-prise', { text: 'Prise par ' + (x.prisParNom || x.evaluateurNom || '—') + (x.prisLe ? ' · ' + quand(x.prisLe) : '') }) : null,
+      x.transfereParNom && estOuverte(x) && !self.portail ? h('div.mini', { text: 'Transférée par ' + x.transfereParNom + (x.transfereLe ? ' · ' + quand(x.transfereLe) : '') }) : null,
       x.reprendDe ? h('div.mini', { text: 'Réévaluation de ' + x.reprendDe }) : null,
       x.remplaceePar ? h('div.mini', { text: 'Réévaluée : voir ' + x.remplaceePar }) : null,
       /* 1er nov. : demande venue du CRM Traction — la valeur y retourne d'elle-même (Traction.gs) */
@@ -832,7 +889,7 @@
       x.etat === 'annulee' && x.annuleRaison ? h('div.mini', { text: 'Annulée : ' + x.annuleRaison }) : null,
       x.etat === 'refusee' ? h('div.de-refus', { text: 'Refusée par ' + (x.refusParNom || 'la direction') + (x.refusRaison ? ' : ' + x.refusRaison : '') }) : null,
       x.renvoiRaison && enCours(x) ? h('div.de-refus.renvoi', { text: 'Renvoyée par la direction : ' + x.renvoiRaison }) : null,
-      x.etat === 'approbation' && !self.portail ? h('div.mini', { text: 'Évaluateur proposé : ' + (x.evaluateurNom || 'premier disponible') }) : null
+      x.etat === 'approbation' && !self.portail ? h('div.mini', { text: ((x.destinataires || []).length > 1 ? 'Évaluateurs proposés : ' : 'Évaluateur proposé : ') + (texteEvaluateurs(x) === '—' ? 'premier disponible' : texteEvaluateurs(x)) }) : null
     ]);
     var valeur = null;
     if (x.etat === 'faite') {
@@ -916,7 +973,7 @@
     return h('button.de-compact.' + ph + (c ? '.t-' + c.ton : ''), { type: 'button', 'data-id': x.id, onclick: function () { self.ouvrirDetail(x.id); } }, [
       h('b', { text: x.vehicule || x.vin }),
       h('span.mini', { text: [x.client, x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : ''].filter(Boolean).join(' · ') }),
-      h('span.mini', { text: (x.demandeParNom || '—') + ' → ' + (x.evaluateurNom || '—') }),
+      h('span.mini', { text: (x.demandeParNom || '—') + ' → ' + texteEvaluateurs(x) }),
       x.source === 'traction' ? h('span.badge.bleu.sans-point', { text: 'Traction' }) : null,
       x.infoDemandee ? h('span.badge.ambre.sans-point', { text: 'Question en attente' }) : null,
       bas
@@ -997,6 +1054,7 @@
     renvoyer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); renvoyer(x); } },
     une: function (id) { var d = cache.rep; return d ? d.demandes.filter(function (x) { return x.id === id; })[0] || null : null; },
     prendre: function (id) { return action(id, 'prendre'); },
+    transferer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); transferer(x, cache.rep); } },
     faite: function (id) { return action(id, 'faite'); },
     message: message, ouvrirFil: ouvrirFil, reglages: reglages, phase: phase,
     vider: function () { cache = { rep: null, quand: 0, promesse: null }; }
@@ -1062,6 +1120,7 @@
       '.de-raison { display: grid; grid-template-columns: minmax(160px, 1fr) 2fr 40px; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; } .de-raison i { height: 8px; background: var(--fond-2, #F3F5F7); border-radius: 4px; overflow: hidden; } .de-raison i b { display: block; height: 100%; background: #9AA5AE; }',
       '.de-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; } .de-grille .champ { display: grid; gap: 4px; } .de-grille .champ > span { font-size: 12px; color: var(--encre-3); } .de-grille .large { grid-column: 1 / -1; }',
       '.de-veh { min-height: 16px; } .de-avis-eval { color: #955F10; margin-top: 4px; min-height: 0; }',
+      '.de-prise { color: #955F10; font-weight: 600; } .de-page .mini.de-hausse, .mini.de-hausse { color: #955F10; font-weight: 600; }',
       '.de-grille.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); } .de-detail-form { display: grid; gap: 10px; }',
       '.de-detail-bloc { border: 1px solid var(--ligne, #E3E7EB); border-radius: 10px; padding: 8px 12px 12px; } .de-detail-bloc > summary { cursor: pointer; font-weight: 700; padding: 4px 0 8px; }',
       '.de-chips { margin-top: 8px; } .de-chips-l { display: flex; flex-wrap: wrap; gap: 6px; }',

@@ -581,9 +581,14 @@
           etatTexte = h('span.badge.gris.sans-point', { text: 'Refusée par la direction' + (x.refusParNom ? ' (' + x.refusParNom + ')' : '') + (x.refusRaison ? ' : ' + x.refusRaison : '') });
         } else if (x.etat === 'annulee') {
           etatTexte = h('span.badge.gris.sans-point', { text: 'Demande annulée' + (x.annuleRaison ? ' : ' + x.annuleRaison : '') });
+        } else if (x.prise && !x.pourMoi) {
+          /* 4 nov. : envoyée à plusieurs, quelqu'un d'autre l'a prise le premier */
+          etatTexte = h('span.badge.ambre.sans-point', { text: 'Prise par ' + (x.prisParNom || x.evaluateurNom || 'un autre évaluateur') + ' : c\'est lui ou elle qui l\'évalue' });
         } else {
           etatTexte = h('span.mini', { text: x.circuit ? 'Enregistrez l\'évaluation : la direction confirme le montant, puis ' + rep + ' le reçoit.' : 'Enregistrez l\'évaluation : ' + rep + ' reçoit la valeur par courriel.' });
         }
+        if ((x.etat === 'afaire' || x.etat === 'encours') && AMX.evalDemandes.transferer && (moi.direction || moi.evaluateur || x.pourMoi))
+          boutons.push(h('button.btn.petit', { type: 'button', text: 'Transférer…', onclick: function () { AMX.evalDemandes.transferer(x.id); } }));
         if (AMX.evalDemandes.ouvrirFil && x.etat !== 'refusee' && x.etat !== 'annulee') boutons.push(h('button.btn.petit', { type: 'button', text: (x.messages && x.messages.length ? 'Messages (' + x.messages.length + ')' : 'Question au représentant'), onclick: function () { AMX.evalDemandes.ouvrirFil(x.id); } }));
         el.appendChild(h('div.eval-demande.' + x.etat, [
           h('b', { text: 'Demande ' + x.id + ' de ' + (x.demandeParNom || '—') }),
@@ -596,8 +601,10 @@
       };
       dessiner(x);
       if (x.vin === self.vinCourant || !self.vinCourant) self.appliquerDemande();
-      if (x.etat === 'afaire' && (x.pourMoi || (AMX.evalDemandes.enCache() || {}).moi && AMX.evalDemandes.enCache().moi.evaluateur)) {
-        AMX.evalDemandes.prendre(id).then(function (r) { if (self.demandeId === id && r.demande) dessiner(r.demande); }).catch(function () {});
+      if (x.etat === 'afaire' && !(x.prise && !x.pourMoi) && (x.pourMoi || (AMX.evalDemandes.enCache() || {}).moi && AMX.evalDemandes.enCache().moi.evaluateur)) {
+        /* 4 nov. : le premier qui la prend la fait — arrivé deuxième, le bandeau dit qui l'a prise */
+        AMX.evalDemandes.prendre(id).then(function (r) { if (self.demandeId === id && r.demande) dessiner(r.demande); })
+          .catch(function (e) { if (/Déjà prise/.test((e && e.message) || '')) { AMX.toast(e.message, 'attention', 6000); AMX.evalDemandes.charger(true).then(function () { var y = AMX.evalDemandes.une(id); if (y && self.demandeId === id) dessiner(y); }).catch(function () {}); } });
       }
       self.dessinerDemande = dessiner;
       if (!self.surDemandes) {   /* un message ou une réponse arrive : le bandeau suit */

@@ -1,5 +1,5 @@
 /* =========================================================================
-   Inventaire › Listes et audits (22 octobre 2026)
+   Outils › Audit › Listes et audits (22 octobre 2026 ; dans Outils › Audit depuis le 4 novembre)
 
    Maxime : « j'ai besoin d'un endroit de dépôt de document et que le système
    me dise où sont les véhicules — par exemple cette liste (New Units de GM

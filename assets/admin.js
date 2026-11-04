@@ -1784,6 +1784,8 @@
     'outils/d2c': 'Import D2C', 'outils/verification': 'Vérification Excel'
   };
   var ONGLETS_TUILES = [['vente', 'Vente'], ['inventaire', 'Inventaire'], ['relance', 'Relance'], ['service', 'Service'], ['outils', 'Outils']];
+  // 4 nov. : une page qui a changé de tuile garde sa clé de rôle ; elle s'affiche sous sa nouvelle tuile (Outils › Audit).
+  var ONGLETS_GROUPE = { 'inventaire/listes': 'outils' };
   function ongletsNorm(o) {
     var out = {};
     if (!o || typeof o !== 'object') return out;
@@ -1834,7 +1836,8 @@
     var corps = h('div.admin-onglets');
     var rendreCorps = function () { self.rendrePanneau(); };
     ONGLETS_TUILES.forEach(function (t) {
-      var cles = Object.keys(noms).filter(function (k) { return k.indexOf(t[0] + '/') === 0; });
+      var cles = Object.keys(noms).filter(function (k) { return (ONGLETS_GROUPE[k] || k.split('/')[0]) === t[0]; })
+        .sort(function (x, y) { return (ONGLETS_GROUPE[x] ? 1 : 0) - (ONGLETS_GROUPE[y] ? 1 : 0); });   /* venues d'une autre tuile : à la fin */
       if (!cles.length) return;
       corps.appendChild(h('div.groupe-ong', [h('h4', { text: t[1] })].concat(cles.map(function (k) {
         var parRole = !self.ongletCacheRole(k, b.role);   // vrai = le rôle le montre

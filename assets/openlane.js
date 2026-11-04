@@ -612,7 +612,7 @@
       var corps = { action: 'openlaneDirect', vin: String(vin || '').trim().toUpperCase(), km: km === undefined || km === null || km === '' ? '' : String(km), source: opts.source || 'direct', compagnie: opts.compagnie || '' };
       if (opts.forcer) corps.forcer = true;
       return AMX.post(corps, { delai: 90000 }).then(function (r) {
-        if (r && r.ok && r.valeur) { directConnu = true; if (olIndex) { r.valeur.aLire = false; olIndex[r.valeur.vin] = r.valeur; AMX.cacheLocal.ecrire('openlane', Object.keys(olIndex).map(function (k) { return olIndex[k]; })); } }
+        if (r && r.ok && r.valeur) { directConnu = true; if (!olIndex) olIndex = {}; r.valeur.aLire = false; olIndex[r.valeur.vin] = r.valeur; AMX.cacheLocal.ecrire('openlane', Object.keys(olIndex).map(function (k) { return olIndex[k]; })); }
         if (r && r.nonConnecte) directConnu = false;
         return r;
       });

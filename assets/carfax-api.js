@@ -288,3 +288,201 @@
     vider: function () { etatCache = null; etatQuand = 0; }
   };
 })();
+
+/* =========================================================================
+   Pastilles CARFAX (5 nov. 2026) — accident déclaré ou non, partout où un véhicule est montré, sans rien commander
+   Maxime : « dans Opportunités il faudrait pouvoir lire les CARFAX et avoir une icône très visible pour dire s'il y a un
+   accident, sans que ça coûte des $ de notre compte », puis « applique l'API partout où on voit un stock dans le site,
+   une auto accidentée en rouge ».
+   Le script lit la Badging API de CARFAX (CarfaxPastilles.gs) : elle dit si un rapport existe déjà chez CARFAX pour ce
+   NIV et donne ses pastilles. Elle ne commande rien.
+     - AMX.cfxPastilles.puce(vin, { grande }) : un <span data-cfx="NIV"> qui se remplit et se met à jour tout seul :
+       rouge « ⚠ Accident » (rapport sans la pastille « Aucun accident déclaré »), vert « ✓ Sans accident », gris
+       « Aucun rapport CARFAX » (seulement en grand). Un clic ouvre le rapport CARFAX (il n'ouvre pas la ligne).
+     - AMX.cfxPastilles.ligne(el, vin) : la ligne passe en rouge (.cfx-ligne-accident) quand un accident est inscrit.
+     - AMX.cfxPastilles.demander(vins) : un NIV pas encore connu (ou trop vieux) est lu chez CARFAX par le script, par
+       lots de 60 (POST carfaxPastillesLire) ; puce() le demande d'elle-même.
+     - AMX.cfxPastilles.de(vin) → { a: 'o'|'n'|'x'|'e', le, p: [codes], l: lien } ; accident(vin) → true / false / null.
+   Données : GET ?carfaxPastilles=1 (10 minutes en mémoire, pas de copie dans le navigateur, déjà presque plein).
+   ========================================================================= */
+(function () {
+  'use strict';
+  var AMX = window.AMX, h = AMX.h;
+  var NOMS = { A: 'Aucun accident déclaré', O: 'Un seul propriétaire', K: 'Faible kilométrage' };
+  var LOT = 60, MEMOIRE_MS = 10 * 60000;
+  var S = { v: {}, charge: false, quand: 0, promesse: null, file: {}, tentes: {}, enVol: false, minuterie: null, arret: '', lus: 0 };
+
+  function css() {
+    if (document.getElementById('css-cfx-pastilles')) return;
+    var s = document.createElement('style'); s.id = 'css-cfx-pastilles';
+    s.textContent = [
+      '.cfx-pastille { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 999px; font: inherit; font-weight: 700; font-size: 12px; line-height: 1.2; padding: 3px 9px; margin: 0 4px; vertical-align: middle; white-space: nowrap; cursor: default; }',
+      '.cfx-pastille:empty { display: none; }',
+      '.cfx-pastille.lien { cursor: pointer; }',
+      '.cfx-pastille.o { background: #C62828; color: #fff; box-shadow: 0 0 0 2px rgba(198, 40, 40, .18); }',
+      '.cfx-pastille.n { background: #E3F4EA; color: #1E6B3A; }',
+      '.cfx-pastille.x, .cfx-pastille.e { background: var(--fond-2, #F1F3F5); color: var(--encre-3, #4B5563); font-weight: 600; }',
+      '.cfx-pastille.grande { font-size: 13.5px; padding: 6px 12px; margin: 0; }',
+      '.cfx-pastille.o:hover, .cfx-pastille.n.lien:hover { filter: brightness(.95); }',
+      '.cfx-ligne-accident { background: rgba(198, 40, 40, .07) !important; box-shadow: inset 4px 0 0 #C62828 !important; }',
+      'tr.cfx-ligne-accident { box-shadow: none !important; }',
+      'tr.cfx-ligne-accident > td { background: rgba(198, 40, 40, .07) !important; }',
+      'tr.cfx-ligne-accident > td:first-child { box-shadow: inset 4px 0 0 #C62828 !important; }',
+      '.cfx-detail { display: flex; flex-direction: column; gap: 8px; }',
+      '.cfx-detail .cfx-noms { display: flex; flex-wrap: wrap; gap: 6px; }',
+      '.cfx-detail .cfx-noms span { background: #E8F0FB; color: #1A64BF; border-radius: 999px; padding: 3px 9px; font-size: 12.5px; font-weight: 600; }'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+  function norm(v) { return String(v || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase(); }
+  function valide(v) { return /^[A-HJ-NPR-Z0-9]{17}$/.test(v); }
+  function de(vin) {
+    var x = S.v[norm(vin)];
+    if (!x) return null;
+    return { a: x[0], le: x[1] || '', p: String(x[2] || '').split(',').filter(Boolean), l: x[3] || '' };
+  }
+  function nomPastille(c) { return NOMS[c] || String(c).replace(/([a-z])([A-Z])/g, '$1 $2'); }
+  function perime(x) {
+    if (!x) return true;
+    var age = (Date.now() - Date.parse((x.le || '2000-01-01') + 'T12:00:00')) / 864e5;
+    if (x.a === 'o' || x.a === 'n') return age >= 14;
+    if (x.a === 'x') return age >= 7;
+    return age >= 1;
+  }
+  function fusion(v) { Object.keys(v || {}).forEach(function (k) { S.v[k] = v[k]; }); }
+  function charger(force) {
+    if (!force && S.charge && Date.now() - S.quand < MEMOIRE_MS) return Promise.resolve(S.v);
+    if (S.promesse) return S.promesse;
+    S.promesse = AMX.get({ carfaxPastilles: 1 }, { discret: true, secours: false, delai: 60000 }).then(function (d) {
+      S.promesse = null;
+      if (!d || d.refuse) { S.arret = 'refus'; S.charge = true; return S.v; }
+      if (!d.v) { S.arret = 'script'; S.charge = true; return S.v; }
+      fusion(d.v); S.charge = true; S.quand = Date.now();
+      rafraichir();
+      return S.v;
+    }, function () { S.promesse = null; S.charge = true; S.quand = Date.now() - MEMOIRE_MS + 60000; return S.v; });
+    return S.promesse;
+  }
+  function demander(vins) {
+    if (S.arret) return;
+    (vins || []).forEach(function (v) {
+      v = norm(v);
+      if (!valide(v) || S.tentes[v]) return;
+      if (S.charge && !perime(de(v))) return;
+      S.file[v] = 1;
+    });
+    planifier();
+  }
+  function planifier(ms) {
+    if (S.minuterie || S.enVol || S.arret || !Object.keys(S.file).length) return;
+    S.minuterie = setTimeout(envoyer, ms || 1200);
+  }
+  function envoyer() {
+    S.minuterie = null;
+    if (!S.charge) { charger().then(function () { planifier(10); }); return; }
+    Object.keys(S.file).forEach(function (v) { if (!perime(de(v))) delete S.file[v]; });
+    var lot = Object.keys(S.file).slice(0, LOT);
+    if (!lot.length || S.arret) return;
+    lot.forEach(function (v) { delete S.file[v]; S.tentes[v] = Date.now(); });
+    S.enVol = true;
+    AMX.post({ action: 'carfaxPastillesLire', vins: lot }, { secours: false, delai: 150000 }).then(function (r) {
+      S.enVol = false;
+      if (r && r.v) { fusion(r.v); S.lus += r.lus || 0; rafraichir(); document.dispatchEvent(new CustomEvent('amx:cfxPastilles', { detail: { lus: r.lus || 0, accidents: r.accidents || 0 } })); }
+      else if (r && r.code === 'NON_BRANCHE') S.arret = 'non branché';
+      else if (r && (r.refuse || r.vehicules || /absent|pas à jour/i.test(r.erreur || ''))) S.arret = 'script';
+      planifier(400);
+    }, function () { S.enVol = false; lot.forEach(function (v) { delete S.tentes[v]; S.file[v] = 1; }); planifier(30000); });
+  }
+  function texte(x, grande) {
+    if (!x) return '';
+    if (x.a === 'o') return grande ? '⚠ Accident ou dommage déclaré (CARFAX)' : '⚠ Accident';
+    if (x.a === 'n') return grande ? '✓ Aucun accident déclaré (CARFAX)' : '✓ Sans accident';
+    if (x.a === 'x') return grande ? 'Aucun rapport CARFAX pour ce NIV' : '';
+    return grande ? 'CARFAX : lecture à refaire' : '';
+  }
+  function infobulle(x) {
+    if (!x) return '';
+    var noms = x.p.map(nomPastille).filter(function (n) { return n !== NOMS.A; });
+    if (x.a === 'o') return 'Le rapport CARFAX n\'a pas la pastille « Aucun accident déclaré » : au moins un accident ou un dommage y est inscrit.' + (noms.length ? ' Pastilles : ' + noms.join(', ') + '.' : '') + (x.l ? ' Cliquez pour ouvrir le rapport.' : '') + ' Lu le ' + x.le + '.';
+    if (x.a === 'n') return 'Rapport CARFAX : aucun accident déclaré.' + (noms.length ? ' ' + noms.join(', ') + '.' : '') + (x.l ? ' Cliquez pour ouvrir le rapport.' : '') + ' Lu le ' + x.le + '.';
+    if (x.a === 'x') return 'Aucun rapport CARFAX n\'existe encore pour ce NIV (lu le ' + x.le + ').';
+    return 'La lecture CARFAX a échoué (' + x.le + ') : elle sera refaite.';
+  }
+  function remplir(el) {
+    var vin = el.getAttribute('data-cfx'), grande = el.classList.contains('grande'), x = de(vin), t = texte(x, grande);
+    el.className = 'cfx-pastille' + (grande ? ' grande' : '') + (x ? ' ' + x.a : '') + (x && x.l ? ' lien' : '');
+    el.textContent = t;
+    if (t) el.title = infobulle(x); else el.removeAttribute('title');
+  }
+  function rafraichir() {
+    css();
+    Array.prototype.forEach.call(document.querySelectorAll('[data-cfx]'), remplir);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-cfx-ligne]'), function (el) {
+      var x = de(el.getAttribute('data-cfx-ligne'));
+      el.classList.toggle('cfx-ligne-accident', !!(x && x.a === 'o'));
+    });
+  }
+  function puce(vin, opts) {
+    opts = opts || {}; css();
+    vin = norm(vin);
+    if (!valide(vin)) return null;
+    var el = h('span.cfx-pastille' + (opts.grande ? '.grande' : ''), { 'data-cfx': vin, role: 'link' });
+    el.addEventListener('click', function (e) {
+      var x = de(vin);
+      if (!x || !x.l) return;
+      e.preventDefault(); e.stopPropagation();
+      window.open(x.l, '_blank', 'noopener');
+    }, true);
+    remplir(el);
+    if (!S.charge) charger();
+    demander([vin]);
+    return el;
+  }
+  function ligne(el, vin) {
+    vin = norm(vin);
+    if (!el || !valide(vin)) return el;
+    el.setAttribute('data-cfx-ligne', vin);
+    var x = de(vin);
+    if (x && x.a === 'o') el.classList.add('cfx-ligne-accident');
+    return el;
+  }
+  /* Bloc de la fiche d'un véhicule : la grande pastille, les autres pastilles, le lien du rapport, « Relire ». */
+  function bloc(vin) {
+    vin = norm(vin);
+    if (!valide(vin)) return null;
+    var corps = h('div.cfx-detail');
+    var dessiner = function () {
+      AMX.vider(corps);
+      var x = de(vin);
+      corps.appendChild(h('div', [puce(vin, { grande: true }) || h('span.doux', { text: 'CARFAX : lecture…' })]));
+      if (!x) { corps.appendChild(h('div.doux.petit', { text: 'Lecture chez CARFAX en cours (gratuit : rien n\'est commandé)…' })); return; }
+      var noms = x.p.map(nomPastille).filter(function (n) { return n !== NOMS.A; });
+      if (noms.length) corps.appendChild(h('div.cfx-noms', noms.map(function (n) { return h('span', { text: n }); })));
+      corps.appendChild(h('div.actions-ligne', [
+        x.l ? h('a.btn.petit.primaire', { href: x.l, target: '_blank', rel: 'noopener', text: 'Voir le rapport CARFAX ↗' }) : null,
+        h('button.btn.petit.fantome', { type: 'button', text: 'Relire chez CARFAX', title: 'Gratuit : relit les pastilles, ne commande rien', onclick: function (e) {
+          var b = e.currentTarget; b.classList.add('occupe');
+          AMX.post({ action: 'carfaxPastillesLire', vin: vin, forcer: true }, { secours: false, delai: 60000 }).then(function (r) {
+            b.classList.remove('occupe');
+            if (r && r.v) { fusion(r.v); rafraichir(); dessiner(); } else AMX.toast((r && r.erreur) || 'Le script n\'est pas à jour : déployez une nouvelle version (CarfaxPastilles.gs).', 'erreur');
+          }, function (er) { b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(er), 'erreur'); });
+        } })
+      ]));
+      corps.appendChild(h('div.doux.petit', { text: 'Pastilles du rapport CARFAX déjà existant, lues le ' + x.le + '. Aucun rapport n\'est commandé ici.' }));
+    };
+    dessiner();
+    var ecoute = function () { if (!corps.isConnected) { document.removeEventListener('amx:cfxPastilles', ecoute); return; } dessiner(); };
+    document.addEventListener('amx:cfxPastilles', ecoute);
+    if (!S.charge) charger().then(function () { if (corps.isConnected) dessiner(); });
+    return corps;
+  }
+
+  AMX.cfxPastilles = {
+    charger: charger, de: de, puce: puce, ligne: ligne, bloc: bloc, demander: demander, rafraichir: rafraichir,
+    accident: function (vin) { var x = de(vin); return x ? (x.a === 'o' ? true : (x.a === 'n' ? false : null)) : null; },
+    enFile: function () { return Object.keys(S.file).length + (S.enVol ? LOT : 0); },
+    arret: function () { return S.arret; },
+    nomPastille: nomPastille,
+    vider: function () { S.v = {}; S.charge = false; S.quand = 0; S.file = {}; S.tentes = {}; S.arret = ''; }
+  };
+})();

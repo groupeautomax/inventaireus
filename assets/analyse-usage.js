@@ -533,7 +533,7 @@
       : (a.verdictMarche === 'version' ? h('button.anu-version.manque', { type: 'button', text: 'Version à préciser', onclick: function (e) { e.stopPropagation(); self.preciserVersion(a); } }) : null);
     var alerte = a.alertes[0];
     var veh = h('div.anu-veh', [AMX.logoMarque ? AMX.logoMarque(nomMarque(a.marque) || String(a.texte || '').split(' ')[0], 'petit') : null, h('div', [
-      h('div.nom', [h('a', { href: AMX.inventaire.lien ? AMX.inventaire.lien('DETAIL', { vin: a.vin }) : '#', text: a.nom || a.vin, title: 'Ouvrir dans Occasion — ' + a.vin, onclick: function (e) { e.stopPropagation(); } })]),
+      h('div.nom', [h('a', { href: AMX.inventaire.lien ? AMX.inventaire.lien('DETAIL', { vin: a.vin }) : '#', text: a.nom || a.vin, title: 'Ouvrir dans Occasion — ' + a.vin, onclick: function (e) { e.stopPropagation(); } }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(a.vin) : null]),
       h('div.anu-ligne2', [versionEl, h('span.mini', { text: [a.stock ? '# ' + a.stock : '', COURTS[a.compagnie] || a.compagnie].filter(Boolean).join(' · ') })]),
       alerte ? h('div.anu-alertes', [h('span.puce.' + alerte.c, { text: alerte.t, title: alerte.title || '' })]) : null])]);
     var age = h('div.anu-age', [h('span.anu-jours.t' + Math.min(a.tranche, 5) + (a.tranche >= p.tranches.length - 2 ? '.vieux' : ''), { text: nb(a.jours) ? a.jours + ' j' : '—', title: a.dateAjout ? 'Entré au registre le ' + AMX.fmtDate(a.dateAjout) : '' })]);
@@ -558,6 +558,7 @@
     ].filter(Boolean), { titre: 'Actions — ' + (a.stock || a.vin), petit: true }) : h('span');
     var r = h('div.anu-rangee.a-' + a.action.code + (ouvert ? '.ouvert' : ''), { 'data-vin': a.vin, onclick: function (e) { if (e.target.closest('a, button, .menu')) return; basculer(); } },
       [veh, age, prix, marche, ptm, conseilEl, h('div.anu-act', [menu])]);
+    if (AMX.cfxPastilles) AMX.cfxPastilles.ligne(r, a.vin);
     if (ouvert) {
       var det = details(a, p);
       if (AMX.prixDetail && AMX.prixDetail.peut()) det.insertBefore(h('div.anu-det-actions', [h('button.btn.petit' + ((a.action.code === 'baisser' || a.action.code === 'monter' || testPrix(a, '15') || a.plusVieux) ? '.primaire' : ''), { type: 'button', text: 'Modifier le prix…', onclick: function (e) { e.stopPropagation(); self.modifierPrix(a); } })]), det.firstChild);

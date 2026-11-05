@@ -33,6 +33,10 @@
   var STATUTS = [['', 'À voir'], ['ecartee', 'Écartées'], ['achetee', 'Achetées'], ['tous', 'Toutes (écartées et achetées aussi)']];
   var STATUT_LIB = { '': 'À voir', suivie: 'Suivie', ecartee: 'Écartée', achetee: 'Achetée' };
   var FILTRES_US = [['', 'Tous les véhicules'], ['us', 'Fabriqués aux É.-U. (exportables)'], ['plus', 'Plus payants aux É.-U.']];
+  // 5 nov. : pastilles CARFAX (Badging API, rien de commandé) — AMX.cfxPastilles (carfax-api.js).
+  var FILTRES_CFX = [['', 'Tous les véhicules'], ['sans', 'Aucun accident déclaré'], ['accident', 'Accident ou dommage déclaré'], ['inconnu', 'Pas de rapport CARFAX (ou pas encore lu)']];
+  function cfx() { return AMX.cfxPastilles || null; }
+  function etatCfx(o) { var c = cfx(), x = c && c.de(o.vin); return x ? x.a : ''; }
   var TRIS = [['score', 'Meilleur profit'], ['gros', 'Profit au gros'], ['detail', 'Profit au détail'], ['cote', 'Meilleure cote CarGurus'], ['marche', 'Plus sous le marché'], ['prix', 'Prix le plus bas'], ['km', 'Km le plus bas'], ['nouveau', 'Plus récentes'], ['distance', 'Plus proches']];
   /* Cote CarGurus (sites d'annonces, Apify) : du meilleur au pire. */
   var COTES = { great: { t: 'Excellent prix', c: 'cg-great', r: 5 }, good: { t: 'Bon prix', c: 'cg-good', r: 4 }, fair: { t: 'Prix juste', c: 'cg-fair', r: 3 }, high: { t: 'Prix élevé', c: 'cg-high', r: 2 }, overpriced: { t: 'Trop cher', c: 'cg-over', r: 1 } };
@@ -155,9 +159,12 @@
       self.rendreOnglets();
     };
     document.addEventListener('amx:compagnie', this.surCie);
+    // Pastilles CARFAX arrivées : le compte du bouton et, si le filtre CARFAX est choisi, la liste.
+    this.surCfx = AMX.debounce(function () { if (!self.donnees) return; if (self.f.cfx) self.rafraichirListeSeule(); else self.majSync(self.filtrer('vue')); }, 800);
+    document.addEventListener('amx:cfxPastilles', this.surCfx);
   }
-  Opportunites.prototype.filtresDefaut = function () { return { q: '', marque: '', statut: '', source: '', province: '', cote: '', prixMax: 0, kmMax: 0, anneeMin: 0, distMax: 0, us: '', groupe: groupeMemo(), vue: vueMemo(), modeles: modelesMemo(), tri: AMX.memo.lire('occ_tri', 'score') }; };
-  Opportunites.prototype.demonter = function () { this.generation++; document.removeEventListener('amx:compagnie', this.surCie); if (this.vueMarche && this.vueMarche.demonter) this.vueMarche.demonter(); };
+  Opportunites.prototype.filtresDefaut = function () { return { q: '', marque: '', statut: '', source: '', province: '', cote: '', prixMax: 0, kmMax: 0, anneeMin: 0, distMax: 0, us: '', cfx: '', groupe: groupeMemo(), vue: vueMemo(), modeles: modelesMemo(), tri: AMX.memo.lire('occ_tri', 'score') }; };
+  Opportunites.prototype.demonter = function () { this.generation++; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:cfxPastilles', this.surCfx); if (this.vueMarche && this.vueMarche.demonter) this.vueMarche.demonter(); };
   Opportunites.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
     // Anciennes adresses (avant le 26 oct.) : « Prix du marché » mène à l'Analyse occasion, « Concurrents » à la page elle-même.
@@ -207,6 +214,7 @@
     this.elCote = h('select.saisie#occ-cote', { onchange: function () { self.f.cote = self.elCote.value; self.rafraichir(); } }, FILTRES_COTE.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
     this.elStatut = h('select.saisie#occ-statut', { onchange: function () { self.f.statut = self.elStatut.value; self.limite = LIMITE; self.rafraichir(); } }, STATUTS.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
     this.elUS = h('select.saisie#occ-us', { onchange: function () { self.f.us = self.elUS.value; self.limite = LIMITE; self.rafraichir(); } }, FILTRES_US.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
+    this.elCfx = h('select.saisie#occ-cfx', { onchange: function () { self.f.cfx = self.elCfx.value; self.limite = LIMITE; self.rafraichir(); } }, FILTRES_CFX.map(function (t) { return h('option', { value: t[0], text: t[1] }); }));
     this.elTri = h('select.saisie#occ-tri', { 'aria-label': 'Trier', onchange: function () { self.f.tri = self.elTri.value; AMX.memo.ecrire('occ_tri', self.f.tri); self.rafraichir(); } }, TRIS.map(function (t) { return h('option', { value: t[0], text: 'Tri : ' + t[1] }); }));
     this.construirePlus();
     this.construireRecherches();
@@ -313,9 +321,9 @@
     var ligne = function (titre, el) { return h('label.occ-plus-champ', [h('span', { text: titre }), el]); };
     this.popPlus = h('div.inv2-pop.occ-pop-plus', { hidden: true, role: 'dialog', 'aria-label': 'Filtres' }, [
       h('div.occ-plus-grille', [ligne('Prix demandé maximal ($)', this.elPrixMax), ligne('Kilométrage maximal', this.elKmMax), ligne('Année-modèle minimale', this.elAnneeMin),
-        ligne('Distance maximale (km de route)', this.elDistMax), ligne('Province', this.elProv), ligne('Cote CarGurus', this.elCote), ligne('Statut', this.elStatut), ligne('États-Unis', this.elUS)]),
+        ligne('Distance maximale (km de route)', this.elDistMax), ligne('Province', this.elProv), ligne('Cote CarGurus', this.elCote), ligne('Statut', this.elStatut), ligne('États-Unis', this.elUS), ligne('CARFAX', this.elCfx)]),
       h('div.occ-mod-pied', [h('button.btn.petit.fantome', { type: 'button', text: 'Effacer ces filtres', onclick: function () {
-        ['prixMax', 'kmMax', 'anneeMin', 'distMax'].forEach(function (k) { self.f[k] = 0; }); self.f.province = ''; self.f.cote = ''; self.f.statut = ''; self.f.us = ''; self.limite = LIMITE; self.synchroniserChamps(); self.rafraichir();
+        ['prixMax', 'kmMax', 'anneeMin', 'distMax'].forEach(function (k) { self.f[k] = 0; }); self.f.province = ''; self.f.cote = ''; self.f.statut = ''; self.f.us = ''; self.f.cfx = ''; self.limite = LIMITE; self.synchroniserChamps(); self.rafraichir();
       } })])
     ]);
     var dehors = function (e) { if (!self.elPlusEnv.contains(e.target)) { self.popPlus.hidden = true; self.btnPlus.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); } };
@@ -325,18 +333,18 @@
     });
     this.elPlusEnv = h('div.inv2-plus-env.occ-plus-env', [this.btnPlus, this.popPlus]);
   };
-  Opportunites.prototype.nbPlus = function () { var f = this.f; return ['prixMax', 'kmMax', 'anneeMin', 'distMax', 'province', 'cote', 'statut', 'us'].filter(function (k) { return !!f[k]; }).length; };
+  Opportunites.prototype.nbPlus = function () { var f = this.f; return ['prixMax', 'kmMax', 'anneeMin', 'distMax', 'province', 'cote', 'statut', 'us', 'cfx'].filter(function (k) { return !!f[k]; }).length; };
   Opportunites.prototype.synchroniserChamps = function () {
     var f = this.f, val = function (el, v) { var t = v ? String(v) : ''; if (el.value !== t) el.value = t; };
     if (this.elQ.value !== (f.q || '')) this.elQ.value = f.q || '';
     val(this.elPrixMax, f.prixMax); val(this.elKmMax, f.kmMax); val(this.elDistMax, f.distMax);
     this.elAnneeMin.value = f.anneeMin ? String(f.anneeMin) : '';
-    this.elCote.value = f.cote || ''; this.elTri.value = f.tri; this.elUS.value = f.us || '';
+    this.elCote.value = f.cote || ''; this.elTri.value = f.tri; this.elUS.value = f.us || ''; this.elCfx.value = f.cfx || '';
     this.elStatut.value = STATUTS.some(function (x) { return x[0] === f.statut; }) ? f.statut : '';
     if ([].some.call(this.elProv.options, function (o) { return o.value === (f.province || ''); })) this.elProv.value = f.province || '';
   };
   /* « Mes recherches » : la recherche et les filtres en cours, gardés sous un nom sur cet appareil, rappelés d'un clic. */
-  var CHAMPS_RECHERCHE = ['q', 'marque', 'statut', 'source', 'province', 'cote', 'prixMax', 'kmMax', 'anneeMin', 'distMax', 'us', 'groupe', 'vue', 'tri', 'modeles'];
+  var CHAMPS_RECHERCHE = ['q', 'marque', 'statut', 'source', 'province', 'cote', 'prixMax', 'kmMax', 'anneeMin', 'distMax', 'us', 'cfx', 'groupe', 'vue', 'tri', 'modeles'];
   function recherchesMemo() { try { var l = JSON.parse(AMX.memo.lire('occ_recherches', '') || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
   function recherchesEcrire(l) { try { AMX.memo.ecrire('occ_recherches', JSON.stringify(l.slice(0, 20))); } catch (e) {} }
   Opportunites.prototype.construireRecherches = function () {
@@ -401,6 +409,7 @@
     if (f.cote) ajout(FILTRES_COTE.filter(function (x) { return x[0] === f.cote; })[0][1], function () { f.cote = ''; });
     if (f.statut) ajout((STATUTS.filter(function (s) { return s[0] === f.statut; })[0] || [0, f.statut])[1], function () { f.statut = ''; });
     if (f.us) ajout((FILTRES_US.filter(function (x) { return x[0] === f.us; })[0] || [0, 'É.-U.'])[1], function () { f.us = ''; });
+    if (f.cfx) ajout('CARFAX : ' + (FILTRES_CFX.filter(function (x) { return x[0] === f.cfx; })[0] || [0, f.cfx])[1].toLowerCase(), function () { f.cfx = ''; });
     return l;
   };
   Opportunites.prototype.resumeFiltres = function () { return this.filtresActifs().map(function (x) { return x.t; }).join(' · '); };
@@ -560,6 +569,7 @@
       if (f.kmMax && nb(num(o.km)) && num(o.km) > f.kmMax) return false;
       if (f.anneeMin && !(num(o.annee) >= f.anneeMin)) return false;
       if (f.distMax) { var kd = self.calc(o); if (!kd || !nb(kd.distance) || kd.distance > f.distMax) return false; }
+      if (sauf !== 'cfx' && f.cfx) { var ec = etatCfx(o); if (f.cfx === 'sans' ? ec !== 'n' : (f.cfx === 'accident' ? ec !== 'o' : (ec === 'n' || ec === 'o'))) return false; }
       if (sauf !== 'us' && f.us) { if (!exportable(o)) return false; if (f.us === 'plus') { var u = self.us(o); if (!u || u.verdict.meilleur !== 'us') return false; } }
       if (sauf !== 'q' && f.q && !AMX.correspond([o.annee, o.marque, o.modele, o.version, o.vin, o.vendeur, o.ville, o.province, o.couleur, o.typeInv], f.q)) return false;
       return true;
@@ -1010,7 +1020,7 @@
     var self = this, k = this.calc(o) || {}, gmf = o.source === 'gmf' || o.source === 'manheim', mhm = o.source === 'manheim';
     var nouv = ageJ(o.premiereVue) < 2, baisse = o.baisseLe && ageJ(o.baisseLe) < 7 && nb(num(o.prixPrecedent));
     var veh = h('div.occ-veh', [AMX.logoMarque(o.marque, 'petit'), h('div', [
-      h('div.nom', [h('span', { text: vehicule(o), title: 'NIV ' + o.vin }), nouv ? h('span.puce.nouv', { text: 'Nouvelle' }) : null, exportable(o) ? h('span.puce.us', { text: 'É.-U.', title: 'Fabriqué aux États-Unis (NIV qui commence par ' + String(o.vin || '').charAt(0) + ') : comparaison É.-U. dans la fiche' }) : null, o.statut ? h('span.puce.st-' + o.statut, { text: STATUT_LIB[o.statut] }) : null]),
+      h('div.nom', [h('span', { text: vehicule(o), title: 'NIV ' + o.vin }), cfx() ? cfx().puce(o.vin) : null, nouv ? h('span.puce.nouv', { text: 'Nouvelle' }) : null, exportable(o) ? h('span.puce.us', { text: 'É.-U.', title: 'Fabriqué aux États-Unis (NIV qui commence par ' + String(o.vin || '').charAt(0) + ') : comparaison É.-U. dans la fiche' }) : null, o.statut ? h('span.puce.st-' + o.statut, { text: STATUT_LIB[o.statut] }) : null]),
       h('div.mini', { text: [km(o.km), o.couleur, o.motricite].filter(Boolean).join(' · ') })])]);
     var src = gmf ? h('span.puce.' + (mhm ? 'mh' : 'gmf'), { text: mhm ? 'Manheim' : 'DealerSource' }) : (SITES_ANNONCES[o.source] ? h('span.puce.' + (estParticulier(o) ? 'part' : 'site'), { text: SITES_ANNONCES[o.source] + (estParticulier(o) ? ' · particulier' : '') }) : h('span.puce.mc', { text: 'Concessionnaire' }));
     var infos = gmf ? [o.typeInv, o.cote ? 'cote ' + o.cote : '', nb(num(o.dommages)) ? 'dommages ' + argent(num(o.dommages)) : '', o.finVente ? 'fin ' + AMX.fmtDate(o.finVente, true) : '']
@@ -1047,6 +1057,7 @@
         { texte: 'Note…', action: function () { self.note(o); } }
       ].filter(Boolean), { titre: 'Actions', petit: true })]);
     var r = h('div.occ-rangee' + (k.sousGros ? '.opp' : '') + (o.statut === 'ecartee' ? '.ecartee' : ''), { 'data-vin': o.vin }, [veh, vend, prix, gros, det, actions]);
+    if (cfx()) cfx().ligne(r, o.vin);
     if (o.note) r.appendChild(h('div.occ-note', { text: 'Note : ' + o.note + (o.statutPar ? ' — ' + o.statutPar : '') }));
     /* 5 nov. : un clic sur l'annonce (ailleurs que sur un lien ou un bouton) ouvre sa fiche — détail OpenLane, comparaison É.-U. */
     r.classList.add('ouvrable'); r.setAttribute('tabindex', '0'); r.setAttribute('title', 'Ouvrir la fiche : détail OpenLane' + (exportable(o) ? ' et comparaison É.-U.' : ''));
@@ -1102,15 +1113,24 @@
       return String(x.olLe || '').localeCompare(String(y.olLe || ''));
     });
     this.listeSync = l.map(function (o) { return o.vin; });
-    var n = this.listeSync.length, b = this.btnSync, sans = l.filter(function (o) { return !nb(num(o.olPrix)); }).length;
-    b.disabled = !n; b.classList.toggle('a-jour', !n);
-    b.innerHTML = I.rafraichir + '<span>' + (n ? 'Synchroniser OpenLane' : 'OpenLane à jour') + '</span>' + (n ? '<b>' + AMX.fmtNombre(n) + '</b>' : '');
-    b.title = n ? AMX.fmtNombre(n) + ' annonce' + (n > 1 ? 's' : '') + ' à lire chez OpenLane' + (sans ? ' (' + AMX.fmtNombre(sans) + ' sans valeur)' : '') + ' pour les filtres choisis — les valeurs de gros arrivent dans la liste à mesure'
-      : 'Toutes les annonces des filtres choisis ont une prévision OpenLane de moins de 7 jours';
+    // 5 nov. (Maxime : « ajoute ça à ta lecture ») : le même bouton lit aussi les pastilles CARFAX (gratuit, rien de commandé).
+    var c = cfx(), cfxAFaire = c && !c.arret() ? (liste || []).filter(function (o) { return /^[A-HJ-NPR-Z0-9]{17}$/.test(String(o.vin || '').toUpperCase()) && !c.de(o.vin); }).map(function (o) { return o.vin; }) : [];
+    this.listeSyncCfx = cfxAFaire;
+    var n = this.listeSync.length, nc = cfxAFaire.length, b = this.btnSync, sans = l.filter(function (o) { return !nb(num(o.olPrix)); }).length;
+    b.disabled = !n && !nc; b.classList.toggle('a-jour', !n && !nc);
+    b.innerHTML = I.rafraichir + '<span>' + (n ? 'Synchroniser OpenLane et CARFAX' : (nc ? 'Lire les CARFAX' : 'OpenLane et CARFAX à jour')) + '</span>' + (n || nc ? '<b>' + AMX.fmtNombre(n || nc) + '</b>' : '');
+    b.title = (n ? AMX.fmtNombre(n) + ' annonce' + (n > 1 ? 's' : '') + ' à lire chez OpenLane' + (sans ? ' (' + AMX.fmtNombre(sans) + ' sans valeur)' : '') + ' pour les filtres choisis — les valeurs de gros arrivent dans la liste à mesure'
+      : 'Toutes les annonces des filtres choisis ont une prévision OpenLane de moins de 7 jours')
+      + (nc ? ' · CARFAX : ' + AMX.fmtNombre(nc) + ' annonce' + (nc > 1 ? 's' : '') + ' pas encore lue' + (nc > 1 ? 's' : '') + ' (gratuit : seulement les pastilles d\'un rapport existant, rien de commandé)' : '');
   };
   Opportunites.prototype.synchroniser = function () {
     var self = this, d = this.donnees, vins = (this.listeSync || []).slice(), total = vins.length, faits = 0, avec = 0, sans = 0;
     if (this.syncEnCours) { this.syncArret = true; this.btnSync.innerHTML = I.rafraichir + '<span>Arrêt après ce lot…</span>'; return; }
+    var aCfx = (this.listeSyncCfx || []).slice();
+    if (aCfx.length && cfx()) {
+      cfx().demander(aCfx);
+      if (!total) { AMX.toast('Lecture CARFAX de ' + AMX.fmtNombre(aCfx.length) + ' annonce' + (aCfx.length > 1 ? 's' : '') + ' lancée : les pastilles (accident ou non) apparaissent à mesure. Gratuit, rien n\'est commandé.', 'ok', 9000); return; }
+    }
     if (!total || !d) return;
     var b = this.btnSync, parVin = {};
     (d.occasions || []).forEach(function (o) { parVin[o.vin] = o; });
@@ -1223,6 +1243,9 @@
         h('div.mini', [h('span', { text: 'NIV ' }), h('button.occ-fiche-vin', { type: 'button', text: o.vin, title: 'Copier le NIV', onclick: function () { AMX.copier(o.vin, 'NIV copié'); } })])
       ])
     ]));
+    // Le rapport CARFAX (pastilles, sans rien commander) : bien en vue, juste sous l'en-tête.
+    var blocCfx = cfx() && cfx().bloc(o.vin);
+    if (blocCfx) corps.appendChild(h('section.occ-fiche-bloc', [h('h4', 'Rapport CARFAX'), blocCfx]));
     // Le calcul retenu (la concession choisie en haut, sinon la plus avantageuse).
     var lignes = [
       ['Prix demandé', argent(num(o.prix)) + (gmf && nb(num(o.mise)) ? ' (mise ' + argent(num(o.mise)) + ')' : '')],
@@ -1404,6 +1427,7 @@
         'Source': libelleSource(o), 'Vendeur': o.vendeur, 'Ville': o.ville, 'Province': o.province,
         'Concession d\'arrivée': COURTS[k.dest] || k.dest, 'Distance (km)': k.distance, 'Transport': k.transport, 'Coût rendu': k.cout,
         'Prévision OpenLane': num(o.olPrix), 'Profit au gros': k.profitGros,
+        'CARFAX': ({ o: 'Accident ou dommage déclaré', n: 'Aucun accident déclaré', x: 'Aucun rapport' })[etatCfx(o)] || '', 'Rapport CARFAX': (cfx() && cfx().de(o.vin) || {}).l || '',
         'Fabriqué aux É.-U.': exportable(o) ? 'oui' : '', 'MMR ($ US)': (self.us(o) || {}).mmr || '', 'Gros É.-U.': (self.us(o) || {}).grosUS || '', 'Profit É.-U.': (self.us(o) || {}).profitUS === undefined || (self.us(o) || {}).profitUS === null ? '' : self.us(o).profitUS, 'Prix médian ajusté': k.refAjuste, 'Annonces de référence': num(o.refN), 'Recon': k.recon, 'Profit au détail': k.profitDetail, 'Achat max.': k.achatMax,
         'Cote CarGurus': COTES[o.coteCg] ? COTES[o.coteCg].t : '', 'Valeur du marché (CarGurus)': num(o.valeurMarche), 'Écart au marché': num(o.ecartMarche), 'Baisse de prix': num(o.baissePrix), 'Sites': num(o.nbSites),
         'Mise (DealerSource)': num(o.mise), 'Dommages estimés': num(o.dommages), 'Cote': o.cote, 'Fin de vente': o.finVente, 'Statut': STATUT_LIB[o.statut || ''], 'Note': o.note, 'Vue la première fois': o.premiereVue, 'Annonce': o.lien };

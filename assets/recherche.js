@@ -187,7 +187,7 @@
     var cie = g.cie;
     var carte = h('div.rech-vehicule', [
       h('a.rech-tete', { href: principal || '#' }, [
-        h('div.rech-titre', { text: titre || 'Véhicule ' + g.vin }),
+        h('div.rech-titre', [h('span', { text: titre || 'Véhicule ' + g.vin }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(g.vin) : null]),
         h('div.rech-sous', [h('span.mono', { text: g.vin }), stock ? h('span.mono', { text: '# ' + stock }) : null, cie ? h('span.rech-cie.' + ((AMX.COULEUR_COMPAGNIE || {})[cie] || 'gris'), [h('i'), nomCie(cie)]) : null])
       ]),
       h('div.rech-liens', puces)

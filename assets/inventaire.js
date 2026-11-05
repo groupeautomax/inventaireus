@@ -847,7 +847,7 @@
     var el = h(cls, { dataset: { id: v.id, vin: v.vin } }, [
       vignette,
       h('div', { style: { minWidth: 0 } }, [
-        h('div.titre', { text: v.modele || '(modèle à préciser)' }),
+        h('div.titre', [h('span', { text: v.modele || '(modèle à préciser)' }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(v.vin) : null]),
         // Les informations du véhicule sont ici, dans la ligne (8 oct., soir — Maxime) : le NIV (une seule fois,
         // un clic le copie), # stock, compagnie, origine, importateur ; la date d'achat est sous le statut.
         h('div.sous', [h('span.vin', { text: v.vin, title: 'Copier le NIV', onclick: function (e) { e.stopPropagation(); AMX.copier(v.vin, 'NIV copié'); } }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), v.origine ? h('span.puce', { text: v.origine }) : null, autreRegistre ? h('span.puce.registre-autre', { text: 'Registre ' + AMX.inventaire.nomFeuille(autreRegistre), title: 'Ce véhicule est dans un autre registre — cliquez pour l\'ouvrir là-bas.' }) : null])
@@ -860,6 +860,8 @@
       h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { if (autreRegistre) AMX.inventaire.aller(autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
+    // 5 nov. (Maxime : « une auto accidentée en rouge ») : pastilles CARFAX, sans rien commander.
+    if (AMX.cfxPastilles) AMX.cfxPastilles.ligne(el, v.vin);
     /* 2 nov. — « retirer en glissant … applique ce principe partout » : au doigt, glisser la ligne vers la gauche ; à la souris,
        la corbeille prend la place de la flèche. Même suppression que le panneau et « Sélectionner » (taper SUPPRIMER). */
     if (AMX.perm('supprimer') && !autreRegistre && AMX.glisserPourRetirer) {
@@ -1226,7 +1228,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      AMX.achatsAuto ? AMX.achatsAuto.bloc(v.vin) : null, blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
+      AMX.achatsAuto ? AMX.achatsAuto.bloc(v.vin) : null, AMX.cfxPastilles ? h('div.bloc', [h('h3', 'CARFAX'), AMX.cfxPastilles.bloc(v.vin)]) : null, blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

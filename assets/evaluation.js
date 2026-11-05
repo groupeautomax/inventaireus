@@ -690,6 +690,7 @@
     this.elAnnee = cAnnee.input; this.elKm = cKm.input;
     this.elContexte = h('div.eval-contexte.cache');
     this.elFiche = h('div.eval-fiche');            // « Créer la fiche d'achat » (rendreLiens)
+    this.elCfx = h('div.eval-cfx'); this.cfxVin = '';   // 5 nov. : pastille CARFAX (accident déclaré ou non, rien de commandé)
     this.elLiens = h('div.eval-liens');            // panneau « CARFAX et liens »
     // Historique Torque du NIV (archive des évaluations importées de Torque) : rempli par AMX.torqueHistorique.
     this.elTorque = h('div.eval-sous-vehicule#eval-torque');
@@ -700,7 +701,7 @@
     var vehicule = h('div.carte#sec-vehicule', [h('div.carte-corps', [
       h('div.grille.eval-veh-1', [h('div.eval-niv', [cNiv.el, this.btnDecoder]), cKm.el, cConcession]),
       h('div.grille.eval-veh-2', [cAnnee.el, cMarque.el, cModele.el, cVersion.el, cStyle]),
-      h('div.eval-veh-bas', [this.elContexte, this.elFiche])
+      h('div.eval-veh-bas', [this.elContexte, this.elCfx, this.elFiche])
     ])]);
 
     // --- Prix : achat + frais = payé ; payé + recon + marge = détail -------
@@ -1825,6 +1826,7 @@
     var vin = (this.elNiv.value || '').trim().toUpperCase();
     var vinOk = /^[A-HJ-NPR-Z0-9]{17}$/.test(vin);
     this.rendreOpenlane();
+    if (this.cfxVin !== (vinOk ? vin : '')) { this.cfxVin = vinOk ? vin : ''; AMX.vider(this.elCfx); if (vinOk && AMX.cfxPastilles) { var pc = AMX.cfxPastilles.puce(vin, { grande: true }); if (pc) this.elCfx.appendChild(pc); } }
     AMX.vider(this.elLiens);
     var carfax = (vinOk && AMX.carfax && AMX.carfax.lien) ? AMX.carfax.lien(vin) : '';
     // 27 oct. : sans rapport, « Commander le CARFAX » par l'API officielle (carfax-api.js) ; plus de lien vers le portail CARFAX.

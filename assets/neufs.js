@@ -1885,7 +1885,7 @@
       var km = kmDe(v), pd = pdsfDe(v);
       var tr = h('tr.rangee' + (v.enStock ? '' : '.sorti') + (cat ? '.marq-' + cat : '') + (absent ? '.absent-dms' : ''), [
         h('td', { text: v.stock || '—' }),
-        h('td.vehicule', [h('div.nom', [nomVehicule(v), estFlotte(v) ? h('span.badge.ambre.sans-point.neufs-flotte-badge', { text: 'Flotte', title: 'Commande ' + ((v.extra || {}).typeCommande || '') + ' (flotte / parcs)' }) : null]), h('div.vin', { text: v.vin + (v.modelNum ? ' · ' + v.modelNum : '') + (fanTexte(v) ? ' · ' + fanTexte(v) : '') + ((v.extra || {}).code ? ' · évol. ' + v.extra.code : '') }), h('div.sous-ui2', { text: [v.couleur, moteurDe(v)].filter(Boolean).join(' · ') })]),   /* v138 (ui2) : couleur et moteur sous le nom, deux colonnes de moins */
+        h('td.vehicule', [h('div.nom', [nomVehicule(v), AMX.cfxPastilles ? AMX.cfxPastilles.puce(v.vin) : null, estFlotte(v) ? h('span.badge.ambre.sans-point.neufs-flotte-badge', { text: 'Flotte', title: 'Commande ' + ((v.extra || {}).typeCommande || '') + ' (flotte / parcs)' }) : null]), h('div.vin', { text: v.vin + (v.modelNum ? ' · ' + v.modelNum : '') + (fanTexte(v) ? ' · ' + fanTexte(v) : '') + ((v.extra || {}).code ? ' · évol. ' + v.extra.code : '') }), h('div.sous-ui2', { text: [v.couleur, moteurDe(v)].filter(Boolean).join(' · ') })]),   /* v138 (ui2) : couleur et moteur sous le nom, deux colonnes de moins */
         h('td.col-moteur', { text: moteurDe(v) || '—', title: 'Moteur' }),
         h('td.col-couleur', { text: v.couleur || '—' }),
         h('td.num', [h('span' + (km.source === 'defaut' ? '.km-defaut' : ''), { text: AMX.fmtNombre(km.km) + ' km', title: 'Km ' + KM_SOURCES[km.source] + (km.source === 'defaut' ? ' — cliquez Marquer pour l\'indiquer' : '') })]),
@@ -1896,6 +1896,7 @@
         h('td.num', [t ? h('span.badge.' + t.couleur + '.sans-point', { text: fmtJours(v.jours), title: v.recuLe ? 'Reçu le ' + AMX.fmtDate(v.recuLe) : '' }) : h('span', '—')])
       ].concat(d.montants ? [h('td.num', { text: v.coutFacture ? AMX.fmtArgent(v.coutFacture) : '—' }), h('td.num.col-detention', { text: v.coutDetention ? AMX.fmtArgent(v.coutDetention) : '—' })] : []).concat([cellNote]));
       tr.addEventListener('click', function () { self.ouvrir(v); });
+      if (AMX.cfxPastilles) AMX.cfxPastilles.ligne(tr, v.vin);
       /* 2 nov. — retirer en glissant (au doigt, vers la gauche) : le même « Retirer du suivi » que la fiche, réservé aux
          administrateurs, avec sa confirmation. À la souris : la fiche. */
       if (d.gererExclus && AMX.glisserPourRetirer) AMX.glisserPourRetirer(tr, { texte: 'Retirer du suivi', bouton: false, action: function () { self.exclure(v); } });

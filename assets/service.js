@@ -682,7 +682,7 @@
     var el = h(cls, { dataset: { vin: s.vin } }, [
       h('div.vignette', { title: s.hasPhotos ? 'Photos disponibles' : 'Aucune photo' }, [AMX.logoMarque(marque(s)), s.hasPhotos ? h('span.cam', { html: I.photo }) : null]),
       h('div', { style: { minWidth: 0 } }, [
-        h('div.titre', { text: s.modele || '(modèle à préciser)' }),
+        h('div.titre', [h('span', { text: s.modele || '(modèle à préciser)' }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(s.vin) : null]),
         h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, AMX.demandePuce(s.vin) || (s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null), s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null, AMX.eblockPuce ? AMX.eblockPuce(s.vin) : null, AMX.openlanePuce ? AMX.openlanePuce(s.vin) : null])
       ]),
       h('div.cell.parcours', [h('span.l', 'Parcours'), parcours(s, { compact: true })]),
@@ -691,6 +691,7 @@
       h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { self.selectionner(s.vin); });
+    if (AMX.cfxPastilles) AMX.cfxPastilles.ligne(el, s.vin);
     /* 2 nov. — retirer en glissant (au doigt, vers la gauche ; à la souris, la corbeille prend la place de la flèche) : même
        suppression du registre Detail que « Sélectionner » (taper SUPPRIMER). */
     if (AMX.perm('supprimer') && AMX.glisserPourRetirer) {
@@ -735,6 +736,8 @@
     var blocDossier = h('div.bloc', [h('h3', ['Évaluation, photos et dommages', h('a.btn.petit', { href: AMX.lien('achat', '', { vin: s.vin }), text: s.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche' })])]);
     // Fiche eBlock du véhicule (cote, dommages avec photos, pneus) — c'est ce que le directeur
     // compare à la livraison, même si la fiche d'achat n'est pas encore remplie.
+    // 5 nov. : rapport CARFAX (pastilles, rien de commandé) — un accident inscrit se voit en rouge.
+    if (AMX.cfxPastilles) { var cfxBloc = AMX.cfxPastilles.bloc(s.vin); if (cfxBloc) blocDossier.appendChild(h('div', { style: { marginBottom: '10px' } }, [cfxBloc])); }
     var zoneEblock = h('div.svc-eblock.cache', { style: { marginBottom: '10px' } });
     blocDossier.appendChild(zoneEblock);
     if (AMX.eblockFiche) AMX.eblockFiche(s.vin, zoneEblock).then(function (achats) {

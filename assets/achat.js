@@ -893,6 +893,8 @@
     var d = (this.decode && this.decode.vin === vin) ? this.decode : null;
     var morceaux = [];
     if (d && (d.make || d.model || d.year)) morceaux.push(h('span.puce', { title: 'Décodage NHTSA', text: [d.year, d.make, d.model].filter(Boolean).join(' ') }));
+    // 5 nov. : pastille CARFAX (accident déclaré ou non, rien de commandé).
+    if (AMX.cfxPastilles) { var pcx = AMX.cfxPastilles.puce(vin, { grande: true }); if (pcx) morceaux.push(pcx); }
     if (v) {
       morceaux.push(AMX.badgeStatut(v.statut, v._feuille));
       if (v.modele) morceaux.push(h('span.modele', { text: v.modele }));

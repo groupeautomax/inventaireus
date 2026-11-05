@@ -34,8 +34,33 @@
 
   /* ------------------------------ Mémoire ------------------------------ */
   function lire(c) { try { return localStorage.getItem(c) || ''; } catch (e) { return ''; } }
-  function ecrire(c, v) { try { localStorage.setItem(c, v); } catch (e) {} }
+  function ecrire(c, v) { return ecrireStockage(c, v); }
   function effacer(c) { try { localStorage.removeItem(c); } catch (e) {} }
+  /* Stockage plein (5 nov.) : le navigateur n'accorde qu'environ 5 Mo au site, et les copies de pages (amx_cache_*) le
+     remplissaient. Une écriture refusée (MMR tapé, choix, session) échouait sans rien dire. Maintenant, une écriture
+     refusée retire les copies de pages les plus vieilles, une à la fois, et réessaie : une copie se refait au prochain
+     chargement, une saisie non. Vrai pour toute écriture du site (AMX.memo, session, AMX.cacheLocal). */
+  function copiesLocales(sauf) {
+    var l = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf('amx_cache_') !== 0 || k === sauf) continue;
+        var t = localStorage.getItem(k) || '', m = /"quand":(\d+)/.exec(t.slice(0, 40));
+        l.push({ k: k, quand: m ? +m[1] : 0 });
+      }
+    } catch (e) {}
+    return l.sort(function (a, b) { return a.quand - b.quand; });
+  }
+  function ecrireStockage(c, v) {
+    try { localStorage.setItem(c, v); return true; } catch (e) {}
+    var l = copiesLocales(c);
+    for (var i = 0; i < l.length; i++) {
+      try { localStorage.removeItem(l[i].k); } catch (e) {}
+      try { localStorage.setItem(c, v); return true; } catch (e) {}
+    }
+    return false;
+  }
   AMX.memo = {
     lire: function (k, defaut) { var v = lire('amx_' + k); if (v === '') return defaut; try { return JSON.parse(v); } catch (e) { return defaut; } },
     ecrire: function (k, v) { ecrire('amx_' + k, JSON.stringify(v)); }
@@ -1940,7 +1965,7 @@
       } catch (e) { return null; }
     },
     ecrire: function (cle, donnees) {
-      try { localStorage.setItem('amx_cache_' + cle, JSON.stringify({ quand: Date.now(), donnees: donnees })); } catch (e) { /* quota : tant pis */ }
+      try { ecrireStockage('amx_cache_' + cle, JSON.stringify({ quand: Date.now(), donnees: donnees })); } catch (e) { /* trop gros : tant pis */ }
     },
     oublier: function (cle) { try { localStorage.removeItem('amx_cache_' + cle); localStorage.removeItem('amx_cache_' + cle + '_gz'); } catch (e) {} },
     // 16 oct. : copies COMPRESSÉES (gzip + base64) pour les grosses réponses (neufs 1,4 Mo → ~125 Ko, portail, résultats,
@@ -1950,7 +1975,7 @@
       var quand = Date.now();
       return gonfler(JSON.stringify(donnees)).then(function (b64) {
         if (b64.length > CACHE_GZ_MAX) return false;
-        try { localStorage.setItem('amx_cache_' + cle + '_gz', JSON.stringify({ quand: quand, gz: b64 })); return true; } catch (e) { return false; }
+        return ecrireStockage('amx_cache_' + cle + '_gz', JSON.stringify({ quand: quand, gz: b64 }));
       }).catch(function () { return false; });
     },
     lireGz: function (cle, maxAge) {

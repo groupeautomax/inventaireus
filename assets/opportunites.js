@@ -1167,8 +1167,19 @@
      contre gros Canada (OpenLane) et détail ; marché américain (annonces MarketCheck) sur demande. */
   var MEMO_MMR = 'eq_mmr';   // la même mémoire que Relance › Équité : un MMR tapé une fois sert aux deux pages (sur cet appareil)
   var TAUX_KM_US = 0.10;     // $ US par km pour ramener une annonce américaine au km de l'annonce (comme l'évaluation)
-  function mmrDe(vin) { var m = AMX.memo.lire(MEMO_MMR, {}) || {}; return num(m[String(vin || '').toUpperCase()]); }
-  function mmrPoser(vin, v) { var m = AMX.memo.lire(MEMO_MMR, {}) || {}; vin = String(vin || '').toUpperCase(); if (nb(v) && v > 0) m[vin] = Math.round(v); else delete m[vin]; AMX.memo.ecrire(MEMO_MMR, m); }
+  // Le MMR tapé est gardé en mémoire de la page d'abord (5 nov. : quand le stockage du navigateur était plein, la copie
+  // ne se faisait pas et le calcul, qui ne lisait que le stockage, ne se faisait jamais).
+  var MMR_SAISIS = {};
+  function mmrDe(vin) {
+    vin = String(vin || '').toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(MMR_SAISIS, vin)) return MMR_SAISIS[vin];
+    var m = AMX.memo.lire(MEMO_MMR, {}) || {}; return num(m[vin]);
+  }
+  function mmrPoser(vin, v) {
+    vin = String(vin || '').toUpperCase(); v = nb(v) && v > 0 ? Math.round(v) : null;
+    MMR_SAISIS[vin] = v;
+    var m = AMX.memo.lire(MEMO_MMR, {}) || {}; if (v) m[vin] = v; else delete m[vin]; AMX.memo.ecrire(MEMO_MMR, m);
+  }
   function exportable(o) { return !!(o && o.vin && AMX.export && AMX.export.exportable && AMX.export.exportable(o.vin)); }
   function dollarsUS(v) { return nb(v) ? AMX.fmtArgent(Math.round(v)).replace(/\s*\$$/, '') + ' $ US' : '—'; }
   /* La comparaison É.-U. d'une annonce : l'évaluation du NIV d'abord (boîte Canada / É.-U.), sinon le MMR tapé.
@@ -1250,9 +1261,21 @@
      verdict, marché américain sur demande. */
   Opportunites.prototype.rendreUS = function (bloc, o) {
     var self = this, P = AMX.export.params() || {}, k = this.calc(o) || {};
-    var champ = h('input.saisie.occ-us-mmr', { type: 'number', min: '0', step: '100', placeholder: 'MMR ($ US)', 'aria-label': 'MMR ($ US)' });
+    // Champ texte (pas « number ») : « 37 000 », « 37,000 » ou « 37000 $ » sont lus pareil ; le clavier du téléphone reste numérique.
+    var champ = h('input.saisie.occ-us-mmr', { type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: 'MMR ($ US)', 'aria-label': 'MMR ($ US)' });
     var m0 = mmrDe(o.vin); if (nb(m0)) champ.value = String(m0);
     var zoneCalc = h('div.occ-us-calc'), zoneMarche = h('div.occ-us-marche');
+    var marcheRes = null;   // dernière lecture du marché américain : redessinée quand le MMR change
+    var dessinerMarche = function () {
+      if (!marcheRes) return;
+      AMX.vider(zoneMarche);
+      var T = AMX.export.taux(), mmr = (self.us(o) || {}).mmr, seuil = num(P.alerteMmrPct) || 10, moy = marcheRes.moy, n = marcheRes.n;
+      var pct = nb(mmr) && mmr > 0 ? Math.round((moy / mmr - 1) * 1000) / 10 : null, alerte = pct !== null && pct < seuil;
+      zoneMarche.appendChild(h('div.occ-us-marche-res' + (alerte ? '.alerte' : (pct !== null ? '.ok' : '')), [
+        h('div', { text: 'Annonces de détail aux É.-U. : moyenne ' + dollarsUS(moy) + (marcheRes.auKm ? ' au km de ce véhicule' : '') + ' (' + n + ' annonce' + (n > 1 ? 's' : '') + ')' + (T && nb(num(T.taux)) ? ' ≈ ' + argent(moy * num(T.taux)) + ' CA' : '') }),
+        pct !== null ? h('div.mini', { text: 'Marché É.-U. vs MMR : ' + (pct > 0 ? '+' : (pct < 0 ? '−' : '')) + String(Math.abs(pct)).replace('.', ',') + ' %' + (alerte ? ' — le marché ne couvre pas le MMR (seuil + ' + seuil + ' %)' : ' (seuil + ' + seuil + ' %)') }) : h('div.mini', { text: 'Tapez le MMR pour le comparer au marché américain.' })
+      ]));
+    };
     var dessiner = function () {
       var u = self.us(o) || {};
       AMX.vider(zoneCalc);
@@ -1271,9 +1294,19 @@
       ]));
       var v = u.verdict || {};
       if (v.verdict) zoneCalc.appendChild(h('div.occ-us-verdict.' + AMX.export.classeVerdict(v), { text: AMX.export.phraseVerdict(v) + (v.verdict !== 'egal' && nb(v.ecart) ? ' : ' + argent(v.ecart) + ' de plus ' + ({ us: 'qu\'aux É.-U.', ca: 'qu\'en gros au Canada', detail: 'qu\'au détail' }[v.second] || '') : '') }));
-      if (self.donnees) self.rafraichirListeSeule();
+      dessinerMarche();
+      if (self.donnees) { try { self.rafraichirListeSeule(); } catch (e) { /* la liste se refera au prochain rendu */ } }
     };
-    champ.addEventListener('input', AMX.debounce(function () { var v = num(champ.value); mmrPoser(o.vin, v && v > 0 ? v : null); dessiner(); }, 300));
+    var dernierMmr = mmrDe(o.vin);
+    var appliquerMmr = function () {
+      var v = num(champ.value); v = nb(v) && v > 0 ? Math.round(v) : null;
+      if (v === dernierMmr) return;
+      dernierMmr = v; mmrPoser(o.vin, v); dessiner();
+    };
+    var appliquerBientot = AMX.debounce(appliquerMmr, 250);
+    champ.addEventListener('input', appliquerBientot);
+    champ.addEventListener('change', appliquerMmr);
+    champ.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); appliquerMmr(); } });
     var lancerMarche = function (b) {
       b.classList.add('occupe');
       AMX.vider(zoneMarche); zoneMarche.appendChild(h('div.mini', { text: 'Lecture des annonces américaines (MarketCheck)…' }));
@@ -1286,13 +1319,9 @@
         var ajustes = annonces.map(function (x) { var xk = num(x.km); return Math.round(num(x.prix) - (nb(kmV) && nb(xk) ? (kmV - xk) * TAUX_KM_US : 0)); });
         var moy = ajustes.length ? Math.round(ajustes.reduce(function (s2, v2) { return s2 + v2; }, 0) / ajustes.length) : (a.actifs && a.actifs.prix && nb(num(a.actifs.prix.moyenne)) ? Math.round(num(a.actifs.prix.moyenne)) : null);
         var n = ajustes.length || ((a.actifs && a.actifs.n) || 0);
-        if (!nb(moy)) { zoneMarche.appendChild(h('div.mini', { text: 'Aucune annonce américaine pour ce ' + vehicule(o) + '.' })); return; }
-        var T = AMX.export.taux(), mmr = (self.us(o) || {}).mmr, seuil = num(P.alerteMmrPct) || 10;
-        var pct = nb(mmr) && mmr > 0 ? Math.round((moy / mmr - 1) * 1000) / 10 : null, alerte = pct !== null && pct < seuil;
-        zoneMarche.appendChild(h('div.occ-us-marche-res' + (alerte ? '.alerte' : (pct !== null ? '.ok' : '')), [
-          h('div', { text: 'Annonces de détail aux É.-U. : moyenne ' + dollarsUS(moy) + (ajustes.length ? ' au km de ce véhicule' : '') + ' (' + n + ' annonce' + (n > 1 ? 's' : '') + ')' + (T && nb(num(T.taux)) ? ' ≈ ' + argent(moy * num(T.taux)) + ' CA' : '') }),
-          pct !== null ? h('div.mini', { text: 'Marché É.-U. vs MMR : ' + (pct > 0 ? '+' : (pct < 0 ? '−' : '')) + String(Math.abs(pct)).replace('.', ',') + ' %' + (alerte ? ' — le marché ne couvre pas le MMR (seuil + ' + seuil + ' %)' : ' (seuil + ' + seuil + ' %)') }) : h('div.mini', { text: 'Tapez le MMR pour le comparer au marché américain.' })
-        ]));
+        if (!nb(moy)) { marcheRes = null; zoneMarche.appendChild(h('div.mini', { text: 'Aucune annonce américaine pour ce ' + vehicule(o) + '.' })); return; }
+        marcheRes = { moy: moy, n: n, auKm: ajustes.length > 0 };
+        dessinerMarche();
       }, function (e) { b.classList.remove('occupe'); AMX.vider(zoneMarche); zoneMarche.appendChild(h('div.mini', { text: 'Marché américain : ' + AMX.erreurTexte(e) })); });
     };
     var btnMarche = h('button.btn.petit', { type: 'button', text: 'Marché américain (annonces)', title: 'Lit les annonces de concessionnaires aux États-Unis (MarketCheck) pour ce modèle', onclick: function (e) { lancerMarche(e.currentTarget); } });

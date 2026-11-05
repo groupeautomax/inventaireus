@@ -324,6 +324,7 @@
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);   /* 2 nov. : jamais pour un représentant */
     if ((voit('demandesEval') || voit('evalPortail')) && AMX.evalDemandes) AMX.evalDemandes.charger().then(relancer, rien);   /* 27 oct. : demandes d'évaluation ; 2 nov. : portail du représentant */
     if (voitImports()) chargerImports().then(relancer, rien);
+    if (voit('portefeuille') && AMX.portefeuille && AMX.portefeuille.pages) (cie ? [cie] : (AMX.codesPour ? AMX.codesPour('inventaire') : [])).forEach(function (c) { AMX.portefeuille.pages(c).then(relancer, rien); });   /* 5 nov. : réponses aux pages d'offre (toutes les concessions visibles sur « Tout le groupe ») */
   };
 
   /* 27 oct. — Maxime : « dans l'écran d'accueil des DG et moi, les imports qui doivent être faits doivent être en vert ou en rouge
@@ -439,6 +440,11 @@
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations && AMX.evaluations.enCache()) {
       var aRel = AMX.evaluations.aRelancerPour(AMX.compagnieChoisie('evaluations'));
       if (aRel.length) out.push({ ton: 'ambre', n: aRel.length, titre: 'Clients d\'évaluation à relancer', detail: aRel.slice(0, 3).map(function (r) { return (r.suivi && r.suivi.client) || [r.annee, r.marque, r.modele].filter(Boolean).join(' '); }).join(' · ') + (aRel.length > 3 ? '…' : ''), href: AMX.lien('outils', 'evaluations', { suivi: 'relancer' }), ic: 'outils' });
+    }
+    // 5 nov. (nuit) : clients qui ont répondu à leur page d'offre (Relance › Portefeuille clients, PageOffre.gs) — vert
+    if (voit('portefeuille') && AMX.portefeuille && AMX.portefeuille.reponsesATraiter) {
+      var rp = AMX.portefeuille.reponsesATraiter(cie);
+      if (rp.length) out.push({ ton: 'vert', n: rp.length, titre: 'Clients qui ont répondu à une offre', detail: rp.slice(0, 3).map(function (p) { var r = (p.reponses || []).filter(function (x) { return x.geste !== 'refus'; }).pop(); return (p.nom || p.id) + (r ? ' : ' + ({ evaluer: 'évaluation', essai: 'essai routier', rappel: 'rappel' }[r.geste] || '') : ''); }).join(' · ') + (rp.length > 3 ? '…' : ''), href: AMX.lien('relance', 'portefeuille', { page: 'aTraiter' }), ic: 'relance' });
     }
     // 27 oct. : demandes d'évaluation — à faire pour moi (évaluateur, rouge), faites pour moi (représentant, vert, 2 jours)
     // 2 nov. : circuit du directeur — à approuver, montants à confirmer (direction) ; le représentant passe par son portail.

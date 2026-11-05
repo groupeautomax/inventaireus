@@ -72,7 +72,19 @@
     '.ptf-offre table { width: 100%; font-size: 12.5px; margin-top: 6px; border-collapse: collapse; } .ptf-offre td { padding: 2px 0; border-bottom: 1px dashed var(--ligne); } .ptf-offre td.num { text-align: right; font-variant-numeric: tabular-nums; }',
     '.ptf-offre .r { font-size: 12px; color: var(--ambre); margin-top: 4px; }',
     '.ptf-prog table td, .ptf-prog table th { font-size: 12.5px; padding: 4px 6px; } .ptf-prog .form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; }',
-    '.ptf-prog .barre-mois { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }'
+    '.ptf-prog .barre-mois { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }',
+    '.ptf-page { border: 1px solid var(--ligne); border-radius: 12px; padding: 10px 12px; margin: 0 0 8px; }',
+    '.ptf-page.atraiter { border-color: var(--vert); box-shadow: 0 0 0 2px var(--vert-clair); }',
+    '.ptf-page .t { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }',
+    '.ptf-page .rep { margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--vert-clair); color: var(--vert-fonce); font-size: 13px; }',
+    '.ptf-page .av { font-size: 12px; color: var(--ambre); margin-top: 4px; }',
+    '.ptf-page .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }',
+    '.ptf-prep .offre-choix { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 10px; margin: 0 0 6px; cursor: pointer; }',
+    '.ptf-prep .offre-choix.actif { border-color: var(--vert-fonce); background: var(--vert-clair); }',
+    '.ptf-prep .offre-choix .r { font-size: 12px; color: var(--ambre); }',
+    '.ptf-prep textarea { width: 100%; min-height: 80px; }',
+    '.ptf-prep .avis { padding: 8px 10px; border-radius: 8px; background: var(--ambre-bg); color: var(--ambre); font-size: 12.5px; margin: 0 0 8px; }',
+    '.ptf-prep .lien { font-family: var(--mono); font-size: 12px; word-break: break-all; background: var(--gris-bg); padding: 8px 10px; border-radius: 8px; margin: 6px 0; }'
   ].join('\n');
   function css() { if (!document.getElementById('css-portefeuille')) { var s = document.createElement('style'); s.id = 'css-portefeuille'; s.textContent = CSS; document.head.appendChild(s); } }
 
@@ -99,6 +111,35 @@
       if (!d || !d.genres) throw new Error('Le script n\'est pas à jour — déployez la version qui contient Portefeuille.gs.');
       format = d; return d;
     });
+  }
+  /* 5 nov. (nuit) : pages client des offres (PageOffre.gs) — préparées par l'équipe, lues par le client, ses réponses. */
+  var pages = { par: {}, enCours: {} };
+  function chargerPages(cie, force) {
+    if (!cie) return Promise.resolve(null);
+    var x = pages.par[cie];
+    if (!force && x && Date.now() - x.le < 60000) return Promise.resolve(x.rep);
+    if (pages.enCours[cie] && !force) return pages.enCours[cie];
+    pages.enCours[cie] = AMX.get({ pagesOffre: '1', compagnie: cie }, { delai: 60000, discret: true }).then(function (d) {
+      pages.enCours[cie] = null;
+      if (!d || d.refuse || d.ok === false || !Array.isArray(d.pages)) { pages.par[cie] = { rep: null, le: Date.now(), absent: !(d && (d.refuse || d.ok === false)) }; return null; }
+      d.parCle = {}; d.pages.forEach(function (p) { (d.parCle[p.cle] = d.parCle[p.cle] || []).push(p); });
+      pages.par[cie] = { rep: d, le: Date.now() };
+      try { document.dispatchEvent(new CustomEvent('amx:pagesOffre', { detail: { compagnie: cie } })); } catch (e) {}
+      return d;
+    }, function () { pages.enCours[cie] = null; return null; });
+    return pages.enCours[cie];
+  }
+  function pagesDe(cie, cle) { var x = pages.par[cie]; return x && x.rep && x.rep.parCle ? (x.rep.parCle[cle] || []) : []; }
+  var REPONSES = { evaluer: 'veut faire évaluer son véhicule', essai: 'veut un essai routier', rappel: 'demande un rappel', refus: 'ne veut plus recevoir d\'offres' };
+  /** L'état de la page client la plus parlante d'un véhicule : refus › réponse à traiter › vue › pas encore vue. */
+  function etatPage(liste) {
+    if (!liste || !liste.length) return null;
+    if (liste.some(function (p) { return p.etat === 'refus'; })) return { cle: 'refus', texte: 'Ne plus recevoir', ton: 'rouge' };
+    var t = liste.filter(function (p) { return p.aTraiter; })[0];
+    if (t) { var r = t.reponses.filter(function (x) { return x.geste !== 'refus'; }).pop(); return { cle: 'aTraiter', texte: 'Client : ' + (r ? REPONSES[r.geste] : 'a répondu'), ton: 'vert' }; }
+    var vues = liste.filter(function (p) { return p.vues; }).reduce(function (n, p) { return n + p.vues; }, 0);
+    if (vues) return { cle: 'vue', texte: 'Page vue' + (vues > 1 ? ' ×' + vues : ''), ton: 'bleu' };
+    return { cle: 'envoyee', texte: 'Page pas encore vue', ton: '' };
   }
   function perms() { return (AMX.session && AMX.session.perms) || {}; }
   function peutVoir() { var p = perms(); return !!(p.consulter || p.ficheAchat || p.changerStatut || p.voirResultats || p.gererUtilisateurs); }
@@ -206,7 +247,9 @@
     visible: function () { return peutVoir(); },
     monter: function (conteneur, ctx) { return new VuePortefeuille(conteneur, ctx); }
   });
-  AMX.portefeuille = { charger: charger, enCache: function (cie) { return cache.par[cie] ? cache.par[cie].rep : null; }, analyser: analyser, vider: function () { cache = { par: {}, enCours: {} }; } };
+  AMX.portefeuille = { charger: charger, enCache: function (cie) { return cache.par[cie] ? cache.par[cie].rep : null; }, analyser: analyser, vider: function () { cache = { par: {}, enCours: {} }; pages = { par: {}, enCours: {} }; },
+    pages: chargerPages, pagesEnCache: function (cie) { return pages.par[cie] ? pages.par[cie].rep : null; },
+    reponsesATraiter: function (cie) { var out = []; (cie ? [cie] : Object.keys(pages.par)).forEach(function (c) { var x = pages.par[c]; if (x && x.rep) x.rep.pages.forEach(function (p) { if (p.aTraiter) out.push(p); }); }); return out; } };
 
   /* --------------------------------------------------------------------------------------------- page */
   function VuePortefeuille(conteneur, ctx) {
@@ -216,7 +259,7 @@
     var codes = AMX.codesPour ? AMX.codesPour('inventaire') : [];
     this.cie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
     if (!this.cie) this.cie = codes[0] || 'STM';
-    this.f = { q: p.q || '', etat: 'actif', relation: '', consent: '', segment: p.segment || '' };
+    this.f = { q: p.q || '', etat: 'actif', relation: '', consent: '', segment: p.segment || '', page: p.page || '' };
     AMX.vider(conteneur);
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnRebatir = h('button.btn', { type: 'button', text: 'Rebâtir maintenant', title: 'Relit toutes les sources tout de suite (sinon chaque nuit après 3 h)', onclick: function () { self.charger('frais'); } });
@@ -243,11 +286,12 @@
     document.addEventListener('amx:compagnie', this.surCie);
     this.surOl = function () { if (!self.detruit && self.rep) self.planifier(); };
     document.addEventListener('amx:openlane', this.surOl);
+    document.addEventListener('amx:pagesOffre', this.surOl);
     if (AMX.openlane && AMX.openlane.charger) AMX.openlane.charger().then(this.surOl).catch(function () {});
     this.charger();
   }
-  VuePortefeuille.prototype.demonter = function () { this.detruit = true; this.arreterSync = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:openlane', this.surOl); };
-  VuePortefeuille.prototype.naviguer = function (ctx) { var p = (ctx && ctx.params) || {}; if (p.segment !== undefined) { this.f.segment = p.segment; this.rafraichir(); } };
+  VuePortefeuille.prototype.demonter = function () { this.detruit = true; this.arreterSync = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:openlane', this.surOl); document.removeEventListener('amx:pagesOffre', this.surOl); };
+  VuePortefeuille.prototype.naviguer = function (ctx) { var p = (ctx && ctx.params) || {}, chg = false; if (p.segment !== undefined) { this.f.segment = p.segment; chg = true; } if (p.page !== undefined) { this.f.page = p.page; chg = true; } if (chg) this.rafraichir(); };
   VuePortefeuille.prototype.planifier = function () { var self = this; clearTimeout(this.minuterie); this.minuterie = setTimeout(function () { if (!self.detruit) self.rafraichir(); }, 250); };
 
   VuePortefeuille.prototype.charger = function (force) {
@@ -255,6 +299,7 @@
     this.elSous.textContent = force === 'frais' ? 'Relecture de toutes les sources… (jusqu\'à une minute)' : 'Chargement du portefeuille…';
     var copie = !force && cache.par[cie] ? cache.par[cie].rep : null;
     if (copie) { this.rep = copie; this.rendre(); }
+    chargerPages(cie, !!force);
     return charger(cie, force).then(function (d) {
       if (self.detruit || cie !== self.cie) return;
       self.rep = d; self.rendre();
@@ -270,9 +315,9 @@
     var self = this;
     this.inRecherche = h('input.saisie.recherche', { type: 'search', placeholder: 'Client, téléphone, NIV, modèle, conseiller…', value: this.f.q });
     this.inRecherche.addEventListener('input', AMX.debounce ? AMX.debounce(function () { self.f.q = self.inRecherche.value; self.limite = 150; self.rafraichir(); }, 200) : function () { self.f.q = self.inRecherche.value; self.rafraichir(); });
-    this.elEtats = h('div.ptf-pastilles'); this.elRelations = h('div.ptf-pastilles'); this.elConsent = h('div.ptf-pastilles');
+    this.elEtats = h('div.ptf-pastilles'); this.elRelations = h('div.ptf-pastilles'); this.elConsent = h('div.ptf-pastilles'); this.elPages = h('div.ptf-pastilles');
     this.elFiltres.appendChild(h('div.ptf-filtres', [this.inRecherche]));
-    this.elFiltres.appendChild(this.elEtats); this.elFiltres.appendChild(this.elRelations); this.elFiltres.appendChild(this.elConsent);
+    this.elFiltres.appendChild(this.elEtats); this.elFiltres.appendChild(this.elRelations); this.elFiltres.appendChild(this.elConsent); this.elFiltres.appendChild(this.elPages);
   };
 
   VuePortefeuille.prototype.rendre = function () {
@@ -317,6 +362,7 @@
       if (f.consent === 'nonJoignable' && joignable(v)) return false;
     }
     if (sauf !== 'segment' && f.segment && a.segments.indexOf(f.segment) < 0) return false;
+    if (sauf !== 'page' && f.page) { var ep = etatPage(pagesDe(this.cie, v.cle)); if (f.page === 'aucune' ? !!ep : (!ep || ep.cle !== f.page)) return false; }
     if (sauf !== 'q' && f.q) {
       var c = v.client || {};
       if (!AMX.correspond([c.nom, c.telephone, c.courriel, c.ville, c.noClient, v.vin, vehiculeTexte(v), v.achat && v.achat.conseiller, v.contrat && v.contrat.compte, v.plaque], f.q)) return false;
@@ -331,14 +377,18 @@
     this.pastilles(this.elEtats, 'État', 'etat', [['actif', NOMS_ETAT.actif], ['echange', NOMS_ETAT.echange], ['chezNous', NOMS_ETAT.chezNous], ['', 'Tous']], function (a, k) { return !k || a.v.etat === k; });
     this.pastilles(this.elRelations, 'Relation', 'relation', [['', 'Toutes'], ['vente', NOMS_RELATION.vente], ['venteService', NOMS_RELATION.venteService], ['service', NOMS_RELATION.service], ['evaluation', NOMS_RELATION.evaluation]], function (a, k) { return !k || a.v.relation === k; });
     this.pastilles(this.elConsent, 'Consentement', 'consent', [['', 'Tous'], ['joignable', 'Joignables (LCAP)'], ['offres', 'Offres personnalisées OK'], ['nonJoignable', 'Pas joignables']], function (a, k) { return !k || (k === 'joignable' ? joignable(a.v) : (k === 'offres' ? offresOk(a.v) : !joignable(a.v))); });
+    var repPages = pages.par[this.cie] ? pages.par[this.cie].rep : null;
+    if (repPages && (repPages.pages.length || this.f.page)) this.pastilles(this.elPages, 'Page client', 'page', [['', 'Toutes'], ['aTraiter', 'Réponses à traiter'], ['vue', 'Vues'], ['envoyee', 'Pas encore vues'], ['refus', 'Ne plus recevoir'], ['aucune', 'Sans page']], function (a, k) { var e = etatPage(pagesDe(self.cie, a.v.cle)); return !k || (k === 'aucune' ? !e : (e && e.cle === k)); });
+    else AMX.vider(this.elPages);
     var liste = this.filtrees();
     var filtres = [];
     if (this.f.etat) filtres.push(NOMS_ETAT[this.f.etat]);
     if (this.f.relation) filtres.push(NOMS_RELATION[this.f.relation]);
     if (this.f.consent) filtres.push({ joignable: 'Joignables', offres: 'Offres OK', nonJoignable: 'Pas joignables' }[this.f.consent]);
     if (this.f.segment) filtres.push(NOM_SEGMENT[this.f.segment]);
+    if (this.f.page) filtres.push({ aTraiter: 'Réponses à traiter', vue: 'Pages vues', envoyee: 'Pages pas encore vues', refus: 'Ne plus recevoir', aucune: 'Sans page client' }[this.f.page]);
     if (this.f.q) filtres.push('« ' + this.f.q + ' »');
-    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['véhicule', 'véhicules'], contexte: AMX.COMPAGNIES_TOUTES[this.cie] || this.cie, filtres: filtres, effacer: function () { self.f = { q: '', etat: 'actif', relation: '', consent: '', segment: '' }; self.inRecherche.value = ''; self.rafraichir(); } });
+    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['véhicule', 'véhicules'], contexte: AMX.COMPAGNIES_TOUTES[this.cie] || this.cie, filtres: filtres, effacer: function () { self.f = { q: '', etat: 'actif', relation: '', consent: '', segment: '', page: '' }; self.inRecherche.value = ''; self.rafraichir(); } });
     this.rendreChiffres(liste, params);
     this.rendreSegments(params);
     this.rendrePortrait(liste);
@@ -479,7 +529,7 @@
         h('td.num', [h('span', { text: a.valeur !== undefined ? AMX.fmtArgent(a.bas) + ' – ' + AMX.fmtArgent(a.haut) : '—' }), h('span.s', { text: a.valeur !== undefined ? 'OpenLane ' + AMX.fmtArgent(a.valeur) : '' })]),
         h('td.num', [h('span.ptf-eq' + (a.equite === undefined ? '' : (a.equite >= 0 ? '.plus' : '.moins')), { text: a.equite !== undefined ? AMX.fmtArgent(a.equite) : '—' }), h('span.s', { text: a.dette && a.dette.solde !== null ? 'dette ' + AMX.fmtArgent(a.dette.solde) : (v.contrat ? '' : 'dette inconnue') }), h('span.s', { text: v.contrat ? (v.contrat.typeContrat || '') + (a.finDans !== undefined && a.finDans !== null && a.finDans >= 0 ? ' · fin ' + dateAn(v.contrat.echeance) : '') : '' })]),
         h('td.ptf-offre-l', celluleOffre(a)),
-        h('td', [puceConsent(v)].concat(segs))
+        h('td', [puceConsent(v)].concat(puceTPage(pagesDe(self.cie, v.cle)), segs))
       ]));
     });
     this.elListe.appendChild(h('div.ptf-cadre', [h('table.tableau.ptf-table', [
@@ -519,8 +569,10 @@
       var zo = h('div.ptf-offres');
       a.offres.forEach(function (o) { zo.appendChild(carteOffre(o)); });
       corps.appendChild(zo);
-      corps.appendChild(h('p.doux.petit', { text: 'Paiements avec taxes (' + (d.offres ? String(d.offres.taxePct).replace('.', ',') : '') + ' %), échange au bas de la fourchette interne. Aucune offre n\'est envoyée d\'ici : la page client et les campagnes viendront ensuite.' }));
+      corps.appendChild(h('p.doux.petit', { text: 'Paiements avec taxes (' + (d.offres ? String(d.offres.taxePct).replace('.', ',') : '') + ' %), échange au bas de la fourchette interne. Rien n\'est envoyé d\'ici : préparez la page client ci-dessous et envoyez-lui le lien vous-même.' }));
     }
+    corps.appendChild(h('div.ptf-h', { text: 'Page client' }));
+    corps.appendChild(this.sectionPages(a));
     corps.appendChild(h('div.ptf-h', { text: 'Valeur et équité' }));
     var zoneVal = h('div');
     function dessinerValeur() {
@@ -540,6 +592,126 @@
     if (v.contrat && v.contrat.source !== 'dms') liens.appendChild(h('a.btn.petit', { href: AMX.lien('relance', 'equite', {}), text: 'Ouvrir dans Équité' }));
     corps.appendChild(liens);
     AMX.modale({ titre: (c.nom || 'Client inconnu') + ' — ' + vehiculeTexte(v), corps: corps, large: true, proteger: false });
+  };
+
+  function puceTPage(liste) { var e = etatPage(liste); return e ? [h('span.ptf-puce' + (e.ton ? '.' + e.ton : ''), { text: e.texte })] : []; }
+
+  /* --------------------------------------------------------------------------------------------- page client (PageOffre.gs) */
+  VuePortefeuille.prototype.sectionPages = function (a) {
+    var self = this, v = a.v, d = this.rep, z = h('div');
+    function dessiner() {
+      AMX.vider(z);
+      var x = pages.par[self.cie], rep = x ? x.rep : null, liste = pagesDe(self.cie, v.cle), k = v.consent || {};
+      if (!x) { z.appendChild(h('p.doux.petit', { text: 'Lecture des pages client…' })); return; }
+      if (!rep) { z.appendChild(h('p.doux.petit', { text: x.absent ? 'Le script n\'est pas à jour : déployez la version qui contient PageOffre.gs pour préparer des pages client.' : 'Pages client illisibles pour le moment.' })); return; }
+      liste.forEach(function (p) { z.appendChild(self.cartePage(p, function () { chargerPages(self.cie, true).then(dessiner); })); });
+      if (!liste.length) z.appendChild(h('p.doux.petit', { text: 'Aucune page client pour ce véhicule.' }));
+      if (k.lcap === 'refus') z.appendChild(h('p.doux.petit', { text: 'Ce client a refusé les offres (« Ne plus recevoir » ou STOP par texto) : pas de page client.' }));
+      else if (v.etat !== 'actif') z.appendChild(h('p.doux.petit', { text: 'Ce véhicule n\'est plus au client : pas de page client.' }));
+      else if (!(a.offres || []).length) z.appendChild(h('p.doux.petit', { text: 'Aucune offre calculée pour ce véhicule (stock semblable ou programme manquant) : pas de page client.' }));
+      else if (rep.peutCreer && d.contact) z.appendChild(h('button.btn.primaire.petit', { type: 'button', text: liste.length ? 'Préparer une autre page client' : 'Préparer la page client', onclick: function () { self.preparerPage(a, function () { chargerPages(self.cie, true).then(dessiner); }); } }));
+      else z.appendChild(h('p.doux.petit', { text: 'Préparer une page client demande l\'accès aux coordonnées des clients.' }));
+    }
+    dessiner();
+    if (!pages.par[this.cie]) chargerPages(this.cie).then(dessiner);
+    return z;
+  };
+  VuePortefeuille.prototype.cartePage = function (p, apres) {
+    var self = this;
+    var etat = p.etat === 'refus' ? ['rouge', 'Ne plus recevoir'] : (p.etat === 'retiree' ? ['', 'Lien retiré'] : (p.expiree ? ['', 'Lien expiré'] : (p.terminee ? ['ambre', 'Offre terminée'] : (p.vues ? ['bleu', 'Vue ' + p.vues + ' fois'] : ['', 'Pas encore vue']))));
+    var c = h('div.ptf-page' + (p.aTraiter ? '.atraiter' : ''));
+    c.appendChild(h('div.t', [h('b', { text: p.id + ' — préparée le ' + dateAn(p.creeLe) + (p.creeParNom ? ' par ' + p.creeParNom : '') }), h('span.ptf-puce' + (etat[0] ? '.' + etat[0] : ''), { text: etat[1] })]));
+    c.appendChild(h('div.doux.petit', { text: (p.offres || []).map(function (o) { return o.vehicule + ' · ' + AMX.fmtArgent(o.paiement) + ' / mois' + (o.avecEchange ? ' (≈ ' + AMX.fmtArgent(o.avecEchange) + ' avec l\'échange)' : ''); }).join(' — ') + (p.valideJusqua ? ' · valide jusqu\'au ' + dateAn(p.valideJusqua) : '') + (p.langue === 'en' ? ' · en anglais' : '') }));
+    if (p.premiereVue) c.appendChild(h('div.doux.petit', { text: 'Ouverte le ' + AMX.fmtDate(p.premiereVue, true) + (p.vues > 1 ? ' · dernière fois le ' + AMX.fmtDate(p.vuLe, true) : '') }));
+    (p.reponses || []).forEach(function (r) {
+      c.appendChild(h('div.rep', { text: AMX.fmtDate(r.le, true) + ' — le client ' + (REPONSES[r.geste] || r.geste) + (r.moment ? ' (' + { matin: 'le matin', apresMidi: 'l\'après-midi', soir: 'le soir' }[r.moment] + ')' : '') + (r.telephone ? ' · au ' + r.telephone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : '') + (r.note ? ' — « ' + r.note + ' »' : '') }));
+    });
+    if (p.traiteLe) c.appendChild(h('div.doux.petit', { text: 'Pris en charge le ' + AMX.fmtDate(p.traiteLe, true) + (p.traitePar ? ' par ' + p.traitePar : '') + (p.traiteNote ? ' — ' + p.traiteNote : '') }));
+    (p.avertissements || []).forEach(function (t) { c.appendChild(h('div.av', { text: '⚠ ' + t })); });
+    var acts = h('div.acts'), actif = p.etat === 'active' && !p.expiree;
+    if (p.aTraiter) acts.appendChild(h('button.btn.primaire.petit', { type: 'button', text: 'Pris en charge…', onclick: function () {
+      var note = h('textarea.saisie', { rows: 3, placeholder: 'Ce qui a été fait (rappelé, essai réservé le…, évaluation prévue…)' });
+      AMX.modale({ titre: 'Réponse prise en charge — ' + p.id, corps: h('div', [h('p.doux', { text: 'La réponse quitte la liste « à traiter ». Une nouvelle réponse du client la ramène.' }), note]), boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+        return AMX.post({ action: 'offreClientTraiter', id: p.id, note: note.value.trim() }).then(function (r) { if (!r || !r.ok) throw new Error((r && r.erreur) || 'Non enregistré.'); AMX.toast('Réponse prise en charge.', 'ok'); apres(); }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); throw e; });
+      } }] });
+    } }));
+    if (p.lien && actif) {
+      acts.appendChild(h('button.btn.petit', { type: 'button', text: 'Copier le lien', onclick: function () { AMX.copier(p.lien, 'Lien copié : envoyez-le au client vous-même.'); } }));
+      acts.appendChild(h('a.btn.petit', { href: p.lien + '&apercu=1', target: '_blank', rel: 'noopener', text: 'Aperçu', title: 'Ouvre la page comme le client la voit (l\'aperçu ne compte pas comme une vue)' }));
+      acts.appendChild(h('button.btn.petit.fantome', { type: 'button', text: 'Retirer le lien', onclick: function () {
+        AMX.confirmer('Retirer le lien ' + p.id + ' ?', 'La page ne s\'ouvrira plus (par exemple si le véhicule offert est vendu). Le client verra « Offre retirée ».', { ok: 'Retirer', danger: true }).then(function (oui) {
+          if (!oui) return;
+          AMX.post({ action: 'offreClientRetirer', id: p.id }).then(function (r) { if (!r || !r.ok) throw new Error((r && r.erreur) || 'Non retiré.'); AMX.toast('Lien retiré.', 'ok'); apres(); }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+        });
+      } }));
+    }
+    if (acts.childNodes.length) c.appendChild(acts);
+    return c;
+  };
+  /** Préparer la page client : les offres à montrer, le mot du conseiller, la langue. Rien n'est envoyé : on copie le lien. */
+  VuePortefeuille.prototype.preparerPage = function (a, apres) {
+    var self = this, v = a.v, c = v.client || {}, k = v.consent || {}, corps = h('div.ptf-prep');
+    var choisies = {}, offres = (a.offres || []).slice(0, 5);
+    offres.filter(function (o) { return o.statut === 'prete'; }).slice(0, 3).forEach(function (o) { choisies[o.vin] = true; });
+    if (!Object.keys(choisies).length && offres[0]) choisies[offres[0].vin] = true;
+    var avis = [];
+    if (k.lcap === 'echu' || k.lcap === 'inconnu' || !k.lcap) avis.push('Consentement LCAP ' + (k.lcap === 'echu' ? 'échu' : 'inconnu') + ' : envoyez ce lien seulement si le client vous l\'a demandé.');
+    if (k.loi25 && k.offres !== 'oui') avis.push('Québec (Loi 25) : pas de consentement distinct aux offres personnalisées. Présentez la page comme une réponse à sa demande, ou obtenez son accord d\'abord.');
+    if (k.ndnc) avis.push('« Ne pas téléphoner » : ne l\'appelez pas sans qu\'il le demande.');
+    avis.forEach(function (t) { corps.appendChild(h('div.avis', { text: t })); });
+    corps.appendChild(h('div.ptf-h', { text: 'Offres à montrer (3 au plus)' }));
+    var zoneOffres = h('div'); corps.appendChild(zoneOffres);
+    var avecEchange = h('input', { type: 'checkbox', checked: true });
+    var ligneEchange = h('label.case', { style: { display: 'flex', gap: '8px', alignItems: 'flex-start', margin: '8px 0' } }, [avecEchange, h('span', { text: 'Montrer aussi le paiement « avec votre véhicule actuel en échange » (une estimation : ni la valeur d\'échange ni la dette ne sont affichées)' })]);
+    function dessinerOffres() {
+      AMX.vider(zoneOffres);
+      offres.forEach(function (o) {
+        var cb = h('input', { type: 'checkbox', checked: !!choisies[o.vin] });
+        var lab = h('label.offre-choix' + (choisies[o.vin] ? '.actif' : ''), [cb, h('div', [
+          h('b', { text: o.vehicule + (o.stock ? ' · # ' + o.stock : '') }),
+          h('div.doux.petit', { text: (o.type === 'location' ? 'Location ' : 'Financement ') + o.terme + ' mois à ' + String(o.taux).replace('.', ',') + ' % · ' + AMX.fmtArgent(o.paiement) + ' / mois avec l\'échange' + (o.ecart !== null && o.ecart !== undefined ? ' (' + (o.ecart > 0 ? '+' : '') + AMX.fmtArgent(o.ecart) + ' vs aujourd\'hui)' : '') }),
+          (o.raisons || []).length ? h('div.r', { text: o.raisons.join(' · ') }) : null
+        ])]);
+        cb.addEventListener('change', function () {
+          if (cb.checked && Object.keys(choisies).length >= 3) { cb.checked = false; AMX.toast('Trois offres au plus.', 'attention'); return; }
+          if (cb.checked) choisies[o.vin] = true; else delete choisies[o.vin];
+          dessinerOffres();
+        });
+        zoneOffres.appendChild(lab);
+      });
+      ligneEchange.style.display = offres.some(function (o) { return choisies[o.vin] && o.categorie === 'miseANiveau'; }) ? '' : 'none';
+    }
+    dessinerOffres();
+    corps.appendChild(ligneEchange);
+    var prenom = String(c.nom || '').indexOf(',') > 0 ? String(c.nom).split(',')[1].trim().split(' ')[0] : String(c.nom || '').split(' ')[0];
+    prenom = prenom ? prenom.charAt(0).toUpperCase() + prenom.slice(1).toLowerCase() : '';
+    var langue = h('select.saisie', [h('option', { value: 'fr', text: 'Français' }), h('option', { value: 'en', text: 'Anglais (seulement si le client l\'a demandé)' })]);
+    langue.value = c.langue === 'en' ? 'en' : 'fr';
+    var message = h('textarea.saisie', { rows: 4 });
+    function messageType() { return langue.value === 'en'
+      ? 'Hello' + (prenom ? ' ' + prenom : '') + ', here are a few vehicles from our inventory that could replace your ' + [v.marque, v.modele].filter(Boolean).join(' ') + '. I am available for any questions.'
+      : 'Bonjour' + (prenom ? ' ' + prenom : '') + ', voici quelques véhicules de notre inventaire qui pourraient remplacer votre ' + [v.marque, v.modele].filter(Boolean).join(' ') + '. Je reste disponible pour vos questions.'; }
+    message.value = messageType();
+    var touche = false; message.addEventListener('input', function () { touche = true; });
+    langue.addEventListener('change', function () { if (!touche) message.value = messageType(); });
+    corps.appendChild(h('div.ptf-h', { text: 'Votre mot au client' }));
+    corps.appendChild(message);
+    corps.appendChild(h('label', { style: { display: 'block', marginTop: '8px' } }, [h('span.doux.petit', { text: 'Langue de la page ' }), langue]));
+    corps.appendChild(h('p.doux.petit', { text: 'La page montre le prix total d\'abord, tout le détail du crédit et les mentions de ' + (k.loi25 ? 'la Loi sur la protection du consommateur (Québec)' : 'l\'OMVIC (Ontario)') + '. Elle est figée maintenant : le client verra exactement ces chiffres. Rien n\'est envoyé : vous copiez le lien et l\'envoyez vous-même.' }));
+    var m = AMX.modale({ titre: 'Page client — ' + (c.nom || 'client') + ' — ' + vehiculeTexte(v), corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Préparer la page', classe: 'primaire', action: function () {
+      var vins = offres.filter(function (o) { return choisies[o.vin]; }).map(function (o) { return o.vin; });
+      if (!vins.length) { AMX.toast('Choisissez au moins une offre.', 'attention'); return false; }
+      return AMX.post({ action: 'offreClientCreer', compagnie: self.cie, cle: v.cle, vins: vins, message: message.value.trim(), langue: langue.value, avecEchange: avecEchange.checked }, { secours: false }).then(function (r) {
+        if (!r || !r.ok || !r.page) throw new Error((r && r.erreur) || (r && !r.page && r.ok ? 'Le script n\'est pas à jour : déployez la version qui contient PageOffre.gs.' : 'Page non préparée.'));
+        apres();
+        var cp = h('div.ptf-prep', [h('p', { text: 'La page ' + r.page.id + ' est prête. Envoyez ce lien au client vous-même (texto, courriel) :' }), h('div.lien', { text: r.page.lien })].concat((r.avertissements || []).map(function (t) { return h('div.avis', { text: t }); })));
+        AMX.modale({ titre: 'Page client prête', corps: cp, proteger: false, boutons: [
+          { texte: 'Aperçu', action: function () { window.open(r.page.lien + '&apercu=1', '_blank', 'noopener'); return false; } },
+          { texte: 'Copier le lien', classe: 'primaire', action: function () { AMX.copier(r.page.lien, 'Lien copié.'); } }
+        ] });
+      }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); throw e; });
+    } }] });
+    return m;
   };
 
   function carteOffre(o) {
@@ -812,7 +984,7 @@
     corps.appendChild(h('div.grille', [
       champ('tauxFinancement', 'Taux financement neuf (%)'), champ('termeFinancement', 'Terme financement neuf (mois)'),
       champ('tauxOccasion', 'Taux financement occasion (%)'), champ('termeOccasion', 'Terme occasion (mois)'),
-      champ('tauxLocation', 'Taux location (%)'), champ('termeLocation', 'Terme location (mois)'), champ('residuelPct', 'Résiduel location (% du PDSF)'), champ('kmAnLocation', 'Km par an (location)'),
+      champ('tauxLocation', 'Taux location (%)'), champ('termeLocation', 'Terme location (mois)'), champ('residuelPct', 'Résiduel location (% du PDSF)'), champ('kmAnLocation', 'Km par an (location)'), champ('kmExcedent', 'Km excédentaire ($ / km)', 'montré au client sur la page d\'une location ; 0 = « précisé au contrat »'),
       champ('fraisOffre', 'Frais ajoutés au prix ($)', 'administration, préparation…'), champ('comptantOffre', 'Comptant ($)'),
       champ('margePaiement', 'Paiement semblable : au plus ($ de plus par mois)'), champ('offresParVehicule', 'Offres par véhicule (1 à 5)'),
       champ('occasionAnsMax', 'Occasion offerte : au plus (ans)'), champ('detteNulleApresAns', 'Sans contrat connu : payé après (ans)')

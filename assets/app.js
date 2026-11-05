@@ -766,7 +766,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
-    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); if (AMX.portefeuille) AMX.portefeuille.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -957,6 +957,7 @@
     ] },
     { id: 'relance', titre: 'Relance', icone: 'relance', ordre: 30, onglets: [
       { id: 'equite', titre: 'Équité', visible: function () { return !!(AMX.relance && AMX.equite); }, monter: function (c, ctx) { return AMX.relance.equite(c, ctx); }, vues: [{ id: 'clients', titre: 'Clients' }, { id: 'import', titre: 'Importer le portefeuille', de: 'outils', onglet: 'equite' }] },
+      { id: 'portefeuille', titre: 'Portefeuille clients', de: 'portefeuille', onglet: '' },   /* 5 nov. : portefeuille façon Drive AI (portefeuille.js, Portefeuille.gs) */
       { id: 'leads', titre: 'Leads', de: 'offres', onglet: 'leads' },
       { id: 'avis', titre: 'Avis Google', de: 'avis', vues: [{ id: 'apercu', titre: 'Aperçu' }, { id: 'avis', titre: 'Avis' }, { id: 'sondages', titre: 'Sondages' }] },
       { id: 'csi', titre: 'CSI', de: 'csi', onglet: '' }
@@ -1018,11 +1019,11 @@
      ci-dessous ne sert que si le serveur n'est pas encore à jour. « tuile/* » = tous les onglets de la tuile. Les autres
      rôles (direction, gestionnaire, admin, propriétaire) n'ont rien de caché par le rôle : leurs droits décident. */
   var ONGLETS_CACHES_ROLE = {
-    vendeur: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'service/rendezvous', 'service/texto', 'outils/*'],
+    vendeur: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
     bdc: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'service/suivi', 'service/texto', 'outils/*'],
-    service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/leads', 'outils/*'],
-    marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'service/rendezvous', 'service/texto', 'outils/*'],
-    utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*']
+    service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'outils/*'],
+    marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
+    utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*']
   };
   AMX.ONGLETS_CACHES_ROLE = ONGLETS_CACHES_ROLE;
   function cleDansListe(liste, cle) {

@@ -63,6 +63,9 @@
     { id: 'gmf', nom: 'DealerSource', sous: 'GM Financial', ico: 'gmf', etat: 'gmf', marques: ['CHEVROLET', 'GMC', 'BUICK', 'CADILLAC'], defaut: ['STM', 'HAWKS'] },
     { id: 'manheim', nom: 'Manheim', sous: 'BMW Financial Services', ico: 'mh', etat: 'manheim', marques: ['BMW', 'MINI'], defaut: ['BMW'] }
   ];
+  /* 5 nov. (Maxime : « importe tous les véhicules disponibles à l'achat sans exception ») : une place de marché choisie dans
+     les icônes montre tout ce qui y est à vendre, quelle que soit la vue. */
+  function estFavori(s) { return s === 'gmf' || s === 'manheim'; }
   function sourceDe(o) { if (estParticulier(o)) return 'particulier'; if (SITES_ANNONCES[o.source]) return 'sites'; if (o.source === 'gmf' || o.source === 'manheim') return o.source; return 'marketcheck'; }
   /* Une ancienne recherche gardée peut viser un seul site (« kijiji ») : c'est l'icône « Sites d'annonces ». */
   function sourceFiltre(s) { return SITES_ANNONCES[s] ? 'sites' : (s || ''); }
@@ -516,6 +519,7 @@
     }
     if (sauf === 'vue' || f.vue === 'toutes') return base;
     if (f.vue === 'bons') return base.filter(function (o) { return self.estOpp(o) || o.statut === 'suivie'; });
+    if (estFavori(sourceFiltre(f.source))) return base;   // place de marché : tout ce qui est à vendre
     var pp = d.params || {}, top = nb(pp.topParMarque) ? pp.topParMarque : 20, cap = nb(pp.parModeleTop) ? pp.parModeleTop : 3, marge = pp.marge || 0, par = {}, garder = [];
     base.forEach(function (o) { var m = String(o.marque || '').toUpperCase(); (par[m] = par[m] || []).push(o); });
     // 24 oct. (Maxime : « les 15 BMW qui sortent sont des X3 ») : au plus `parModeleTop` d'un même modèle d'abord, puis la marque
@@ -581,7 +585,7 @@
     var p = d.params || {};
     // Une ligne courte : ce que l'outil cherche et la fraîcheur ; le détail est dans les pastilles des sources.
     this.elEtat.textContent = (this.copieLe ? 'Copie du ' + AMX.copieTexte(this.copieLe) + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : ' — mise à jour en cours…') + ' · ' : '') +
-      'Véhicules ' + p.anneeMin + ' et plus, ' + AMX.fmtNombre(p.kmMax) + ' km au plus, partout au Canada, comparés au gros OpenLane (transport compris).';
+      'Véhicules ' + p.anneeMin + ' et plus, ' + AMX.fmtNombre(p.kmMax) + ' km au plus, partout au Canada (Manheim et DealerSource : tout ce qui est à vendre), comparés au gros OpenLane (transport compris).';
     this.rendreSources();
     this.rendreOnglets();
     // Provinces présentes
@@ -884,7 +888,7 @@
     this.btnPlus.classList.toggle('actif', nP > 0);
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['annonce', 'annonces'], contexte: [this.compagnie ? 'transport vers ' + (COURTS[this.compagnie] || this.compagnie) : (f.groupe === 'autres' ? 'concession la plus proche' : 'concession la plus avantageuse'),
         f.groupe === 'autres' ? (f.vue === 'bons' ? 'autres marques · bons achats' : 'autres marques · les ' + (p.autresTop || 50) + ' meilleures, ' + AMX.fmtArgent(p.autresPrixMax || 60000) + ' au plus') :
-        (f.vue === 'top' ? 'bons achats + ' + ((p.topParMarque || 20)) + ' meilleures par marque' : (f.vue === 'bons' ? 'bons achats (prix ≤ gros OpenLane)' : 'toutes les annonces'))],
+        (f.vue === 'top' ? (estFavori(sourceFiltre(f.source)) ? 'tout ce qui est à vendre sur ' + nomSource(f.source) : 'bons achats + ' + ((p.topParMarque || 20)) + ' meilleures par marque') : (f.vue === 'bons' ? 'bons achats (prix ≤ gros OpenLane)' : 'toutes les annonces'))],
       filtres: actifs, effacer: function () { var v = f.vue, t = f.tri, g = f.groupe; self.f = self.filtresDefaut(); self.f.vue = v; self.f.tri = t; self.f.groupe = g; self.f.modeles = { mode: 'exclure', liste: [], noms: {} }; AMX.memo.ecrire('occ_modeles', ''); self.elQ.value = ''; self.rendre(); } });
     // Chaque filtre de « Chiffres et liste » devient une puce qu'on retire d'un clic.
     [].forEach.call(this.elPortee.querySelectorAll('span.filtre'), function (sp, i) {
@@ -900,7 +904,7 @@
       if (nAutres) this.elPortee.appendChild(h('div.occ-autres', [h('span', { text: AMX.fmtNombre(nAutres) + ' annonce' + (nAutres > 1 ? 's' : '') + ' d\'autres marques (' + Object.keys(autres).sort().join(', ') + ') : ' + (COURTS[this.compagnie] || this.compagnie) + ' ne les vend pas.' }),
         h('button.btn.petit#occ-toutes-cies', { type: 'button', text: 'Voir toutes les concessions', onclick: function () { AMX.choisirCompagnie(''); self.compagnie = ''; self.rendre(); } })]));
     }
-    this.majSync(liste);
+    this.majSync(this.filtrer('vue'));
     this.rendreCouverture();
     this.rendreKpis(liste, p);
     this.rendreListe(liste, p);
@@ -926,7 +930,8 @@
     if (f.source && !appl.some(function (s) { return s.id === sourceFiltre(f.source); })) f.source = '';
     var etats = {}; this.sourcesEtat().forEach(function (x) { etats[x.id] = x; });
     var pour = this.filtrer('source'), par = {};
-    pour.forEach(function (o) { var k = sourceDe(o); par[k] = (par[k] || 0) + 1; });
+    pour.forEach(function (o) { var k = sourceDe(o); if (!estFavori(k) || f.vue !== 'top') par[k] = (par[k] || 0) + 1; });
+    if (f.vue === 'top') this.filtrerBase('source').forEach(function (o) { var k = sourceDe(o); if (estFavori(k)) par[k] = (par[k] || 0) + 1; });
     var actif = sourceFiltre(f.source);
     AMX.vider(el);
     var bouton = function (id, nom, sous, ico, n, etat) {
@@ -1011,7 +1016,7 @@
       h('b.' + (k.suspect ? 'neutre' : (k.sousGros ? 'pos.opp' : 'neg')), { text: k.suspect ? 'à vérifier' : (k.sousGros ? (k.ecartGros ? argent(k.ecartGros) + ' sous le gros' : 'au prix du gros') : argent(-k.ecartGros) + ' au-dessus'), title: 'Prix demandé comparé à la prévision de gros OpenLane' }),
       h('div.mini', { text: 'OpenLane ' + argent(num(o.olPrix)) }),
       h('div.mini.' + (k.suspect ? 'neutre' : ton(k.profitGros)), { text: 'rendu chez nous ' + signe(k.profitGros), title: 'Prévision OpenLane − (prix + transport + frais)' })]
-      : [h('span.doux', { text: o.olErreur ? (Number(o.annee) >= new Date().getFullYear() ? 'trop récent pour OpenLane' : 'pas de prévision') : 'prévision à lire' })]);
+      : [h('span.doux', { text: o.olErreur ? (o.olErreur === 'pas de prévision' ? (Number(o.annee) >= new Date().getFullYear() ? 'trop récent pour OpenLane' : 'pas de prévision') : 'OpenLane : à relire') : (!nb(num(o.km)) ? 'km inconnu (OpenLane)' : (num(o.km) < 1000 ? 'moins de 1 000 km (OpenLane)' : 'prévision à lire')) })]);
     var det = h('div.occ-det', nb(k.achatMax) ? [h('div', [h('b', { text: argent(k.achatMax) })]),
       h('div.mini', { text: 'marché ' + argent(k.refAjuste) + (k.plafonne ? ' (plafonné)' : ''), title: k.plafonne ? 'Gros OpenLane + ' + (p.detailMaxSurOl || 15) + ' % (marché ' + argent(k.refMarche) + ', toutes versions)' : 'Prix médian du ' + o.annee + ' ' + o.marque + ' ' + o.modele + ' au Canada (' + (o.refN || '?') + ' annonces, toutes versions), ajusté au km' })]
       : [h('span.doux', { text: '—' })]);
@@ -1054,30 +1059,53 @@
     AMX.modale({ titre: 'Note — ' + vehicule(o), corps: zone, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () { return self.statut(o, o.statut || '', zone.value.trim()); } }] });
     setTimeout(function () { zone.focus(); }, 50);
   };
-  /* 3 nov. (Maxime : « un bouton d'une autre couleur pour synchroniser les valeurs, pour ne pas voir « prévision à lire » mais
-     les valeurs instantanément ») : « Synchroniser les valeurs » lit tout de suite la prévision OpenLane des annonces de la
-     liste affichée qui n'en ont pas encore (au lieu d'attendre les passages de l'horloge), 40 par appel, 240 au plus par clic. */
-  function aSynchroniser(o) { var k = num(o.km); return !nb(num(o.olPrix)) && !o.olErreur && o.statut !== 'ecartee' && o.statut !== 'achetee' && nb(k) && k >= 1000; }
+  /* 3 nov. (Maxime : « un bouton d'une autre couleur pour synchroniser les valeurs ») puis 5 nov. (« un bouton en haut pour
+     synchroniser avec OpenLane, même chose pour les autres marques ») : « Synchroniser OpenLane », en haut de la page, lit la
+     prévision de gros OpenLane de toutes les annonces des filtres choisis (source, marque, recherche… — pas seulement la vue)
+     qui n'en ont pas, dont la prévision a plus de 7 jours, dont le km a bougé de plus de 2 000, ou dont la lecture a échoué.
+     40 par appel, jusqu'au bout ; un 2e clic arrête. OpenLane ne prévoit rien sous 1 000 km. */
+  var OL_FRAIS_J = 7, OL_ECART_KM = 2000;
+  function aSynchroniser(o) {
+    var k = num(o.km);
+    if (o.statut === 'ecartee' || o.statut === 'achetee' || !nb(k) || k < 1000) return false;
+    if (o.olErreur && o.olErreur !== 'pas de prévision') return true;               // échec de lecture : réessayer
+    if (!o.olLe) return true;
+    var olKm = num(o.olKm);
+    if (ageJ(o.olLe) >= OL_FRAIS_J || (nb(olKm) && Math.abs(olKm - k) > OL_ECART_KM)) return true;
+    return !nb(num(o.olPrix)) && !o.olErreur;
+  }
   Opportunites.prototype.majSync = function (liste) {
     if (this.syncEnCours) return;
-    this.listeSync = (liste || []).filter(aSynchroniser).map(function (o) { return o.vin; });
-    var n = this.listeSync.length, b = this.btnSync;
+    var l = (liste || []).filter(aSynchroniser);
+    // Les plus utiles d'abord : sans valeur, puis les ventes qui finissent bientôt, puis les plus vieilles valeurs.
+    l.sort(function (x, y) {
+      var vx = nb(num(x.olPrix)) ? 1 : 0, vy = nb(num(y.olPrix)) ? 1 : 0; if (vx !== vy) return vx - vy;
+      var fx = x.finVente ? new Date(x.finVente).getTime() : Infinity, fy = y.finVente ? new Date(y.finVente).getTime() : Infinity;
+      if (fx !== fy) return (isFinite(fx) ? fx : 9e15) - (isFinite(fy) ? fy : 9e15);
+      return String(x.olLe || '').localeCompare(String(y.olLe || ''));
+    });
+    this.listeSync = l.map(function (o) { return o.vin; });
+    var n = this.listeSync.length, b = this.btnSync, sans = l.filter(function (o) { return !nb(num(o.olPrix)); }).length;
     b.disabled = !n; b.classList.toggle('a-jour', !n);
-    b.innerHTML = I.rafraichir + '<span>' + (n ? 'Synchroniser les valeurs' : 'Valeurs à jour') + '</span>' + (n ? '<b>' + AMX.fmtNombre(n) + '</b>' : '');
-    b.title = n ? AMX.fmtNombre(n) + ' annonce' + (n > 1 ? 's' : '') + ' de la liste sans prévision OpenLane : lire leur valeur de gros maintenant' : 'Toutes les annonces de la liste ont leur prévision OpenLane';
+    b.innerHTML = I.rafraichir + '<span>' + (n ? 'Synchroniser OpenLane' : 'OpenLane à jour') + '</span>' + (n ? '<b>' + AMX.fmtNombre(n) + '</b>' : '');
+    b.title = n ? AMX.fmtNombre(n) + ' annonce' + (n > 1 ? 's' : '') + ' à lire chez OpenLane' + (sans ? ' (' + AMX.fmtNombre(sans) + ' sans valeur)' : '') + ' pour les filtres choisis — les valeurs de gros arrivent dans la liste à mesure'
+      : 'Toutes les annonces des filtres choisis ont une prévision OpenLane de moins de 7 jours';
   };
   Opportunites.prototype.synchroniser = function () {
-    var self = this, d = this.donnees, vins = (this.listeSync || []).slice(0, 240), total = vins.length, faits = 0, avec = 0, sans = 0;
-    if (!total || this.syncEnCours || !d) return;
+    var self = this, d = this.donnees, vins = (this.listeSync || []).slice(), total = vins.length, faits = 0, avec = 0, sans = 0;
+    if (this.syncEnCours) { this.syncArret = true; this.btnSync.innerHTML = I.rafraichir + '<span>Arrêt après ce lot…</span>'; return; }
+    if (!total || !d) return;
     var b = this.btnSync, parVin = {};
     (d.occasions || []).forEach(function (o) { parVin[o.vin] = o; });
-    this.syncEnCours = true; b.classList.add('occupe'); b.disabled = true;
-    var texte = function () { b.innerHTML = I.rafraichir + '<span>Synchronisation… ' + AMX.fmtNombre(faits) + ' / ' + AMX.fmtNombre(total) + '</span>'; };
+    this.syncEnCours = true; this.syncArret = false; b.classList.add('occupe'); b.disabled = false;
+    b.title = 'Cliquez pour arrêter';
+    var texte = function () { if (!self.syncArret) b.innerHTML = I.rafraichir + '<span>OpenLane… ' + AMX.fmtNombre(faits) + ' / ' + AMX.fmtNombre(total) + '</span><b>Arrêter</b>'; };
     var bilan = function () { return AMX.fmtNombre(faits) + ' valeur' + (faits > 1 ? 's' : '') + ' lue' + (faits > 1 ? 's' : '') + ' chez OpenLane : ' + AMX.fmtNombre(avec) + ' avec une prévision' + (sans ? ', ' + AMX.fmtNombre(sans) + ' sans prévision' : '') + '.'; };
-    var fin = function (msg, type) { self.syncEnCours = false; b.classList.remove('occupe'); if (msg) AMX.toast(msg, type || 'ok', 9000); self.charger(true, true); };
+    var fin = function (msg, type) { self.syncEnCours = false; self.syncArret = false; b.classList.remove('occupe'); if (msg) AMX.toast(msg, type || 'ok', 9000); self.charger(true, true); };
     texte();
     var suite = function (reste) {
       if (!reste.length) { fin(bilan()); return; }
+      if (self.syncArret) { fin(bilan() + ' Arrêté : ' + AMX.fmtNombre(reste.length) + ' restent à lire.', 'attention'); return; }
       var lot = reste.slice(0, 40);
       AMX.post({ action: 'occasionOpenlane', vins: lot }, { delai: 300000, secours: false }).then(function (r) {
         if (r && r.refuse) { fin(r.erreur || 'Refusé', 'erreur'); return; }

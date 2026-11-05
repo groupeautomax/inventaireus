@@ -41,7 +41,7 @@
   function vehiculeTexte(r) { return [r.annee, r.marque, r.modele, r.version].filter(Boolean).join(' ') || r.modeleInventaire || r.vehicule || '—'; }
   function nomCie(code) { return (AMX.COMPAGNIES_TOUTES[code] || code || '').replace(' Chevrolet Buick Cadillac', ''); }
   function couleurCie(code) { return (AMX.COULEUR_COMPAGNIE && AMX.COULEUR_COMPAGNIE[code]) || 'gris'; }
-  function libelleSource(s) { return { inventaire: 'Inventaire', evaluation: 'Évaluation', manuel: 'Demandé' }[s] || s || ''; }
+  function libelleSource(s) { return { inventaire: 'Inventaire', evaluation: 'Évaluation', manuel: 'Demandé', occasion: 'Opportunité d\'achat', direct: 'Lu en direct' }[s] || s || ''; }
   function fourchette(a, b) { a = nombre(a); b = nombre(b); if (a === null && b === null) return '—'; if (a === null || b === null || a === b) return fmt(a === null ? b : a); return fmt(a) + ' – ' + fmt(b); }
   function milieu(a, b) { a = nombre(a); b = nombre(b); if (a === null) return b; if (b === null) return a; return Math.round((a + b) / 2); }
   /** Prix moyen des ventes ramené au km du véhicule (TAUX_KM $ / km) ; null sans ventes ou sans km. */
@@ -55,7 +55,7 @@
   function ecartTexte(e) { return e === null ? '—' : (e < 0 ? '−' : '+') + fmt(Math.abs(e)); }
   function ecartPct(r, e) { var c = nombre(r.cout); return e === null || !c ? '' : (e < 0 ? '−' : '+') + Math.round(Math.abs(e) / c * 100) + ' %'; }
   function badgeInventaire(r) {
-    if (!r.registre) return h('span.badge.sans-point.gris', { text: r.source === 'evaluation' ? 'Évaluation' : (r.source === 'manuel' ? 'Demandé' : 'Plus à l\'inventaire') });
+    if (!r.registre) return h('span.badge.sans-point.gris', { text: { evaluation: 'Évaluation', manuel: 'Demandé', occasion: 'Opportunité d\'achat' }[r.source] || 'Plus à l\'inventaire' });
     var s = AMX.statut(r.statutInventaire, r.registre);
     return h('span.badge.sans-point.' + s.couleur, { text: s.libelle + ' · ' + (r.registre === 'DETAIL' ? 'Detail' : (r.registre === 'CAN' ? 'Canada' : 'É.-U.')) });
   }
@@ -425,10 +425,22 @@
     opts = opts || {};
     vin = String(vin || '').trim().toUpperCase();
     var corps = h('div.ol-fiche');
-    corps.appendChild(h('div.doux', { text: 'Chargement des valeurs OpenLane…' }));
     var r0 = ligne || AMX.openlane.valeur(vin) || null;
     var titre = r0 && (r0.marque || r0.modeleInventaire) ? vehiculeTexte(r0) + (r0.stock ? ' — # ' + r0.stock : '') : 'Valeurs OpenLane';
     var modale = AMX.modale({ titre: titre, corps: corps, large: true, boutons: [{ texte: 'Fermer' }] });
+    AMX.openlaneDetail(corps, vin, ligne, opts);
+    return modale;
+  };
+  /** Le détail OpenLane d'un NIV (ventes comparables, prévision aujourd'hui et 30-60-90 jours) dessiné dans `corps` — la
+      fenêtre ci-dessus, ou la fiche d'une annonce d'Outils › Opportunités d'achat (5 nov.). opts = { km, source, compagnie,
+      liens (false = seulement le bouton de lecture), surValeur(r) (appelé quand une valeur lue est affichée) }. */
+  AMX.openlaneDetail = function (corps, vin, ligne, opts) {
+    injecterCss();
+    opts = opts || {};
+    vin = String(vin || '').trim().toUpperCase();
+    AMX.vider(corps);
+    corps.appendChild(h('div.doux', { text: 'Chargement des valeurs OpenLane…' }));
+    var r0 = ligne || AMX.openlane.valeur(vin) || null;
     var kmVoulu = opts.km !== undefined && nombre(opts.km) !== null ? nombre(opts.km) : null;
     var dejaLu = false;
     var afficher = function (r, f, message) {
@@ -443,6 +455,8 @@
         // Pas de session OpenLane côté site : dernier recours, Market guide avec le favori « Automax ← OpenLane ».
         lire = h('button.btn', { type: 'button', html: I.externe + '<span>Ouvrir OpenLane (favori)</span>', title: 'Le site n\'a pas de session OpenLane : ouvre Market guide avec ce NIV ; cliquez-y le favori « Automax ← OpenLane (valeurs) »', onclick: function (e) { var b = e.currentTarget; AMX.openlane.ouvrir(vin, r.km); b.classList.add('occupe'); AMX.openlane.demander(vin, r.km).then(function (x) { b.classList.remove('occupe'); AMX.toast(x && x.ok ? 'OpenLane ouvert : cliquez-y le favori « Automax ← OpenLane », puis Rafraîchir ici.' : ((x && x.erreur) || 'Refusé'), x && x.ok ? 'ok' : 'erreur', 7000); }, function (err) { b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(err), 'erreur'); }); } });
       }
+      if (r && r.luLe && typeof opts.surValeur === 'function') { try { opts.surValeur(r); } catch (e0) {} }
+      if (opts.liens === false) { if (lire) corps.appendChild(h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' } }, [lire])); return; }
       corps.appendChild(h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' } }, [
         lire,
         r.vehiculeId && r.registre ? h('a.btn', { href: AMX.lien('inventaire', r.registre.toLowerCase(), { vin: vin }), text: 'Voir à l\'inventaire' }) : null,
@@ -465,14 +479,13 @@
       AMX.get({ openlaneVin: vin }).then(function (d) {
         if (!d || !d.ok) throw new Error((d && d.erreur) || 'Valeurs indisponibles');
         if (d.direct !== undefined) directConnu = !!d.direct;
-        var r = d.valeur || r0 || { vin: vin }, f = d.detail || null;
+        var r = d.valeur || r0 || { vin: vin, source: opts.source || '' }, f = d.detail || null;
         // Jamais lu et le site tient une session OpenLane : on lit tout de suite, sans quitter le site.
         if (!r.luLe && !dejaLu && directConnu === true && peutDemander()) { lireDirect(r, false); return; }
         afficher(r, f, '');
       }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Valeurs indisponibles'), h('div', { text: AMX.erreurTexte(e) })])); });
     };
     charger();
-    return modale;
   };
 
   /* -------------------------------- Excel ------------------------------- */

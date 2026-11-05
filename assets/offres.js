@@ -73,6 +73,14 @@
   var PAYS = { CA: 'Canada', US: 'États-Unis', FR: 'France' };
   /* 15 oct. : destinations d'exportation (colonne AC des offres) — sans taxes canadiennes. */
   var EXPORTATIONS = { US: 'États-Unis', FR: 'France', XX: 'Autre pays' };
+  // 5 nov. : marchés du portail des acheteurs (colonne L de la feuille Vitrine) — l'acheteur ne voit que son pays.
+  var MARCHES = [['FR', 'France'], ['US', 'É.-U.'], ['CA', 'Canada']];
+  function marchesDe(p) { var m = (p && Array.isArray(p.marches) && p.marches.length) ? p.marches : ['CA']; return MARCHES.filter(function (x) { return m.indexOf(x[0]) >= 0; }); }
+  function libelleMarches(p) { return marchesDe(p).map(function (x) { return x[1]; }).join(' · '); }
+  var URL_PORTAIL = AMX.SITE + 'vitrine/portail.html';
+  // État du portail d'une fiche d'acheteur : approuve | suspendu | attente (inscrit pas encore approuvé) | '' (pas inscrit).
+  function etatPortail(a) { if (a.portail === 'approuve') return 'approuve'; if (a.portail === 'suspendu') return 'suspendu'; return a.statut === 'inscrit' ? 'attente' : ''; }
+  var ETATS_PORTAIL = { approuve: { libelle: 'Portail ouvert', classe: 'ok' }, suspendu: { libelle: 'Portail suspendu', classe: 'alerte' }, attente: { libelle: 'Portail à approuver', classe: 'attention' } };
   function exportationTexte(code) { return code ? 'Vente pour exportation — ' + (EXPORTATIONS[code] || code) + ' · sans taxes canadiennes' : ''; }
   function paysDe(a) { var c = String((a && a.paysCode) || '').toUpperCase(); if (PAYS[c]) return c; var p = String((a && a.pays) || '').toLowerCase(); if (/états-unis|etats-unis|united states/.test(p)) return 'US'; if (/france/.test(p)) return 'FR'; if (/canada/.test(p)) return 'CA'; return ''; }
   function paysNom(a) { var c = paysDe(a); return c ? PAYS[c] : (a && a.pays) || ''; }
@@ -651,7 +659,7 @@
       var lien = cache.cle ? lienPublic(cache.cle, p.vin) : '';
       var el = h('div.ligne.ligne-vente', { style: { cursor: 'default' } }, [   /* v136 : huit colonnes (le bouton « Envoyer » chevauchait le prix) */
         vignetteVin(p.vin, v.hasPhotos, marque(v.modele)),
-        h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: v.modele || p.vin }), h('div.sous', [h('span.vin', { text: p.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, v.compagnie ? h('span.puce', { text: v.compagnie }) : null, st ? h('span.badge.' + st.couleur, { text: st.libelle }) : null])]),
+        h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: v.modele || p.vin }), h('div.sous', [h('span.vin', { text: p.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, v.compagnie ? h('span.puce', { text: v.compagnie }) : null, st ? h('span.badge.' + st.couleur, { text: st.libelle }) : null, h('span.puce.info', { text: libelleMarches(p), title: 'Pays du portail des acheteurs qui voient ce véhicule' })])]),
         h('div.cell', [h('span.l', 'Description'), h('span.v', { text: p.description || '— aucune —', title: p.description || '' })]),
         h('div.cell.maj', [h('span.l', 'Publié'), h('span.v', { text: AMX.fmtDate(p.publieLe) }), h('span.v.doux', { text: p.publiePar || '' })]),
         h('div.cell.indic', [h('span.l', 'Lien'), h('div.indicateurs', [lien ? h('button.puce.info', { type: 'button', html: 'Copier le lien', onclick: function () { AMX.copier(lien, 'Lien de la page copié'); } }) : null, lien ? h('a.puce', { href: lien, target: '_blank', rel: 'noopener', text: 'Ouvrir' }) : null, p.video ? h('span.puce.ok', { text: 'Vidéo' }) : null])]),
@@ -691,11 +699,23 @@
     var desc = h('textarea.saisie', { rows: '4', placeholder: 'Ce que l\'acheteur verra : état, équipement, particularités…', text: existant ? existant.description : '' });
     var sticker = h('input.saisie', { type: 'url', placeholder: 'Lien du window sticker (PDF), facultatif' });
     var verif = h('input', { type: 'checkbox' });
+    var marchesInit = existant ? marchesDe(existant).map(function (x) { return x[0]; }) : ['CA'];
+    var casesMarches = {};
+    var blocMarches = h('div.champ', [
+      h('label', 'Portail des acheteurs — pays qui voient ce véhicule'),
+      h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px 18px' } }, MARCHES.map(function (m) {
+        var c = h('input', { type: 'checkbox', checked: marchesInit.indexOf(m[0]) >= 0 });
+        casesMarches[m[0]] = c;
+        return h('label.case', [c, h('span', { text: m[0] === 'US' ? 'États-Unis' : m[1] })]);
+      })),
+      h('div.doux.petit', { text: 'Les acheteurs approuvés de ces pays le voient dans leur portail et peuvent l\'acheter. Le lien public de la page ne change pas.' })
+    ]);
     var corps = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, [
       h('div.champ', [h('label', 'Véhicule'), champVin, contexte, suggestions]),
       h('div.grille.c2', [h('div.champ', [h('label', 'Prix demandé ($)'), prix]), h('div.champ', [h('label', 'Window sticker'), sticker])]),
       h('div.champ', [h('label', 'Description'), desc]),
       h('label.case', [verif, h('span', 'Window sticker vérifié (correspond au véhicule)')]),
+      blocMarches,
       existant ? h('div.alerte-bloc.info', [h('span', { html: I.info }), h('div', 'Publié le ' + AMX.fmtDate(existant.publieLe, true) + (existant.publiePar ? ' par ' + existant.publiePar : '') + '. Le lien public reste le même après modification.')]) : null
     ]);
     var boutons = [{ texte: 'Annuler' }];
@@ -708,7 +728,9 @@
     boutons.push({ texte: existant ? 'Enregistrer' : 'Publier', classe: 'primaire', action: function () {
       var v = champVin.value.trim().toUpperCase();
       if (!/^[A-HJ-NPR-Z0-9]{11,17}$/.test(v)) { champVin.style.borderColor = 'var(--rouge)'; champVin.focus(); AMX.toast('Choisissez un véhicule (VIN).', 'attention'); return false; }
-      var corpsReq = { vin: v, publie: true, prix: prix.value.trim(), description: desc.value.trim() };
+      var marches = MARCHES.map(function (m) { return m[0]; }).filter(function (c) { return casesMarches[c].checked; });
+      if (!marches.length) { AMX.toast('Cochez au moins un pays pour le portail des acheteurs.', 'attention'); return false; }
+      var corpsReq = { vin: v, publie: true, prix: prix.value.trim(), description: desc.value.trim(), marches: marches };
       if (sticker.value.trim()) corpsReq.sticker = sticker.value.trim();
       if (verif.checked) corpsReq.stickerVerifie = true;
       return self.publier(corpsReq, existant ? 'Modifications enregistrées' : 'Véhicule mis en vente');
@@ -765,7 +787,7 @@
     AMX.vider(this.elRail);
     var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'Nom, entreprise, courriel, ville', value: f.recherche, oninput: AMX.debounce(function (e) { f.recherche = e.target.value; self.rendre(); }, 120) })]);
     var seg = h('div.segment.bloc');
-    [['', 'Tous'], ['inscrit', 'Inscrits'], ['invite', 'Invités']].forEach(function (c) { seg.appendChild(h('button' + (f.statut === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.statut = c[0]; self.construireRail(); self.rendre(); } })); });
+    [['', 'Tous'], ['inscrit', 'Inscrits'], ['invite', 'Invités'], ['portail', 'Portail à approuver']].forEach(function (c) { seg.appendChild(h('button' + (f.statut === c[0] ? '.actif' : ''), { type: 'button', text: c[1], onclick: function () { f.statut = c[0]; self.construireRail(); self.rendre(); } })); });
     this.elRail.appendChild(h('div.groupe', [h('h3', 'Recherche'), rech, h('div', { style: { height: '10px' } }), h('div.etiquette', { style: { marginBottom: '6px' }, text: 'Statut' }), seg]));
   };
   Acheteurs.prototype.charger = function (force) {
@@ -785,7 +807,12 @@
     var inscrits = this.liste.filter(function (a) { return a.statut === 'inscrit'; }).length;
     this.elKpis.appendChild(h('button.kpi' + (f.statut === 'inscrit' ? '.actif' : ''), { type: 'button', onclick: function () { f.statut = f.statut === 'inscrit' ? '' : 'inscrit'; self.construireRail(); self.rendre(); } }, [h('div.valeur', { text: inscrits }), h('div.libelle', 'Inscrits'), h('span.pastille', { style: { background: 'var(--vert)' } })]));
     this.elKpis.appendChild(h('button.kpi' + (f.statut === 'invite' ? '.actif' : ''), { type: 'button', onclick: function () { f.statut = f.statut === 'invite' ? '' : 'invite'; self.construireRail(); self.rendre(); } }, [h('div.valeur', { text: this.liste.length - inscrits }), h('div.libelle', 'Invités, en attente'), h('span.pastille', { style: { background: 'var(--ambre)' } })]));
-    var l = this.liste.filter(function (a) { return !f.statut || a.statut === f.statut; });
+    // 5 nov. : portail des acheteurs — les fiches inscrites qui attendent l'approbation de la direction.
+    var aApprouver = this.liste.filter(function (a) { return etatPortail(a) === 'attente'; }).length;
+    var ouverts = this.liste.filter(function (a) { return etatPortail(a) === 'approuve'; }).length;
+    this.elKpis.appendChild(h('button.kpi' + (f.statut === 'portail' ? '.actif' : '') + (aApprouver ? '.attention' : ''), { type: 'button', title: 'Fiches inscrites dont l\'accès au portail des acheteurs attend votre approbation', onclick: function () { f.statut = f.statut === 'portail' ? '' : 'portail'; self.construireRail(); self.rendre(); } }, [h('div.valeur', { text: aApprouver }), h('div.libelle', 'Portail à approuver'), h('span.pastille', { style: { background: 'var(--ambre)' } })]));
+    this.elKpis.appendChild(h('div.kpi', { title: 'Acheteurs qui peuvent entrer au portail' }, [h('div.valeur', { text: ouverts }), h('div.libelle', 'Portail ouvert'), h('span.pastille', { style: { background: 'var(--vert)' } })]));
+    var l = this.liste.filter(function (a) { return !f.statut || (f.statut === 'portail' ? etatPortail(a) === 'attente' : a.statut === f.statut); });
     if (f.recherche) { var t = f.recherche.toLowerCase(); l = l.filter(function (a) { return [a.nomLegal, a.nomCommercial, a.signataire, a.courriel, a.ville, a.telephone, paysNom(a), a.siret, a.ein].join(' ').toLowerCase().indexOf(t) >= 0; }); }
     AMX.vider(this.elOutils); this.elOutils.appendChild(h('span.compte', [h('b', { text: l.length }), ' acheteur' + (l.length > 1 ? 's' : '')]));
     AMX.vider(this.elListe);
@@ -798,7 +825,7 @@
     var inscrit = a.statut === 'inscrit';
     var el = h('div.ligne' + (this.selection === a.id ? '.actif' : ''), { dataset: { id: a.id } }, [
       h('div.vignette', { text: AMX.initiales(a.nomLegal || a.signataire || a.courriel) }),
-      h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: a.nomLegal || a.signataire || a.courriel }), h('div.sous', [h('span.doux', { text: a.courriel }), paysDe(a) ? h('span.puce', { text: PAYS[paysDe(a)] }) : null, a.langue === 'en' ? h('span.puce', { text: 'EN' }) : null])]),
+      h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: a.nomLegal || a.signataire || a.courriel }), h('div.sous', [h('span.doux', { text: a.courriel }), paysDe(a) ? h('span.puce', { text: PAYS[paysDe(a)] }) : null, a.langue === 'en' ? h('span.puce', { text: 'EN' }) : null, etatPortail(a) ? h('span.puce.' + ETATS_PORTAIL[etatPortail(a)].classe, { text: ETATS_PORTAIL[etatPortail(a)].libelle }) : null])]),
       h('div.cell', [h('span.l', 'Contact'), h('span.v', { text: a.signataire || '—' }), h('span.v.doux', { text: a.telephone || '' })]),
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + (inscrit ? 'vert' : 'ambre'), { text: inscrit ? 'Inscrit' : 'Invité' })]), h('span.jours', { text: inscrit ? 'le ' + AMX.fmtDate(a.inscritLe) : 'le ' + AMX.fmtDate(a.inviteLe) })]),
       h('div.cell.indic', [h('span.l', 'Lieu'), h('span.v', { text: [a.ville, a.province].filter(Boolean).join(', ') || '—' }), a.dernierEnvoiLe ? h('span.v.doux', { text: 'Envoi ' + AMX.fmtDate(a.dernierEnvoiLe) }) : null]),
@@ -841,6 +868,7 @@
         a.source ? h('dt', 'Source') : null, a.source ? h('dd', { text: a.source === 'contrat' ? 'Créé à la signature d\'un contrat' : 'Invitation' }) : null,
         a.note ? h('dt', 'Note') : null, a.note ? h('dd', { text: a.note }) : null
       ]))]),
+      this.blocPortail(a),
       h('div.bloc', [h('h3', 'Actions'), h('div.actions-ligne', [
         inscrit ? h('button.btn.primaire', { html: I.voiture + '<span>Envoyer un véhicule</span>', title: 'Choisir un véhicule de l\'inventaire et lui envoyer sa page (courriel, texto)', onclick: function () { AMX.offres.envoyerVehiculeA(a); } }) : null,
         AMX.perm('changerStatut') ? h('button.btn' + (inscrit ? '' : '.primaire'), { html: I.courriel + '<span>' + (inscrit ? 'Renvoyer le lien de la fiche' : 'Renvoyer l\'invitation') + '</span>', onclick: function () { self.modaleInviter(a); } }) : null,
@@ -848,6 +876,51 @@
       ])]),
       h('div.bloc', [h('h3', 'Offres de cet acheteur'), offresDe.length ? h('ul.chrono', offresDe.map(function (o) { var st = AMX.STATUTS_OFFRE[o.statut] || { libelle: o.statut }; return h('li', [h('a', { href: AMX.lien('offres', 'recues', { o: o.id }), text: (o.modele || o.vin) + ' — ' + AMX.fmtArgent(o.prixFinal || o.contre || o.prix) }), h('div.quand', { text: st.libelle + ' · ' + AMX.fmtDate(o.date) })]); })) : h('div.doux.petit', (cache.offres ? 'Aucune offre.' : 'Ouvrez « Offres reçues » pour charger les offres.'))])
     ]));
+  };
+  /* Portail des acheteurs (5 nov.) : l'acheteur inscrit n'entre qu'après l'approbation de la direction ;
+     il voit alors le stock mis en vente pour son pays et peut l'acheter (offre au prix ou plus basse). */
+  Acheteurs.prototype.blocPortail = function (a) {
+    var self = this, etat = etatPortail(a);
+    var peut = AMX.perm('changerStatut') || AMX.perm('voirResultats');
+    var e = ETATS_PORTAIL[etat];
+    var lignes = [
+      h('dt', 'Accès'), h('dd', [e ? h('span.puce.' + e.classe, { text: e.libelle }) : h('span.doux', { text: 'Fiche pas encore remplie' })])
+    ];
+    if (a.portailLe && etat !== 'attente') lignes.push(h('dt', etat === 'approuve' ? 'Ouvert' : 'Changé'), h('dd', { text: AMX.fmtDate(a.portailLe, true) + (a.portailPar ? ' par ' + a.portailPar : '') }));
+    if (etat === 'approuve') {
+      lignes.push(h('dt', 'Stock visible'), h('dd', { text: 'Véhicules en vente pour ' + (paysNom(a) || 'Canada') }));
+      lignes.push(h('dt', 'Dernière visite'), h('dd', { text: a.portailVuLe ? AMX.fmtDate(a.portailVuLe, true) + (a.portailConnecte ? ' · ' + a.portailConnecte + ' appareil' + (a.portailConnecte > 1 ? 's' : '') + ' connecté' + (a.portailConnecte > 1 ? 's' : '') : '') : 'Jamais connecté' }));
+    }
+    var boutons = [];
+    if (peut && a.statut === 'inscrit') {
+      if (etat !== 'approuve') boutons.push(h('button.btn.primaire', { type: 'button', html: I.ok + '<span>' + (etat === 'suspendu' ? 'Rouvrir l\'accès' : 'Approuver l\'accès') + '</span>', onclick: function () { self.modaleAcces(a, 'approuve'); } }));
+      else boutons.push(h('button.btn.danger', { type: 'button', text: 'Suspendre l\'accès', onclick: function () { self.modaleAcces(a, 'suspendu'); } }));
+    }
+    boutons.push(h('button.btn', { type: 'button', html: I.copier + '<span>Copier le lien du portail</span>', onclick: function () { AMX.copier(URL_PORTAIL, 'Lien du portail copié'); } }));
+    return h('div.bloc', [h('h3', 'Portail des acheteurs'), h('dl.kv.serre', lignes), h('div.actions-ligne', boutons)]);
+  };
+  Acheteurs.prototype.modaleAcces = function (a, acces) {
+    var self = this, nom = a.nomLegal || a.signataire || a.courriel;
+    var prevenir = h('input', { type: 'checkbox' });
+    var corps = acces === 'approuve'
+      ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, [
+          h('p', { style: { margin: 0, color: 'var(--encre-2)' }, text: nom + ' pourra se connecter au portail des acheteurs avec ' + a.courriel + ' (code par courriel ou par texto). Il verra seulement les véhicules mis en vente pour ' + (paysNom(a) || 'Canada') + ' et pourra les acheter au prix demandé ou faire une offre ; l\'offre arrive dans « Offres reçues » comme celles de la vitrine.' }),
+          h('label.case', [prevenir, h('span', 'Prévenir l\'acheteur par courriel (lien du portail, au nom de la concession)')])
+        ])
+      : h('p', { style: { margin: 0, color: 'var(--encre-2)' }, text: nom + ' ne pourra plus entrer au portail ; ses appareils connectés sont déconnectés tout de suite. Ses offres en cours restent dans « Offres reçues ».' });
+    AMX.modale({ titre: acces === 'approuve' ? 'Ouvrir l\'accès au portail' : 'Suspendre l\'accès au portail', corps: corps, boutons: [{ texte: 'Annuler' }, { texte: acces === 'approuve' ? 'Approuver' : 'Suspendre', classe: acces === 'approuve' ? 'primaire' : 'danger', action: function () {
+      return AMX.post({ action: 'acheteurPortailAcces', id: a.id, acces: acces, prevenir: !!prevenir.checked }).then(function (d) {
+        AMX.verifier(d, 'Changement impossible');
+        if (!d.acheteur) throw new Error('Le script n\'est pas à jour : redéployez-le (PortailAcheteurs.gs).');
+        var i = (cache.acheteurs || []).map(function (x) { return x.id; }).indexOf(a.id);
+        if (i >= 0) cache.acheteurs[i] = d.acheteur;
+        self.liste = cache.acheteurs || self.liste;
+        if (acces === 'approuve') AMX.toast(d.courrielEnvoye === false ? 'Accès ouvert, mais le courriel n\'est pas parti.' : (d.courrielEnvoye ? 'Accès ouvert — courriel envoyé à ' + a.courriel : 'Accès au portail ouvert'), d.courrielEnvoye === false ? 'attention' : 'ok');
+        else AMX.toast('Accès au portail suspendu', 'ok');
+        self.rendre(); AMX.rafraichirSousBarre();
+        return true;
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+    } }] });
   };
   Acheteurs.prototype.modaleInviter = function (existant) {
     var self = this;

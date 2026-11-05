@@ -144,6 +144,62 @@
     return montant * r / (1 - Math.pow(1 + r, -mois));
   }
 
+  /* ---- Dette au jour le jour (5 nov., Maxime : « que le solde de la dette soit toujours à jour sans qu'on doive se
+     reconnecter aux différents systèmes ; un bouton calcul dette ou on le fait automatique »). Calculée à chaque affichage,
+     pour la date du jour, d'après le contrat : aucun portail à rouvrir.
+       1) Solde lu chez le prêteur (payoff BMW, rachat GM, solde VW) : reporté à aujourd'hui. Chaque mensualité passée depuis
+          la lecture retire le capital qu'elle rembourse ; les intérêts courent depuis la dernière mensualité.
+       2) Sans solde du prêteur (locations BMW) : valeur des mensualités qui restent, plus le résiduel (location), au taux du
+          contrat.
+     Mensualités le jour du mois de l'échéance, la dernière à l'échéance. Contrat échu : 0 (financement), résiduel (location).
+     Estimation : un paiement manqué, un remboursement anticipé ou des frais ne se voient qu'à la prochaine lecture du prêteur. ---- */
+  var JOUR_MS = 86400000, MOIS_J = 30.4375;
+  function dateMidi(x) { var t = String(x || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null; var d = new Date(t + 'T12:00:00'); return isNaN(d) ? null : d; }
+  function ajouterMois(d, n) { var r = new Date(d.getTime()), jour = r.getDate(); r.setDate(1); r.setMonth(r.getMonth() + n); var fin = new Date(r.getFullYear(), r.getMonth() + 1, 0, 12).getDate(); r.setDate(Math.min(jour, fin)); return r; }
+  /** Mensualités qui restent après le jour `ajd` (celle du jour est faite). */
+  function mensualitesRestantes(ajd, ech) {
+    var a = dateMidi(ajd), e = dateMidi(ech); if (!a || !e) return null;
+    if (e <= a) return 0;
+    var m = (e.getFullYear() - a.getFullYear()) * 12 + (e.getMonth() - a.getMonth());
+    return e.getDate() > a.getDate() ? m + 1 : m;
+  }
+  /** Part du mois écoulée depuis la dernière mensualité (intérêts courus). */
+  function fractionMois(ajd, ech, n) {
+    var a = dateMidi(ajd), e = dateMidi(ech); if (!a || !e || !n) return 0;
+    return Math.max(0, Math.min(1, (a - ajouterMois(e, -n)) / JOUR_MS / MOIS_J));
+  }
+  /** La dette d'un compte au jour `ajd` → { solde, echeance (dû à l'échéance), source : preteur | contrat | fige | '', base, baseLe, paiements, n, taux, paiement }. */
+  function detteDe(c, ajd) {
+    var loc = estLocation(c), P = nombre(c.paiement) || 0, t = nombre(c.taux);
+    var i = t !== null && t > 0 && t < 40 ? t / 1200 : 0;
+    var R = loc ? nombre(c.residuel) : null;
+    var d = { solde: null, echeance: loc ? R : 0, source: '', base: null, baseLe: '', paiements: 0, n: null, taux: i ? t : null, paiement: P || null, location: loc };
+    var n = c.echeance ? mensualitesRestantes(ajd, c.echeance) : null; d.n = n;
+    var B0 = nombre(c.payoffBmw), le = texte(c.payoffLe || c.luLe).slice(0, 10);
+    if (B0 !== null && B0 >= 0 && dateMidi(le) && n !== null) {
+      var n0 = le < ajd ? mensualitesRestantes(le, c.echeance) : n, k = Math.max(0, (n0 || 0) - n);
+      var Bp = B0 / (1 + i * fractionMois(le, c.echeance, n0)), g = Math.pow(1 + i, k);
+      var Bk = Math.max(0, i ? Bp * g - P * (g - 1) / i : Bp - P * k);
+      d.solde = n === 0 ? (loc ? (R !== null ? R : Bk) : 0) : Bk * (1 + i * fractionMois(ajd, c.echeance, n));
+      d.source = 'preteur'; d.base = B0; d.baseLe = le; d.paiements = k;
+    } else if (n !== null && (P || R !== null)) {
+      var pv = i ? P * (1 - Math.pow(1 + i, -n)) / i : P * n;
+      var pvR = loc && R !== null ? R * Math.pow(1 + i, -n) : 0;
+      d.solde = (pv + pvR) * (1 + i * fractionMois(ajd, c.echeance, n));
+      d.source = 'contrat';
+    } else if (B0 !== null) { d.solde = B0; d.source = 'fige'; d.base = B0; d.baseLe = le; }
+    if (d.solde !== null) d.solde = Math.round(d.solde * 100) / 100;
+    return d;
+  }
+  /** Le petit texte sous la dette : d'où elle vient. */
+  function texteDette(r) {
+    var d = r.dette || {}, qui = r.gm ? 'rachat GM' : (r.mode === 'vw' ? 'solde VW' : 'solde BMW');
+    if (d.source === 'preteur') return qui + ' du ' + AMX.fmtDateCourte(d.baseLe) + (d.paiements ? ' − ' + d.paiements + ' mensualité' + (d.paiements > 1 ? 's' : '') : '');
+    if (d.source === 'contrat') return 'calculée (contrat)';
+    if (d.source === 'fige') return qui + ' du ' + AMX.fmtDateCourte(d.baseLe) + ' (non reporté)';
+    return 'à calculer';
+  }
+
   /* ---- Export InfoBahn : une table HTML (SearchResults.xls) → lignes normalisées (clés du serveur, dates ISO) ---- */
   function lireExport(contenu) {
     var out = { lignes: [], entetes: [], inconnues: [], erreurs: [], total: 0 };
@@ -200,8 +256,9 @@
       else if (r.location && nombre(c.kmContrat) && nombre(c.terme)) r.kmEstime = Math.round(nombre(c.kmContrat) * Math.min(1, (r.moisEcoules || 0) / nombre(c.terme)));
       else r.kmEstime = r.moisEcoules !== null ? Math.round(params.kmAn * r.moisEcoules / 12) : null;
       /* Solde : financement → payoff BMW ; location → résiduel + paiements restants (rachat maintenant) ; à l'échéance = résiduel. */
-      if (r.location) { var res = nombre(c.residuel); r.solde = mode !== 'bmw' && nombre(c.payoffBmw) !== null ? nombre(c.payoffBmw) : (res !== null ? res + paiement * (r.moisRestants || 0) : null); r.soldeEcheance = res; }   /* GM : rachat de GM ; VW : solde de VW Finance */
-      else { r.solde = nombre(c.payoffBmw); if (r.solde === null && r.moisRestants !== null) r.solde = paiement * r.moisRestants; r.soldeEcheance = 0; }
+      /* 5 nov. : la dette du jour (detteDe) — solde du prêteur reporté à aujourd'hui, sinon calculée d'après le contrat. */
+      r.dette = detteDe(c, ajd);
+      r.solde = r.dette.solde; r.soldeEcheance = r.location ? nombre(c.residuel) : 0;
       /* Valeur : OpenLane seulement (prévision, sinon ajusté au km, sinon moyenne des ventes). 4 nov. : plus l'estimation du prêteur
          (Black Book chez GM et VW) — Maxime : « on n'utilise pas Black Book mais OpenLane ». Sans lecture OpenLane : « à lire ». */
       var ol = options.valeurs ? options.valeurs(c.vin) : null;
@@ -272,7 +329,7 @@
     },
     params: function () { var p = AMX.memo.lire('equite_params', null); return Object.assign({}, PARAMS_DEFAUT, p && typeof p === 'object' ? p : {}); },
     poserParams: function (p) { AMX.memo.ecrire('equite_params', Object.assign({}, AMX.equite.params(), p || {})); },
-    lireExport: lireExport, serieDe: serieDe, famille: famille, analyser: analyser, pmt: pmt, dateIso: dateIso,
+    lireExport: lireExport, serieDe: serieDe, famille: famille, analyser: analyser, pmt: pmt, dateIso: dateIso, detteDe: detteDe, mensualitesRestantes: mensualitesRestantes,
     PARAMS_DEFAUT: PARAMS_DEFAUT, SUIVIS: SUIVIS,
     monter: function (conteneur, cie, ctx) { return new VueEquite(conteneur, cie, ctx); }
   };
@@ -286,6 +343,8 @@
       '.eq-table { overflow-x: auto; } .eq-table .tableau { width: 100%; } .eq-table td, .eq-table th { padding: 6px 8px; vertical-align: top; font-size: 12.5px; } .eq-table th { white-space: nowrap; } .eq-table td.num, .eq-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }',
       '.eq-table td .sous { font-size: 12px; color: var(--encre-3); } .eq-table td .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-3); } .eq-table td .nom { font-weight: 600; }',
       '.eq-table tr.cible td { background: var(--vert-clair); } .eq-table tr.sans td .valeur { color: var(--encre-3); font-style: italic; }',
+      '.eq-table button.eq-dette { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; } .eq-table button.eq-dette:hover { color: var(--vert-fonce, var(--vert)); }',
+      '.eq-dette-tab { width: 100%; border-collapse: collapse; font-size: 13px; } .eq-dette-tab td { padding: 5px 6px; border-bottom: 1px solid var(--ligne, #E3E7EB); } .eq-dette-tab td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; } .eq-dette-tab tr.total td { font-weight: 700; border-bottom: 0; }',
       '.eq-pos { color: var(--vert); font-weight: 700; } .eq-neg { color: var(--rouge); font-weight: 700; } .eq-nul { color: var(--encre-3); }',
       '.eq-table select.suivi { height: 26px; font-size: 12px; width: auto; max-width: 130px; } .eq-table .suivi-note { font-size: 12px; color: var(--encre-3); margin-top: 2px; max-width: 160px; }',
       '.eq-table .btn.petit { height: 24px; padding: 0 7px; font-size: 12px; }',
@@ -454,7 +513,7 @@
       h('button.btn.petit', { type: 'button', html: I.externe + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } })
     ]);
     var entete = h('div.carte-entete', [h('h2', ['Équité — clients ' + nomCie(this.cie) + ' (' + preteur(this.cie) + ')', h('span.sous', { text: etat && etat.le ? 'portefeuille lu le ' + AMX.fmtDate(etat.le, true) + (etat.par ? ' par ' + String(etat.par).split('@')[0] : '') : '' })]),
-      h('div.actions-ligne', [modeCie(this.cie) !== 'bmw' ? h('a.btn.petit', { href: URL_PORTAIL[modeCie(this.cie)], target: '_blank', rel: 'noopener', html: I.externe + '<span>' + (estVw(this.cie) ? 'VW Finance' : 'GM Dealer Direct') + '</span>', title: 'Relire : cliquez le favori « Automax ← Constructeur » dans le portail' }) : h('a.btn.petit', { href: AMX.lien('outils', 'equite'), html: I.rafraichir + '<span>Importer un nouvel export</span>' })])]);
+      h('div.actions-ligne', [h('button.btn.petit', { type: 'button', text: 'Calcul de la dette', title: 'La dette de chaque client est recalculée chaque jour d\'après son contrat : voir le détail', onclick: function () { self.calculDette(); } }), modeCie(this.cie) !== 'bmw' ? h('a.btn.petit', { href: URL_PORTAIL[modeCie(this.cie)], target: '_blank', rel: 'noopener', html: I.externe + '<span>' + (estVw(this.cie) ? 'VW Finance' : 'GM Dealer Direct') + '</span>', title: 'Relire : cliquez le favori « Automax ← Constructeur » dans le portail' }) : h('a.btn.petit', { href: AMX.lien('outils', 'equite'), html: I.rafraichir + '<span>Importer un nouvel export</span>' })])]);
     /* Einstein AI : une question en français, des filtres en retour (rien des clients n'est envoyé). */
     var champQ = h('input.recherche.eq-ia-champ', { type: 'search', placeholder: 'Demandez à Einstein : « taux de plus de 5 % », « paiement de plus de 1 200 $ », « finit dans 6 mois et équité positive »…', value: this.ia ? this.ia.question : '' });
     var btnQ = h('button.btn.primaire.petit', { type: 'button', text: 'Demander' });
@@ -578,7 +637,7 @@
       h('td', [h('div', { text: (r.location ? 'Location' : 'Financement') + (c.terme ? ' ' + c.terme + ' mois' : '') + (c.taux !== null && c.taux !== undefined ? ' · ' + c.taux + ' %' : '') }), h('div.sous' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'échéance ' + AMX.fmtDate(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' mois)' : '') : '' }), r.location && c.kmContrat ? h('div.sous', { text: AMX.fmtNombre(c.kmContrat) + ' km au contrat' + (c.usure === 'oui' ? ' · usure' : '') }) : null]),
       h('td.num', { text: fmt$(c.paiement) }),
       h('td.num', [valeurEl]),
-      h('td.num', [h('div', { text: fmt$(r.solde) }), r.mode !== 'bmw' && nombre(c.payoffBmw) !== null ? h('div.sous', { text: r.gm ? 'rachat GM' : 'solde VW' }) : null, r.location && r.soldeEcheance !== null ? h('div.sous', { text: 'résiduel ' + fmt$(r.soldeEcheance) }) : null]),
+      h('td.num', [h('button.eq-dette', { type: 'button', text: fmt$(r.solde), title: 'Comment la dette est calculée', onclick: function () { self.detailDette(r); } }), h('div.sous', { text: texteDette(r) }), r.location && r.soldeEcheance !== null ? h('div.sous', { text: 'résiduel ' + fmt$(r.soldeEcheance) }) : null]),
       h('td.num', [h('div' + eqCls, { text: r.equite === null ? '—' : fmtSigne(r.equite) }), null, r.location && r.equiteEcheance !== null ? h('div.sous', { text: 'à l\'échéance ' + fmtSigne(r.equiteEcheance) }) : null]),
       h('td.num.eq-us-cell', [self.celluleUS(r)]),
       h('td', [neufEl]),
@@ -586,6 +645,47 @@
       h('td', { text: c.conseiller || '—' }),
       h('td', [selSuivi, c.suiviNote ? h('div.suivi-note', { text: c.suiviNote }) : null, c.suiviLe ? h('div.suivi-note', { text: AMX.fmtDateCourte(c.suiviLe) + (c.suiviPar ? ' · ' + String(c.suiviPar).split('@')[0] : '') }) : null])
     ]);
+  };
+  /* ---- Calcul de la dette (5 nov.) : le détail d'un compte, et le bilan de la page ---- */
+  VueEquite.prototype.detailDette = function (r) {
+    var c = r.compte, d = r.dette || {}, lignes = [];
+    var ligne = function (a, b, cls) { lignes.push(h('tr' + (cls || ''), [h('td', { text: a }), h('td.num', { text: b })])); };
+    var ajd = AMX.fmtDate(iso(new Date()));
+    if (d.source === 'preteur') {
+      ligne((r.gm ? 'Rachat de GM' : r.mode === 'vw' ? 'Solde de VW Finance' : 'Solde de BMW Financial Services') + ' lu le ' + AMX.fmtDate(d.baseLe), fmt$(d.base));
+      ligne(d.paiements ? d.paiements + ' mensualité' + (d.paiements > 1 ? 's' : '') + ' de ' + fmt$(d.paiement) + ' depuis (capital remboursé, intérêts courus compris)' : 'Aucune mensualité depuis la lecture (intérêts courus compris)', r.solde !== null && d.base !== null ? (r.solde <= d.base ? '−' : '+') + fmt$(Math.abs(d.base - r.solde)) : '');
+    } else if (d.source === 'contrat') {
+      ligne(d.n + ' mensualité' + (d.n > 1 ? 's' : '') + ' de ' + fmt$(d.paiement) + ' qui restent jusqu\'au ' + AMX.fmtDate(c.echeance), '');
+      if (d.location && d.echeance !== null) ligne('Résiduel à l\'échéance', fmt$(d.echeance));
+    } else if (d.source === 'fige') {
+      ligne('Solde du prêteur lu le ' + AMX.fmtDate(d.baseLe) + ' (pas d\'échéance au contrat : il n\'est pas reporté)', fmt$(d.base));
+    }
+    ligne('Taux du contrat', d.taux !== null ? String(d.taux).replace('.', ',') + ' %' : 'inconnu (aucun intérêt compté)');
+    ligne('Dette au ' + ajd, fmt$(r.solde), '.total');
+    var expl = d.source === 'preteur' ? 'Le solde lu chez le prêteur est reporté à aujourd\'hui : chaque mensualité passée retire le capital qu\'elle rembourse, et les intérêts courent depuis la dernière mensualité.'
+      : d.source === 'contrat' ? 'Pas de solde fourni par le prêteur pour ce contrat : la dette est la valeur, au taux du contrat, des mensualités qui restent' + (d.location ? ' et du résiduel (rachat aujourd\'hui).' : '.')
+      : d.source === 'fige' ? 'Il manque l\'échéance du contrat : la dette reste celle lue chez le prêteur.'
+      : 'Il manque l\'échéance ou le paiement du contrat : la dette ne peut pas être calculée. Relisez le portefeuille chez le prêteur.';
+    AMX.modale({ titre: 'Dette — ' + nomClient(c), corps: h('div', [h('p.doux', { style: { margin: '0 0 8px' }, text: vehiculeTexte(c) + (c.vin ? ' · ' + c.vin : '') + ' · ' + (r.location ? 'location' : 'financement') }), h('table.eq-dette-tab', [h('tbody', lignes)]), h('p.doux.petit', { style: { margin: '10px 0 0' }, text: expl + ' Un paiement manqué ou un remboursement anticipé se voit à la prochaine lecture du prêteur.' })]), boutons: [{ texte: 'Fermer' }] });
+  };
+  VueEquite.prototype.calculDette = function () {
+    var self = this, lignes = this.analyser(), n = { preteur: 0, contrat: 0, fige: 0, '': 0 }, total = 0, vieux = 0, depuis = 0;
+    lignes.forEach(function (r) { var d = r.dette || {}; n[d.source || ''] = (n[d.source || ''] || 0) + 1; if (r.solde !== null) total += r.solde; if (d.source === 'preteur' && d.paiements) depuis++; if (d.baseLe && (Date.now() - new Date(d.baseLe + 'T12:00:00')) / 86400000 > 45) vieux++; });
+    var lien = function (t) { return h('li', { text: t }); };
+    var pl = function (k, un, plusieurs) { return AMX.fmtNombre(k) + ' ' + (k > 1 ? plusieurs : un); };
+    var corps = h('div', [
+      h('p', { style: { margin: '0 0 8px' } }, 'La dette de chaque client est recalculée automatiquement, chaque jour, à l\'ouverture de la page : rien à rouvrir chez BMW, GM ou VW.'),
+      h('ul', { style: { margin: '0 0 10px', paddingLeft: '18px', lineHeight: '1.6' } }, [
+        lien(pl(n.preteur, 'dette', 'dettes') + ' d\'après le solde du prêteur, reporté à aujourd\'hui' + (depuis ? ' (' + pl(depuis, 'compte', 'comptes') + ' avec des mensualités passées depuis la lecture)' : '')),
+        lien(pl(n.contrat, 'dette calculée', 'dettes calculées') + ' d\'après le contrat (mensualités qui restent, + résiduel pour une location)'),
+        n.fige ? lien(pl(n.fige, 'compte', 'comptes') + ' sans échéance au contrat : solde du prêteur non reporté') : null,
+        n[''] ? lien(pl(n[''], 'compte', 'comptes') + ' sans échéance ni paiement : dette inconnue') : null
+      ]),
+      h('p', { style: { margin: '0 0 8px' } }, [h('b', { text: 'Dette totale au ' + AMX.fmtDate(iso(new Date())) + ' : ' + fmt$(total) }), ' (' + AMX.fmtNombre(lignes.length) + ' comptes de ' + nomCie(this.cie) + ').']),
+      vieux ? h('p.doux.petit', { style: { margin: 0 }, text: pl(vieux, 'compte a', 'comptes ont') + ' un solde du prêteur lu il y a plus de 45 jours : le calcul reste bon tant que le client paie à temps ; une nouvelle lecture du portefeuille corrige les écarts (paiement manqué, remboursement anticipé).' }) : null,
+      h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Cliquez la dette d\'un client dans la liste pour voir son calcul.' })
+    ]);
+    AMX.modale({ titre: 'Calcul de la dette', corps: corps, boutons: [{ texte: 'Fermer' }, { texte: 'Recalculer maintenant', classe: 'btn primaire', action: function () { self.rendre(); AMX.toast('Dettes recalculées au ' + AMX.fmtDate(iso(new Date())) + '.', 'ok'); return true; } }] });
   };
   /** É.-U. vs dette : gros É.-U. (évaluation, sinon MMR tapé ici) − solde. Vide si le NIV n'est pas fabriqué aux É.-U. */
   VueEquite.prototype.celluleUS = function (r) {
@@ -629,7 +729,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Solde': r.solde, 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');

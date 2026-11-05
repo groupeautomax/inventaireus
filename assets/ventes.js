@@ -333,7 +333,7 @@
     // Ouvrir la fenêtre « Inscrire une vente » depuis n'importe quelle page (ligne d'un neuf, panneau d§AP§une occasion) :
     // prefill = { compagnie, type, vin, stock, annee, marque, modele, version, modeleTexte, coutant, echangeVin }.
     declarer: function (prefill) { return ouvrirFormulaire(prefill || {}, null); },
-    modifier: function (v) { return ouvrirFormulaire({}, v); },   /* 26 oct. : la vente, le F&I et la comptabilité ont chacun leur fenêtre */
+    modifier: function (v, o) { return ouvrirFormulaire({ apres: o && o.apres }, v); },   /* 26 oct. : la vente, le F&I et la comptabilité ont chacun leur fenêtre. 5 nov. : o.apres(vente) après l'enregistrement (fiche d'achat) */
     completer: function (v) { return ouvrirFI(v); },
     fi: function (v) { return ouvrirFI(v); },
     compta: function (v) { return ouvrirCompta(v); },
@@ -395,6 +395,7 @@
       '.ventes-produits { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; margin-bottom: 10px; }',
       '.ventes-produit { display: grid; grid-template-columns: 18px 1fr 96px; gap: 6px; align-items: center; font-size: 12.5px; padding: 3px 0; }',
       '.ventes-produit input[type=checkbox] { width: 16px; height: 16px; margin: 0; }',
+      '.ventes-pneus { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }', '.ventes-pneus .segment { flex: 0 0 auto; } .ventes-pneus input { flex: 1 1 90px; min-width: 90px; text-align: right; }',
       '.ventes-produit input[type=text] { height: 28px; font-size: 12px; text-align: right; }',
       '.ventes-produit.coche label { font-weight: 600; }',
       '.ventes-total-fi { font-size: 12.5px; color: var(--encre-3); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; }',
@@ -1377,9 +1378,10 @@
       var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Catégorie': libCategorie(v.type, v.categorie), 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'No client (DMS)': v.noClient || '', Provenance: v.provenance || '', 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
       o['Mois (livraison)'] = moisDeVente(v); o['Mois selon'] = dateLivraisonOk(v) ? 'livraison' : 'vente';
       o['F&I à inscrire'] = besoinFI(v) ? 'oui' : '';
+      if (montants) o['Pneus / jantes / mags ($)'] = v.pneusMontant === null || v.pneusMontant === undefined ? '' : v.pneusMontant;   /* 5 nov. */
       if (montants) { o.Holdback = v.holdback && v.holdback.holdback ? v.holdback.holdback : ''; var deb = (Array.isArray(v.banque) ? v.banque : []).filter(function (x) { return x.genre === 'deboursement'; })[0]; o['Déboursé BMW FS'] = deb ? deb.date : ''; }   /* 26 oct. */
       if (montants) { o['Front estimé'] = frontE(v); o['Front comptable'] = frontC(v); o['Écart front'] = ecartEC(frontE(v), frontC(v)); o['F&I estimé'] = fiE(v); o['F&I comptable'] = fiC(v); o['Écart F&I'] = ecartEC(fiE(v), fiC(v)); o['Profit estimé (total)'] = estimeDe(v); o['Profit comptable (total)'] = comptableDe(v); o['Écart (total)'] = ecartDe(v); o['Prix de vente'] = v.prixVente; o['Profit front prévu'] = v.profitPrevu; o['Profit F&I prévu'] = v.profitFIPrevu; o.Accessoires = v.accessoires; o['Valeur échange accordée'] = v.echangeValeur; o['Évaluation échange'] = v.echangeEvaluation; o['Over / under'] = v.overUnder; o['Profit front réel'] = v.profitReel; o['Profit F&I réel'] = v.profitFIReel; var prd = produitsDe(v); defs.forEach(function (p) { o[p[1]] = prd[p[0]] === undefined ? '' : prd[p[0]]; }); }
-      if (sansFI) { ['Dir. commercial (F&I)', 'Pneus', 'F&I à inscrire', 'F&I estimé', 'F&I comptable', 'Écart F&I', 'Profit F&I prévu', 'Profit F&I réel'].concat(defs.map(function (p) { return p[1]; })).forEach(function (k) { delete o[k]; }); }   /* 1er nov. : pas de F&I en wholesale */
+      if (sansFI) { ['Dir. commercial (F&I)', 'Pneus', 'Pneus / jantes / mags ($)', 'F&I à inscrire', 'F&I estimé', 'F&I comptable', 'Écart F&I', 'Profit F&I prévu', 'Profit F&I réel'].concat(defs.map(function (p) { return p[1]; })).forEach(function (k) { delete o[k]; }); }   /* 1er nov. : pas de F&I en wholesale */
       return o;
     });
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lignes), 'Livre des ventes');
@@ -1562,7 +1564,7 @@
       ['Directeur commercial', v.directeur || '—'],
       montants ? ['F&I estimé', besoinFI(v) ? h('span.puce.alerte', { text: 'à inscrire' }) : argent(fiE(v))] : null, montants ? ['F&I comptable', fiC(v) === null ? 'pas encore inscrit' : argent(fiC(v))] : null,
       montants && ecartEC(fiE(v), fiC(v)) !== null ? ['Écart F&I', h('span' + classeEcart(ecartEC(fiE(v), fiC(v))), { text: signe(ecartEC(fiE(v), fiC(v))) + ' (comptable − estimé)' })] : null,
-      ['Pneus', v.pneus === 'oui' ? 'Oui' : (v.pneus === 'non' ? 'Non' : '—')],
+      ['Pneus / jantes / mags', (v.pneus === 'oui' ? 'Oui' : (v.pneus === 'non' ? 'Non' : '—')) + (montants && v.pneusMontant ? ' · ' + argent(v.pneusMontant) : '')],
       ['Produits', prd.length ? h('div.produits', prd.map(function (p) { return h('span.puce.info', { text: p.libelle + (montants && p.montant !== null ? ' · ' + argent(p.montant) : '') }); })) : (v.statut === 'declaree' ? 'en attente du F&I' : '—')],
       v.statut === 'declaree' || v.fiAviseLe ? ['F&I prévenu', v.fiAviseLe ? AMX.fmtDate(v.fiAviseLe, true) + (v.fiAvises ? ' → ' + v.fiAvises : '') + (v.fiRappelLe ? ' · rappel le ' + AMX.fmtDate(v.fiRappelLe, true) : (v.statut === 'declaree' ? ' · rappel après 24 h' : '')) : 'aucun courriel parti (pas de destinataire F&I)'] : null
     ]));
@@ -1724,6 +1726,9 @@
     Object.keys(nomsD).sort().forEach(function (n) { dlDirecteurs.appendChild(h('option', { value: n })); });
     var inFI = h('input.saisie#vente-fi', { type: 'text', inputmode: 'decimal', placeholder: '0,00 $', value: val(v.profitFIPrevu) });
     var pneus = v.pneus || '';
+    /* 5 nov. : pneus / jantes / mags avec le montant (aussi inscrits avec la vente). */
+    var inPneusMt = h('input.saisie#vente-pneus-montant', { type: 'text', inputmode: 'decimal', placeholder: 'Montant ($)', value: val(v.pneusMontant) }), pneusMtTouche = false;
+    inPneusMt.addEventListener('input', function () { pneusMtTouche = true; var n = nombre(inPneusMt.value); if (n !== null && n > 0 && pneus !== 'oui') poserPneus('oui'); });
     var segPneus = h('div.segment.bloc#vente-pneus', [['', '—'], ['oui', 'Oui'], ['non', 'Non']].map(function (p) { return h('button' + (pneus === p[0] ? '.actif' : ''), { type: 'button', 'data-pneus': p[0], text: p[1], onclick: function () { poserPneus(p[0]); } }); }));
     function poserPneus(x) { pneus = x; segPneus.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.pneus === x); }); }
     var produits = {};
@@ -1752,7 +1757,7 @@
     var champ = function (id, libelle, el) { return h('div.champ', [h('label', { 'for': id, text: libelle }), el]); };
     var corps = h('div.ventes-form.ventes-fi-form', [
       resumeVente(v, montants),
-      h('div.grille', [champ('vente-directeur', 'Directeur commercial', inDirecteur), champ('vente-fi', 'Profit F&I prévu', inFI), champ('vente-pneus', 'Pneus vendus', segPneus)]),
+      h('div.grille', [champ('vente-directeur', 'Directeur commercial', inDirecteur), champ('vente-fi', 'Profit F&I prévu', inFI), h('div.champ.champ-pneus', [h('label', { 'for': 'vente-pneus-montant', text: 'Pneus / jantes / mags vendus' }), h('div.ventes-pneus', [segPneus, inPneusMt])])]),
       h('p.ventes-aide', 'Produits vendus — cochez et inscrivez le montant quand vous l\'avez ; la somme propose le profit F&I.'),
       elProduits, elTotalFI, dlDirecteurs
     ]);
@@ -1760,7 +1765,9 @@
     return AMX.modale({
       titre: 'Profits F&I — ' + v.id, corps: corps, large: true,
       boutons: [{ texte: 'Annuler' }, { texte: v.statut === 'declaree' || besoinFI(v) ? 'Inscrire les profits F&I' : 'Enregistrer', classe: 'primaire', action: function () {
-        return AMX.post({ action: 'venteCompleter', id: v.id, directeur: inDirecteur.value.trim(), profitFIPrevu: inFI.value.trim(), pneus: pneus, produits: lireProduits() }, { delai: 90000 }).then(function (r) {
+        var corpsFI = { action: 'venteCompleter', id: v.id, directeur: inDirecteur.value.trim(), profitFIPrevu: inFI.value.trim(), pneus: pneus, produits: lireProduits() };
+        if (!(v.montantsMasques && !pneusMtTouche)) corpsFI.pneusMontant = inPneusMt.value.trim();
+        return AMX.post(corpsFI, { delai: 90000 }).then(function (r) {
           verifierPost(r); AMX.ventes.poser(r.vente);
           AMX.toast(r.message || 'Profits F&I inscrits', r.livre && r.livre.ok === false ? 'erreur' : 'ok', 8000);
           return true;
@@ -2149,16 +2156,20 @@
 
     var selCie = h('select.saisie#vente-compagnie', [h('option', { value: '', text: 'Concession…' })].concat(codes.map(function (c) { return h('option', { value: c, text: AMX.COMPAGNIES_TOUTES[c] || c, selected: c === cie ? 'selected' : undefined }); })));
     if (edition) selCie.disabled = true;
-    var segType = h('div.segment.bloc#vente-type', Object.keys(TYPES).map(function (t) { return h('button' + (type === t ? '.actif' : ''), { type: 'button', 'data-type': t, text: TYPES[t], onclick: function () { if (edition) return; type = t; segType.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.type === t); }); rendreCategories(); rendreWholesale(); } }); }));
+    var segType = h('div.segment.bloc#vente-type', Object.keys(TYPES).map(function (t) { return h('button' + (type === t ? '.actif' : ''), { type: 'button', 'data-type': t, text: TYPES[t], onclick: function () { if (edition) return; type = t; segType.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.type === t); }); rendreCategories(); rendreWholesale(); remplirCatalogue(); } }); }));
     var inRecherche = h('input.saisie#vente-recherche', { type: 'text', placeholder: '# stock ou NIV', autocomplete: 'off', spellcheck: 'false', value: vehicule.stock || vehicule.vin || '' });
     var btnChercher = h('button.btn', { type: 'button', text: 'Trouver', onclick: function () { trouver(inRecherche.value); } });
     var elTrouve = h('div.ventes-trouve.gris', { text: 'Tapez le # stock ou le NIV puis « Trouver » : les neufs (DMS / manufacturier) et les registres d\'occasion sont fouillés.' });
     var inVin = h('input.saisie#vente-vin', { type: 'text', maxlength: '17', placeholder: 'NIV (17 caractères)', value: vehicule.vin, autocomplete: 'off', spellcheck: 'false' });
     var inStock = h('input.saisie#vente-stock', { type: 'text', placeholder: '# stock', value: vehicule.stock });
     var inAnnee = h('input.saisie#vente-annee', { type: 'text', placeholder: '2026', value: vehicule.annee, maxlength: '4' });
-    var inMarque = h('input.saisie#vente-marque', { type: 'text', placeholder: 'Marque', value: vehicule.marque });
-    var inModele = h('input.saisie#vente-modele', { type: 'text', placeholder: 'Modèle', value: vehicule.modele });
-    var inVersion = h('input.saisie#vente-version', { type: 'text', placeholder: 'Version', value: vehicule.version });
+    /* 5 nov. (Maxime : « mettre un déroulant pour les modèles et versions ») : listes tirées des neufs, des registres d'occasion
+       et des ventes de la concession ; les versions suivent le modèle tapé. On peut toujours taper autre chose. */
+    var inMarque = h('input.saisie#vente-marque', { type: 'text', placeholder: 'Marque', value: vehicule.marque, list: 'vente-marques', autocomplete: 'off' });
+    var inModele = h('input.saisie#vente-modele', { type: 'text', placeholder: 'Modèle', value: vehicule.modele, list: 'vente-modeles', autocomplete: 'off' });
+    var inVersion = h('input.saisie#vente-version', { type: 'text', placeholder: 'Version', value: vehicule.version, list: 'vente-versions', autocomplete: 'off' });
+    var dlMarques = h('datalist#vente-marques'), dlModeles = h('datalist#vente-modeles'), dlVersions = h('datalist#vente-versions');
+    var catalogue = { marques: {}, modeles: {}, versions: {} }, ventesListe = rep && rep.ventes ? rep.ventes : null;
     var inClient = h('input.saisie#vente-client', { type: 'text', placeholder: 'Nom du client', value: v.client || '' });
     /* 26 oct. (Maxime) : le numéro de client du DMS, tapé par qui remplit la fiche de vente. */
     var inNoClient = h('input.saisie#vente-noclient', { type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: 'ex. 123456', maxlength: '30', value: v.noClient || '' });
@@ -2203,9 +2214,12 @@
     var inDirecteur = h('input.saisie#vente-directeur', { type: 'text', list: 'vente-directeurs', placeholder: 'Directeur commercial', value: v.directeur || (peutCompleter && AMX.ventes.estFI() ? (AMX.session.nom || '') : ''), autocomplete: 'off' });
     var dlDirecteurs = h('datalist#vente-directeurs');
     var inFI = h('input.saisie#vente-fi', { type: 'text', inputmode: 'decimal', placeholder: '0,00 $', value: val(v.profitFIPrevu) });
-    var pneus = v.pneus || '';
-    var segPneus = h('div.segment.bloc#vente-pneus', [['', '—'], ['oui', 'Oui'], ['non', 'Non']].map(function (p) { return h('button' + (pneus === p[0] ? '.actif' : ''), { type: 'button', 'data-pneus': p[0], text: p[1], onclick: function () { poserPneus(p[0]); } }); }));
+    var pneus = v.pneus || '', pneusTouche = false;
+    var segPneus = h('div.segment.bloc#vente-pneus', [['', '—'], ['oui', 'Oui'], ['non', 'Non']].map(function (p) { return h('button' + (pneus === p[0] ? '.actif' : ''), { type: 'button', 'data-pneus': p[0], text: p[1], onclick: function () { pneusTouche = true; poserPneus(p[0]); } }); }));
     function poserPneus(x) { pneus = x; segPneus.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.pneus === x); }); }
+    /* 5 nov. (Maxime) : « ventes de pneus / jantes / mags » — Oui / Non et le montant, inscrits avec la vente. Un montant = Oui. */
+    var inPneusMt = h('input.saisie#vente-pneus-montant', { type: 'text', inputmode: 'decimal', placeholder: 'Montant ($)', value: val(v.pneusMontant) }), pneusMtTouche = false;
+    inPneusMt.addEventListener('input', function () { pneusMtTouche = true; var n = nombre(inPneusMt.value); if (n !== null && n > 0 && pneus !== 'oui') { pneusTouche = true; poserPneus('oui'); } });
     var produits = {};   /* code → { case, montant, ligne } */
     var elProduits = h('div.ventes-produits', defsProduits.map(function (p) {
       var coche = produitsInit[p[0]] !== undefined && produitsInit[p[0]] !== null && produitsInit[p[0]] !== '' && produitsInit[p[0]] !== false;
@@ -2233,6 +2247,9 @@
     var inRdr = h('input.saisie#vente-rdr', { type: 'date', value: v.dateRdr || '' }), inCodeRdr = h('input.saisie#vente-code-rdr', { type: 'text', maxlength: '12', placeholder: 'Code', value: v.codeRdr || '' });
     var champRdr = champ('vente-rdr', 'Date RDR', inRdr), champCodeRdr = champ('vente-code-rdr', 'Code RDR', inCodeRdr);
     champProvenance = champ('vente-provenance', 'Provenance (holdback)', selProvenance);   /* 26 oct. : la Date RDR va au livre (compteur des RDR du mois) */
+    /* 5 nov. (Maxime : « mettre le nom du F&I en même temps que d'inscrire la vente ») : le F&I nommé ici reçoit le courriel. */
+    var champDirecteur = champ('vente-directeur', 'F&I (directeur commercial)', inDirecteur);
+    var champPneus = h('div.champ.champ-pneus', [h('label', { 'for': 'vente-pneus-montant', text: 'Pneus / jantes / mags vendus' }), h('div.ventes-pneus', [segPneus, inPneusMt])]);
     var blocWholesale = h('div.grille', [champ('vente-vendua', 'Vendu à', inVenduA, 'large'), champ('vente-achetede', 'Acheté de', inAcheteDe), champ('vente-acheteur', 'Acheteur interne', inAcheteur), champ('vente-coutant', 'Coûtant', inCoutant)]);
     var blocClient = h('div.grille', [champ('vente-client', 'Client', inClient, 'large'), champ('vente-noclient', 'No client (DMS)', inNoClient), champ('vente-telephone', 'Téléphone', inTel), champ('vente-courriel', 'Courriel', inCourriel)]);
     var blocEchange = h('div', [
@@ -2259,8 +2276,8 @@
       edition ? null : elTrouve,
       h('div.grille', [champ('vente-vin', 'NIV', inVin), champ('vente-stock', '# Stock', inStock), champ('vente-annee', 'Année', inAnnee), champ('vente-marque', 'Marque', inMarque), champ('vente-modele', 'Modèle', inModele), champ('vente-version', 'Version', inVersion)]),
       h('h4', 'Vente — direction des ventes'),
-      h('div.grille', [champ('vente-date', 'Date de vente', inDate), champ('vente-livraison', 'Livraison (prévue)', inLivraison), champRdr, champCodeRdr, champ('vente-categorie', 'Catégorie', selCat), champProvenance, champ('vente-conseiller', 'Conseiller', inConseiller), champ('vente-prix', 'Prix de vente', inPrix), champ('vente-paiement', 'Mode de paiement', selPaiement), champ('vente-front', 'Profit front prévu', inFront), champ('vente-accessoires', 'Accessoires ($)', inAccess)]),
-      dlConseillers, dlDirecteurs,
+      h('div.grille', [champ('vente-date', 'Date de vente', inDate), champ('vente-livraison', 'Livraison (prévue)', inLivraison), champRdr, champCodeRdr, champ('vente-categorie', 'Catégorie', selCat), champProvenance, champ('vente-conseiller', 'Conseiller', inConseiller), champDirecteur, champ('vente-prix', 'Prix de vente', inPrix), champ('vente-paiement', 'Mode de paiement', selPaiement), champ('vente-front', 'Profit front prévu', inFront), champ('vente-accessoires', 'Accessoires ($)', inAccess), champPneus]),
+      dlConseillers, dlDirecteurs, dlMarques, dlModeles, dlVersions,
       h('h4#vente-titre-client', 'Client'),
       blocClient, blocWholesale,
       titreEchange,
@@ -2279,6 +2296,7 @@
       corps.querySelector('#vente-titre-client').textContent = ws ? 'Acheteur (wholesale)' : 'Client';
       titreEchange.style.display = ws ? 'none' : ''; blocEchange.style.display = ws ? 'none' : ''; pEchange.style.display = ws ? 'none' : '';
       if (sectionFI) sectionFI.style.display = ws ? 'none' : '';   /* 1er nov. : pas de F&I en wholesale */
+      champDirecteur.style.display = ws ? 'none' : ''; champPneus.style.display = ws ? 'none' : '';
       champRdr.style.display = ws ? 'none' : ''; champCodeRdr.style.display = ws || String(selCie.value || cie).toUpperCase() !== 'STM' ? 'none' : '';
       if (champProvenance) champProvenance.style.display = type === 'neuf' && String(selCie.value || cie).toUpperCase() === 'BMW' ? '' : 'none';   /* le code RDR : seulement le livre de Ste-Marie */
     }
@@ -2291,16 +2309,77 @@
       Object.keys(noms).sort().forEach(function (n) { dlConseillers.appendChild(h('option', { value: n })); });
       Object.keys(nomsD).sort().forEach(function (n) { dlDirecteurs.appendChild(h('option', { value: n })); });
       if (!inConseiller.value && !edition) inConseiller.value = AMX.session.nom || '';
-      var avis = corps.querySelector('#vente-avis-fi');
-      if (avis && d && d.fi !== undefined) { var f = d.fi; var ok = f && f.courriels && f.courriels.length; avis.className = 'ventes-aide ' + (ok ? 'fi' : 'alerte'); avis.textContent = ok ? 'Le F&I recevra un courriel pour inscrire son profit F&I et les produits (rappel après 24 h) : ' + (f.noms && f.noms.length ? f.noms : f.courriels).join(', ') + '.' : 'Aucun destinataire F&I pour cette concession : personne ne sera prévenu (Admin › droit « Ventes — F&I »).'; }
+      if (d) { if (d.fi !== undefined) fiDest = d.fi; directeursConnus = (d.personnes && d.personnes.directeurs) || directeursConnus; if (d.ventes) ventesListe = d.ventes; }
+      majAvisFI(); remplirCatalogue();
     }
+    var directeursConnus = (rep && rep.personnes && rep.personnes.directeurs) || [];
+    var cleNom = function (x) { return AMX.texteCherche ? AMX.texteCherche(x || '') : String(x || '').trim().toLowerCase(); };
+    /* L'avis dit à qui ira le courriel : le F&I nommé s'il a un compte de la concession, sinon les destinataires F&I de la concession. */
+    function majAvisFI() {
+      var avis = corps.querySelector('#vente-avis-fi'); if (!avis) return;
+      var nom = inDirecteur.value.trim(), cle = cleNom(nom);
+      var connu = nom ? directeursConnus.filter(function (p) { return p && p.courriel && cleNom(p.nom) === cle; })[0] : null;
+      if (connu) { avis.className = 'ventes-aide fi'; avis.textContent = 'Le courriel pour inscrire le profit F&I et les produits ira à ' + connu.nom + ' (rappel après 24 h).'; return; }
+      var f = fiDest, ok = f && f.courriels && f.courriels.length, dest = ok ? (f.noms && f.noms.length ? f.noms : f.courriels).join(', ') : '';
+      if (!f) { avis.className = 'ventes-aide fi'; avis.textContent = nom ? 'Le courriel pour inscrire le profit F&I ira à ' + nom + ' s\'il a un compte ScanAutomax à ce nom, sinon aux destinataires F&I de la concession.' : 'Le F&I (directeur commercial) recevra un courriel pour inscrire son profit F&I et les produits — rappel après 24 h.'; return; }
+      avis.className = 'ventes-aide ' + (ok ? 'fi' : 'alerte');
+      avis.textContent = nom
+        ? (ok ? nom + ' n\'a pas de compte ScanAutomax à ce nom : le courriel ira aux destinataires F&I de la concession — ' + dest + '.' : nom + ' n\'a pas de compte ScanAutomax à ce nom et la concession n\'a pas de destinataire F&I : personne ne sera prévenu.')
+        : (ok ? 'Le F&I recevra un courriel pour inscrire son profit F&I et les produits (rappel après 24 h) : ' + dest + '. Nommez le F&I ci-dessus pour que le courriel aille à lui seul.' : 'Aucun destinataire F&I pour cette concession : nommez le F&I ci-dessus, sinon personne ne sera prévenu (Admin › droit « Ventes — F&I »).');
+    }
+    inDirecteur.addEventListener('input', majAvisFI); inDirecteur.addEventListener('change', majAvisFI);
+    /* Listes des marques, modèles et versions. */
+    function ajouterCatalogue(marque, modele, version) {
+      var ma = String(marque || '').trim(), mo = String(modele || '').trim(), ve = String(version || '').trim();
+      if (ma) catalogue.marques[ma] = (catalogue.marques[ma] || 0) + 1;
+      if (!mo) return;
+      var km = cleNom(mo);
+      var e = catalogue.modeles[km] || (catalogue.modeles[km] = { nom: mo, marque: ma, n: 0 }); e.n++; if (!e.marque && ma) e.marque = ma;
+      if (ve) { var vs = catalogue.versions[km] || (catalogue.versions[km] = {}); vs[ve] = (vs[ve] || 0) + 1; }
+    }
+    function remplirCatalogue() {
+      catalogue = { marques: {}, modeles: {}, versions: {} };
+      var c = String(selCie.value || cie || '').toUpperCase(), occ = type !== 'neuf';
+      var neufs = AMX.neufs && AMX.neufs.enCache ? AMX.neufs.enCache() : null;
+      if (!occ && neufs && neufs.vehicules) neufs.vehicules.forEach(function (x) { if (!c || String(x.compagnie || '').toUpperCase() === c) ajouterCatalogue(x.marque, x.modele, x.version); });
+      if (occ && AMX.inventaire && AMX.inventaire.enCache) ['DETAIL', 'CAN', 'US'].forEach(function (f) {
+        (AMX.inventaire.enCache(f) || []).forEach(function (x) {
+          if (c && String(x.compagnie || '').toUpperCase() !== c) return;
+          var m = /^(\d{4})\s+(\S+)\s+(.*)$/.exec(x.modele || '') || /^(\S+)\s+(.*?)\s+(\d{4})$/.exec(x.modele || '');
+          if (m) { if (/^\d{4}$/.test(m[1])) ajouterCatalogue(m[2], m[3]); else ajouterCatalogue(m[1], m[2]); }
+        });
+      });
+      (ventesListe || []).forEach(function (x) { if ((!c || String(x.compagnie || '').toUpperCase() === c) && (occ ? x.type !== 'neuf' : x.type === 'neuf')) ajouterCatalogue(x.marque, x.modele, x.version); });
+      var tri = function (o) { return Object.keys(o).sort(function (a, b) { return (o[b] - o[a]) || a.localeCompare(b, 'fr'); }); };
+      AMX.vider(dlMarques); tri(catalogue.marques).slice(0, 60).forEach(function (n) { dlMarques.appendChild(h('option', { value: n })); });
+      majModeles();
+    }
+    function majModeles() {
+      var ma = cleNom(inMarque.value);
+      var mods = Object.keys(catalogue.modeles).map(function (k) { return catalogue.modeles[k]; })
+        .filter(function (e) { return !ma || !e.marque || cleNom(e.marque) === ma; })
+        .sort(function (a, b) { return (b.n - a.n) || a.nom.localeCompare(b.nom, 'fr'); });
+      AMX.vider(dlModeles); mods.slice(0, 150).forEach(function (e) { dlModeles.appendChild(h('option', { value: e.nom })); });
+      majVersions();
+    }
+    function majVersions() {
+      var vs = catalogue.versions[cleNom(inModele.value)] || {};
+      AMX.vider(dlVersions); Object.keys(vs).sort(function (a, b) { return (vs[b] - vs[a]) || a.localeCompare(b, 'fr'); }).slice(0, 80).forEach(function (n) { dlVersions.appendChild(h('option', { value: n })); });
+    }
+    inMarque.addEventListener('input', majModeles); inModele.addEventListener('input', majVersions); inModele.addEventListener('change', majVersions);
+    var neufsDemandes = false;
+    function chargerNeufs() {
+      if (neufsDemandes || type !== 'neuf' || !AMX.neufs || !AMX.neufs.charger || (AMX.neufs.enCache && AMX.neufs.enCache())) return;
+      neufsDemandes = true; AMX.neufs.charger().then(remplirCatalogue, function () {});
+    }
+    [inMarque, inModele, inVersion].forEach(function (el) { el.addEventListener('focus', chargerNeufs); });
     function trouver(texte) {
       var r = chercherVehicule(selCie.value || cie, texte);
       if (!r) return;
       if (r.inconnu) { elTrouve.className = 'ventes-trouve gris'; elTrouve.textContent = (r.vin ? 'NIV ' + r.vin : '# stock ' + r.stock) + ' : pas trouvé dans les neufs ni les registres — remplissez année, marque et modèle à la main (le serveur complétera s\'il le connaît).'; if (r.vin) inVin.value = r.vin; else inStock.value = r.stock; return; }
       inVin.value = r.vin || ''; inStock.value = r.stock || ''; inAnnee.value = r.annee || ''; inMarque.value = r.marque || ''; inModele.value = r.modele || (r.modeleTexte || ''); inVersion.value = r.version || '';
       if (r.coutant !== undefined && r.coutant !== '' && !inCoutant.value) inCoutant.value = r.coutant;
-      if (r.type && !edition) { type = r.type; segType.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.type === type); }); rendreCategories(); rendreWholesale(); }
+      if (r.type && !edition) { type = r.type; segType.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.type === type); }); rendreCategories(); rendreWholesale(); remplirCatalogue(); }
       elTrouve.className = 'ventes-trouve'; elTrouve.textContent = ([r.annee, r.marque, r.modele, r.version].filter(Boolean).join(' ') || r.modeleTexte || '') + (r.stock ? ' · # ' + r.stock : '') + ' · ' + r.source + (r.type ? ' → ' + TYPES[r.type] : '');
     }
     var evalEnCours = '';
@@ -2333,7 +2412,7 @@
     inEchVin.addEventListener('input', function () { var vin = inEchVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(); if (vin.length === 17) chercherEvaluation(vin, false); });
     inEchVin.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); chercherEvaluation(inEchVin.value, true); } });
     rendreCategories(); rendreWholesale(); rendrePersonnes(rep); majTotalFI();
-    selCie.addEventListener('change', function () { cie = selCie.value; remplirPaiements(); rendreWholesale(); AMX.ventes.charger(cie, moisDe('')).then(rendrePersonnes, function () {}); });
+    selCie.addEventListener('change', function () { cie = selCie.value; ventesListe = null; remplirPaiements(); rendreWholesale(); remplirCatalogue(); AMX.ventes.charger(cie, moisDe('')).then(rendrePersonnes, function () {}); });
     inRecherche.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); trouver(inRecherche.value); } });
     if (!rep && cie) AMX.ventes.charger(cie, moisDe('')).then(function (d) { rendrePersonnes(d); }, function () {});
     if (!edition && (vehicule.vin || vehicule.stock) && !vehicule.modele) setTimeout(function () { trouver(vehicule.vin || vehicule.stock); }, 30);
@@ -2361,17 +2440,25 @@
           echangeStock: inEchStock.value.trim(), echangeModele: inEchModele.value.trim(), echangeVin: echVin, echangeKm: inEchKm.value.trim(), echangeValeur: inEchValeur.value.trim(), echangeEvaluation: inEchEval.value.trim(), echangeEvalLe: evalMeta.le, echangeEvalPar: evalMeta.par,
           dateRdr: type === 'wholesale' ? '' : inRdr.value, codeRdr: type === 'wholesale' ? '' : inCodeRdr.value.trim(),
           note: inNote.value.trim(), venduA: inVenduA.value.trim(), acheteDe: inAcheteDe.value.trim(), acheteur: inAcheteur.value.trim(), coutant: inCoutant.value.trim(), source: 'site' };
-        /* 26 oct. : le F&I s'inscrit dans sa propre fenêtre — rien du F&I ne part d'ici. */
+        /* 26 oct. : le profit F&I et les produits s'inscrivent dans leur propre fenêtre. 5 nov. : le nom du F&I et les pneus / jantes / mags partent avec la vente. */
+        if (type !== 'wholesale') {
+          corpsEnvoi.directeur = inDirecteur.value.trim();
+          if (!edition || pneusTouche || pneus !== (v.pneus || '')) corpsEnvoi.pneus = pneus;
+          if (!(edition && v.montantsMasques && !pneusMtTouche)) corpsEnvoi.pneusMontant = inPneusMt.value.trim();
+        }
+        /* Un montant masqué (pas le droit de voir les montants) qu'on n'a pas retapé ne part pas : il effacerait le vrai. */
+        if (edition && v.montantsMasques) ['prixVente', 'profitPrevu', 'accessoires', 'overUnder', 'coutant', 'echangeValeur', 'echangeEvaluation'].forEach(function (k) { if (corpsEnvoi[k] === '') delete corpsEnvoi[k]; });
         corpsEnvoi.action = edition ? 'venteCompleter' : 'venteDeclarer';
         if (edition) corpsEnvoi.id = v.id;
         if (prefill.forcer) corpsEnvoi.forcer = true;
         return AMX.post(corpsEnvoi, { delai: 90000 }).then(function (r) {
           if (r && r.ok === false && r.code === 'DOUBLON' && r.vente) {
-            AMX.confirmer('Déjà inscrite', r.erreur + '\n\nInscrire quand même une deuxième vente pour ce véhicule ?', { ok: 'Inscrire quand même' }).then(function (ok) { if (ok) ouvrirFormulaire(Object.assign({}, prefill, { forcer: true, compagnie: compagnie, type: type, vin: vin, stock: stock }), null); else AMX.ventes.poser(r.vente); });
+            AMX.confirmer('Déjà inscrite', r.erreur + '\n\nInscrire quand même une deuxième vente pour ce véhicule ?', { ok: 'Inscrire quand même' }).then(function (ok) { if (ok) ouvrirFormulaire(Object.assign({}, prefill, { forcer: true, compagnie: compagnie, type: type, vin: vin, stock: stock }), null); else { AMX.ventes.poser(r.vente); if (typeof prefill.apres === 'function') prefill.apres(r.vente); } });
             return true;
           }
           verifierPost(r);
           AMX.ventes.poser(r.vente);
+          if (typeof prefill.apres === 'function') { try { prefill.apres(r.vente); } catch (e) {} }   /* 5 nov. : la page qui a ouvert la fenêtre (fiche d'achat) se met à jour */
           AMX.toast(r.message || 'Enregistré', r.livre && r.livre.ok === false ? 'erreur' : 'ok', 8000);
           if (r.avisFI && r.avisFI.ok === false) AMX.toast('Aucun courriel au F&I : ' + (r.avisFI.erreur || 'pas de destinataire') + ' — Admin › droit « Ventes — F&I ».', 'erreur', 9000);
           if (!(AMX.courante && AMX.courante.section && AMX.courante.section.id === 'vente' && AMX.courante.onglet && AMX.courante.onglet.id === 'ventes')) {

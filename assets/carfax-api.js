@@ -290,19 +290,22 @@
 })();
 
 /* =========================================================================
-   Pastilles CARFAX (5 nov. 2026) — accident déclaré ou non, partout où un véhicule est montré, sans rien commander
+   Pastilles CARFAX (5 nov. 2026) — « Sans accident » ou « Accident ? » (rouge), partout où un véhicule est montré, sans rien commander
    Maxime : « dans Opportunités il faudrait pouvoir lire les CARFAX et avoir une icône très visible pour dire s'il y a un
    accident, sans que ça coûte des $ de notre compte », puis « applique l'API partout où on voit un stock dans le site,
    une auto accidentée en rouge ».
    Le script lit la Badging API de CARFAX (CarfaxPastilles.gs) : elle dit si un rapport existe déjà chez CARFAX pour ce
    NIV et donne ses pastilles. Elle ne commande rien.
      - AMX.cfxPastilles.puce(vin, { grande }) : un <span data-cfx="NIV"> qui se remplit et se met à jour tout seul :
-       rouge « ⚠ Accident » (rapport sans la pastille « Aucun accident déclaré »), vert « ✓ Sans accident », gris
-       « Aucun rapport CARFAX » (seulement en grand). Un clic ouvre le rapport CARFAX (il n'ouvre pas la ligne).
-     - AMX.cfxPastilles.ligne(el, vin) : la ligne passe en rouge (.cfx-ligne-accident) quand un accident est inscrit.
+       vert « ✓ Sans accident » (pastille CARFAX « Aucun accident déclaré », certain), rouge « ⚠ Accident ? » (rapport SANS
+       cette pastille : le plus souvent un accident ou un dommage, mais aussi un véhicule importé ou un historique trop court —
+       vu le 5 nov. : la BMW iX WB523CF05PCL23666 n'a aucun accident, c'est une importation ; Maxime veut quand même le rouge,
+       d'où le « ? »), gris « Aucun rapport CARFAX » (seulement en grand). Un clic ouvre le rapport (il n'ouvre pas la ligne).
+     - AMX.cfxPastilles.ligne(el, vin) : la ligne passe en rouge (.cfx-ligne-accident) avec « Accident ? ».
      - AMX.cfxPastilles.demander(vins) : un NIV pas encore connu (ou trop vieux) est lu chez CARFAX par le script, par
        lots de 60 (POST carfaxPastillesLire) ; puce() le demande d'elle-même.
-     - AMX.cfxPastilles.de(vin) → { a: 'o'|'n'|'x'|'e', le, p: [codes], l: lien } ; accident(vin) → true / false / null.
+     - AMX.cfxPastilles.de(vin) → { a: 'n'|'v'|'x'|'e', le, p: [codes], l: lien } (v = « Accident ? » ; un 'o' d'avant le
+       5 nov. devient 'v') ; accident(vin) → false (aucun accident déclaré), true (« Accident ? ») ou null (pas de rapport).
    Données : GET ?carfaxPastilles=1 (10 minutes en mémoire, pas de copie dans le navigateur, déjà presque plein).
    ========================================================================= */
 (function () {
@@ -319,11 +322,11 @@
       '.cfx-pastille { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 999px; font: inherit; font-weight: 700; font-size: 12px; line-height: 1.2; padding: 3px 9px; margin: 0 4px; vertical-align: middle; white-space: nowrap; cursor: default; }',
       '.cfx-pastille:empty { display: none; }',
       '.cfx-pastille.lien { cursor: pointer; }',
-      '.cfx-pastille.o { background: #C62828; color: #fff; box-shadow: 0 0 0 2px rgba(198, 40, 40, .18); }',
+      '.cfx-pastille.v { background: #C62828; color: #fff; box-shadow: 0 0 0 2px rgba(198, 40, 40, .18); }',
       '.cfx-pastille.n { background: #E3F4EA; color: #1E6B3A; }',
       '.cfx-pastille.x, .cfx-pastille.e { background: var(--fond-2, #F1F3F5); color: var(--encre-3, #4B5563); font-weight: 600; }',
       '.cfx-pastille.grande { font-size: 13.5px; padding: 6px 12px; margin: 0; }',
-      '.cfx-pastille.o:hover, .cfx-pastille.n.lien:hover { filter: brightness(.95); }',
+      '.cfx-pastille.v.lien:hover, .cfx-pastille.n.lien:hover { filter: brightness(.95); }',
       '.cfx-ligne-accident { background: rgba(198, 40, 40, .07) !important; box-shadow: inset 4px 0 0 #C62828 !important; }',
       'tr.cfx-ligne-accident { box-shadow: none !important; }',
       'tr.cfx-ligne-accident > td { background: rgba(198, 40, 40, .07) !important; }',
@@ -339,13 +342,13 @@
   function de(vin) {
     var x = S.v[norm(vin)];
     if (!x) return null;
-    return { a: x[0], le: x[1] || '', p: String(x[2] || '').split(',').filter(Boolean), l: x[3] || '' };
+    return { a: x[0] === 'o' ? 'v' : x[0], le: x[1] || '', p: String(x[2] || '').split(',').filter(Boolean), l: x[3] || '' };
   }
   function nomPastille(c) { return NOMS[c] || String(c).replace(/([a-z])([A-Z])/g, '$1 $2'); }
   function perime(x) {
     if (!x) return true;
     var age = (Date.now() - Date.parse((x.le || '2000-01-01') + 'T12:00:00')) / 864e5;
-    if (x.a === 'o' || x.a === 'n') return age >= 14;
+    if (x.a === 'v' || x.a === 'n') return age >= 14;
     if (x.a === 'x') return age >= 7;
     return age >= 1;
   }
@@ -387,7 +390,7 @@
     S.enVol = true;
     AMX.post({ action: 'carfaxPastillesLire', vins: lot }, { secours: false, delai: 150000 }).then(function (r) {
       S.enVol = false;
-      if (r && r.v) { fusion(r.v); S.lus += r.lus || 0; rafraichir(); document.dispatchEvent(new CustomEvent('amx:cfxPastilles', { detail: { lus: r.lus || 0, accidents: r.accidents || 0 } })); }
+      if (r && r.v) { fusion(r.v); S.lus += r.lus || 0; rafraichir(); document.dispatchEvent(new CustomEvent('amx:cfxPastilles', { detail: { lus: r.lus || 0 } })); }
       else if (r && r.code === 'NON_BRANCHE') S.arret = 'non branché';
       else if (r && (r.refuse || r.vehicules || /absent|pas à jour/i.test(r.erreur || ''))) S.arret = 'script';
       planifier(400);
@@ -395,7 +398,7 @@
   }
   function texte(x, grande) {
     if (!x) return '';
-    if (x.a === 'o') return grande ? '⚠ Accident ou dommage déclaré (CARFAX)' : '⚠ Accident';
+    if (x.a === 'v') return grande ? '⚠ Accident ? — pas de mention « Aucun accident déclaré » (CARFAX)' : '⚠ Accident ?';
     if (x.a === 'n') return grande ? '✓ Aucun accident déclaré (CARFAX)' : '✓ Sans accident';
     if (x.a === 'x') return grande ? 'Aucun rapport CARFAX pour ce NIV' : '';
     return grande ? 'CARFAX : lecture à refaire' : '';
@@ -403,7 +406,7 @@
   function infobulle(x) {
     if (!x) return '';
     var noms = x.p.map(nomPastille).filter(function (n) { return n !== NOMS.A; });
-    if (x.a === 'o') return 'Le rapport CARFAX n\'a pas la pastille « Aucun accident déclaré » : au moins un accident ou un dommage y est inscrit.' + (noms.length ? ' Pastilles : ' + noms.join(', ') + '.' : '') + (x.l ? ' Cliquez pour ouvrir le rapport.' : '') + ' Lu le ' + x.le + '.';
+    if (x.a === 'v') return 'Ce rapport CARFAX n\'a pas la mention « Aucun accident déclaré » : le plus souvent un accident ou un dommage inscrit, mais parfois un véhicule importé ou un historique trop court. Seul le rapport le confirme.' + (noms.length ? ' Pastilles : ' + noms.join(', ') + '.' : '') + (x.l ? ' Cliquez pour ouvrir le rapport.' : '') + ' Lu le ' + x.le + '.';
     if (x.a === 'n') return 'Rapport CARFAX : aucun accident déclaré.' + (noms.length ? ' ' + noms.join(', ') + '.' : '') + (x.l ? ' Cliquez pour ouvrir le rapport.' : '') + ' Lu le ' + x.le + '.';
     if (x.a === 'x') return 'Aucun rapport CARFAX n\'existe encore pour ce NIV (lu le ' + x.le + ').';
     return 'La lecture CARFAX a échoué (' + x.le + ') : elle sera refaite.';
@@ -419,7 +422,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-cfx]'), remplir);
     Array.prototype.forEach.call(document.querySelectorAll('[data-cfx-ligne]'), function (el) {
       var x = de(el.getAttribute('data-cfx-ligne'));
-      el.classList.toggle('cfx-ligne-accident', !!(x && x.a === 'o'));
+      el.classList.toggle('cfx-ligne-accident', !!(x && x.a === 'v'));
     });
   }
   function puce(vin, opts) {
@@ -443,7 +446,7 @@
     if (!el || !valide(vin)) return el;
     el.setAttribute('data-cfx-ligne', vin);
     var x = de(vin);
-    if (x && x.a === 'o') el.classList.add('cfx-ligne-accident');
+    if (x && x.a === 'v') el.classList.add('cfx-ligne-accident');
     return el;
   }
   /* Bloc de la fiche d'un véhicule : la grande pastille, les autres pastilles, le lien du rapport, « Relire ». */
@@ -468,6 +471,7 @@
           }, function (er) { b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(er), 'erreur'); });
         } })
       ]));
+      if (x.a === 'v') corps.appendChild(h('div.petit', { text: 'CARFAX ne donne la mention « Aucun accident déclaré » qu\'aux véhicules sans accident inscrit, mais pas à tous (véhicule importé, historique court). Ouvrez le rapport : la case « Dossiers d\'accidents/dommages » confirme.' }));
       corps.appendChild(h('div.doux.petit', { text: 'Pastilles du rapport CARFAX déjà existant, lues le ' + x.le + '. Aucun rapport n\'est commandé ici.' }));
     };
     dessiner();
@@ -479,7 +483,7 @@
 
   AMX.cfxPastilles = {
     charger: charger, de: de, puce: puce, ligne: ligne, bloc: bloc, demander: demander, rafraichir: rafraichir,
-    accident: function (vin) { var x = de(vin); return x ? (x.a === 'o' ? true : (x.a === 'n' ? false : null)) : null; },
+    accident: function (vin) { var x = de(vin); return x ? (x.a === 'n' ? false : (x.a === 'v' ? true : null)) : null; },
     enFile: function () { return Object.keys(S.file).length + (S.enVol ? LOT : 0); },
     arret: function () { return S.arret; },
     nomPastille: nomPastille,

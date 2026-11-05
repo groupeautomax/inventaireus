@@ -329,6 +329,7 @@
       '.admin-page .admin-demandes-ligne { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 6px 14px; padding: 10px 0; border-top: 1px solid var(--ligne); }',
       '.admin-page .admin-demandes-ligne:first-child { border-top: 0; }',
       '.admin-page .admin-demandes-ligne .ligne-cle input { flex: 1 1 260px; min-width: 0; }',
+      '.admin-page .admin-demandes-seuls { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin-top: 6px; }', '.admin-page .admin-demandes-seuls label.case { font-size: 12.5px; }',
       '@media (max-width: 640px) { .admin-page .admin-demandes-ligne { grid-template-columns: minmax(0, 1fr); } }',
       // Avatar (liste et panneau), coloré comme le badge de rôle.
       '.admin-avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; letter-spacing: .02em; }',
@@ -793,7 +794,7 @@
   VueAdmin.prototype.construireDemandes = function () {
     this.elDemandesListe = h('div', { text: 'Chargement…' });
     var corps = [
-      h('p.doux.petit', { style: { margin: 0 }, text: 'Le courriel « demande de travaux » part aux comptes Service et Direction service de la concession. Ajoutez ici d\'autres adresses (contremaître, boîte du service…). Sans personne, il va aux directeurs.' }),
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Le courriel « demande de travaux » part aux comptes Service et Direction service de la concession. Ajoutez ici d\'autres adresses (contremaître, boîte du service…). Sans personne, il va aux directeurs. Pour qu\'une seule personne le reçoive, cochez-la sous « Envoyer seulement à » ; rien de coché = tout le service.' }),
       this.elDemandesListe
     ];
     return h('div.carte.admin-parametres.admin-demandes', [h('div.carte-entete', [h('h2', 'Demandes de travaux au service')]), h('div.carte-corps', corps)]);
@@ -813,26 +814,47 @@
       var dest = (a.destinataires || []).map(function (x) { return (x.nom && x.nom !== x.courriel ? x.nom + ' ' : '') + '<' + x.courriel + '>' + (x.pourquoi ? ' — ' + x.pourquoi : ''); });
       var champ = h('input#adm-demandes-' + c, { type: 'text', autocomplete: 'off', spellcheck: 'false', placeholder: 'service@concession.com, autre@…', value: (a.courriels || []).join(', ') });
       champ.disabled = !d.peutModifier;
-      var btn = h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function () { self.enregistrerDemandes(c, champ.value, btn); } });
+      /* 5 nov. (suggestion de Louis Prassinos, Hyundai) : cocher la ou les seules personnes qui reçoivent la demande. */
+      var cases = null, coches = {};
+      if (Array.isArray(a.candidats)) {
+        (a.seuls || []).forEach(function (x) { coches[String(x).toLowerCase()] = true; });
+        var gens = a.candidats.slice(), vus = {};
+        gens.forEach(function (x) { vus[x.courriel] = true; });
+        (a.seuls || []).forEach(function (x) { if (!vus[x]) gens.push({ courriel: x, nom: x }); });
+        if (gens.length) cases = h('div.admin-demandes-seuls', [h('span.mini.doux', { text: 'Envoyer seulement à :' })].concat(gens.map(function (x) {
+          var cb = h('input', { type: 'checkbox', 'data-courriel': x.courriel, checked: coches[x.courriel] ? 'checked' : undefined });
+          cb.disabled = !d.peutModifier;
+          return h('label.case', { title: x.courriel + (x.pourquoi ? ' — ' + x.pourquoi : '') }, [cb, h('span', { text: x.nom && x.nom !== x.courriel ? x.nom : x.courriel })]);
+        })));
+      }
+      var btn = h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function () {
+        var seuls = cases ? [].slice.call(cases.querySelectorAll('input[type=checkbox]')).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.courriel; }) : undefined;
+        self.enregistrerDemandes(c, champ.value, btn, seuls);
+      } });
       btn.disabled = !d.peutModifier;
       self.elDemandesListe.appendChild(h('div.admin-demandes-ligne', [
-        h('div', [h('b', { text: AMX.COMPAGNIES_TOUTES[c] || c }), a.repli ? h('div.mini', [h('span.badge.ambre.sans-point', { text: 'Repli : directeurs' })]) : null]),
+        h('div', [h('b', { text: AMX.COMPAGNIES_TOUTES[c] || c }), a.repli ? h('div.mini', [h('span.badge.ambre.sans-point', { text: 'Repli : directeurs' })]) : null, (a.seuls || []).length ? h('div.mini', [h('span.badge.bleu.sans-point', { text: 'Une partie du service seulement' })]) : null]),
         h('div', [
           h('div.mini.doux', { text: dest.length ? 'Reçoivent aujourd\'hui : ' + dest.join(' · ') : 'Personne pour l\'instant.' }),
+          cases,
           h('div.ligne-cle', { style: { marginTop: '6px' } }, [champ, btn])
         ])
       ]));
     });
   };
-  VueAdmin.prototype.enregistrerDemandes = function (code, valeur, btn) {
+  VueAdmin.prototype.enregistrerDemandes = function (code, valeur, btn, seuls) {
     var self = this;
     btn.classList.add('occupe');
-    AMX.post({ action: 'demandeReglages', compagnie: code, courriels: String(valeur || '') }).then(function (r) {
+    var corps = { action: 'demandeReglages', compagnie: code, courriels: String(valeur || '') };
+    if (seuls !== undefined) corps.seuls = seuls;
+    AMX.post(corps).then(function (r) {
       btn.classList.remove('occupe');
       if (r && r.vehicules && !r.apercu) throw new Error('le script n\'est pas à jour (Demande.gs)');
       if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'refusé');
       self.rendreDemandes(r);
-      AMX.toast('Destinataires des demandes enregistrés — ' + (AMX.COMPAGNIES_TOUTES[code] || code) + '.', 'ok');
+      var a = r.apercu && r.apercu[code];
+      if (seuls !== undefined && seuls.length && a && !Array.isArray(a.seuls)) { AMX.toast('Courriels enregistrés, mais « Envoyer seulement à » demande le nouveau script (Demande.gs) : redéployez-le.', 'erreur', 9000); return; }
+      AMX.toast('Destinataires des demandes enregistrés — ' + (AMX.COMPAGNIES_TOUTES[code] || code) + (a && a.seuls && a.seuls.length ? ' : seulement ' + a.destinataires.map(function (x) { return x.nom || x.courriel; }).join(', ') : '') + '.', 'ok');
     }).catch(function (e) { btn.classList.remove('occupe'); AMX.toast('Enregistrement impossible — ' + AMX.erreurTexte(e), 'erreur'); });
   };
 

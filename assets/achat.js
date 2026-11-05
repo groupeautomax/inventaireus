@@ -96,6 +96,19 @@
       '.achat-page.achat-verrouille .case input:disabled { opacity: .85; }',
       '.achat-page .achat-print-only { display: none; }',
       '.achat-page .achat-note { margin: 0 0 20px; }',
+      // 5 nov. : bloc « Vente au client — vendeur et F&I » (lu dans le Livre des ventes).
+      '.achat-page .achat-vente-ligne { padding: 12px 0 0; margin-top: 12px; border-top: 1px solid var(--ligne); }',
+      '.achat-page .achat-vente-ligne:first-child { padding-top: 0; margin-top: 0; border-top: 0; }',
+      '.achat-page .achat-vente-ligne.annulee { opacity: .6; }',
+      '.achat-page .achat-vente-tete { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 13px; color: var(--encre-2); margin-bottom: 10px; }',
+      '.achat-page .achat-vente-tete b { color: var(--encre); }',
+      '.achat-page .achat-vente-qui { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }',
+      '.achat-page .achat-vente-qui .l { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-3); }',
+      '.achat-page .achat-vente-qui .v { font-size: 16px; font-weight: 600; color: var(--encre); margin-top: 2px; }',
+      '.achat-page .achat-vente-qui .v.manque { color: var(--ambre); font-weight: 500; font-size: 14px; }',
+      '.achat-page .achat-vente-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }',
+      '.achat-page .achat-vente-vide { color: var(--encre-2); font-size: 13.5px; margin: 0; }',
+      '@media (max-width: 600px) { .achat-page .achat-vente-qui { grid-template-columns: 1fr; } }',
       // Impression : la fiche tient sur une page lettre.
       '@media print {',
       '  @page { size: letter; margin: 0.3in; }',
@@ -129,6 +142,11 @@
       '  .achat-page .achat-cases { gap: 2px 10px; }',
       '  .achat-page .section-titre { font-size: 7.5px; margin: 0 0 3px; }',
       '  .achat-page .achat-sous { margin-top: 4px; padding-top: 4px; }',
+      '  .achat-page .achat-vente-tete { font-size: 8px; margin-bottom: 2px; }',
+      '  .achat-page .achat-vente-qui { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 8px; }',
+      '  .achat-page .achat-vente-qui .l { font-size: 7px; }',
+      '  .achat-page .achat-vente-qui .v, .achat-page .achat-vente-qui .v.manque { font-size: 9px; margin-top: 0; }',
+      '  .achat-page .achat-vente-ligne { padding-top: 3px; margin-top: 3px; }',
       '}'
     ].join('\n');
     document.head.appendChild(s);
@@ -199,6 +217,13 @@
     document.addEventListener('amx:inventaire', this.surInventaire);
     document.addEventListener('amx:carfax', this.surInventaire);
     if (AMX.carfax) AMX.carfax.charger().catch(function () {});
+    // Une vente inscrite, modifiée ou annulée ailleurs (fenêtre de la vente) : on relit le bloc Vente, sans clignoter.
+    this.surVentes = function () {
+      if (!self.vinCourant || !self.carteVente || self.carteVente.classList.contains('cache')) return;
+      clearTimeout(self.venteMinuterie);
+      self.venteMinuterie = setTimeout(function () { self.rendreVente(self.vinCourant, true); }, 800);
+    };
+    document.addEventListener('amx:ventes', this.surVentes);
     this.surImpression = function () {
       self.elDateImpression.textContent = 'Groupe Automax · fiche imprimée le ' + AMX.fmtDate(new Date().toISOString(), true) + (self.vinCourant ? ' · NIV ' + self.vinCourant : '');
     };
@@ -225,6 +250,8 @@
   Fiche.prototype.demonter = function () {
     document.removeEventListener('amx:inventaire', this.surInventaire);
     document.removeEventListener('amx:carfax', this.surInventaire);
+    document.removeEventListener('amx:ventes', this.surVentes);
+    clearTimeout(this.venteMinuterie);
     window.removeEventListener('beforeprint', this.surImpression);
     this.generation++;
   };
@@ -402,6 +429,15 @@
       this.sousExport
     ]);
 
+    // 5 nov. (Maxime : « dans la fiche d'achat, choisir le vendeur (interne) lorsque le véhicule est vendu, et le F&I qui
+    // s'est occupé du dossier ») : la vente du NIV vient du Livre des ventes (?venteVin=). Le vendeur (conseiller) et le F&I
+    // (directeur commercial) s'inscrivent dans la vente — jamais une deuxième fois dans la fiche. Caché sans NIV ou sans
+    // accès au Livre des ventes.
+    this.elVente = h('div.achat-vente');
+    this.elVenteEtat = h('span');
+    this.carteVente = carte(h('div.carte-entete-ligne', [h('h2', 'Vente au client — vendeur et F&I'), this.elVenteEtat]), [this.elVente]);
+    this.carteVente.classList.add('cache');
+
     // 26 oct. : le release — payé, release reçu, où cueillir. Avant de demander le transport à Central Fleet
     // (release.js, Release.gs) : ces champs partent avec la demande (lieu de cueillette, no de release, contact, heures).
     this.elReleaseEtat = h('span.noprint');
@@ -426,7 +462,7 @@
       this.elTransport
     ]);
 
-    this.elFiche = h('div.achat-fiche', [identification, provenance, couts, statut, vente, release, livraison]);
+    this.elFiche = h('div.achat-fiche', [identification, provenance, couts, statut, vente, this.carteVente, release, livraison]);
     var note = h('p.doux.petit.noprint.achat-note', 'Le coûtant total additionne tous les champs de coûts et les PAD cochés. Le prix de vente retenu dépend de la destination : prix de vente estimé (É.-U.), wholesale (Canada) ou prix détail (Detail).');
 
     this.elPage = h('div.page.etroite.achat-page', [entete, lookup, this.elEval, this.elVerrou, resume, this.elFiche, note]);
@@ -447,7 +483,7 @@
       var vin = niv.value.trim();
       if (vin.length >= 6) {
         self.elLookup.value = vin;
-        if (vin !== self.vinCourant) { self.vinCourant = vin; self.contexte = null; self.contexteVerifie = false; self.decode = null; self.rendreContexte(); }
+        if (vin !== self.vinCourant) { self.vinCourant = vin; self.contexte = null; self.contexteVerifie = false; self.decode = null; self.rendreContexte(); self.rendreVente(vin); }
         if (vin !== self.vinVerifie) self.verifierVerrouillage(vin, false);
       }
       if (vin.length >= 11 && !(self.decode && self.decode.vin === vin)) self.decoderVin(vin);
@@ -792,6 +828,89 @@
       });
     }).catch(function () {});
   };
+  /* 5 nov. : bloc « Vente au client — vendeur et F&I ». La vente du NIV est lue dans le Livre des ventes ; le vendeur
+     (conseiller) et le F&I (directeur commercial) se choisissent dans la fenêtre de la vente (Vente › Livre des ventes),
+     préremplie d'ici. Une vente sans NIV au livre (Hawkesbury : 8 derniers caractères) est retrouvée par le # stock de la
+     même concession. */
+  var ETATS_VENTE = { declaree: ['Attente F&I', 'ambre'], completee: ['Au livre', 'vert'], comptabilisee: ['Comptabilisée', 'vert'], annulee: ['Annulée', 'gris'] };
+  var TYPES_VENTE = { neuf: 'Neuf', usage: 'Occasion', wholesale: 'Wholesale' };
+  Fiche.prototype.rendreVente = function (vin, silencieux) {
+    var self = this;
+    if (!this.elVente) return Promise.resolve();
+    vin = String(vin === undefined ? (this.vinCourant || '') : vin).trim().toUpperCase();
+    var stock = String(valeur('f-stock') || '').trim().toUpperCase();
+    var voit = AMX.ventes && (!AMX.voitOnglet || AMX.voitOnglet('vente', 'ventes'));
+    var gen = this.venteGen = (this.venteGen || 0) + 1;
+    if (!voit || (vin.length !== 17 && !stock)) { this.carteVente.classList.add('cache'); AMX.vider(this.elVente); AMX.vider(this.elVenteEtat); return Promise.resolve(); }
+    this.carteVente.classList.remove('cache');
+    if (!silencieux) { AMX.vider(this.elVente); AMX.vider(this.elVenteEtat); this.elVente.appendChild(h('p.achat-vente-vide', 'Lecture du Livre des ventes…')); }
+    var params = { venteVin: vin.length === 17 ? vin : stock };
+    if (stock) params.stock = stock;
+    return AMX.get(params, { essais: 1, discret: true, secours: false }).then(function (d) {
+      if (gen !== self.venteGen) return;
+      if (!d || d.refuse) { self.carteVente.classList.add('cache'); return; }   // pas d'accès au Livre des ventes
+      if (!Array.isArray(d.ventes)) throw new Error('le script n\'est pas à jour');
+      self.dessinerVente(d.ventes, vin, stock);
+    }).catch(function (e) {
+      if (gen !== self.venteGen || silencieux) return;
+      AMX.vider(self.elVente); AMX.vider(self.elVenteEtat);
+      self.elVente.appendChild(h('p.achat-vente-vide', 'Livre des ventes injoignable : ' + AMX.erreurTexte(e)));
+    });
+  };
+  Fiche.prototype.dessinerVente = function (ventes, vin, stock) {
+    var self = this, cie = String(valeur('f-compagnie') || '').toUpperCase();
+    var liste = (ventes || []).filter(function (v) {
+      var vv = String(v.vin || '').toUpperCase();
+      if (vin.length === 17 && vv === vin) return true;
+      if (!stock || String(v.stock || '').toUpperCase() !== stock) return false;
+      if (cie && v.compagnie && v.compagnie !== cie) return false;
+      return !vv || vin.length !== 17 || vin.slice(-vv.length) === vv;   // un NIV différent au livre = un autre véhicule
+    });
+    liste.sort(function (a, b) { return (a.statut === 'annulee' ? 1 : 0) - (b.statut === 'annulee' ? 1 : 0); });   // le serveur les donne déjà de la plus récente à la plus vieille
+    AMX.vider(this.elVente); AMX.vider(this.elVenteEtat);
+    var vivante = liste.filter(function (v) { return v.statut !== 'annulee'; })[0];
+    this.elVenteEtat.appendChild(h('span.badge.' + (vivante ? 'vert' : 'gris'), { text: vivante ? 'Vendu' : 'Pas encore vendu' }));
+    liste.slice(0, 3).forEach(function (v) { self.elVente.appendChild(self.ligneVente(v)); });
+    if (!vivante) {
+      this.elVente.appendChild(h('p.achat-vente-vide', { style: liste.length ? { marginTop: '12px' } : null }, liste.length ? 'La vente inscrite a été annulée.' : 'Aucune vente au Livre des ventes pour ce véhicule. Quand il est vendu, déclarez la vente : le vendeur et le F&I s\'y choisissent et la ligne s\'écrit dans le livre.'));
+      if (AMX.ventes.peutDeclarer()) this.elVente.appendChild(h('div.achat-vente-actions.noprint', [h('button.btn.primaire#achat-vente-declarer', { type: 'button', html: (I.vente || '') + '<span>Déclarer la vente</span>', onclick: function () { self.declarerVente(vin, stock); } })]));
+    }
+  };
+  Fiche.prototype.ligneVente = function (v) {
+    var self = this, annulee = v.statut === 'annulee', wholesale = v.type === 'wholesale';
+    var etat = v.livre === 'erreur' && !annulee ? ['Pas au livre', 'rouge'] : (ETATS_VENTE[v.statut] || [v.statut || '', 'gris']);
+    var dates = [];
+    if (v.dateVente) dates.push('vendue le ' + AMX.fmtDateCourte(v.dateVente));
+    dates.push(v.dateLivraison ? 'livrée le ' + AMX.fmtDateCourte(v.dateLivraison) : 'pas encore livrée');
+    var qui = function (libelle, nom, manque) { return h('div', [h('div.l', libelle), h('div.v' + (nom ? '' : '.manque'), { text: nom || manque })]); };
+    var client = v.client || v.venduA || '';
+    var tete = h('div.achat-vente-tete', [
+      h('b', { text: v.id || '' }), h('span', { text: TYPES_VENTE[v.type] || v.type || '' }), h('span', { text: dates.join(' · ') }),
+      client ? h('span', { text: (wholesale ? 'vendu à ' : 'client : ') + client }) : null,
+      h('span.badge.' + etat[1], { text: etat[0] })
+    ]);
+    var blocQui = h('div.achat-vente-qui', wholesale
+      ? [qui('Vendeur (conseiller)', v.conseiller, 'pas inscrit'), qui('Acheteur interne', v.acheteur, 'pas inscrit')]
+      : [qui('Vendeur (conseiller)', v.conseiller, 'à choisir'), qui('F&I (directeur commercial)', v.directeur, 'à choisir')]);
+    var boutons = [];
+    if (!annulee && (AMX.ventes.peutDeclarer() || AMX.ventes.peutCompleter())) {
+      var manque = !v.conseiller || (!wholesale && !v.directeur);
+      boutons.push(h('button.btn' + (manque ? '.primaire' : ''), { type: 'button', text: manque ? 'Choisir le vendeur et le F&I' : 'Modifier le vendeur ou le F&I', title: 'Ouvre la vente du Livre des ventes : le vendeur (conseiller) et le F&I s\'y choisissent parmi les comptes de la concession', onclick: function () { AMX.ventes.modifier(v, { apres: function () { self.rendreVente(self.vinCourant); } }); } }));
+    }
+    boutons.push(h('button.btn.fantome', { type: 'button', text: 'Ouvrir la vente', onclick: function () { AMX.ventes.ouvrir(v); } }));
+    return h('div.achat-vente-ligne' + (annulee ? '.annulee' : ''), [tete, blocQui, h('div.achat-vente-actions.noprint', boutons)]);
+  };
+  // « Déclarer la vente » préremplie avec ce que la fiche contient au moment du clic.
+  Fiche.prototype.declarerVente = function (vin, stock) {
+    var self = this, dest = String(valeur('f-destination') || '').toUpperCase();
+    AMX.ventes.declarer({
+      compagnie: String(valeur('f-compagnie') || '').toUpperCase(), type: dest === 'US' || dest === 'CAN' ? 'wholesale' : 'usage',
+      vin: vin.length === 17 ? vin : '', stock: valeur('f-stock') || stock || '', annee: valeur('f-annee'), marque: valeur('f-marque'), modele: valeur('f-modele'),
+      coutant: this.coutant ? String(Math.round(this.coutant * 100) / 100) : '', source: 'Fiche d\'achat', resterIci: true,
+      apres: function () { self.rendreVente(self.vinCourant); }
+    });
+  };
+
   Fiche.prototype.charger = function (vin) {
     var self = this;
     vin = String(vin || '').trim();
@@ -824,6 +943,7 @@
       if (typeof AMX.eblockFiche === 'function') AMX.eblockFiche(vin, self.elFicheEblock);
       self.rendreTransport(vin);
       self.rendreRelease(vin);
+      self.rendreVente(vin);
       if (typeof AMX.openlaneBloc === 'function') { AMX.vider(self.elOpenlane); var zoneOl = h('div'); self.elOpenlane.appendChild(h('div.section-titre', { style: { marginBottom: '6px' } }, 'Valeurs OpenLane')); self.elOpenlane.appendChild(zoneOl); AMX.openlaneBloc(vin, zoneOl, { km: AMX.kmValide(valeur('f-km')) || undefined, source: 'achat', compagnie: String(valeur('f-compagnie') || '').toUpperCase(), previsionComplete: true }).catch(function () {}); }
       history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
       var taches = [self.verifierVerrouillage(vin, true)];
@@ -1083,6 +1203,7 @@
       self.nouvelle = true; self.contexte = null; self.contexteVerifie = false; self.decode = null;
       self.evaluation = null; self.evalVerifiee = ''; self.rendreEvaluation();
       self.rendreContexte();
+      self.rendreVente('');
       self.basculerExport();
       self.etat('Fiche vide. Entrez un NIV pour charger une fiche existante ou en créer une nouvelle.');
       history.replaceState(null, '', AMX.lien('achat', ''));

@@ -196,6 +196,8 @@
             liens: [{ t: 'Nouvelle fiche d\'achat', s: 'achat' }] },
           { id: 'achat-champs', q: 'Que mettre dans la fiche d\'achat ?', mots: 'champs niv stock km prix achat frais couleur destination compagnie concession',
             r: '<ol><li><b>NIV</b> (17 caractères) : année, marque et modèle se décodent.</li><li><b>Compagnie</b> et <b>destination</b> (É.-U., Canada, Detail) : obligatoires pour créer le véhicule au registre.</li><li><b>Stock #</b> et <b>KM</b> (le km est obligatoire avec un stock #), couleur.</li><li>Prix d\'achat, frais (transport, encan…), reconditionnement prévu, prix de détail visé : la fiche calcule le coût total.</li><li><b>Dommages</b> (un par ligne), lien du <b>rapport d\'état eBlock</b>, rapport <b>CARFAX</b>.</li></ol><p>Enregistrer. Un véhicule déjà au registre garde son statut ; la fiche s\'ajoute.</p>' },
+          { id: 'achat-vente', q: 'Où voir le vendeur et le F&I d\'un véhicule vendu ?', mots: 'vendeur interne conseiller représentant f&i directeur commercial vendu vente livre des ventes fiche achat déclarer',
+            r: '<p>Carte <b>Vente au client — vendeur et F&I</b> de la fiche d\'achat : elle montre la vente du véhicule inscrite au Livre des ventes (numéro, date, client, <b>vendeur</b> et <b>F&I</b>). « Choisir le vendeur et le F&I » ouvre la vente : on les choisit là, et le livre est mis à jour. Pas encore vendu : <b>Déclarer la vente</b> ouvre la fenêtre déjà remplie (NIV, # stock, véhicule, coûtant). Rien n\'est inscrit deux fois : la fiche d\'achat lit le Livre des ventes.</p>', liens: [{ t: 'Livre des ventes', s: 'ventes', o: 'liste' }] },
           { id: 'achat-evaluation', q: 'La fiche dit « Une évaluation existe pour ce NIV » : quoi faire ?', mots: 'évaluation existe importer bannière reprendre chiffres',
             r: '<p>Le véhicule a été évalué (Outils › Évaluation). Cliquez <b>Importer</b> : les cases vides de la fiche reçoivent les chiffres de l\'évaluation (frais, reconditionnement, prix de détail, concession, destination Detail). « Voir » ouvre l\'évaluation. Depuis une évaluation, le bouton « Créer la fiche d\'achat » fait la même chose d\'avance.</p>' },
           { id: 'achat-eblock', q: 'Comment lier le rapport d\'état eBlock à la fiche ?', mots: 'eblock rapport état lien dommages partager signet',
@@ -646,6 +648,9 @@
     ],
 
     nouveautes: [
+      { date: '5 novembre 2026', titre: 'Fiche d\'achat : le vendeur et le F&I de la vente',
+        texte: 'La fiche d\'achat montre maintenant la vente du véhicule inscrite au Livre des ventes : date, client, vendeur (conseiller) et F&I (directeur commercial). Un bouton ouvre la vente pour les choisir ; un véhicule pas encore vendu se déclare d\'ici, la fenêtre déjà remplie. Sur le site et dans l\'app.',
+        liens: [{ t: 'Fiche d\'achat', s: 'achat', o: '' }] },
       { date: '5 novembre 2026', titre: 'Portail des acheteurs : le stock en vente, par pays, pour les concessionnaires acheteurs',
         texte: 'À la mise en vente, cochez les pays qui voient le véhicule : France, États-Unis, Canada. Les acheteurs inscrits que vous approuvez (Offre au marché › Acheteurs › Approuver l\'accès) se connectent au portail avec un code par courriel ou texto, voient seulement le stock de leur pays et peuvent l\'acheter au prix demandé ou faire une offre. L\'offre arrive dans Offres reçues et la suite ne change pas : contre-offre, contrat, signature, transport.',
         liens: [{ t: 'Acheteurs', s: 'offres', o: 'acheteurs' }] },

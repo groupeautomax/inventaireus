@@ -34,7 +34,7 @@
   var STATUT_LIB = { '': 'À voir', suivie: 'Suivie', ecartee: 'Écartée', achetee: 'Achetée' };
   var FILTRES_US = [['', 'Tous les véhicules'], ['us', 'Fabriqués aux É.-U. (exportables)'], ['plus', 'Plus payants aux É.-U.']];
   // 5 nov. : pastilles CARFAX (Badging API, rien de commandé) — AMX.cfxPastilles (carfax-api.js).
-  var FILTRES_CFX = [['', 'Tous les véhicules'], ['sans', 'Aucun accident déclaré'], ['accident', 'Accident ou dommage déclaré'], ['inconnu', 'Pas de rapport CARFAX (ou pas encore lu)']];
+  var FILTRES_CFX = [['', 'Tous les véhicules'], ['sans', 'Aucun accident déclaré'], ['verifier', 'Accident ? (pas « aucun accident déclaré »)'], ['inconnu', 'Pas de rapport CARFAX (ou pas encore lu)']];
   function cfx() { return AMX.cfxPastilles || null; }
   function etatCfx(o) { var c = cfx(), x = c && c.de(o.vin); return x ? x.a : ''; }
   var TRIS = [['score', 'Meilleur profit'], ['gros', 'Profit au gros'], ['detail', 'Profit au détail'], ['cote', 'Meilleure cote CarGurus'], ['marche', 'Plus sous le marché'], ['prix', 'Prix le plus bas'], ['km', 'Km le plus bas'], ['nouveau', 'Plus récentes'], ['distance', 'Plus proches']];
@@ -409,7 +409,7 @@
     if (f.cote) ajout(FILTRES_COTE.filter(function (x) { return x[0] === f.cote; })[0][1], function () { f.cote = ''; });
     if (f.statut) ajout((STATUTS.filter(function (s) { return s[0] === f.statut; })[0] || [0, f.statut])[1], function () { f.statut = ''; });
     if (f.us) ajout((FILTRES_US.filter(function (x) { return x[0] === f.us; })[0] || [0, 'É.-U.'])[1], function () { f.us = ''; });
-    if (f.cfx) ajout('CARFAX : ' + (FILTRES_CFX.filter(function (x) { return x[0] === f.cfx; })[0] || [0, f.cfx])[1].toLowerCase(), function () { f.cfx = ''; });
+    if (f.cfx) ajout('CARFAX : ' + (FILTRES_CFX.filter(function (x) { return x[0] === (f.cfx === 'accident' ? 'verifier' : f.cfx); })[0] || [0, f.cfx])[1].toLowerCase(), function () { f.cfx = ''; });
     return l;
   };
   Opportunites.prototype.resumeFiltres = function () { return this.filtresActifs().map(function (x) { return x.t; }).join(' · '); };
@@ -569,7 +569,7 @@
       if (f.kmMax && nb(num(o.km)) && num(o.km) > f.kmMax) return false;
       if (f.anneeMin && !(num(o.annee) >= f.anneeMin)) return false;
       if (f.distMax) { var kd = self.calc(o); if (!kd || !nb(kd.distance) || kd.distance > f.distMax) return false; }
-      if (sauf !== 'cfx' && f.cfx) { var ec = etatCfx(o); if (f.cfx === 'sans' ? ec !== 'n' : (f.cfx === 'accident' ? ec !== 'o' : (ec === 'n' || ec === 'o'))) return false; }
+      if (sauf !== 'cfx' && f.cfx) { var ec = etatCfx(o); if (f.cfx === 'sans' ? ec !== 'n' : ((f.cfx === 'verifier' || f.cfx === 'accident') ? ec !== 'v' : (ec === 'n' || ec === 'v'))) return false; }
       if (sauf !== 'us' && f.us) { if (!exportable(o)) return false; if (f.us === 'plus') { var u = self.us(o); if (!u || u.verdict.meilleur !== 'us') return false; } }
       if (sauf !== 'q' && f.q && !AMX.correspond([o.annee, o.marque, o.modele, o.version, o.vin, o.vendeur, o.ville, o.province, o.couleur, o.typeInv], f.q)) return false;
       return true;
@@ -1427,7 +1427,7 @@
         'Source': libelleSource(o), 'Vendeur': o.vendeur, 'Ville': o.ville, 'Province': o.province,
         'Concession d\'arrivée': COURTS[k.dest] || k.dest, 'Distance (km)': k.distance, 'Transport': k.transport, 'Coût rendu': k.cout,
         'Prévision OpenLane': num(o.olPrix), 'Profit au gros': k.profitGros,
-        'CARFAX': ({ o: 'Accident ou dommage déclaré', n: 'Aucun accident déclaré', x: 'Aucun rapport' })[etatCfx(o)] || '', 'Rapport CARFAX': (cfx() && cfx().de(o.vin) || {}).l || '',
+        'CARFAX': ({ v: 'Accident ? (pas « aucun accident déclaré »)', n: 'Aucun accident déclaré', x: 'Aucun rapport' })[etatCfx(o)] || '', 'Rapport CARFAX': (cfx() && cfx().de(o.vin) || {}).l || '',
         'Fabriqué aux É.-U.': exportable(o) ? 'oui' : '', 'MMR ($ US)': (self.us(o) || {}).mmr || '', 'Gros É.-U.': (self.us(o) || {}).grosUS || '', 'Profit É.-U.': (self.us(o) || {}).profitUS === undefined || (self.us(o) || {}).profitUS === null ? '' : self.us(o).profitUS, 'Prix médian ajusté': k.refAjuste, 'Annonces de référence': num(o.refN), 'Recon': k.recon, 'Profit au détail': k.profitDetail, 'Achat max.': k.achatMax,
         'Cote CarGurus': COTES[o.coteCg] ? COTES[o.coteCg].t : '', 'Valeur du marché (CarGurus)': num(o.valeurMarche), 'Écart au marché': num(o.ecartMarche), 'Baisse de prix': num(o.baissePrix), 'Sites': num(o.nbSites),
         'Mise (DealerSource)': num(o.mise), 'Dommages estimés': num(o.dommages), 'Cote': o.cote, 'Fin de vente': o.finVente, 'Statut': STATUT_LIB[o.statut || ''], 'Note': o.note, 'Vue la première fois': o.premiereVue, 'Annonce': o.lien };

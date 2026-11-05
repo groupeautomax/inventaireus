@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Une offre préparée pour vous</title>
+<!--
+  Page client d'une offre du portefeuille (PageOffre.gs, 5 nov. 2026). Le lien vient d'une personne de l'équipe :
+  client/offre.html?o=PO-101&k=CODE. La page est figée au moment où elle a été préparée.
+  Règles : le prix total est plus en évidence que le paiement (Québec : LPC) ; prix tout inclus sauf TVH et immatriculation
+  (Ontario : Règl. 333/08, OMVIC) ; tout le détail du crédit ; jamais une valeur d'échange, une dette ou une valeur OpenLane ;
+  en français, en anglais seulement à la demande du client (consignée).
+-->
+<style>
+  :root { --vert: #008840; --vert-f: #0a6136; --vert-p: #e7f5ed; --texte: #16181c; --doux: #5b6270; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px; --ambre: #8a5a00; --ambre-p: #fff4d6; --rouge: #8a1d1d; --rouge-p: #fdecec; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 760px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; }
+  .pousse { margin-left: auto; color: var(--doux); font-size: 13px; }
+  .langue { padding: 6px 10px; font: inherit; font-size: 13px; font-weight: 650; border-radius: 999px; border: 1px solid var(--trait); background: #fff; color: var(--texte); cursor: pointer; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  h1 { font-size: 22px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.3px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .sous { color: var(--doux); font-size: 14px; }
+  .message { border-left: 3px solid var(--vert); padding: 4px 12px; margin: 12px 0 0; font-size: 15px; white-space: pre-wrap; }
+  .bandeau { border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 14.5px; }
+  .bandeau.ambre { background: var(--ambre-p); color: var(--ambre); } .bandeau.vert { background: var(--vert-p); color: var(--vert-f); }
+  .actuel .veh { font-size: 17px; font-weight: 650; }
+  .actuel .lignes { margin-top: 6px; display: grid; gap: 3px; font-size: 14.5px; }
+  .offre { border: 1px solid var(--trait); border-radius: var(--rayon); padding: 16px; margin-top: 12px; }
+  .offre .tete { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .offre .num { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--doux); }
+  .offre .veh { font-size: 18px; font-weight: 700; flex: 1 1 260px; }
+  .puce { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #eef0f3; color: var(--doux); }
+  .puce.neuf { background: var(--vert-p); color: var(--vert-f); }
+  .prix { margin-top: 12px; }
+  .prix .grand { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .prix .lib { font-size: 13.5px; color: var(--doux); }
+  .paiement { margin-top: 8px; font-size: 16px; }
+  .paiement b { font-variant-numeric: tabular-nums; }
+  .echange { margin-top: 12px; background: var(--vert-p); color: var(--vert-f); border-radius: 12px; padding: 10px 12px; font-size: 14.5px; }
+  .echange b { font-variant-numeric: tabular-nums; }
+  .notes { margin-top: 8px; font-size: 13px; color: var(--doux); }
+  details.detail { margin-top: 12px; } details.detail summary { cursor: pointer; color: var(--vert); font-weight: 650; font-size: 14px; }
+  details.detail table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+  details.detail td { padding: 5px 0; border-bottom: 1px dashed var(--trait); vertical-align: top; }
+  details.detail td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: 12px; }
+  details.detail tr.fort td { font-weight: 700; border-bottom: 1px solid var(--trait); }
+  .gestes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 4px; }
+  @media (max-width: 560px) { .gestes { grid-template-columns: 1fr; } }
+  .gestes button { padding: 14px 12px; font: inherit; font-size: 15px; font-weight: 650; border-radius: 12px; cursor: pointer; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); text-align: center; }
+  .gestes button.actif { background: var(--vert); color: #fff; border-color: var(--vert); }
+  .gestes button .ok { display: block; font-size: 12px; font-weight: 600; margin-top: 2px; opacity: .85; }
+  .formulaire { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--trait); }
+  .moments { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .moments label { border: 1px solid var(--trait); border-radius: 999px; padding: 7px 12px; font-size: 14px; cursor: pointer; display: flex; gap: 6px; align-items: center; color: var(--texte); margin: 0; }
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  input[type=tel], textarea { width: 100%; padding: 12px 13px; font: inherit; font-size: 16px; border: 1px solid var(--trait); border-radius: 10px; background: var(--fond); color: var(--texte); }
+  textarea { min-height: 72px; resize: vertical; }
+  input:focus, textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  button.principal { margin-top: 12px; width: 100%; padding: 14px 18px; font: inherit; font-size: 16px; font-weight: 650; border-radius: 12px; cursor: pointer; border: 0; background: var(--vert); color: #fff; }
+  button:disabled { opacity: .55; cursor: default; }
+  .erreur { color: #b42318; font-size: 14px; margin-top: 10px; min-height: 1.2em; }
+  .contact { background: var(--vert-p); border: 1px solid #bfe3cd; border-radius: var(--rayon); padding: 14px 16px; text-align: center; margin-bottom: 14px; }
+  .contact .q { font-weight: 700; color: var(--vert-f); } .contact .c { color: var(--vert-f); font-size: 14px; margin: 2px 0 10px; white-space: pre-line; }
+  .contact a { display: block; padding: 11px; background: #fff; border: 1px solid #bfe3cd; border-radius: 10px; color: var(--texte); font-weight: 650; text-decoration: none; }
+  .mentions { font-size: 12.5px; color: var(--doux); }
+  .mentions ol { margin: 6px 0 0; padding-left: 18px; } .mentions li { margin-bottom: 6px; }
+  .bas { text-align: center; margin: 18px 0 30px; display: grid; gap: 10px; justify-items: center; }
+  .lien-doux { background: none; border: 0; font: inherit; font-size: 13.5px; color: var(--doux); text-decoration: underline; cursor: pointer; padding: 6px; }
+  .imprimer { padding: 9px 14px; font: inherit; font-size: 13.5px; font-weight: 600; border-radius: 10px; border: 1px solid var(--trait); background: #fff; color: var(--texte); cursor: pointer; }
+  .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
+  .cache { display: none !important; }
+  @media print {
+    header, .gestes, .formulaire, .bas, .contact a, #bloc-gestes { display: none !important; }
+    body { background: #fff; } .bloc, .offre { border: 0; padding: 0 0 10px; } details.detail summary { display: none; }
+  }
+</style>
+</head>
+<body>
+<header><div class="rangee"><span class="marque" id="marque">ScanAutomax</span><span class="pousse" id="pousse">Une offre préparée pour vous</span><button type="button" class="langue cache" id="btn-langue" lang="en">English</button></div></header>
+<main>
+  <div class="chargement" id="chargement">Chargement de votre offre…</div>
+  <div class="bloc cache" id="invalide"><h1 id="invalide-titre">Lien invalide</h1><p class="sous" id="invalide-texte">Ce lien n'est plus valide. Communiquez avec votre concessionnaire pour recevoir une offre à jour.</p><p class="sous" id="invalide-contact"></p></div>
+  <div id="contenu" class="cache">
+    <div class="bandeau ambre cache" id="bandeau-fin"></div>
+    <div class="bandeau vert cache" id="bandeau-refus"></div>
+    <div class="bloc">
+      <h1 id="titre">Une offre préparée pour vous</h1>
+      <div class="sous" id="sous"></div>
+      <div class="message cache" id="message"></div>
+    </div>
+    <div class="bloc actuel cache" id="bloc-actuel">
+      <h2 id="h-actuel">Votre véhicule actuel</h2>
+      <div class="veh" id="actuel-veh"></div>
+      <div class="lignes" id="actuel-lignes"></div>
+    </div>
+    <div class="bloc" id="bloc-offres">
+      <h2 id="h-offres">Nos suggestions</h2>
+      <div id="offres"></div>
+    </div>
+    <div class="bloc" id="bloc-gestes">
+      <h2 id="h-gestes">Qu'aimeriez-vous faire ?</h2>
+      <div class="gestes" id="gestes"></div>
+      <div class="formulaire cache" id="formulaire">
+        <div id="zone-moment" class="cache"><label id="label-moment">Le meilleur moment pour vous joindre</label><div class="moments" id="moments"></div>
+          <label for="tel" id="label-tel">Un autre numéro ? (facultatif)</label><input type="tel" id="tel" inputmode="tel" autocomplete="tel"></div>
+        <label for="note" id="label-note">Un mot pour votre conseiller (facultatif)</label>
+        <textarea id="note"></textarea>
+        <button class="principal" id="btn-envoyer" type="button">Envoyer</button>
+        <div class="erreur" id="erreur"></div>
+      </div>
+      <div class="bandeau vert cache" id="merci" style="margin: 14px 0 0"></div>
+    </div>
+    <div class="contact" id="contact"><div class="q" id="contact-q">Vous avez des questions ?</div><div class="c" id="contact-c"></div><a id="lien-appel" href="#">📞 Appeler</a></div>
+    <div class="bloc mentions" id="bloc-mentions"><h2 id="h-mentions">Conditions de l'offre</h2><ol id="mentions"></ol></div>
+    <div class="bas">
+      <button type="button" class="imprimer" id="btn-imprimer">Imprimer ou enregistrer en PDF</button>
+      <button type="button" class="lien-doux" id="btn-refus">Ne plus recevoir d'offres de ce concessionnaire</button>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+  var q = new URLSearchParams(location.search), o = (q.get('o') || '').toUpperCase(), k = (q.get('k') || '').toUpperCase(), apercu = q.get('apercu') === '1';
+  var $ = function (s) { return document.getElementById(s); };
+  var L = 'fr', langueVoulue = q.get('langue') === 'en' || q.get('langue') === 'fr' ? q.get('langue') : '';
+  var donnees = null, geste = '', faits = {};
+  function t(fr, en) { return L === 'en' ? en : fr; }
+  function montrer(el, oui) { el.classList.toggle('cache', !oui); }
+  function el(tag, cls, texte) { var x = document.createElement(tag); if (cls) x.className = cls; if (texte !== undefined) x.textContent = texte; return x; }
+  function argent(n, dec) {
+    n = Number(n) || 0; var neg = n < 0; n = Math.abs(n);
+    var avec = dec === undefined ? Math.round(n * 100) % 100 !== 0 : dec;
+    var s = avec ? n.toFixed(2) : String(Math.round(n));
+    var p = s.split('.'), ent = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, L === 'en' ? ',' : ' ');
+    var txt = ent + (p[1] ? (L === 'en' ? '.' : ',') + p[1] : '');
+    return (neg ? '−' : '') + (L === 'en' ? '$' + txt : txt + ' $');
+  }
+  function pct(n) { var s = String(Math.round((Number(n) || 0) * 100) / 100); return L === 'en' ? s + '%' : s.replace('.', ',') + ' %'; }
+  function km(n) { return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, L === 'en' ? ',' : ' ') + ' km'; }
+  function dateL(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); if (!m) return '';
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+    return d.toLocaleDateString(t('fr-CA', 'en-CA'), { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  function tel(s) { s = String(s || '').replace(/\D/g, ''); return s.length === 10 ? '(' + s.slice(0, 3) + ') ' + s.slice(3, 6) + '-' + s.slice(6) : s; }
+  var GESTES = { evaluer: ['Faire évaluer mon véhicule', 'Have my vehicle appraised'], essai: ['Réserver un essai routier', 'Book a test drive'], rappel: ['Me rappeler', 'Call me back'] };
+  var MOMENTS = [['matin', 'Le matin', 'Morning'], ['apresMidi', 'L\'après-midi', 'Afternoon'], ['soir', 'Le soir', 'Evening']];
+
+  function statique() {
+    document.documentElement.lang = L;
+    document.title = t('Une offre préparée pour vous', 'An offer prepared for you');
+    $('pousse').textContent = t('Une offre préparée pour vous', 'An offer prepared for you');
+    $('btn-langue').textContent = L === 'en' ? 'Français' : 'English'; $('btn-langue').lang = L === 'en' ? 'fr' : 'en';
+    $('h-actuel').textContent = t('Votre véhicule actuel', 'Your current vehicle');
+    $('h-offres').textContent = t('Nos suggestions', 'Our suggestions');
+    $('h-gestes').textContent = t('Qu\'aimeriez-vous faire ?', 'What would you like to do?');
+    $('label-moment').textContent = t('Le meilleur moment pour vous joindre', 'The best time to reach you');
+    $('label-tel').textContent = t('Un autre numéro ? (facultatif)', 'Another number? (optional)');
+    $('label-note').textContent = t('Un mot pour votre conseiller (facultatif)', 'A note for your sales advisor (optional)');
+    $('note').placeholder = t('Une question, une disponibilité…', 'A question, your availability…');
+    $('btn-envoyer').textContent = t('Envoyer', 'Send');
+    $('contact-q').textContent = t('Vous avez des questions ?', 'Any questions?');
+    $('lien-appel').textContent = t('📞 Appeler', '📞 Call');
+    $('h-mentions').textContent = t('Conditions de l\'offre', 'Offer terms and conditions');
+    $('btn-imprimer').textContent = t('Imprimer ou enregistrer en PDF', 'Print or save as PDF');
+  }
+
+  /* Le détail du crédit : chaque ligne qu'exige la loi (prix, frais, rabais, taxes, montant financé, taux, durée, paiements, frais de crédit, obligation totale). */
+  function tableDetail(x, on) {
+    var tb = document.createElement('table'), corps = document.createElement('tbody'); tb.appendChild(corps);
+    function ligne(a, b, fort) { var r = el('tr', fort ? 'fort' : ''); r.appendChild(el('td', '', a)); r.appendChild(el('td', 'n', b)); corps.appendChild(r); }
+    ligne(x.neuf ? t('Prix du véhicule', 'Vehicle price') : t('Prix affiché', 'Advertised price'), argent(x.prix));
+    if (x.frais) ligne(t('Transport, préparation et frais d\'administration', 'Freight, PDI and administration fees'), argent(x.frais));
+    var rabaisApres = !!(x.rabais && x.financement && !x.rabaisAvantTaxes);
+    if (x.rabais && !rabaisApres) ligne(t('Rabais du constructeur', 'Manufacturer rebate') + (x.financement ? t(' (avant taxes)', ' (before taxes)') : ''), argent(-x.rabais));
+    ligne(on ? t('Prix tout inclus (avant TVH)', 'All-in price (before HST)') : t('Prix total (avant taxes)', 'Total price (before taxes)'), argent(x.prixTotal), true);
+    var taxesLib = on ? t('TVH (13 %)', 'HST (13%)') : t('TPS et TVQ (14,975 %)', 'GST and QST (14.975%)');
+    if (x.financement) {
+      var f = x.financement;
+      ligne(taxesLib, argent(f.taxes));
+      if (rabaisApres) ligne(t('Rabais du constructeur (après taxes)', 'Manufacturer rebate (after taxes)'), argent(-x.rabais));
+      if (x.comptant) ligne(t('Comptant', 'Down payment'), argent(-x.comptant));
+      ligne(t('Montant financé', 'Amount financed'), argent(f.finance), true);
+      ligne(t('Taux de crédit annuel', 'Annual percentage rate'), pct(x.taux));
+      ligne(t('Durée', 'Term'), x.terme + t(' mois', ' months'));
+      ligne(t('Paiements mensuels', 'Monthly payments'), f.nbPaiements + ' × ' + argent(f.paiement, true));
+      ligne(t('Frais de crédit (intérêts)', 'Cost of borrowing (interest)'), argent(f.interets, true));
+      ligne(t('Obligation totale', 'Total obligation'), argent(f.obligation, true), true);
+    }
+    if (x.location) {
+      var l = x.location;
+      if (x.comptant) ligne(t('Comptant (plus taxes)', 'Down payment (plus taxes)'), argent(-x.comptant));
+      ligne(t('Coût capitalisé net', 'Net capitalized cost'), argent(l.capNet), true);
+      ligne(t('Valeur résiduelle', 'Residual value') + (l.residuelPct ? ' (' + pct(l.residuelPct) + t(' du PDSF', ' of MSRP') + ')' : ''), argent(l.residuel));
+      ligne(t('Taux implicite', 'Implicit rate'), pct(x.taux));
+      ligne(t('Durée', 'Term'), x.terme + t(' mois', ' months'));
+      ligne(t('Paiement mensuel avant taxes', 'Monthly payment before taxes'), argent(l.avantTaxes, true));
+      ligne(taxesLib + t(' sur chaque paiement', ' on each payment'), argent(l.taxes, true));
+      ligne(t('Paiements mensuels, taxes comprises', 'Monthly payments, taxes included'), l.nbPaiements + ' × ' + argent(l.paiement, true));
+      if (l.kmAn) ligne(t('Kilométrage permis', 'Kilometres allowed'), km(l.kmAn) + t(' par année', ' per year'));
+      ligne(t('Km excédentaire', 'Excess kilometres'), l.kmExcedent ? argent(l.kmExcedent, true) + t(' par km, plus taxes', ' per km, plus taxes') : t('précisé au contrat', 'as set out in the lease'));
+      ligne(t('Option d\'achat à la fin', 'Purchase option at end of lease'), argent(l.optionAchat) + t(', plus taxes', ', plus taxes'));
+      ligne(t('Obligation totale', 'Total obligation'), argent(l.obligation, true), true);
+    }
+    return tb;
+  }
+  function carteOffre(x, i, page) {
+    var on = page.province === 'ON', c = el('div', 'offre');
+    var tete = el('div', 'tete'); tete.appendChild(el('span', 'num', t('Offre ', 'Offer ') + (i + 1)));
+    c.appendChild(tete);
+    var t2 = el('div', 'tete'); t2.appendChild(el('span', 'veh', x.vehicule)); t2.appendChild(el('span', 'puce' + (x.neuf ? ' neuf' : ''), x.neuf ? t('Neuf', 'New') : t('Occasion', 'Pre-owned'))); c.appendChild(t2);
+    if (x.stock) c.appendChild(el('div', 'notes', t('No de stock ', 'Stock # ') + x.stock));
+    /* le prix d'abord, plus gros que le paiement */
+    var px = el('div', 'prix'); px.appendChild(el('div', 'grand', argent(x.prixTotal, false)));
+    px.appendChild(el('div', 'lib', on ? t('Prix tout inclus, sauf TVH et immatriculation', 'All-in price, excluding HST and licensing') : t('Prix total avant taxes : transport, préparation et frais compris', 'Total price before taxes: freight, PDI and fees included')));
+    c.appendChild(px);
+    var pa = el('div', 'paiement');
+    var lib = x.type === 'location' ? t('location', 'lease') : t('financement', 'finance');
+    pa.appendChild(document.createTextNode(t('ou ', 'or ')));
+    pa.appendChild(el('b', '', argent(x.paiement, true) + t(' / mois', ' / month')));
+    pa.appendChild(document.createTextNode(t(', taxes comprises — ', ', taxes included — ') + lib + ' ' + x.terme + t(' mois à ', ' months at ') + pct(x.taux)));
+    c.appendChild(pa);
+    if (x.avecEchange && donnees.page.actuel) {
+      var ex = el('div', 'echange'), ec = x.avecEchange.ecart;
+      ex.appendChild(document.createTextNode(t('Avec votre véhicule actuel en échange : environ ', 'With your current vehicle as a trade-in: about ')));
+      ex.appendChild(el('b', '', argent(x.avecEchange.paiement, false) + t(' / mois*', ' / month*')));
+      if (ec !== null && ec !== undefined && page.actuel.contrat && page.actuel.contrat.paiement) {
+        var abs = Math.abs(Math.round(ec));
+        ex.appendChild(document.createTextNode(abs < 5 ? t(', à peu près votre paiement actuel.', ', about your current payment.') : (ec < 0 ? t(', soit ' + argent(abs, false) + ' de moins que votre paiement actuel.', ', ' + argent(abs, false) + ' less than your current payment.') : t(', soit ' + argent(abs, false) + ' de plus que votre paiement actuel.', ', ' + argent(abs, false) + ' more than your current payment.'))));
+      } else ex.appendChild(document.createTextNode('.'));
+      c.appendChild(ex);
+    }
+    var notes = [];
+    if (x.programme) notes.push(t('Programme : ', 'Program: ') + x.programme);
+    if (x.rabaisNotes && x.rabaisNotes.length) notes.push(t('Rabais : ', 'Rebates: ') + x.rabaisNotes.join(', '));
+    if (x.rabais && x.financement && !x.rabaisAvantTaxes) notes.push(t('rabais de ' + argent(x.rabais) + ' déduit après les taxes', argent(x.rabais) + ' rebate deducted after taxes'));
+    if (x.valideJusqua) notes.push(t('Offre valide jusqu\'au ', 'Offer valid until ') + dateL(x.valideJusqua));
+    if (notes.length) c.appendChild(el('div', 'notes', notes.join(' · ')));
+    var det = document.createElement('details'); det.className = 'detail';
+    det.appendChild(el('summary', '', t('Voir le détail du prix et du crédit', 'See price and credit details')));
+    det.appendChild(tableDetail(x, on));
+    c.appendChild(det);
+    return c;
+  }
+  function rendreGestes() {
+    var z = $('gestes'); z.innerHTML = '';
+    ['evaluer', 'essai', 'rappel'].forEach(function (g) {
+      var b = el('button', geste === g ? 'actif' : '', t(GESTES[g][0], GESTES[g][1])); b.type = 'button';
+      if (faits[g]) b.appendChild(el('span', 'ok', t('✓ Demande envoyée', '✓ Request sent')));
+      b.addEventListener('click', function () { geste = g; rendreGestes(); montrer($('formulaire'), true); montrer($('zone-moment'), g === 'rappel'); montrer($('merci'), false); $('erreur').textContent = ''; $('note').focus(); });
+      z.appendChild(b);
+    });
+    var m = $('moments'); m.innerHTML = '';
+    MOMENTS.forEach(function (x) { var lab = el('label'); var r = document.createElement('input'); r.type = 'radio'; r.name = 'moment'; r.value = x[0]; lab.appendChild(r); lab.appendChild(document.createTextNode(t(x[1], x[2]))); m.appendChild(lab); });
+  }
+  function rendre(d) {
+    donnees = d;
+    L = langueVoulue || (d.langue === 'en' ? 'en' : 'fr');
+    statique(); montrer($('btn-langue'), true);
+    var p = d.page, conc = p.concession || {};
+    $('marque').textContent = conc.nom || 'ScanAutomax';
+    $('titre').textContent = p.prenom ? t(p.prenom + ', voici une offre préparée pour vous', p.prenom + ', here is an offer prepared for you') : t('Une offre préparée pour vous', 'An offer prepared for you');
+    $('sous').textContent = [t('Préparée le ', 'Prepared on ') + dateL(p.creeLe) + (p.conseiller ? t(' par ', ' by ') + p.conseiller : ''), p.valideJusqua ? t('valide jusqu\'au ', 'valid until ') + dateL(p.valideJusqua) : ''].filter(Boolean).join(' · ');
+    montrer($('message'), !!p.message); $('message').textContent = p.message || '';
+    montrer($('bandeau-fin'), !!d.terminee); $('bandeau-fin').textContent = t('Cette offre a pris fin le ' + dateL(p.valideJusqua) + '. Les prix et les programmes ont peut-être changé : communiquez avec nous pour une offre à jour.', 'This offer ended on ' + dateL(p.valideJusqua) + '. Prices and programs may have changed: contact us for an updated offer.');
+    montrer($('bandeau-refus'), !!d.refus); $('bandeau-refus').textContent = t('C\'est noté : vous ne recevrez plus d\'offres de ' + (conc.nom || 'notre concession') + '. Vous pouvez quand même nous écrire ou nous appeler en tout temps.', 'Done: you will no longer receive offers from ' + (conc.nom || 'our dealership') + '. You can still contact us at any time.');
+    montrer($('btn-refus'), !d.refus); $('btn-refus').textContent = t('Ne plus recevoir d\'offres de ' + (conc.nom || 'ce concessionnaire'), 'Stop receiving offers from ' + (conc.nom || 'this dealer'));
+    /* le véhicule actuel : jamais sa valeur ni le solde */
+    var a = p.actuel;
+    montrer($('bloc-actuel'), !!(a && a.vehicule));
+    if (a && a.vehicule) {
+      $('actuel-veh').textContent = a.vehicule;
+      var z = $('actuel-lignes'); z.innerHTML = '';
+      if (a.km) z.appendChild(el('div', '', t('Environ ', 'About ') + km(a.km) + t(' aujourd\'hui (estimation)', ' today (estimate)')));
+      var ct = a.contrat;
+      if (ct && (ct.paiement || ct.echeance)) {
+        var lig = (ct.type === 'location' ? t('Location', 'Lease') : (ct.type === 'financement' ? t('Financement', 'Financing') : t('Contrat', 'Contract'))) + (ct.preteur ? t(' avec ', ' with ') + ct.preteur : '');
+        if (ct.paiement) lig += ' · ' + argent(ct.paiement, false) + t(' / mois', ' / month');
+        z.appendChild(el('div', '', lig));
+        if (ct.echeance) z.appendChild(el('div', '', t('Fin du contrat : ', 'Contract ends: ') + dateL(ct.echeance) + (ct.restants !== null && ct.restants !== undefined && ct.restants > 0 ? t(' (environ ' + ct.restants + ' paiement' + (ct.restants > 1 ? 's' : '') + ' restant' + (ct.restants > 1 ? 's' : '') + ')', ' (about ' + ct.restants + ' payment' + (ct.restants > 1 ? 's' : '') + ' left)') : '')));
+      }
+    }
+    var zo = $('offres'); zo.innerHTML = '';
+    (p.offres || []).forEach(function (x, i) { zo.appendChild(carteOffre(x, i, p)); });
+    faits = {}; (d.reponses || []).forEach(function (r) { if (GESTES[r.geste]) faits[r.geste] = r.le; });
+    geste = ''; rendreGestes(); montrer($('formulaire'), false);
+    /* contact */
+    $('contact-c').textContent = [p.conseiller ? t('Votre conseiller : ', 'Your sales advisor: ') + p.conseiller : '', [conc.nom, conc.adresse, conc.ville].filter(Boolean).join(', '), conc.telephone ? tel(conc.telephone) : ''].filter(Boolean).join('\n');
+    var brut = String(conc.telephone || '').replace(/\D/g, '');
+    montrer($('lien-appel'), brut.length === 10); if (brut.length === 10) $('lien-appel').href = 'tel:+1' + brut;
+    var zm = $('mentions'); zm.innerHTML = '';
+    (((p.mentions || {})[L]) || ((p.mentions || {}).fr) || []).forEach(function (m) { zm.appendChild(el('li', '', m)); });
+    montrer($('chargement'), false); montrer($('contenu'), true);
+  }
+  function invalide(d) {
+    montrer($('chargement'), false); montrer($('contenu'), false); montrer($('invalide'), true);
+    if (d && d.langue === 'en' && !langueVoulue) { L = 'en'; statique(); }
+    var conc = (d && d.concession) || null;
+    if (d && d.code === 'EXPIREE') { $('invalide-titre').textContent = t('Offre expirée', 'Offer expired'); $('invalide-texte').textContent = t('Cette offre n\'est plus en vigueur. Communiquez avec nous : nous vous préparerons une offre à jour.', 'This offer is no longer available. Contact us and we will prepare an updated offer.'); }
+    else if (d && d.code === 'RETIREE') { $('invalide-titre').textContent = t('Offre retirée', 'Offer withdrawn'); $('invalide-texte').textContent = t('Le véhicule offert n\'est plus disponible. Communiquez avec nous pour une autre suggestion.', 'The vehicle offered is no longer available. Contact us for another suggestion.'); }
+    else { $('invalide-titre').textContent = t('Lien invalide', 'Invalid link'); $('invalide-texte').textContent = t('Ce lien n\'est pas valide. Vérifiez qu\'il est complet, ou communiquez avec votre concessionnaire.', 'This link is not valid. Check that it is complete, or contact your dealer.'); }
+    $('invalide-contact').textContent = conc ? [conc.nom, conc.telephone ? tel(conc.telephone) : ''].filter(Boolean).join(' · ') : '';
+  }
+  function charger() {
+    fetch(SCRIPT_URL + '?offreClient=' + encodeURIComponent(o) + '&k=' + encodeURIComponent(k) + (apercu ? '&apercu=1' : '') + '&_=' + Date.now())
+      .then(function (x) { return x.json(); })
+      .then(function (d) { if (!d || !d.ok) { invalide(d); return; } rendre(d); })
+      .catch(function () { $('chargement').textContent = t('Impossible de charger la page pour le moment. Réessayez dans une minute.', 'The page cannot be loaded right now. Please try again in a minute.'); });
+  }
+  function poster(corps) {
+    corps.action = 'offreClientAction'; corps.o = o; corps.k = k;
+    return fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corps) }).then(function (x) { return x.json(); });
+  }
+  /* Le client change de langue : sa demande est consignée (sauf dans l'aperçu de l'équipe), puis la page se redessine. */
+  $('btn-langue').addEventListener('click', function () {
+    var voulu = L === 'en' ? 'fr' : 'en', btn = $('btn-langue');
+    langueVoulue = voulu; btn.disabled = true;
+    var fin = function () { btn.disabled = false; if (donnees) rendre(donnees); };
+    if (apercu) { fin(); return; }
+    poster({ geste: 'langue', langue: voulu }).then(fin, fin);
+  });
+  $('btn-envoyer').addEventListener('click', function () {
+    if (!geste) return;
+    if (apercu) { $('erreur').textContent = t('Aperçu de l\'équipe : rien n\'est envoyé.', 'Team preview: nothing is sent.'); return; }
+    var moment = document.querySelector('input[name=moment]:checked');
+    $('erreur').textContent = ''; $('btn-envoyer').disabled = true;
+    poster({ geste: geste, note: $('note').value.trim(), moment: moment ? moment.value : '', telephone: geste === 'rappel' ? $('tel').value.trim() : '' })
+      .then(function (d) {
+        $('btn-envoyer').disabled = false;
+        if (!d || !d.ok) { $('erreur').textContent = d && (d.code === 'EXPIREE' || d.code === 'RETIREE') ? t('Cette offre n\'est plus en vigueur : appelez-nous.', 'This offer is no longer available: please call us.') : ((d && d.erreur) || t('Demande non envoyée. Réessayez ou appelez-nous.', 'Request not sent. Please try again or call us.')); return; }
+        faits[geste] = new Date().toISOString();
+        var conc = (donnees.page.concession || {}).nom || '';
+        $('merci').textContent = t('Merci ! Votre demande est transmise' + (donnees.page.conseiller ? ' à ' + donnees.page.conseiller : '') + '. Nous vous contactons bientôt.', 'Thank you! Your request was sent' + (donnees.page.conseiller ? ' to ' + donnees.page.conseiller : '') + '. We will contact you soon.') + (conc ? ' — ' + conc : '');
+        geste = ''; $('note').value = ''; $('tel').value = '';
+        montrer($('formulaire'), false); rendreGestes(); montrer($('merci'), true);
+      })
+      .catch(function () { $('btn-envoyer').disabled = false; $('erreur').textContent = t('Demande non envoyée (réseau). Réessayez.', 'Request not sent (network). Please try again.'); });
+  });
+  /* « Ne plus recevoir » : en un clic, confirmé ; effet immédiat. */
+  $('btn-refus').addEventListener('click', function () {
+    var conc = (donnees && donnees.page.concession && donnees.page.concession.nom) || '';
+    if (!window.confirm(t('Ne plus recevoir d\'offres de ' + (conc || 'ce concessionnaire') + ' ? Les messages au sujet de vos rendez-vous et de votre véhicule au service continueront.', 'Stop receiving offers from ' + (conc || 'this dealer') + '? Messages about your service appointments and your vehicle will continue.'))) return;
+    if (apercu) { $('bandeau-refus').textContent = t('Aperçu de l\'équipe : rien n\'est enregistré.', 'Team preview: nothing is saved.'); montrer($('bandeau-refus'), true); return; }
+    var b = $('btn-refus'); b.disabled = true;
+    poster({ geste: 'refus' }).then(function (d) {
+      b.disabled = false;
+      if (!d || !d.ok) { window.alert((d && d.erreur) || t('Non enregistré. Réessayez ou appelez-nous.', 'Not saved. Please try again or call us.')); return; }
+      donnees.refus = true; rendre(donnees); window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, function () { b.disabled = false; window.alert(t('Non enregistré (réseau). Réessayez.', 'Not saved (network). Please try again.')); });
+  });
+  $('btn-imprimer').addEventListener('click', function () { [].forEach.call(document.querySelectorAll('details.detail'), function (d) { d.open = true; }); window.print(); });
+  if (!o || !k) invalide({ code: 'LIEN_INVALIDE' }); else charger();
+})();
+</script>
+</body>
+</html>

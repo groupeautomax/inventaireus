@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Portail des acheteurs</title>
+<!-- 5 nov. 2026 : portail des acheteurs externes (PortailAcheteurs.gs). L'acheteur approuvé voit le stock
+     mis en vente pour son pays et peut l'acheter au prix demandé ou faire une offre ; la suite (contre-offre,
+     contrat, signature, transport) se fait sur offre.html?o=<id>, comme pour la vitrine. -->
+<style>
+  :root {
+    --vert: #008a44; --vert-fonce: #006b35; --ambre: #955f10; --rouge: #b42318;
+    --texte: #16181c; --doux: #5f6978; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px;
+    --vert-pale: #e7f5ed; --ambre-pale: #fdf0e0; --rouge-pale: #fde8e6;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 12px 16px; position: sticky; top: 0; z-index: 20; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 1180px; margin: 0 auto; flex-wrap: wrap; }
+  .marque { font-weight: 750; color: var(--vert); font-size: 16px; }
+  .marque small { display: block; color: var(--doux); font-weight: 500; font-size: 13px; }
+  .pousse { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .langues { display: flex; border: 1px solid var(--trait); border-radius: 999px; overflow: hidden; }
+  .langues button { border: 0; background: transparent; padding: 6px 12px; font: inherit; font-size: 13px; color: var(--doux); cursor: pointer; }
+  .langues button[aria-pressed="true"] { background: var(--vert); color: #fff; font-weight: 600; }
+  .compte { font-size: 14px; color: var(--doux); text-align: right; }
+  .compte b { color: var(--texte); display: block; font-weight: 600; }
+  button.lien { border: 0; background: none; color: var(--vert); font: inherit; font-size: 14px; cursor: pointer; padding: 4px 0; }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  .etroit { max-width: 460px; margin: 28px auto; }
+  h1 { font-size: 21px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.3px; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  .aide { color: var(--doux); font-size: 14px; margin: 0 0 14px; }
+  label { display: block; font-size: 14px; color: var(--doux); margin: 12px 0 5px; }
+  input, select, textarea { width: 100%; padding: 12px 13px; font: inherit; font-size: 16px; border: 1px solid var(--trait); border-radius: 10px; background: var(--fond); color: var(--texte); }
+  textarea { min-height: 80px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--vert); outline-offset: -1px; }
+  input.code { font-size: 26px; letter-spacing: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+  .boutons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .btn { padding: 13px 18px; font: inherit; font-size: 16px; font-weight: 650; border-radius: 12px; cursor: pointer; border: 1px solid var(--trait); background: var(--carte); color: var(--texte); text-decoration: none; text-align: center; display: inline-block; }
+  .btn.principal { border: 0; background: var(--vert); color: #fff; }
+  .btn.plein { flex: 1 1 auto; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .alerte { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
+  .alerte.mauvais { background: var(--ambre-pale); color: #7a4a0e; }
+  .alerte.bon { background: var(--vert-pale); color: #0a6136; }
+  .message { text-align: center; padding: 56px 20px; color: var(--doux); }
+  .message strong { display: block; color: var(--texte); font-size: 17px; margin-bottom: 6px; }
+
+  .onglets { display: flex; gap: 6px; margin: 4px 0 14px; border-bottom: 1px solid var(--trait); }
+  .onglets button { border: 0; background: none; font: inherit; font-size: 16px; padding: 10px 12px; color: var(--doux); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+  .onglets button[aria-selected="true"] { color: var(--texte); font-weight: 650; border-bottom-color: var(--vert); }
+  .onglets .n { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 999px; background: var(--fond); font-size: 13px; margin-left: 4px; }
+  .filtres { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .filtres input, .filtres select { padding: 10px 12px; font-size: 15px; background: var(--carte); }
+  @media (max-width: 760px) { .filtres { grid-template-columns: 1fr 1fr; } .filtres input { grid-column: 1 / -1; } }
+  .compteLigne { color: var(--doux); font-size: 14px; margin: -4px 0 12px; }
+  .grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .carte { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); overflow: hidden; cursor: pointer; display: flex; flex-direction: column; text-align: left; padding: 0; font: inherit; color: inherit; }
+  .carte:focus-visible { outline: 2px solid var(--vert); outline-offset: 2px; }
+  .carte .photo { aspect-ratio: 16 / 10; background: linear-gradient(135deg, #1f2328, #008a44); position: relative; }
+  .carte .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .carte .etat { position: absolute; top: 10px; left: 10px; }
+  .carte .corps { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .carte .titre { font-weight: 700; font-size: 16px; }
+  .carte .titre .annee { color: var(--vert); }
+  .carte .sous { color: var(--doux); font-size: 14px; }
+  .carte .bas { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding-top: 8px; gap: 8px; }
+  .carte .prix { font-size: 19px; font-weight: 800; color: var(--vert); white-space: nowrap; }
+  .carte .conv { font-size: 13px; color: var(--doux); }
+  .carte .lieu { font-size: 13px; color: var(--doux); text-align: right; }
+  .puce { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--fond); color: var(--texte); }
+  .puce.vert { background: var(--vert-pale); color: #0a6136; }
+  .puce.ambre { background: var(--ambre-pale); color: #7a4a0e; }
+  .puce.rouge { background: var(--rouge-pale); color: var(--rouge); }
+
+  .offres { display: flex; flex-direction: column; gap: 10px; }
+  .offre { display: grid; grid-template-columns: 84px 1fr auto; gap: 12px; align-items: center; background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 10px; }
+  .offre img, .offre .vide { width: 84px; height: 56px; border-radius: 8px; object-fit: cover; background: linear-gradient(135deg, #1f2328, #008a44); display: block; }
+  .offre .t { font-weight: 650; }
+  .offre .d { color: var(--doux); font-size: 14px; }
+  @media (max-width: 560px) { .offre { grid-template-columns: 64px 1fr; } .offre img, .offre .vide { width: 64px; height: 44px; } .offre .btn { grid-column: 1 / -1; } }
+
+  /* Fiche d'un véhicule */
+  .voile { position: fixed; inset: 0; background: rgba(15,18,22,.55); z-index: 40; display: flex; justify-content: center; align-items: flex-start; overflow-y: auto; padding: 24px 12px; }
+  .fenetre { background: var(--fond); border-radius: 18px; max-width: 860px; width: 100%; padding: 16px; position: relative; }
+  .fenetre .fermer { position: absolute; top: 10px; right: 10px; z-index: 3; width: 38px; height: 38px; border-radius: 999px; border: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 22px; cursor: pointer; }
+  .hero { position: relative; aspect-ratio: 16 / 10; border-radius: var(--rayon); overflow: hidden; background: linear-gradient(135deg, #1f2328, #008a44); color: #fff; }
+  .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .hero .compteur { position: absolute; bottom: 10px; right: 12px; background: rgba(0,0,0,.55); padding: 3px 10px; border-radius: 999px; font-size: 13px; }
+  .bande { display: flex; gap: 8px; overflow-x: auto; padding: 10px 2px 2px; }
+  .bande img { width: 82px; height: 56px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; cursor: pointer; flex: none; }
+  .bande img[aria-current="true"] { border-color: var(--vert); }
+  .ligne { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--trait); font-size: 15px; }
+  .ligne:last-child { border-bottom: 0; }
+  .ligne .k { color: var(--doux); }
+  .ligne .v { font-weight: 600; text-align: right; }
+  .ligne .v.prix { color: var(--vert); font-size: 20px; font-weight: 800; }
+  .pastilles { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pastilles span { padding: 5px 10px; border-radius: 999px; background: var(--carte); border: 1px solid var(--trait); font-size: 13px; }
+  .actionsFiche { position: sticky; bottom: 0; background: var(--fond); padding: 12px 0 2px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .duo { grid-template-columns: 1fr; } }
+  footer { text-align: center; color: var(--doux); font-size: 13px; padding: 28px 16px 40px; }
+
+  @media (prefers-color-scheme: dark) {
+    :root { --texte: #f2f3f5; --doux: #9aa1ab; --trait: #2a2d33; --fond: #121316; --carte: #1b1d21; --vert-pale: #12331f; --ambre-pale: #3a2415; --rouge-pale: #3a1714; }
+    .alerte.mauvais, .puce.ambre { color: #f0b98b; }
+    .alerte.bon, .puce.vert { color: #8fd9b0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="rangee">
+    <span class="marque" id="marque"></span>
+    <div class="pousse">
+      <div class="compte" id="compte" hidden></div>
+      <div class="langues">
+        <button type="button" data-langue="fr">FR</button>
+        <button type="button" data-langue="en">EN</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main"></main>
+<footer id="pied"></footer>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+const CLE_SESSION = "amx_portail_acheteur_v1";
+
+const T = {
+  fr: {
+    titre: "Portail des acheteurs", sousTitre: "Concessionnaires approuvés",
+    connexionTitre: "Connexion", connexionAide: "Entrez l'adresse courriel de votre fiche d'acheteur. Vous recevrez un code à six chiffres.",
+    courriel: "Courriel", parCourriel: "Recevoir mon code par courriel", parTexto: "Recevoir mon code par texto",
+    codeTitre: "Entrez votre code", codeEnvoye: (c, d) => "Code envoyé " + (c === "texto" ? "par texto au " : "par courriel à ") + d + ". Il est valable 10 minutes.",
+    code: "Code à six chiffres", entrer: "Entrer", renvoyer: "Renvoyer le code", changer: "Changer d'adresse",
+    pasAcheteur: "Pas encore inscrit ? Demandez une invitation à votre représentant : vous recevrez un lien pour inscrire votre concession, puis l'accès sera ouvert après approbation.",
+    deconnexion: "Se déconnecter", stock: "Stock disponible", mesOffres: "Mes offres",
+    recherche: "Marque, modèle, NIV…", toutesMarques: "Toutes les marques", toutesAnnees: "Toutes les années",
+    tri: { recents: "Plus récents", prixMoins: "Prix croissant", prixPlus: "Prix décroissant", annee: "Année" },
+    nVehicules: n => n + " véhicule" + (n > 1 ? "s" : "") + " offert" + (n > 1 ? "s" : "") + " pour " , pays: { CA: "le Canada", US: "les États-Unis", FR: "la France" },
+    aucunStock: "Aucun véhicule offert pour votre pays en ce moment.", aucunFiltre: "Aucun véhicule ne correspond à ces filtres.",
+    aucuneOffre: "Vous n'avez encore fait aucune offre.",
+    surDemande: "Prix sur demande", prixDemande: "Prix demandé", km: "Kilométrage", kmInconnu: "Tel qu'indiqué au véhicule", couleur: "Couleur",
+    convNote: (d, date) => "Conversion indicative au taux de la Banque du Canada" + (date ? " du " + date : "") + ". Le contrat est en dollars canadiens.",
+    options: "Options et équipements de série", details: "Détails du véhicule", description: "Notes du vendeur", vendeur: "Vendeur",
+    carfax: "Voir le rapport CARFAX", sticker: "Ouvrir le window sticker (PDF)", video: "Voir la vidéo",
+    annee: "Année", marque: "Marque", modele: "Modèle", version: "Version", vin: "NIV", carrosserie: "Carrosserie", portes: "Portes", places: "Places",
+    moteur: "Moteur", motricite: "Motricité", carburant: "Carburant", transmission: "Transmission",
+    acheter: p => "Acheter au prix demandé (" + p + ")", faireOffre: "Faire une offre", suivre: "Suivre mon offre",
+    enCours: "Offre en cours", reserve: "Réservé", votreOffre: s => "Votre offre : " + s,
+    statuts: { nouvelle: "reçue", contre: "contre-offre à répondre", acceptee: "acceptée", contrat: "contrat", refusee: "refusée", annulee: "annulée" },
+    statutsCourts: { nouvelle: "Reçue", contre: "Contre-offre", acceptee: "Acceptée", contrat: "Contrat", refusee: "Refusée", annulee: "Annulée" },
+    confirmerAchat: "Acheter ce véhicule", confirmerAchatTexte: (v, p) => "Vous achetez le " + v + " au prix demandé de " + p + " (dollars canadiens, avant taxes et frais). La concession confirme la vente par courriel ; le contrat suit sur la page de votre offre.",
+    offreTitre: "Faire une offre", offreTexte: p => "Votre prix en dollars canadiens" + (p ? " (prix demandé : " + p + ")" : "") + ". La concession accepte, refuse ou fait une contre-offre ; vous suivez tout sur la page de votre offre.",
+    votrePrix: "Votre prix ($ CA)", note: "Note pour la concession (facultatif)", notePlaceholder: "Livraison, transport, questions…",
+    confirmer: "Confirmer l'achat", envoyerOffre: "Envoyer mon offre", annuler: "Annuler", envoi: "Envoi…",
+    merciAchat: "Demande d'achat envoyée", merciOffre: "Offre envoyée", merciTexte: "La concession la reçoit tout de suite et vous répond par courriel. Vous pouvez suivre votre offre à tout moment.",
+    deja: "Vous avez déjà une offre sur ce véhicule.", ouvrir: "Ouvrir", fermer: "Fermer", chargement: "Chargement…",
+    offrePrix: p => "Votre offre : " + p, contrePrix: p => "Contre-offre : " + p, prixFinal: p => "Prix convenu : " + p,
+    plusOffert: "Plus offert dans le portail", RESEAU: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+    pied: "Portail réservé aux concessionnaires acheteurs approuvés."
+  },
+  en: {
+    titre: "Buyer portal", sousTitre: "Approved dealers",
+    connexionTitre: "Sign in", connexionAide: "Enter the email address of your buyer profile. You will receive a six-digit code.",
+    courriel: "Email", parCourriel: "Send my code by email", parTexto: "Send my code by text message",
+    codeTitre: "Enter your code", codeEnvoye: (c, d) => "Code sent " + (c === "texto" ? "by text message to " : "by email to ") + d + ". It is valid for 10 minutes.",
+    code: "Six-digit code", entrer: "Sign in", renvoyer: "Send the code again", changer: "Use another address",
+    pasAcheteur: "Not registered yet? Ask your sales representative for an invitation: you will receive a link to register your dealership, then access opens after approval.",
+    deconnexion: "Sign out", stock: "Available stock", mesOffres: "My offers",
+    recherche: "Make, model, VIN…", toutesMarques: "All makes", toutesAnnees: "All years",
+    tri: { recents: "Newest", prixMoins: "Price: low to high", prixPlus: "Price: high to low", annee: "Year" },
+    nVehicules: n => n + " vehicle" + (n > 1 ? "s" : "") + " offered for ", pays: { CA: "Canada", US: "the United States", FR: "France" },
+    aucunStock: "No vehicle is offered for your country right now.", aucunFiltre: "No vehicle matches these filters.",
+    aucuneOffre: "You have not made any offer yet.",
+    surDemande: "Price on request", prixDemande: "Asking price", km: "Mileage", kmInconnu: "As shown on the vehicle", couleur: "Colour",
+    convNote: (d, date) => "Indicative conversion at the Bank of Canada rate" + (date ? " of " + date : "") + ". The contract is in Canadian dollars.",
+    options: "Standard options and equipment", details: "Vehicle details", description: "Seller notes", vendeur: "Seller",
+    carfax: "See the CARFAX report", sticker: "Open the window sticker (PDF)", video: "Watch the video",
+    annee: "Year", marque: "Make", modele: "Model", version: "Trim", vin: "VIN", carrosserie: "Body type", portes: "Doors", places: "Passengers",
+    moteur: "Engine", motricite: "Drivetrain", carburant: "Fuel type", transmission: "Transmission",
+    acheter: p => "Buy at asking price (" + p + ")", faireOffre: "Make an offer", suivre: "Track my offer",
+    enCours: "Offer in progress", reserve: "Reserved", votreOffre: s => "Your offer: " + s,
+    statuts: { nouvelle: "received", contre: "counter-offer to answer", acceptee: "accepted", contrat: "contract", refusee: "declined", annulee: "cancelled" },
+    statutsCourts: { nouvelle: "Received", contre: "Counter-offer", acceptee: "Accepted", contrat: "Contract", refusee: "Declined", annulee: "Cancelled" },
+    confirmerAchat: "Buy this vehicle", confirmerAchatTexte: (v, p) => "You are buying the " + v + " at the asking price of " + p + " (Canadian dollars, before taxes and fees). The dealership confirms the sale by email; the contract follows on your offer page.",
+    offreTitre: "Make an offer", offreTexte: p => "Your price in Canadian dollars" + (p ? " (asking price: " + p + ")" : "") + ". The dealership accepts, declines or makes a counter-offer; you follow everything on your offer page.",
+    votrePrix: "Your price (CAD)", note: "Note for the dealership (optional)", notePlaceholder: "Delivery, transport, questions…",
+    confirmer: "Confirm purchase", envoyerOffre: "Send my offer", annuler: "Cancel", envoi: "Sending…",
+    merciAchat: "Purchase request sent", merciOffre: "Offer sent", merciTexte: "The dealership receives it right away and answers you by email. You can track your offer at any time.",
+    deja: "You already have an offer on this vehicle.", ouvrir: "Open", fermer: "Close", chargement: "Loading…",
+    offrePrix: p => "Your offer: " + p, contrePrix: p => "Counter-offer: " + p, prixFinal: p => "Agreed price: " + p,
+    plusOffert: "No longer offered in the portal", RESEAU: "Could not reach the server. Check your connection and try again.",
+    pied: "Portal reserved for approved buyer dealerships."
+  }
+};
+const CODES = {
+  fr: { vus: "VUS", camionnette: "Camionnette", berline: "Berline", hayon: "Hayon", coupe: "Coupé", cabriolet: "Cabriolet", fourgonnette: "Fourgonnette", familiale: "Familiale", fourgon: "Fourgon", awd: "Traction intégrale (AWD)", "4x4": "4 roues motrices (4x4)", traction: "Traction avant", propulsion: "Propulsion", essence: "Essence", diesel: "Diesel", electrique: "Électrique", hybride: "Hybride", hybrideBranchable: "Hybride rechargeable", flex: "Carburant flexible (E85)", automatique: "Automatique", manuelle: "Manuelle", cvt: "Automatique (CVT)", dct: "Double embrayage", regulateurAdaptatif: "Régulateur de vitesse adaptatif", angleMort: "Surveillance des angles morts", alerteVoie: "Alerte de sortie de voie", maintienVoie: "Maintien de voie", alerteCollision: "Alerte de collision frontale", freinageUrgence: "Freinage d'urgence automatique", cameraRecul: "Caméra de recul", traficArriere: "Alerte de circulation transversale", aideStationnement: "Aide au stationnement", demarrageSansCle: "Démarrage sans clé", pharesDEL: "Phares à DEL", turbo: "Moteur turbo" },
+  en: { vus: "SUV", camionnette: "Pickup", berline: "Sedan", hayon: "Hatchback", coupe: "Coupe", cabriolet: "Convertible", fourgonnette: "Minivan", familiale: "Wagon", fourgon: "Van", awd: "All-wheel drive (AWD)", "4x4": "Four-wheel drive (4x4)", traction: "Front-wheel drive", propulsion: "Rear-wheel drive", essence: "Gasoline", diesel: "Diesel", electrique: "Electric", hybride: "Hybrid", hybrideBranchable: "Plug-in hybrid", flex: "Flex fuel (E85)", automatique: "Automatic", manuelle: "Manual", cvt: "Automatic (CVT)", dct: "Dual-clutch", regulateurAdaptatif: "Adaptive cruise control", angleMort: "Blind spot monitor", alerteVoie: "Lane departure warning", maintienVoie: "Lane keep assist", alerteCollision: "Forward collision warning", freinageUrgence: "Automatic emergency braking", cameraRecul: "Backup camera", traficArriere: "Rear cross-traffic alert", aideStationnement: "Park assist", demarrageSansCle: "Keyless ignition", pharesDEL: "LED headlights", turbo: "Turbocharged engine" }
+};
+
+/* --------------------------------- État --------------------------------- */
+const params = new URLSearchParams(location.search);
+let langue = (function () {
+  const p = params.get("lang"); if (p === "fr" || p === "en") return p;
+  try { const g = localStorage.getItem("automaxLangue"); if (g === "fr" || g === "en") return g; } catch (e) {}
+  return (navigator.language || "fr").toLowerCase().indexOf("en") === 0 ? "en" : "fr";
+})();
+let session = lireSession();          // { cle, courriel, nom, expire }
+let donnees = null;                   // réponse de acheteurPortail
+let onglet = "stock";
+let filtres = { q: "", marque: "", annee: "", tri: "recents" };
+let connexion = { etape: "courriel", courriel: (session && session.courriel) || "", canal: "", destination: "", textoPossible: true, message: "", erreur: "" };
+let fiche = null;                     // { vin, vehicule, etat, photo }
+
+function t() { return T[langue]; }
+function echappe(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function lireSession() { try { const s = JSON.parse(localStorage.getItem(CLE_SESSION) || "null"); if (s && s.cle && (!s.expire || new Date(s.expire) > new Date())) return s; } catch (e) {} return null; }
+function ecrireSession(s) { session = s; try { if (s) localStorage.setItem(CLE_SESSION, JSON.stringify(s)); else localStorage.removeItem(CLE_SESSION); } catch (e) {} }
+function idDrive(url) { const m = String(url || "").match(/\/d\/([^/?]+)/) || String(url || "").match(/[?&]id=([^&]+)/); return m ? m[1] : ""; }
+function vignette(url, l) { if (!url) return ""; const id = idDrive(url); return id ? "https://drive.google.com/thumbnail?id=" + id + "&sz=w" + l : url; }
+function nombre(x) { const n = parseFloat(String(x == null ? "" : x).replace(/[\s  $€]/g, "").replace(/,(\d{1,2})$/, ".$1").replace(/,/g, "")); return isFinite(n) ? n : 0; }
+function argent(n, devise) {
+  const s = Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, langue === "en" ? "," : " ");
+  if (devise === "EUR") return langue === "en" ? "€" + s : s + " €";
+  if (devise === "USD") return langue === "en" ? "US$" + s : s + " $ US";
+  return langue === "en" ? "$" + s : s + " $";
+}
+function kmLisible(km) { const n = parseInt(String(km || "").replace(/[^0-9]/g, ""), 10); return n ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, langue === "en" ? "," : " ") + " km" : ""; }
+function code(c) { if (!c) return ""; const s = String(c); const m = s.match(/^([^:]+):(\d+)$/); if (m) return (CODES[langue][m[1]] || m[1]) + " · " + m[2] + (langue === "en" ? "-speed" : " rapports"); return CODES[langue][s] || s; }
+function titres(v) {
+  if (v.annee && v.marque) return { annee: String(v.annee), haut: v.marque + " " + (v.modele || ""), bas: v.version || "" };
+  const m = String(v.model || "").trim(); const an = m.match(/\b(19|20)\d{2}\b/);
+  return { annee: an ? an[0] : "", haut: m.replace(/\b(19|20)\d{2}\b/, "").trim() || v.vin, bas: "" };
+}
+function nomVehicule(v) { const x = titres(v); return [x.annee, x.haut, x.bas].filter(Boolean).join(" "); }
+function convLigne(prix) {
+  if (!prix || !donnees || !donnees.taux) return "";
+  const ind = langue === "en" ? " (indicative)" : " (indicatif)";
+  if (donnees.marche === "US" && donnees.taux.usd) return "≈ " + argent(prix / donnees.taux.usd.taux, "USD") + ind;
+  if (donnees.marche === "FR" && donnees.taux.eur) return "≈ " + argent(prix / donnees.taux.eur.taux, "EUR") + ind;
+  return "";
+}
+
+async function appeler(corps) {
+  const r = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ langue: langue }, corps)) });
+  const j = await r.json();
+  if (j && j.ok === false && (j.code === "SESSION" || j.code === "SUSPENDU" || j.code === "EN_ATTENTE" || j.code === "NON_INSCRIT")) {
+    ecrireSession(null); donnees = null; connexion.etape = "courriel"; connexion.erreur = j.erreur || ""; dessiner();
+    const e = new Error(j.erreur || ""); e.session = true; throw e;
+  }
+  return j;
+}
+
+/* ------------------------------- Dessin --------------------------------- */
+function dessinerEntete() {
+  document.documentElement.lang = langue;
+  document.getElementById("marque").innerHTML = echappe(t().titre) + "<small>" + echappe((donnees && donnees.acheteur && donnees.acheteur.nomLegal) || t().sousTitre) + "</small>";
+  document.title = t().titre;
+  document.querySelectorAll(".langues button").forEach(b => b.setAttribute("aria-pressed", b.dataset.langue === langue ? "true" : "false"));
+  const compte = document.getElementById("compte");
+  if (session) {
+    compte.hidden = false;
+    compte.innerHTML = "<b>" + echappe(session.nom || session.courriel) + "</b>" + '<button type="button" class="lien" id="sortir">' + echappe(t().deconnexion) + "</button>";
+    document.getElementById("sortir").onclick = deconnecter;
+  } else compte.hidden = true;
+  document.getElementById("pied").textContent = t().pied;
+}
+
+function dessiner() {
+  dessinerEntete();
+  const main = document.getElementById("main");
+  if (!session) { main.innerHTML = vueConnexion(); brancherConnexion(); return; }
+  if (!donnees) { main.innerHTML = '<div class="message"><strong>' + echappe(t().chargement) + "</strong></div>"; return; }
+  const nOffres = (donnees.offres || []).length;
+  let h = '<div class="onglets" role="tablist">' +
+    '<button type="button" role="tab" data-onglet="stock" aria-selected="' + (onglet === "stock") + '">' + echappe(t().stock) + '<span class="n">' + donnees.vehicules.length + "</span></button>" +
+    '<button type="button" role="tab" data-onglet="offres" aria-selected="' + (onglet === "offres") + '">' + echappe(t().mesOffres) + '<span class="n">' + nOffres + "</span></button></div>";
+  h += onglet === "stock" ? vueStock() : vueOffres();
+  main.innerHTML = h;
+  main.querySelectorAll("[data-onglet]").forEach(b => b.onclick = () => { onglet = b.dataset.onglet; dessiner(); });
+  if (onglet === "stock") brancherStock();
+}
+
+function vueConnexion() {
+  const c = connexion;
+  let h = '<div class="bloc etroit">';
+  if (c.etape === "courriel") {
+    h += "<h1>" + echappe(t().connexionTitre) + '</h1><p class="aide">' + echappe(t().connexionAide) + "</p>";
+    h += '<label for="courriel">' + echappe(t().courriel) + '</label><input id="courriel" type="email" autocomplete="email" inputmode="email" value="' + echappe(c.courriel) + '">';
+    h += '<div class="boutons"><button type="button" class="btn principal plein" id="parCourriel">' + echappe(t().parCourriel) + '</button><button type="button" class="btn plein" id="parTexto">' + echappe(t().parTexto) + "</button></div>";
+  } else {
+    h += "<h1>" + echappe(t().codeTitre) + '</h1><p class="aide">' + echappe(t().codeEnvoye(c.canal, c.destination)) + "</p>";
+    if (c.message) h += '<div class="alerte mauvais" style="margin:0 0 6px">' + echappe(c.message) + "</div>";
+    h += '<label for="code">' + echappe(t().code) + '</label><input id="code" class="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*">';
+    h += '<div class="boutons"><button type="button" class="btn principal plein" id="entrer">' + echappe(t().entrer) + "</button></div>";
+    h += '<div class="boutons"><button type="button" class="lien" id="renvoyer">' + echappe(t().renvoyer) + '</button><button type="button" class="lien" id="changer">' + echappe(t().changer) + "</button></div>";
+  }
+  if (c.erreur) h += '<div class="alerte mauvais" role="alert">' + echappe(c.erreur) + "</div>";
+  h += '<p class="aide" style="margin:18px 0 0">' + echappe(t().pasAcheteur) + "</p></div>";
+  return h;
+}
+
+function brancherConnexion() {
+  const c = connexion;
+  if (c.etape === "courriel") {
+    const champ = document.getElementById("courriel");
+    const demander = async canal => {
+      c.courriel = champ.value.trim().toLowerCase(); c.erreur = "";
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.courriel)) { champ.focus(); champ.style.borderColor = "var(--rouge)"; return; }
+      document.querySelectorAll("#main button").forEach(b => b.disabled = true);
+      try {
+        const j = await appeler({ action: "acheteurCode", courriel: c.courriel, canal: canal });
+        if (!j.ok) { c.erreur = j.erreur || t().RESEAU; }
+        else { c.etape = "code"; c.canal = j.canal; c.destination = j.destination; c.textoPossible = j.textoPossible; c.message = j.message || ""; }
+      } catch (e) { if (!e.session) c.erreur = t().RESEAU; }
+      dessiner();
+    };
+    document.getElementById("parCourriel").onclick = () => demander("courriel");
+    document.getElementById("parTexto").onclick = () => demander("texto");
+    champ.addEventListener("keydown", e => { if (e.key === "Enter") demander("courriel"); });
+    champ.focus();
+  } else {
+    const champ = document.getElementById("code");
+    const entrer = async () => {
+      const code = champ.value.replace(/\D/g, "");
+      if (code.length !== 6) { champ.focus(); return; }
+      document.querySelectorAll("#main button").forEach(b => b.disabled = true);
+      try {
+        const j = await appeler({ action: "acheteurConnexion", courriel: c.courriel, code: code });
+        if (!j.ok) { c.erreur = j.erreur || t().RESEAU; dessiner(); return; }
+        ecrireSession({ cle: j.cleAcheteur, courriel: c.courriel, nom: (j.acheteur && (j.acheteur.nomLegal || j.acheteur.signataire)) || c.courriel, expire: j.expire });
+        if (j.acheteur && j.acheteur.langue && !params.get("lang")) { langue = j.acheteur.langue; try { localStorage.setItem("automaxLangue", langue); } catch (e) {} }
+        c.erreur = ""; c.etape = "courriel"; donnees = null; dessiner(); charger();
+      } catch (e) { if (!e.session) { c.erreur = t().RESEAU; dessiner(); } }
+    };
+    document.getElementById("entrer").onclick = entrer;
+    champ.addEventListener("input", () => { if (champ.value.replace(/\D/g, "").length === 6) entrer(); });
+    champ.addEventListener("keydown", e => { if (e.key === "Enter") entrer(); });
+    document.getElementById("renvoyer").onclick = async () => {
+      c.erreur = "";
+      try { const j = await appeler({ action: "acheteurCode", courriel: c.courriel, canal: c.canal }); if (!j.ok) c.erreur = j.erreur; else { c.destination = j.destination; c.canal = j.canal; c.message = j.message || ""; } } catch (e) { if (!e.session) c.erreur = t().RESEAU; }
+      dessiner();
+    };
+    document.getElementById("changer").onclick = () => { c.etape = "courriel"; c.erreur = ""; c.message = ""; dessiner(); };
+    champ.focus();
+  }
+}
+
+function etatPuce(v) {
+  if (v.votreOffre) return '<span class="puce vert">' + echappe(t().votreOffre(t().statuts[v.votreOffre.statut] || v.votreOffre.statut)) + "</span>";
+  if (v.reserve) return '<span class="puce rouge">' + echappe(t().reserve) + "</span>";
+  if (v.enCours) return '<span class="puce ambre">' + echappe(t().enCours) + "</span>";
+  return "";
+}
+
+function filtrer() {
+  const q = filtres.q.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  let l = donnees.vehicules.filter(v => {
+    if (filtres.marque && (v.marque || titres(v).haut.split(" ")[0]) !== filtres.marque) return false;
+    if (filtres.annee && String(v.annee || titres(v).annee) !== filtres.annee) return false;
+    if (!q) return true;
+    const texte = [v.annee, v.marque, v.modele, v.version, v.model, v.vin, v.couleur, v.vendeur && v.vendeur.ville].join(" ").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    return q.split(/\s+/).every(m => texte.indexOf(m) >= 0);
+  });
+  const prix = v => nombre(v.price) || (filtres.tri === "prixMoins" ? Infinity : 0);
+  if (filtres.tri === "prixMoins") l.sort((a, b) => prix(a) - prix(b));
+  else if (filtres.tri === "prixPlus") l.sort((a, b) => prix(b) - prix(a));
+  else if (filtres.tri === "annee") l.sort((a, b) => Number(b.annee || 0) - Number(a.annee || 0));
+  else l.sort((a, b) => String(b.listedOn || "").localeCompare(String(a.listedOn || "")));
+  return l;
+}
+
+function vueStock() {
+  const tous = donnees.vehicules;
+  if (!tous.length) return '<div class="message"><strong>' + echappe(t().aucunStock) + "</strong></div>";
+  const marques = Array.from(new Set(tous.map(v => v.marque || titres(v).haut.split(" ")[0]).filter(Boolean))).sort();
+  const annees = Array.from(new Set(tous.map(v => String(v.annee || titres(v).annee)).filter(Boolean))).sort().reverse();
+  let h = '<div class="filtres">' +
+    '<input id="q" type="search" placeholder="' + echappe(t().recherche) + '" value="' + echappe(filtres.q) + '" aria-label="' + echappe(t().recherche) + '">' +
+    '<select id="fMarque" aria-label="' + echappe(t().marque) + '"><option value="">' + echappe(t().toutesMarques) + "</option>" + marques.map(m => '<option' + (m === filtres.marque ? " selected" : "") + ">" + echappe(m) + "</option>").join("") + "</select>" +
+    '<select id="fAnnee" aria-label="' + echappe(t().annee) + '"><option value="">' + echappe(t().toutesAnnees) + "</option>" + annees.map(a => '<option' + (a === filtres.annee ? " selected" : "") + ">" + echappe(a) + "</option>").join("") + "</select>" +
+    '<select id="fTri" aria-label="Tri">' + Object.keys(t().tri).map(k => '<option value="' + k + '"' + (k === filtres.tri ? " selected" : "") + ">" + echappe(t().tri[k]) + "</option>").join("") + "</select></div>";
+  h += '<div id="resultats"></div>';
+  return h;
+}
+
+function dessinerResultats() {
+  const l = filtrer();
+  const zone = document.getElementById("resultats");
+  if (!zone) return;
+  let h = '<p class="compteLigne">' + echappe(t().nVehicules(l.length) + t().pays[donnees.marche]) + "</p>";
+  if (!l.length) { zone.innerHTML = h + '<div class="message"><strong>' + echappe(t().aucunFiltre) + "</strong></div>"; return; }
+  h += '<div class="grille">' + l.map(v => {
+    const x = titres(v), prix = nombre(v.price), conv = convLigne(prix);
+    const lieu = v.vendeur ? [v.vendeur.ville, v.vendeur.province].filter(Boolean).join(", ") : "";
+    return '<button type="button" class="carte" data-vin="' + echappe(v.vin) + '">' +
+      '<div class="photo">' + (v.photo ? '<img loading="lazy" alt="" src="' + echappe(vignette(v.photo, 600)) + '">' : "") + '<div class="etat">' + etatPuce(v) + "</div></div>" +
+      '<div class="corps"><div class="titre">' + (x.annee ? '<span class="annee">' + echappe(x.annee) + "</span> " : "") + echappe(x.haut) + "</div>" +
+      '<div class="sous">' + echappe([x.bas, kmLisible(v.km)].filter(Boolean).join(" · ")) + "</div>" +
+      '<div class="bas"><div><div class="prix">' + echappe(prix ? argent(prix) : t().surDemande) + "</div>" + (conv ? '<div class="conv">' + echappe(conv) + "</div>" : "") + "</div>" +
+      '<div class="lieu">' + echappe(v.vendeur ? v.vendeur.nom || "" : "") + (lieu ? "<br>" + echappe(lieu) : "") + "</div></div></div></button>";
+  }).join("") + "</div>";
+  zone.innerHTML = h;
+  zone.querySelectorAll(".carte").forEach(b => b.onclick = () => ouvrirFiche(b.dataset.vin));
+}
+
+function brancherStock() {
+  const q = document.getElementById("q");
+  if (!q) return;
+  q.addEventListener("input", () => { filtres.q = q.value; dessinerResultats(); });
+  document.getElementById("fMarque").onchange = e => { filtres.marque = e.target.value; dessinerResultats(); };
+  document.getElementById("fAnnee").onchange = e => { filtres.annee = e.target.value; dessinerResultats(); };
+  document.getElementById("fTri").onchange = e => { filtres.tri = e.target.value; dessinerResultats(); };
+  dessinerResultats();
+}
+
+function vueOffres() {
+  const l = donnees.offres || [];
+  if (!l.length) return '<div class="message"><strong>' + echappe(t().aucuneOffre) + "</strong></div>";
+  return '<div class="offres">' + l.map(o => {
+    const st = t().statutsCourts[o.statut] || o.statut;
+    const ton = o.statut === "contre" ? "ambre" : (o.statut === "acceptee" || o.statut === "contrat" ? "vert" : (o.statut === "refusee" || o.statut === "annulee" ? "rouge" : ""));
+    const montants = [t().offrePrix(argent(nombre(o.prix)))];
+    if (nombre(o.contre)) montants.push(t().contrePrix(argent(nombre(o.contre))));
+    if (nombre(o.prixFinal)) montants.push(t().prixFinal(argent(nombre(o.prixFinal))));
+    const date = o.date ? new Date(o.date).toLocaleDateString(langue === "en" ? "en-CA" : "fr-CA", { day: "numeric", month: "short", year: "numeric" }) : "";
+    return '<div class="offre">' + (o.photo ? '<img alt="" loading="lazy" src="' + echappe(vignette(o.photo, 200)) + '">' : '<span class="vide"></span>') +
+      '<div><div class="t">' + echappe(o.titre) + ' <span class="puce ' + ton + '">' + echappe(st) + "</span></div>" +
+      '<div class="d">' + echappe(montants.join(" · ")) + "</div>" +
+      '<div class="d">' + echappe([date, o.toujoursOffert ? "" : t().plusOffert].filter(Boolean).join(" · ")) + "</div></div>" +
+      '<a class="btn' + (o.statut === "contre" ? " principal" : "") + '" href="' + echappe(o.lien) + '" target="_blank" rel="noopener">' + echappe(t().ouvrir) + "</a></div>";
+  }).join("") + "</div>";
+}
+
+/* -------------------------------- Fiche --------------------------------- */
+async function ouvrirFiche(vin) {
+  const base = donnees.vehicules.find(v => v.vin === vin) || { vin: vin };
+  fiche = { vin: vin, vehicule: base, etat: base, photo: 0, chargee: false };
+  dessinerFiche();
+  try {
+    const j = await appeler({ action: "acheteurVehicule", cleAcheteur: session.cle, vin: vin });
+    if (!fiche || fiche.vin !== vin) return;
+    if (!j.ok) { fiche.erreur = j.erreur || t().RESEAU; dessinerFiche(); return; }
+    fiche.vehicule = Object.assign({}, base, j.vehicule || {});
+    fiche.etat = { votreOffre: j.votreOffre, enCours: j.enCours, reserve: j.reserve };
+    fiche.chargee = true;
+    dessinerFiche();
+  } catch (e) { if (!e.session && fiche) { fiche.erreur = t().RESEAU; dessinerFiche(); } }
+}
+function fermerFiche() { fiche = null; const v = document.getElementById("voile"); if (v) v.remove(); document.body.style.overflow = ""; }
+
+function dessinerFiche() {
+  let voile = document.getElementById("voile");
+  if (!fiche) { if (voile) voile.remove(); return; }
+  if (!voile) {
+    voile = document.createElement("div"); voile.id = "voile"; voile.className = "voile";
+    voile.addEventListener("click", e => { if (e.target === voile) fermerFiche(); });
+    document.body.appendChild(voile); document.body.style.overflow = "hidden";
+  }
+  const v = fiche.vehicule, x = titres(v), photos = (v.photos && v.photos.length ? v.photos : (v.photo ? [v.photo] : []));
+  if (fiche.photo >= photos.length) fiche.photo = 0;
+  const prix = nombre(v.price), conv = convLigne(prix), e = fiche.etat || {};
+  let h = '<div class="fenetre" role="dialog" aria-modal="true" aria-label="' + echappe(nomVehicule(v)) + '"><button type="button" class="fermer" id="fermer" aria-label="' + echappe(t().fermer) + '">×</button>';
+  h += '<div class="hero">' + (photos.length ? '<img alt="" src="' + echappe(vignette(photos[fiche.photo], 1200)) + '">' : "") + (photos.length > 1 ? '<div class="compteur">' + (fiche.photo + 1) + " / " + photos.length + "</div>" : "") + "</div>";
+  if (photos.length > 1) h += '<div class="bande">' + photos.map((p, i) => '<img alt="" loading="lazy" data-i="' + i + '" src="' + echappe(vignette(p, 200)) + '"' + (i === fiche.photo ? ' aria-current="true"' : "") + ">").join("") + "</div>";
+  h += '<div class="bloc" style="margin-top:12px"><h1>' + echappe(nomVehicule(v)) + "</h1>" + (etatPuce(Object.assign({}, v, e)) ? "<div>" + etatPuce(Object.assign({}, v, e)) + "</div>" : "");
+  h += '<div class="ligne"><span class="k">' + echappe(t().prixDemande) + '</span><span class="v prix">' + echappe(prix ? argent(prix) : t().surDemande) + "</span></div>";
+  if (conv) h += '<div class="ligne"><span class="k"></span><span class="v" style="font-weight:500;color:var(--doux)">' + echappe(conv) + "</span></div>";
+  h += '<div class="ligne"><span class="k">' + echappe(t().km) + '</span><span class="v">' + echappe(kmLisible(v.km) || t().kmInconnu) + "</span></div>";
+  if (v.couleur) h += '<div class="ligne"><span class="k">' + echappe(t().couleur) + '</span><span class="v">' + echappe(v.couleur) + "</span></div>";
+  h += '<div class="ligne"><span class="k">' + echappe(t().vin) + '</span><span class="v" style="font-family:ui-monospace,Menlo,monospace">' + echappe(v.vin) + "</span></div>";
+  const liens = [];
+  if (v.carfax) liens.push('<a class="btn" href="' + echappe(v.carfax) + '" target="_blank" rel="noopener">' + echappe(t().carfax) + "</a>");
+  if (v.sticker && v.sticker.url) liens.push('<a class="btn" href="' + echappe(v.sticker.url) + '" target="_blank" rel="noopener">' + echappe(t().sticker) + "</a>");
+  if (idDrive(v.video)) liens.push('<a class="btn" href="https://drive.google.com/file/d/' + echappe(idDrive(v.video)) + '/view" target="_blank" rel="noopener">' + echappe(t().video) + "</a>");
+  if (liens.length) h += '<div class="boutons">' + liens.join("") + "</div>";
+  h += "</div>";
+  if (donnees.marche !== "CA" && conv) h += '<p class="aide">' + echappe(t().convNote("", (donnees.marche === "US" ? donnees.taux.usd : donnees.taux.eur).date)) + "</p>";
+  const d = v.details || {};
+  const lignes = [[t().annee, v.annee], [t().marque, v.marque], [t().modele, v.modele], [t().version, v.version], [t().carrosserie, code(d.carrosserie)], [t().portes, d.portes], [t().places, d.places], [t().moteur, d.moteur], [t().motricite, code(d.motricite)], [t().carburant, code(d.carburant)], [t().transmission, code(d.transmission)]].filter(l => l[1]);
+  const opts = v.options || [];
+  if (lignes.length > 2 || opts.length) {
+    h += '<div class="duo">';
+    if (lignes.length > 2) h += '<div class="bloc"><h2>' + echappe(t().details) + "</h2>" + lignes.map(l => '<div class="ligne"><span class="k">' + echappe(l[0]) + '</span><span class="v">' + echappe(l[1]) + "</span></div>").join("") + "</div>";
+    if (opts.length) h += '<div class="bloc"><h2>' + echappe(t().options) + '</h2><div class="pastilles">' + opts.map(o => "<span>" + echappe(code(o)) + "</span>").join("") + "</div></div>";
+    h += "</div>";
+  }
+  if (v.description) h += '<div class="bloc"><h2>' + echappe(t().description) + '</h2><div style="white-space:pre-wrap">' + echappe(v.description) + "</div></div>";
+  if (v.vendeur && v.vendeur.nom) h += '<div class="bloc"><h2>' + echappe(t().vendeur) + "</h2><strong>" + echappe(v.vendeur.nom) + "</strong>" + (v.vendeur.adresse ? "<br>" + echappe(v.vendeur.adresse) : "") + ([v.vendeur.ville, v.vendeur.province].filter(Boolean).length ? "<br>" + echappe([v.vendeur.ville, v.vendeur.province].filter(Boolean).join(", ")) : "") + "</div>";
+  if (fiche.erreur) h += '<div class="alerte mauvais" role="alert">' + echappe(fiche.erreur) + "</div>";
+  h += '<div class="actionsFiche">';
+  if (e.votreOffre) h += '<a class="btn principal plein" href="' + echappe(e.votreOffre.lien) + '" target="_blank" rel="noopener">' + echappe(t().suivre) + "</a>";
+  else if (!e.reserve) {
+    if (prix) h += '<button type="button" class="btn principal plein" id="acheter"' + (fiche.chargee ? "" : " disabled") + ">" + echappe(t().acheter(argent(prix))) + "</button>";
+    h += '<button type="button" class="btn plein" id="offrir"' + (fiche.chargee ? "" : " disabled") + ">" + echappe(t().faireOffre) + "</button>";
+  }
+  h += "</div></div>";
+  voile.innerHTML = h;
+  document.getElementById("fermer").onclick = fermerFiche;
+  voile.querySelectorAll(".bande img").forEach(img => img.onclick = () => { fiche.photo = Number(img.dataset.i); dessinerFiche(); });
+  const a = document.getElementById("acheter"); if (a) a.onclick = () => confirmer(true);
+  const o = document.getElementById("offrir"); if (o) o.onclick = () => confirmer(false);
+}
+
+function confirmer(auPrix) {
+  const v = fiche.vehicule, prix = nombre(v.price);
+  const fen = document.querySelector("#voile .fenetre");
+  const zone = document.createElement("div");
+  zone.className = "bloc";
+  zone.innerHTML = "<h2>" + echappe(auPrix ? t().confirmerAchat : t().offreTitre) + '</h2><p class="aide">' + echappe(auPrix ? t().confirmerAchatTexte(nomVehicule(v), argent(prix)) : t().offreTexte(prix ? argent(prix) : "")) + "</p>" +
+    (auPrix ? "" : '<label for="prixOffre">' + echappe(t().votrePrix) + '</label><input id="prixOffre" type="text" inputmode="numeric" autocomplete="off">') +
+    '<label for="noteOffre">' + echappe(t().note) + '</label><textarea id="noteOffre" maxlength="500" placeholder="' + echappe(t().notePlaceholder) + '"></textarea>' +
+    '<div id="erreurOffre"></div><div class="boutons"><button type="button" class="btn principal plein" id="envoyer">' + echappe(auPrix ? t().confirmer : t().envoyerOffre) + '</button><button type="button" class="btn" id="annulerOffre">' + echappe(t().annuler) + "</button></div>";
+  const act = fen.querySelector(".actionsFiche"); act.replaceWith(zone);
+  zone.scrollIntoView({ behavior: "smooth", block: "center" });
+  const champ = document.getElementById("prixOffre"); if (champ) champ.focus();
+  document.getElementById("annulerOffre").onclick = dessinerFiche;
+  document.getElementById("envoyer").onclick = async () => {
+    const err = document.getElementById("erreurOffre"); err.innerHTML = "";
+    const corps = { action: "acheteurOffre", cleAcheteur: session.cle, vin: v.vin, auPrix: auPrix, conditions: document.getElementById("noteOffre").value.trim() };
+    if (!auPrix) {
+      const p = nombre(champ.value);
+      if (!(p > 0)) { champ.focus(); champ.style.borderColor = "var(--rouge)"; return; }
+      corps.prix = Math.round(p);
+    }
+    const b = document.getElementById("envoyer"); b.disabled = true; b.textContent = t().envoi;
+    try {
+      const j = await appeler(corps);
+      if (!j.ok) { b.disabled = false; b.textContent = auPrix ? t().confirmer : t().envoyerOffre; err.innerHTML = '<div class="alerte mauvais" role="alert">' + echappe(j.erreur || t().RESEAU) + "</div>"; return; }
+      zone.innerHTML = "<h2>" + echappe(j.deja ? t().deja : (auPrix ? t().merciAchat : t().merciOffre)) + '</h2><p class="aide">' + echappe(t().merciTexte) + '</p><div class="boutons"><a class="btn principal plein" href="' + echappe(j.lien) + '" target="_blank" rel="noopener">' + echappe(t().suivre) + '</a><button type="button" class="btn" id="finFiche">' + echappe(t().fermer) + "</button></div>";
+      document.getElementById("finFiche").onclick = fermerFiche;
+      charger();
+    } catch (e) { if (!e.session) { b.disabled = false; b.textContent = auPrix ? t().confirmer : t().envoyerOffre; err.innerHTML = '<div class="alerte mauvais">' + echappe(t().RESEAU) + "</div>"; } }
+  };
+}
+
+/* ------------------------------- Données -------------------------------- */
+async function charger() {
+  if (!session) { dessiner(); return; }
+  try {
+    const j = await appeler({ action: "acheteurPortail", cleAcheteur: session.cle });
+    if (!j.ok) { if (!donnees) document.getElementById("main").innerHTML = '<div class="message"><strong>' + echappe(j.erreur || t().RESEAU) + "</strong></div>"; return; }
+    donnees = j;
+    if (j.acheteur) { session.nom = j.acheteur.nomLegal || session.nom; ecrireSession(session); }
+    const q = document.getElementById("q"), garde = q && document.activeElement === q;
+    dessiner();
+    if (garde) { const n = document.getElementById("q"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }
+  } catch (e) { if (!e.session && !donnees) document.getElementById("main").innerHTML = '<div class="message"><strong>' + echappe(t().RESEAU) + "</strong></div>"; }
+}
+
+async function deconnecter() {
+  const cle = session && session.cle;
+  ecrireSession(null); donnees = null; fermerFiche(); connexion.etape = "courriel"; connexion.erreur = ""; dessiner();
+  if (cle) { try { await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "acheteurDeconnexion", cleAcheteur: cle }) }); } catch (e) {} }
+}
+
+document.querySelectorAll(".langues button").forEach(b => b.addEventListener("click", () => {
+  langue = b.dataset.langue; try { localStorage.setItem("automaxLangue", langue); } catch (e) {}
+  dessiner(); if (fiche) dessinerFiche();
+}));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && fiche) fermerFiche(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && session && donnees && !fiche) charger(); });
+dessiner();
+charger();
+</script>
+</body>
+</html>

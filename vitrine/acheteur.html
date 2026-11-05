@@ -133,6 +133,8 @@ const T = {
     rcs: "RCS (greffe et numéro)", rcsAide: "Ex. RCS Lyon 732 829 320", rne: "RNE (Registre national des entreprises)", rneAide: "En général le SIREN",
     langueTitre: "Langue des communications", envoyer: "Enregistrer ma concession", envoiEnCours: "Enregistrement…",
     merciTitre: "Votre concession est inscrite",
+    portail: "Portail des acheteurs : votre accès au stock disponible (achat en ligne, offres) sera ouvert dès que la concession l'aura approuvé. Vous pourrez alors vous connecter avec ce courriel.",
+    portailLien: "Ouvrir le portail des acheteurs",
     merci: n => "Merci ! Vos offres et contrats de vente avec " + (n || "nous") + " seront pré-remplis avec ces coordonnées. Un courriel de confirmation vient de partir. Pour modifier quelque chose, rouvrez simplement ce lien.",
     dejaInscrit: "Fiche déjà remplie : vous pouvez la corriger ci-dessous.",
     chargement: "Un instant…",
@@ -173,6 +175,8 @@ const T = {
     rcs: "RCS (registry and number)", rcsAide: "e.g. RCS Lyon 732 829 320", rne: "RNE (national business register)", rneAide: "Usually the SIREN",
     langueTitre: "Language for communications", envoyer: "Save my dealership", envoiEnCours: "Saving…",
     merciTitre: "Your dealership is registered",
+    portail: "Buyer portal: your access to the available stock (online purchase, offers) will open as soon as the dealership approves it. You will then be able to sign in with this email.",
+    portailLien: "Open the buyer portal",
     merci: n => "Thank you! Your offers and bills of sale with " + (n || "us") + " will be pre-filled with these details. A confirmation email is on its way. To change anything, simply reopen this link.",
     dejaInscrit: "Already filled in: you can correct it below.",
     chargement: "One moment…",
@@ -273,7 +277,8 @@ function dessiner() {
     if (pays === "FR") recap += '<span class="k">SIRET</span><span>' + echappe(a.siret || "—") + "</span>" + '<span class="k">' + echappe(t().tvaIntra) + "</span><span>" + echappe(a.tvaIntra || "—") + "</span>" + '<span class="k">APE / NAF</span><span>' + echappe(a.ape || "—") + "</span>" + '<span class="k">EORI</span><span>' + echappe(a.eori || "—") + "</span>" + (a.rcs ? '<span class="k">RCS</span><span>' + echappe(a.rcs) + "</span>" : "") + (a.rne ? '<span class="k">RNE</span><span>' + echappe(a.rne) + "</span>" : "");
     else if (pays === "US") recap += '<span class="k">EIN</span><span>' + echappe(a.ein || "—") + "</span>" + '<span class="k">' + echappe(t().licence) + "</span><span>" + echappe(a.noConcessionnaire || "—") + (a.licenceEtat ? " (" + echappe(a.licenceEtat) + ")" : "") + "</span>" + (a.certificatRevente ? '<span class="k">' + echappe(t().certificatRevente) + "</span><span>" + echappe(a.certificatRevente) + "</span>" : "");
     else recap += '<span class="k">' + echappe(t().noConcessionnaire) + "</span><span>" + echappe(a.noConcessionnaire || "—") + "</span>" + (a.noEntreprise ? '<span class="k">' + echappe(t().noEntreprise) + "</span><span>" + echappe(a.noEntreprise) + "</span>" : "") + '<span class="k">' + echappe(t().tps) + "</span><span>" + echappe(a.tps || "—") + "</span>";
-    bloc.innerHTML = "<h1>" + echappe(t().merciTitre) + "</h1><p class=\"aide\">" + echappe(t().merci(vendeurNom)) + "</p>" + '<div class="recap">' + recap + "</div>";
+    bloc.innerHTML = "<h1>" + echappe(t().merciTitre) + "</h1><p class=\"aide\">" + echappe(t().merci(vendeurNom)) + "</p>" + '<div class="recap">' + recap + "</div>" +
+      '<div class="alerte bon">' + echappe(t().portail) + ' <a href="portail.html?lang=' + langue + '" style="color:inherit;font-weight:600">' + echappe(t().portailLien) + "</a></div>";
     return;
   }
   const pays = paysDe(a);

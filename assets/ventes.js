@@ -395,7 +395,8 @@
       '.ventes-produits { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; margin-bottom: 10px; }',
       '.ventes-produit { display: grid; grid-template-columns: 18px 1fr 96px; gap: 6px; align-items: center; font-size: 12.5px; padding: 3px 0; }',
       '.ventes-produit input[type=checkbox] { width: 16px; height: 16px; margin: 0; }',
-      '.ventes-pneus { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }', '.ventes-pneus .segment { flex: 0 0 auto; } .ventes-pneus input { flex: 1 1 90px; min-width: 90px; text-align: right; }',
+      '.ventes-pneus { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }',
+      '.ventes-personne { display: flex; flex-direction: column; gap: 6px; }', '.ventes-pneus .segment { flex: 0 0 auto; } .ventes-pneus input { flex: 1 1 90px; min-width: 90px; text-align: right; }',
       '.ventes-produit input[type=text] { height: 28px; font-size: 12px; text-align: right; }',
       '.ventes-produit.coche label { font-weight: 600; }',
       '.ventes-total-fi { font-size: 12.5px; color: var(--encre-3); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; }',
@@ -1724,6 +1725,8 @@
     var nomsD = {};
     if (rep) { ((rep.personnes && rep.personnes.directeurs) || []).forEach(function (p) { nomsD[p.nom] = 1; }); ((rep.nomsConnus && rep.nomsConnus.directeurs) || []).forEach(function (n) { nomsD[n] = 1; }); if (rep.fi && rep.fi.noms) rep.fi.noms.forEach(function (n) { nomsD[n] = 1; }); }
     Object.keys(nomsD).sort().forEach(function (n) { dlDirecteurs.appendChild(h('option', { value: n })); });
+    var menuDirecteur = menuPersonnes(inDirecteur, 'vente-directeur-fi-liste');
+    menuDirecteur.poser(rep ? nomsDe(rep.personnes && rep.personnes.directeurs).concat((rep.fi && rep.fi.noms) || []) : []);
     var inFI = h('input.saisie#vente-fi', { type: 'text', inputmode: 'decimal', placeholder: '0,00 $', value: val(v.profitFIPrevu) });
     var pneus = v.pneus || '';
     /* 5 nov. : pneus / jantes / mags avec le montant (aussi inscrits avec la vente). */
@@ -1757,7 +1760,7 @@
     var champ = function (id, libelle, el) { return h('div.champ', [h('label', { 'for': id, text: libelle }), el]); };
     var corps = h('div.ventes-form.ventes-fi-form', [
       resumeVente(v, montants),
-      h('div.grille', [champ('vente-directeur', 'Directeur commercial', inDirecteur), champ('vente-fi', 'Profit F&I prévu', inFI), h('div.champ.champ-pneus', [h('label', { 'for': 'vente-pneus-montant', text: 'Pneus / jantes / mags vendus' }), h('div.ventes-pneus', [segPneus, inPneusMt])])]),
+      h('div.grille', [champ('vente-directeur-fi-liste', 'Directeur commercial (F&I)', menuDirecteur.el), champ('vente-fi', 'Profit F&I prévu', inFI), h('div.champ.champ-pneus', [h('label', { 'for': 'vente-pneus-montant', text: 'Pneus / jantes / mags vendus' }), h('div.ventes-pneus', [segPneus, inPneusMt])])]),
       h('p.ventes-aide', 'Produits vendus — cochez et inscrivez le montant quand vous l\'avez ; la somme propose le profit F&I.'),
       elProduits, elTotalFI, dlDirecteurs
     ]);
@@ -2140,6 +2143,41 @@
     return estVin ? { vin: q, inconnu: true } : { stock: q, inconnu: true };
   }
 
+  /* 5 nov. (Maxime : « il faudrait un menu déroulant avec les noms des inscrits plutôt ») : le conseiller et le F&I se
+     choisissent dans la liste des comptes ScanAutomax de la concession (Vente.gs › VENTE_personnes_, ou les destinataires
+     F&I). « Autre nom… » garde la saisie libre (vendeur sans compte, nom déjà au livre) ; le champ texte d'origine reste
+     celui qui part au serveur. Un nom déjà inscrit qui n'est pas un compte reste choisi : « (hors liste) ». */
+  var AUTRE_NOM = '\u0001autre';
+  function menuPersonnes(input, idSel) {
+    var sel = h('select.saisie#' + idSel), noms = null, autre = false;
+    var boite = h('div.ventes-personne', [sel, input]);
+    function dessiner() {
+      var courant = input.value.trim(), dans = false;
+      AMX.vider(sel);
+      sel.appendChild(h('option', { value: '', text: noms === null ? 'Chargement des noms…' : 'Choisir…' }));
+      (noms || []).forEach(function (n) { if (n === courant) dans = true; sel.appendChild(h('option', { value: n, text: n })); });
+      if (courant && !dans && !autre) sel.appendChild(h('option', { value: courant, text: courant + ' (hors liste)' }));
+      sel.appendChild(h('option', { value: AUTRE_NOM, text: 'Autre nom…' }));
+      sel.value = autre ? AUTRE_NOM : courant;
+      input.style.display = autre ? '' : 'none';
+    }
+    sel.addEventListener('change', function () {
+      autre = sel.value === AUTRE_NOM;
+      input.value = autre ? '' : sel.value;
+      dessiner();
+      if (autre) input.focus();
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    dessiner();
+    return {
+      el: boite,
+      /* liste = noms des comptes (null = encore en lecture) */
+      poser: function (liste) { var vus = {}; noms = liste === null ? null : (liste || []).filter(function (n) { n = String(n || '').trim(); if (!n || vus[n]) return false; vus[n] = 1; return true; }).sort(function (a, b) { return a.localeCompare(b, 'fr'); }); dessiner(); },
+      noms: function () { return noms || []; }
+    };
+  }
+  function nomsDe(liste) { return (liste || []).map(function (p) { return p && p.nom; }).filter(Boolean); }
+
   /* ------------------------------ Formulaire : inscrire (direction des ventes) / profits F&I (directeur commercial) ------------------------------ */
   function ouvrirFormulaire(prefill, existante) {
     injecterCss();
@@ -2180,6 +2218,7 @@
     var selCat = h('select.saisie#vente-categorie');
     var inConseiller = h('input.saisie#vente-conseiller', { type: 'text', list: 'vente-conseillers', placeholder: 'Conseiller', value: v.conseiller || '', autocomplete: 'off' });
     var dlConseillers = h('datalist#vente-conseillers');
+    var menuConseiller = menuPersonnes(inConseiller, 'vente-conseiller-liste');
     var inPrix = h('input.saisie#vente-prix', { type: 'text', inputmode: 'decimal', placeholder: '0,00 $', value: val(v.prixVente) });
     var selPaiement = h('select.saisie#vente-paiement');
     function remplirPaiements() {
@@ -2213,6 +2252,7 @@
     // F&I — directeur commercial (Maxime, 21 oct. : « séparer … le directeur commercial qui inscrit ses profits », 16 produits)
     var inDirecteur = h('input.saisie#vente-directeur', { type: 'text', list: 'vente-directeurs', placeholder: 'Directeur commercial', value: v.directeur || (peutCompleter && AMX.ventes.estFI() ? (AMX.session.nom || '') : ''), autocomplete: 'off' });
     var dlDirecteurs = h('datalist#vente-directeurs');
+    var menuDirecteur = menuPersonnes(inDirecteur, 'vente-directeur-liste');
     var inFI = h('input.saisie#vente-fi', { type: 'text', inputmode: 'decimal', placeholder: '0,00 $', value: val(v.profitFIPrevu) });
     var pneus = v.pneus || '', pneusTouche = false;
     var segPneus = h('div.segment.bloc#vente-pneus', [['', '—'], ['oui', 'Oui'], ['non', 'Non']].map(function (p) { return h('button' + (pneus === p[0] ? '.actif' : ''), { type: 'button', 'data-pneus': p[0], text: p[1], onclick: function () { pneusTouche = true; poserPneus(p[0]); } }); }));
@@ -2248,7 +2288,7 @@
     var champRdr = champ('vente-rdr', 'Date RDR', inRdr), champCodeRdr = champ('vente-code-rdr', 'Code RDR', inCodeRdr);
     champProvenance = champ('vente-provenance', 'Provenance (holdback)', selProvenance);   /* 26 oct. : la Date RDR va au livre (compteur des RDR du mois) */
     /* 5 nov. (Maxime : « mettre le nom du F&I en même temps que d'inscrire la vente ») : le F&I nommé ici reçoit le courriel. */
-    var champDirecteur = champ('vente-directeur', 'F&I (directeur commercial)', inDirecteur);
+    var champDirecteur = champ('vente-directeur-liste', 'F&I (directeur commercial)', menuDirecteur.el);
     var champPneus = h('div.champ.champ-pneus', [h('label', { 'for': 'vente-pneus-montant', text: 'Pneus / jantes / mags vendus' }), h('div.ventes-pneus', [segPneus, inPneusMt])]);
     var blocWholesale = h('div.grille', [champ('vente-vendua', 'Vendu à', inVenduA, 'large'), champ('vente-achetede', 'Acheté de', inAcheteDe), champ('vente-acheteur', 'Acheteur interne', inAcheteur), champ('vente-coutant', 'Coûtant', inCoutant)]);
     var blocClient = h('div.grille', [champ('vente-client', 'Client', inClient, 'large'), champ('vente-noclient', 'No client (DMS)', inNoClient), champ('vente-telephone', 'Téléphone', inTel), champ('vente-courriel', 'Courriel', inCourriel)]);
@@ -2276,7 +2316,7 @@
       edition ? null : elTrouve,
       h('div.grille', [champ('vente-vin', 'NIV', inVin), champ('vente-stock', '# Stock', inStock), champ('vente-annee', 'Année', inAnnee), champ('vente-marque', 'Marque', inMarque), champ('vente-modele', 'Modèle', inModele), champ('vente-version', 'Version', inVersion)]),
       h('h4', 'Vente — direction des ventes'),
-      h('div.grille', [champ('vente-date', 'Date de vente', inDate), champ('vente-livraison', 'Livraison (prévue)', inLivraison), champRdr, champCodeRdr, champ('vente-categorie', 'Catégorie', selCat), champProvenance, champ('vente-conseiller', 'Conseiller', inConseiller), champDirecteur, champ('vente-prix', 'Prix de vente', inPrix), champ('vente-paiement', 'Mode de paiement', selPaiement), champ('vente-front', 'Profit front prévu', inFront), champ('vente-accessoires', 'Accessoires ($)', inAccess), champPneus]),
+      h('div.grille', [champ('vente-date', 'Date de vente', inDate), champ('vente-livraison', 'Livraison (prévue)', inLivraison), champRdr, champCodeRdr, champ('vente-categorie', 'Catégorie', selCat), champProvenance, champ('vente-conseiller-liste', 'Conseiller', menuConseiller.el), champDirecteur, champ('vente-prix', 'Prix de vente', inPrix), champ('vente-paiement', 'Mode de paiement', selPaiement), champ('vente-front', 'Profit front prévu', inFront), champ('vente-accessoires', 'Accessoires ($)', inAccess), champPneus]),
       dlConseillers, dlDirecteurs, dlMarques, dlModeles, dlVersions,
       h('h4#vente-titre-client', 'Client'),
       blocClient, blocWholesale,
@@ -2308,7 +2348,12 @@
       if (d && d.fi && d.fi.noms) d.fi.noms.forEach(function (n) { nomsD[n] = 1; });
       Object.keys(noms).sort().forEach(function (n) { dlConseillers.appendChild(h('option', { value: n })); });
       Object.keys(nomsD).sort().forEach(function (n) { dlDirecteurs.appendChild(h('option', { value: n })); });
-      if (!inConseiller.value && !edition) inConseiller.value = AMX.session.nom || '';
+      if (d) {
+        var comptesC = nomsDe(d.personnes && d.personnes.conseillers), comptesD = nomsDe(d.personnes && d.personnes.directeurs).concat((d.fi && d.fi.noms) || []);
+        /* qui inscrit est proposé d'office s'il est dans la liste (un directeur qui inscrit pour un vendeur choisit le vendeur) */
+        if (!inConseiller.value && !edition && comptesC.indexOf(AMX.session.nom || '') >= 0) inConseiller.value = AMX.session.nom;
+        menuConseiller.poser(comptesC); menuDirecteur.poser(comptesD);
+      } else { menuConseiller.poser(null); menuDirecteur.poser(null); }
       if (d) { if (d.fi !== undefined) fiDest = d.fi; directeursConnus = (d.personnes && d.personnes.directeurs) || directeursConnus; if (d.ventes) ventesListe = d.ventes; }
       majAvisFI(); remplirCatalogue();
     }
@@ -2411,10 +2456,10 @@
     inEchValeur.addEventListener('input', majOver); inEchEval.addEventListener('input', majOver); inOver.addEventListener('input', function () { overAuto = !inOver.value.trim(); });
     inEchVin.addEventListener('input', function () { var vin = inEchVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(); if (vin.length === 17) chercherEvaluation(vin, false); });
     inEchVin.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); chercherEvaluation(inEchVin.value, true); } });
-    rendreCategories(); rendreWholesale(); rendrePersonnes(rep); majTotalFI();
-    selCie.addEventListener('change', function () { cie = selCie.value; ventesListe = null; remplirPaiements(); rendreWholesale(); remplirCatalogue(); AMX.ventes.charger(cie, moisDe('')).then(rendrePersonnes, function () {}); });
+    rendreCategories(); rendreWholesale(); rendrePersonnes(rep || (cie ? null : {})); majTotalFI();
+    selCie.addEventListener('change', function () { cie = selCie.value; ventesListe = null; remplirPaiements(); rendreWholesale(); remplirCatalogue(); rendrePersonnes(null); AMX.ventes.charger(cie, moisDe('')).then(rendrePersonnes, function () { rendrePersonnes({}); }); });
     inRecherche.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); trouver(inRecherche.value); } });
-    if (!rep && cie) AMX.ventes.charger(cie, moisDe('')).then(function (d) { rendrePersonnes(d); }, function () {});
+    if (!rep && cie) AMX.ventes.charger(cie, moisDe('')).then(function (d) { rendrePersonnes(d); }, function () { rendrePersonnes({}); });
     if (!edition && (vehicule.vin || vehicule.stock) && !vehicule.modele) setTimeout(function () { trouver(vehicule.vin || vehicule.stock); }, 30);
     if (inEchVin.value.replace(/[^A-Za-z0-9]/g, '').length === 17 && (!edition || !val(v.echangeEvaluation))) setTimeout(function () { chercherEvaluation(inEchVin.value, false); }, 40);
     else if (edition && val(v.echangeEvaluation) !== '') { elEval.className = 'ventes-trouve'; elEval.textContent = 'Évaluation liée : ' + argent(nombre(v.echangeEvaluation)) + (v.echangeEvalLe ? ' · évaluée le ' + AMX.fmtDate(v.echangeEvalLe) : '') + (v.echangeEvalPar ? ' par ' + String(v.echangeEvalPar).split('@')[0] : '') + ' — « Trouver l\'évaluation » la relit.'; }

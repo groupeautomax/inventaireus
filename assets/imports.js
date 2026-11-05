@@ -67,6 +67,10 @@
       etapes: ['Connectez-vous au Dealer Extranet de VW Finance (bouton « Ouvrir le portail ») et ouvrez Portfolio Manager.',
         'Cliquez le favori « Automax ← Constructeur » et restez sur l\'onglet 5 à 8 minutes : il passe les quatre tranches (0 à 12 mois) et ouvre chaque fiche.',
         'Rien n\'est écrit chez VW. Les contrats qui finissent dans plus de 12 mois ne sont pas offerts par ce portail.'] },
+    hmf: { court: 'Hyundai Finance (équité)', favori: 'constructeur', page: ['relance', 'equite'], pageTexte: 'Équité',   /* 5 nov. */
+      etapes: ['Connectez-vous au portail de Hyundai Finance (bouton « Ouvrir le portail ») : la page « Customer Portfolio » s\'ouvre.',
+        'Cliquez le favori « Automax ← Constructeur » et restez sur l\'onglet environ une minute : il lit tous les prêts et les locations actifs.',
+        'Rien n\'est écrit chez Hyundai Finance. La valeur des véhicules vient d\'OpenLane, pas de Hyundai Finance.'] },
     banque: { court: 'transactions bancaires InfoBahn', favori: 'infobahn', page: ['outils', 'equite'], pageTexte: 'Portefeuille BMW',
       etapes: ['Dans InfoBahn, ouvrez Payments › Bank Transactions (bouton « Ouvrir le portail »).',
         'Choisissez la période au besoin (Date Range › Filter).',

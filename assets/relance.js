@@ -12,6 +12,7 @@
   var CIES_GM = { HAWKS: 1, STM: 1 };
   var URL_GMDD = 'https://www.gmdealerdirect.ca/lm/Lead/myLeadLists.aspx';
   var URL_VWF = 'https://dealerportal.vwfinance.ca/dashboard/portfolio-management';   /* 4 nov. : VW Finance (Dealer Extranet) */
+  var URL_HMF = 'https://www.hmfdealer.ca/hmfdp/s/';   /* 5 nov. : Hyundai Finance (Customer Portfolio) */
 
   function nomCie(code) { return (AMX.COMPAGNIES_TOUTES[code] || code || '').replace(' Chevrolet Buick Cadillac', ''); }
 
@@ -69,12 +70,13 @@
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.cie, sansToutes: true, compte: function (c) { return d ? AMX.equite.comptes(c).length : null; }, onchange: function (c) { c = c || CIE_DEFAUT; if (c === self.cie && self.vue) return; self.cie = c; self.rendre(); } });
     var comptes = d ? AMX.equite.comptes(this.cie) : [], etat = d ? AMX.equite.etat(this.cie) : null;
     /* Le bouton suit la concession : BMW = dépôt de l'export InfoBahn ; GM = GM Dealer Direct et le favori Constructeur. */
-    var gm = !!CIES_GM[this.cie], vw = this.cie === 'VW', portail = gm ? URL_GMDD : (vw ? URL_VWF : '');
+    var gm = !!CIES_GM[this.cie], vw = this.cie === 'VW', hmf = this.cie === 'HYUNDAI', portail = gm ? URL_GMDD : (vw ? URL_VWF : (hmf ? URL_HMF : ''));
     this.btnImporter.setAttribute('href', portail || AMX.lien('relance', 'equite', { vue: 'import' }));
-    gm = gm || vw;
+    var nomPortail = hmf ? 'Hyundai Finance' : (vw ? 'VW Finance' : 'GM Dealer Direct');
+    gm = gm || vw || hmf;
     if (gm) { this.btnImporter.setAttribute('target', '_blank'); this.btnImporter.setAttribute('rel', 'noopener'); } else { this.btnImporter.removeAttribute('target'); this.btnImporter.removeAttribute('rel'); }
-    this.btnImporter.innerHTML = (gm ? I.externe : I.telecharger) + '<span>' + (vw ? 'Ouvrir VW Finance' : (gm ? 'Ouvrir GM Dealer Direct' : 'Importer le portefeuille')) + '</span>';
-    this.btnImporter.title = gm ? 'Puis cliquez le favori « Automax ← Constructeur » dans ' + (vw ? 'Portfolio Manager du Dealer Extranet' : 'GM Dealer Direct') : 'Déposer l\'export InfoBahn (BMW Financial Services)';
+    this.btnImporter.innerHTML = (gm ? I.externe : I.telecharger) + '<span>' + (gm ? 'Ouvrir ' + nomPortail : 'Importer le portefeuille') + '</span>';
+    this.btnImporter.title = gm ? 'Puis cliquez le favori « Automax ← Constructeur » dans ' + (hmf ? 'Customer Portfolio de Hyundai Finance' : (vw ? 'Portfolio Manager du Dealer Extranet' : 'GM Dealer Direct')) : 'Déposer l\'export InfoBahn (BMW Financial Services)';
     this.elEtat.textContent = !d ? 'Chargement du portefeuille…'
       : (nomCie(this.cie) + ' · ' + AMX.fmtNombre(comptes.length) + ' client' + (comptes.length > 1 ? 's' : '') + ' financé' + (comptes.length > 1 ? 's' : '') + (etat && etat.le ? ' · portefeuille du ' + AMX.fmtDate(etat.le, true) : (comptes.length ? '' : ' · aucun portefeuille importé')));
   };

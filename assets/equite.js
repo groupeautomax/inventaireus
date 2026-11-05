@@ -60,10 +60,12 @@
   var CIES_GM = { HAWKS: 1, STM: 1 };
   function estGm(cie) { return !!CIES_GM[cie]; }
   function estVw(cie) { return cie === 'VW'; }   /* 4 nov. : VW Finance (Dealer Extranet › Portfolio Manager) */
-  function modeCie(cie) { return estGm(cie) ? 'gm' : (estVw(cie) ? 'vw' : 'bmw'); }
-  function preteur(cie) { return estGm(cie) ? 'Financière GM' : (estVw(cie) ? 'VW Finance' : 'BMW Financial Services'); }
-  function libConst(cie) { return estGm(cie) ? 'GM' : (estVw(cie) ? 'VW' : 'BMW'); }
-  var URL_PORTAIL = { gm: 'https://www.gmdealerdirect.ca/lm/Lead/myLeadLists.aspx', vw: 'https://dealerportal.vwfinance.ca/dashboard/portfolio-management' };
+  function estHmf(cie) { return cie === 'HYUNDAI'; }   /* 5 nov. : Hyundai Finance (www.hmfdealer.ca › Customer Portfolio) */
+  function modeCie(cie) { return estGm(cie) ? 'gm' : (estVw(cie) ? 'vw' : (estHmf(cie) ? 'hmf' : 'bmw')); }
+  function preteur(cie) { return estGm(cie) ? 'Financière GM' : (estVw(cie) ? 'VW Finance' : (estHmf(cie) ? 'Hyundai Finance' : 'BMW Financial Services')); }
+  function libConst(cie) { return estGm(cie) ? 'GM' : (estVw(cie) ? 'VW' : (estHmf(cie) ? 'Hyundai' : 'BMW')); }
+  var URL_PORTAIL = { gm: 'https://www.gmdealerdirect.ca/lm/Lead/myLeadLists.aspx', vw: 'https://dealerportal.vwfinance.ca/dashboard/portfolio-management', hmf: 'https://www.hmfdealer.ca/hmfdp/s/' };
+  var NOM_PORTAIL = { gm: 'GM Dealer Direct', vw: 'VW Finance', hmf: 'Hyundai Finance' };
   /* 4 nov. (Maxime) : « on n'utilise pas Black Book mais OpenLane, et indique ceux qu'on peut envoyer aux États-Unis » ;
      « option US pour toutes les marques qui s'exportent ». La valeur vient d'OpenLane seulement ; un NIV qui commence par un
      préfixe exportable (AMX.export, 1 / 4 / 5 par défaut) porte « É.-U. » et ouvre l'évaluation (boîte Canada ou É.-U.). */
@@ -193,7 +195,7 @@
   }
   /** Le petit texte sous la dette : d'où elle vient. */
   function texteDette(r) {
-    var d = r.dette || {}, qui = r.gm ? 'rachat GM' : (r.mode === 'vw' ? 'solde VW' : 'solde BMW');
+    var d = r.dette || {}, qui = r.gm ? 'rachat GM' : (r.mode === 'vw' ? 'solde VW' : (r.mode === 'hmf' ? 'rachat Hyundai Finance' : 'solde BMW'));
     if (d.source === 'preteur') return qui + ' du ' + AMX.fmtDateCourte(d.baseLe) + (d.paiements ? ' − ' + d.paiements + ' mensualité' + (d.paiements > 1 ? 's' : '') : '');
     if (d.source === 'contrat') return 'calculée (contrat)';
     if (d.source === 'fige') return qui + ' du ' + AMX.fmtDateCourte(d.baseLe) + ' (non reporté)';
@@ -241,7 +243,7 @@
     params = Object.assign({}, PARAMS_DEFAUT, params || {}); options = options || {};
     var ajd = iso(new Date());
     var mode = options.mode || (options.gm ? 'gm' : 'bmw'), gm = mode === 'gm', parModele = mode !== 'bmw';
-    var stock = (neufs || []).filter(function (v) { return v && v.enStock && (v.origine === 'constructeur' || /^portail-/.test(String(v.source || ''))) && (gm || (mode === 'vw' ? /VOLKSWAGEN|^VW$/.test(String(v.marque || '').toUpperCase()) : String(v.marque || '').toUpperCase() === 'BMW')); });
+    var stock = (neufs || []).filter(function (v) { return v && v.enStock && (v.origine === 'constructeur' || /^portail-/.test(String(v.source || ''))) && (gm || (mode === 'vw' ? /VOLKSWAGEN|^VW$/.test(String(v.marque || '').toUpperCase()) : (mode === 'hmf' ? /HYUNDAI/.test(String(v.marque || '').toUpperCase()) : String(v.marque || '').toUpperCase() === 'BMW'))); });
     var parSerie = {};
     stock.forEach(function (v) { var prix = nombre(v.prix) || nombre(v.extra && v.extra.pdsf); if (!prix) return; var s = parModele ? cle(v.modele) : texte(v.modele); (parSerie[s] = parSerie[s] || []).push({ vin: v.vin, annee: v.annee, modele: v.modele, version: v.version, couleur: v.couleur, prix: prix, enStock: !/TRANSIT/.test(String(v.statutLibelle || v.statut || '').toUpperCase()), statut: v.statutLibelle || v.statut || '', v: v }); });
     Object.keys(parSerie).forEach(function (s) { parSerie[s].sort(function (a, b) { return (b.enStock - a.enStock) || (a.prix - b.prix); }); });
@@ -467,12 +469,14 @@
     var etat = AMX.equite.etat(this.cie), comptes = AMX.equite.comptes(this.cie);
     if (!comptes.length) {
       el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Équité — clients ' + nomCie(this.cie))]), h('div.carte-corps', [
-        estVw(this.cie)
+        estHmf(this.cie)
+          ? h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille lu pour ' + nomCie(this.cie) + '. Dans Chrome, connecté au portail de Hyundai Finance (www.hmfdealer.ca), ouvrez « Customer Portfolio » et cliquez le favori « Automax ← Constructeur » : il lit tous les prêts et les locations actifs (environ 1 minute). Rien n\'est écrit chez Hyundai Finance.')
+          : estVw(this.cie)
           ? h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille lu pour ' + nomCie(this.cie) + '. Dans Chrome, connecté au Dealer Extranet de VW Finance, ouvrez Portfolio Manager et cliquez le favori « Automax ← Constructeur » : il lit les contrats qui finissent dans les 12 prochains mois (prêts et locations) et leur fiche. Rien n\'est écrit chez VW.')
           : estGm(this.cie)
           ? h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille lu pour ' + nomCie(this.cie) + '. Dans Chrome, connecté à GM Dealer Direct (www.gmdealerdirect.ca) au nom de ' + nomCie(this.cie) + ', cliquez le favori « Automax ← Constructeur » : il lit les clients de la Financière GM (location, échéances, DealDriver) et leur fiche. Rien n\'est écrit dans GM Dealer Direct.')
           : h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille importé pour ' + nomCie(this.cie) + '. Exportez le portefeuille d\'InfoBahn (Portfolio › Entire Portfolio › « … » › Export) et déposez le fichier dans Relance › Équité › Importer le portefeuille.'),
-        modeCie(this.cie) !== 'bmw' ? h('a.btn', { href: URL_PORTAIL[modeCie(this.cie)], target: '_blank', rel: 'noopener' }, estVw(this.cie) ? 'Ouvrir VW Finance' : 'Ouvrir GM Dealer Direct') : h('a.btn', { href: AMX.lien('relance', 'equite', { vue: 'import' }) }, 'Importer le portefeuille')
+        modeCie(this.cie) !== 'bmw' ? h('a.btn', { href: URL_PORTAIL[modeCie(this.cie)], target: '_blank', rel: 'noopener' }, 'Ouvrir ' + NOM_PORTAIL[modeCie(this.cie)]) : h('a.btn', { href: AMX.lien('relance', 'equite', { vue: 'import' }) }, 'Importer le portefeuille')
       ])]));
       return;
     }
@@ -513,7 +517,7 @@
       h('button.btn.petit', { type: 'button', html: I.externe + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } })
     ]);
     var entete = h('div.carte-entete', [h('h2', ['Équité — clients ' + nomCie(this.cie) + ' (' + preteur(this.cie) + ')', h('span.sous', { text: etat && etat.le ? 'portefeuille lu le ' + AMX.fmtDate(etat.le, true) + (etat.par ? ' par ' + String(etat.par).split('@')[0] : '') : '' })]),
-      h('div.actions-ligne', [h('button.btn.petit', { type: 'button', text: 'Calcul de la dette', title: 'La dette de chaque client est recalculée chaque jour d\'après son contrat : voir le détail', onclick: function () { self.calculDette(); } }), modeCie(this.cie) !== 'bmw' ? h('a.btn.petit', { href: URL_PORTAIL[modeCie(this.cie)], target: '_blank', rel: 'noopener', html: I.externe + '<span>' + (estVw(this.cie) ? 'VW Finance' : 'GM Dealer Direct') + '</span>', title: 'Relire : cliquez le favori « Automax ← Constructeur » dans le portail' }) : h('a.btn.petit', { href: AMX.lien('outils', 'equite'), html: I.rafraichir + '<span>Importer un nouvel export</span>' })])]);
+      h('div.actions-ligne', [h('button.btn.petit', { type: 'button', text: 'Calcul de la dette', title: 'La dette de chaque client est recalculée chaque jour d\'après son contrat : voir le détail', onclick: function () { self.calculDette(); } }), modeCie(this.cie) !== 'bmw' ? h('a.btn.petit', { href: URL_PORTAIL[modeCie(this.cie)], target: '_blank', rel: 'noopener', html: I.externe + '<span>' + NOM_PORTAIL[modeCie(this.cie)] + '</span>', title: 'Relire : cliquez le favori « Automax ← Constructeur » dans le portail' }) : h('a.btn.petit', { href: AMX.lien('outils', 'equite'), html: I.rafraichir + '<span>Importer un nouvel export</span>' })])]);
     /* Einstein AI : une question en français, des filtres en retour (rien des clients n'est envoyé). */
     var champQ = h('input.recherche.eq-ia-champ', { type: 'search', placeholder: 'Demandez à Einstein : « taux de plus de 5 % », « paiement de plus de 1 200 $ », « finit dans 6 mois et équité positive »…', value: this.ia ? this.ia.question : '' });
     var btnQ = h('button.btn.primaire.petit', { type: 'button', text: 'Demander' });
@@ -652,7 +656,7 @@
     var ligne = function (a, b, cls) { lignes.push(h('tr' + (cls || ''), [h('td', { text: a }), h('td.num', { text: b })])); };
     var ajd = AMX.fmtDate(iso(new Date()));
     if (d.source === 'preteur') {
-      ligne((r.gm ? 'Rachat de GM' : r.mode === 'vw' ? 'Solde de VW Finance' : 'Solde de BMW Financial Services') + ' lu le ' + AMX.fmtDate(d.baseLe), fmt$(d.base));
+      ligne((r.gm ? 'Rachat de GM' : r.mode === 'vw' ? 'Solde de VW Finance' : r.mode === 'hmf' ? 'Rachat de Hyundai Finance' : 'Solde de BMW Financial Services') + ' lu le ' + AMX.fmtDate(d.baseLe), fmt$(d.base));
       ligne(d.paiements ? d.paiements + ' mensualité' + (d.paiements > 1 ? 's' : '') + ' de ' + fmt$(d.paiement) + ' depuis (capital remboursé, intérêts courus compris)' : 'Aucune mensualité depuis la lecture (intérêts courus compris)', r.solde !== null && d.base !== null ? (r.solde <= d.base ? '−' : '+') + fmt$(Math.abs(d.base - r.solde)) : '');
     } else if (d.source === 'contrat') {
       ligne(d.n + ' mensualité' + (d.n > 1 ? 's' : '') + ' de ' + fmt$(d.paiement) + ' qui restent jusqu\'au ' + AMX.fmtDate(c.echeance), '');
@@ -771,10 +775,14 @@
   };
   /* GM Dealer Direct ou VW Finance : rien à déposer, le favori « Automax ← Constructeur » lit le portail et envoie au site. */
   ImportPortefeuille.prototype.construirePortail = function () {
-    var vw = estVw(this.cie), nom = nomCie(this.cie), url = URL_PORTAIL[modeCie(this.cie)];
+    var vw = estVw(this.cie), hmf = estHmf(this.cie), nom = nomCie(this.cie), url = URL_PORTAIL[modeCie(this.cie)], portail = NOM_PORTAIL[modeCie(this.cie)];
     var sig = AMX.signets && AMX.signets.constructeur;
     var signet = sig ? h('a.btn', { href: sig.code, text: sig.nom, title: 'Glissez ce bouton dans votre barre de favoris (une seule fois)', draggable: 'true', onclick: function (e) { e.preventDefault(); AMX.toast('Glissez ce bouton dans la barre de favoris de Chrome, puis cliquez-le dans le portail.', 'attention', 5000); } }) : null;
-    var etapes = vw ? [
+    var etapes = hmf ? [
+      h('li', ['Ouvrez ', h('a', { href: url, target: '_blank', rel: 'noopener', text: 'Hyundai Finance › Customer Portfolio' }), ' (www.hmfdealer.ca, connecté au nom de ' + nom + ').']),
+      h('li', 'Cliquez le favori « Automax ← Constructeur » dans votre barre de favoris. Il lit tous les prêts et les locations actifs de Hyundai Finance (paiement, solde, rachat, résiduel, échéance) et les envoie au site, en une minute environ.'),
+      h('li', 'Laissez l\'onglet ouvert jusqu\'à la bande verte « terminé ». Relisez une fois par semaine : les contrats terminés sortent tout seuls.')
+    ] : vw ? [
       h('li', ['Ouvrez ', h('a', { href: url, target: '_blank', rel: 'noopener', text: 'VW Finance › Portfolio Manager' }), ' (Dealer Extranet, connecté au nom de ' + nom + '), onglet « Active Contracts ».']),
       h('li', 'Cliquez le favori « Automax ← Constructeur » dans votre barre de favoris. Il lit les prêts et les locations qui finissent dans les 12 prochains mois, puis la fiche de chaque client, et envoie au site toutes les 20 fiches.'),
       h('li', 'Laissez l\'onglet ouvert pendant la lecture (environ 20 minutes pour 300 contrats). Si VW vous déconnecte, reconnectez-vous, rouvrez Portfolio Manager et recliquez le favori : il reprend où il était.')
@@ -783,9 +791,9 @@
       h('li', 'Cliquez le favori « Automax ← Constructeur » dans votre barre de favoris, sur n\'importe quelle page de GM Dealer Direct. Il lit les clients en location de la Financière GM et leur fiche (environ 3 minutes).')
     ];
     if (signet) etapes.push(h('li', ['Pas encore le favori ? Glissez une fois ce bouton dans la barre de favoris : ', signet]));
-    this.el.appendChild(h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Portefeuille ' + (vw ? 'VW Finance' : 'Financière GM') + ' — ' + nom), h('p', vw ? 'Les prêts et les locations de VW Credit Canada qui finissent dans les 12 prochains mois : la base de Relance › Équité pour ' + nom + '.' : 'Les clients en location de la Financière GM, lus dans GM Dealer Direct : la base de Relance › Équité pour ' + nom + '.')])]));
+    this.el.appendChild(h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Portefeuille ' + (hmf ? 'Hyundai Finance' : vw ? 'VW Finance' : 'Financière GM') + ' — ' + nom), h('p', hmf ? 'Tous les prêts et les locations actifs de Hyundai Motor Finance, lus dans le portail des concessionnaires : la base de Relance › Équité pour ' + nom + '.' : vw ? 'Les prêts et les locations de VW Credit Canada qui finissent dans les 12 prochains mois : la base de Relance › Équité pour ' + nom + '.' : 'Les clients en location de la Financière GM, lus dans GM Dealer Direct : la base de Relance › Équité pour ' + nom + '.')])]));
     this.el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Dernier import')]), h('div.carte-corps', [this.elEtat])]));
-    this.el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Lire le portefeuille')]), h('div.carte-corps', [h('ol.eq-etapes', etapes), h('div.actions-ligne', { style: { marginTop: '12px' } }, [h('a.btn.primaire', { href: url, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir ' + (vw ? 'VW Finance' : 'GM Dealer Direct') + '</span>' })])])]));
+    this.el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Lire le portefeuille')]), h('div.carte-corps', [h('ol.eq-etapes', etapes), h('div.actions-ligne', { style: { marginTop: '12px' } }, [h('a.btn.primaire', { href: url, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir ' + portail + '</span>' })])])]));
     this.el.appendChild(h('p.outils-note', 'Rien n\'est écrit dans le portail : le favori lit seulement. La valeur des véhicules vient d\'OpenLane, jamais du prêteur. Pour BMW Sherbrooke (export InfoBahn), choisissez BMW Sherbrooke en haut de la page.'));
   };
   ImportPortefeuille.prototype.construireBmw = function () {

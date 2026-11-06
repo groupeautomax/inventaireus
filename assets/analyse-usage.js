@@ -126,6 +126,7 @@
     a.prixEcrase = !!(AMX.prixDetail && AMX.prixDetail.ecrase && AMX.prixDetail.ecrase(AMX.prixDetail.dernier(a.vin)));
     a.med = m && nb(m.mediane) ? m.mediane : null; a.n = m ? m.n || 0 : 0; a.elargi = !!(m && m.elargi); a.rang = m && nb(m.rang) ? m.rang : null;
     a.p25 = m ? m.p25 : null; a.p75 = m ? m.p75 : null; a.joursMed = m ? m.joursMed : null; a.comps = (m && m.comps) || [];
+    a.stats = m && m.stats ? m.stats : null;   /* 6 nov. : km, prix et jours de TOUTES les annonces de la même version (OccMarche.gs) */
     a.ptm = nb(a.prix) && nb(a.med) && a.med > 0 ? Math.round(a.prix / a.med * 1000) / 10 : null;
     a.ctm = nb(a.cout) && nb(a.med) && a.med > 0 ? Math.round(a.cout / a.med * 1000) / 10 : null;
     a.profitAff = nb(a.prix) && nb(a.cout) ? a.prix - a.cout : null;
@@ -560,7 +561,7 @@
       [veh, age, prix, marche, ptm, conseilEl, h('div.anu-act', [menu])]);
     if (AMX.cfxPastilles) AMX.cfxPastilles.ligne(r, a.vin);
     if (ouvert) {
-      var det = details(a, p);
+      var det = details(a, p, self.marche);
       if (AMX.prixDetail && AMX.prixDetail.peut()) det.insertBefore(h('div.anu-det-actions', [h('button.btn.petit' + ((a.action.code === 'baisser' || a.action.code === 'monter' || testPrix(a, '15') || a.plusVieux) ? '.primaire' : ''), { type: 'button', text: 'Modifier le prix…', onclick: function (e) { e.stopPropagation(); self.modifierPrix(a); } })]), det.firstChild);
       r.appendChild(det);
     }
@@ -574,7 +575,29 @@
     AMX.prixDetail.modifier({ vin: a.vin, stock: a.stock, nom: [a.nom, a.version].filter(Boolean).join(' '), compagnie: a.compagnie, prix: a.prix }, { prixVise: vise });
   };
   /* Les détails d'une occasion : coût, profit, détention, gros, MDS, ventes, alertes, puis les annonces de la même version. */
-  function details(a, p) {
+  /* 6 nov. (Maxime : « ajouter le tableau à l'analyse de marché par unité ») : le bloc de l'Évaluation — n véhicules similaires
+     sur le marché, km moyen, prix moyen et jours affichés, avec le plus bas et le plus haut. Sur toutes les annonces de la même
+     version (stats du serveur) ; un script d'avant n'envoie que les 12 listées : calculé sur elles, et dit. */
+  function statsDe(l) {
+    l = l.filter(nb); if (!l.length) return null;
+    var t = 0; l.forEach(function (v) { t += v; });
+    return { moy: Math.round(t / l.length), min: Math.min.apply(null, l), max: Math.max.apply(null, l), n: l.length };
+  }
+  function blocMarche(a, info) {
+    var st = a.stats, partiel = false;
+    if (!st && a.comps.length) { partiel = a.n > a.comps.length; st = { n: a.n, km: statsDe(a.comps.map(function (x) { return x.k; })), prix: statsDe(a.comps.map(function (x) { return x.p; })), jours: statsDe(a.comps.map(function (x) { return x.j; })) }; }
+    if (!st || !st.n) return null;
+    var km = function (v) { return nb(v) ? AMX.fmtNombre(Math.round(v)) + ' km' : '—'; }, j = function (v) { return nb(v) ? Math.round(v) + ' j' : '—'; };
+    var col = function (lib, x, f) { return h('div.anu-stat-col', [h('div.l', { text: lib }), h('div.v', { text: x ? f(x.moy) : '—' }), x ? h('div.m', { text: f(x.min) + ' – ' + f(x.max) }) : null]); };
+    var centre = info && info.centre ? String(info.centre).toUpperCase() : 'H3B', lieu = /^H3B/.test(centre) ? 'Montréal' : centre;
+    var ou = 'même version' + (a.version ? ' (' + a.version + ')' : '') + (a.elargi ? ', élargi à l\'année ± 2' : '') + ' · rayon ' + ((info && info.rayon) || 200) + ' km autour de ' + lieu + (info && info.le ? ' · lecture du ' + AMX.fmtDateCourte(info.le) : '');
+    return h('div.anu-stat', [
+      h('div.anu-stat-tete', [h('span.n', { text: String(st.n) }), h('b', { text: st.n > 1 ? 'véhicules similaires sur le marché' : 'véhicule similaire sur le marché' }), h('span.doux', { text: ' · ' + ou })]),
+      h('div.anu-stat-grille', [col('Km moyen', st.km, km), col('Prix moyen', st.prix, argent), col('Jours affichés', st.jours, j)]),
+      partiel ? h('div.mini.doux', { text: 'Calculé sur les ' + a.comps.length + ' annonces listées (redéployez le script pour toutes les ' + a.n + ').' }) : null
+    ]);
+  }
+  function details(a, p, info) {
     var couts = voitCouts(), cases = [];
     var c = function (lib, val, cls, titre) { cases.push(h('div.anu-det', { title: titre || '' }, [h('span', { text: lib }), h('b' + (cls ? '.' + cls : ''), { text: val })])); };
     c('Kilométrage', nb(a.km) ? AMX.fmtNombre(Math.round(a.km)) + ' km' : '—');
@@ -595,7 +618,7 @@
         return h('tr', [h('td', { text: [x.a, x.mo, x.ve || x.vl].filter(Boolean).join(' ') }), h('td.num', { text: nb(x.k) ? AMX.fmtNombre(x.k) : '—' }), h('td.num', { text: argent(x.p) }), h('td.num', [h('b', { text: argent(x.aj) })]),
           h('td', { text: [x.s, x.vi].filter(Boolean).join(', ') }), h('td', { text: nb(x.j) ? x.j + ' j' : '—' }), h('td', [/^https:\/\//.test(x.l || '') ? h('a', { href: x.l, target: '_blank', rel: 'noopener', text: 'Voir ↗' }) : null])]);
       }))])]) : h('div.mini.doux', { text: a.version ? 'Aucune annonce de la version ' + a.version + ' autour de nous.' : 'Version inconnue : précisez-la pour voir les annonces de la même version.' });
-    return h('div.anu-details', [h('div.anu-dets', cases), autres.length ? h('div.anu-alertes', autres.map(function (x) { return h('span.puce.' + x.c, { text: x.t, title: x.title || '' }); })) : null, comps]);
+    return h('div.anu-details', [h('div.anu-dets', cases), autres.length ? h('div.anu-alertes', autres.map(function (x) { return h('span.puce.' + x.c, { text: x.t, title: x.title || '' }); })) : null, blocMarche(a, info), comps]);
   }
   /* Préciser la version d'une occasion : un choix parmi les versions vues au marché pour ce modèle, ou du texte libre. */
   VueAnalyse.prototype.preciserVersion = function (a) {
@@ -734,6 +757,7 @@
     s.textContent = [
       '.inv2-filtres.anu-filtres { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; } .anu-filtres > .anu-ligne { width: 100%; min-width: 0; }',
       '.anu-ligne { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }',
+      '.anu-stat { border: 1px solid var(--ligne); border-radius: 10px; background: var(--carte, #fff); padding: 12px 14px; margin: 10px 0; } .anu-stat-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 8px; } .anu-stat-tete .n { font-size: 24px; font-weight: 800; line-height: 1; } .anu-stat-tete b { font-size: 14px; } .anu-stat-tete .doux { font-size: 13px; color: var(--encre-3); } .anu-stat-grille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; } .anu-stat-col .l { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); } .anu-stat-col .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; } .anu-stat-col .m { font-size: 12px; color: var(--encre-3); font-variant-numeric: tabular-nums; } @media (max-width: 560px) { .anu-stat-grille { grid-template-columns: 1fr; gap: 6px; } }',   /* 6 nov. : bloc « véhicules similaires sur le marché » */
       '.anu-ligne .recherche { flex: 1 1 320px; max-width: 520px; } .anu-ligne #anu-tri { flex: 0 0 auto; width: auto; }',
       '.anu-lib { font-size: 12px; font-weight: 600; color: var(--encre-3); text-transform: uppercase; letter-spacing: .04em; min-width: 58px; }',
       '.anu-pt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--encre-4); }',

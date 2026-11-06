@@ -5,7 +5,8 @@
 
    On cherche un NIV (ou ses derniers caractères), un # stock, un modèle, un client ou un téléphone dans :
    les occasions (3 registres), les neufs, les évaluations (client et suivi), le Livre des ventes, le Suivi service et les
-   demandes de travaux, les offres reçues, les soumissions, l'archive Torque, et par NIV : eBlock, OpenLane, CARFAX.
+   demandes de travaux, les offres reçues, les soumissions, l'archive Torque, les annonces à vendre des Opportunités d'achat
+   (6 nov.), et par NIV : eBlock, OpenLane, CARFAX.
    Chaque véhicule trouvé = une carte avec tout ce qui s'y rapporte (une puce par élément, qui ouvre la bonne page) ;
    ce qui n'a pas de NIV (vente wholesale, soumission bâtie) est listé à part. Chaque liste se charge une fois, en
    arrière-plan dès qu'on touche la boîte ; les résultats se complètent à mesure qu'elles arrivent.
@@ -29,6 +30,12 @@
   function jour(d) { var t = AMX.fmtDate ? AMX.fmtDate(d) : String(d || '').slice(0, 10); return t || ''; }
   function etapeLibelle(id) { var l = (AMX.service && AMX.service.etapes ? AMX.service.etapes() : []).filter(function (e) { return e.id === id; })[0]; return l ? l.libelle : (id || ''); }
   function vehiculeTexte(o) { return [o.annee, o.marque, o.modele, o.version].filter(Boolean).join(' ').trim(); }
+  var SITES_ANN = { autotrader: 'AutoTrader', kijiji: 'Kijiji', cargurus: 'CarGurus', carpages: 'Carpages' };
+  function nomVendeur(o) {
+    if (o.source === 'manheim') return 'Manheim'; if (o.source === 'gmf') return 'DealerSource';
+    if (o.typeInv === 'Particulier' || o.vendeur === 'Particulier') return 'particulier' + (SITES_ANN[o.source] ? ' (' + SITES_ANN[o.source] + ')' : '');
+    return o.vendeur || SITES_ANN[o.source] || 'concessionnaire';
+  }
 
   /* ------------------------------ Les sources ------------------------------
      charger() → Promise<liste> ; cie(x) → code concession ; champs(x) → texte cherché ; tel(x) → téléphones ;
@@ -73,7 +80,23 @@
     { id: 'torque', nom: 'Archive Torque', section: 'outils', onglet: 'torque',  lourd: true, charger: function () { return AMX.get({ torque: 1 }, { copie: 'torque', secours: false, delai: 60000 }).then(function (d) { return (d && d.evaluations) || []; }); },
       cie: function (r) { return cieDeConcession(r.concession); }, vin: function (r) { return r.vin; }, champs: function (r) { return [r.vin, r.annee, r.marque, r.modele, r.client, r.conseiller].join(' '); }, tel: function (r) { return r.telephone; },
       modele: function (r) { return vehiculeTexte(r); },
-      puce: function (r) { return { t: 'Torque · ' + jour(r.creeLe) + (r.client ? ' · ' + r.client : ''), c: 'gris', href: AMX.lien('outils', 'torque', { vin: r.vin, id: r.id }) }; } }
+      puce: function (r) { return { t: 'Torque · ' + jour(r.creeLe) + (r.client ? ' · ' + r.client : ''), c: 'gris', href: AMX.lien('outils', 'torque', { vin: r.vin, id: r.id }) }; } },
+    /* 6 nov. (Maxime : « quand je cherche terrain denali je dois voir ce que j'ai en stock, en évaluation ou n'importe quelle
+       date, et aussi les véhicules qu'on voudrait acheter ») : les annonces des Opportunités d'achat (MarketCheck, sites
+       d'annonces, DealerSource, Manheim). Une annonce compte pour la concession choisie si elle vend la marque, sinon pour
+       la plus avantageuse ; la puce ouvre la fiche de l'annonce. */
+    { id: 'avendre', nom: 'À vendre (Opportunités d\'achat)', section: 'outils', onglet: 'opportunites',
+      charger: function () { return AMX.opportunites ? AMX.opportunites.charger().then(function (d) { return (d && d.occasions) || []; }) : Promise.resolve([]); },
+      cie: function (o) { var c = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : ''; if (c && o.par && o.par[c]) return c; return o.dest || ''; }, vin: function (o) { return o.vin; },
+      champs: function (o) { return [o.vin, o.annee, o.marque, o.modele, o.version, o.couleur, o.motricite, o.vendeur, o.ville, o.province, 'a vendre'].join(' '); },
+      modele: function (o) { return vehiculeTexte(o); },
+      puce: function (o) {
+        var c = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '', k = (c && o.par && o.par[c]) || o.calc || {};
+        var prix = Number(o.prix), bon = !!k.sousGros && o.statut !== 'ecartee' && o.statut !== 'achetee';
+        var t = 'À vendre · ' + nomVendeur(o) + (isFinite(prix) && prix > 0 ? ' · ' + AMX.fmtArgent(prix) : '') + (o.ville ? ' · ' + o.ville : '') + (bon ? ' · bon achat' : '') + (o.statut === 'achetee' ? ' (achetée)' : o.statut === 'ecartee' ? ' (écartée)' : '');
+        return { t: t, c: o.statut === 'ecartee' ? 'gris' : (bon ? 'vert' : 'achat'), href: AMX.lien('outils', 'opportunites', { vin: o.vin, fiche: 1 }), titre: t + (o.km ? ' · ' + Math.round(Number(o.km)).toLocaleString('fr-CA') + ' km' : '') };
+      },
+      titre: function (o) { return vehiculeTexte(o) || o.vin; }, sous: function (o) { return [nomVendeur(o), o.ville, o.province].filter(Boolean).join(' · '); } }
   ];
   // Rattachés par NIV seulement (index déjà gardés par leur module) : rien à chercher dedans, tout à montrer.
   function extrasNiv(vin) {
@@ -118,7 +141,7 @@
   /* ------------------------------ Résultats ------------------------------ */
   function resultats(q, cie) {
     var mots = AMX.motsCherches(q);
-    var parVin = {}, ordre = [], autres = [], ailleurs = 0, enLecture = [];
+    var parVin = {}, ordre = [], autres = [], ailleurs = 0, enLecture = [], sansNivAVendre = [];
     var src2 = sourcesActives();
     // 1. Les NIV qui répondent à la recherche (dans n'importe quelle liste).
     src2.forEach(function (src) {
@@ -128,7 +151,7 @@
         if (!correspond(src, x, mots)) return;
         var c = src.cie(x) || '', vin = vinDe(src.vin(x));
         if (cie && c && c !== cie) { ailleurs++; return; }
-        if (!vin) { autres.push({ src: src, x: x }); return; }
+        if (!vin) { if (src.id === 'avendre') sansNivAVendre.push({ vin: '', cie: c, items: [{ src: src, x: x }], score: 0 }); else autres.push({ src: src, x: x }); return; }
         if (!parVin[vin]) { parVin[vin] = { vin: vin, cie: c, items: [], score: 0 }; ordre.push(vin); }
         if (!parVin[vin].cie) parVin[vin].cie = c;
       });
@@ -158,7 +181,15 @@
       return g;
     }).filter(function (g) { return !cie || !g.cie || g.cie === cie; });
     vehicules.sort(function (a, b) { return b.score - a.score; });
-    return { vehicules: vehicules, autres: autres, ailleurs: ailleurs, enLecture: enLecture };
+    // 6 nov. : les véhicules qu'on ne connaît que par une annonce à vendre vont dans leur propre groupe, après les nôtres —
+    // les bons achats d'abord, puis le prix le plus bas.
+    var seulAVendre = function (g) { return g.items.length && g.items.every(function (it) { return it.src.id === 'avendre'; }); };
+    var aVendre = vehicules.filter(seulAVendre).concat(sansNivAVendre);
+    vehicules = vehicules.filter(function (g) { return !seulAVendre(g); });
+    var bonAchat = function (o) { var k = (cie && o.par && o.par[cie]) || o.calc || {}; return k.sousGros && o.statut !== 'ecartee' && o.statut !== 'achetee' ? 1 : 0; };
+    var prixDe = function (o) { var n = Number(o.prix); return isFinite(n) && n > 0 ? n : Infinity; };
+    aVendre.sort(function (a, b) { var x = a.items[0].x, y = b.items[0].x; return (bonAchat(y) - bonAchat(x)) || (prixDe(x) - prixDe(y)); });
+    return { vehicules: vehicules, aVendre: aVendre, autres: autres, ailleurs: ailleurs, enLecture: enLecture };
   }
 
   function puceDe(it) {
@@ -194,6 +225,20 @@
     ]);
     carte.addEventListener('click', function (e) { var a = e.target.closest('a, button'); if (a && (a.getAttribute('href') || '').charAt(0) === '#') setTimeout(fermer, 0); else if (a && a.tagName === 'BUTTON') setTimeout(fermer, 0); });
     return carte;
+  }
+  /* 6 nov. : une annonce à vendre (Opportunités d'achat) — véhicule, vendeur, ville, et le prix en pastille. */
+  function ligneAVendre(g, fermer) {
+    var it = g.items[0], o = it.x, p = it.src.puce(o), prix = Number(o.prix);
+    var a = h('a.rech-autre.rech-avendre', { href: p.href || '#', title: p.titre || p.t }, [
+      AMX.logoMarque ? AMX.logoMarque(o.marque, 'petit') : null,
+      h('div', { style: { flex: 1, minWidth: 0 } }, [
+        h('div.rech-titre', [h('span', { text: it.src.titre(o) }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(o.vin) : null]),
+        h('div.rech-sous', [h('span', { text: it.src.sous(o) }), o.km ? h('span', { text: Math.round(Number(o.km)).toLocaleString('fr-CA') + ' km' }) : null, h('span.mono', { text: String(o.vin || '').slice(-8) })])
+      ]),
+      h('span.puce.rech-puce.' + p.c, { text: (isFinite(prix) && prix > 0 ? AMX.fmtArgent(prix) : 'à vendre') + (p.c === 'vert' ? ' · bon achat' : '') })
+    ]);
+    a.addEventListener('click', function () { setTimeout(fermer, 0); });
+    return a;
   }
   function ligneAutre(it, fermer) {
     var p = it.src.puce(it.x), c = it.src.cie(it.x);
@@ -271,11 +316,18 @@
       var defile = boite.scrollTop;
       AMX.vider(boite);
       boite.appendChild(portee(h('div'), { onchange: function () { input.focus(); dessiner(); } }));
-      if (!r.vehicules.length && !r.autres.length) {
+      if (!r.vehicules.length && !r.autres.length && !r.aVendre.length) {
         boite.appendChild(h('div.rech-vide', { text: r.enLecture.length ? 'Recherche en cours…' : 'Rien trouvé pour « ' + q + ' »' + (cie ? ' chez ' + nomCie(cie) : '') + '.' }));
       }
       r.vehicules.slice(0, MAX_VEHICULES).forEach(function (g) { boite.appendChild(carteVehicule(g, fermer)); });
       if (r.vehicules.length > MAX_VEHICULES) boite.appendChild(h('div.rech-plus', { text: (r.vehicules.length - MAX_VEHICULES) + ' autre(s) véhicule(s) : précisez la recherche (NIV complet, # stock).' }));
+      if (r.aVendre.length) {
+        boite.appendChild(h('div.rech-groupe', 'À vendre sur les plateformes (' + r.aVendre.length + ')'));
+        r.aVendre.slice(0, MAX_AUTRES).forEach(function (g) { boite.appendChild(ligneAVendre(g, fermer)); });
+        var tout = h('a.rech-autre.rech-tout-avendre', { href: AMX.lien('outils', 'opportunites', { q: q }), text: r.aVendre.length > MAX_AUTRES ? 'Voir les ' + r.aVendre.length + ' annonces dans Opportunités d\'achat ›' : 'Ouvrir dans Opportunités d\'achat ›' });
+        tout.addEventListener('click', function () { setTimeout(fermer, 0); });
+        boite.appendChild(tout);
+      }
       if (r.autres.length) {
         boite.appendChild(h('div.rech-groupe', 'Sans NIV'));
         r.autres.slice(0, MAX_AUTRES).forEach(function (it) { boite.appendChild(ligneAutre(it, fermer)); });
@@ -343,8 +395,10 @@
     '.rech-liens { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }',
     '.rech-liens .puce, .rech-puce { text-decoration: none; cursor: pointer; }',
     '.rech-puce.vert { background: var(--vert-clair); color: var(--vert-fonce); } .rech-puce.bleu { background: var(--bleu-bg); color: var(--bleu); } .rech-puce.violet { background: var(--violet-bg); color: var(--violet); }',
+    '.rech-puce.achat { background: #FDECDD; color: #8F3E0B; } .rech-puce.gris { background: var(--gris-bg); color: var(--encre-3); }',
     '.rech-puce.sarcelle { background: var(--sarcelle-bg); color: var(--sarcelle); } .rech-puce.ambre { background: var(--ambre-bg); color: var(--ambre); } .rech-puce.prune { background: var(--prune-bg); color: var(--prune); } .rech-puce.rouge { background: var(--rouge-bg); color: var(--rouge); }',
     '.rech-groupe { padding: 8px 12px 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-3); }',
+    '.rech-tout-avendre { font-size: 13px; font-weight: 600; color: var(--vert-fonce); }',
     '.rech-autre { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--ligne); color: inherit; text-decoration: none; } .rech-autre:hover { background: var(--carte-2); }',
     '.rech-vide, .rech-plus, .rech-lecture { padding: 10px 12px; font-size: 13px; color: var(--encre-3); }',
     '.rech-lecture { font-size: 12px; border-top: 1px dashed var(--ligne); }',

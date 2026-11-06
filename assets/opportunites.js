@@ -175,6 +175,18 @@
       return;
     }
     if (p.vin) { this.montrer('acheter'); this.f.q = String(p.vin).toUpperCase(); this.f.statut = 'tous'; this.f.vue = 'toutes'; if (this.elQ) this.elQ.value = this.f.q; this.rendre(); }
+    /* 6 nov. (recherche générale) : « ?q=terrain denali » = les annonces qui répondent, toutes vues ; « ?vin=…&fiche=1 » ouvre
+       aussi la fiche de l'annonce dès que les données sont là. */
+    else if (p.q) { this.montrer('acheter'); this.f.q = String(p.q); this.f.vue = 'toutes'; this.f.source = ''; this.f.marque = ''; if (this.elQ) this.elQ.value = this.f.q; this.rendre(); }
+    this.ficheDemandee = p.vin && p.fiche ? String(p.vin).toUpperCase() : '';
+    this.ouvrirFicheDemandee();
+  };
+  Opportunites.prototype.ouvrirFicheDemandee = function () {
+    var vin = this.ficheDemandee, d = this.donnees;
+    if (!vin || !d || !Array.isArray(d.occasions)) return;
+    var o = d.occasions.filter(function (x) { return String(x.vin || '').toUpperCase() === vin; })[0];
+    if (!o) { if (!cache.promesse) { this.ficheDemandee = ''; AMX.toast('Cette annonce n\'est plus dans les Opportunités d\'achat.', 'attention'); } return; }
+    this.ficheDemandee = ''; this.fiche(o);
   };
   /* Les coûts (marge potentielle) : direction seulement. */
   Opportunites.prototype.voitCouts = function () { return !!(AMX.perm && (AMX.perm('modifierMontants') || AMX.perm('voirResultats'))) || (AMX.estAdmin && AMX.estAdmin()); };
@@ -489,7 +501,7 @@
     var self = this, gen = ++this.generation;
     if (manuel) this.btnRafraichir.classList.add('occupe');
     if (!this.donnees) {
-      if (cache.rep) { this.donnees = cache.rep; this.rendre(); }
+      if (cache.rep) { this.donnees = cache.rep; this.rendre(); this.ouvrirFicheDemandee(); }
       else AMX.cacheLocal.lireGz('occasions', 7 * 86400000).then(function (o) {
         if (gen !== self.generation || self.donnees || !o || !o.donnees || !Array.isArray(o.donnees.occasions)) return;
         self.donnees = o.donnees; self.copieLe = o.quand; self.rendre();
@@ -500,6 +512,7 @@
       self.btnRafraichir.classList.remove('occupe');
       self.donnees = d; self.erreur = ''; self.copieLe = 0;
       self.rendre();
+      self.ouvrirFicheDemandee();
       self.chargerUS();
       if (manuel && !silencieux && !d.refuse) AMX.toast(d.occasions.length + ' annonce' + (d.occasions.length > 1 ? 's' : '') + ' suivie' + (d.occasions.length > 1 ? 's' : ''), 'ok');
     }, function (e) {

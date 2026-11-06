@@ -1887,6 +1887,10 @@
           if (!href && g.items.length) href = g.items[0].src.puce(g.items[0].x).href;
           items.push({ groupe: 'Véhicules', t: titre || g.vin, s: g.vin + (g.cie ? ' · ' + (AMX.COMPAGNIES_TOUTES[g.cie] || g.cie) : ''), ic: 'voiture', href: href });
         });
+        (r.aVendre || []).slice(0, 4).forEach(function (g) {   /* 6 nov. : les annonces des Opportunités d'achat */
+          var i0 = g.items[0], p0 = i0.src.puce(i0.x);
+          items.push({ groupe: 'À vendre sur les plateformes', t: i0.src.titre(i0.x), s: (i0.src.sous(i0.x) || '') + (Number(i0.x.prix) > 0 ? ' · ' + AMX.fmtArgent(Number(i0.x.prix)) : ''), ic: 'voiture', href: p0.href });
+        });
         if (r.enLecture.length) items.push({ groupe: 'Véhicules', t: 'Recherche en cours…', s: r.enLecture.join(', '), ic: 'recherche', inactif: true });
       }
       AMX.vider(liste);

@@ -289,28 +289,38 @@
     vw: [[/\bTRENDLINE\b/, 'trendline', 1, 'Trendline'], [/\bCOMFORTLINE\b/, 'comfortline', 2, 'Comfortline'], [/\bPRO S\b/, 'pro s', 3, 'Pro S'], [/\bPRO\b/, 'pro', 2, 'Pro'],
       [/\bSPORTLINE\b/, 'sportline', 3, 'Sportline'], [/\bHIGHLINE\b/, 'highline', 3, 'Highline'], [/\bPEAK\b/, 'peak', 4, 'Peak Edition'], [/\bEXECLINE\b/, 'execline', 5, 'Execline'],
       [/\bGLI\b/, 'gli', 5, 'GLI'], [/\bGTI\b/, 'gti', 5, 'GTI'], [/\bAUTOBAHN\b/, 'autobahn', 6, 'Autobahn'], [/\bR\b(?! LINE)/, 'r', 7, 'R']],
-    gm: [[/\bWT\b|\bWORK TRUCK\b/, 'wt', 0, 'WT'], [/\bPRO\b/, 'pro', 0, 'Pro'], [/\bLS\b/, 'ls', 1, 'LS'], [/\bCUSTOM\b/, 'custom', 1, 'Custom'], [/\bSLE\b/, 'sle', 1, 'SLE'],
-      [/\b1LT\b|\bLT1\b/, '1lt', 2, '1LT'], [/\bLT\b/, 'lt', 2, 'LT'], [/\bPRIVILEGIE\b|\bPREFERRED\b/, 'preferred', 2, 'Preferred'], [/\bELEVATION\b/, 'elevation', 2, 'Elevation'], [/\bACTIV\b/, 'activ', 3, 'Activ'], [/\b2LT\b|\bLT2\b/, '2lt', 3, '2LT'], [/\bST\b|\bSPORT TOURING\b/, 'st', 3, 'Sport Touring'], [/\bESSENCE\b/, 'essence', 3, 'Essence'],
-      [/\bLUXURY\b|\bLUXE\b/, 'luxury', 3, 'Luxury'], [/\bRS\b/, 'rs', 4, 'RS'], [/\bRST\b/, 'rst', 4, 'RST'], [/\bTRAIL BOSS\b/, 'trail boss', 4, 'Trail Boss'],
-      [/\b3LT\b|\bLT3\b/, '3lt', 4, '3LT'], [/\bSLT\b/, 'slt', 4, 'SLT'], [/\bPREMIUM\b/, 'premium', 4, 'Premium'], [/\bSPORT\b/, 'sport', 4, 'Sport'], [/\bPREMIER\b/, 'premier', 5, 'Premier'], [/\bAVENIR\b/, 'avenir', 5, 'Avenir'],
-      [/\bLTZ\b/, 'ltz', 5, 'LTZ'], [/\bAT4\b/, 'at4', 5, 'AT4'], [/\bAT4X\b/, 'at4x', 6, 'AT4X'], [/\bZR2\b/, 'zr2', 6, 'ZR2'], [/\bSS\b/, 'ss', 6, 'SS'],
-      [/\bHIGH COUNTRY\b/, 'high country', 6, 'High Country'], [/\bDENALI\b/, 'denali', 6, 'Denali'], [/\bPLATINUM\b/, 'platinum', 7, 'Platinum']]
+    /* 6 nov. (Maxime : « il manque le trim comme Silverado RST, LT, High Country ») : les formes réelles du DMS (Serti, D2C
+       abrégé : « Hicnty », « Dnli », « Luxu1 », « Sportt », « Cust ») et du portail GM (français, codes d'option « 1RS », « 2TR »,
+       « Groupe RS (à TI) », « Sport de tourisme », « Personnalisée »). */
+    gm: [[/\bWT\b|\bWORK TRUCK\b|\bWORK VAN\b/, 'wt', 0, 'WT'], [/\bPRO\b/, 'pro', 0, 'Pro'], [/\bLS\b/, 'ls', 1, 'LS'], [/\bCUST(OM)?\b|\bPERSONNALISEE?\b/, 'custom', 1, 'Custom'], [/\bSLE\b/, 'sle', 1, 'SLE'],
+      [/\b1LT\b|\bLT1\b/, '1lt', 2, '1LT'], [/\bLT\b/, 'lt', 2, 'LT'], [/\bPRIVILEGIE\b|\bPREFERRED\b/, 'preferred', 2, 'Preferred'], [/\bELEVATION\b/, 'elevation', 2, 'Elevation'], [/\bACTIVE?\b/, 'activ', 3, 'Activ'], [/\b2LT\b|\bLT2\b/, '2lt', 3, '2LT'],
+      [/\bST\b|\bSPORT TOURING\b|\bSPORT DE TOURISME?\b/, 'st', 3, 'Sport Touring'], [/\bESSENCE\b/, 'essence', 3, 'Essence'],
+      [/\bLUX(E|URY|RY|U1?)?\b/, 'luxury', 3, 'Luxury'], [/\bPREMIUM LUXURY\b|\bLUXE HAUT DE GAMME\b/, 'premium luxury', 4, 'Premium Luxury'], [/\bPREMIUM SPORT\b|\bSPORT HAUT DE GAMME\b/, 'premium sport', 5, 'Premium Sport'],
+      [/\b[123]?RS\b/, 'rs', 4, 'RS'], [/\bRST\b/, 'rst', 4, 'RST'], [/\bTRAIL ?BO(SS)?\b|\b[123]TR\b|\bTB\b/, 'trail boss', 4, 'Trail Boss'],
+      [/\b3LT\b|\bLT3\b/, '3lt', 4, '3LT'], [/\bSLT\d?\b/, 'slt', 4, 'SLT'], [/\bPREMIUM\b/, 'premium', 4, 'Premium'], [/\bSPORT[T2]?\b/, 'sport', 4, 'Sport'], [/\bPREMIER\b/, 'premier', 5, 'Premier'], [/\bAVENIR\b/, 'avenir', 5, 'Avenir'],
+      [/\bLTZ\b/, 'ltz', 5, 'LTZ'], [/\bAT4\b/, 'at4', 5, 'AT4'], [/\bAT4X\b/, 'at4x', 6, 'AT4X'], [/\bZR2\b/, 'zr2', 6, 'ZR2'], [/\b[12]?SS\b/, 'ss', 6, 'SS'],
+      [/\bHIGH COUNTRY\b|\bHI COUNTRY\b|\bHICNTY\b|\bHICTRY\b/, 'high country', 6, 'High Country'], [/\bDENALI\b|\bDNLI\b/, 'denali', 6, 'Denali'], [/\bPLATINUM\b/, 'platinum', 7, 'Platinum'],
+      [/\bSERIE V\b|\bV SERIES\b/, 'v', 7, 'Série V'], [/\b2X\b/, '2x', 3, '2X'], [/\b3X\b/, '3x', 5, '3X']]
   };
   var ENSEMBLES = {
     hmf: [[/\bTREND\b|\bTRE\b/, 'trend', 'Trend'], [/\bTECH\b/, 'tech', 'Tech'], [/\bLR\b|\bLONG RANGE\b|\bLONGUE AUTONOMIE\b/, 'lr', 'longue autonomie']],
     vw: [[/\bR LINE\b/, 'r line', 'R-Line'], [/\bBLACK\b/, 'black', 'Black Edition']],
-    gm: [[/\bZ71\b/, 'z71', 'Z71'], [/\bULTIMATE\b/, 'ultimate', 'Ultimate'], [/\bMIDNIGHT\b/, 'midnight', 'Midnight']],
+    gm: [[/\bZ71\b/, 'z71', 'Z71'], [/\bULTIMATE\b/, 'ultimate', 'Ultimate'], [/\bMIDNIGHT\b/, 'midnight', 'Midnight'], [/\bAUTONOMIE MAXIMALE\b|\bMAX RANGE\b|\bEXTENDED RANGE\b|\bAUTONOMIE PROLONGEE\b/, 'autonomie max', 'autonomie maximale']],
     bmw: [[/\bCOMPETITION\b/, 'competition', 'Competition']]
   };
   var LIB_ENSEMBLE = {}; ['hmf', 'vw', 'gm', 'bmw'].forEach(function (m) { (NIVEAUX[m] || []).forEach(function (n) { LIB_ENSEMBLE[n[1]] = n[3]; }); (ENSEMBLES[m] || []).forEach(function (e) { LIB_ENSEMBLE[e[1]] = e[2]; }); });
   function texteVersion(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
   /** La version lue dans un texte : { niveau, rang, libNiveau, ensembles: [], moteur: ''|'hev'|'phev', motricite: ''|'int'|'2rm', cle }. */
   function versionDe(mode, t) {
+    /* Portail GM : un groupe d'options écrit pour deux modèles, « SIERRA : SLT/YKN/YKNXL : ÉLÉVATION » = SLT sur un Sierra,
+       Élévation sur un Yukon (le modèle est au début du texte). */
+    t = String(t || '').replace(/SIERRA\s*:\s*([^\/]+?)\s*\/\s*(?:YKN|YUKON)\s*\/\s*YKNXL\s*:\s*(.+)$/i, function (m, a, b, pos, tout) { return /YUKON|YKN/i.test(tout.slice(0, pos)) ? b : a; });
     var s = ' ' + texteVersion(t) + ' ', v = { niveau: '', rang: null, libNiveau: '', ensembles: [], moteur: '', motricite: '' };
     if (/\bPHEV\b|\bPLUG IN\b|\bRECHARGEABLE\b|\bBRANCHABLE\b/.test(s)) v.moteur = 'phev';
     else if (/\bHEV\b|\bHYB(RID|RIDE)?\b/.test(s)) v.moteur = 'hev';
-    if (/\bAWD\b|\bHTRAC\b|\b4MOTION\b|\b4M\b|\bXDRIVE|\bQUATTRO\b|\b4X4\b|\b4WD\b|\bTI\b|\bINTEGRALE\b|\bTRACTION INTEGRALE\b/.test(s)) v.motricite = 'int';
-    else if (/\bFWD\b|\bRWD\b|\b2WD\b|\bSDRIVE|\b4X2\b|\bTRACTION AVANT\b/.test(s)) v.motricite = '2rm';
+    if (/\bTA TI\b|\bTI TA\b/.test(s)) v.motricite = '';   /* « (TA/TI) » : les deux sont offertes */
+    else if (/\bAWD\b|\bHTRAC\b|\b4MOTION\b|\b4M\b|\bXDRIVE|\bQUATTRO\b|\b4X4\b|\b4WD\b|\b4RM\b|\bTI\b|\bINTEGRALE\b|\bTRACTION INTEGRALE\b/.test(s)) v.motricite = 'int';
+    else if (/\bFWD\b|\bRWD\b|\b2WD\b|\b2RM\b|\bSDRIVE|\b4X2\b|\bTRACTION AVANT\b|\bTRACTION ARRIERE\b|\bTA\b/.test(s)) v.motricite = '2rm';
     if (mode === 'bmw') {
       var m = /\bM(\d)(\d{2})([IE])?\b/.exec(s) || null, k = '';
       if (m) k = 'm' + m[2] + (m[3] || '').toLowerCase();
@@ -320,12 +330,19 @@
       else if ((m = /\b\d(\d{2})([IED])\b/.exec(s))) k = m[1] + m[2].toLowerCase();
       if (k) { v.niveau = k; v.rang = (k.charAt(0) === 'm' ? 100 : 0) + (parseInt(k.replace(/\D/g, ''), 10) || 0); v.libNiveau = k.charAt(0) === 'm' ? 'M' + k.slice(1) : k; }
     } else {
-      var premier = null;
+      /* Toutes les finitions nommées, la plus à gauche d'abord (la plus longue à égalité) ; une finition comprise dans une
+         autre déjà prise ne compte pas (« Sport de tourisme » n'est pas aussi « Sport », « Luxe haut de gamme » pas aussi « Luxe »). */
+      var trouves = [];
       (NIVEAUX[mode] || []).forEach(function (n) {
-        var x = n[0].exec(s); if (!x) return;
-        var o = { pos: x.index, cle: n[1], rang: n[2], lib: n[3] };
-        if (!premier || o.pos < premier.pos) { if (premier) v.ensembles.push(premier.cle); premier = o; }
-        else v.ensembles.push(o.cle);
+        var re = new RegExp(n[0].source, 'g'), x;
+        while ((x = re.exec(s))) { trouves.push({ pos: x.index, fin: x.index + x[0].length, cle: n[1], rang: n[2], lib: n[3] }); if (!x[0].length) re.lastIndex++; }
+      });
+      trouves.sort(function (a, b) { return (a.pos - b.pos) || ((b.fin - b.pos) - (a.fin - a.pos)); });
+      var pris = [], premier = null;
+      trouves.forEach(function (o) {
+        if (pris.some(function (p) { return o.pos < p.fin && o.fin > p.pos; })) return;
+        pris.push(o);
+        if (!premier) premier = o; else if (o.cle !== premier.cle && v.ensembles.indexOf(o.cle) < 0) v.ensembles.push(o.cle);
       });
       if (premier) { v.niveau = premier.cle; v.rang = premier.rang; v.libNiveau = premier.lib; }
     }
@@ -434,6 +451,20 @@
     var ajd = iso(new Date());
     var mode = options.mode || (options.gm ? 'gm' : 'bmw'), gm = mode === 'gm', parModele = mode !== 'bmw';
     var marqueOk = function (v) { var m = String(v.marque || '').toUpperCase(); if (!m || gm) return true; return mode === 'vw' ? /VOLKSWAGEN|^VW$/.test(m) : (mode === 'hmf' ? /HYUNDAI/.test(m) : m === 'BMW'); };
+    /* 6 nov. : la version d'un NIV vient de la ligne du manufacturier quand elle nomme une finition (donnée officielle), sinon
+       de sa propre ligne, sinon d'une autre ligne du même NIV — le DMS laisse souvent la version vide (88 neufs GM le 6 nov.). */
+    var versionsVin = {};
+    (neufs || []).forEach(function (v) {
+      if (!v || !v.vin) return;
+      var ver = versionDe(mode, [v.modele, v.version].join(' ')); if (!ver.niveau) return;
+      var k0 = texte(v.vin).toUpperCase(), cote = v.origine === 'constructeur' || /^portail-/.test(String(v.source || '')) ? 'c' : 'd';
+      var x = versionsVin[k0] = versionsVin[k0] || {};
+      if (!x[cote]) x[cote] = { ver: ver, texte: v.version };
+    });
+    var meilleureVersion = function (v, propre) {
+      var x = versionsVin[texte(v.vin).toUpperCase()] || {};
+      if (x.c) return x.c; if (propre.niveau) return { ver: propre, texte: v.version }; return x.d || { ver: propre, texte: v.version };
+    };
     /* Un NIV une fois : la ligne la plus « disponible » (stock › démo › en route › commandé › sorti). */
     var parVin = {}, uniques = [];
     (neufs || []).forEach(function (v) {
@@ -441,7 +472,8 @@
       var prix = nombre(v.prix) || nombre(v.extra && v.extra.pdsf);
       if (!prix || prix < 5000) return;
       var e = etatNeuf(v);
-      var o = { vin: v.vin, annee: v.annee, modele: v.modele, version: v.version, couleur: v.couleur, prix: prix, etat: e, enStock: e === 'stock' || e === 'demo', statut: v.statutLibelle || v.statut || '', origine: origineNeuf(v), sortiLe: v.sortiLe || '', v: v, ver: versionDe(mode, [v.modele, v.version].join(' ')) };
+      var mv = meilleureVersion(v, versionDe(mode, [v.modele, v.version].join(' ')));
+      var o = { vin: v.vin, annee: v.annee, modele: v.modele, version: mv.texte || v.version, couleur: v.couleur, prix: prix, etat: e, enStock: e === 'stock' || e === 'demo', statut: v.statutLibelle || v.statut || '', origine: origineNeuf(v), sortiLe: v.sortiLe || '', v: v, ver: mv.ver };
       var k = texte(v.vin).toUpperCase();
       if (!k) { uniques.push(o); return; }
       if (!parVin[k] || RANG_ETAT[e] < RANG_ETAT[parVin[k].etat]) parVin[k] = o;

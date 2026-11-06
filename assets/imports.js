@@ -71,6 +71,10 @@
       etapes: ['Connectez-vous au portail de Hyundai Finance (bouton « Ouvrir le portail ») : la page « Customer Portfolio » s\'ouvre.',
         'Cliquez le favori « Automax ← Hyundai Finance » (le portail bloque le favori « Automax ← Constructeur ») et restez sur l\'onglet environ une minute : il lit tous les prêts et les locations actifs.',
         'Rien n\'est écrit chez Hyundai Finance. La valeur des véhicules vient d\'OpenLane, pas de Hyundai Finance.'] },
+    fidelite: { court: 'offres de fidélité Hyundai', favori: 'fidelite', page: ['relance', 'equite'], pageTexte: 'Équité',   /* 6 nov. */
+      etapes: ['Connectez-vous à SmartPortal de J.D. Power (bouton « Ouvrir le portail ») au nom de Hyundai Longueuil, page « Pistes de vente ».',
+        'Dans « Origine de la piste – Programme de la piste », choisissez « HACC CRM -- HACC CRM - Loyalty Special Offer », puis « Afficher les pistes ».',
+        'Cliquez le favori « Automax ← Fidélité Hyundai » : il lit les offres affichées (double ou simple, code PIN, expiration). Rien n\'est écrit dans SmartPortal.'] },
     banque: { court: 'transactions bancaires InfoBahn', favori: 'infobahn', page: ['outils', 'equite'], pageTexte: 'Portefeuille BMW',
       etapes: ['Dans InfoBahn, ouvrez Payments › Bank Transactions (bouton « Ouvrir le portail »).',
         'Choisissez la période au besoin (Date Range › Filter).',

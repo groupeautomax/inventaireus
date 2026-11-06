@@ -570,10 +570,38 @@
         var prix = r.neuf.prix + (nombre(params.frais) || 0);
         var valeur = r.valeur !== null ? r.valeur : 0;
         var fin = financementNeuf(r.neuf, parModele ? familleDe(r.neuf.modele) : '', params, progs, tauxGm);
-        var taxable = Math.max(0, prix - (fin.rabaisAvantTaxes ? fin.rabais : 0) - valeur), taxes = taxable * (nombre(params.taxes) || 0) / 100;
-        r.finance = Math.max(0, prix - fin.rabais + taxes - valeur + (r.solde || 0) - (nombre(params.comptant) || 0));
-        r.taxes = taxes; r.prixNeuf = prix; r.programme = fin;
-        r.mensualite = pmt(r.finance, fin.taux, fin.terme);
+        var calcul = function (rabais, avant, taux, terme) {
+          var taxable = Math.max(0, prix - avant - valeur), tx = taxable * (nombre(params.taxes) || 0) / 100;
+          var f = Math.max(0, prix - rabais + tx - valeur + (r.solde || 0) - (nombre(params.comptant) || 0));
+          return { finance: f, taxes: tx, mensualite: pmt(f, taux, terme) };
+        };
+        var res = calcul(fin.rabais, fin.rabaisAvantTaxes ? fin.rabais : 0, fin.taux, fin.terme);
+        /* 6 nov. (Maxime : « importe les rabais de D2C ») : les rabais affichés pour CE neuf sur le site (D2C) remplacent les
+           rabais des Programmes du mois (pas de double compte) ; ils sont avant taxes. Un rabais « comptant » (non-stackable,
+           cash purchase) ne se combine pas avec un taux spécial : on calcule le taux spécial avec les rabais cumulables, et le
+           taux de la page avec tous les rabais, et on garde la mensualité la plus basse. */
+        var rv = options.rabaisVin ? options.rabaisVin(r.neuf.vin) : null;
+        if (rv && rv.length) {
+          var cumul = 0, cash = 0;
+          rv.forEach(function (x) { if (x.comptant) cash += x.montant; else cumul += x.montant; });
+          var noms = rv.map(function (x) { return x.nom; });
+          fin = Object.assign({}, fin, { rabais: cumul, rabaisAvantTaxes: true, rabaisNoms: noms, rabaisD2c: rv, choix: '' });
+          if (fin.source === 'page' || fin.source === 'programme' && !(nombre(fin.taux) < nombre(params.taux))) {
+            /* aucun taux spécial : tous les rabais s'appliquent au taux de la page */
+            fin.rabais = cumul + cash; fin.choix = cash ? 'comptant' : ''; fin.source = 'page'; fin.libelle = 'taux de la page + rabais du site';
+            res = calcul(fin.rabais, fin.rabais, fin.taux, fin.terme);
+          } else {
+            res = calcul(cumul, cumul, fin.taux, fin.terme);
+            if (cash > 0) {
+              var b = calcul(cumul + cash, cumul + cash, nombre(params.taux), nombre(params.terme));
+              if (b.mensualite !== null && (res.mensualite === null || b.mensualite < res.mensualite)) {
+                res = b; fin = Object.assign(fin, { taux: nombre(params.taux), terme: nombre(params.terme), rabais: cumul + cash, source: 'page', libelle: 'taux de la page + rabais au comptant (moins cher que le taux spécial)', choix: 'comptant' });
+              } else { fin.choix = 'taux'; fin.libelle += ' + rabais cumulables du site'; }
+            } else fin.libelle += ' + rabais du site';
+          }
+        }
+        r.finance = res.finance; r.taxes = res.taxes; r.prixNeuf = prix; r.programme = fin;
+        r.mensualite = res.mensualite;
         r.ecart = r.mensualite !== null && paiement ? r.mensualite - paiement : null;
         r.cible = r.valeur !== null && r.ecart !== null && r.ecart <= (nombre(params.marge) || 0);
       } else { r.finance = null; r.mensualite = null; r.ecart = null; r.cible = false; }
@@ -711,7 +739,10 @@
     var valeurs = AMX.openlane && AMX.openlane.valeur ? function (vin) { var r = AMX.openlane.valeur(vin); return r && r.luLe ? r : null; } : null;
     var choix = AMX.memo.lire('eq_versions', {}) || {};
     this.chargerProgrammes();
-    this.lignes = analyser(comptes, this.neufs(), this.params, { valeurs: valeurs, mode: modeCie(this.cie), programmes: (this.progs || {})[this.cie] || [], choixVersion: function (c) { return choix[(c.compagnie || '') + '|' + c.compte] || ''; } });
+    /* 6 nov. : rabais du site par véhicule (D2C) — lus une fois, le calcul se refait à leur arrivée. */
+    var self0 = this;
+    if (AMX.rabaisD2c && !AMX.rabaisD2c.enCache() && !this.rabaisDemandes) { this.rabaisDemandes = true; AMX.rabaisD2c.charger().then(function () { if (!self0.detruit) self0.planifierRendu(0); }).catch(function () {}); }
+    this.lignes = analyser(comptes, this.neufs(), this.params, { valeurs: valeurs, mode: modeCie(this.cie), programmes: (this.progs || {})[this.cie] || [], rabaisVin: AMX.rabaisD2c ? AMX.rabaisD2c.de : null, choixVersion: function (c) { return choix[(c.compagnie || '') + '|' + c.compte] || ''; } });
     var us = this.us || {}, mmrs = AMX.memo.lire('eq_mmr', {}) || {};
     var P = AMX.export && AMX.export.params ? AMX.export.params() : null, T = AMX.export && AMX.export.taux ? AMX.export.taux() : null;
     var ecart = P ? (nombre(P.ecartEchangePct) !== null ? nombre(P.ecartEchangePct) : nombre(P.ecartPct)) : null;
@@ -982,7 +1013,7 @@
     var autres = r.proposition && r.propositions.length > 1 ? r.propositions.filter(function (p) { return p !== r.proposition; }).map(function (p) { return p.vehicule + ' — ' + fmt$(p.mensualite) + ' / mois · ' + texteProposition(p); }).join('\n') : '';
     var neufEl = r.proposition ? h('div', { title: autres ? 'Autres scénarios DealDriver :\n' + autres : '' }, [h('div.nom', { text: r.proposition.vehicule || '—' }), h('div.sous', { text: texteProposition(r.proposition) + ' · DealDriver' + (r.propositions.length > 1 ? ' · +' + (r.propositions.length - 1) + ' autre' + (r.propositions.length > 2 ? 's' : '') : '') })])
       : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: texteNeuf(r) }), this.ligneVersion(r)]) : h('span.sous', { text: 'Aucun ' + (c.modele || 'modèle semblable') + ' neuf connu (stock, commandes, ventes)' });
-    var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance))) }), r.programme ? h('div.sous.eq-prog.' + r.programme.source, { text: String(r.programme.taux).replace('.', ',') + ' % · ' + r.programme.terme + ' mois · ' + r.programme.libelle + (r.programme.rabais ? ' · rabais ' + fmt$(r.programme.rabais) : ''), title: r.programme.source === 'page' ? 'Aucun programme du manufacturier connu pour ce modèle ce mois-ci : taux et terme de « Calcul de la nouvelle mensualité ».' : (r.programme.source === 'gm' ? 'Taux et terme des scénarios de la Financière GM lus dans GM Dealer Direct ce mois-ci.' : 'Programmes du mois (Relance › Portefeuille clients).') }) : null]) : h('span.eq-nul', '—');
+    var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance))) }), r.programme ? h('div.sous.eq-prog.' + r.programme.source, { text: String(r.programme.taux).replace('.', ',') + ' % · ' + r.programme.terme + ' mois · ' + r.programme.libelle + (r.programme.rabais ? ' · rabais ' + fmt$(r.programme.rabais) : ''), title: (r.programme.choix === 'comptant' ? 'Rabais au comptant du site (D2C) au taux de la page : moins cher que le taux spécial du constructeur.' : (r.programme.source === 'page' ? 'Aucun programme du manufacturier connu pour ce modèle ce mois-ci : taux et terme de « Calcul de la nouvelle mensualité ».' : (r.programme.source === 'gm' ? 'Taux et terme des scénarios de la Financière GM lus dans GM Dealer Direct ce mois-ci.' : 'Programmes du mois (Relance › Portefeuille clients).'))) + (r.programme.rabaisD2c ? '\n\nRabais affichés pour ce neuf sur le site (D2C) :\n' + (AMX.rabaisD2c ? AMX.rabaisD2c.texte(r.programme.rabaisD2c) : '') : '') }) : null]) : h('span.eq-nul', '—');
     var selSuivi = h('select.suivi', SUIVIS_ORDRE.map(function (k) { return h('option', { value: k, text: SUIVIS[k] }); }));
     selSuivi.value = c.suivi || '';
     selSuivi.disabled = !contact;

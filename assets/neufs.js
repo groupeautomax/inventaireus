@@ -265,6 +265,8 @@
       '.neufs-page .carte { margin-bottom: 12px; }',
       /* Concessions en pastilles sur une ligne (la liste verticale commune prend 300 px : trop long ici) */
       '.neufs-flotte-badge { margin-left: 6px; font-size: 12px; vertical-align: 1px; }',
+      '.neufs-rabais { font-size: 12px; color: var(--vert-fonce); font-weight: 600; white-space: nowrap; cursor: help; }',
+      '.neufs-rabais-liste { margin: 0 0 10px; padding-left: 18px; font-size: 13px; } .neufs-rabais-liste li { margin: 2px 0; }',
       /* Pipeline : commandées → transit → stock → démos → vendues */
       '.neufs-pipeline .neufs-etapes { display: flex; align-items: stretch; gap: 4px; padding: 10px 12px; overflow-x: auto; } .neufs-etapes .fleche { align-self: center; color: var(--encre-4); font-size: 18px; padding: 0 2px; flex: none; }',
       '.neufs-etape { flex: 1 1 140px; min-width: 130px; text-align: left; background: var(--carte-2); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 12px; cursor: pointer; font: inherit; color: var(--encre); position: relative; overflow: hidden; } .neufs-etape:hover { border-color: var(--encre-3); }',
@@ -347,6 +349,40 @@
   /* ------------------------------ Données ------------------------------ */
   var cache = { donnees: null, le: 0, promesse: null };
   var cachePortail = { donnees: null, le: 0, promesse: null };
+  /* 6 nov. (Maxime : « importe les rabais de D2C ») : les rabais affichés pour chaque véhicule sur le site de la concession,
+     lus par le favori D2C à l'import (RabaisD2c.gs, ?rabaisD2c=1). Partagés avec Relance › Équité. `comptant` = réservé à
+     l'achat comptant (non-stackable, cash purchase) : ne se combine pas avec un taux spécial du constructeur. */
+  var rabaisCache = { rep: null, quand: 0, promesse: null };
+  var RABAIS_FRAIS_J = 7;
+  function jourLocal() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  AMX.rabaisD2c = {
+    charger: function (force) {
+      if (!force && rabaisCache.rep && Date.now() - rabaisCache.quand < AMX.dureeCopie(10 * 60000)) return Promise.resolve(rabaisCache.rep);
+      if (rabaisCache.promesse) return rabaisCache.promesse;
+      rabaisCache.promesse = AMX.get({ rabaisD2c: 1 }, { discret: true, secours: false }).then(function (d) {
+        rabaisCache.promesse = null;
+        var parVin = {}, ajd = jourLocal();
+        if (d && d.ok && d.cies) Object.keys(d.cies).forEach(function (cie) {
+          var c = d.cies[cie]; if (!c || !c.vins) return;
+          if (Date.now() - new Date(c.le || 0).getTime() > RABAIS_FRAIS_J * 86400000) return;
+          Object.keys(c.vins).forEach(function (vin) {
+            var l = (c.vins[vin].r || []).filter(function (x) { return !x[3] || x[3] >= ajd; }).map(function (x) { return { nom: String(x[0] || ''), montant: Number(x[1]) || 0, source: String(x[2] || ''), fin: x[3] || '', comptant: !!x[4] }; });
+            if (l.length) parVin[vin] = { cie: cie, le: c.le, liste: l };
+          });
+        });
+        rabaisCache.rep = { cies: (d && d.cies) || {}, parVin: parVin, ancien: !(d && d.ok && d.cies) }; rabaisCache.quand = Date.now();
+        try { document.dispatchEvent(new CustomEvent('amx:rabaisD2c')); } catch (e) {}
+        return rabaisCache.rep;
+      }, function (e) { rabaisCache.promesse = null; throw e; });
+      return rabaisCache.promesse;
+    },
+    enCache: function () { return rabaisCache.rep; },
+    /** [{ nom, montant, source, fin, comptant }] ou null */
+    de: function (vin) { var r = rabaisCache.rep, x = r && r.parVin ? r.parVin[String(vin || '').toUpperCase()] : null; return x ? x.liste : null; },
+    totaux: function (liste) { var t = { cumulables: 0, comptant: 0 }; (liste || []).forEach(function (x) { if (x.comptant) t.comptant += x.montant; else t.cumulables += x.montant; }); t.total = t.cumulables + t.comptant; return t; },
+    texte: function (liste) { return (liste || []).map(function (x) { return x.nom + ' : ' + AMX.fmtArgent(x.montant) + (x.comptant ? ' (achat comptant seulement)' : ''); }).join('\n'); },
+    vider: function () { rabaisCache = { rep: null, quand: 0, promesse: null }; }
+  };
   var DUREE_CACHE_MS = 5 * 60000;
   AMX.neufs = {
     charger: function (force) {
@@ -386,7 +422,7 @@
     },
     // RDR à compléter chez le constructeur (portail RDR BMW) pour les concessions visibles — tuile de l'accueil.
     aFaireConstructeur: function () { var p = cachePortail.donnees; if (!p || !p.tableaux) return null; var out = []; Object.keys(p.tableaux).forEach(function (c) { var t = p.tableaux[c]; (t.aFaire || []).forEach(function (l) { out.push({ compagnie: c, ligne: l }); }); }); return out; },
-    vider: function () { cache.donnees = null; cache.le = 0; cache.copieLe = 0; cachePortail.donnees = null; cachePortail.copieLe = 0; AMX.cacheLocal.oublier('neufs'); AMX.cacheLocal.oublier('constructeur'); },
+    vider: function () { cache.donnees = null; cache.le = 0; cache.copieLe = 0; cachePortail.donnees = null; cachePortail.copieLe = 0; AMX.cacheLocal.oublier('neufs'); AMX.cacheLocal.oublier('constructeur'); AMX.rabaisD2c.vider(); },
     // Portails des constructeurs (?constructeur=1) : ventes déclarées, commandes en attente, factures, état des lectures.
     chargerPortail: function (force) {
       if (!force && cachePortail.donnees && Date.now() - cachePortail.le < AMX.dureeCopie(DUREE_CACHE_MS)) return Promise.resolve(cachePortail.donnees);
@@ -534,9 +570,13 @@
     /* 21 oct. : une relecture des neufs faite ailleurs (vente déclarée → marquage « Vendu ») redessine la page. */
     this.surNeufs = function () { var d = AMX.neufs.enCache(); if (!self.detruit && d && self.donnees && d !== self.donnees) { self.donnees = d; self.copieLe = 0; self.rendre(); } };
     document.addEventListener('amx:neufs', this.surNeufs);
+    /* 6 nov. : rabais du site (D2C) sous le PDSF — lus une fois, la liste se redessine à leur arrivée. */
+    this.surRabais = function () { if (!self.detruit && self.donnees) self.rendre(); };
+    document.addEventListener('amx:rabaisD2c', this.surRabais);
+    AMX.rabaisD2c.charger().catch(function () {});
     if (AMX.ventes && AMX.ventes.charger && !AMX.ventes.enCache()) setTimeout(function () { if (!self.detruit) AMX.ventes.charger('', '').catch(function () {}); }, 400);
   }
-  VueNeufs.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:ventes', this.surVentes); document.removeEventListener('amx:neufs', this.surNeufs); };
+  VueNeufs.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:profil', this.surProfil); document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:ventes', this.surVentes); document.removeEventListener('amx:neufs', this.surNeufs); document.removeEventListener('amx:rabaisD2c', this.surRabais); };
   // Même section, nouvelle adresse (ex. recherche globale avec un NIV).
   VueNeufs.prototype.naviguer = function (ctx) {
     if (ctx.params && ctx.params.vin) { this.filtres.recherche = String(ctx.params.vin).toUpperCase(); this.elRecherche.value = this.filtres.recherche; this.vinDemande = true; this.rendre(); }
@@ -1889,7 +1929,11 @@
         h('td.col-moteur', { text: moteurDe(v) || '—', title: 'Moteur' }),
         h('td.col-couleur', { text: v.couleur || '—' }),
         h('td.num', [h('span' + (km.source === 'defaut' ? '.km-defaut' : ''), { text: AMX.fmtNombre(km.km) + ' km', title: 'Km ' + KM_SOURCES[km.source] + (km.source === 'defaut' ? ' — cliquez Marquer pour l\'indiquer' : '') })]),
-        h('td.num', { text: pd.total ? AMX.fmtArgent(pd.total) : '—', title: pd.pdsf ? 'PDSF ' + AMX.fmtArgent(pd.pdsf) + (pd.transport ? ' + transport ' + AMX.fmtArgent(pd.transport) : '') : 'PDSF (avec transport) lu au portail du manufacturier' }),
+        (function () {
+          var rb = AMX.rabaisD2c.de(v.vin), tt = rb ? AMX.rabaisD2c.totaux(rb) : null;
+          return h('td.num', [h('div', { text: pd.total ? AMX.fmtArgent(pd.total) : '—', title: pd.pdsf ? 'PDSF ' + AMX.fmtArgent(pd.pdsf) + (pd.transport ? ' + transport ' + AMX.fmtArgent(pd.transport) : '') : 'PDSF (avec transport) lu au portail du manufacturier' }),
+            tt && tt.total ? h('div.neufs-rabais', { text: 'rabais −' + AMX.fmtArgent(tt.total), title: 'Rabais affichés sur le site (D2C) :\n' + AMX.rabaisD2c.texte(rb) }) : null]);
+        })(),
         h('td.dispo-cell', [pastilleDispo(v)].concat(pc.length ? [h('div.sous', pc)] : [])),
         h('td', { text: emplacementTexte(v.emplacement) || '—', title: v.emplacement || '' }),
         h('td', [v.enStock ? h('span.badge.' + s.couleur, { text: s.libelle }) : h('span.badge.gris', { text: 'Sorti le ' + AMX.fmtDateCourte(v.sortiLe) })]),
@@ -1929,6 +1973,7 @@
       v.absentDmsNonCompare ? h('p.doux.petit', { style: { margin: '0 0 10px' }, text: v.absentDmsNonCompare === 'flotte' ? 'Unité de flotte : la feuille Google de référence ne liste que le détail, pas de comparaison au DMS pour l\'instant.' : 'Reçu après la dernière mise à jour de la feuille Google : pas encore comparé au DMS.' }) : null,
       mq ? dl([['Vendeur', mq.vendeur], ['Client', mq.client], ['Livraison', mq.livraison ? AMX.fmtDate(mq.livraison) : ''], ['Localisation', mq.localisation], ['Notes', etiquettesDe(v).map(function (k) { return ETIQUETTES[k]; }).join(', ')], ['Note', mq.note], ['Marqué', (mq.par ? 'par ' + mq.par : '') + (mq.le ? ' le ' + AMX.fmtDate(mq.le, true) : '')]]) : h('p.doux.petit', { style: { margin: '6px 0 0' }, text: v.enStock ? 'Aucun marquage interne : ce que le DMS / le portail dit fait foi.' : 'Sorti du feed.' }),
       (function () { var rd = rdrDe(v), cmd = commandeTexte(v), pdf = pdsfDe(v); return (cmd || rd || pdf.total) ? h('div', [h('h4', 'Chez le manufacturier'), dl([['Commande', cmd], ['Vendu chez le manufacturier', venduConstructeur(v) ? 'Oui' : 'Non'], ['RDR déclaré', rd ? AMX.fmtDate(rd.dateVente) + (rd.typeVente ? ' · ' + rd.typeVente : '') + (rd.client ? ' · ' + rd.client : '') : ''], ['PDSF', pdf.pdsf ? AMX.fmtArgent(pdf.pdsf) + (pdf.transport ? ' + transport ' + AMX.fmtArgent(pdf.transport) + ' = ' + AMX.fmtArgent(pdf.total) : '') : (pdf.total ? AMX.fmtArgent(pdf.total) : '')]])]) : null; })(),
+      (function () { var rb = AMX.rabaisD2c.de(v.vin); return rb ? h('div', [h('h4', 'Rabais affichés sur le site (D2C)'), h('ul.neufs-rabais-liste', rb.map(function (x) { return h('li', [h('span', { text: x.nom }), h('b', { text: ' −' + AMX.fmtArgent(x.montant) }), x.comptant ? h('span.doux', { text: ' · achat comptant seulement' }) : null, x.source ? h('span.doux', { text: ' · ' + x.source }) : null]); }))]) : null; })(),
       h('h4', 'Vieillissement'),
       h('div', [t ? h('span.badge.' + t.couleur, { text: t.libelle + ' — ' + fmtJours(v.jours) }) : h('span.doux', '—')]),
       d.montants ? h('h4', 'Coûts') : null,
@@ -2043,7 +2088,7 @@
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
     var rows = lignes.map(function (v) {
       var mq = marquageDe(v) || {}, rI = raisonIndispo(v);
-      var r = { 'Concession': nomCie(v.compagnie), 'Origine': ORIGINES[origineDe(v)], '# Stock': v.stock, 'NIV': v.vin, 'Année': v.annee, 'Marque': v.marque, 'Modèle': v.modele, 'Code modèle': v.modelNum, 'Version': v.version, 'Couleur': v.couleur, 'Code couleur': v.couleurCode, 'Intérieur': v.couleurInt, 'Moteur': moteurDe(v), 'Km': kmDe(v).km, 'Source km': KM_SOURCES[kmDe(v).source], 'PDSF': pdsfDe(v).pdsf, 'Transport': pdsfDe(v).transport, 'PDSF + transport': pdsfDe(v).total, 'Disponible': rI ? 'Non — ' + (RAISONS[rI] || rI) : 'Oui', 'Vendu chez le manufacturier': venduConstructeur(v) ? 'Oui' : '', 'Absent du DMS': self.absentDms(v) ? 'Oui' : '', 'Commande': commandeTexte(v), 'RDR': (function () { var r = rdrDe(v); return r ? String(r.dateVente || '') + (r.typeVente ? ' ' + r.typeVente : '') : ''; })(), 'Marquage': MARQUES[mq.statut] ? MARQUES[mq.statut][0] : '', 'Pré-enregistré': mq.punch === 'oui' ? 'Oui' : (mq.punch === 'non' ? 'Non' : ''), 'Exportable': EXPORTABLES[mq.exportable] || '', 'Notes': etiquettesDe(v).map(function (k) { return ETIQUETTES[k]; }).join(', '), 'Vendeur': mq.vendeur || '', 'Client': mq.client || '', 'Livraison': mq.livraison || '', 'Localisation': mq.localisation || '', 'Note marquage': mq.note || '', 'Marqué par': mq.par || '', 'Marqué le': mq.le ? String(mq.le).slice(0, 10) : '', 'Emplacement': v.emplacement, 'Statut': statutDms(v).libelle, 'Type': typeUnite(v) === 'flotte' ? 'Flotte' : (typeUnite(v) ? 'Détail' : ''), 'FAN (NCP)': (v.extra || {}).ncp || '', 'Client de parc': (v.extra || {}).ncpNom || '', 'FAN utilisateur final': (v.extra || {}).ncpFinal || '', 'Évolution GM': (v.extra || {}).code || '', 'Reçu le': v.recuLe, 'Jours': v.jours, 'Tranche': (tranche(v.jours) || {}).libelle || '', 'Sorti le': v.sortiLe, 'Options': (v.options || []).join(', '), 'Ensembles': (v.ensembles || []).join(', '), 'Mémo': v.memo };
+      var r = { 'Concession': nomCie(v.compagnie), 'Origine': ORIGINES[origineDe(v)], '# Stock': v.stock, 'NIV': v.vin, 'Année': v.annee, 'Marque': v.marque, 'Modèle': v.modele, 'Code modèle': v.modelNum, 'Version': v.version, 'Couleur': v.couleur, 'Code couleur': v.couleurCode, 'Intérieur': v.couleurInt, 'Moteur': moteurDe(v), 'Km': kmDe(v).km, 'Source km': KM_SOURCES[kmDe(v).source], 'PDSF': pdsfDe(v).pdsf, 'Transport': pdsfDe(v).transport, 'PDSF + transport': pdsfDe(v).total, 'Rabais (site D2C)': (function () { var rb = AMX.rabaisD2c.de(v.vin); return rb ? AMX.rabaisD2c.totaux(rb).total : ''; })(), 'Détail des rabais': (function () { var rb = AMX.rabaisD2c.de(v.vin); return rb ? AMX.rabaisD2c.texte(rb).replace(/\n/g, ' · ') : ''; })(), 'Disponible': rI ? 'Non — ' + (RAISONS[rI] || rI) : 'Oui', 'Vendu chez le manufacturier': venduConstructeur(v) ? 'Oui' : '', 'Absent du DMS': self.absentDms(v) ? 'Oui' : '', 'Commande': commandeTexte(v), 'RDR': (function () { var r = rdrDe(v); return r ? String(r.dateVente || '') + (r.typeVente ? ' ' + r.typeVente : '') : ''; })(), 'Marquage': MARQUES[mq.statut] ? MARQUES[mq.statut][0] : '', 'Pré-enregistré': mq.punch === 'oui' ? 'Oui' : (mq.punch === 'non' ? 'Non' : ''), 'Exportable': EXPORTABLES[mq.exportable] || '', 'Notes': etiquettesDe(v).map(function (k) { return ETIQUETTES[k]; }).join(', '), 'Vendeur': mq.vendeur || '', 'Client': mq.client || '', 'Livraison': mq.livraison || '', 'Localisation': mq.localisation || '', 'Note marquage': mq.note || '', 'Marqué par': mq.par || '', 'Marqué le': mq.le ? String(mq.le).slice(0, 10) : '', 'Emplacement': v.emplacement, 'Statut': statutDms(v).libelle, 'Type': typeUnite(v) === 'flotte' ? 'Flotte' : (typeUnite(v) ? 'Détail' : ''), 'FAN (NCP)': (v.extra || {}).ncp || '', 'Client de parc': (v.extra || {}).ncpNom || '', 'FAN utilisateur final': (v.extra || {}).ncpFinal || '', 'Évolution GM': (v.extra || {}).code || '', 'Reçu le': v.recuLe, 'Jours': v.jours, 'Tranche': (tranche(v.jours) || {}).libelle || '', 'Sorti le': v.sortiLe, 'Options': (v.options || []).join(', '), 'Ensembles': (v.ensembles || []).join(', '), 'Mémo': v.memo };
       if (d.montants) { r['Coût facture'] = v.coutFacture; r['Coût calculé'] = v.coutCalc; r['Holdback'] = v.holdback; r['PDI'] = v.pdi; r['Frais de vente'] = v.coutVente; r['Coût de détention'] = v.coutDetention; }
       return r;
     });

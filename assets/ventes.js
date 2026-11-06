@@ -21,6 +21,15 @@
   /* 3 nov. (Maxime : « un filtre pour le wholesale dans le type d'achat : échange ou achat à la porte (indique Achat) ») :
      onglet Wholesale, pastilles Tous · Échange · Achat selon la catégorie de la vente (filtres.achat). */
   var ACHATS_WHOLESALE = [['', 'Tous'], ['echange', 'Échange'], ['achat', 'Achat']];
+  /* 6 nov. (Maxime : « la colonne W confirme si c'est un CPO », occasions de VW) : le serveur lit W « Autre » du livre et donne
+     cpoNiveau (petit | gros | cpo) + cpoLibelle ; cpo = le texte du livre. Onglet Occasion : pastille sur la ligne, filtre CPO. */
+  var FILTRES_CPO = [['', 'Tous'], ['cpo', 'CPO'], ['petit', 'Petit CPO'], ['gros', 'Gros CPO'], ['non', 'Sans CPO']];
+  function niveauCpo(v) { return v && v.type === 'usage' ? String(v.cpoNiveau || '') : ''; }
+  function gardeCpo(v, f) { var n = niveauCpo(v); if (f === 'cpo') return !!n; if (f === 'non') return !n; return n === f; }
+  function puceCpo(v) {
+    var n = niveauCpo(v); if (!n) return null;
+    return h('span.puce.ventes-cpo.cpo-' + n, { text: v.cpoLibelle || 'CPO', title: 'Véhicule certifié (CPO) — inscrit au livre : « ' + (v.cpo || v.cpoLibelle) + ' »' });
+  }
   /* 26 oct. (Maxime) : chez BMW, « Financement BMW » et « Financement autre » ; « Financement » seul pour les autres concessions
      et les ventes d'avant. */
   var PAIEMENTS = [['financementBmw', 'Financement BMW'], ['financementAutre', 'Financement autre'], ['financement', 'Financement'], ['location', 'Location'], ['comptant', 'Comptant']];
@@ -424,7 +433,8 @@
       '.ventes-table .sous.rdr { color: var(--vert-fonce); } .ventes-table .sous.rdr.manque { color: var(--ambre); font-weight: 600; }',
       '.ventes-table .sous.retard { color: var(--ambre); font-weight: 600; } #ventes-ages { flex-wrap: wrap; }',
       '.ventes-page .kpi .ventes-calcul { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--ligne); font-size: 13px; display: grid; gap: 2px; } .ventes-page .kpi .ventes-calcul > div { display: flex; justify-content: space-between; gap: 12px; color: var(--encre-2); } .ventes-page .kpi .ventes-calcul b { font-variant-numeric: tabular-nums; } .ventes-page .kpi .ventes-calcul b.neg { color: var(--rouge); } .ventes-page .kpi .ventes-calcul .ligne-ann.cliquable { cursor: pointer; text-decoration: underline dotted; } .ventes-page .kpi .ventes-calcul .ligne-ann.actif { font-weight: 700; color: var(--rouge); } .ventes-page .kpi .ventes-calcul .net { border-top: 1px solid var(--ligne); padding-top: 2px; color: var(--encre); font-weight: 700; }',   /* 3 nov. : calcul sous « Vendues » */
-      '.ventes-achats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex-basis: 100%; } .ventes-achats .tit { font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--encre-3); margin-right: 4px; } #ventes-achats.segment { flex-wrap: wrap; }',   /* 3 nov. : Type d'achat (Wholesale) */   /* 1er nov. : Commandes vendues */
+      '.ventes-achats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex-basis: 100%; } .ventes-achats .tit { font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--encre-3); margin-right: 4px; } #ventes-achats.segment { flex-wrap: wrap; }',
+      '#ventes-cpo.segment { flex-wrap: wrap; } .ventes-page .puce.ventes-cpo { background: var(--vert-clair); color: var(--vert-fonce); border-color: transparent; font-weight: 700; white-space: nowrap; } .ventes-page .puce.ventes-cpo.cpo-gros { background: var(--vert-fonce); color: #fff; }',   /* 6 nov. : pastille CPO (VW) */   /* 3 nov. : Type d'achat (Wholesale) */   /* 1er nov. : Commandes vendues */
       '.ventes-table .date-vente { color: var(--encre-3); font-style: italic; }',
       '@media (max-width: 760px) { .ventes-table .col-cons, .ventes-table .col-dir { display: none; } .ventes-produits { grid-template-columns: 1fr; } }'
     ].join('\n');
@@ -449,7 +459,8 @@
     this.periode = periodeValide(this.params.mois) ? String(this.params.mois) : moisCourant();
     this.avenir = {};   /* nombre de ventes à livrer plus tard, par concession */
     this.annee = String(this.params.annee || AMX.memo.lire('ventes_annee', '') || new Date().getFullYear());
-    this.filtres = { etat: this.params.etat || '', type: typeOnglet(this.params.type) || typeOnglet(AMX.memo.lire('ventes_onglet', '')) || 'neuf', drapeau: '', recherche: '', age: 'recentes', achat: '' };
+    this.filtres = { etat: this.params.etat || '', type: typeOnglet(this.params.type) || typeOnglet(AMX.memo.lire('ventes_onglet', '')) || 'neuf', drapeau: '', recherche: '', age: 'recentes', achat: '', cpo: '' };
+    if (this.filtres.type === 'usage' && FILTRES_CPO.some(function (g) { return g[0] && g[0] === self.params.cpo; })) this.filtres.cpo = self.params.cpo;   /* 6 nov. : filtre CPO (Occasion) */
     if (this.filtres.type === 'wholesale' && (this.params.achat === 'achat' || this.params.achat === 'echange')) this.filtres.achat = this.params.achat;   /* 3 nov. : Type d'achat (Wholesale) */
     this.filtresEx = { genre: '', type: '', recherche: '' };   /* 2 nov. : vue « Exclues » */
     this.filtresRef = { genre: '', type: '', recherche: '' };   /* 3 nov. : vue « Refusées » */
@@ -651,6 +662,7 @@
     if (t !== 'neuf' && (this.filtres.drapeau === 'rdr' || this.filtres.drapeau === 'sansRdr')) this.filtres.drapeau = '';
     if (t !== 'usage' && (this.filtres.drapeau === 'vendues' || this.filtres.drapeau === 'livrees' || this.filtres.drapeau === 'annulVendues')) this.filtres.drapeau = '';
     if (t !== 'wholesale') this.filtres.achat = '';
+    if (t !== 'usage') this.filtres.cpo = '';
     if (this.vue === 'recap') { this.rendreTypes(); this.chargerRecap(false); return; }
     this.rendre();
   };
@@ -738,6 +750,7 @@
     if (sauf !== 'etat' && f.etat && v.statut !== f.etat) return false;
     if (sauf !== 'type' && f.type && v.type !== f.type) return false;
     if (sauf !== 'achat' && f.achat && f.type === 'wholesale' && v.categorie !== f.achat) return false;   /* 3 nov. : Échange ou Achat */
+    if (sauf !== 'cpo' && f.cpo && f.type === 'usage' && !gardeCpo(v, f.cpo)) return false;   /* 6 nov. : CPO (VW) */
     if (sauf !== 'drapeau' && f.drapeau === 'sansFI' && !besoinFI(v)) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'erreur' && v.livre !== 'erreur') return false;
     if (sauf !== 'drapeau' && f.drapeau === 'rdr' && !this.estRdr(v)) return false;
@@ -745,7 +758,7 @@
     if (sauf !== 'drapeau' && f.drapeau === 'vendues' && !vendueDans(v, this.moisCivil())) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'livrees' && !livreeDans(v, this.moisCivil())) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'annulVendues' && !annulVendueDans(v, this.moisCivil())) return false;
-    if (q && !AMX.correspond([v.client, v.noClient, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin], q)) return false;   /* v138 : AMX.correspond */
+    if (q && !AMX.correspond([v.client, v.noClient, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin, v.cpoLibelle, v.cpo], q)) return false;   /* v138 : AMX.correspond ; 6 nov. : « cpo » trouve les CPO */
     return true;
   };
   VueVentes.prototype.ajustementsVisibles = function () {
@@ -756,6 +769,7 @@
       if (a.annule) return false;
       if (f.type && a.type !== f.type) return false;
       if (f.achat && f.type === 'wholesale' && a.categorie !== f.achat) return false;
+      if (f.cpo && f.type === 'usage') return false;   /* 6 nov. : une entrée hors vente n'a pas de CPO */
       if (q && !AMX.correspond([a.client, a.vin, a.stock, a.vehicule, a.venteId, a.id, a.raison], q)) return false;
       return true;
     });
@@ -780,8 +794,8 @@
   /* Les nombres des pastilles : état (sans le filtre d'état), type (sans le filtre de type), F&I à inscrire / pas au livre
      (sans ce drapeau) — chaque nombre est ce qu'on verra en cliquant. */
   VueVentes.prototype.compteurs = function () {
-    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0, rdr: 0, sansRdr: 0, vendues: 0, livrees: 0, venduesAutres: 0, annulVendues: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 }, a = { '': 0, recentes: 0, vieilles: 0 }, ach = { '': 0, echange: 0, achat: 0 };
-    if (!d) return { etat: e, type: t, age: a, achat: ach };
+    var d = cache.rep, self = this, e = { '': 0, declaree: 0, completee: 0, comptabilisee: 0, annulee: 0, erreur: 0, sansFI: 0, rdr: 0, sansRdr: 0, vendues: 0, livrees: 0, venduesAutres: 0, annulVendues: 0 }, t = { '': 0, neuf: 0, usage: 0, wholesale: 0 }, a = { '': 0, recentes: 0, vieilles: 0 }, ach = { '': 0, echange: 0, achat: 0 }, cp = { '': 0, cpo: 0, petit: 0, gros: 0, non: 0, connu: 0 };
+    if (!d) return { etat: e, type: t, age: a, achat: ach, cpo: cp };
     var mc = this.moisCivil(), autres = this.venduesAutres(), avecAutres = this.filtres.drapeau === 'vendues';
     d.ventes.concat(autres).forEach(function (v, i) {
       var autre = i >= d.ventes.length;   /* vendue dans le mois, livrée un autre mois */
@@ -791,10 +805,11 @@
       if (self.garde(v, 'etat')) { e['']++; if (e[v.statut] !== undefined) e[v.statut]++; }
       if (self.garde(v, 'type')) { t['']++; if (t[v.type] !== undefined) t[v.type]++; }
       if (self.filtres.type === 'wholesale' && self.garde(v, 'achat')) { ach['']++; if (ach[v.categorie] !== undefined) ach[v.categorie]++; }
+      if (self.filtres.type === 'usage' && self.garde(v, 'cpo')) { var nc = niveauCpo(v); cp['']++; if (nc) { cp.cpo++; if (cp[nc] !== undefined) cp[nc]++; } else cp.non++; if (v.type === 'usage' && (v.cpo || nc)) cp.connu++; }
       if (!autre && self.garde(v, 'drapeau')) { if (v.livre === 'erreur') e.erreur++; if (besoinFI(v)) e.sansFI++; if (self.estRdr(v)) e.rdr++; if (self.sansRdr(v)) e.sansRdr++; if (vendueDans(v, mc)) e.vendues++; if (livreeDans(v, mc)) e.livrees++; }
     });
     if (mc) { var vusA = {}; d.ventes.concat(autres, this.refuseesMois()).forEach(function (v) { if (vusA[v.id]) return; vusA[v.id] = 1; if (self.garde(v, 'drapeau') && annulVendueDans(v, mc)) e.annulVendues++; }); }
-    return { etat: e, type: t, age: a, achat: ach };
+    return { etat: e, type: t, age: a, achat: ach, cpo: cp };
   };
   var ETATS_VENTE = [['', 'Toutes'], ['declaree', 'Attente F&I'], ['completee', 'Au livre'], ['comptabilisee', 'Comptabilisées'], ['annulee', 'Annulées']];
   var TYPES_VENTE = [['', 'Tous'], ['neuf', 'Neufs'], ['usage', 'Occasions'], ['wholesale', 'Wholesale']];
@@ -811,9 +826,10 @@
     var self = this, ui2 = AMX.ui2 && AMX.ui2();
     AMX.vider(this.elFiltres);
     this.elFiltres.classList.toggle('inv2-filtres', !!ui2);
-    this.nbEtat = {}; this.nbType = {}; this.nbAge = {}; this.nbAchat = {};
+    this.nbEtat = {}; this.nbType = {}; this.nbAge = {}; this.nbAchat = {}; this.nbCpo = {};
     var commandes = this.vue === 'commandes';
     var segAchat = !commandes && this.filtres.type === 'wholesale' ? this.filtreAchat(ui2) : null;   /* 3 nov. : Type d'achat */
+    var segCpo = this.filtres.type === 'usage' && this.avecCpo() ? this.filtreCpo(ui2) : null;   /* 6 nov. : CPO (le livre de VW le dit) */
     var segAge = commandes ? h('div.segment#ventes-ages', { role: 'group', 'aria-label': 'Vendue depuis' }, AGES_COMMANDE.map(function (g) { var b = h('span.n', { text: '0' }); self.nbAge[g[0]] = b; var actif = (self.filtres.age || '') === g[0]; return h('button' + (actif ? '.actif' : ''), { type: 'button', 'data-age': g[0], 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres.age = g[0]; self.rendre(); } }, [g[1], b]); })) : null;
     var rech = h('input.saisie#ventes-recherche', { type: 'search', placeholder: 'Client, NIV, # stock, conseiller…', value: this.filtres.recherche, 'aria-label': 'Chercher une vente' });
     rech.addEventListener('input', function () { self.filtres.recherche = rech.value; self.rafraichir(); });
@@ -827,9 +843,10 @@
       this.elFiltres.appendChild(pas);
       if (segAge) this.elFiltres.appendChild(segAge);
       if (segAchat) this.elFiltres.appendChild(segAchat);
+      if (segCpo) this.elFiltres.appendChild(segCpo);
       return;
     }
-    if (segAge) this.elFiltres.appendChild(segAge); if (segAchat) this.elFiltres.appendChild(segAchat); this.elFiltres.appendChild(rech);
+    if (segAge) this.elFiltres.appendChild(segAge); if (segAchat) this.elFiltres.appendChild(segAchat); if (segCpo) this.elFiltres.appendChild(segCpo); this.elFiltres.appendChild(rech);
     if (typeof XLSX !== 'undefined') this.elFiltres.appendChild(h('button.btn.petit#ventes-export', { type: 'button', onclick: function () { self.exporter(); } }, [AMX.svg('telecharger'), ' Excel']));
   };
   VueVentes.prototype.majCompteurs = function () {
@@ -839,6 +856,7 @@
     Object.keys(this.nbType || {}).forEach(function (k) { self.nbType[k].textContent = String(c.type[k] || 0); });
     Object.keys(this.nbAge || {}).forEach(function (k) { self.nbAge[k].textContent = String((c.age || {})[k] || 0); });
     Object.keys(this.nbAchat || {}).forEach(function (k) { self.nbAchat[k].textContent = String((c.achat || {})[k] || 0); });
+    Object.keys(this.nbCpo || {}).forEach(function (k) { self.nbCpo[k].textContent = String((c.cpo || {})[k] || 0); });
   };
   /* 3 nov. : « Type d'achat » de l'onglet Wholesale — Tous · Échange · Achat (achat à la porte, encan…), avec leur nombre. */
   VueVentes.prototype.filtreAchat = function (ui2) {
@@ -850,13 +868,25 @@
     if (!ui2) return h('div.segment#ventes-achats', { role: 'group', 'aria-label': 'Type d\'achat' }, boutons);
     return h('div.ventes-achats#ventes-achats', { role: 'group', 'aria-label': 'Type d\'achat' }, [h('span.tit', { text: 'Type d\'achat' })].concat(boutons));
   };
+  /* 6 nov. : le filtre CPO ne paraît que si une occasion de la période porte un CPO lu dans le livre (VW). */
+  VueVentes.prototype.avecCpo = function () { var d = cache.rep; return !!(d && (d.ventes || []).some(function (v) { return v.type === 'usage' && (v.cpoNiveau || v.cpo); })) || !!this.filtres.cpo; };
+  VueVentes.prototype.filtreCpo = function (ui2) {
+    var self = this, f = this.filtres;
+    var boutons = FILTRES_CPO.map(function (g) {
+      var actif = (f.cpo || '') === g[0], b = h(ui2 ? 'b' : 'span.n', { text: '0' }); self.nbCpo[g[0]] = b;
+      return h((ui2 ? 'button.inv2-pastille' : 'button') + (actif ? '.actif' : ''), { type: 'button', 'data-cpo': g[0], 'aria-pressed': actif ? 'true' : 'false', onclick: function () { self.filtres.cpo = g[0]; self.rendre(); } }, ui2 ? [h('span', { text: g[1] }), b] : [g[1] + ' ', b]);
+    });
+    var titre = 'Certifié (CPO) — lu dans le livre des ventes';
+    if (!ui2) return h('div.segment#ventes-cpo', { role: 'group', 'aria-label': titre, title: titre }, boutons);
+    return h('div.ventes-achats#ventes-cpo', { role: 'group', 'aria-label': titre, title: titre }, [h('span.tit', { text: 'CPO' })].concat(boutons));
+  };
   VueVentes.prototype.rendrePortee = function () {
     var self = this, f = this.filtres, liste = this.visibles(), q = (f.recherche || '').trim();
     if (!this.elPortee) return;
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['vente', 'ventes'],
       contexte: [libelleTypeOnglet(f.type), this.vue === 'commandes' ? 'Commandes vendues, pas encore livrées' : this.periode === 'avenir' ? 'À livrer plus tard' : (this.periode === 'tout' ? 'Toutes les périodes' : capitale(this.periode.length === 4 ? 'année ' + this.periode : moisLibelle(this.periode))), this.compagnie ? (AMX.COMPAGNIES_TOUTES[this.compagnie] || this.compagnie) : ''],
-      filtres: [this.vue === 'commandes' && f.age ? (AGES_COMMANDE.filter(function (g) { return g[0] === f.age; })[0] || ['', ''])[1].toLowerCase() : '', f.etat ? libelleEtatVente(f.etat) : '', f.drapeau ? libelleEtatVente(f.drapeau) : '', f.achat && f.type === 'wholesale' ? (f.achat === 'achat' ? 'Achats' : 'Échanges') : '', q ? '« ' + q + ' »' : ''],
-      effacer: function () { self.filtres = { etat: '', type: self.filtres.type, drapeau: '', recherche: '', age: '', achat: '' }; self.rendre(); } });
+      filtres: [this.vue === 'commandes' && f.age ? (AGES_COMMANDE.filter(function (g) { return g[0] === f.age; })[0] || ['', ''])[1].toLowerCase() : '', f.etat ? libelleEtatVente(f.etat) : '', f.drapeau ? libelleEtatVente(f.drapeau) : '', f.achat && f.type === 'wholesale' ? (f.achat === 'achat' ? 'Achats' : 'Échanges') : '', f.cpo && f.type === 'usage' ? (FILTRES_CPO.filter(function (g) { return g[0] === f.cpo; })[0] || ['', ''])[1] : '', q ? '« ' + q + ' »' : ''],
+      effacer: function () { self.filtres = { etat: '', type: self.filtres.type, drapeau: '', recherche: '', age: '', achat: '', cpo: '' }; self.rendre(); } });
   };
   VueVentes.prototype.rendreKpis = function () {
     var self = this, d = cache.rep, ui2 = AMX.ui2 && AMX.ui2(), c = this.nbCompte || this.compteurs(), sansFI = this.filtres.type === 'wholesale';
@@ -1221,7 +1251,8 @@
             .concat([self.filtres.drapeau === 'sansRdr' && self.sansRdr(v) ? h('div.sous.rdr.manque', { text: 'sans RDR', title: 'Neuf livré sans Date RDR au livre' }) : null])),
           h('td.vehicule', { title: v.vin || '' }, [h('div.nom', { text: vehiculeTexte(v) || '(véhicule à préciser)' }), v.stock ? h('div.vin', { text: '# ' + v.stock }) : null]),
           h('td', { title: [v.noClient ? 'No client ' + v.noClient : '', v.type === 'wholesale' && v.acheteDe ? 'acheté de ' + v.acheteDe : '', v.echangeStock || v.echangeModele || v.echangeVin ? 'échange ' + ([v.echangeStock, v.echangeModele].filter(Boolean).join(' ') || v.echangeVin) : ''].filter(Boolean).join(' · ') }, [h('div', { text: v.client || v.venduA || '—' })]),
-          h('td', { text: libCategorie(v.type, v.categorie) || TYPES[v.type] || v.type, title: (TYPES[v.type] || v.type) + (v.paiement ? ' · ' + libPaiement(v.paiement) : '') }),
+          puceCpo(v) ? h('td', { title: (TYPES[v.type] || v.type) + ' · ' + (libCategorie(v.type, v.categorie) || '') + (v.paiement ? ' · ' + libPaiement(v.paiement) : '') }, [puceCpo(v)])   /* 6 nov. : pastille CPO (VW) */
+            : h('td', { text: libCategorie(v.type, v.categorie) || TYPES[v.type] || v.type, title: (TYPES[v.type] || v.type) + (v.paiement ? ' · ' + libPaiement(v.paiement) : '') + (v.type === 'usage' && v.cpo ? ' · livre : « ' + v.cpo + ' »' : '') }),
           h('td.col-cons', { text: v.conseiller || '—' }),
           cfg.dir ? h('td.col-dir', { text: v.directeur || '—', title: prd.length ? pluriel(prd.length, 'produit') + ' : ' + prd.map(function (p) { return p.libelle + (p.montant !== null ? ' ' + argent(p.montant) : ''); }).join(', ') : '' }) : null
         ].filter(Boolean).concat(montants ? [
@@ -1376,7 +1407,7 @@
     if (this.vue === 'exclues' || this.vue === 'refusees') { this.exporterExclues(); return; }
     var d = cache.rep, liste = this.visibles(), montants = !!(d && d.montants), defs = AMX.ventes.produits(), sansFI = this.filtres.type === 'wholesale';
     var lignes = liste.map(function (v) {
-      var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Catégorie': libCategorie(v.type, v.categorie), 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'No client (DMS)': v.noClient || '', Provenance: v.provenance || '', 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
+      var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Catégorie': libCategorie(v.type, v.categorie), CPO: v.type === 'usage' ? (v.cpoLibelle || '') : '', 'CPO (livre)': v.type === 'usage' ? (v.cpo || '') : '', 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'No client (DMS)': v.noClient || '', Provenance: v.provenance || '', 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
       o['Mois (livraison)'] = moisDeVente(v); o['Mois selon'] = dateLivraisonOk(v) ? 'livraison' : 'vente';
       o['F&I à inscrire'] = besoinFI(v) ? 'oui' : '';
       if (montants) o['Pneus / jantes / mags ($)'] = v.pneusMontant === null || v.pneusMontant === undefined ? '' : v.pneusMontant;   /* 5 nov. */
@@ -1541,7 +1572,7 @@
     var dl = function (lignes) { return h('dl', lignes.filter(Boolean).map(function (x) { return [h('dt', { text: x[0] }), h('dd', x[1] instanceof Node ? [x[1]] : { text: String(x[1]) })]; })); };
     corps.appendChild(h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' } }, [v.horsVente ? h('span.puce.alerte', estRefusee(v) ? { text: 'Refusée · en rouge au livre', title: 'Ligne peinte en rouge au livre (ou au statut « Refusé ») : elle ne compte dans aucun chiffre (ventes, moyennes, Board, RDR, Résultats)' } : { text: 'Exclue des ventes · ' + v.horsVente, title: 'Ligne du livre qui n\'est pas une vente : elle ne compte dans aucun chiffre (ventes, moyennes, Board, Résultats)' }) : null, puceEtat(v), puceLivre(v), h('span.puce.mono', { text: v.id }), v.importee ? h('span.puce', { text: 'importée du livre', title: 'Ligne lue dans le livre de la comptabilité' }) : null, h('span.puce', { text: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), title: 'Mois afférent (date de vente inscrite)' })]));
     corps.appendChild(dl([
-      ['Concession', AMX.COMPAGNIES_TOUTES[v.compagnie] || v.compagnie], ['Type', (TYPES[v.type] || v.type) + ' · ' + libCategorie(v.type, v.categorie)], ['Date de vente', AMX.fmtDate(v.dateVente)], ['Livraison', v.dateLivraison ? AMX.fmtDate(v.dateLivraison) : '—'],
+      ['Concession', AMX.COMPAGNIES_TOUTES[v.compagnie] || v.compagnie], ['Type', (TYPES[v.type] || v.type) + ' · ' + libCategorie(v.type, v.categorie)], v.type === 'usage' && (v.cpoNiveau || v.cpo) ? ['CPO', (v.cpoLibelle || 'Pas CPO') + (v.cpo ? ' — livre : « ' + v.cpo + ' »' : '')] : null, ['Date de vente', AMX.fmtDate(v.dateVente)], ['Livraison', v.dateLivraison ? AMX.fmtDate(v.dateLivraison) : '—'],
       v.dateRdr ? ['Date RDR', AMX.fmtDate(v.dateRdr) + (v.codeRdr ? ' · code ' + v.codeRdr : '')] : (v.type === 'neuf' && v.statut !== 'annulee' && !v.horsVente ? ['Date RDR', h('span.puce' + (dateLivraisonOk(v) ? '.alerte' : ''), { text: 'pas inscrite au livre' })] : null),
       [ws ? 'Vendu à' : 'Client', v.client || v.venduA || '—'], v.noClient ? ['No client (DMS)', v.noClient] : null, v.telephone ? ['Téléphone', AMX.telephoneTexte ? AMX.telephoneTexte(v.telephone) : v.telephone] : null, v.courriel ? ['Courriel', v.courriel] : null,
       ws ? ['Acheté de', v.acheteDe || '—'] : null, ['Véhicule', vehiculeTexte(v) || '—'], ['# Stock', v.stock || '—'], ['NIV', v.vin || '—'], ['Conseiller', v.conseiller || '—'],

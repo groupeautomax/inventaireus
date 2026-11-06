@@ -358,19 +358,36 @@
      clients › Programmes du mois ; même règle que le moteur d'offres : le plus précis l'emporte, les rabais s'additionnent) ;
      2) GM : le taux et le terme des scénarios DealDriver de GM Dealer Direct lus ce mois-ci (programmes de la Financière GM),
      pour le même modèle et la même version ; 3) sinon les réglages de « Calcul de la nouvelle mensualité ». */
-  function cleProg(t) { return texteVersion(t).toLowerCase(); }
+  /* Correspondance par mots (même règle que MOF_correspond_ de MoteurOffres.gs) : tous les mots du modèle et de la version du
+     programme dans le nom du neuf, même motorisation ; abréviations du DMS et des bulletins ramenées au même mot. */
+  function jetonsProg(t) {
+    var s = ' ' + String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ') + ' ';
+    s = s.replace(/ plug in hybrid | plug in | hybride rechargeable | rechargeable | phev /g, ' phev ').replace(/ hybride | hybrid | hyb | hev /g, ' hev ').replace(/ electrique | electric /g, ' ev ')
+      .replace(/ (2500|3500) ?hd /g, ' hd ').replace(/ ld /g, ' 1500 ').replace(/ ess /g, ' essential ').replace(/ pref | pre /g, ' preferred ').replace(/ ulti | ult /g, ' ultimate ')
+      .replace(/ cal | callig /g, ' calligraphy ').replace(/ lt([123]) /g, ' $1lt ').replace(/ trailboss /g, ' trail boss ').replace(/ privilegie /g, ' preferred ');
+    var j = s.trim().split(/\s+/).filter(Boolean);
+    if (j.some(function (x) { return /^[123]lt$/.test(x); }) && j.indexOf('lt') < 0) j.push('lt');   /* « LT » du bulletin GM = 1LT, 2LT, 3LT */
+    if (/\b(lyriq|optiq|vistiq|celestiq|ioniq|hummer|bolt)\b/.test(j.join(' '))) j = j.filter(function (x) { return x !== 'ev'; });
+    return j;
+  }
+  function moteurProg(j) { return j.filter(function (x) { return x === 'ev' || x === 'hev' || x === 'phev'; }).sort().join(','); }
   function progCorrespond(p, s) {
     if (p.etat && p.etat !== 'neuf') return false;
-    if (p.marque && cleProg(p.marque) !== cleProg(s.marque)) return false;
-    if (p.modele && cleProg(s.modele + ' ' + s.version).indexOf(cleProg(p.modele)) < 0) return false;
-    if (p.version && cleProg(s.modele + ' ' + s.version).indexOf(cleProg(p.version)) < 0) return false;
+    if (p.marque && texteVersion(p.marque) !== texteVersion(s.marque)) return false;
+    var js = jetonsProg(s.modele + ' ' + s.version);
+    if (p.modele) {
+      var jm = jetonsProg(p.modele);
+      if (!jm.every(function (x) { return x === 'ev' || x === 'hev' || x === 'phev' || js.indexOf(x) >= 0; })) return false;
+      if (moteurProg(jm) !== moteurProg(js)) return false;
+    }
+    if (p.version && !jetonsProg(p.version).every(function (x) { return js.indexOf(x) >= 0; })) return false;
     var an = nombre(s.annee);
     if (nombre(p.anneeMin) && (!an || an < nombre(p.anneeMin))) return false;
     if (nombre(p.anneeMax) && (!an || an > nombre(p.anneeMax))) return false;
     if (p.electrique === 'oui' && !/\bEV\b|ELECTRI|IONIQ|LYRIQ|OPTIQ|BOLT|\bID\b|\bIX\b|\bI4\b|\bI5\b|\bI7\b/.test(texteVersion(s.modele + ' ' + s.version))) return false;
     return true;
   }
-  function progPrecision(p) { return (p.marque ? 1 : 0) + (p.modele ? 2 : 0) + (p.version ? 2 : 0) + (nombre(p.anneeMin) || nombre(p.anneeMax) ? 1 : 0) + (p.etat ? 1 : 0); }
+  function progPrecision(p) { return (p.marque ? 1 : 0) + (p.modele ? 2 : 0) + (p.version ? 2 : 0) + (nombre(p.anneeMin) || nombre(p.anneeMax) ? 1 : 0) + (p.etat ? 1 : 0) + (p.version ? jetonsProg(p.version).length * 0.1 : 0) + (p.modele ? jetonsProg(p.modele).length * 0.01 : 0); }
   /** Programmes valables aujourd'hui (mois courant, ou un mois d'avant dont la fin n'est pas passée). */
   function programmesDuJour(liste, ajd) {
     var mois = ajd.slice(0, 7);

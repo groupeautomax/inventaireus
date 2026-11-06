@@ -16,6 +16,7 @@
 
   var CSS = [
     '.ptf-avis { padding: 10px 14px; border-radius: 10px; margin: 0 0 12px; font-size: 13px; border-left: 4px solid var(--ambre); background: var(--ambre-bg); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }',
+    '.ptf-avis.ok { border-left-color: var(--vert); background: var(--vert-clair); }', '.ptf-prog-auto .ptf-avis { display: block; } .ptf-prog-auto .ptf-avis p { margin: 0 0 6px; }', '.ptf-prog-autos { margin: 0 0 12px; } .ptf-prog-autos summary { cursor: pointer; font-weight: 600; padding: 6px 0; }',
     '.ptf-avis p { margin: 0; flex: 1 1 360px; }',
     '.ptf-filtres { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 8px; }',
     '.ptf-filtres .saisie.recherche { flex: 1 1 260px; max-width: 460px; }',
@@ -1357,8 +1358,29 @@
     var selMois = h('input.saisie', { type: 'month', value: mois, onchange: function () { mois = selMois.value || mois; lire(); } });
     var btnCopier = h('button.btn.petit', { type: 'button', text: 'Copier le mois précédent', onclick: function () { copier(); } });
     corps.appendChild(h('p', { text: 'Programmes de ' + (AMX.COMPAGNIES_TOUTES[cie] || cie) + ' : taux, termes, résiduels et rabais du constructeur pour le mois. Le programme le plus précis (modèle, version, années) l\'emporte ; les rabais qui s\'appliquent s\'additionnent (constructeur, Roulez vert, fédéral). Les offres sont recalculées dans la minute.' }));
+    var zoneAuto = h('div.ptf-prog-auto');
+    corps.appendChild(zoneAuto);
     corps.appendChild(h('div.barre-mois', [h('label', { text: 'Mois' }), selMois, btnCopier]));
     corps.appendChild(zone);
+    /* 6 nov. : programmes du manufacturier lus tout seuls (ProgrammesAuto.gs) — Hyundai : hyundaicanada.com ; GM : le bulletin
+       « Programmes principaux » reçu par courriel ou déposé dans Drive. */
+    var sourceAuto = cie === 'HYUNDAI' ? 'hyundai' : (cie === 'STM' || cie === 'HAWKS' ? 'gm' : '');
+    function lireAuto() {
+      AMX.vider(zoneAuto);
+      if (!sourceAuto) { zoneAuto.appendChild(h('p.doux.petit', { text: 'Lecture automatique : pas encore pour cette marque. Envoyez la grille du mois du prêteur à maximeallard207+programmes@gmail.com : elle sera branchée dès que son format sera connu.' })); return; }
+      AMX.get({ programmesAuto: '1' }, { discret: true }).then(function (r) {
+        if (!r || !r.etat) throw new Error('Le script n\'est pas à jour — déployez la version qui contient ProgrammesAuto.gs.');
+        var e = r.etat[sourceAuto] || null, nom = sourceAuto === 'hyundai' ? 'hyundaicanada.com' : 'bulletin « Programmes principaux » de GM';
+        var t = e ? ('Lu automatiquement (' + nom + ') le ' + AMX.fmtDate(e.le, true) + (e.fichier ? ' · ' + e.fichier : '') + ' · ' + AMX.fmtNombre(e.lignes || 0) + ' programmes' + (e.erreur ? ' — ' + e.erreur : '')) : ('Lecture automatique chaque jour après 5 h (' + nom + ') : pas encore faite.');
+        AMX.vider(zoneAuto);
+        zoneAuto.appendChild(h('div.ptf-avis' + (e && e.ok ? '.ok' : ''), [
+          h('p', { text: t }),
+          sourceAuto === 'gm' ? h('p.doux.petit', { text: 'Pour GM : transférez chaque mois le courriel « Programmes principaux » à ' + (r.adresse || 'maximeallard207+programmes@gmail.com') + ' (ou déposez le fichier Excel dans le dossier Drive « ' + (r.dossier || 'ScanAutomax — Programmes du manufacturier') + ' »). La période en cours est prise toute seule.' }) : null,
+          r.peutLancer ? h('button.btn.petit', { type: 'button', text: 'Lire maintenant', onclick: function (ev) { var b = ev.currentTarget; b.disabled = true; b.textContent = 'Lecture…'; AMX.post({ action: 'programmesAuto', source: sourceAuto }, { delai: 240000, secours: false }).then(function (x) { AMX.toast(x && x.ok ? AMX.fmtNombre(x.lignes || 0) + ' programmes lus.' : ((x && x.erreur) || 'Lecture impossible.'), x && x.ok ? 'ok' : 'attention', 6000); lireAuto(); lire(); }).catch(function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); b.disabled = false; b.textContent = 'Lire maintenant'; }); } }) : null
+        ]));
+      }).catch(function (er) { AMX.vider(zoneAuto); zoneAuto.appendChild(h('p.doux.petit', { text: AMX.erreurTexte(er) })); });
+    }
+    lireAuto();
     m = AMX.modale({ titre: 'Programmes du mois', corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer' }] });
     var peut = false;
     function lire() {
@@ -1372,10 +1394,24 @@
     function dessiner(r) {
       AMX.vider(zone);
       zone.appendChild(h('p.doux.petit', { text: 'Taxes : ' + (r.province === 'ON' ? 'TVH ' : 'TPS + TVQ ') + String(r.taxePct).replace('.', ',') + ' %.' }));
+      var estAuto = function (p) { return /automatique/.test(String(p.par || '')) || /^(HY|GM)-/.test(String(p.id || '')); };
+      var autos = r.programmes.filter(estAuto), manuels = r.programmes.filter(function (p) { return !estAuto(p); });
       if (!r.programmes.length) zone.appendChild(h('p.doux', { text: 'Aucun programme pour ce mois.' }));
       else {
-        var tb = h('tbody');
-        r.programmes.forEach(function (p) {
+        var tb = h('tbody'), tbA = h('tbody');
+        var ligne = function (p, auto) {
+          return h('tr', [
+            h('td', { text: { financement: 'Financement', location: 'Location', rabais: 'Rabais' }[p.type] }),
+            h('td', { text: [p.marque, p.modele, p.version].filter(Boolean).join(' ') || 'tous' }),
+            h('td', { text: [p.anneeMin, p.anneeMax].filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join('–') || 'toutes' }),
+            h('td', { text: p.type === 'rabais' ? AMX.fmtArgent(p.rabais) : p.terme + ' mois · ' + String(p.taux).replace('.', ',') + ' %' + (p.residuelPct ? ' · résiduel ' + String(p.residuelPct).replace('.', ',') + ' %' : '') + (p.kmAn ? ' · ' + AMX.fmtNombre(p.kmAn) + ' km/an' : '') + (nombre(p.rabais) ? ' · rabais ' + AMX.fmtArgent(p.rabais) : '') }),
+            h('td', { text: (p.fin ? 'jusqu\'au ' + dateAn(p.fin) + ' · ' : '') + (p.note || '') })
+          ]);
+        };
+        autos.forEach(function (p) { tbA.appendChild(ligne(p, true)); });
+        if (autos.length) zone.appendChild(h('details.ptf-prog-autos', [h('summary', { text: AMX.fmtNombre(autos.length) + ' programmes lus automatiquement (remplacés à chaque lecture ; un programme saisi à la main passe avant)' }), h('div.ptf-cadre', [h('table.tableau', [h('thead', [h('tr', ['Type', 'Véhicules', 'Années', 'Conditions', 'Fin · source'].map(function (t) { return h('th', { text: t }); }))]), tbA])])]));
+        if (!manuels.length) zone.appendChild(h('p.doux', { text: 'Aucun programme saisi à la main pour ce mois.' }));
+        manuels.forEach(function (p) {
           tb.appendChild(h('tr', [
             h('td', { text: { financement: 'Financement', location: 'Location', rabais: 'Rabais' }[p.type] }),
             h('td', { text: [p.marque, p.modele, p.version].filter(Boolean).join(' ') || 'tous' }),
@@ -1386,7 +1422,7 @@
             h('td', peut ? [h('button.lien', { type: 'button', text: 'Modifier', onclick: function () { formulaire(p); } }), ' ', h('button.lien', { type: 'button', text: 'Retirer', onclick: function () { retirer(p); } })] : [])
           ]));
         });
-        zone.appendChild(h('div.ptf-cadre', [h('table.tableau', [h('thead', [h('tr', ['Type', 'Véhicules', 'Années', 'État', 'Conditions', 'Fin · note', ''].map(function (t) { return h('th', { text: t }); }))]), tb])]));
+        if (manuels.length) zone.appendChild(h('div.ptf-cadre', [h('table.tableau', [h('thead', [h('tr', ['Type', 'Véhicules', 'Années', 'État', 'Conditions', 'Fin · note', ''].map(function (t) { return h('th', { text: t }); }))]), tb])]));
       }
       if (peut) zone.appendChild(h('button.btn.primaire', { type: 'button', text: 'Ajouter un programme', onclick: function () { formulaire(null); } }));
     }

@@ -1019,7 +1019,9 @@
   };
   /* ---- 6 nov. : les offres de fidélité Hyundai lues dans SmartPortal (Fidelite.gs) — la liste à télécharger, avec ou sans
      contrat Hyundai Finance. Celles d'un client de Hyundai Finance baissent déjà le taux de sa nouvelle mensualité. ---- */
-  var URL_SMARTPORTAL = 'https://home.smartdealerportal.com/#/viewLeads';
+  /* 6 nov. (Maxime : « ça fonctionne pas ») : home.smartdealerportal.com renvoie, sans session, à une page « logged out — close the
+     tab » sans bouton de connexion. La page de connexion, elle, mène au portail une fois connecté. */
+  var URL_SMARTPORTAL = 'https://login.smartdealerportal.com/';
   function boutonsFidelite() {
     var sig = AMX.signets && AMX.signets.fidelite;
     return [
@@ -1473,7 +1475,7 @@
       }).catch(function (e) { etatFid.textContent = 'Dernière lecture : inconnue (' + AMX.erreurTexte(e) + ').'; });
       this.el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Offres de fidélité Hyundai (SmartPortal)')]), h('div.carte-corps', [
         h('ol.eq-etapes', [
-          h('li', ['Ouvrez ', h('a', { href: URL_SMARTPORTAL, target: '_blank', rel: 'noopener', text: 'SmartPortal › Pistes de vente' }), ' (J.D. Power, connecté au nom de ' + nom + ').']),
+          h('li', ['Ouvrez ', h('a', { href: URL_SMARTPORTAL, target: '_blank', rel: 'noopener', text: 'SmartPortal' }), ' (J.D. Power), connectez-vous au nom de ' + nom + ', puis allez dans « Pistes de vente ».']),
           h('li', 'Dans « Origine de la piste – Programme de la piste », choisissez « HACC CRM -- HACC CRM - Loyalty Special Offer », puis cliquez « Afficher les pistes ».'),
           h('li', 'Cliquez le favori « Automax ← Fidélité Hyundai » : il lit les offres affichées (client, offre, double ou simple, code PIN, expiration) et les envoie au site. Rien n\'est écrit dans SmartPortal. À refaire quand Hyundai envoie de nouvelles offres.')
         ]),

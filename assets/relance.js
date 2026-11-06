@@ -13,7 +13,7 @@
   var URL_GMDD = 'https://www.gmdealerdirect.ca/lm/Lead/myLeadLists.aspx';
   var URL_VWF = 'https://dealerportal.vwfinance.ca/dashboard/portfolio-management';   /* 4 nov. : VW Finance (Dealer Extranet) */
   var URL_HMF = 'https://www.hmfdealer.ca/hmfdp/s/';   /* 5 nov. : Hyundai Finance (Customer Portfolio) */
-  var URL_SMARTPORTAL = 'https://home.smartdealerportal.com/#/viewLeads';   /* 6 nov. : SmartPortal de J.D. Power (offres de fidélité Hyundai) */
+  var URL_SMARTPORTAL = 'https://login.smartdealerportal.com/';   /* la page de connexion : sans session, home… mène à « logged out » sans bouton */   /* 6 nov. : SmartPortal de J.D. Power (offres de fidélité Hyundai) */
 
   function nomCie(code) { return (AMX.COMPAGNIES_TOUTES[code] || code || '').replace(' Chevrolet Buick Cadillac', ''); }
 
@@ -61,7 +61,7 @@
        calcul de la dette, l'export et Rafraîchir vont dans le menu Actions. */
     this.btnSync = h('button.btn.primaire.eq-sync-gros', { type: 'button', disabled: true, html: I.rafraichir + '<span>Synchroniser OpenLane</span>', onclick: function () { if (self.vue && self.vue.basculerSync) self.vue.basculerSync(); } });
     /* 6 nov. (Maxime : « le lien pour J.D. Power n'est pas là ») : SmartPortal, pour les offres de fidélité — Hyundai seulement. */
-    this.btnFidelite = h('a.btn', { href: URL_SMARTPORTAL, target: '_blank', rel: 'noopener', hidden: 'hidden', html: I.externe + '<span>Ouvrir SmartPortal (fidélité)</span>', title: 'SmartPortal de J.D. Power › Pistes de vente, liste « HACC CRM -- HACC CRM - Loyalty Special Offer », puis le favori « Automax ← Fidélité Hyundai »' });
+    this.btnFidelite = h('a.btn', { href: URL_SMARTPORTAL, target: '_blank', rel: 'noopener', hidden: 'hidden', html: I.externe + '<span>Ouvrir SmartPortal (fidélité)</span>', title: 'SmartPortal de J.D. Power : connectez-vous, puis Pistes de vente, liste « HACC CRM -- HACC CRM - Loyalty Special Offer », puis le favori « Automax ← Fidélité Hyundai »' });
     this.btnDette = h('button.btn', { type: 'button', text: 'Calcul de la dette', title: 'La dette de chaque client est recalculée chaque jour d\'après son contrat : voir le détail', onclick: function () { if (self.vue && self.vue.calculDette) self.vue.calculDette(); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.externe + '<span>Exporter Excel</span>', onclick: function () { if (self.vue && self.vue.exporter) self.vue.exporter(); } });
     this.elCies = h('div.barre-cies');

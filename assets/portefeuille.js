@@ -7,7 +7,8 @@
    dès qu'ils arrivent (clients, véhicules, ventes, bons de travail fermés, rendez-vous).
    - Ici : valeur ajustée au km projeté, fourchette, dette du jour (AMX.equite.detteDe), équité, segments à la Drive AI.
    - Règle v138 : filtres → « Chiffres et liste » → chiffres de la liste filtrée → segments → liste.
-   - AUCUN ENVOI d'ici (règle de Maxime) : les campagnes viendront plus tard, chacune sur le clic d'une personne nommée.
+   - Aucun envoi d'ici : « Campagne avec cette liste » (6 nov., campagnes-relance.js) prépare une campagne avec la liste filtrée ;
+     elle ne part que sur le clic « Envoyer » d'une personne qui a le droit nommé.
    ===================================================================================================== */
 (function () {
   'use strict';
@@ -267,10 +268,11 @@
     this.btnReglages = h('button.btn', { type: 'button', text: 'Réglages', onclick: function () { self.reglages(); } });
     this.btnExport = h('button.btn', { type: 'button', text: 'Exporter (Excel)', onclick: function () { self.exporter(); } });
     this.btnProgrammes = h('button.btn', { type: 'button', text: 'Programmes du mois', title: 'Taux, termes, résiduels et rabais du mois, par concession : ils font les offres', onclick: function () { self.programmes(); } });
+    this.btnCampagne = h('button.btn', { type: 'button', text: 'Campagne avec cette liste', title: 'Prépare une campagne de textos avec la liste affichée (consentement vérifié, groupe témoin mis de côté) ; rien ne part sans « Envoyer »', onclick: function () { self.creerCampagne(); } });
     this.elSous = h('p', { text: 'Chargement du portefeuille…' });
     conteneur.appendChild(h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('h1', 'Portefeuille clients'), this.elSous]),
-      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnRebatir, this.btnReglages, this.btnExport, this.btnProgrammes, this.btnImporter], [this.btnProgrammes, this.btnImporter]))
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnRebatir, this.btnReglages, this.btnExport, this.btnProgrammes, this.btnImporter, this.btnCampagne], [this.btnProgrammes, this.btnImporter, this.btnCampagne]))
     ]));
     this.elCies = h('div.barre-cies'); conteneur.appendChild(this.elCies);
     this.elAvis = h('div'); conteneur.appendChild(this.elAvis);
@@ -324,6 +326,7 @@
     var self = this, d = this.rep; if (!d) return;
     var p = perms(), direction = !!d.peutImporter;
     [this.btnRebatir, this.btnImporter, this.btnReglages].forEach(function (b) { b.style.display = direction ? '' : 'none'; });
+    this.btnCampagne.style.display = direction || p.envoyerCampagnes ? '' : 'none';
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.cie, sansToutes: true, compte: function (c) { var x = cache.par[c]; return x ? x.rep.resume.actifs : null; }, onchange: function (c) { if (c && c !== self.cie) { self.cie = c; self.charger(); } } });
     var r = d.resume || {}, s = r.sources || {};
     this.elSous.textContent = 'Bâti le ' + (d.construitLe ? AMX.fmtDate(d.construitLe, true) : '—') + ' · ' + AMX.fmtNombre(r.actifs || 0) + ' véhicules au client · sources : ventes ' + AMX.fmtNombre(s.vente || 0) + ', prêteurs ' + AMX.fmtNombre(s.preteur || 0) + ', service ' + AMX.fmtNombre(s.service || 0) + ', évaluations ' + AMX.fmtNombre(s.evaluation || 0) + ', DMS ' + AMX.fmtNombre(s.dms || 0) + (d.offres ? ' · offres : stock ' + AMX.fmtNombre(d.offres.stockNeufs) + ' neufs et ' + AMX.fmtNombre(d.offres.stockOccasion) + ' occasions, ' + AMX.fmtNombre(d.offres.programmes) + ' programme' + (d.offres.programmes > 1 ? 's' : '') + ' ce mois' : '') + (d.aRebatir ? ' · changement reçu, rebâti dans la minute' : '');
@@ -388,12 +391,23 @@
     if (this.f.segment) filtres.push(NOM_SEGMENT[this.f.segment]);
     if (this.f.page) filtres.push({ aTraiter: 'Réponses à traiter', vue: 'Pages vues', envoyee: 'Pages pas encore vues', refus: 'Ne plus recevoir', aucune: 'Sans page client' }[this.f.page]);
     if (this.f.q) filtres.push('« ' + this.f.q + ' »');
+    this._filtresTexte = filtres.filter(function (x) { return x && x !== NOM_SEGMENT[self.f.segment] && !(self.f.etat === 'actif' && x === NOMS_ETAT.actif); }).join(' · ');
+    var nCamp = liste.filter(function (a) { return a.v.etat === 'actif'; }).length;
+    this.btnCampagne.textContent = 'Campagne avec cette liste (' + AMX.fmtNombre(nCamp) + ')';
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['véhicule', 'véhicules'], contexte: AMX.COMPAGNIES_TOUTES[this.cie] || this.cie, filtres: filtres, effacer: function () { self.f = { q: '', etat: 'actif', relation: '', consent: '', segment: '', page: '' }; self.inRecherche.value = ''; self.rafraichir(); } });
     this.rendreChiffres(liste, params);
     this.rendreSegments(params);
     this.rendrePortrait(liste);
     this.rendreSync(liste);
     this.rendreListe(liste);
+  };
+  /* 6 nov. (sprint 6) : la liste affichée devient une campagne (campagnes-relance.js, CampagnesRelance.gs). Le serveur refait toutes
+     les vérifications (consentement, Loi 25, STOP, offre prête) et met le groupe témoin de côté. */
+  VuePortefeuille.prototype.creerCampagne = function () {
+    if (!AMX.campagnesRelance) { AMX.toast('Le module des campagnes n\'est pas chargé : rechargez la page.', 'erreur'); return; }
+    var liste = this.filtrees().filter(function (a) { return a.v.etat === 'actif'; });
+    if (!liste.length) { AMX.toast('La liste est vide : choisissez un segment ou des filtres.', 'attention'); return; }
+    AMX.campagnesRelance.preparer({ cie: this.cie, cles: liste.map(function (a) { return a.v.cle; }), segment: this.f.segment ? NOM_SEGMENT[this.f.segment] : '', filtres: this._filtresTexte || '' });
   };
   VuePortefeuille.prototype.pastilles = function (el, libelle, cle, options, test) {
     var self = this, base = this.filtrees(cle);

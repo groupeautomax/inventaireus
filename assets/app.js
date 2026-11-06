@@ -766,7 +766,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
-    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); if (AMX.portefeuille) AMX.portefeuille.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); if (AMX.portefeuille) AMX.portefeuille.vider(); if (AMX.campagnesRelance) AMX.campagnesRelance.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -957,7 +957,7 @@
     ] },
     { id: 'relance', titre: 'Relance', icone: 'relance', ordre: 30, onglets: [
       { id: 'equite', titre: 'Équité', visible: function () { return !!(AMX.relance && AMX.equite); }, monter: function (c, ctx) { return AMX.relance.equite(c, ctx); }, vues: [{ id: 'clients', titre: 'Clients' }, { id: 'import', titre: 'Importer le portefeuille', de: 'outils', onglet: 'equite' }] },
-      { id: 'portefeuille', titre: 'Portefeuille clients', de: 'portefeuille', onglet: '' },   /* 5 nov. : portefeuille façon Drive AI (portefeuille.js, Portefeuille.gs) */
+      { id: 'portefeuille', titre: 'Portefeuille clients', de: 'portefeuille', onglet: '', vues: [{ id: 'clients', titre: 'Clients' }, { id: 'campagnes', titre: 'Campagnes', de: 'campagnesRelance', onglet: '' }, { id: 'matin', titre: 'Liste du matin', de: 'listeMatin', onglet: '' }] },   /* 5 nov. : portefeuille façon Drive AI (portefeuille.js, Portefeuille.gs) ; 6 nov. : Campagnes et Liste du matin (campagnes-relance.js, CampagnesRelance.gs) */
       { id: 'leads', titre: 'Leads', de: 'offres', onglet: 'leads' },
       { id: 'avis', titre: 'Avis Google', de: 'avis', vues: [{ id: 'apercu', titre: 'Aperçu' }, { id: 'avis', titre: 'Avis' }, { id: 'sondages', titre: 'Sondages' }] },
       { id: 'csi', titre: 'CSI', de: 'csi', onglet: '' }

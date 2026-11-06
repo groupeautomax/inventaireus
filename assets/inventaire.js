@@ -128,6 +128,11 @@
     },
     nb: function (vin) { var p = photosSite.d && photosSite.d.parVin; if (!p) return null; var n = p[String(vin || '').toUpperCase()]; return (n === undefined || n === null) ? null : Number(n); },
     leDe: function (cie) { return (photosSite.d && photosSite.d.le && photosSite.d.le[cie]) || ''; },
+    /* 6 nov. (Portefeuille clients) : la 1re photo de chaque véhicule (neufs et occasions) sur le site de la concession —
+       { url, marque, modele, annee, neuf, cie } ou null. Ce sont nos propres photos, servies publiquement par admin.d2cmedia.ca. */
+    image: function (vin) { var d = photosSite.d; if (!d || !d.images) return null; var x = d.images[String(vin || '').toUpperCase()]; return x ? { url: (d.imagesBase || 'https://admin.d2cmedia.ca/') + x[0], marque: x[1] || '', modele: x[2] || '', annee: x[3] || null, neuf: x[4] === 'n', cie: x[5] || '' } : null; },
+    images: function () { return (photosSite.d && photosSite.d.images) || {}; },
+    base: function () { return (photosSite.d && photosSite.d.imagesBase) || 'https://admin.d2cmedia.ca/'; },
     vider: function () { photosSite.d = null; photosSite.le = 0; }
   };
   // Après un ajout (Évaluation, 21 oct.) : relire les photos du NIV au prochain appel.

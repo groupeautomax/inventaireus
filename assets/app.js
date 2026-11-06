@@ -956,7 +956,7 @@
       { id: 'transports', titre: 'Transports', de: 'transports', onglet: '', compteur: function () { return AMX.transport ? AMX.transport.compteur() : ''; } }   /* 23 oct. : transport des achats par Central Fleet (transport.js) */
     ] },
     { id: 'relance', titre: 'Relance', icone: 'relance', ordre: 30, onglets: [
-      { id: 'equite', titre: 'Équité', visible: function () { return !!(AMX.relance && AMX.equite); }, monter: function (c, ctx) { return AMX.relance.equite(c, ctx); }, vues: [{ id: 'clients', titre: 'Clients' }, { id: 'import', titre: 'Importer le portefeuille', de: 'outils', onglet: 'equite' }] },
+      { id: 'equite', titre: 'Équité', visible: function () { return !!(AMX.relance && AMX.equite); }, monter: function (c, ctx) { return AMX.relance.equite(c, ctx); }, vues: [{ id: 'clients', titre: 'Clients' }, { id: 'import', titre: 'Importer le portefeuille', de: 'outils', onglet: 'equite', cachee: true }] },   /* 6 nov. : l'importation passe par Actions › Importer */
       { id: 'portefeuille', titre: 'Portefeuille clients', de: 'portefeuille', onglet: '', vues: [{ id: 'clients', titre: 'Clients' }, { id: 'campagnes', titre: 'Campagnes', de: 'campagnesRelance', onglet: '' }, { id: 'matin', titre: 'Liste du matin', de: 'listeMatin', onglet: '' }] },   /* 5 nov. : portefeuille façon Drive AI (portefeuille.js, Portefeuille.gs) ; 6 nov. : Campagnes et Liste du matin (campagnes-relance.js, CampagnesRelance.gs) */
       { id: 'leads', titre: 'Leads', de: 'offres', onglet: 'leads' },
       { id: 'avis', titre: 'Avis Google', de: 'avis', vues: [{ id: 'apercu', titre: 'Aperçu' }, { id: 'avis', titre: 'Avis' }, { id: 'sondages', titre: 'Sondages' }] },
@@ -996,8 +996,11 @@
   function compteurSource(src, id) { var o = ongletSource(src, id); if (!o || !o.compteur) return ''; try { return o.compteur(); } catch (e) { return ''; } }
   /* La source et l'onglet de source derrière une vue (la vue peut avoir sa propre source, ex. Équité › Importer). */
   function sourceDeVue(o, v) { return { de: (v && v.de) || o.de, onglet: v ? (v.de ? v.onglet : v.id) : (o.onglet || '') }; }
-  function vuesVisibles(o) {
+  /* 6 nov. : une vue `cachee` (Équité › Importer le portefeuille) s'ouvre par son adresse (menu Actions de la page) mais ne
+     paraît ni dans la barre des vues ni sur la tuile ; avecCachees = la compter quand même (adresse, droits). */
+  function vuesVisibles(o, avecCachees) {
     return (o.vues || []).filter(function (v) {
+      if (v.cachee && !avecCachees) return false;
       if (v.visible && !v.visible()) return false;
       var s = sourceDeVue(o, v); if (!s.de) return true;
       return ongletVisible(AMX.sources[s.de] || AMX.sections[s.de], s.onglet);
@@ -1007,7 +1010,7 @@
   function vueCourante(tuile, o, params) {
     var vis = vuesVisibles(o); if (!vis.length) return '';
     var demandee = String((params && params.vue) || '');
-    if (vis.some(function (v) { return v.id === demandee; })) return demandee;
+    if (vuesVisibles(o, true).some(function (v) { return v.id === demandee; })) return demandee;
     var memo = String(AMX.memo.lire('vue_' + tuile.id + '_' + o.id, '') || '');
     if (vis.some(function (v) { return v.id === memo; })) return memo;
     return vis[0].id;
@@ -1215,7 +1218,7 @@
       if (!t || !AMX.voitOnglet(t.section, t.onglet)) return false;
       if (!t.vue) return true;
       var sec = AMX.sections[t.section], o = sec && (sec.onglets || []).filter(function (y) { return y.id === t.onglet; })[0];
-      return !o || !o.vues || vuesVisibles(o).some(function (v) { return v.id === t.vue; });
+      return !o || !o.vues || vuesVisibles(o, true).some(function (v) { return v.id === t.vue; });
     };
     if (onglet !== undefined && onglet !== null) { var t1 = TRAD[src + '/' + onglet] || TRAD[src + '/*']; return t1 ? offert(t1) : true; }
     var pre = src + '/', cles = Object.keys(TRAD).filter(function (k) { return k.indexOf(pre) === 0; });

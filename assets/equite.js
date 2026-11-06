@@ -237,18 +237,86 @@
     return out;
   }
 
+  /* ---- Neuf semblable (6 nov.) ----
+     Maxime : « pourquoi dans Hyundai Longueuil, section Équité, ça ne compare pas à des neufs, on les a en inventaire ; si on
+     ne l'a pas en inventaire, prendre les prix du manufacturier ou de D2C ; pour toutes les marques ». Avant : seulement les
+     lignes du portail du manufacturier qui ont un prix — celles de Hyundai n'en ont pas (le PDSF est au DMS et chez D2C, avec
+     un nom de modèle plus long : « TUCSON PREFERRED HMC TREND »). Maintenant : les neufs de toutes les origines (DMS, D2C,
+     manufacturier) qui ont un PDSF, un NIV une fois ; le modèle est rattaché par son nom (le plus long modèle connu qui le
+     commence) ; faute de ce modèle en stock : en route ou commandé, puis le PDSF d'un neuf du même modèle sorti (prix de
+     référence), puis le modèle qui l'a remplacé (Accent → Venue…), puis un modèle voisin (même premier mot). */
+  var ETATS_NEUF = { stock: 'en stock', demo: 'démo', transit: 'en route', commande: 'commandé', reference: 'prix de référence' };
+  var RANG_ETAT = { stock: 1, demo: 2, transit: 3, commande: 4, reference: 5 };
+  var REMPLACANTS = { accent: 'venue', veloster: 'elantra', ioniq: 'elantra', 'elantra gt': 'elantra', 'santa cruz': 'tucson', malibu: 'equinox', spark: 'trax', sonic: 'trax', cruze: 'trax', impala: 'equinox', 'bolt ev': 'equinox ev', 'bolt euv': 'equinox ev', volt: 'equinox ev', encore: 'encore gx', xt4: 'optiq', passat: 'jetta', golf: 'jetta', beetle: 'jetta', 'e golf': 'id 4', touareg: 'atlas', arteon: 'jetta' };
+  /* Modèles jumeaux (même véhicule, autre marque ou autre taille) : essayés avant le « même premier mot ». */
+  var JUMEAUX = { canyon: ['colorado'], colorado: ['canyon'], 'sierra 1500': ['silverado 1500'], 'silverado 1500': ['sierra 1500'], 'sierra hd': ['silverado hd'], 'silverado hd': ['sierra hd'], yukon: ['tahoe'], tahoe: ['yukon'], 'yukon xl': ['suburban', 'yukon'], suburban: ['yukon xl', 'tahoe'], terrain: ['equinox'], equinox: ['terrain'], acadia: ['traverse'], traverse: ['acadia'], trailblazer: ['trax', 'envista', 'encore gx'], trax: ['trailblazer', 'envista'], envista: ['trax'], 'encore gx': ['trailblazer', 'trax'], xt5: ['xt6'], xt6: ['xt5'], 'hummer ev pickup': ['hummer ev suv'], 'hummer ev suv': ['hummer ev pickup'], 'escalade iq': ['escalade'], 'id 4': ['id buzz', 'tiguan'], 'e golf': ['jetta'], gti: ['golf gti', 'golf r', 'jetta'], 'golf gti': ['golf r', 'jetta'], 'golf r': ['golf gti'], 'golf sportwagen': ['golf alltrack', 'jetta'], kona: ['venue'], venue: ['kona'] };
+  function normModele(t) {
+    return cle(t).replace(/\belectrique\b|\belectric\b/g, 'ev').replace(/\bheavy duty\b/g, 'hd').replace(/\b(silverado|sierra) (2500|3500) ?(hd)?\b/g, '$1 hd')
+      .replace(/^(silverado|sierra)( ltd| limited)?$/, '$1 1500').replace(/\bcamion\b/g, 'pickup').replace(/\bvus\b/g, 'suv')
+      .replace(/\b(escalade iq|lyriq|optiq|vistiq|celestiq) ev\b/g, '$1').replace(/\s+/g, ' ').trim();
+  }
+  function racineModele(k) { var m = String(k || '').split(' '); return /^(santa|grand)$/.test(m[0]) && m[1] ? m[0] + ' ' + m[1] : (m[0] || ''); }
+  function etatNeuf(v) {
+    if (!v.enStock) return 'reference';
+    var s = String(v.statutLibelle || v.statut || '').toUpperCase();
+    if (/DEMO|COURTOIS/.test(s)) return 'demo';
+    if (/TRANSIT|ROUTE/.test(s)) return 'transit';
+    if (/COMMAND|ORDER/.test(s)) return 'commande';
+    return 'stock';
+  }
+  function origineNeuf(v) { var s = String(v.source || ''); return /d2c/i.test(s) ? 'D2C' : ((v.origine === 'constructeur' || /^portail-/.test(s)) ? 'manufacturier' : 'DMS'); }
+  /** Texte court sous le neuf proposé : PDSF, état, source, et d'où vient le choix. */
+  function texteNeuf(r) {
+    var n = r.neuf; if (!n) return '';
+    var t = 'PDSF ' + fmt$(n.prix) + ' · ';
+    if (n.etat === 'reference') t += 'prix de référence' + (n.sortiLe ? ' (sorti le ' + AMX.fmtDateCourte(n.sortiLe) + ')' : '');
+    else t += ETATS_NEUF[n.etat] + ' (' + n.origine + ')';
+    if (r.alternatives) t += ' · +' + r.alternatives + ' autre' + (r.alternatives > 1 ? 's' : '');
+    if (r.neufVoie === 'remplacant') t += ' · remplace « ' + (r.compte.modele || 'le modèle') + ' »';
+    else if (r.neufVoie === 'voisin') t += ' · ' + (r.mode === 'bmw' ? 'série voisine' : 'modèle voisin');
+    return t;
+  }
+
   /* ---- Analyse : valeur, solde, équité, neuf similaire, nouvelle mensualité ---- */
-  /** comptes (?equite=1), neufs = véhicules du suivi des neufs (origine constructeur), params, options.valeurs = fn(vin) → valeur OpenLane. */
+  /** comptes (?equite=1), neufs = véhicules du suivi des neufs de la concession (toutes origines), params, options.valeurs = fn(vin) → valeur OpenLane. */
   function analyser(comptes, neufs, params, options) {
     params = Object.assign({}, PARAMS_DEFAUT, params || {}); options = options || {};
     var ajd = iso(new Date());
     var mode = options.mode || (options.gm ? 'gm' : 'bmw'), gm = mode === 'gm', parModele = mode !== 'bmw';
-    var stock = (neufs || []).filter(function (v) { return v && v.enStock && (v.origine === 'constructeur' || /^portail-/.test(String(v.source || ''))) && (gm || (mode === 'vw' ? /VOLKSWAGEN|^VW$/.test(String(v.marque || '').toUpperCase()) : (mode === 'hmf' ? /HYUNDAI/.test(String(v.marque || '').toUpperCase()) : String(v.marque || '').toUpperCase() === 'BMW'))); });
-    var parSerie = {};
-    stock.forEach(function (v) { var prix = nombre(v.prix) || nombre(v.extra && v.extra.pdsf); if (!prix) return; var s = parModele ? cle(v.modele) : texte(v.modele); (parSerie[s] = parSerie[s] || []).push({ vin: v.vin, annee: v.annee, modele: v.modele, version: v.version, couleur: v.couleur, prix: prix, enStock: !/TRANSIT/.test(String(v.statutLibelle || v.statut || '').toUpperCase()), statut: v.statutLibelle || v.statut || '', v: v }); });
-    Object.keys(parSerie).forEach(function (s) { parSerie[s].sort(function (a, b) { return (b.enStock - a.enStock) || (a.prix - b.prix); }); });
+    var marqueOk = function (v) { var m = String(v.marque || '').toUpperCase(); if (!m || gm) return true; return mode === 'vw' ? /VOLKSWAGEN|^VW$/.test(m) : (mode === 'hmf' ? /HYUNDAI/.test(m) : m === 'BMW'); };
+    /* Un NIV une fois : la ligne la plus « disponible » (stock › démo › en route › commandé › sorti). */
+    var parVin = {}, uniques = [];
+    (neufs || []).forEach(function (v) {
+      if (!v || !marqueOk(v)) return;
+      var prix = nombre(v.prix) || nombre(v.extra && v.extra.pdsf);
+      if (!prix || prix < 5000) return;
+      var e = etatNeuf(v);
+      var o = { vin: v.vin, annee: v.annee, modele: v.modele, version: v.version, couleur: v.couleur, prix: prix, etat: e, enStock: e === 'stock' || e === 'demo', statut: v.statutLibelle || v.statut || '', origine: origineNeuf(v), sortiLe: v.sortiLe || '', v: v };
+      var k = texte(v.vin).toUpperCase();
+      if (!k) { uniques.push(o); return; }
+      if (!parVin[k] || RANG_ETAT[e] < RANG_ETAT[parVin[k].etat]) parVin[k] = o;
+    });
+    Object.keys(parVin).forEach(function (k) { uniques.push(parVin[k]); });
+    /* Les modèles connus : ceux des clients, ceux du portail (noms courts) et les remplaçants ; le plus long d'abord. */
+    var connus = {};
+    if (parModele) {
+      (comptes || []).forEach(function (c) { var k = normModele(c.modele); if (k) connus[k] = 1; });
+      (neufs || []).forEach(function (v) { if (v && (v.origine === 'constructeur' || /^portail-/.test(String(v.source || '')))) { var k = normModele(v.modele); if (k) connus[k] = 1; } });
+      Object.keys(REMPLACANTS).forEach(function (k) { connus[REMPLACANTS[k]] = 1; }); Object.keys(JUMEAUX).forEach(function (k) { connus[k] = 1; });
+    }
+    var connusListe = Object.keys(connus).sort(function (a, b) { return b.length - a.length; });
+    var familleDe = function (t) { var k = normModele(t); if (!k) return ''; for (var i = 0; i < connusListe.length; i++) { var x = connusListe[i]; if (k === x || k.indexOf(x + ' ') === 0) return x; } return k; };
+    var parSerie = {}, parRacine = {};
+    uniques.forEach(function (o) {
+      var s = parModele ? familleDe(o.modele) : texte(o.modele); if (!s) return;
+      (parSerie[s] = parSerie[s] || []).push(o);
+      if (parModele) { var rc = racineModele(s); (parRacine[rc] = parRacine[rc] || []).push(o); }
+    });
+    var trier = function (l) { l.sort(function (a, b) { return (RANG_ETAT[a.etat] - RANG_ETAT[b.etat]) || (a.etat === 'reference' ? (Number(b.annee) || 0) - (Number(a.annee) || 0) : 0) || (a.prix - b.prix); }); };
+    Object.keys(parSerie).forEach(function (s) { trier(parSerie[s]); });
+    Object.keys(parRacine).forEach(function (s) { trier(parRacine[s]); });
     return (comptes || []).filter(function (c) { return c.actif !== false; }).map(function (c) {
-      var r = { compte: c, location: estLocation(c), serie: parModele ? cle(c.modele) : (c.modele || serieDe(c.vehicule)), gm: gm, mode: mode, exportable: exportable(c.vin) };
+      var r = { compte: c, location: estLocation(c), serie: parModele ? normModele(c.modele) : (c.modele || serieDe(c.vehicule)), gm: gm, mode: mode, exportable: exportable(c.vin) };
       r.moisRestants = c.echeance ? Math.max(0, moisEntre(ajd, c.echeance) || 0) : null;
       r.moisEcoules = c.dateContrat ? Math.max(0, moisEntre(c.dateContrat, ajd) || 0) : null;
       r.echeanceProche = r.moisRestants !== null && r.moisRestants <= 6;
@@ -271,10 +339,17 @@
       r.equite = r.valeur !== null && r.solde !== null ? r.valeur - r.solde : null;
       r.equiteEcheance = r.valeur !== null && r.soldeEcheance !== null ? r.valeur - r.soldeEcheance : null;
       r.equiteBmw = nombre(c.equiteBmw);
-      /* Neuf similaire : même série en stock (sinon en route), sinon une série voisine. */
-      var cands = parSerie[r.serie] || [], voisine = '';
-      if (!cands.length) { famille(r.serie).some(function (s) { if (parSerie[s] && parSerie[s].length) { cands = parSerie[s]; voisine = s; return true; } return false; }); }
-      r.neuf = cands[0] || null; r.neufVoisin = voisine; r.alternatives = Math.max(0, cands.length - 1);
+      /* Neuf semblable : le même modèle (stock › démo › en route › commandé › prix de référence d'un neuf sorti), sinon le
+         modèle qui l'a remplacé, sinon un modèle voisin (BMW : série voisine). */
+      var cands = parSerie[r.serie] || [], voie = '';
+      /* Nom coupé par le prêteur (« Atlas Cross Spo ») : le modèle en stock dont le nom commence par celui du client. */
+      if (!cands.length && parModele && r.serie.length >= 6) Object.keys(parSerie).some(function (k) { if (k.indexOf(r.serie) === 0 && parSerie[k].length) { cands = parSerie[k]; return true; } return false; });
+      if (!cands.length && parModele && REMPLACANTS[r.serie]) { var rp = REMPLACANTS[r.serie]; cands = parSerie[rp] || parRacine[racineModele(rp)] || []; if (cands.length) voie = 'remplacant'; }
+      if (!cands.length && parModele) { (JUMEAUX[r.serie] || []).some(function (j) { if (parSerie[j] && parSerie[j].length) { cands = parSerie[j]; voie = 'voisin'; return true; } return false; }); }
+      if (!cands.length && parModele) { cands = parRacine[racineModele(r.serie)] || []; if (cands.length) voie = 'voisin'; }
+      if (!cands.length && !parModele) { famille(r.serie).some(function (s) { if (parSerie[s] && parSerie[s].length) { cands = parSerie[s]; voie = 'voisin'; return true; } return false; }); }
+      r.neuf = cands[0] || null; r.neufVoie = voie; r.neufVoisin = voie === 'voisin' ? (r.neuf ? r.neuf.modele : '') : '';
+      r.alternatives = r.neuf ? cands.filter(function (o) { return o !== r.neuf && o.etat === r.neuf.etat; }).length : 0;
       /* 4 nov. (Maxime) : « je veux aucune valeur de reprise de GM, juste les comparables OpenLane ». Les scénarios DealDriver
          sont calculés par GM avec SA valeur de reprise : ils ne servent plus au calcul. Pour GM comme pour BMW et VW, la nouvelle
          mensualité part de la valeur OpenLane, du neuf semblable en stock et du taux et du terme de la page. */
@@ -360,7 +435,14 @@
       '.eq-sync { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--fond-2, #F4F6F8); font-size: 13px; } .eq-sync.ok { background: var(--vert-clair); } .eq-sync.alerte { background: #FFF4E0; color: var(--ambre); } .eq-sync .eq-sync-txt { flex: 1 1 260px; }',
       '.eq-sync .eq-sync-barre { flex: 1 1 180px; height: 6px; border-radius: 3px; background: var(--ligne, #E3E7EB); overflow: hidden; } .eq-sync .eq-sync-barre span { display: block; height: 100%; background: var(--vert); transition: width .3s; }',
       '.eq-table td.eq-us-cell { min-width: 120px; } .eq-table input.eq-mmr { width: 92px; height: 24px; font-size: 12px; text-align: right; } .eq-table .eq-us-lien { font-size: 12px; }',
-      '@media (max-width: 860px) { .eq-params .champ { width: 46%; } }'
+      '.eq-reglages { margin: 0 0 12px; border: 1px solid var(--ligne, #E3E7EB); border-radius: 10px; padding: 8px 12px; font-size: 13px; } .eq-reglages > summary { cursor: pointer; color: var(--encre-2, #374151); } .eq-reglages > summary span { color: var(--encre-3); } .eq-reglages[open] > summary { margin-bottom: 10px; } .eq-reglages .eq-params { margin-bottom: 0; }',
+      '.eq-tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 12px; }',
+      '.eq-tuile { text-align: left; font: inherit; color: inherit; background: var(--carte, #fff); border: 1px solid var(--ligne, #E3E7EB); border-radius: var(--rayon, 10px); padding: 8px 10px 7px 12px; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--ombre, none); position: relative; overflow: hidden; cursor: pointer; }',
+      '.eq-tuile::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ligne-forte, #C9D0D6); } .eq-tuile.vert::before { background: var(--vert); } .eq-tuile.bleu::before { background: var(--bleu); } .eq-tuile.ambre::before { background: var(--ambre); } .eq-tuile.rouge::before { background: var(--rouge); } .eq-tuile.violet::before { background: var(--violet, #6B4FBB); } .eq-tuile.sombre::before { background: var(--noir-2, #141A1F); }',
+      '.eq-tuile.actif { border-color: var(--encre, #141A1F); box-shadow: 0 0 0 2px rgba(0,0,0,.08); } .eq-tuile:hover { border-color: var(--ligne-forte, #C9D0D6); }',
+      '.eq-tuile .nom { font-size: 12px; color: var(--encre-3); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; } .eq-tuile .n { font-size: 20px; font-weight: 700; line-height: 1.1; } .eq-tuile .bas { font-size: 12px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+      '.btn.eq-sync-gros { height: 40px; padding: 0 18px; font-size: 15px; font-weight: 700; } .btn.eq-sync-gros.en-cours svg { animation: eq-tourne 1.2s linear infinite; } @keyframes eq-tourne { to { transform: rotate(360deg); } }',
+      '@media (max-width: 860px) { .eq-params .champ { width: 46%; } .btn.eq-sync-gros { height: 36px; font-size: 14px; } }'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -419,22 +501,24 @@
     });
     return this.lignes;
   };
-  VueEquite.prototype.visibles = function () {
-    var f = this.filtres, q = f.q.toLowerCase(), ia = this.ia;
+  /** Les comptes que les filtres gardent ; sauf = 'quoi' : sans le filtre des tuiles (pour compter chaque tuile). */
+  VueEquite.prototype.visibles = function (sauf) {
+    var f = this.filtres, q = AMX.motsCherches ? AMX.motsCherches(f.q) : f.q.toLowerCase(), ia = this.ia, quoi = (sauf === 'quoi' || ia) ? '' : f.quoi;
     var liste = this.lignes.filter(function (r) {
       var c = r.compte;
       if (ia && !ia.conditions.every(function (k) { return condRespectee(r, k); })) return false;
-      if (!ia && f.quoi === 'cibles' && !r.cible) return false;
-      if (f.quoi === 'equite' && !(r.equite !== null && r.equite > 0)) return false;
-      if (f.quoi === 'sansValeur' && !r.sansValeur) return false;
-      if (f.quoi === 'suivi' && !c.suivi) return false;
-      if (f.quoi === 'exportables' && !r.exportable) return false;
-      if (f.quoi === 'meilleurUS' && !r.meilleurUS) return false;
+      if (quoi === 'cibles' && !r.cible) return false;
+      if (quoi === 'proches' && !r.echeanceProche) return false;
+      if (quoi === 'equite' && !(r.equite !== null && r.equite > 0)) return false;
+      if (quoi === 'sansValeur' && !r.sansValeur) return false;
+      if (quoi === 'suivi' && !c.suivi) return false;
+      if (quoi === 'exportables' && !r.exportable) return false;
+      if (quoi === 'meilleurUS' && !r.meilleurUS) return false;
       if (f.type === 'location' && !r.location) return false;
       if (f.type === 'financement' && r.location) return false;
       if (f.echeance && (r.moisRestants === null || r.moisRestants > Number(f.echeance))) return false;
       if (f.conseiller && (f.conseiller === '—' ? !!c.conseiller : c.conseiller !== f.conseiller)) return false;
-      if (q && [c.nom, c.prenom, c.vin, c.vehicule, c.compte, c.ville, c.conseiller].join(' ').toLowerCase().indexOf(q) < 0) return false;
+      if (q.length && !(AMX.correspond ? AMX.correspond([c.nom, c.prenom, c.vin, c.vehicule, c.compte, c.ville, c.conseiller], q) : [c.nom, c.prenom, c.vin, c.vehicule, c.compte, c.ville, c.conseiller].join(' ').toLowerCase().indexOf(q) >= 0)) return false;
       return true;
     });
     if (ia && ia.tri) {
@@ -466,58 +550,41 @@
     AMX.vider(el);
     var d = AMX.equite.enCache();
     if (!d) { el.appendChild(AMX.chargeur('Portefeuille ' + libConst(this.cie))); AMX.equite.charger().then(function () { self.rendre(); }, function (e) { AMX.vider(el); el.appendChild(h('p.doux', { text: 'Portefeuille non lu : ' + AMX.erreurTexte(e) })); }); return; }
-    var etat = AMX.equite.etat(this.cie), comptes = AMX.equite.comptes(this.cie);
+    var comptes = AMX.equite.comptes(this.cie);
     if (!comptes.length) {
-      el.appendChild(h('div.carte', [h('div.carte-entete', [h('h2', 'Équité — clients ' + nomCie(this.cie))]), h('div.carte-corps', [
-        estHmf(this.cie)
-          ? h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille lu pour ' + nomCie(this.cie) + '. Dans Chrome, connecté au portail de Hyundai Finance (www.hmfdealer.ca), ouvrez « Customer Portfolio » et cliquez le favori « Automax ← Hyundai Finance » : il lit tous les prêts et les locations actifs (environ 1 minute). Rien n\'est écrit chez Hyundai Finance.')
-          : estVw(this.cie)
-          ? h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille lu pour ' + nomCie(this.cie) + '. Dans Chrome, connecté au Dealer Extranet de VW Finance, ouvrez Portfolio Manager et cliquez le favori « Automax ← Constructeur » : il lit les contrats qui finissent dans les 12 prochains mois (prêts et locations) et leur fiche. Rien n\'est écrit chez VW.')
-          : estGm(this.cie)
-          ? h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille lu pour ' + nomCie(this.cie) + '. Dans Chrome, connecté à GM Dealer Direct (www.gmdealerdirect.ca) au nom de ' + nomCie(this.cie) + ', cliquez le favori « Automax ← Constructeur » : il lit les clients de la Financière GM (location, échéances, DealDriver) et leur fiche. Rien n\'est écrit dans GM Dealer Direct.')
-          : h('p', { style: { margin: '0 0 8px' } }, 'Aucun portefeuille importé pour ' + nomCie(this.cie) + '. Exportez le portefeuille d\'InfoBahn (Portfolio › Entire Portfolio › « … » › Export) et déposez le fichier dans Relance › Équité › Importer le portefeuille.'),
-        modeCie(this.cie) !== 'bmw' ? h('a.btn', { href: URL_PORTAIL[modeCie(this.cie)], target: '_blank', rel: 'noopener' }, 'Ouvrir ' + NOM_PORTAIL[modeCie(this.cie)]) : h('a.btn', { href: AMX.lien('relance', 'equite', { vue: 'import' }) }, 'Importer le portefeuille')
-      ])]));
+      /* 6 nov. (Maxime) : l'importation n'est plus que dans le menu Actions de la page. */
+      var m = modeCie(this.cie), nom = nomCie(this.cie);
+      var txt = m === 'hmf' ? 'Aucun portefeuille lu pour ' + nom + '. Ouvrez Hyundai Finance (Actions › Ouvrir Hyundai Finance), allez dans « Customer Portfolio » et cliquez le favori « Automax ← Hyundai Finance » : il lit tous les prêts et les locations actifs (environ 1 minute). Rien n\'est écrit chez Hyundai Finance.'
+        : m === 'vw' ? 'Aucun portefeuille lu pour ' + nom + '. Ouvrez VW Finance (Actions › Ouvrir VW Finance), allez dans Portfolio Manager et cliquez le favori « Automax ← Constructeur » : il lit les contrats qui finissent dans les 12 prochains mois et leur fiche. Rien n\'est écrit chez VW.'
+        : m === 'gm' ? 'Aucun portefeuille lu pour ' + nom + '. Ouvrez GM Dealer Direct (Actions › Ouvrir GM Dealer Direct) au nom de ' + nom + ' et cliquez le favori « Automax ← Constructeur » : il lit les clients de la Financière GM et leur fiche. Rien n\'est écrit dans GM Dealer Direct.'
+        : 'Aucun portefeuille importé pour ' + nom + '. Exportez le portefeuille d\'InfoBahn (Portfolio › Entire Portfolio › « … » › Export), puis Actions › Importer le portefeuille.';
+      el.appendChild(h('div.carte', [h('div.carte-corps', [h('p', { style: { margin: 0 }, text: txt })])]));
+      this.lignes = []; this.majBouton();
       return;
     }
-    var lignes = this.analyser(), vis = this.visibles();
-    var nExport = lignes.filter(function (r) { return r.exportable; }).length, nCalculUS = lignes.filter(function (r) { return r.grosUS !== null; }).length, nMeilleurUS = lignes.filter(function (r) { return r.meilleurUS; }).length;
-    var nCibles = lignes.filter(function (r) { return r.cible; }).length, nEquite = lignes.filter(function (r) { return r.equite !== null && r.equite > 0; }).length, nSans = lignes.filter(function (r) { return r.sansValeur; }).length, nProches = lignes.filter(function (r) { return r.echeanceProche; }).length, nSuivi = lignes.filter(function (r) { return r.compte.suivi; }).length;
-    var carte = function (cls, nom, n, bas, quoi) { var b = h('button.neufs-carte.' + cls + (self.filtres.quoi === quoi ? '.actif' : ''), { type: 'button' }, [h('div.nom', { text: nom }), h('div.n', { text: AMX.fmtNombre(n) }), bas ? h('div.bas', { text: bas }) : null]); b.addEventListener('click', function () { self.filtres.quoi = quoi; self.rendre(); }); return b; };
-    var tuiles = h('div.neufs-cartes', [
-      carte('sombre', 'Comptes actifs', lignes.length, lignes.filter(function (r) { return r.location; }).length + ' locations · ' + lignes.filter(function (r) { return !r.location; }).length + ' financements', 'tous'),
-      carte('vert', 'Cibles', nCibles, 'nouvelle mensualité ≤ actuelle + ' + fmt$(this.params.marge), 'cibles'),
-      carte('bleu', 'Équité positive', nEquite, 'valeur > solde (aujourd\'hui)', 'equite'),
-      carte('ambre', 'Échéance ≤ 6 mois', nProches, 'contrats qui finissent bientôt', 'proches'),
-      carte(nSans ? 'rouge' : 'gris', 'Sans valeur', nSans, nSans ? (this.sync && this.sync.enCours ? 'lecture OpenLane en cours' : 'OpenLane n\'a pas de valeur') : 'tout est valorisé', 'sansValeur'),
-      carte('bleu', 'Exportables É.-U.', nExport, nCalculUS + ' avec le gros É.-U. calculé', 'exportables'),
-      carte(nMeilleurUS ? 'vert' : 'gris', 'Plus payant aux É.-U.', nMeilleurUS, 'gros É.-U. − dette > équité au Canada', 'meilleurUS'),
-      carte('violet', 'En suivi', nSuivi, 'contactés, rendez-vous, vendus', 'suivi')
-    ]);
-    if (this.filtres.quoi === 'proches') vis = lignes.filter(function (r) { return r.echeanceProche; });
-    /* Paramètres du calcul */
+    this.analyser();
     var champ = function (cle, libelle, pas, aide) { var inp = h('input', { type: 'number', step: pas || '0.01', value: String(self.params[cle]), title: aide || '' }); inp.addEventListener('change', function () { var v = nombre(inp.value); if (v === null) return; self.params[cle] = v; AMX.equite.poserParams(self.params); try { inp.blur(); } catch (e) {} setTimeout(function () { self.rendre(); }, 0); });   /* redessin différé : retirer le champ pendant son propre « change » fait échouer removeChild */ return h('div.champ', [h('label', { text: libelle }), inp]); };
-    var params = h('div.eq-params', [
+    var paramsCorps = h('div.eq-params', [
       champ('taux', 'Taux %', '0.01', 'Taux annuel du financement du neuf (' + preteur(this.cie) + ', programme du mois)'), champ('terme', 'Terme (mois)', '1'), champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
       champ('marge', 'Marge $/mois', '1', 'Une cible peut payer jusqu\'à ce montant de plus par mois'), champ('taxes', 'Taxes %', '0.001', 'TPS + TVQ sur la différence prix − valeur de l\'échange'), champ('comptant', 'Comptant $', '1'), champ('kmAn', 'Km / an', '1000', 'Km estimé d\'un véhicule financé (pour OpenLane)'),
       h('span.doux.petit', { style: { alignSelf: 'center' } }, 'Nouvelle mensualité = (PDSF + frais − valeur) + taxes + solde, financé au taux et au terme choisis. Estimation : sans incitatifs ni programme de location.')
     ]);
-    /* Filtres */
-    var conseillers = {}; lignes.forEach(function (r) { conseillers[r.compte.conseiller || '—'] = 1; });
+    var P = this.params;
+    var params = h('details.eq-reglages', { open: this.reglagesOuverts ? 'open' : null }, [h('summary', [h('b', { text: 'Calcul de la nouvelle mensualité' }), h('span', { text: ' · ' + String(P.taux).replace('.', ',') + ' % · ' + P.terme + ' mois · frais ' + fmt$(P.frais) + ' · marge ' + fmt$(P.marge) + ' / mois · taxes ' + String(P.taxes).replace('.', ',') + ' %' + (nombre(P.comptant) ? ' · comptant ' + fmt$(P.comptant) : '') })]), paramsCorps]);
+    params.addEventListener('toggle', function () { self.reglagesOuverts = params.open; });
+    /* Filtres : recherche, type, échéance, conseiller ; puis les tuiles (chacune filtre aussi) — elles comptent ce que ces filtres gardent. */
+    var conseillers = {}; this.lignes.forEach(function (r) { conseillers[r.compte.conseiller || '—'] = 1; });
     var sel = function (cle, options) { var s = h('select', options.map(function (o) { return h('option', { value: o[0], selected: self.filtres[cle] === o[0] ? 'selected' : null, text: o[1] }); })); s.value = self.filtres[cle]; s.addEventListener('change', function () { self.filtres[cle] = s.value; setTimeout(function () { self.rendre(); }, 0); }); return s; };
     var rech = h('input.recherche', { type: 'search', placeholder: 'Client, NIV, modèle, ville…', value: this.filtres.q });
-    rech.addEventListener('input', function () { self.filtres.q = rech.value; self.rendreTable(); });
+    rech.addEventListener('input', function () { self.filtres.q = rech.value; self.rendreTuiles(); self.rendreTable(); });
+    this.elCompte = h('span.compte');
     var filtres = h('div.eq-filtres', [
-      sel('quoi', [['cibles', 'Cibles'], ['equite', 'Équité positive'], ['proches', 'Échéance ≤ 6 mois'], ['sansValeur', 'Sans valeur'], ['exportables', 'Exportables É.-U.'], ['meilleurUS', 'Plus payant aux É.-U.'], ['suivi', 'En suivi'], ['tous', 'Tous les comptes']]),
+      rech,
       sel('type', [['', 'Location et financement'], ['location', 'Locations'], ['financement', 'Financements']]),
       sel('echeance', [['', 'Toute échéance'], ['3', '≤ 3 mois'], ['6', '≤ 6 mois'], ['12', '≤ 12 mois'], ['24', '≤ 24 mois']]),
       sel('conseiller', [['', 'Tous les conseillers']].concat(Object.keys(conseillers).sort().map(function (k) { return [k, k === '—' ? 'Sans conseiller' : k]; }))),
-      rech,
-      h('span.compte', { text: vis.length + ' / ' + lignes.length }),
-      h('button.btn.petit', { type: 'button', html: I.externe + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } })
+      this.elCompte
     ]);
-    var entete = h('div.carte-entete', [h('h2', ['Équité — clients ' + nomCie(this.cie) + ' (' + preteur(this.cie) + ')', h('span.sous', { text: etat && etat.le ? 'portefeuille lu le ' + AMX.fmtDate(etat.le, true) + (etat.par ? ' par ' + String(etat.par).split('@')[0] : '') : '' })]),
-      h('div.actions-ligne', [h('button.btn.petit', { type: 'button', text: 'Calcul de la dette', title: 'La dette de chaque client est recalculée chaque jour d\'après son contrat : voir le détail', onclick: function () { self.calculDette(); } }), modeCie(this.cie) !== 'bmw' ? h('a.btn.petit', { href: URL_PORTAIL[modeCie(this.cie)], target: '_blank', rel: 'noopener', html: I.externe + '<span>' + NOM_PORTAIL[modeCie(this.cie)] + '</span>', title: 'Relire : cliquez le favori « Automax ← Constructeur » dans le portail' }) : h('a.btn.petit', { href: AMX.lien('outils', 'equite'), html: I.rafraichir + '<span>Importer un nouvel export</span>' })])]);
     /* Einstein AI : une question en français, des filtres en retour (rien des clients n'est envoyé). */
     var champQ = h('input.recherche.eq-ia-champ', { type: 'search', placeholder: 'Demandez à Einstein : « taux de plus de 5 % », « paiement de plus de 1 200 $ », « finit dans 6 mois et équité positive »…', value: this.ia ? this.ia.question : '' });
     var btnQ = h('button.btn.primaire.petit', { type: 'button', text: 'Demander' });
@@ -533,30 +600,75 @@
       iaRes = h('div.eq-ia-res', [h('span', [h('b', { text: 'Einstein : ' }), this.ia.resume || this.ia.question, ' — ', h('b', { text: AMX.fmtNombre(nIa) + ' client' + (nIa > 1 ? 's' : '') })]),
         h('span.sous', { text: this.ia.conditions.map(texteCondition).join(' · ') + (this.ia.tri ? ' · trié par ' + this.ia.tri + (this.ia.sens === 'croissant' ? ' ↑' : ' ↓') : '') }), effacer]);
     }
-    this.elTable = h('div.eq-table');
     this.elSync = h('div.eq-sync');
-    el.appendChild(h('div.carte', [entete, h('div.carte-corps', [iaBarre, iaRes, tuiles, this.elSync, params, filtres, this.elTable])]));
+    this.elTuiles = h('div.eq-tuiles');
+    this.elTable = h('div.eq-table');
+    el.appendChild(h('div.carte', [h('div.carte-corps', [this.elSync, iaBarre, iaRes, filtres, this.elTuiles, params, this.elTable])]));
     this.majSync();
+    this.rendreTuiles();
     this.rendreTable();
-    /* Lecture OpenLane automatique : une fois par concession à l'ouverture, les comptes sans valeur (4 nov., Maxime : « la
-       lecture OpenLane doit être plus simple pour que les valeurs se synchronisent et que les calculs se fassent »). */
-    if (nSans && !this.syncAuto[this.cie] && this.peutLireOpenlane() && !(this.sync && this.sync.enCours)) { this.syncAuto[this.cie] = true; setTimeout(function () { if (!self.detruit) self.synchroniser(); }, 400); }
+    /* Lecture OpenLane automatique : une fois par concession à l'ouverture, les comptes sans valeur (4 nov.). Le bouton
+       « Synchroniser OpenLane » du haut de la page relit aussi les valeurs de plus de 30 jours (6 nov.). */
+    var nSans = this.lignes.filter(function (r) { return r.sansValeur; }).length;
+    if (nSans && !this.syncAuto[this.cie] && this.peutLireOpenlane() && !(this.sync && this.sync.enCours)) { this.syncAuto[this.cie] = true; setTimeout(function () { if (!self.detruit) self.synchroniser(false, true); }, 400); }
+  };
+  /** Les tuiles : chacune filtre la liste ; leur nombre porte sur ce que les autres filtres gardent. */
+  VueEquite.prototype.rendreTuiles = function () {
+    var self = this, el = this.elTuiles; if (!el) return;
+    AMX.vider(el);
+    var base = this.visibles('quoi'), n = function (f) { return base.filter(f).length; };
+    var nCalculUS = n(function (r) { return r.exportable && r.grosUS !== null; }), nSans = n(function (r) { return r.sansValeur; }), nMeilleurUS = n(function (r) { return r.meilleurUS; });
+    var carte = function (cls, nom, nb, bas, quoi) { var b = h('button.eq-tuile.' + cls + (!self.ia && self.filtres.quoi === quoi ? '.actif' : ''), { type: 'button', 'aria-pressed': !self.ia && self.filtres.quoi === quoi ? 'true' : 'false' }, [h('div.nom', { text: nom }), h('div.n', { text: AMX.fmtNombre(nb) }), bas ? h('div.bas', { text: bas }) : null]); b.addEventListener('click', function () { self.ia = null; self.filtres.quoi = quoi; self.rendre(); }); return b; };
+    [carte('sombre', 'Comptes', base.length, n(function (r) { return r.location; }) + ' locations · ' + n(function (r) { return !r.location; }) + ' financements', 'tous'),
+      carte('vert', 'Cibles', n(function (r) { return r.cible; }), 'nouvelle mensualité ≤ actuelle + ' + fmt$(this.params.marge), 'cibles'),
+      carte('bleu', 'Équité positive', n(function (r) { return r.equite !== null && r.equite > 0; }), 'valeur > dette (aujourd\'hui)', 'equite'),
+      carte('ambre', 'Échéance ≤ 6 mois', n(function (r) { return r.echeanceProche; }), 'contrats qui finissent bientôt', 'proches'),
+      carte(nSans ? 'rouge' : 'gris', 'Sans valeur', nSans, nSans ? (this.sync && this.sync.enCours ? 'lecture OpenLane en cours' : 'à synchroniser avec OpenLane') : 'tout est valorisé', 'sansValeur'),
+      carte('bleu', 'Exportables É.-U.', n(function (r) { return r.exportable; }), nCalculUS + ' avec le gros É.-U. calculé', 'exportables'),
+      carte(nMeilleurUS ? 'vert' : 'gris', 'Plus payant aux É.-U.', nMeilleurUS, 'gros É.-U. − dette > équité au Canada', 'meilleurUS'),
+      carte('violet', 'En suivi', n(function (r) { return r.compte.suivi; }), 'contactés, rendez-vous, vendus', 'suivi')
+    ].forEach(function (b) { el.appendChild(b); });
   };
   VueEquite.prototype.peutLireOpenlane = function () {
     if (!AMX.openlane || !AMX.openlane.direct || AMX.openlane.enDirect() === false) return false;
     return !AMX.perm || AMX.perm('ficheAchat') || AMX.perm('changerStatut') || AMX.perm('gererUtilisateurs') || (AMX.estAdmin && AMX.estAdmin());
   };
-  /** Lit sur OpenLane, 3 à la fois, la valeur des comptes sans valeur de la concession ; la page se recalcule à mesure. */
-  VueEquite.prototype.synchroniser = function (relire) {
+  /* Les comptes à lire sur OpenLane (6 nov.) : sans valeur, ou valeur de plus de 30 jours, ou km estimé à plus de 10 000 km de
+     celui de la lecture. `relire` = aussi ceux déjà essayés depuis l'ouverture de la page ; `sansValeurSeulement` = lecture
+     automatique de l'ouverture. */
+  var OL_VIEUX_J = 30, OL_ECART_KM = 10000;
+  VueEquite.prototype.aLire = function (relire, sansValeurSeulement) {
+    var self = this, lim = Date.now() - OL_VIEUX_J * JOUR_MS;
+    return (this.lignes || []).filter(function (r) {
+      var vin = texte(r.compte.vin).toUpperCase();
+      if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return false;
+      if (!relire && self.essayes[vin]) return false;
+      if (r.sansValeur) return true;
+      if (sansValeurSeulement) return false;
+      var o = r.openlane || {}, t = Date.parse(String(o.luLe || '').replace(' ', 'T'));
+      if (!t || t < lim) return true;
+      var km = nombre(o.km);
+      return !!(r.kmEstime && km !== null && Math.abs(km - r.kmEstime) > OL_ECART_KM);
+    });
+  };
+  /** Le gros bouton du haut de la page : lancer ou arrêter la synchronisation. */
+  VueEquite.prototype.basculerSync = function () {
+    if (this.sync && this.sync.enCours) { this.sync.arret = true; this.majSync(); return; }
+    if (!this.peutLireOpenlane()) { AMX.toast(AMX.openlane && AMX.openlane.enDirect && AMX.openlane.enDirect() === false ? 'OpenLane n\'est pas connecté au site : un administrateur doit recliquer le favori « Automax ← OpenLane » dans OpenLane.' : 'La lecture OpenLane demande le droit « Fiche d\'achat » ou « Changer le statut ».', 'attention', 7000); return; }
+    var neufs = this.aLire(false).length;
+    if (!neufs && !this.aLire(true).length) { AMX.toast('Valeurs OpenLane à jour : chaque compte a une valeur lue il y a moins de ' + OL_VIEUX_J + ' jours.', 'ok'); this.majSync(); return; }
+    this.synchroniser(!neufs);
+  };
+  /** Lit sur OpenLane, 3 à la fois, la valeur des comptes de la concession (voir aLire) ; la page se recalcule à mesure. */
+  VueEquite.prototype.synchroniser = function (relire, sansValeurSeulement) {
     var self = this;
     if (this.sync && this.sync.enCours) return;
     if (relire) this.essayes = {};
-    var vinOk = function (v) { return /^[A-HJ-NPR-Z0-9]{17}$/.test(texte(v).toUpperCase()); };
-    var aLire = this.lignes.filter(function (r) { return r.sansValeur && vinOk(r.compte.vin) && !self.essayes[texte(r.compte.vin).toUpperCase()]; });
+    var aLire = this.aLire(relire, sansValeurSeulement);
     if (!aLire.length) { this.majSync(); return; }
     var s = this.sync = { cie: this.cie, total: aLire.length, faits: 0, valorises: 0, sansResultat: 0, erreurs: 0, enCours: true, arret: false, message: '' };
     var i = 0, actifs = 0, PAR = 3;
-    var fin = function () { if (!s.enCours) return; s.enCours = false; if (!self.detruit) self.planifierRendu(0); };
+    var fin = function () { if (!s.enCours) return; s.enCours = false; if (!self.detruit) { self.majSync(); self.planifierRendu(0); } };
     var suivant = function () {
       if (s.arret || self.detruit) { if (!actifs) fin(); return; }
       while (actifs < PAR && i < aLire.length) lancer(aLire[i++]);
@@ -583,32 +695,41 @@
     this.majSync();
     suivant();
   };
+  /** Le gros bouton du haut de la page (passé par la page : ctx.boutonSync) suit la lecture. */
+  VueEquite.prototype.majBouton = function () {
+    var b = this.ctx.boutonSync; if (!b) return;
+    var s = this.sync && this.sync.cie === this.cie ? this.sync : null, peut = this.peutLireOpenlane();
+    var n = this.lignes && this.lignes.length ? this.aLire(false).length : 0;
+    b.disabled = !(this.lignes && this.lignes.length);
+    b.classList.toggle('en-cours', !!(s && s.enCours));
+    b.innerHTML = s && s.enCours ? I.rafraichir + '<span>Arrêter · ' + AMX.fmtNombre(s.faits) + ' / ' + AMX.fmtNombre(s.total) + '</span>'
+      : I.rafraichir + '<span>Synchroniser OpenLane' + (n ? ' (' + AMX.fmtNombre(n) + ')' : '') + '</span>';
+    b.title = !peut ? 'La lecture OpenLane n\'est pas offerte : OpenLane pas connecté au site, ou droit « Fiche d\'achat » / « Changer le statut » manquant.'
+      : (s && s.enCours ? 'Arrêter la lecture des valeurs OpenLane' : (n ? 'Lire sur OpenLane la valeur de ' + AMX.fmtNombre(n) + ' compte' + (n > 1 ? 's' : '') + ' (sans valeur, ou lue il y a plus de ' + OL_VIEUX_J + ' jours) : l\'équité et la nouvelle mensualité se recalculent à mesure.' : 'Toutes les valeurs ont moins de ' + OL_VIEUX_J + ' jours : un clic relit les comptes sans valeur.'));
+  };
   VueEquite.prototype.majSync = function () {
     var self = this, el = this.elSync;
+    this.majBouton();
     if (!el) return;
     AMX.vider(el);
     var s = this.sync && this.sync.cie === this.cie ? this.sync : null;
-    var nSans = this.lignes.filter(function (r) { return r.sansValeur; }).length, n = this.lignes.length;
-    var btn = function (texteB, cls, action) { return h('button.btn.petit' + (cls || ''), { type: 'button', text: texteB, onclick: action }); };
+    var nSans = this.lignes.filter(function (r) { return r.sansValeur; }).length, n = this.lignes.length, nVieux = this.aLire(true).length - nSans;
     el.className = 'eq-sync';
     if (s && s.enCours) {
       el.classList.add('encours');
-      el.appendChild(h('div.eq-sync-txt', [h('b', { text: 'Valeurs OpenLane : ' }), AMX.fmtNombre(s.faits) + ' / ' + AMX.fmtNombre(s.total) + ' lues · ' + AMX.fmtNombre(s.valorises) + ' valorisée' + (s.valorises > 1 ? 's' : '') + (s.sansResultat ? ' · ' + s.sansResultat + ' sans valeur chez OpenLane' : '') + ' — les calculs se mettent à jour à mesure.']));
+      el.appendChild(h('div.eq-sync-txt', [h('b', { text: 'Synchronisation OpenLane : ' }), AMX.fmtNombre(s.faits) + ' / ' + AMX.fmtNombre(s.total) + ' lues · ' + AMX.fmtNombre(s.valorises) + ' valorisée' + (s.valorises > 1 ? 's' : '') + (s.sansResultat ? ' · ' + s.sansResultat + ' sans valeur chez OpenLane' : '') + ' — les calculs se mettent à jour à mesure.']));
       el.appendChild(h('div.eq-sync-barre', [h('span', { style: { width: Math.round(100 * s.faits / Math.max(1, s.total)) + '%' } })]));
-      el.appendChild(btn('Arrêter', '.fantome', function () { s.arret = true; self.majSync(); }));
       return;
     }
-    if (s && s.message && s.arret) { el.classList.add('alerte'); el.appendChild(h('div.eq-sync-txt', { text: s.message })); }
-    else if (!nSans) { el.classList.add('ok'); el.appendChild(h('div.eq-sync-txt', { text: 'Valeurs OpenLane à jour : les ' + AMX.fmtNombre(n) + ' comptes ont une valeur.' })); }
-    else if (!this.peutLireOpenlane()) { el.appendChild(h('div.eq-sync-txt', { text: AMX.fmtNombre(nSans) + ' compte' + (nSans > 1 ? 's' : '') + ' sans valeur. ' + (AMX.openlane && AMX.openlane.enDirect && AMX.openlane.enDirect() === false ? 'OpenLane n\'est pas connecté au site : un administrateur doit recliquer le favori « Automax ← OpenLane » dans OpenLane.' : 'La lecture OpenLane demande le droit « Fiche d\'achat » ou « Changer le statut ».') })); }
-    else {
-      var restants = this.lignes.filter(function (r) { return r.sansValeur && !self.essayes[texte(r.compte.vin).toUpperCase()]; }).length;
-      el.appendChild(h('div.eq-sync-txt', { text: s ? 'Lecture OpenLane terminée : ' + AMX.fmtNombre(s.valorises) + ' valorisée' + (s.valorises > 1 ? 's' : '') + ' sur ' + AMX.fmtNombre(s.total) + (nSans ? ' · ' + nSans + ' toujours sans valeur (OpenLane n\'a pas de ventes comparables ou le NIV est inconnu)' : '') + '.' : AMX.fmtNombre(nSans) + ' compte' + (nSans > 1 ? 's' : '') + ' sans valeur OpenLane.' }));
-      el.appendChild(btn(restants ? 'Lire OpenLane (' + restants + ')' : 'Relire les comptes sans valeur', '.primaire', function () { self.synchroniser(!restants); }));
-    }
+    if (s && s.message && s.arret) { el.classList.add('alerte'); el.appendChild(h('div.eq-sync-txt', { text: s.message })); return; }
+    if (!this.peutLireOpenlane()) { el.appendChild(h('div.eq-sync-txt', { text: (nSans ? AMX.fmtNombre(nSans) + ' compte' + (nSans > 1 ? 's' : '') + ' sans valeur. ' : '') + (AMX.openlane && AMX.openlane.enDirect && AMX.openlane.enDirect() === false ? 'OpenLane n\'est pas connecté au site : un administrateur doit recliquer le favori « Automax ← OpenLane » dans OpenLane.' : 'La lecture OpenLane demande le droit « Fiche d\'achat » ou « Changer le statut ».') })); return; }
+    if (!nSans && nVieux <= 0) { el.classList.add('ok'); el.appendChild(h('div.eq-sync-txt', { text: 'Valeurs OpenLane à jour : les ' + AMX.fmtNombre(n) + ' comptes ont une valeur de moins de ' + OL_VIEUX_J + ' jours.' })); return; }
+    el.appendChild(h('div.eq-sync-txt', { text: (s ? 'Dernière synchronisation : ' + AMX.fmtNombre(s.valorises) + ' valorisée' + (s.valorises > 1 ? 's' : '') + ' sur ' + AMX.fmtNombre(s.total) + '. ' : '') + (nSans ? AMX.fmtNombre(nSans) + ' sans valeur' : '') + (nSans && nVieux > 0 ? ' · ' : '') + (nVieux > 0 ? AMX.fmtNombre(nVieux) + ' à rafraîchir (plus de ' + OL_VIEUX_J + ' jours)' : '') + (this.ctx.boutonSync ? ' — bouton « Synchroniser OpenLane » en haut de la page.' : '') }));
+    if (!this.ctx.boutonSync) el.appendChild(h('button.btn.petit.primaire', { type: 'button', text: 'Synchroniser OpenLane', onclick: function () { self.basculerSync(); } }));
   };
   VueEquite.prototype.rendreTable = function () {
     var self = this, vis = this.visibles(), contact = !!(AMX.equite.enCache() && AMX.equite.enCache().contact);
+    if (this.elCompte) this.elCompte.textContent = AMX.fmtNombre(vis.length) + ' / ' + AMX.fmtNombre(this.lignes.length) + ' comptes';
     AMX.vider(this.elTable);
     if (!vis.length) { this.elTable.appendChild(h('p.doux', { style: { padding: '14px', textAlign: 'center' }, text: this.filtres.quoi === 'cibles' ? 'Aucune cible avec ces paramètres : élargissez la marge, changez le terme, ou lisez les valeurs OpenLane des comptes sans valeur.' : 'Aucun compte ne correspond.' })); return; }
     var rows = vis.slice(0, 400).map(function (r) { return self.rangee(r, contact); });
@@ -623,7 +744,7 @@
     var valeurEl = r.valeur !== null ? h('div', [h('div', { text: fmt$(r.valeur) }), h('div.sous', { text: 'OpenLane' + (r.kmEstime ? ' · ' + AMX.fmtNombre(r.kmEstime) + ' km est.' : '') })]) : h('div', [h('span.valeur', { text: 'à lire' }), AMX.openlane ? h('div', [h('button.btn.petit', { type: 'button', text: 'OpenLane', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } })]) : null]);
     var autres = r.proposition && r.propositions.length > 1 ? r.propositions.filter(function (p) { return p !== r.proposition; }).map(function (p) { return p.vehicule + ' — ' + fmt$(p.mensualite) + ' / mois · ' + texteProposition(p); }).join('\n') : '';
     var neufEl = r.proposition ? h('div', { title: autres ? 'Autres scénarios DealDriver :\n' + autres : '' }, [h('div.nom', { text: r.proposition.vehicule || '—' }), h('div.sous', { text: texteProposition(r.proposition) + ' · DealDriver' + (r.propositions.length > 1 ? ' · +' + (r.propositions.length - 1) + ' autre' + (r.propositions.length > 2 ? 's' : '') : '') })])
-      : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: 'PDSF ' + fmt$(r.neuf.prix) + ' · ' + (r.neuf.enStock ? 'en stock' : 'en route') + (r.alternatives ? ' · +' + r.alternatives + ' autre' + (r.alternatives > 1 ? 's' : '') : '') + (r.neufVoisin ? ' · série voisine' : '') })]) : h('span.sous', { text: 'aucun ' + (r.gm ? (c.modele || 'modèle semblable') : r.serie) + ' en stock' });
+      : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: texteNeuf(r) })]) : h('span.sous', { text: 'Aucun ' + (c.modele || 'modèle semblable') + ' neuf connu (stock, commandes, ventes)' });
     var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance))) })]) : h('span.eq-nul', '—');
     var selSuivi = h('select.suivi', SUIVIS_ORDRE.map(function (k) { return h('option', { value: k, text: SUIVIS[k] }); }));
     selSuivi.value = c.suivi || '';
@@ -733,7 +854,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');
@@ -771,9 +892,10 @@
     this.el.setAttribute('data-etat', 'attente');
     this.elEtat = h('div');
     AMX.equite.charger().then(function () { self.rendreEtat(); }, function () { self.rendreEtat(); });
-    if (modeCie(this.cie) !== 'bmw') { this.construirePortail(); return; }
-    this.construireBmw();
-    this.chargerBanque();
+    if (modeCie(this.cie) !== 'bmw') this.construirePortail();
+    else { this.construireBmw(); this.chargerBanque(); }
+    /* 6 nov. : la page s'ouvre par Relance › Équité › Actions › Importer ; un lien y ramène. */
+    this.el.insertBefore(h('a.lien-retour', { href: AMX.lien('relance', 'equite', { vue: 'clients' }), text: '‹ Retour à Équité', style: { display: 'inline-block', margin: '0 0 10px', fontSize: '13px' } }), this.el.firstChild);
   };
   /* GM Dealer Direct ou VW Finance : rien à déposer, le favori « Automax ← Constructeur » lit le portail et envoie au site. */
   ImportPortefeuille.prototype.construirePortail = function () {

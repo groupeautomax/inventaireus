@@ -54,11 +54,17 @@
       self.btnRafraichir.classList.add('occupe');
       AMX.equite.charger(true).then(function () { self.btnRafraichir.classList.remove('occupe'); self.rendre(); AMX.toast('Portefeuille mis à jour.', 'ok'); }, function (e) { self.btnRafraichir.classList.remove('occupe'); AMX.toast('Mise à jour impossible — ' + AMX.erreurTexte(e), 'erreur'); });
     } });
-    this.btnImporter = h('a.btn.primaire', { href: AMX.lien('relance', 'equite', { vue: 'import' }), html: I.telecharger + '<span>Importer le portefeuille</span>', title: 'Déposer l\'export InfoBahn (BMW Financial Services)' });
+    this.btnImporter = h('a.btn', { href: AMX.lien('relance', 'equite', { vue: 'import' }), html: I.telecharger + '<span>Importer le portefeuille</span>', title: 'Déposer l\'export InfoBahn (BMW Financial Services)' });
+    /* 6 nov. (Maxime) : « fais un gros onglet Synchroniser OpenLane pour que les valeurs se calculent ; le lien d'importation est
+       à deux places, mets-le dans Actions et efface les deux autres ». Un seul gros bouton dans l'en-tête ; l'importation, le
+       calcul de la dette, l'export et Rafraîchir vont dans le menu Actions. */
+    this.btnSync = h('button.btn.primaire.eq-sync-gros', { type: 'button', disabled: true, html: I.rafraichir + '<span>Synchroniser OpenLane</span>', onclick: function () { if (self.vue && self.vue.basculerSync) self.vue.basculerSync(); } });
+    this.btnDette = h('button.btn', { type: 'button', text: 'Calcul de la dette', title: 'La dette de chaque client est recalculée chaque jour d\'après son contrat : voir le détail', onclick: function () { if (self.vue && self.vue.calculDette) self.vue.calculDette(); } });
+    this.btnExport = h('button.btn', { type: 'button', html: I.externe + '<span>Exporter Excel</span>', onclick: function () { if (self.vue && self.vue.exporter) self.vue.exporter(); } });
     this.elCies = h('div.barre-cies');
     this.elCorps = h('div');
     this.el = h('div.page', [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Équité'), this.elEtat]), h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnImporter], [this.btnImporter]))]),
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Équité'), this.elEtat]), h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnImporter, this.btnDette, this.btnExport, this.btnSync], [this.btnSync]))]),
       this.elCies,
       this.elCorps
     ]);
@@ -76,14 +82,16 @@
     gm = gm || vw || hmf;
     if (gm) { this.btnImporter.setAttribute('target', '_blank'); this.btnImporter.setAttribute('rel', 'noopener'); } else { this.btnImporter.removeAttribute('target'); this.btnImporter.removeAttribute('rel'); }
     this.btnImporter.innerHTML = (gm ? I.externe : I.telecharger) + '<span>' + (gm ? 'Ouvrir ' + nomPortail : 'Importer le portefeuille') + '</span>';
-    this.btnImporter.title = gm ? 'Puis cliquez le favori « Automax ← Constructeur » dans ' + (hmf ? 'Customer Portfolio de Hyundai Finance' : (vw ? 'Portfolio Manager du Dealer Extranet' : 'GM Dealer Direct')) : 'Déposer l\'export InfoBahn (BMW Financial Services)';
+    this.btnImporter.title = gm ? 'Puis cliquez le favori « Automax ← ' + (hmf ? 'Hyundai Finance » dans ' : 'Constructeur » dans ') + (hmf ? 'Customer Portfolio de Hyundai Finance' : (vw ? 'Portfolio Manager du Dealer Extranet' : 'GM Dealer Direct')) : 'Déposer l\'export InfoBahn (BMW Financial Services)';
+    var lib = hmf ? 'Hyundai Finance' : (vw ? 'VW Finance' : (CIES_GM[this.cie] ? 'Financière GM' : 'BMW Financial Services'));
     this.elEtat.textContent = !d ? 'Chargement du portefeuille…'
-      : (nomCie(this.cie) + ' · ' + AMX.fmtNombre(comptes.length) + ' client' + (comptes.length > 1 ? 's' : '') + ' financé' + (comptes.length > 1 ? 's' : '') + (etat && etat.le ? ' · portefeuille du ' + AMX.fmtDate(etat.le, true) : (comptes.length ? '' : ' · aucun portefeuille importé')));
+      : (nomCie(this.cie) + ' · ' + lib + ' · ' + AMX.fmtNombre(comptes.length) + ' client' + (comptes.length > 1 ? 's' : '') + ' financé' + (comptes.length > 1 ? 's' : '') + (etat && etat.le ? ' · portefeuille lu le ' + AMX.fmtDate(etat.le, true) + (etat.par ? ' par ' + String(etat.par).split('@')[0] : '') : (comptes.length ? '' : ' · aucun portefeuille lu')));
+    this.btnDette.disabled = this.btnExport.disabled = !comptes.length;
   };
   PageEquite.prototype.rendre = function () {
     this.rendreEntete();
     if (this.vue && this.vue.demonter) { try { this.vue.demonter(); } catch (e) {} }
     AMX.vider(this.elCorps);
-    this.vue = AMX.equite.monter(this.elCorps, this.cie, {});
+    this.vue = AMX.equite.monter(this.elCorps, this.cie, { boutonSync: this.btnSync });
   };
 })();

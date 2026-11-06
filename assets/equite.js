@@ -277,6 +277,82 @@
     return t;
   }
 
+  /* ---- Version (finition) du véhicule — 6 nov. (Maxime) : « un Elantra Essential ne peut pas être comparé à un Ultimate,
+     soit le plus précis possible », « une option pour choisir le trim de comparaison ». Une version = le niveau de finition
+     (le premier nommé dans le texte) + les ensembles (les autres niveaux nommés, Trend, Tech, autonomie longue…) + la
+     motorisation (hybride, hybride rechargeable) + la motricité (intégrale ou non). Lue dans le texte du prêteur pour le client,
+     dans le nom et la version du neuf (DMS, D2C, manufacturier). */
+  var NIVEAUX = {
+    hmf: [[/\bESS(ENTIAL|ENTIEL)?\b/, 'essential', 1, 'Essential'], [/\bPRE(F|FERRED|FERE)?\b/, 'preferred', 2, 'Preferred'], [/\bN LINE\b/, 'n line', 3, 'N Line'],
+      [/\bXRT\b/, 'xrt', 3, 'XRT'], [/\bURBAN\b/, 'urban', 3, 'Urban'], [/\bNIGHT\b/, 'night', 4, 'Night Edition'], [/\bLUX(URY|E)?\b/, 'luxury', 4, 'Luxury'],
+      [/\bULT(I|IMATE)?\b/, 'ultimate', 5, 'Ultimate'], [/\bCAL(L|LIG|LIGRAPHY)?\b/, 'calligraphy', 6, 'Calligraphy'], [/\bN\b(?! LINE)/, 'n', 7, 'N']],
+    vw: [[/\bTRENDLINE\b/, 'trendline', 1, 'Trendline'], [/\bCOMFORTLINE\b/, 'comfortline', 2, 'Comfortline'], [/\bPRO S\b/, 'pro s', 3, 'Pro S'], [/\bPRO\b/, 'pro', 2, 'Pro'],
+      [/\bSPORTLINE\b/, 'sportline', 3, 'Sportline'], [/\bHIGHLINE\b/, 'highline', 3, 'Highline'], [/\bPEAK\b/, 'peak', 4, 'Peak Edition'], [/\bEXECLINE\b/, 'execline', 5, 'Execline'],
+      [/\bGLI\b/, 'gli', 5, 'GLI'], [/\bGTI\b/, 'gti', 5, 'GTI'], [/\bAUTOBAHN\b/, 'autobahn', 6, 'Autobahn'], [/\bR\b(?! LINE)/, 'r', 7, 'R']],
+    gm: [[/\bWT\b|\bWORK TRUCK\b/, 'wt', 0, 'WT'], [/\bPRO\b/, 'pro', 0, 'Pro'], [/\bLS\b/, 'ls', 1, 'LS'], [/\bCUSTOM\b/, 'custom', 1, 'Custom'], [/\bSLE\b/, 'sle', 1, 'SLE'],
+      [/\b1LT\b|\bLT1\b/, '1lt', 2, '1LT'], [/\bLT\b/, 'lt', 2, 'LT'], [/\bPRIVILEGIE\b|\bPREFERRED\b/, 'preferred', 2, 'Preferred'], [/\bELEVATION\b/, 'elevation', 2, 'Elevation'], [/\bACTIV\b/, 'activ', 3, 'Activ'], [/\b2LT\b|\bLT2\b/, '2lt', 3, '2LT'], [/\bST\b|\bSPORT TOURING\b/, 'st', 3, 'Sport Touring'], [/\bESSENCE\b/, 'essence', 3, 'Essence'],
+      [/\bLUXURY\b|\bLUXE\b/, 'luxury', 3, 'Luxury'], [/\bRS\b/, 'rs', 4, 'RS'], [/\bRST\b/, 'rst', 4, 'RST'], [/\bTRAIL BOSS\b/, 'trail boss', 4, 'Trail Boss'],
+      [/\b3LT\b|\bLT3\b/, '3lt', 4, '3LT'], [/\bSLT\b/, 'slt', 4, 'SLT'], [/\bPREMIUM\b/, 'premium', 4, 'Premium'], [/\bSPORT\b/, 'sport', 4, 'Sport'], [/\bPREMIER\b/, 'premier', 5, 'Premier'], [/\bAVENIR\b/, 'avenir', 5, 'Avenir'],
+      [/\bLTZ\b/, 'ltz', 5, 'LTZ'], [/\bAT4\b/, 'at4', 5, 'AT4'], [/\bAT4X\b/, 'at4x', 6, 'AT4X'], [/\bZR2\b/, 'zr2', 6, 'ZR2'], [/\bSS\b/, 'ss', 6, 'SS'],
+      [/\bHIGH COUNTRY\b/, 'high country', 6, 'High Country'], [/\bDENALI\b/, 'denali', 6, 'Denali'], [/\bPLATINUM\b/, 'platinum', 7, 'Platinum']]
+  };
+  var ENSEMBLES = {
+    hmf: [[/\bTREND\b|\bTRE\b/, 'trend', 'Trend'], [/\bTECH\b/, 'tech', 'Tech'], [/\bLR\b|\bLONG RANGE\b|\bLONGUE AUTONOMIE\b/, 'lr', 'longue autonomie']],
+    vw: [[/\bR LINE\b/, 'r line', 'R-Line'], [/\bBLACK\b/, 'black', 'Black Edition']],
+    gm: [[/\bZ71\b/, 'z71', 'Z71'], [/\bULTIMATE\b/, 'ultimate', 'Ultimate'], [/\bMIDNIGHT\b/, 'midnight', 'Midnight']],
+    bmw: [[/\bCOMPETITION\b/, 'competition', 'Competition']]
+  };
+  var LIB_ENSEMBLE = {}; ['hmf', 'vw', 'gm', 'bmw'].forEach(function (m) { (NIVEAUX[m] || []).forEach(function (n) { LIB_ENSEMBLE[n[1]] = n[3]; }); (ENSEMBLES[m] || []).forEach(function (e) { LIB_ENSEMBLE[e[1]] = e[2]; }); });
+  function texteVersion(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
+  /** La version lue dans un texte : { niveau, rang, libNiveau, ensembles: [], moteur: ''|'hev'|'phev', motricite: ''|'int'|'2rm', cle }. */
+  function versionDe(mode, t) {
+    var s = ' ' + texteVersion(t) + ' ', v = { niveau: '', rang: null, libNiveau: '', ensembles: [], moteur: '', motricite: '' };
+    if (/\bPHEV\b|\bPLUG IN\b|\bRECHARGEABLE\b|\bBRANCHABLE\b/.test(s)) v.moteur = 'phev';
+    else if (/\bHEV\b|\bHYB(RID|RIDE)?\b/.test(s)) v.moteur = 'hev';
+    if (/\bAWD\b|\bHTRAC\b|\b4MOTION\b|\b4M\b|\bXDRIVE|\bQUATTRO\b|\b4X4\b|\b4WD\b|\bTI\b|\bINTEGRALE\b|\bTRACTION INTEGRALE\b/.test(s)) v.motricite = 'int';
+    else if (/\bFWD\b|\bRWD\b|\b2WD\b|\bSDRIVE|\b4X2\b|\bTRACTION AVANT\b/.test(s)) v.motricite = '2rm';
+    if (mode === 'bmw') {
+      var m = /\bM(\d)(\d{2})([IE])?\b/.exec(s) || null, k = '';
+      if (m) k = 'm' + m[2] + (m[3] || '').toLowerCase();
+      else if ((m = /\bM(\d{2})([IE])?\b/.exec(s))) k = 'm' + m[1] + (m[2] || '').toLowerCase();
+      else if ((m = /\b[XSE]DRIVE ?(\d{2})([IE])?\b/.exec(s))) k = m[1] + (m[2] || '').toLowerCase();
+      else if ((m = /\b(\d{2})([IE])? [XSE]DRIVE\b/.exec(s))) k = m[1] + (m[2] || '').toLowerCase();   /* 2025 : « X3 30 xDrive », « iX3 50 xDrive » */
+      else if ((m = /\b\d(\d{2})([IED])\b/.exec(s))) k = m[1] + m[2].toLowerCase();
+      if (k) { v.niveau = k; v.rang = (k.charAt(0) === 'm' ? 100 : 0) + (parseInt(k.replace(/\D/g, ''), 10) || 0); v.libNiveau = k.charAt(0) === 'm' ? 'M' + k.slice(1) : k; }
+    } else {
+      var premier = null;
+      (NIVEAUX[mode] || []).forEach(function (n) {
+        var x = n[0].exec(s); if (!x) return;
+        var o = { pos: x.index, cle: n[1], rang: n[2], lib: n[3] };
+        if (!premier || o.pos < premier.pos) { if (premier) v.ensembles.push(premier.cle); premier = o; }
+        else v.ensembles.push(o.cle);
+      });
+      if (premier) { v.niveau = premier.cle; v.rang = premier.rang; v.libNiveau = premier.lib; }
+    }
+    (ENSEMBLES[mode] || []).forEach(function (e) { if (e[0].test(s) && v.ensembles.indexOf(e[1]) < 0 && e[1] !== v.niveau) v.ensembles.push(e[1]); });
+    /* Un ensemble seul fait office de finition : Ioniq 5 « Trend », Traverse « Z71 », M3 « Competition ». */
+    if (!v.niveau && v.ensembles.length) { var p0 = v.ensembles.shift(); v.niveau = p0; v.rang = { trend: 2.5, z71: 4, competition: 110 }[p0] || null; v.libNiveau = LIB_ENSEMBLE[p0] || p0; }
+    v.ensembles.sort();
+    v.cle = [v.niveau].concat(v.ensembles).concat([v.moteur, v.motricite]).join('|');
+    return v;
+  }
+  function libelleVersion(v) {
+    if (!v) return '';
+    var t = [v.libNiveau || (v.niveau ? v.niveau : '')].concat(v.ensembles.map(function (e) { return LIB_ENSEMBLE[e] || e; }));
+    if (v.moteur) t.push(v.moteur === 'phev' ? 'hybride rechargeable' : 'hybride');
+    if (v.motricite) t.push(v.motricite === 'int' ? 'intégrale' : '2 roues motrices');
+    return t.filter(Boolean).join(' · ');
+  }
+  /** Écart entre la version du client (a) et celle d'un neuf (b), à niveau égal : ensembles, motorisation, motricité. */
+  function ecartVersion(a, b) {
+    var p = 0;
+    a.ensembles.forEach(function (e) { if (b.ensembles.indexOf(e) < 0) p += 2; });
+    b.ensembles.forEach(function (e) { if (a.ensembles.indexOf(e) < 0) p += 2; });
+    if (a.moteur !== b.moteur) p += 6;
+    if (a.motricite && b.motricite && a.motricite !== b.motricite) p += 1;
+    return p;
+  }
+
   /* ---- Analyse : valeur, solde, équité, neuf similaire, nouvelle mensualité ---- */
   /** comptes (?equite=1), neufs = véhicules du suivi des neufs de la concession (toutes origines), params, options.valeurs = fn(vin) → valeur OpenLane. */
   function analyser(comptes, neufs, params, options) {
@@ -291,7 +367,7 @@
       var prix = nombre(v.prix) || nombre(v.extra && v.extra.pdsf);
       if (!prix || prix < 5000) return;
       var e = etatNeuf(v);
-      var o = { vin: v.vin, annee: v.annee, modele: v.modele, version: v.version, couleur: v.couleur, prix: prix, etat: e, enStock: e === 'stock' || e === 'demo', statut: v.statutLibelle || v.statut || '', origine: origineNeuf(v), sortiLe: v.sortiLe || '', v: v };
+      var o = { vin: v.vin, annee: v.annee, modele: v.modele, version: v.version, couleur: v.couleur, prix: prix, etat: e, enStock: e === 'stock' || e === 'demo', statut: v.statutLibelle || v.statut || '', origine: origineNeuf(v), sortiLe: v.sortiLe || '', v: v, ver: versionDe(mode, [v.modele, v.version].join(' ')) };
       var k = texte(v.vin).toUpperCase();
       if (!k) { uniques.push(o); return; }
       if (!parVin[k] || RANG_ETAT[e] < RANG_ETAT[parVin[k].etat]) parVin[k] = o;
@@ -316,7 +392,7 @@
     Object.keys(parSerie).forEach(function (s) { trier(parSerie[s]); });
     Object.keys(parRacine).forEach(function (s) { trier(parRacine[s]); });
     return (comptes || []).filter(function (c) { return c.actif !== false; }).map(function (c) {
-      var r = { compte: c, location: estLocation(c), serie: parModele ? normModele(c.modele) : (c.modele || serieDe(c.vehicule)), gm: gm, mode: mode, exportable: exportable(c.vin) };
+      var r = { compte: c, location: estLocation(c), serie: parModele ? normModele(c.modele) : (c.modele || serieDe(c.vehicule)), gm: gm, mode: mode, exportable: exportable(c.vin), version: versionDe(mode, [c.version, c.vehicule].join(' ')) };
       r.moisRestants = c.echeance ? Math.max(0, moisEntre(ajd, c.echeance) || 0) : null;
       r.moisEcoules = c.dateContrat ? Math.max(0, moisEntre(c.dateContrat, ajd) || 0) : null;
       r.echeanceProche = r.moisRestants !== null && r.moisRestants <= 6;
@@ -333,7 +409,9 @@
          (Black Book chez GM et VW) — Maxime : « on n'utilise pas Black Book mais OpenLane ». Sans lecture OpenLane : « à lire ». */
       var ol = options.valeurs ? options.valeurs(c.vin) : null;
       r.openlane = ol || null;
-      var vOl = ol ? (nombre(ol.prevision) || (AMX.openlane && AMX.openlane.ajuste ? AMX.openlane.ajuste(ol, r.kmEstime) : null) || nombre(ol.prixMoy)) : null;
+      var vPrev = ol ? nombre(ol.prevision) : null, vAj = ol && !vPrev && AMX.openlane && AMX.openlane.ajuste ? AMX.openlane.ajuste(ol, r.kmEstime) : null, vMoy = ol && !vPrev && !vAj ? nombre(ol.prixMoy) : null;
+      var vOl = vPrev || vAj || vMoy;
+      r.valeurQuoi = vPrev ? 'prevision' : (vAj ? 'ajuste' : (vMoy ? 'moyenne' : ''));
       if (vOl) { r.valeur = vOl; r.valeurSource = 'openlane'; }
       else { r.valeur = null; r.valeurSource = ''; }
       r.equite = r.valeur !== null && r.solde !== null ? r.valeur - r.solde : null;
@@ -348,6 +426,27 @@
       if (!cands.length && parModele) { (JUMEAUX[r.serie] || []).some(function (j) { if (parSerie[j] && parSerie[j].length) { cands = parSerie[j]; voie = 'voisin'; return true; } return false; }); }
       if (!cands.length && parModele) { cands = parRacine[racineModele(r.serie)] || []; if (cands.length) voie = 'voisin'; }
       if (!cands.length && !parModele) { famille(r.serie).some(function (s) { if (parSerie[s] && parSerie[s].length) { cands = parSerie[s]; voie = 'voisin'; return true; } return false; }); }
+      /* 6 nov. (Maxime) : la même version que le client — même finition, puis le moins d'écart (ensembles, motorisation,
+         motricité) ; sinon la finition la plus proche, signalée « autre version ». Une version choisie à la main l'emporte. */
+      r.famille = cands; r.versionVoie = '';
+      if (cands.length) {
+        var vc = r.version, choix = options.choixVersion ? options.choixVersion(c) : '';
+        if (choix) { var ch = cands.filter(function (o) { return o.ver.cle === choix; }); if (ch.length) { cands = ch; r.versionVoie = 'choisie'; } }
+        if (!r.versionVoie && vc.niveau) {
+          var memes = cands.filter(function (o) { return o.ver.niveau === vc.niveau; });
+          if (memes.length) {
+            var ecarts = memes.map(function (o) { return ecartVersion(vc, o.ver); }), min = Math.min.apply(null, ecarts);
+            cands = memes.filter(function (o, i) { return ecarts[i] === min; }); r.versionVoie = min === 0 ? 'meme' : 'proche';
+          } else {
+            var connus2 = cands.filter(function (o) { return o.ver.niveau && o.ver.rang !== null; });
+            if (connus2.length && vc.rang !== null) {
+              var dist = connus2.map(function (o) { return Math.abs(o.ver.rang - vc.rang) * 10 + ecartVersion(vc, o.ver); }), dmin = Math.min.apply(null, dist);
+              cands = connus2.filter(function (o, i) { return dist[i] === dmin; });
+            }
+            r.versionVoie = 'autre';
+          }
+        } else if (!r.versionVoie) r.versionVoie = 'inconnue';
+      }
       r.neuf = cands[0] || null; r.neufVoie = voie; r.neufVoisin = voie === 'voisin' ? (r.neuf ? r.neuf.modele : '') : '';
       r.alternatives = r.neuf ? cands.filter(function (o) { return o !== r.neuf && o.etat === r.neuf.etat; }).length : 0;
       /* 4 nov. (Maxime) : « je veux aucune valeur de reprise de GM, juste les comparables OpenLane ». Les scénarios DealDriver
@@ -423,6 +522,10 @@
       '.eq-table button.eq-dette { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; } .eq-table button.eq-dette:hover { color: var(--vert-fonce, var(--vert)); }',
       '.eq-dette-tab { width: 100%; border-collapse: collapse; font-size: 13px; } .eq-dette-tab td { padding: 5px 6px; border-bottom: 1px solid var(--ligne, #E3E7EB); } .eq-dette-tab td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; } .eq-dette-tab tr.total td { font-weight: 700; border-bottom: 0; }',
       '.eq-pos { color: var(--vert); font-weight: 700; } .eq-neg { color: var(--rouge); font-weight: 700; } .eq-nul { color: var(--encre-3); }',
+      '.eq-table button.eq-valeur { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: right; } .eq-table button.eq-valeur > div:first-child { text-decoration: underline dotted; text-underline-offset: 3px; } .eq-table button.eq-valeur:hover > div:first-child { color: var(--vert-fonce, #0B6B3A); }',
+      '.eq-table .eq-version { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 12px; margin-top: 2px; } .eq-table .eq-version .v-txt { color: var(--encre-3); } .eq-table .eq-version.meme .v-txt { color: var(--vert-fonce, #0B6B3A); } .eq-table .eq-version.autre .v-txt { color: var(--ambre); font-weight: 600; } .eq-table .eq-version.choisie .v-txt { color: var(--bleu, #1A64BF); }',
+      '.eq-table .eq-version button { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; color: var(--bleu, #1A64BF); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }',
+      '.eq-versions { display: flex; flex-direction: column; gap: 6px; } .eq-versions button { display: flex; justify-content: space-between; gap: 12px; align-items: center; text-align: left; font: inherit; background: var(--carte, #fff); border: 1px solid var(--ligne, #E3E7EB); border-radius: 8px; padding: 8px 10px; cursor: pointer; } .eq-versions button:hover { border-color: var(--ligne-forte, #C9D0D6); } .eq-versions button.actif { border-color: var(--vert); box-shadow: 0 0 0 2px var(--vert-clair); } .eq-versions .droite { text-align: right; white-space: nowrap; font-size: 12.5px; color: var(--encre-3); } .eq-versions .client { color: var(--vert-fonce, #0B6B3A); font-size: 12px; font-weight: 600; }',
       '.eq-table select.suivi { height: 26px; font-size: 12px; width: auto; max-width: 130px; } .eq-table .suivi-note { font-size: 12px; color: var(--encre-3); margin-top: 2px; max-width: 160px; }',
       '.eq-table .btn.petit { height: 24px; padding: 0 7px; font-size: 12px; }',
       '.eq-contact a { color: inherit; text-decoration: none; } .eq-contact a:hover { text-decoration: underline; }',
@@ -486,7 +589,8 @@
   VueEquite.prototype.analyser = function () {
     var comptes = AMX.equite.comptes(this.cie);
     var valeurs = AMX.openlane && AMX.openlane.valeur ? function (vin) { var r = AMX.openlane.valeur(vin); return r && r.luLe ? r : null; } : null;
-    this.lignes = analyser(comptes, this.neufs(), this.params, { valeurs: valeurs, mode: modeCie(this.cie) });
+    var choix = AMX.memo.lire('eq_versions', {}) || {};
+    this.lignes = analyser(comptes, this.neufs(), this.params, { valeurs: valeurs, mode: modeCie(this.cie), choixVersion: function (c) { return choix[(c.compagnie || '') + '|' + c.compte] || ''; } });
     var us = this.us || {}, mmrs = AMX.memo.lire('eq_mmr', {}) || {};
     var P = AMX.export && AMX.export.params ? AMX.export.params() : null, T = AMX.export && AMX.export.taux ? AMX.export.taux() : null;
     var ecart = P ? (nombre(P.ecartEchangePct) !== null ? nombre(P.ecartEchangePct) : nombre(P.ecartPct)) : null;
@@ -741,10 +845,10 @@
     var cls = (r.cible ? '.cible' : '') + (r.sansValeur ? '.sans' : '');
     var contactEl = contact ? h('div.sous.eq-contact', [c.telephone ? h('a', { href: 'tel:' + c.telephone.replace(/[^\d+]/g, ''), text: c.telephone }) : null, c.courriel ? h('span', [' · ', h('a', { href: 'mailto:' + c.courriel, text: c.courriel })]) : null]) : null;
     var eqCls = r.equite === null ? '.eq-nul' : (r.equite >= 0 ? '.eq-pos' : '.eq-neg');
-    var valeurEl = r.valeur !== null ? h('div', [h('div', { text: fmt$(r.valeur) }), h('div.sous', { text: 'OpenLane' + (r.kmEstime ? ' · ' + AMX.fmtNombre(r.kmEstime) + ' km est.' : '') })]) : h('div', [h('span.valeur', { text: 'à lire' }), AMX.openlane ? h('div', [h('button.btn.petit', { type: 'button', text: 'OpenLane', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } })]) : null]);
+    var valeurEl = r.valeur !== null ? h('button.eq-valeur', { type: 'button', title: 'Voir le calcul de la valeur OpenLane', onclick: function (ev) { ev.stopPropagation(); self.detailValeur(r); } }, [h('div', { text: fmt$(r.valeur) }), h('div.sous', { text: 'OpenLane' + (r.kmEstime ? ' · ' + AMX.fmtNombre(r.kmEstime) + ' km est.' : '') + ' ›' })]) : h('div', [h('span.valeur', { text: 'à lire' }), AMX.openlane ? h('div', [h('button.btn.petit', { type: 'button', text: 'OpenLane', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } })]) : null]);
     var autres = r.proposition && r.propositions.length > 1 ? r.propositions.filter(function (p) { return p !== r.proposition; }).map(function (p) { return p.vehicule + ' — ' + fmt$(p.mensualite) + ' / mois · ' + texteProposition(p); }).join('\n') : '';
     var neufEl = r.proposition ? h('div', { title: autres ? 'Autres scénarios DealDriver :\n' + autres : '' }, [h('div.nom', { text: r.proposition.vehicule || '—' }), h('div.sous', { text: texteProposition(r.proposition) + ' · DealDriver' + (r.propositions.length > 1 ? ' · +' + (r.propositions.length - 1) + ' autre' + (r.propositions.length > 2 ? 's' : '') : '') })])
-      : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: texteNeuf(r) })]) : h('span.sous', { text: 'Aucun ' + (c.modele || 'modèle semblable') + ' neuf connu (stock, commandes, ventes)' });
+      : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: texteNeuf(r) }), this.ligneVersion(r)]) : h('span.sous', { text: 'Aucun ' + (c.modele || 'modèle semblable') + ' neuf connu (stock, commandes, ventes)' });
     var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance))) })]) : h('span.eq-nul', '—');
     var selSuivi = h('select.suivi', SUIVIS_ORDRE.map(function (k) { return h('option', { value: k, text: SUIVIS[k] }); }));
     selSuivi.value = c.suivi || '';
@@ -839,6 +943,65 @@
         : h('div.sous', [mmrEl, ' ', lienEval])
     ]);
   };
+  var VOIES_VERSION = { meme: 'même version', proche: 'même finition, ensemble différent', autre: 'autre version (la même n\'est pas connue)', choisie: 'version choisie', inconnue: 'version du client inconnue' };
+  /** Sous le neuf proposé : la version comparée à celle du client, et le bouton pour en choisir une autre. */
+  VueEquite.prototype.ligneVersion = function (r) {
+    var self = this, vc = r.version, vn = r.neuf && r.neuf.ver, t = '';
+    if (r.versionVoie === 'meme') t = 'Même version : ' + libelleVersion(vn);
+    else if (r.versionVoie === 'proche') t = 'Même finition (' + (vc.libNiveau || vc.niveau) + ') — client : ' + libelleVersion(vc) + ' · neuf : ' + libelleVersion(vn);
+    else if (r.versionVoie === 'autre') t = '⚠ Autre version — client : ' + libelleVersion(vc) + ' · neuf : ' + (libelleVersion(vn) || 'non précisée');
+    else if (r.versionVoie === 'choisie') t = 'Version choisie : ' + (libelleVersion(vn) || 'non précisée') + (vc.niveau ? ' (client : ' + libelleVersion(vc) + ')' : '');
+    else if (r.versionVoie === 'inconnue') t = 'Version du client inconnue' + (vn && vn.niveau ? ' · neuf : ' + libelleVersion(vn) : '');
+    var n = 0, vus = {}; (r.famille || []).forEach(function (o) { if (!vus[o.ver.cle]) { vus[o.ver.cle] = 1; n++; } });
+    return h('div.eq-version.' + (r.versionVoie || 'inconnue'), [h('span.v-txt', { text: t }), n > 1 || r.versionVoie === 'choisie' ? h('button', { type: 'button', text: 'Changer de version', onclick: function (ev) { ev.stopPropagation(); self.choisirVersion(r); } }) : null]);
+  };
+  /** Choisir la version de comparaison d'un client (gardée sur cet appareil) : les versions du modèle, avec leur nombre et le PDSF le plus bas. */
+  VueEquite.prototype.choisirVersion = function (r) {
+    var self = this, c = r.compte, cle = (c.compagnie || self.cie) + '|' + c.compte, choix = AMX.memo.lire('eq_versions', {}) || {}, actuel = choix[cle] || '';
+    var groupes = {}, ordre = [];
+    (r.famille || []).forEach(function (o) {
+      var g = groupes[o.ver.cle];
+      if (!g) { g = groupes[o.ver.cle] = { cle: o.ver.cle, ver: o.ver, n: 0, prixMin: null, meilleur: o }; ordre.push(g); }
+      g.n++; if (g.prixMin === null || o.prix < g.prixMin) g.prixMin = o.prix;
+      if (RANG_ETAT[o.etat] < RANG_ETAT[g.meilleur.etat]) g.meilleur = o;
+    });
+    ordre.sort(function (a, b) { return ((a.ver.rang === null ? 99 : a.ver.rang) - (b.ver.rang === null ? 99 : b.ver.rang)) || (a.prixMin - b.prixMin); });
+    var fermer = null;
+    var poser = function (k) { var m = AMX.memo.lire('eq_versions', {}) || {}; if (k) m[cle] = k; else delete m[cle]; AMX.memo.ecrire('eq_versions', m); if (fermer) fermer(); self.planifierRendu(0); AMX.toast(k ? 'Version de comparaison choisie pour ' + nomClient(c) + '.' : 'Comparaison automatique (même version que le client).', 'ok'); };
+    var boutons = [h('button' + (!actuel ? '.actif' : ''), { type: 'button', onclick: function () { poser(''); } }, [h('div', [h('div.nom', { text: 'Automatique' }), h('div.sous', { text: 'La même version que le client (' + (libelleVersion(r.version) || 'inconnue') + '), sinon la plus proche' })]), h('div.droite', { text: '' })])];
+    ordre.forEach(function (g) {
+      var estClient = r.version.niveau && g.ver.niveau === r.version.niveau && ecartVersion(r.version, g.ver) === 0;
+      boutons.push(h('button' + (actuel === g.cle ? '.actif' : ''), { type: 'button', onclick: function () { poser(g.cle); } }, [
+        h('div', [h('div.nom', { text: libelleVersion(g.ver) || 'Version non précisée' }), estClient ? h('div.client', { text: 'Version du client' }) : null]),
+        h('div.droite', [h('div', { text: 'PDSF dès ' + fmt$(g.prixMin) }), h('div', { text: g.n + ' neuf' + (g.n > 1 ? 's' : '') + ' · ' + ETATS_NEUF[g.meilleur.etat] })])
+      ]));
+    });
+    var m = AMX.modale({ titre: 'Version de comparaison — ' + nomClient(c), corps: h('div', [h('p.doux', { style: { margin: '0 0 10px' }, text: vehiculeTexte(c) + ' · version du client : ' + (libelleVersion(r.version) || 'inconnue') }), h('div.eq-versions', boutons), h('p.doux.petit', { style: { margin: '10px 0 0' }, text: 'Le choix est gardé sur cet appareil. Le neuf proposé et la nouvelle mensualité se recalculent tout de suite.' })]), boutons: [{ texte: 'Fermer', action: function () { return true; } }] });
+    fermer = m && m.fermer ? m.fermer : function () { var v = document.querySelector('.voile:last-of-type'); if (v) v.remove(); };
+  };
+  /** Le calcul de la valeur OpenLane d'un client : d'où vient la valeur, le km, la dette, l'équité, puis le détail d'OpenLane. */
+  VueEquite.prototype.detailValeur = function (r) {
+    var self = this, c = r.compte, ol = r.openlane || {}, lignes = [];
+    var ligne = function (a, b, cls) { lignes.push(h('tr' + (cls || ''), [h('td', { text: a }), h('td.num', { text: b })])); };
+    var quoi = r.valeurQuoi === 'prevision' ? 'Prévision d\'OpenLane pour ce NIV' + (nombre(ol.kmPrevision) ? ' à ' + AMX.fmtNombre(nombre(ol.kmPrevision)) + ' km' : '')
+      : r.valeurQuoi === 'ajuste' ? 'Moyenne des ventes OpenLane, ajustée au km estimé du client'
+      : 'Moyenne des ventes OpenLane (sans ajustement au km)';
+    if (r.kmEstime) ligne('Km estimé du client' + (r.gm && nombre(c.kmEstime) ? ' (GM)' : (r.location && nombre(c.kmContrat) ? ' (km du contrat au prorata)' : ' (' + AMX.fmtNombre(this.params.kmAn) + ' km par année)')), AMX.fmtNombre(r.kmEstime) + ' km');
+    if (r.valeurQuoi === 'ajuste' && nombre(ol.prixMoy) !== null) ligne('Prix moyen des ventes' + (nombre(ol.kmMoy) ? ' (' + AMX.fmtNombre(nombre(ol.kmMoy)) + ' km en moyenne)' : ''), fmt$(nombre(ol.prixMoy)));
+    ligne(quoi, fmt$(r.valeur), '.total');
+    if (r.solde !== null) ligne('Dette du jour (' + texteDette(r) + ')', '− ' + fmt$(r.solde));
+    if (r.equite !== null) ligne('Équité', (r.equite >= 0 ? '' : '− ') + fmt$(Math.abs(r.equite)), '.total');
+    var corpsOl = h('div', { style: { marginTop: '12px' } });
+    AMX.modale({ titre: 'Valeur OpenLane — ' + nomClient(c), large: true, corps: h('div', [
+      h('p.doux', { style: { margin: '0 0 8px' }, text: vehiculeTexte(c) + (c.vin ? ' · ' + c.vin : '') + (ol.luLe ? ' · lu chez OpenLane le ' + AMX.fmtDate(ol.luLe) : '') }),
+      h('table.eq-dette-tab', [h('tbody', lignes)]),
+      h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Ordre de préférence : la prévision d\'OpenLane pour ce NIV, sinon la moyenne des ventes ajustée au km estimé, sinon la moyenne des ventes. Valeur de gros, pour l\'équipe seulement.' }),
+      corpsOl
+    ]), boutons: [{ texte: 'Fermer', action: function () { return true; } }] });
+    /* le détail d'OpenLane ajuste au km estimé du client (le même que le calcul ci-dessus), pas au km de sa dernière lecture */
+    var ligneOl = r.openlane ? Object.assign({}, r.openlane, r.kmEstime ? { km: r.kmEstime } : {}) : null;
+    if (AMX.openlaneDetail) AMX.openlaneDetail(corpsOl, c.vin, ligneOl, { km: r.kmEstime || undefined, liens: false, surValeur: function () { self.planifierRendu(800); } });
+  };
   VueEquite.prototype.lireUn = function (r) {
     var self = this, c = r.compte;
     if (!AMX.openlane || !AMX.openlane.direct) return Promise.resolve();
@@ -854,7 +1017,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');

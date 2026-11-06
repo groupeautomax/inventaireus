@@ -698,7 +698,7 @@
     this.btnCampagne.style.display = direction || p.envoyerCampagnes ? '' : 'none';
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.cie, sansToutes: true, compte: function (c) { var x = cache.par[c]; return x ? x.rep.resume.actifs : null; }, onchange: function (c) { if (c && c !== self.cie) { self.cie = c; self.charger(); } } });
     var r = d.resume || {}, s = r.sources || {};
-    this.elSous.textContent = 'Bâti le ' + (d.construitLe ? AMX.fmtDate(d.construitLe, true) : '—') + ' · ' + AMX.fmtNombre(r.actifs || 0) + ' véhicules au client · sources : ventes ' + AMX.fmtNombre(s.vente || 0) + ', prêteurs ' + AMX.fmtNombre(s.preteur || 0) + ', service ' + AMX.fmtNombre(s.service || 0) + ', évaluations ' + AMX.fmtNombre(s.evaluation || 0) + ', DMS ' + AMX.fmtNombre(s.dms || 0) + (d.offres ? ' · offres : stock ' + AMX.fmtNombre(d.offres.stockNeufs) + ' neufs et ' + AMX.fmtNombre(d.offres.stockOccasion) + ' occasions, ' + AMX.fmtNombre(d.offres.programmes) + ' programme' + (d.offres.programmes > 1 ? 's' : '') + ' ce mois' : '') + (d.aRebatir ? ' · changement reçu, rebâti dans la minute' : '');
+    this.elSous.textContent = 'Bâti le ' + (d.construitLe ? AMX.fmtDate(d.construitLe, true) : '—') + ' · ' + AMX.fmtNombre(r.actifs || 0) + ' véhicules au client · sources : ventes ' + AMX.fmtNombre(s.vente || 0) + ', prêteurs ' + AMX.fmtNombre(s.preteur || 0) + ', service ' + AMX.fmtNombre(s.service || 0) + ', évaluations ' + AMX.fmtNombre(s.evaluation || 0) + ', DMS ' + AMX.fmtNombre(s.dms || 0) + (d.offres ? ' · offres : stock ' + AMX.fmtNombre(d.offres.stockNeufs) + ' neufs et ' + AMX.fmtNombre(d.offres.stockOccasion) + ' occasions, ' + AMX.fmtNombre(d.offres.programmes) + ' programme' + (d.offres.programmes > 1 ? 's' : '') + ' ce mois' + (d.offres.modelesGm ? ', taux de la Financière GM pour ' + AMX.fmtNombre(d.offres.modelesGm) + ' modèle' + (d.offres.modelesGm > 1 ? 's' : '') : '') : '') + (d.aRebatir ? ' · changement reçu, rebâti dans la minute' : '');
     /* avis : le DMS */
     AMX.vider(this.elAvis);
     var dms = d.dms || {};
@@ -708,7 +708,7 @@
         direction ? h('button.btn.petit', { type: 'button', text: 'Importer un fichier du DMS', onclick: function () { self.importer(); } }) : null
       ]));
     }
-    if (d.offres && !d.offres.programmes) this.elAvis.appendChild(h('div.ptf-avis', [
+    if (d.offres && !d.offres.programmes && !d.offres.modelesGm) this.elAvis.appendChild(h('div.ptf-avis', [
       h('p', { html: '<b>Aucun programme du mois pour cette concession.</b> Les offres utilisent les taux et les termes par défaut des réglages et restent « à réviser » tant que les programmes du constructeur (taux, résiduels, rabais) ne sont pas saisis.' }),
       h('button.btn.petit', { type: 'button', text: 'Programmes du mois', onclick: function () { self.programmes(); } })
     ]));

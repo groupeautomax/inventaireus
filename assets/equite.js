@@ -353,6 +353,63 @@
     return p;
   }
 
+  /* ---- Programmes du manufacturier — 6 nov. (Maxime) : « je veux que ce soit branché au manufacturier ». Taux, terme et
+     rabais du financement du neuf proposé, dans l'ordre : 1) les Programmes du mois de la concession (Relance › Portefeuille
+     clients › Programmes du mois ; même règle que le moteur d'offres : le plus précis l'emporte, les rabais s'additionnent) ;
+     2) GM : le taux et le terme des scénarios DealDriver de GM Dealer Direct lus ce mois-ci (programmes de la Financière GM),
+     pour le même modèle et la même version ; 3) sinon les réglages de « Calcul de la nouvelle mensualité ». */
+  function cleProg(t) { return texteVersion(t).toLowerCase(); }
+  function progCorrespond(p, s) {
+    if (p.etat && p.etat !== 'neuf') return false;
+    if (p.marque && cleProg(p.marque) !== cleProg(s.marque)) return false;
+    if (p.modele && cleProg(s.modele + ' ' + s.version).indexOf(cleProg(p.modele)) < 0) return false;
+    if (p.version && cleProg(s.modele + ' ' + s.version).indexOf(cleProg(p.version)) < 0) return false;
+    var an = nombre(s.annee);
+    if (nombre(p.anneeMin) && (!an || an < nombre(p.anneeMin))) return false;
+    if (nombre(p.anneeMax) && (!an || an > nombre(p.anneeMax))) return false;
+    if (p.electrique === 'oui' && !/\bEV\b|ELECTRI|IONIQ|LYRIQ|OPTIQ|BOLT|\bID\b|\bIX\b|\bI4\b|\bI5\b|\bI7\b/.test(texteVersion(s.modele + ' ' + s.version))) return false;
+    return true;
+  }
+  function progPrecision(p) { return (p.marque ? 1 : 0) + (p.modele ? 2 : 0) + (p.version ? 2 : 0) + (nombre(p.anneeMin) || nombre(p.anneeMax) ? 1 : 0) + (p.etat ? 1 : 0); }
+  /** Programmes valables aujourd'hui (mois courant, ou un mois d'avant dont la fin n'est pas passée). */
+  function programmesDuJour(liste, ajd) {
+    var mois = ajd.slice(0, 7);
+    return (liste || []).filter(function (p) { return (p.mois === mois || (p.fin && p.fin >= ajd && p.mois <= mois)) && (!p.fin || p.fin >= ajd); });
+  }
+  /** Taux GM du mois : par famille de modèle, les scénarios de financement de DealDriver (véhicule, version, terme, taux). */
+  function indexTauxGm(comptes, familleDe, ajd) {
+    var idx = {}, mois = ajd.slice(0, 7);
+    (comptes || []).forEach(function (c) {
+      if (String(c.luLe || '').slice(0, 7) !== mois) return;
+      var ps = c.propositions; if (typeof ps === 'string') { try { ps = JSON.parse(ps); } catch (e) { ps = null; } }
+      (Array.isArray(ps) ? ps : []).forEach(function (q) {
+        if (!q || q.type !== 'financement' || nombre(q.taux) === null || !nombre(q.terme)) return;
+        var veh = texte(q.vehicule).replace(/^\d{4}\s+/, '').replace(/^(chevrolet|gmc|buick|cadillac)\s+/i, '');
+        var fam = familleDe(veh); if (!fam) return;
+        (idx[fam] = idx[fam] || []).push({ ver: versionDe('gm', veh), terme: nombre(q.terme), taux: nombre(q.taux), vehicule: texte(q.vehicule) });
+      });
+    });
+    return idx;
+  }
+  /** Le financement du neuf : { taux, terme, rabais, rabaisAvantTaxes, source: programme | gm | page, libelle }. */
+  function financementNeuf(n, famille, params, progs, tauxGm) {
+    var s = { marque: n.v && n.v.marque || '', modele: n.modele || '', version: n.version || '', annee: n.annee };
+    var rabais = 0, avant = true, noms = [];
+    (progs || []).forEach(function (p) { if (p.type === 'rabais' && progCorrespond(p, s)) { rabais += nombre(p.rabais) || 0; if (p.rabaisAvantTaxes !== 'oui') avant = false; noms.push(p.note || p.modele || 'rabais'); } });
+    var c = (progs || []).filter(function (p) { return p.type === 'financement' && nombre(p.terme) && nombre(p.taux) !== null && progCorrespond(p, s); });
+    c.sort(function (a, b) { return progPrecision(b) - progPrecision(a); });
+    if (c[0]) return { taux: nombre(c[0].taux), terme: nombre(c[0].terme), rabais: rabais, rabaisAvantTaxes: avant, source: 'programme', libelle: 'programme du mois' + (c[0].note ? ' (' + c[0].note + ')' : ''), rabaisNoms: noms };
+    var g = tauxGm && famille ? tauxGm[famille] : null;
+    if (g && g.length) {
+      var memes = n.ver && n.ver.niveau ? g.filter(function (x) { return x.ver.niveau === n.ver.niveau; }) : [];
+      var l = memes.length ? memes : g, compte = {};
+      l.forEach(function (x) { var k = x.terme + '|' + x.taux; compte[k] = (compte[k] || 0) + 1; });
+      var meilleur = Object.keys(compte).sort(function (a, b) { return (compte[b] - compte[a]) || (Number(a.split('|')[1]) - Number(b.split('|')[1])); })[0].split('|');
+      return { taux: Number(meilleur[1]), terme: Number(meilleur[0]), rabais: rabais, rabaisAvantTaxes: avant, source: 'gm', libelle: 'Financière GM' + (memes.length ? '' : ' (même modèle, autre version)'), rabaisNoms: noms };
+    }
+    return { taux: nombre(params.taux), terme: nombre(params.terme), rabais: rabais, rabaisAvantTaxes: avant, source: rabais ? 'programme' : 'page', libelle: rabais ? 'taux de la page + rabais du mois' : 'taux de la page', rabaisNoms: noms };
+  }
+
   /* ---- Analyse : valeur, solde, équité, neuf similaire, nouvelle mensualité ---- */
   /** comptes (?equite=1), neufs = véhicules du suivi des neufs de la concession (toutes origines), params, options.valeurs = fn(vin) → valeur OpenLane. */
   function analyser(comptes, neufs, params, options) {
@@ -382,6 +439,7 @@
     }
     var connusListe = Object.keys(connus).sort(function (a, b) { return b.length - a.length; });
     var familleDe = function (t) { var k = normModele(t); if (!k) return ''; for (var i = 0; i < connusListe.length; i++) { var x = connusListe[i]; if (k === x || k.indexOf(x + ' ') === 0) return x; } return k; };
+    var progs = programmesDuJour(options.programmes, ajd), tauxGm = gm ? indexTauxGm(comptes, familleDe, ajd) : null;
     var parSerie = {}, parRacine = {};
     uniques.forEach(function (o) {
       var s = parModele ? familleDe(o.modele) : texte(o.modele); if (!s) return;
@@ -462,10 +520,11 @@
       } else if (r.neuf) {
         var prix = r.neuf.prix + (nombre(params.frais) || 0);
         var valeur = r.valeur !== null ? r.valeur : 0;
-        var taxable = Math.max(0, prix - valeur), taxes = taxable * (nombre(params.taxes) || 0) / 100;
-        r.finance = Math.max(0, prix + taxes - valeur + (r.solde || 0) - (nombre(params.comptant) || 0));
-        r.taxes = taxes; r.prixNeuf = prix;
-        r.mensualite = pmt(r.finance, params.taux, params.terme);
+        var fin = financementNeuf(r.neuf, parModele ? familleDe(r.neuf.modele) : '', params, progs, tauxGm);
+        var taxable = Math.max(0, prix - (fin.rabaisAvantTaxes ? fin.rabais : 0) - valeur), taxes = taxable * (nombre(params.taxes) || 0) / 100;
+        r.finance = Math.max(0, prix - fin.rabais + taxes - valeur + (r.solde || 0) - (nombre(params.comptant) || 0));
+        r.taxes = taxes; r.prixNeuf = prix; r.programme = fin;
+        r.mensualite = pmt(r.finance, fin.taux, fin.terme);
         r.ecart = r.mensualite !== null && paiement ? r.mensualite - paiement : null;
         r.cible = r.valeur !== null && r.ecart !== null && r.ecart <= (nombre(params.marge) || 0);
       } else { r.finance = null; r.mensualite = null; r.ecart = null; r.cible = false; }
@@ -524,6 +583,7 @@
       '.eq-pos { color: var(--vert); font-weight: 700; } .eq-neg { color: var(--rouge); font-weight: 700; } .eq-nul { color: var(--encre-3); }',
       '.eq-table button.eq-valeur { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: right; } .eq-table button.eq-valeur > div:first-child { text-decoration: underline dotted; text-underline-offset: 3px; } .eq-table button.eq-valeur:hover > div:first-child { color: var(--vert-fonce, #0B6B3A); }',
       '.eq-table .eq-version { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 12px; margin-top: 2px; } .eq-table .eq-version .v-txt { color: var(--encre-3); } .eq-table .eq-version.meme .v-txt { color: var(--vert-fonce, #0B6B3A); } .eq-table .eq-version.autre .v-txt { color: var(--ambre); font-weight: 600; } .eq-table .eq-version.choisie .v-txt { color: var(--bleu, #1A64BF); }',
+      '.eq-table .eq-prog.programme, .eq-table .eq-prog.gm { color: var(--vert-fonce, #0B6B3A); }',
       '.eq-table .eq-version button { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; color: var(--bleu, #1A64BF); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }',
       '.eq-versions { display: flex; flex-direction: column; gap: 6px; } .eq-versions button { display: flex; justify-content: space-between; gap: 12px; align-items: center; text-align: left; font: inherit; background: var(--carte, #fff); border: 1px solid var(--ligne, #E3E7EB); border-radius: 8px; padding: 8px 10px; cursor: pointer; } .eq-versions button:hover { border-color: var(--ligne-forte, #C9D0D6); } .eq-versions button.actif { border-color: var(--vert); box-shadow: 0 0 0 2px var(--vert-clair); } .eq-versions .droite { text-align: right; white-space: nowrap; font-size: 12.5px; color: var(--encre-3); } .eq-versions .client { color: var(--vert-fonce, #0B6B3A); font-size: 12px; font-weight: 600; }',
       '.eq-table select.suivi { height: 26px; font-size: 12px; width: auto; max-width: 130px; } .eq-table .suivi-note { font-size: 12px; color: var(--encre-3); margin-top: 2px; max-width: 160px; }',
@@ -586,11 +646,21 @@
     }, ms === undefined ? 1200 : ms);
   };
   VueEquite.prototype.neufs = function () { var d = this.ctx.neufs || (AMX.neufs && AMX.neufs.enCache && AMX.neufs.enCache()); var self = this; return d && d.vehicules ? d.vehicules.filter(function (v) { return v.compagnie === self.cie; }) : []; };
+  /** Les Programmes du mois de la concession (une lecture par concession ; sans l'onglet Portefeuille, aucun). */
+  VueEquite.prototype.chargerProgrammes = function () {
+    var self = this, cie = this.cie; this.progs = this.progs || {};
+    if (this.progs[cie] !== undefined) return;
+    this.progs[cie] = [];
+    AMX.get({ programmesMois: 1, compagnie: cie }, { discret: true }).then(function (d) {
+      if (d && Array.isArray(d.programmes) && d.programmes.length) { self.progs[cie] = d.programmes; if (!self.detruit) self.planifierRendu(0); }
+    }).catch(function () {});
+  };
   VueEquite.prototype.analyser = function () {
     var comptes = AMX.equite.comptes(this.cie);
     var valeurs = AMX.openlane && AMX.openlane.valeur ? function (vin) { var r = AMX.openlane.valeur(vin); return r && r.luLe ? r : null; } : null;
     var choix = AMX.memo.lire('eq_versions', {}) || {};
-    this.lignes = analyser(comptes, this.neufs(), this.params, { valeurs: valeurs, mode: modeCie(this.cie), choixVersion: function (c) { return choix[(c.compagnie || '') + '|' + c.compte] || ''; } });
+    this.chargerProgrammes();
+    this.lignes = analyser(comptes, this.neufs(), this.params, { valeurs: valeurs, mode: modeCie(this.cie), programmes: (this.progs || {})[this.cie] || [], choixVersion: function (c) { return choix[(c.compagnie || '') + '|' + c.compte] || ''; } });
     var us = this.us || {}, mmrs = AMX.memo.lire('eq_mmr', {}) || {};
     var P = AMX.export && AMX.export.params ? AMX.export.params() : null, T = AMX.export && AMX.export.taux ? AMX.export.taux() : null;
     var ecart = P ? (nombre(P.ecartEchangePct) !== null ? nombre(P.ecartEchangePct) : nombre(P.ecartPct)) : null;
@@ -669,9 +739,9 @@
     this.analyser();
     var champ = function (cle, libelle, pas, aide) { var inp = h('input', { type: 'number', step: pas || '0.01', value: String(self.params[cle]), title: aide || '' }); inp.addEventListener('change', function () { var v = nombre(inp.value); if (v === null) return; self.params[cle] = v; AMX.equite.poserParams(self.params); try { inp.blur(); } catch (e) {} setTimeout(function () { self.rendre(); }, 0); });   /* redessin différé : retirer le champ pendant son propre « change » fait échouer removeChild */ return h('div.champ', [h('label', { text: libelle }), inp]); };
     var paramsCorps = h('div.eq-params', [
-      champ('taux', 'Taux %', '0.01', 'Taux annuel du financement du neuf (' + preteur(this.cie) + ', programme du mois)'), champ('terme', 'Terme (mois)', '1'), champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
+      champ('taux', 'Taux %', '0.01', 'Taux annuel du financement du neuf quand aucun programme du manufacturier n\'est connu pour le modèle (Programmes du mois ; GM : scénarios de la Financière GM)'), champ('terme', 'Terme (mois)', '1'), champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
       champ('marge', 'Marge $/mois', '1', 'Une cible peut payer jusqu\'à ce montant de plus par mois'), champ('taxes', 'Taxes %', '0.001', 'TPS + TVQ sur la différence prix − valeur de l\'échange'), champ('comptant', 'Comptant $', '1'), champ('kmAn', 'Km / an', '1000', 'Km estimé d\'un véhicule financé (pour OpenLane)'),
-      h('span.doux.petit', { style: { alignSelf: 'center' } }, 'Nouvelle mensualité = (PDSF + frais − valeur) + taxes + solde, financé au taux et au terme choisis. Estimation : sans incitatifs ni programme de location.')
+      h('span.doux.petit', { style: { alignSelf: 'center' } }, 'Nouvelle mensualité = (PDSF + frais − rabais − valeur) + taxes + solde, financée au taux et au terme du programme du manufacturier (Programmes du mois, ou Financière GM pour GM) ; sinon au taux et au terme ci-contre. Financement seulement.')
     ]);
     var P = this.params;
     var params = h('details.eq-reglages', { open: this.reglagesOuverts ? 'open' : null }, [h('summary', [h('b', { text: 'Calcul de la nouvelle mensualité' }), h('span', { text: ' · ' + String(P.taux).replace('.', ',') + ' % · ' + P.terme + ' mois · frais ' + fmt$(P.frais) + ' · marge ' + fmt$(P.marge) + ' / mois · taxes ' + String(P.taxes).replace('.', ',') + ' %' + (nombre(P.comptant) ? ' · comptant ' + fmt$(P.comptant) : '') })]), paramsCorps]);
@@ -740,16 +810,19 @@
   /* Les comptes à lire sur OpenLane (6 nov.) : sans valeur, ou valeur de plus de 30 jours, ou km estimé à plus de 10 000 km de
      celui de la lecture. `relire` = aussi ceux déjà essayés depuis l'ouverture de la page ; `sansValeurSeulement` = lecture
      automatique de l'ouverture. */
-  var OL_VIEUX_J = 30, OL_ECART_KM = 10000;
+  /* 6 nov. (Maxime) : un NIV lu chez OpenLane depuis moins de 15 jours n'est pas relu par la synchronisation, même sans valeur
+     trouvée ni écart de km (la lecture d'un seul client, dans sa ligne ou le détail de sa valeur, reste possible). */
+  var OL_VIEUX_J = 30, OL_ECART_KM = 10000, OL_FRAIS_J = 15;
   VueEquite.prototype.aLire = function (relire, sansValeurSeulement) {
-    var self = this, lim = Date.now() - OL_VIEUX_J * JOUR_MS;
+    var self = this, lim = Date.now() - OL_VIEUX_J * JOUR_MS, frais = Date.now() - OL_FRAIS_J * JOUR_MS;
     return (this.lignes || []).filter(function (r) {
       var vin = texte(r.compte.vin).toUpperCase();
       if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return false;
       if (!relire && self.essayes[vin]) return false;
+      var o = r.openlane || {}, t = Date.parse(String(o.luLe || '').replace(' ', 'T'));
+      if (t && t >= frais) return false;
       if (r.sansValeur) return true;
       if (sansValeurSeulement) return false;
-      var o = r.openlane || {}, t = Date.parse(String(o.luLe || '').replace(' ', 'T'));
       if (!t || t < lim) return true;
       var km = nombre(o.km);
       return !!(r.kmEstime && km !== null && Math.abs(km - r.kmEstime) > OL_ECART_KM);
@@ -809,7 +882,7 @@
     b.innerHTML = s && s.enCours ? I.rafraichir + '<span>Arrêter · ' + AMX.fmtNombre(s.faits) + ' / ' + AMX.fmtNombre(s.total) + '</span>'
       : I.rafraichir + '<span>Synchroniser OpenLane' + (n ? ' (' + AMX.fmtNombre(n) + ')' : '') + '</span>';
     b.title = !peut ? 'La lecture OpenLane n\'est pas offerte : OpenLane pas connecté au site, ou droit « Fiche d\'achat » / « Changer le statut » manquant.'
-      : (s && s.enCours ? 'Arrêter la lecture des valeurs OpenLane' : (n ? 'Lire sur OpenLane la valeur de ' + AMX.fmtNombre(n) + ' compte' + (n > 1 ? 's' : '') + ' (sans valeur, ou lue il y a plus de ' + OL_VIEUX_J + ' jours) : l\'équité et la nouvelle mensualité se recalculent à mesure.' : 'Toutes les valeurs ont moins de ' + OL_VIEUX_J + ' jours : un clic relit les comptes sans valeur.'));
+      : (s && s.enCours ? 'Arrêter la lecture des valeurs OpenLane' : (n ? 'Lire sur OpenLane la valeur de ' + AMX.fmtNombre(n) + ' compte' + (n > 1 ? 's' : '') + ' (sans valeur, ou lue il y a plus de ' + OL_VIEUX_J + ' jours ; un NIV lu depuis moins de ' + OL_FRAIS_J + ' jours est passé) : l\'équité et la nouvelle mensualité se recalculent à mesure.' : 'Toutes les valeurs ont moins de ' + OL_VIEUX_J + ' jours : un clic relit les comptes sans valeur.'));
   };
   VueEquite.prototype.majSync = function () {
     var self = this, el = this.elSync;
@@ -849,7 +922,7 @@
     var autres = r.proposition && r.propositions.length > 1 ? r.propositions.filter(function (p) { return p !== r.proposition; }).map(function (p) { return p.vehicule + ' — ' + fmt$(p.mensualite) + ' / mois · ' + texteProposition(p); }).join('\n') : '';
     var neufEl = r.proposition ? h('div', { title: autres ? 'Autres scénarios DealDriver :\n' + autres : '' }, [h('div.nom', { text: r.proposition.vehicule || '—' }), h('div.sous', { text: texteProposition(r.proposition) + ' · DealDriver' + (r.propositions.length > 1 ? ' · +' + (r.propositions.length - 1) + ' autre' + (r.propositions.length > 2 ? 's' : '') : '') })])
       : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: texteNeuf(r) }), this.ligneVersion(r)]) : h('span.sous', { text: 'Aucun ' + (c.modele || 'modèle semblable') + ' neuf connu (stock, commandes, ventes)' });
-    var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance))) })]) : h('span.eq-nul', '—');
+    var mensEl = r.mensualite !== null ? h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · financé ' + fmt$(r.finance))) }), r.programme ? h('div.sous.eq-prog.' + r.programme.source, { text: String(r.programme.taux).replace('.', ',') + ' % · ' + r.programme.terme + ' mois · ' + r.programme.libelle + (r.programme.rabais ? ' · rabais ' + fmt$(r.programme.rabais) : ''), title: r.programme.source === 'page' ? 'Aucun programme du manufacturier connu pour ce modèle ce mois-ci : taux et terme de « Calcul de la nouvelle mensualité ».' : (r.programme.source === 'gm' ? 'Taux et terme des scénarios de la Financière GM lus dans GM Dealer Direct ce mois-ci.' : 'Programmes du mois (Relance › Portefeuille clients).') }) : null]) : h('span.eq-nul', '—');
     var selSuivi = h('select.suivi', SUIVIS_ORDRE.map(function (k) { return h('option', { value: k, text: SUIVIS[k] }); }));
     selSuivi.value = c.suivi || '';
     selSuivi.disabled = !contact;
@@ -1017,7 +1090,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');

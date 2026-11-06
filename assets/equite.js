@@ -551,7 +551,9 @@
       return cache.promesse;
     },
     enCache: function () { return cache.donnees; },
-    vider: function () { cache.donnees = null; cache.le = 0; AMX.cacheLocal.oublier('equite'); },
+    vider: function () { cache.donnees = null; cache.le = 0; AMX.cacheLocal.oublier('equite'); Object.keys(SYNCS).forEach(function (c) { if (SYNCS[c].enCours) SYNCS[c].arret = true; }); },
+    /** Lectures OpenLane en cours ou finies, par concession (elles continuent hors de la page Équité). */
+    synchros: function () { return SYNCS; },
     /** Comptes actifs d'une concession (ou de toutes), d'après le cache. */
     comptes: function (cie) { var d = cache.donnees; if (!d) return []; return (d.comptes || []).filter(function (c) { return c.actif !== false && (!cie || c.compagnie === cie); }); },
     etat: function (cie) { var d = cache.donnees; return d && d.etats ? d.etats[cie] || null : null; },
@@ -621,19 +623,19 @@
     this.ia = null;   /* filtres rendus par Einstein AI : { question, resume, conditions, tri, sens } */
     this.lignes = []; this.lecture = null;
     this.us = null;          /* calculs É.-U. des évaluations (?evaluationsUs=1), par NIV */
-    this.sync = null;        /* lecture OpenLane en cours ou finie (synchroniser) */
-    this.essayes = {};       /* NIV déjà demandés à OpenLane depuis l'ouverture de la page */
-    this.syncAuto = {};      /* concessions dont la lecture automatique a déjà été lancée */
     this.rendre();
     var self = this;
     this.surOpenlane = function () { self.planifierRendu(); };
+    var vusValorises = -1;
+    this.surSync = function (ev) { var d = ev && ev.detail || {}; if (self.detruit || d.cie !== self.cie) return; var s = SYNCS[self.cie]; self.majSync(); if (d.fini) self.planifierRendu(0); else if (s && s.valorises !== vusValorises) { vusValorises = s.valorises; self.planifierRendu(2500); } };
+    document.addEventListener('amx:equiteSync', this.surSync);
     document.addEventListener('amx:openlane', this.surOpenlane);
     if (AMX.openlane && AMX.openlane.charger) AMX.openlane.charger().catch(function () {});
     /* 4 nov. (Maxime) : « la comparaison de la dette avec le montant du calcul US doit être visible » — le gros É.-U. vient
        de l'évaluation du NIV (boîte Canada ou É.-U.), sinon d'un MMR tapé dans la ligne, avec le taux du jour. */
     if (AMX.export && AMX.export.charger) Promise.all([AMX.export.charger(), AMX.export.verdicts ? AMX.export.verdicts() : {}]).then(function (r) { self.us = r[1] || {}; if (!self.detruit) self.planifierRendu(); }).catch(function () {});
   }
-  VueEquite.prototype.demonter = function () { this.detruit = true; if (this.sync) this.sync.arret = true; clearTimeout(this.minuterieRendu); document.removeEventListener('amx:openlane', this.surOpenlane); };
+  VueEquite.prototype.demonter = function () { this.detruit = true; clearTimeout(this.minuterieRendu); document.removeEventListener('amx:openlane', this.surOpenlane); document.removeEventListener('amx:equiteSync', this.surSync); };
   /* Redessin regroupé (lecture OpenLane, export É.-U.) : jamais pendant qu'on tape dans un champ de la page. */
   VueEquite.prototype.planifierRendu = function (ms) {
     var self = this;
@@ -784,7 +786,7 @@
     /* Lecture OpenLane automatique : une fois par concession à l'ouverture, les comptes sans valeur (4 nov.). Le bouton
        « Synchroniser OpenLane » du haut de la page relit aussi les valeurs de plus de 30 jours (6 nov.). */
     var nSans = this.lignes.filter(function (r) { return r.sansValeur; }).length;
-    if (nSans && !this.syncAuto[this.cie] && this.peutLireOpenlane() && !(this.sync && this.sync.enCours)) { this.syncAuto[this.cie] = true; setTimeout(function () { if (!self.detruit) self.synchroniser(false, true); }, 400); }
+    if (nSans && !SYNC_AUTO[this.cie] && this.peutLireOpenlane() && !(SYNCS[this.cie] && SYNCS[this.cie].enCours)) { SYNC_AUTO[this.cie] = true; setTimeout(function () { if (!self.detruit) self.synchroniser(false, true); }, 400); }
   };
   /** Les tuiles : chacune filtre la liste ; leur nombre porte sur ce que les autres filtres gardent. */
   VueEquite.prototype.rendreTuiles = function () {
@@ -797,7 +799,7 @@
       carte('vert', 'Cibles', n(function (r) { return r.cible; }), 'nouvelle mensualité ≤ actuelle + ' + fmt$(this.params.marge), 'cibles'),
       carte('bleu', 'Équité positive', n(function (r) { return r.equite !== null && r.equite > 0; }), 'valeur > dette (aujourd\'hui)', 'equite'),
       carte('ambre', 'Échéance ≤ 6 mois', n(function (r) { return r.echeanceProche; }), 'contrats qui finissent bientôt', 'proches'),
-      carte(nSans ? 'rouge' : 'gris', 'Sans valeur', nSans, nSans ? (this.sync && this.sync.enCours ? 'lecture OpenLane en cours' : 'à synchroniser avec OpenLane') : 'tout est valorisé', 'sansValeur'),
+      carte(nSans ? 'rouge' : 'gris', 'Sans valeur', nSans, nSans ? (SYNCS[this.cie] && SYNCS[this.cie].enCours ? 'lecture OpenLane en cours' : 'à synchroniser avec OpenLane') : 'tout est valorisé', 'sansValeur'),
       carte('bleu', 'Exportables É.-U.', n(function (r) { return r.exportable; }), nCalculUS + ' avec le gros É.-U. calculé', 'exportables'),
       carte(nMeilleurUS ? 'vert' : 'gris', 'Plus payant aux É.-U.', nMeilleurUS, 'gros É.-U. − dette > équité au Canada', 'meilleurUS'),
       carte('violet', 'En suivi', n(function (r) { return r.compte.suivi; }), 'contactés, rendez-vous, vendus', 'suivi')
@@ -813,12 +815,17 @@
   /* 6 nov. (Maxime) : un NIV lu chez OpenLane depuis moins de 15 jours n'est pas relu par la synchronisation, même sans valeur
      trouvée ni écart de km (la lecture d'un seul client, dans sa ligne ou le détail de sa valeur, reste possible). */
   var OL_VIEUX_J = 30, OL_ECART_KM = 10000, OL_FRAIS_J = 15;
+  /* 6 nov. (Maxime) : « la synchronisation OpenLane doit continuer même quand je change de page ». La lecture appartient au
+     module, une par concession, pas à la page : quitter Équité ne l'arrête plus ; en revenant, la page la retrouve. Elle
+     s'arrête avec le bouton « Arrêter », à la déconnexion, ou si l'onglet du site est fermé. */
+  var SYNCS = {}, ESSAYES = {}, SYNC_AUTO = {};
+  function syncAnnoncer(cie, fini) { try { document.dispatchEvent(new CustomEvent('amx:equiteSync', { detail: { cie: cie, fini: !!fini } })); } catch (e) {} }
   VueEquite.prototype.aLire = function (relire, sansValeurSeulement) {
     var self = this, lim = Date.now() - OL_VIEUX_J * JOUR_MS, frais = Date.now() - OL_FRAIS_J * JOUR_MS;
     return (this.lignes || []).filter(function (r) {
       var vin = texte(r.compte.vin).toUpperCase();
       if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return false;
-      if (!relire && self.essayes[vin]) return false;
+      if (!relire && ESSAYES[vin]) return false;
       var o = r.openlane || {}, t = Date.parse(String(o.luLe || '').replace(' ', 'T'));
       if (t && t >= frais) return false;
       if (r.sansValeur) return true;
@@ -830,7 +837,7 @@
   };
   /** Le gros bouton du haut de la page : lancer ou arrêter la synchronisation. */
   VueEquite.prototype.basculerSync = function () {
-    if (this.sync && this.sync.enCours) { this.sync.arret = true; this.majSync(); return; }
+    if (SYNCS[this.cie] && SYNCS[this.cie].enCours) { SYNCS[this.cie].arret = true; this.majSync(); return; }
     if (!this.peutLireOpenlane()) { AMX.toast(AMX.openlane && AMX.openlane.enDirect && AMX.openlane.enDirect() === false ? 'OpenLane n\'est pas connecté au site : un administrateur doit recliquer le favori « Automax ← OpenLane » dans OpenLane.' : 'La lecture OpenLane demande le droit « Fiche d\'achat » ou « Changer le statut ».', 'attention', 7000); return; }
     var neufs = this.aLire(false).length;
     if (!neufs && !this.aLire(true).length) { AMX.toast('Valeurs OpenLane à jour : chaque compte a une valeur lue il y a moins de ' + OL_VIEUX_J + ' jours.', 'ok'); this.majSync(); return; }
@@ -838,24 +845,28 @@
   };
   /** Lit sur OpenLane, 3 à la fois, la valeur des comptes de la concession (voir aLire) ; la page se recalcule à mesure. */
   VueEquite.prototype.synchroniser = function (relire, sansValeurSeulement) {
-    var self = this;
-    if (this.sync && this.sync.enCours) return;
-    if (relire) this.essayes = {};
-    var aLire = this.aLire(relire, sansValeurSeulement);
+    var cie = this.cie;
+    if (SYNCS[cie] && SYNCS[cie].enCours) return;
+    if (relire) Object.keys(ESSAYES).forEach(function (k) { delete ESSAYES[k]; });
+    /* la liste est figée au départ (NIV + km estimé) : la lecture n'a plus besoin de la page */
+    var aLire = this.aLire(relire, sansValeurSeulement).map(function (r) { return { vin: texte(r.compte.vin).toUpperCase(), km: r.kmEstime || '' }; });
     if (!aLire.length) { this.majSync(); return; }
-    var s = this.sync = { cie: this.cie, total: aLire.length, faits: 0, valorises: 0, sansResultat: 0, erreurs: 0, enCours: true, arret: false, message: '' };
+    var s = SYNCS[cie] = { cie: cie, total: aLire.length, faits: 0, valorises: 0, sansResultat: 0, erreurs: 0, enCours: true, arret: false, message: '', debut: Date.now() };
     var i = 0, actifs = 0, PAR = 3;
-    var fin = function () { if (!s.enCours) return; s.enCours = false; if (!self.detruit) { self.majSync(); self.planifierRendu(0); } };
+    var fin = function () {
+      if (!s.enCours) return; s.enCours = false; s.finLe = Date.now(); syncAnnoncer(cie, true);
+      /* sur une autre page : un mot quand c'est fini */
+      if (!document.querySelector('.eq-sync') && !s.arret) AMX.toast('Synchronisation OpenLane terminée — ' + nomCie(cie) + ' : ' + AMX.fmtNombre(s.valorises) + ' valorisée' + (s.valorises > 1 ? 's' : '') + ' sur ' + AMX.fmtNombre(s.total) + '.', 'ok', 6000);
+    };
     var suivant = function () {
-      if (s.arret || self.detruit) { if (!actifs) fin(); return; }
+      if (s.arret) { if (!actifs) fin(); return; }
       while (actifs < PAR && i < aLire.length) lancer(aLire[i++]);
       if (!actifs && i >= aLire.length) fin();
     };
-    var lancer = function (r) {
+    var lancer = function (x0) {
       actifs++;
-      var vin = texte(r.compte.vin).toUpperCase();
-      self.essayes[vin] = 1;
-      AMX.openlane.direct(vin, r.kmEstime || '', { source: 'equite', compagnie: self.cie }).then(function (x) {
+      ESSAYES[x0.vin] = 1;
+      AMX.openlane.direct(x0.vin, x0.km, { source: 'equite', compagnie: cie }).then(function (x) {
         if (x && x.nonConnecte) { s.arret = true; s.message = x.erreur || 'OpenLane n\'est pas connecté au site : un administrateur doit recliquer le favori « Automax ← OpenLane » dans OpenLane.'; }
         else if (x && x.refuse) { s.arret = true; s.message = x.erreur || 'Lecture OpenLane refusée pour ce compte.'; }
         else if (x && x.ok && x.valeur && (nombre(x.valeur.prevision) || nombre(x.valeur.prixMoy))) s.valorises++;
@@ -865,17 +876,17 @@
         if (s.erreurs >= 5) s.arret = true;
       }).then(function () {
         actifs--; s.faits++;
-        if (!self.detruit) { self.majSync(); if (s.valorises) self.planifierRendu(2500); }
+        syncAnnoncer(cie, false);
         suivant();
       });
     };
-    this.majSync();
+    syncAnnoncer(cie, false);
     suivant();
   };
   /** Le gros bouton du haut de la page (passé par la page : ctx.boutonSync) suit la lecture. */
   VueEquite.prototype.majBouton = function () {
     var b = this.ctx.boutonSync; if (!b) return;
-    var s = this.sync && this.sync.cie === this.cie ? this.sync : null, peut = this.peutLireOpenlane();
+    var s = SYNCS[this.cie] || null, peut = this.peutLireOpenlane();
     var n = this.lignes && this.lignes.length ? this.aLire(false).length : 0;
     b.disabled = !(this.lignes && this.lignes.length);
     b.classList.toggle('en-cours', !!(s && s.enCours));
@@ -889,7 +900,7 @@
     this.majBouton();
     if (!el) return;
     AMX.vider(el);
-    var s = this.sync && this.sync.cie === this.cie ? this.sync : null;
+    var s = SYNCS[this.cie] || null;
     var nSans = this.lignes.filter(function (r) { return r.sansValeur; }).length, n = this.lignes.length, nVieux = this.aLire(true).length - nSans;
     el.className = 'eq-sync';
     if (s && s.enCours) {
@@ -1082,7 +1093,7 @@
     return AMX.openlane.direct(c.vin, r.kmEstime || '', { source: 'equite', compagnie: self.cie }).then(function (x) {
       if (x && x.nonConnecte) { AMX.toast(x.erreur || 'OpenLane n\'est pas connecté au site.', 'attention', 6000); return x; }
       AMX.verifier(x, 'Lecture OpenLane impossible');
-      self.essayes[texte(c.vin).toUpperCase()] = 1;
+      ESSAYES[texte(c.vin).toUpperCase()] = 1;
       if (x && x.valeur && !nombre(x.valeur.prevision) && !nombre(x.valeur.prixMoy)) AMX.toast('OpenLane n\'a pas de valeur pour ce véhicule.', 'attention');
       self.planifierRendu(0);
       return x;

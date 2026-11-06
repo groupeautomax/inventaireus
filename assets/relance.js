@@ -13,6 +13,7 @@
   var URL_GMDD = 'https://www.gmdealerdirect.ca/lm/Lead/myLeadLists.aspx';
   var URL_VWF = 'https://dealerportal.vwfinance.ca/dashboard/portfolio-management';   /* 4 nov. : VW Finance (Dealer Extranet) */
   var URL_HMF = 'https://www.hmfdealer.ca/hmfdp/s/';   /* 5 nov. : Hyundai Finance (Customer Portfolio) */
+  var URL_SMARTPORTAL = 'https://home.smartdealerportal.com/#/viewLeads';   /* 6 nov. : SmartPortal de J.D. Power (offres de fidélité Hyundai) */
 
   function nomCie(code) { return (AMX.COMPAGNIES_TOUTES[code] || code || '').replace(' Chevrolet Buick Cadillac', ''); }
 
@@ -59,12 +60,14 @@
        à deux places, mets-le dans Actions et efface les deux autres ». Un seul gros bouton dans l'en-tête ; l'importation, le
        calcul de la dette, l'export et Rafraîchir vont dans le menu Actions. */
     this.btnSync = h('button.btn.primaire.eq-sync-gros', { type: 'button', disabled: true, html: I.rafraichir + '<span>Synchroniser OpenLane</span>', onclick: function () { if (self.vue && self.vue.basculerSync) self.vue.basculerSync(); } });
+    /* 6 nov. (Maxime : « le lien pour J.D. Power n'est pas là ») : SmartPortal, pour les offres de fidélité — Hyundai seulement. */
+    this.btnFidelite = h('a.btn', { href: URL_SMARTPORTAL, target: '_blank', rel: 'noopener', hidden: 'hidden', html: I.externe + '<span>Ouvrir SmartPortal (fidélité)</span>', title: 'SmartPortal de J.D. Power › Pistes de vente, liste « HACC CRM -- HACC CRM - Loyalty Special Offer », puis le favori « Automax ← Fidélité Hyundai »' });
     this.btnDette = h('button.btn', { type: 'button', text: 'Calcul de la dette', title: 'La dette de chaque client est recalculée chaque jour d\'après son contrat : voir le détail', onclick: function () { if (self.vue && self.vue.calculDette) self.vue.calculDette(); } });
     this.btnExport = h('button.btn', { type: 'button', html: I.externe + '<span>Exporter Excel</span>', onclick: function () { if (self.vue && self.vue.exporter) self.vue.exporter(); } });
     this.elCies = h('div.barre-cies');
     this.elCorps = h('div');
     this.el = h('div.page', [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Équité'), this.elEtat]), h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnImporter, this.btnDette, this.btnExport, this.btnSync], [this.btnSync]))]),
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', 'Équité'), this.elEtat]), h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnImporter, this.btnFidelite, this.btnDette, this.btnExport, this.btnSync], [this.btnSync]))]),
       this.elCies,
       this.elCorps
     ]);
@@ -81,6 +84,7 @@
     var nomPortail = hmf ? 'Hyundai Finance' : (vw ? 'VW Finance' : 'GM Dealer Direct');
     gm = gm || vw || hmf;
     if (gm) { this.btnImporter.setAttribute('target', '_blank'); this.btnImporter.setAttribute('rel', 'noopener'); } else { this.btnImporter.removeAttribute('target'); this.btnImporter.removeAttribute('rel'); }
+    this.btnFidelite.hidden = !hmf;
     this.btnImporter.innerHTML = (gm ? I.externe : I.telecharger) + '<span>' + (gm ? 'Ouvrir ' + nomPortail : 'Importer le portefeuille') + '</span>';
     this.btnImporter.title = gm ? 'Puis cliquez le favori « Automax ← ' + (hmf ? 'Hyundai Finance » dans ' : 'Constructeur » dans ') + (hmf ? 'Customer Portfolio de Hyundai Finance' : (vw ? 'Portfolio Manager du Dealer Extranet' : 'GM Dealer Direct')) : 'Déposer l\'export InfoBahn (BMW Financial Services)';
     var lib = hmf ? 'Hyundai Finance' : (vw ? 'VW Finance' : (CIES_GM[this.cie] ? 'Financière GM' : 'BMW Financial Services'));

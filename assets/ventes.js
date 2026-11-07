@@ -2282,7 +2282,7 @@
     var segType = h('div.segment.bloc#vente-type', Object.keys(TYPES).map(function (t) { return h('button' + (type === t ? '.actif' : ''), { type: 'button', 'data-type': t, text: TYPES[t], onclick: function () { if (edition) return; type = t; segType.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', b.dataset.type === t); }); rendreCategories(); rendreWholesale(); remplirCatalogue(); } }); }));
     var inRecherche = h('input.saisie#vente-recherche', { type: 'text', placeholder: '# stock ou NIV', autocomplete: 'off', spellcheck: 'false', value: vehicule.stock || vehicule.vin || '' });
     var btnChercher = h('button.btn', { type: 'button', text: 'Trouver', onclick: function () { trouver(inRecherche.value); } });
-    var elTrouve = h('div.ventes-trouve.gris', { text: 'Tapez le # stock ou le NIV puis « Trouver » : les neufs (DMS / manufacturier) et les registres d\'occasion sont fouillés.' });
+    var elTrouve = h('div.ventes-trouve.gris', { text: 'Tapez le # stock ou le NIV puis « Trouver » : les neufs (DMS / manufacturier) et les registres d\'occasion sont fouillés. Un neuf en commande ou en locate peut s\'inscrire sans # stock ni NIV : ajoutez-les à son arrivée (Modifier).' });
     var inVin = h('input.saisie#vente-vin', { type: 'text', maxlength: '17', placeholder: 'NIV (17 caractères)', value: vehicule.vin, autocomplete: 'off', spellcheck: 'false' });
     var inStock = h('input.saisie#vente-stock', { type: 'text', placeholder: '# stock', value: vehicule.stock });
     var inAnnee = h('input.saisie#vente-annee', { type: 'text', placeholder: '2026', value: vehicule.annee, maxlength: '4' });
@@ -2558,7 +2558,9 @@
         if (!compagnie) { AMX.toast('Choisissez la concession.', 'erreur'); selCie.focus(); return false; }
         var vin = inVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(), stock = inStock.value.trim().toUpperCase();
         if (vin && vin.length !== 17) { AMX.toast('Le NIV a 17 caractères (ou laissez-le vide et donnez le # stock).', 'erreur'); inVin.focus(); return false; }
-        if (!vin && !stock) { AMX.toast('Il faut le NIV ou le # stock du véhicule.', 'erreur'); inRecherche.focus(); return false; }
+        /* 7 nov. (Patrick Durocher, Hawkesbury) : un neuf en commande ou en locate s'inscrit sans # stock ni NIV. */
+        if (!vin && !stock && type !== 'neuf') { AMX.toast('Il faut le NIV ou le # stock du véhicule.', 'erreur'); inRecherche.focus(); return false; }
+        if (!vin && !stock && !edition && !(inModele.value.trim() || inMarque.value.trim())) { AMX.toast('Neuf sans # stock ni NIV (locate, commande) : donnez au moins le modèle.', 'erreur'); inModele.focus(); return false; }
         if (type !== 'wholesale' && inClient.value.trim().length < 2) { AMX.toast('Le nom du client est obligatoire.', 'erreur'); inClient.focus(); return false; }
         if (type === 'wholesale' && inVenduA.value.trim().length < 2) { AMX.toast('À qui le véhicule est-il vendu ?', 'erreur'); inVenduA.focus(); return false; }
         if (!inDate.value) { AMX.toast('La date de vente est obligatoire.', 'erreur'); inDate.focus(); return false; }

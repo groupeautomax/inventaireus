@@ -376,9 +376,10 @@
     document.addEventListener('amx:compagnie', this.surCie);
     document.addEventListener('amx:rh', this.surRh);
     if (cache.rep) { this.rep = cache.rep; this.rendre(); } else this.elCorps.appendChild(AMX.chargeur('Ressources humaines'));
+    vueCourante = this;
     this.charger(false);
   }
-  VueRh.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:rh', this.surRh); };
+  VueRh.prototype.demonter = function () { if (vueCourante === this) vueCourante = null; this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:rh', this.surRh); };
   VueRh.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
     if (p.voir && p.voir !== this.vue) { this.vue = p.voir; this.rendre(); }
@@ -390,6 +391,7 @@
       if (self.detruit) return;
       self.rep = d; self.erreur = ''; self.rendre(); AMX.rafraichirSousBarre && AMX.rafraichirSousBarre();
       if (self.ouvrirId) { var id = self.ouvrirId; self.ouvrirId = ''; self.ouvrirFiche(id); }
+      if (envoiEnAttente) { var ea = envoiEnAttente; envoiEnAttente = null; self.nouvelEnvoi({ embauche: ea }); }
       if (force) AMX.toast('Ressources humaines à jour', 'ok');
     }, function (e) {
       if (self.detruit) return;
@@ -731,9 +733,19 @@
       h('div.rhx-cases', [h('label', [h('input', { type: 'checkbox', checked: true, disabled: true }), 'Par courriel']), h('label', [caseTexto, 'Aussi par texto'])]),
       h('p.rhx-prog', { text: 'Le lien est bon 14 jours. Quand tout est signé, le dossier part tout seul à ' + ((self.rep.reglages || {}).paie || ['paie@groupeautomax.com']).join(', ') + '.' })
     ]);
+    /* 7 nov. : une fiche « Conditions d'embauche » remplie par le DG remplit l'envoi (employé, lettre revue, champs). */
+    var eb = opts.embauche || null;
+    if (eb) {
+      inNom.value = eb.nom || ''; inCourriel.value = eb.courriel || ''; inTel.value = eb.telephone || ''; inPoste.value = eb.poste || ''; inDebut.value = eb.debut || '';
+      if (eb.compagnie && codes.indexOf(eb.compagnie) >= 0) selCie.value = eb.compagnie;
+      selLangue.value = eb.langue === 'en' ? 'en' : 'fr';
+      Object.keys(eb.champs || {}).forEach(function (k) { champsVals[k] = eb.champs[k]; });
+      majTexto();
+    }
     dessinerTrousses(); dessinerDocs(); dessinerPieces(); dessinerChamps();
-    if (opts.trousse) appliquerTrousse(opts.trousse);
-    AMX.modale({ titre: 'Nouvel envoi à un employé', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer le lien', classe: 'primaire', action: function () {
+    if (opts.trousse || (eb && eb.trousse)) appliquerTrousse(opts.trousse || eb.trousse);
+    if (eb && eb.modeleId) { choisis[eb.modeleId] = true; if (eb.texte) textesRevus[eb.modeleId] = remplirTexte(eb.texte, valeursEnvoi()); dessinerDocs(); dessinerChamps(); }
+    AMX.modale({ titre: eb ? 'Nouvel envoi — conditions d\'embauche ' + eb.id : 'Nouvel envoi à un employé', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer le lien', classe: 'primaire', action: function () {
       var docs = Object.keys(choisis).filter(function (id) { return docsSigner().some(function (d) { return d.id === id; }); });
       var revus = {}; docs.forEach(function (id) { if (textesRevus[id]) revus[id] = textesRevus[id]; });
       var aCompleter = Object.keys(revus).filter(function (id) { return resteACompleter(revus[id]); });
@@ -749,6 +761,7 @@
         return ecrire({ action: 'rhEnvoyer', compagnie: selCie.value, langue: selLangue.value, employe: { nom: inNom.value, courriel: inCourriel.value, telephone: inTel.value, poste: inPoste.value, debut: inDebut.value },
           documents: docs, pieces: ps, message: inMessage.value, texto: !!caseTexto.checked, champs: champsVals, textes: revus, trousse: selTrousse.value }).then(function (d) {
           poserEnvoi(d.envoi); self.vue = 'encours'; self.rendre();
+          if (eb && eb.id) ecrire({ action: 'rhEmbaucheAction', id: eb.id, op: 'traitee', envoiId: d.envoi.id }).then(function () { try { document.dispatchEvent(new CustomEvent('amx:embauches')); } catch (e2) {} }, function (e3) { AMX.toast('Envoi fait, mais la fiche ' + eb.id + ' n\'a pas été marquée traitée : ' + AMX.erreurTexte(e3), 'attention', 8000); });
           AMX.toast('Lien envoyé à ' + d.envoi.nom + (d.textoEnvoye ? ' (courriel et texto)' : ''), d.avertissement ? 'attention' : 'ok');
           if (d.avertissement) AMX.toast(d.avertissement, 'attention', 8000);
           setTimeout(function () { self.ouvrirFiche(d.envoi.id); }, 50);
@@ -913,5 +926,15 @@
     ]), boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
       return ecrire({ action: 'rhReglages', paie: inPaie.value, copieRh: !!copie.checked, rappelJours: Number(selRappel.value) }).then(function (d) { self.rep.reglages = d.reglages; self.rendre(); AMX.toast('Réglages enregistrés', 'ok'); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); return false; });
     } }] });
+  };
+
+  /* 7 nov. : pour les conditions d'embauche (embauches.js) — les mêmes outils de lettre, et « Préparer l'envoi ». */
+  var vueCourante = null, envoiEnAttente = null;
+  AMX.rh.outils = { remplirTexte: remplirTexte, surligner: surligner, editeurTexte: editeurTexte, resteACompleter: resteACompleter, passages: PASSAGES_A_COMPLETER,
+    dateLongue: dateLongue, champsAuto: CHAMPS_AUTO, libChamp: libChamp, champsDe: champsDe };
+  AMX.rh.preparerEnvoi = function (embauche) {
+    if (vueCourante && !vueCourante.detruit && vueCourante.rep) { vueCourante.nouvelEnvoi({ embauche: embauche }); return; }
+    envoiEnAttente = embauche;
+    AMX.aller('rh', '', {});
   };
 })();

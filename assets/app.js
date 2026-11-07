@@ -766,7 +766,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
-    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); if (AMX.portefeuille) AMX.portefeuille.vider(); if (AMX.campagnesRelance) AMX.campagnesRelance.vider(); if (AMX.equite && AMX.equite.vider) AMX.equite.vider(); if (AMX.rh) AMX.rh.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); if (AMX.portefeuille) AMX.portefeuille.vider(); if (AMX.campagnesRelance) AMX.campagnesRelance.vider(); if (AMX.equite && AMX.equite.vider) AMX.equite.vider(); if (AMX.rh) AMX.rh.vider(); if (AMX.employes) AMX.employes.vider(); if (AMX.sst) AMX.sst.vider(); if (AMX.embauches) AMX.embauches.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -985,10 +985,18 @@
       { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification', parent: 'audit', icone: 'ok', couleur: 'bleu', desc: 'Comparer un fichier Excel (DMS, transporteur…) aux registres : ce qui manque d\'un côté ou de l\'autre.' },
       /* 7 nov. (suggestion S0F03522DC3 ; Maxime : « accès exclusif à Sylvianne au RH ») : portail RH (rh.js, PortailRH.gs). Clé « rh/rh » :
          aucun rôle ne la cache ; seul le droit « Ressources humaines » (ou le propriétaire) l'ouvre — un DG ne la voit pas. */
-      { id: 'rh', titre: 'Ressources humaines', de: 'rh', onglet: '', cle: 'rh/rh', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },
+      /* 7 nov. (Maxime : « on fait dossier employé et santé sécurité, pour toutes les concessions » ; ScanAutomax remplace HR4) :
+         « Ressources humaines » devient une page de choix. Clés « rh/… » : aucun rôle ne les cache ; chaque page décide
+         (documents : droit RH ou propriétaire ; dossiers : + les DG pour leur concession ; santé et sécurité : la gestion). */
+      { id: 'ressources', titre: 'Ressources humaines', hub: true, icone: 'admin', desc: 'Les conditions d\'embauche, les documents à signer, les dossiers des employés et la santé et sécurité, pour toutes les concessions.' },
+      { id: 'rh', titre: 'Documents à signer', de: 'rh', onglet: '', parent: 'ressources', cle: 'rh/rh', icone: 'achat', couleur: 'vert', desc: 'Politiques, lettres et formulaires envoyés aux nouveaux employés ; signature électronique, dossier envoyé à la paie.', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },
+      { id: 'embauches', titre: 'Conditions d\'embauche', de: 'embauches', onglet: '', parent: 'ressources', cle: 'rh/embauches', icone: 'achat', couleur: 'violet', desc: 'Le DG remplit les conditions d\'une nouvelle embauche et la lettre d\'offre (modèles de la RH) ; la RH les reçoit et envoie les documents à signer.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
+      { id: 'employes', titre: 'Dossiers des employés', de: 'employes', onglet: '', parent: 'ressources', cle: 'rh/employes', icone: 'admin', couleur: 'bleu', desc: 'Le dossier de chaque employé par concession : emploi, coordonnées, contacts d\'urgence ; le NAS reste dans un fichier privé.' },
+      { id: 'sstrh', titre: 'Santé et sécurité', de: 'sst', onglet: '', parent: 'ressources', cle: 'rh/sst', icone: 'alerte', couleur: 'ambre', visible: function () { return !!(AMX.sst && AMX.sst.peutGerer()); },
+        desc: 'Le registre des accidents, des premiers soins et des situations dangereuses, et la bibliothèque des documents.', compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } },
       { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '' }
     ] },
-    { id: 'aide', titre: 'Aide', icone: 'aide', ordre: 60, onglets: [{ de: 'aide', tous: true }] }
+    { id: 'aide', titre: 'Aide', icone: 'aide', ordre: 60, onglets: [{ de: 'aide', tous: true }, { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '' }] }   /* 7 nov. : la bibliothèque SST pour tous (sst.js) */
   ];
   var TRAD = {};            // 'source/onglet' → { section, onglet, vue }
   AMX.sources = {};         // sections sources absorbées par les tuiles (id → définition d'origine)

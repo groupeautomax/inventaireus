@@ -31,7 +31,8 @@
   }
   var RANGS = { directeur: 2, admin: 3, proprietaire: 4 };
   /* 7 nov. : roles 'rh' = le droit « Ressources humaines » ou le propriétaire (portail RH, rh.js). */
-  function visible(x) { if (x.roles === 'rh') return !!(AMX.rh && AMX.rh.peutVoir()); return !x.roles || rang() >= (RANGS[x.roles] || 1); }
+  /* 7 nov. : roles 'rhdg' = la RH, les propriétaires et les DG (conditions d'embauche, dossiers des employés, registre SST). */
+  function visible(x) { if (x.roles === 'rh') return !!(AMX.rh && AMX.rh.peutVoir()); if (x.roles === 'rhdg') return !!(AMX.employes && AMX.employes.peutVoir()); if (x.roles === 'embauche') return !!(AMX.embauches && AMX.embauches.peutVoir()); return !x.roles || rang() >= (RANGS[x.roles] || 1); }
 
   /* Articles visibles, à plat, avec leur sujet. */
   function articles() {

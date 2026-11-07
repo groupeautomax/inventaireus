@@ -30,7 +30,8 @@
     return 1;
   }
   var RANGS = { directeur: 2, admin: 3, proprietaire: 4 };
-  function visible(x) { return !x.roles || rang() >= (RANGS[x.roles] || 1); }
+  /* 7 nov. : roles 'rh' = le droit « Ressources humaines » ou le propriétaire (portail RH, rh.js). */
+  function visible(x) { if (x.roles === 'rh') return !!(AMX.rh && AMX.rh.peutVoir()); return !x.roles || rang() >= (RANGS[x.roles] || 1); }
 
   /* Articles visibles, à plat, avec leur sujet. */
   function articles() {

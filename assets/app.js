@@ -766,7 +766,7 @@
   AMX.deconnecter = function (message) {
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
-    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); if (AMX.portefeuille) AMX.portefeuille.vider(); if (AMX.campagnesRelance) AMX.campagnesRelance.vider(); if (AMX.equite && AMX.equite.vider) AMX.equite.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
+    try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); if (AMX.portefeuille) AMX.portefeuille.vider(); if (AMX.campagnesRelance) AMX.campagnesRelance.vider(); if (AMX.equite && AMX.equite.vider) AMX.equite.vider(); if (AMX.rh) AMX.rh.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
     try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
@@ -983,6 +983,9 @@
       { id: 'audit', titre: 'Audit', hub: true, icone: 'scan', desc: 'Vérifier où sont les véhicules : une liste déposée (prêteur, plan de financement) ou un fichier Excel comparé aux registres.' },
       { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '', parent: 'audit', cle: 'inventaire/listes', icone: 'achat', couleur: 'vert', desc: 'Déposer une liste (PDF, Excel, CSV) : ScanAutomax dit où est chaque véhicule. L\'audit sur le terrain se fait dans l\'app.' },   /* 22 oct. : listes.js */
       { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification', parent: 'audit', icone: 'ok', couleur: 'bleu', desc: 'Comparer un fichier Excel (DMS, transporteur…) aux registres : ce qui manque d\'un côté ou de l\'autre.' },
+      /* 7 nov. (suggestion S0F03522DC3 ; Maxime : « accès exclusif à Sylvianne au RH ») : portail RH (rh.js, PortailRH.gs). Clé « rh/rh » :
+         aucun rôle ne la cache ; seul le droit « Ressources humaines » (ou le propriétaire) l'ouvre — un DG ne la voit pas. */
+      { id: 'rh', titre: 'Ressources humaines', de: 'rh', onglet: '', cle: 'rh/rh', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },
       { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '' }
     ] },
     { id: 'aide', titre: 'Aide', icone: 'aide', ordre: 60, onglets: [{ de: 'aide', tous: true }] }

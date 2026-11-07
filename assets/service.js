@@ -179,7 +179,12 @@
       if (e.porte) { cls = refuse ? 'refuse' : (accepte ? 'fait' : 'attente'); titre = e.libelle + ' — ' + (refuse ? 'refusé' : (accepte ? 'accepté' : 'en attente')); }
       else if (i > idxPorte && !accepte) { cls = 'verrou'; titre = e.libelle + ' — verrouillé (autorisation détail requise)'; }
       if (s.statut === 'encours' && e.id === s.etapeCourante && cls !== 'verrou') cls += ' courante';
-      el.appendChild(h('div.svc-pas.' + cls.split(' ').join('.'), { title: titre }, [h('span.pt', e.porte && !accepte && !refuse ? '!' : (cls.indexOf('verrou') === 0 ? '' : '')), opts.compact ? null : h('span.lb', { text: e.court })]));
+      var court = e.court;
+      if (echangeSuivi(s)) {   // 7 nov. : un échange est repris sur place, sa vérification est sautée d'office
+        if (e.id === 'arrivee') { court = 'Reprise'; titre = 'Repris en échange — ' + (ETATS[x.etat] ? ETATS[x.etat].libelle : x.etat); }
+        else if (e.id === 'verification' && x.auto === 'echange') titre = e.libelle + ' — sautée d\'office (échange)';
+      }
+      el.appendChild(h('div.svc-pas.' + cls.split(' ').join('.'), { title: titre }, [h('span.pt', e.porte && !accepte && !refuse ? '!' : (cls.indexOf('verrou') === 0 ? '' : '')), opts.compact ? null : h('span.lb', { text: court })]));
     });
     return el;
   }
@@ -669,6 +674,16 @@
     this.elListe.appendChild(h('div.liste', [frag]));
   };
 
+  // 7 nov. (Louis Prassinos) : un véhicule repris en échange n'a pas de livraison à vérifier — le serveur saute l'étape
+  // (Service.gs, `provenance` du suivi) ; avant le déploiement, la même règle du # stock (provenance.js).
+  function echangeSuivi(s) {
+    if (s.provenance) return s.provenance === 'echange';
+    return !!(AMX.provenance && AMX.provenance.estEchange({ vin: s.vin, stock: s.stock, compagnie: s.compagnie }));
+  }
+  function puceProvenance(s) {
+    if (!echangeSuivi(s)) return null;
+    return h('span.puce.prov-echange', { text: 'Échange', title: 'Repris en échange : pas de vérification à la livraison' });
+  }
   Suivi.prototype.ligne = function (s) {
     var self = this, etapes = AMX.service.etapes();
     var st = STATUTS[s.statut] || STATUTS.encours;
@@ -683,7 +698,7 @@
       h('div.vignette', { title: s.hasPhotos ? 'Photos disponibles' : 'Aucune photo' }, [AMX.logoMarque(marque(s)), s.hasPhotos ? h('span.cam', { html: I.photo }) : null]),
       h('div', { style: { minWidth: 0 } }, [
         h('div.titre', [h('span', { text: s.modele || '(modèle à préciser)' }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(s.vin) : null]),
-        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, AMX.demandePuce(s.vin) || (s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null), s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null, AMX.eblockPuce ? AMX.eblockPuce(s.vin) : null, AMX.openlanePuce ? AMX.openlanePuce(s.vin) : null])
+        h('div.sous', [h('span.vin', { text: s.vin }), s.stock ? h('span.puce.mono', { text: s.stock }) : null, h('span.puce', { text: s.compagnie || '—' }), puceProvenance(s), ailleurs ? h('span.puce.registre-autre', { text: 'Onglet ' + ailleurs, title: 'Ce véhicule est dans l\'onglet « ' + ailleurs + ' »' }) : null, AMX.demandePuce(s.vin) || (s.btNo ? h('span.puce.info', { text: 'BT ' + s.btNo }) : null), s.implicite ? h('span.puce', { text: 'Nouveau', title: 'Acheté au registre Detail, aucune action encore' }) : null, AMX.eblockPuce ? AMX.eblockPuce(s.vin) : null, AMX.openlanePuce ? AMX.openlanePuce(s.vin) : null])
       ]),
       h('div.cell.parcours', [h('span.l', 'Parcours'), parcours(s, { compact: true })]),
       h('div.cell.statut', [h('span.l', 'Étape'), h('span', [h('span.badge.' + (s.statut === 'encours' ? (s.etapeCourante === 'autorisation' ? 'ambre' : (s.enRetard ? 'rouge' : 'bleu')) : st.couleur), { text: etapeTexte })]), sousEtape ? h('span.jours' + (s.cibleEtape && s.joursEtape > s.cibleEtape ? '.alerte' : ''), { text: sousEtape }) : null]),
@@ -903,8 +918,8 @@
         h('div.svc-etape-tete', [
           h('span.svc-point.' + (verrou ? 'verrou' : x.etat)),
           h('div', { style: { minWidth: 0, flex: 1 } }, [
-            h('div.svc-etape-nom', [e.libelle, cible ? h('span.doux.petit', { text: ' · cible ' + cible + ' j' }) : null]),
-            h('div.doux.petit', { text: verrou ? 'Verrouillé — autorisation détail requise' : (x.etat === 'fait' ? 'Fait le ' + AMX.fmtDate(x.fin, true) + (x.par ? ' · ' + nomCourt(x.par) : '') + (jours !== null && jours > 0 ? ' · ' + jours + ' j' : '') : (x.etat === 'encours' ? 'Commencé le ' + AMX.fmtDate(x.debut, true) + (x.par ? ' · ' + nomCourt(x.par) : '') + (jours !== null ? ' · ' + jours + ' j' + (cible && jours > cible ? ' (en retard)' : '') : '') : (x.etat === 'saute' ? 'Sauté' + (x.par ? ' · ' + nomCourt(x.par) : '') : 'À faire'))) })
+            h('div.svc-etape-nom', [(e.id === 'arrivee' && echangeSuivi(s)) ? 'Reprise en échange' : e.libelle, cible ? h('span.doux.petit', { text: ' · cible ' + cible + ' j' }) : null]),
+            h('div.doux.petit', { text: verrou ? 'Verrouillé — autorisation détail requise' : (x.etat === 'fait' ? 'Fait le ' + AMX.fmtDate(x.fin, true) + (x.par ? ' · ' + nomCourt(x.par) : '') + (jours !== null && jours > 0 ? ' · ' + jours + ' j' : '') : (x.etat === 'encours' ? 'Commencé le ' + AMX.fmtDate(x.debut, true) + (x.par ? ' · ' + nomCourt(x.par) : '') + (jours !== null ? ' · ' + jours + ' j' + (cible && jours > cible ? ' (en retard)' : '') : '') : (x.etat === 'saute' ? (x.auto === 'echange' ? 'Sauté d\'office : véhicule repris en échange' : 'Sauté' + (x.par ? ' · ' + nomCourt(x.par) : '')) : 'À faire'))) })
           ]),
           h('span.badge.' + (verrou ? 'gris' : (cible && jours !== null && jours > cible && x.etat === 'encours' ? 'rouge' : et.couleur)), { text: verrou ? 'Verrouillé' : et.libelle })
         ])

@@ -35,8 +35,13 @@
   /* ------------------------------ Helpers ------------------------------ */
   function marque(v) { return String(v.modele || '').trim().split(' ')[0].toUpperCase(); }
   function registreDe(v) { return v.enregistrement === 'oui' ? 'oui-bon' : (v.enregistrement || 'non'); }
-  function enRetardRegistre(v) { return !String(v.enregistrement || '').startsWith('oui') && AMX.joursDepuis(v.dateAjout) >= 10; }
-  function enRetardAchat(v) { return (v.statut === 'achete' || v.statut === 'transitqc') && AMX.joursDepuis(v.dateAjout) >= 7; }
+  // 7 nov. (Louis Prassinos, Hyundai) : un échange (provenance.js) est déjà chez nous et le client remet le certificat
+  // d'immatriculation avec l'échange — ni registre à attendre, ni arrivée : ces deux retards ne s'appliquent qu'aux achats.
+  function estEchange(v) { return !!(AMX.provenance && AMX.provenance.estEchange(v)); }
+  function enRetardRegistre(v) { return !estEchange(v) && !String(v.enregistrement || '').startsWith('oui') && AMX.joursDepuis(v.dateAjout) >= 10; }
+  function enRetardAchat(v) { return !estEchange(v) && (v.statut === 'achete' || v.statut === 'transitqc') && AMX.joursDepuis(v.dateAjout) >= 7; }
+  function textesRecherche(v) { return [v.vin, v.modele, v.stock, v.origine, estEchange(v) ? 'échange' : 'achat']; }
+  function filtreProvenance(v, voulu) { return voulu === 'Échange' ? estEchange(v) : !estEchange(v); }
   function stickerUrl(v) {
     var m = marque(v);
     if (['CHEVROLET', 'GMC', 'BUICK', 'CADILLAC'].indexOf(m) >= 0) return 'https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=' + encodeURIComponent(v.vin);
@@ -251,6 +256,7 @@
     if (AMX.demandes) { AMX.demandes.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:demandes', this.surCarfax); }
     if (AMX.achatsAuto) { AMX.achatsAuto.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:achatsAuto', this.surCarfax); }
     if (AMX.photosD2c) { AMX.photosD2c.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:photosD2c', this.surCarfax); }
+    if (AMX.provenance) { AMX.provenance.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:provenance', this.surCarfax); }
     // 27 oct. : pastille mauve « Courriel · à ajouter » — contrats d'achat reçus par courriel qu'il reste à vérifier et ajouter.
     if (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) { AMX.achatsAuto.contrats.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:contrats', this.surCarfax); }
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
@@ -276,6 +282,7 @@
     document.removeEventListener('amx:achatsAuto', this.surCarfax);
     document.removeEventListener('amx:contrats', this.surCarfax);
     document.removeEventListener('amx:photosD2c', this.surCarfax);
+    document.removeEventListener('amx:provenance', this.surCarfax);
     document.removeEventListener('amx:compagnie', this.surCie);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
@@ -390,7 +397,7 @@
     };
     var grpAutres = h('div.groupe', [h('h3', ['Filtres', h('button', { type: 'button', text: 'Réinitialiser', onclick: function () { self.filtres = self.filtresDefaut(); self.construireRail(); self.rendre(); } })]),
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } }, [
-        selectFiltre('Origine', 'origine', [['', 'Toutes'], ['Achat', 'Achat'], ['Échange', 'Échange']]),
+        selectFiltre('Provenance', 'origine', [['', 'Toutes'], ['Achat', 'Achat'], ['Échange', 'Échange']]),
         selectFiltre('Rappel', 'rappel', [['', 'Tous'], ['oui', 'Rappel ouvert'], ['non', 'Aucun rappel'], ['inconnu', 'Non vérifié']]),
         cfg.importateur ? selectFiltre('Importateur', 'importateur', [['', 'Tous'], ['DENT', 'DENT'], ['Direct', 'Direct']]) : null,
         selectFiltre('Registre reçu', 'registre', [['', 'Tous'], ['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Reçu · mauvais nom']])
@@ -480,7 +487,7 @@
       return h('div.champ', [h('label', { text: libelle }), sel]);
     };
     var pop = h('div.inv2-pop', { hidden: true, role: 'dialog', 'aria-label': 'Autres filtres' }, [
-      selectFiltre('Origine', 'origine', [['', 'Toutes'], ['Achat', 'Achat'], ['Échange', 'Échange']]),
+      selectFiltre('Provenance', 'origine', [['', 'Toutes'], ['Achat', 'Achat'], ['Échange', 'Échange']]),
       selectFiltre('Rappel', 'rappel', [['', 'Tous'], ['oui', 'Rappel ouvert'], ['non', 'Aucun rappel'], ['inconnu', 'Non vérifié']]),
       cfg.importateur ? selectFiltre('Importateur', 'importateur', [['', 'Tous'], ['DENT', 'DENT'], ['Direct', 'Direct']]) : null,
       selectFiltre('Registre reçu', 'registre', [['', 'Tous'], ['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Reçu · mauvais nom']]),
@@ -526,7 +533,7 @@
     if (f.alerte === 'retardAchat') filtres.push('Achat 7 j+, pas en stock');
     if (f.alerte === 'auto') filtres.push('Entrés automatiquement, à confirmer');
     if (!t) {
-      if (f.origine) filtres.push('Origine : ' + f.origine);
+      if (f.origine) filtres.push('Provenance : ' + f.origine);
       if (f.rappel) filtres.push({ oui: 'Rappel ouvert', non: 'Aucun rappel', inconnu: 'Rappel non vérifié' }[f.rappel] || f.rappel);
       if (f.importateur) filtres.push('Importateur : ' + f.importateur);
       if (f.registre) filtres.push({ non: 'Registre non reçu', 'oui-bon': 'Registre reçu · bon nom', 'oui-mauvais': 'Registre reçu · mauvais nom' }[f.registre] || f.registre);
@@ -639,7 +646,7 @@
     var mots = AMX.motsCherches(t);   /* v138 : accents, ordre des mots, « série 3 » = « 3 series » = 328i (AMX.correspond) */
     return tout.filter(function (v) {
       if (f.compagnie && v.compagnie !== f.compagnie) return false;
-      return AMX.correspond([v.vin, v.modele, v.stock, v.origine], mots);
+      return AMX.correspond(textesRecherche(v), mots);
     });
   };
   // v138 : `sauf` ('statut' ou 'alerte') = le filtre à ne pas appliquer, pour compter une pastille ou un chiffre. L'alerte
@@ -655,7 +662,7 @@
       if (sauf !== 'statut' && !(statuts.indexOf(v.statut) >= 0 || statuts.length === cfg.statuts.length)) return false;
       return gardeAlerte(v);
     });
-    if (f.origine) l = l.filter(function (v) { return v.origine === f.origine; });
+    if (f.origine) l = l.filter(function (v) { return filtreProvenance(v, f.origine); });
     if (f.rappel === 'oui') l = l.filter(function (v) { return v.rappel === 'oui'; });
     else if (f.rappel === 'non') l = l.filter(function (v) { return v.rappel === 'non'; });
     else if (f.rappel === 'inconnu') l = l.filter(function (v) { return !v.rappel; });
@@ -663,7 +670,7 @@
     if (f.registre) l = l.filter(function (v) { return registreDe(v) === f.registre; });
     if (f.recherche) {
       var mots = AMX.motsCherches(f.recherche);
-      l = l.filter(function (v) { return AMX.correspond([v.vin, v.modele, v.stock, v.origine], mots); });
+      l = l.filter(function (v) { return AMX.correspond(textesRecherche(v), mots); });
     }
     return trier(l, this.tri);
   };
@@ -837,7 +844,8 @@
       // 26 oct. : entré automatiquement depuis un portail (GMF, Manheim), à confirmer — violet.
       AMX.achatsAuto ? AMX.achatsAuto.puce(v.vin) : null,
       puceRappel,
-      h('span.puce' + (reg === 'oui-bon' ? '.ok' : (reg === 'oui-mauvais' ? '.attention' : (retard ? '.alerte' : ''))), { text: reg === 'non' ? (retard ? 'Registre · ' + jours + ' j' : 'Registre à recevoir') : regInfo.libelle }),
+      // 7 nov. : un échange n'a pas de registre à attendre (le client le remet avec l'échange) — pas de puce « à recevoir ».
+      (reg === 'non' && estEchange(v)) ? null : h('span.puce' + (reg === 'oui-bon' ? '.ok' : (reg === 'oui-mauvais' ? '.attention' : (retard ? '.alerte' : ''))), { text: reg === 'non' ? (retard ? 'Registre · ' + jours + ' j' : 'Registre à recevoir') : regInfo.libelle }),
       v.ficheExiste ? h('span.puce' + (v.ficheStockRempli ? '.ok' : '.attention'), { text: v.ficheStockRempli ? 'Fiche ✓' : 'Fiche sans stock' }) : null,
       // Un clic sur la puce ouvre le rapport directement (comme sur eBlock), sans ouvrir la fiche.
       AMX.carfax.lien(v.vin) ? h('a.puce.info.lien-puce', { href: AMX.carfax.lien(v.vin), target: '_blank', rel: 'noopener', text: 'CARFAX', title: 'Voir le rapport CARFAX', onclick: function (e) { e.stopPropagation(); } }) : null,
@@ -855,7 +863,7 @@
         h('div.titre', [h('span', { text: v.modele || '(modèle à préciser)' }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(v.vin) : null]),
         // Les informations du véhicule sont ici, dans la ligne (8 oct., soir — Maxime) : le NIV (une seule fois,
         // un clic le copie), # stock, compagnie, origine, importateur ; la date d'achat est sous le statut.
-        h('div.sous', [h('span.vin', { text: v.vin, title: 'Copier le NIV', onclick: function (e) { e.stopPropagation(); AMX.copier(v.vin, 'NIV copié'); } }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), v.origine ? h('span.puce', { text: v.origine }) : null, autreRegistre ? h('span.puce.registre-autre', { text: 'Registre ' + AMX.inventaire.nomFeuille(autreRegistre), title: 'Ce véhicule est dans un autre registre — cliquez pour l\'ouvrir là-bas.' }) : null])
+        h('div.sous', [h('span.vin', { text: v.vin, title: 'Copier le NIV', onclick: function (e) { e.stopPropagation(); AMX.copier(v.vin, 'NIV copié'); } }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, h('span.puce', { text: v.compagnie || '—' }), (AMX.provenance ? AMX.provenance.puce(v) : (v.origine ? h('span.puce', { text: v.origine }) : null)), autreRegistre ? h('span.puce.registre-autre', { text: 'Registre ' + AMX.inventaire.nomFeuille(autreRegistre), title: 'Ce véhicule est dans un autre registre — cliquez pour l\'ouvrir là-bas.' }) : null])
       ]),
       h('div.cell.statut', [h('span.l', 'Statut'), h('span', [h('span.badge.' + st.couleur, { text: st.libelle }), pucePhoto]),
         v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : h('span.jours' + (retardA ? '.attention' : ''), { text: 'Acheté le ' + AMX.fmtDate(v.dateAjout) + ' · ' + jours + ' j' })]),
@@ -957,7 +965,10 @@
     [['non', 'Non reçu'], ['oui-bon', 'Reçu · bon nom'], ['oui-mauvais', 'Mauvais nom']].forEach(function (o) {
       segReg.appendChild(h('button' + (reg === o[0] ? '.actif' : ''), { type: 'button', text: o[1], disabled: verrouille || !peutStatut, onclick: function () { if (reg !== o[0]) self.ecrire({ action: 'setDoc', id: v.id, value: o[0] }, 'Registre mis à jour', { optimiste: { champs: { enregistrement: o[0] } } }).catch(function () {}); } }));
     });
-    blocStatut.appendChild(h('div.ligne-registre', [h('span.l', { text: 'Registre' }), segReg, enRetardRegistre(v) ? h('span.puce.alerte', { text: AMX.joursDepuis(v.dateAjout) + ' j sans registre' }) : null]));
+    // 7 nov. : échange ou achat (provenance.js) — un échange n'a pas de registre à attendre (le client le remet avec l'échange).
+    if (AMX.provenance) blocStatut.appendChild(AMX.provenance.controle(v, { peut: !verrouille && (peutStatut || AMX.perm('ficheAchat')), apres: function () { if (!self.detruit) self.rendre(); } }));
+    if (estEchange(v)) blocStatut.appendChild(h('div.ligne-registre', [h('span.l', { text: 'Registre' }), h('span.doux.petit', { text: 'Remis par le client avec l\'échange — rien à attendre.' })]));
+    else blocStatut.appendChild(h('div.ligne-registre', [h('span.l', { text: 'Registre' }), segReg, enRetardRegistre(v) ? h('span.puce.alerte', { text: AMX.joursDepuis(v.dateAjout) + ' j sans registre' }) : null]));
 
     var selCompagnie = h('select.saisie', { disabled: verrouille || !peutMontants }, AMX.optionsCompagnies('—'));
     selCompagnie.value = AMX.COMPAGNIES[v.compagnie] ? v.compagnie : '';
@@ -1171,7 +1182,7 @@
     if (!blocActions.querySelector('.actions-ligne').children.length) blocActions = null;
     // 23 oct. : transport de l'achat par Central Fleet (transport.js) — état, prix, dates, documents, ou le bouton de demande.
     var blocTransport = null;
-    if (AMX.transport && (['arrive', 'comptabilise'].indexOf(v.statut) < 0 || AMX.transport.parVin(v.vin).length)) {
+    var construireTransport = function () {
       var zoneTr = h('div'), mots = String(v.modele || '').trim().split(/\s+/), anTr = /^\d{4}$/.test(mots[mots.length - 1] || '') ? mots.pop() : '';
       // 26 oct. : le release (payé, release reçu, où cueillir) — ses données partent avec la demande Central Fleet.
       var zoneRel = h('div.inv-release'), ctxTr = { compagnie: v.compagnie, stock: v.stock, annee: anTr, marque: mots.shift() || '', modele: mots.join(' ') };
@@ -1191,8 +1202,17 @@
           return { depart: { adresse: r.adresse, ville: r.ville, province: r.province, codePostal: r.codePostal }, consignes: AMX.release.consignes(r), release: { recu: r.recu, paye: r.paye, no: r.no, doc: r.pdf } };
         };
       }
-      blocTransport = h('div.bloc.inv-transport', [h('h3', 'Transport (Central Fleet)'), zoneRel, zoneTr]);
+      var bloc = h('div.bloc.inv-transport', [h('h3', 'Transport (Central Fleet)'), zoneRel, zoneTr]);
       AMX.transport.bloc(v.vin, zoneTr, ctxTr);
+      return bloc;
+    };
+    if (AMX.transport && (['arrive', 'comptabilise'].indexOf(v.statut) < 0 || AMX.transport.parVin(v.vin).length)) {
+      // 7 nov. : un échange est déjà chez nous — pas de release ni de transport, sauf si on en demande un quand même.
+      if (estEchange(v) && !AMX.transport.parVin(v.vin).length) {
+        blocTransport = h('div.bloc.inv-transport', [h('h3', 'Transport'), h('div.actions-ligne', { style: { alignItems: 'center' } }, [
+          h('span.doux.petit', { text: 'Échange : déjà chez nous, pas de release ni de transport.' }),
+          h('button.btn.petit.fantome', { type: 'button', text: 'Demander un transport quand même', onclick: function () { var b = construireTransport(); blocTransport.parentNode.replaceChild(b, blocTransport); blocTransport = b; } })])]);
+      } else blocTransport = construireTransport();
     }
     var blocLiens = h('div.bloc', [h('h3', ['Rapports', h('button.btn.petit.fantome', { type: 'button', text: lienCfx ? 'lien CARFAX…' : 'coller un lien CARFAX…', onclick: function () { zoneCfx.classList.toggle('cache'); if (!zoneCfx.classList.contains('cache')) { champCfx.focus(); champCfx.select(); } } })]),
       h('div.actions-ligne', [
@@ -1272,10 +1292,10 @@
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
     var cfg = this.cfg;
     var rows = liste.map(function (v) {
-      var r = { 'Stock #': v.stock || '', 'VIN': v.vin, 'Modèle': v.modele, 'Compagnie': v.compagnie || '', 'Origine': v.origine || '', 'Statut': AMX.statut(v.statut, cfg.feuille).libelle,
+      var r = { 'Stock #': v.stock || '', 'VIN': v.vin, 'Modèle': v.modele, 'Compagnie': v.compagnie || '', 'Provenance': AMX.provenance ? AMX.provenance.de(v).libelle : (v.origine || ''), 'Statut': AMX.statut(v.statut, cfg.feuille).libelle,
         'Jours depuis achat': AMX.joursDepuis(v.dateAjout), 'Rappel': v.rappel === 'oui' ? 'Rappel ouvert' : v.rappel === 'non' ? 'Aucun rappel' : 'Non vérifié' };
       if (cfg.importateur) r['Importateur'] = v.importateur || '';
-      r['Registre reçu'] = REGISTRE[registreDe(v)].libelle;
+      r['Registre reçu'] = estEchange(v) ? 'Échange (remis avec l\'échange)' : REGISTRE[registreDe(v)].libelle;
       r['Coût'] = v.cout ? Number(AMX.montant(v.cout)) : '';
       r['Dernière mise à jour'] = AMX.fmtDate(v.maj, true);
       return r;

@@ -50,6 +50,8 @@
     vider: function () { cache.d = null; cache.le = 0; cache.index = {}; },
     /** L'entrée automatique non confirmée de ce NIV, sinon null. */
     entree: function (vin) { var a = cache.index[vinDe(vin)]; return a && !a.confirme ? a : null; },
+    /** 7 nov. : l'achat entré automatiquement, confirmé ou non (provenance.js : c'est un achat, pas un échange). */
+    achat: function (vin) { return cache.index[vinDe(vin)] || null; },
     /** Nombre d'entrées à confirmer (une concession, ou toutes). */
     compte: function (cie) { return ((cache.d && cache.d.achats) || []).filter(function (a) { return !a.confirme && (!cie || a.compagnie === cie); }).length; },
     /** { registre: n } des entrées à confirmer, pour aller au bon registre. */

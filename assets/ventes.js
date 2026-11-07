@@ -1853,7 +1853,7 @@
     return AMX.modale({
       titre: 'Profits F&I — ' + v.id, corps: corps, large: true,
       boutons: [{ texte: 'Annuler' }, { texte: v.statut === 'declaree' || besoinFI(v) ? 'Inscrire les profits F&I' : 'Enregistrer', classe: 'primaire', action: function () {
-        var corpsFI = { action: 'venteCompleter', id: v.id, directeur: inDirecteur.value.trim(), profitFIPrevu: inFI.value.trim(), pneus: pneus, produits: lireProduits() };
+        var corpsFI = { action: 'venteCompleter', id: v.id, directeur: inDirecteur.value.trim(), profitFIPrevu: inFI.value.trim(), pneus: pneus, produits: lireProduits(), differe: true };
         if (!(v.montantsMasques && !pneusMtTouche)) corpsFI.pneusMontant = inPneusMt.value.trim();
         return AMX.post(corpsFI, { delai: 90000 }).then(function (r) {
           verifierPost(r); AMX.ventes.poser(r.vente);
@@ -2581,6 +2581,7 @@
         /* Un montant masqué (pas le droit de voir les montants) qu'on n'a pas retapé ne part pas : il effacerait le vrai. */
         if (edition && v.montantsMasques) ['prixVente', 'profitPrevu', 'accessoires', 'overUnder', 'coutant', 'echangeValeur', 'echangeEvaluation'].forEach(function (k) { if (corpsEnvoi[k] === '') delete corpsEnvoi[k]; });
         corpsEnvoi.action = edition ? 'venteCompleter' : 'venteDeclarer';
+        corpsEnvoi.differe = true;   /* 7 nov. : réponse tout de suite, le livre s'écrit dans la minute (horloge du script) */
         if (edition) corpsEnvoi.id = v.id;
         if (prefill.forcer) corpsEnvoi.forcer = true;
         return AMX.post(corpsEnvoi, { delai: 90000 }).then(function (r) {

@@ -33,6 +33,30 @@
   var URL_NHTSA = 'https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/';
   var URL_TORQUE = 'https://dealer.torquemanagement.ca/vehicle-management/evaluations/list';
   var TOLERANCE_KM = 30000;
+  /* 7 nov. (suggestion S7E7AB6F535, Eric Morin, VW : « petite flèche à côté du prix et de l'odomètre pour choisir l'ordre ;
+     plus de filtres pour choisir la propulsion, comme dans Torque ; une colonne rang versus millage ») */
+  function tractionDe(x) {
+    var s = String(x || '').toLowerCase();
+    if (!s) return '';
+    if (/^(ti|4ri|4rm)$/.test(s)) return 'int';
+    if (/^ta$/.test(s)) return 'avant';
+    if (/^(tp|2rm)$/.test(s)) return 'deux';
+    if (/awd|4wd|4x4|all.?wheel|four.?wheel|int[eé]grale|quattro|xdrive|4motion|htrac|e-4orce|4matic|sh-awd/.test(s)) return 'int';
+    if (/fwd|front|avant/.test(s)) return 'avant';
+    if (/rwd|rear|arri[eè]re|propulsion|sdrive/.test(s)) return 'arriere';
+    if (/4x2|2wd|2 ?roues|two.?wheel/.test(s)) return 'deux';
+    return '';
+  }
+  var TRACTIONS = [['', 'Toutes les tractions'], ['int', 'Intégrale / 4x4'], ['deux', '2 roues (avant ou arrière)'], ['avant', 'Traction avant'], ['arriere', 'Propulsion (arrière)']];
+  var NOM_TRACTION = { int: 'intégrale', avant: 'traction avant', arriere: 'propulsion', deux: '2 roues' };
+  function tractionVa(voulu, x) {
+    if (!voulu) return true;
+    var t = tractionDe(x);
+    if (!t) return false;
+    if (voulu === 'deux') return t === 'avant' || t === 'arriere' || t === 'deux';
+    if (voulu === 'avant' || voulu === 'arriere') return t === voulu;
+    return t === voulu;
+  }
   var URL_MMR = 'https://mmr.manheim.com/';
 
   /* ------------------- AMX.export : Canada ou États-Unis ? -------------------
@@ -394,6 +418,7 @@
       '.eval-filtres { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 12.5px; }',
       '.eval-filtres .case { display: inline-flex; align-items: center; gap: 6px; }',
       '.eval-filtres .espace { flex: 1; }',
+      '#eval-comparables th.eval-tri { cursor: pointer; user-select: none; white-space: nowrap; } #eval-comparables th.eval-tri .fl { color: var(--encre-4, #5F6978); font-size: 11px; } #eval-comparables th.eval-tri.actif { color: var(--vert-fonce, #0B6B3A); } #eval-comparables th.eval-tri.actif .fl { color: inherit; } .eval-filtres .eval-sens { height: 28px; }',
       '.eval-table { overflow-x: auto; }',
       '.eval-table .tableau { min-width: 900px; }',
       '.eval-table td, .eval-table th { padding: 7px 10px; }',
@@ -474,7 +499,8 @@
     this.rappels = null;                     // rappels NHTSA pour année / marque / modèle (gratuit, chargé après le décodage)
     this.rappelsCle = '';
     this.minuterieAuto = null;
-    this.filtres = { memeVersion: false, kmProche: false, tri: 'prix' };
+    this.filtres = { memeVersion: false, kmProche: false, tri: 'prix', sens: 'asc', traction: '' };
+    this.tractionVehicule = ''; this.tractionManuelle = false;   /* 7 nov. : traction du véhicule (décodeur) et choix de l'utilisateur */
     this.derniereSauvegarde = null;           // bloc `marche` d'une évaluation rechargée
     // Boîte « Canada ou États-Unis ? » (8 oct.) : ce que l'utilisateur a tapé ou réglé pour ce NIV.
     this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null };
@@ -2007,13 +2033,14 @@
     var modEval = this.elModele.value;
     if (st) liste = liste.filter(function (x) { var s2 = styleDe(x.style, x.portes, x.version, x.modele || modEval); return !s2 || s2 === st || (st === 'grancoupe' && s2 === 'berline') || (st === 'berline' && s2 === 'grancoupe'); });
     if (this.filtres.kmProche && kmV !== null) liste = liste.filter(function (x) { return x.km === null || x.km === undefined || Math.abs(x.km - kmV) <= TOLERANCE_KM; });
-    var tri = this.filtres.tri;
-    liste.sort(function (p, q) {
-      if (tri === 'km') return (p.km || 0) - (q.km || 0);
-      if (tri === 'dist') return (p.distKm || 0) - (q.distKm || 0);
-      if (tri === 'jours') return (q.jours || 0) - (p.jours || 0);
-      return p.ajuste - q.ajuste;
-    });
+    var trac = this.filtres.traction;
+    if (trac) liste = liste.filter(function (x) { return tractionVa(trac, x.motricite); });
+    /* rang de chaque annonce par prix ramené au km du véhicule (1 = la moins chère), quel que soit le tri */
+    var parAjuste = liste.map(function (x) { return x.ajuste; }).sort(asc);
+    liste.forEach(function (x) { var r = 1; parAjuste.forEach(function (p) { if (p < x.ajuste) r++; }); x.rangAjuste = r; });
+    var tri = this.filtres.tri, sens = this.filtres.sens === 'desc' ? -1 : 1;
+    var val = function (x) { return tri === 'km' ? (x.km || 0) : (tri === 'dist' ? (x.distKm || 0) : (tri === 'jours' ? (x.jours || 0) : (tri === 'brut' ? (x.prix || 0) : (tri === 'annee' ? (Number(x.annee) || 0) : x.ajuste)))); };
+    liste.sort(function (p, q) { return (val(p) - val(q)) * sens; });
     return liste;
   };
 
@@ -2117,25 +2144,34 @@
     caseVersion.addEventListener('change', function () { self.filtres.memeVersion = caseVersion.checked; self.rendreMarche(); });
     var caseKm = h('input', { type: 'checkbox', checked: this.filtres.kmProche ? true : undefined, disabled: nombre(this.elKm.value) === null ? true : undefined });
     caseKm.addEventListener('change', function () { self.filtres.kmProche = caseKm.checked; self.rendreMarche(); });
-    var tri = h('select.saisie', { style: { height: '28px', width: 'auto' } }, [['prix', 'Prix ajusté'], ['km', 'Kilométrage'], ['dist', 'Distance'], ['jours', 'Jours affichés']].map(function (o) { return h('option', { value: o[0], selected: self.filtres.tri === o[0] ? true : undefined, text: 'Trier : ' + o[1] }); }));
-    tri.addEventListener('change', function () { self.filtres.tri = tri.value; self.rendreMarche(); });
+    var TRIS = [['prix', 'Prix ajusté'], ['brut', 'Prix affiché'], ['km', 'Odomètre'], ['annee', 'Année'], ['jours', 'Jours affichés'], ['dist', 'Distance']];
+    var tri = h('select.saisie', { style: { height: '28px', width: 'auto' } }, TRIS.map(function (o) { return h('option', { value: o[0], selected: self.filtres.tri === o[0] ? true : undefined, text: 'Trier : ' + o[1] }); }));
+    tri.addEventListener('change', function () { self.filtres.tri = tri.value; self.filtres.sens = 'asc'; self.rendreMarche(); });
+    var sensBtn = h('button.btn.petit.fantome.eval-sens', { type: 'button', text: this.filtres.sens === 'desc' ? '↓ décroissant' : '↑ croissant', title: 'Inverser l\'ordre', onclick: function () { self.filtres.sens = self.filtres.sens === 'desc' ? 'asc' : 'desc'; self.rendreMarche(); } });
+    var nbTrac = {}; ((a && a.actifs && a.actifs.annonces) || []).forEach(function (x) { var k = tractionDe(x.motricite) || '?'; nbTrac[k] = (nbTrac[k] || 0) + 1; });
+    var selTraction = h('select.saisie', { style: { height: '28px', width: 'auto' }, title: 'Traction des annonces (MarketCheck)' + (this.tractionVehicule ? ' — votre véhicule : ' + NOM_TRACTION[this.tractionVehicule] + ' (décodeur)' : '') }, TRACTIONS.map(function (o) {
+      var n = o[0] === '' ? null : (o[0] === 'deux' ? (nbTrac.avant || 0) + (nbTrac.arriere || 0) + (nbTrac.deux || 0) : (nbTrac[o[0]] || 0));
+      return h('option', { value: o[0], selected: self.filtres.traction === o[0] ? true : undefined, text: o[1] + (n !== null ? ' (' + n + ')' : '') + (o[0] && o[0] === self.tractionVehicule ? ' — votre véhicule' : '') });
+    }));
+    selTraction.addEventListener('change', function () { self.filtres.traction = selTraction.value; self.tractionManuelle = true; self.rendreMarche(); self.rendreSommaire && self.rendreSommaire(); });
     this.elMarche.appendChild(h('div.eval-filtres', [
       h('label.case', [caseVersion, h('span', { text: 'Même version seulement' })]),
       h('label.case', [caseKm, h('span', { text: '± ' + AMX.fmtNombre(TOLERANCE_KM) + ' km du véhicule' })]),
+      selTraction,
       h('span.espace'),
       h('span.doux', { text: liste.length + ' annonce' + (liste.length > 1 ? 's' : '') + ' retenue' + (liste.length > 1 ? 's' : '') }),
-      tri
+      tri, sensBtn
     ]));
 
     var moy = act.prix && act.prix.moyenne;
     var lignes = [];
     var moiInsere = !c.prixVise;
     var kmV = nombre(this.elKm.value);
-    var ligneMoi = function (rang) {
+    var ligneMoi = function () {
       return h('tr.eval-moi', [
-        h('td.num', { text: rang ? String(rang) : '' }),
+        h('td.num', { text: c.rang ? String(c.rang) : '—', title: c.rang ? 'Votre rang : ' + c.rang + ' sur ' + c.rangSur + ', prix ramenés à votre kilométrage (1 = le moins cher)' : 'Entrez le prix de détail visé' }),
         h('td', [h('div', { text: 'Votre véhicule' }), h('div.mini', { text: AMX.CONCESSIONS_TOUTES[self.elConcession.value] || '' })]),
-        h('td', { text: self.elVersion.value.trim() || '—' }),
+        h('td', [h('div', { text: self.elVersion.value.trim() || '—' }), self.tractionVehicule ? h('span.mini', { text: NOM_TRACTION[self.tractionVehicule] }) : null]),
         h('td.num', { text: self.elAnnee.value || '—' }),
         h('td.num', { text: kmV !== null ? fmtKm(kmV) : '—' }),
         h('td.num', { text: fmt(c.prixVise) }),
@@ -2145,13 +2181,18 @@
         h('td', '')
       ]);
     };
+    var desc = self.filtres.sens === 'desc', triK = self.filtres.tri;
+    var moiVal = triK === 'prix' ? c.prixVise : (triK === 'km' ? kmV : null);
+    var placerFin = moiVal === null || moiVal === undefined;   /* tri par année, jours, distance : « Votre véhicule » en dernier */
     liste.forEach(function (x, i) {
-      if (!moiInsere && self.filtres.tri === 'prix' && x.ajuste >= c.prixVise) { lignes.push(ligneMoi(lignes.length + 1)); moiInsere = true; }
+      var xv = triK === 'prix' ? x.ajuste : (triK === 'km' ? x.km : null);
+      if (!moiInsere && !placerFin && xv !== null && xv !== undefined && (desc ? xv <= moiVal : xv >= moiVal)) { lignes.push(ligneMoi()); moiInsere = true; }
       var m = moy ? x.prix / moy : null;
+      var tr = tractionDe(x.motricite);
       lignes.push(h('tr', [
-        h('td.num', { text: String(lignes.length + 1) }),
+        h('td.num', { text: String(x.rangAjuste || ''), title: 'Rang du prix ramené à votre kilométrage (1 = le moins cher)' }),
         h('td.sous', [h('div', { text: x.concession || '—' }), h('span.mini', { text: [x.ville, x.province].filter(Boolean).join(', ') + (x.certifie ? ' · certifié' : '') })]),
-        h('td', [h('div', { text: x.version || '—' }), x.style ? h('span.mini', { text: (STYLES.filter(function (y) { return y[0] === styleDe(x.style, x.portes, x.version, x.modele || self.elModele.value); })[0] || [, x.style])[1] }) : null]),
+        h('td', [h('div', { text: x.version || '—' }), (x.style || tr) ? h('span.mini', { text: [x.style ? (STYLES.filter(function (y) { return y[0] === styleDe(x.style, x.portes, x.version, x.modele || self.elModele.value); })[0] || [, x.style])[1] : '', tr ? NOM_TRACTION[tr] : ''].filter(Boolean).join(' · ') }) : null]),
         h('td.num', { text: x.annee || '—' }),
         h('td.num', { text: fmtKm(x.km) }),
         h('td.num', { text: fmt(x.prix) }),
@@ -2162,9 +2203,15 @@
         h('td', x.lien ? [h('a.petit', { href: x.lien, target: '_blank', rel: 'noopener', text: 'Voir' })] : '')
       ]));
     });
-    if (!moiInsere) lignes.push(ligneMoi(lignes.length + 1));
+    if (!moiInsere) lignes.push(ligneMoi());
+    var th = function (texte, cle, titre) {
+      var actif = self.filtres.tri === cle, fl = actif ? (self.filtres.sens === 'desc' ? ' ▼' : ' ▲') : ' ↕';
+      var b = h('th.num.eval-tri' + (actif ? '.actif' : ''), { title: (titre ? titre + ' — ' : '') + 'cliquez pour trier' }, [texte, h('span.fl', { text: fl })]);
+      b.addEventListener('click', function () { if (self.filtres.tri === cle) self.filtres.sens = self.filtres.sens === 'desc' ? 'asc' : 'desc'; else { self.filtres.tri = cle; self.filtres.sens = 'asc'; } self.rendreMarche(); });
+      return b;
+    };
     this.elMarche.appendChild(h('div.eval-table', [h('table.tableau#eval-comparables', [
-      h('thead', [h('tr', [h('th.num', '#'), h('th', 'Concession'), h('th', 'Version'), h('th.num', 'Année'), h('th.num', 'Odomètre'), h('th.num', 'Prix'), h('th.num', 'Prix ajusté'), h('th.num', 'Jours'), h('th.num', 'Distance'), h('th.num', 'Marché %'), h('th', '')])]),
+      h('thead', [h('tr', [th('Rang', 'prix', 'Rang du prix ramené à votre kilométrage (1 = le moins cher) — cliquez pour trier'), h('th', 'Concession'), h('th', 'Version'), th('Année', 'annee'), th('Odomètre', 'km'), th('Prix', 'brut'), th('Prix ajusté', 'prix', 'Prix ramené à votre kilométrage'), th('Jours', 'jours'), th('Distance', 'dist'), h('th.num', 'Marché %'), h('th', '')])]),
       h('tbody', lignes.length ? lignes : [h('tr', [h('td', { colspan: 11, text: 'Aucune annonce ne correspond aux filtres.' })])])
     ])]));
 
@@ -2352,7 +2399,7 @@
     btn.classList.add('occupe');
     this.etat('Décodage du véhicule…');
     var serveur = AMX.get({ decoder: vin }).then(function (d) {
-      if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, carrosserie: d.carrosserie, portes: d.portes, source: 'serveur' };
+      if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, carrosserie: d.carrosserie, portes: d.portes, motricite: d.motricite, source: 'serveur' };
       return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; });
     }).catch(function () { return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; }); });
     var fiche = AMX.ficheDe(vin).catch(function () { return null; });
@@ -2365,6 +2412,8 @@
         if (r.year) self.elAnnee.value = r.year;
         if (r.trim) self.elVersion.value = r.trim;
         if (!self.styleManuel) self.elStyle.value = styleDe(r.carrosserie, r.portes, r.trim, r.model);
+        self.tractionVehicule = tractionDe(r.motricite);
+        if (!self.tractionManuelle) self.filtres.traction = self.tractionVehicule === 'avant' || self.tractionVehicule === 'arriere' ? self.tractionVehicule : (self.tractionVehicule || '');
       }
       // La fiche d'achat complète ce qui manque (et donne le km).
       if (!self.elMarque.value.trim() && f['f-marque']) self.elMarque.value = f['f-marque'];

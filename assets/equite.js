@@ -847,7 +847,7 @@
     s.textContent = [
       '.eq-params { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; } .eq-params .champ { width: 110px; } .eq-params .champ input { height: 30px; }',
       '.eq-filtres { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; } .eq-filtres .recherche { flex: 1 1 180px; height: 30px; } .eq-filtres select { height: 30px; width: auto; } .eq-filtres .compte { margin-left: auto; font-size: 12px; color: var(--encre-3); }',
-      '.eq-table { overflow-x: auto; } .eq-table .tableau { width: 100%; } .eq-table td, .eq-table th { padding: 6px 8px; vertical-align: top; font-size: 12.5px; } .eq-table th { white-space: nowrap; } .eq-table td.num, .eq-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }',
+      '.eq-table { overflow-x: auto; } .eq-table .tableau { width: 100%; } .eq-table .tableau.eq-compact { table-layout: fixed; } .eq-table .eq-compact td, .eq-table .eq-compact th { padding: 4px 6px; line-height: 1.3; overflow: hidden; } .eq-table .coupe { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .eq-table .eq-puces { display: flex; gap: 3px; flex-wrap: nowrap; overflow: hidden; margin-top: 2px; } .eq-table .eq-puces .puce { font-size: 11.5px; padding: 0 5px; line-height: 17px; border-radius: 7px; white-space: nowrap; } .eq-ndnc { background: #FDE2E2; color: #B42318; font-weight: 700; } .eq-table a.eq-mail { text-decoration: none; } .eq-table .eq-v.meme, .eq-table .eq-v.choisie { color: var(--vert-fonce, #0B6B3A); font-weight: 700; } .eq-table .eq-v.autre { color: var(--ambre, #955F10); font-weight: 700; } .eq-table .eq-v.proche, .eq-table .eq-v.inconnue { color: var(--encre-3); } .eq-table .eq-compact select.suivi { width: 100%; max-width: none; height: 24px; } .eq-table .eq-compact input.eq-mmr { width: 100%; max-width: 92px; } .eq-table .eq-compact td.eq-us-cell { min-width: 0; } .eq-table .eq-compact .btn.petit { height: 22px; padding: 0 6px; } @media (max-width: 1000px) { .eq-table .tableau.eq-compact { table-layout: auto; min-width: 980px; } } .eq-table td, .eq-table th { padding: 6px 8px; vertical-align: top; font-size: 12.5px; } .eq-table th { white-space: nowrap; } .eq-table td.num, .eq-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }',
       '.eq-table td .sous { font-size: 12px; color: var(--encre-3); } .eq-table td .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-3); } .eq-table td .nom { font-weight: 600; }',
       '.eq-table tr.cible td { background: var(--vert-clair); } .eq-table tr.sans td .valeur { color: var(--encre-3); font-style: italic; }',
       '.eq-table button.eq-dette { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; } .eq-table button.eq-dette:hover { color: var(--vert-fonce, var(--vert)); }',
@@ -866,7 +866,7 @@
       '.eq-page .eq-etapes { margin: 0; padding-left: 18px; line-height: 1.6; font-size: 13px; }',
       '.eq-ia { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; } .eq-ia .eq-ia-champ { flex: 1 1 auto; height: 34px; } .eq-ia .maxai-avatar, .eq-ia img { flex: 0 0 auto; }',
       '.eq-int-puce { background: #E6EEFB; color: #1A4FA0; font-weight: 700; font-size: 12px; padding: 1px 7px; border-radius: 8px; } .eq-fid { display: flex; gap: 6px; align-items: center; margin-top: 3px; flex-wrap: wrap; } .eq-fid-puce { background: #E3F4EA; color: #0B6B3A; font-weight: 700; font-size: 12px; padding: 1px 7px; border-radius: 8px; }',
-      '.eq-fid-carte { margin: 10px 0 4px; border: 1px solid #BFE3CC; border-left: 4px solid #0B8A45; border-radius: 8px; background: #F4FBF6; padding: 2px 12px 8px; } .eq-fid-carte summary { cursor: pointer; padding: 8px 0 4px; list-style: none; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .eq-fid-carte summary::-webkit-details-marker { display: none; } .eq-fid-carte summary .fleche { display: inline-block; transition: transform .15s; color: #0B6B3A; } .eq-fid-carte details[open] summary .fleche { transform: rotate(90deg); } .eq-fid-carte summary .ouvrir { margin-left: auto; color: #0B6B3A; font-weight: 600; font-size: 13px; } .eq-fid-carte .eq-fid-vues { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; } .eq-fid-carte .eq-fid-vues button { border: 1px solid #BFE3CC; background: #fff; border-radius: 14px; padding: 3px 10px; font-size: 13px; cursor: pointer; } .eq-fid-carte .eq-fid-vues button[aria-pressed="true"] { background: #0B8A45; border-color: #0B8A45; color: #fff; } .eq-fid-carte table { background: #fff; } .eq-exp-ok { color: #0B6B3A; font-weight: 700; } .eq-exp-non { color: #B42318; font-weight: 700; } .eq-fid-carte table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; } .eq-fid-carte th, .eq-fid-carte td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--ligne, #E4E8EC); vertical-align: top; } .eq-fid-carte th { font-size: 12px; color: var(--encre-3, #4B5563); font-weight: 600; } .eq-fid-carte .pin { font-family: ui-monospace, Menlo, monospace; } .eq-fid-carte .defile { overflow-x: auto; } .eq-fid-carte .outils { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }',
+      '.eq-fid-carte { margin: 10px 0 4px; border: 1px solid #BFE3CC; border-left: 4px solid #0B8A45; border-radius: 8px; background: #F4FBF6; padding: 2px 12px 8px; } .eq-fid-carte summary { cursor: pointer; padding: 8px 0 4px; list-style: none; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .eq-fid-carte summary::-webkit-details-marker { display: none; } .eq-fid-carte summary .fleche { display: inline-block; transition: transform .15s; color: #0B6B3A; } .eq-fid-carte details[open] summary .fleche { transform: rotate(90deg); } .eq-fid-carte summary .ouvrir { margin-left: auto; color: #0B6B3A; font-weight: 600; font-size: 13px; } .eq-fid-carte .eq-fid-vues { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; } .eq-fid-carte .eq-fid-vues button { border: 1px solid #BFE3CC; background: #fff; border-radius: 14px; padding: 3px 10px; font-size: 13px; cursor: pointer; } .eq-fid-carte .eq-fid-vues button[aria-pressed="true"] { background: #0B8A45; border-color: #0B8A45; color: #fff; } .eq-fid-carte table { background: #fff; } .eq-exp-ok { color: #0B6B3A; font-weight: 700; } .eq-fid-barre { padding: 6px 0 0; } .eq-fid-barre .outils { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; } .eq-fid-exp { font-size: 13px; display: inline-flex; gap: 4px; align-items: center; } tr.eq-offre-seule td { background: #FAFDFB; } .eq-exp-non { color: #B42318; font-weight: 700; } .eq-fid-carte table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; } .eq-fid-carte th, .eq-fid-carte td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--ligne, #E4E8EC); vertical-align: top; } .eq-fid-carte th { font-size: 12px; color: var(--encre-3, #4B5563); font-weight: 600; } .eq-fid-carte .pin { font-family: ui-monospace, Menlo, monospace; } .eq-fid-carte .defile { overflow-x: auto; } .eq-fid-carte .outils { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }',
       '.eq-us { display: flex; gap: 6px; align-items: center; margin-top: 3px; } .eq-us-puce { background: #E8F0FE; color: #1A64BF; font-weight: 700; font-size: 11.5px; padding: 1px 6px; border-radius: 8px; }',
       '.eq-ia-res { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 12px; border-radius: 10px; background: var(--vert-clair); font-size: 13px; } .eq-ia-res .sous { color: var(--encre-3); font-size: 12px; flex: 1 1 200px; }',
       '.eq-sync { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--fond-2, #F4F6F8); font-size: 13px; } .eq-sync.ok { background: var(--vert-clair); } .eq-sync.alerte { background: #FFF4E0; color: var(--ambre); } .eq-sync .eq-sync-txt { flex: 1 1 260px; }',
@@ -1093,51 +1093,53 @@
     if (!d) { el.appendChild(h('p.doux.petit', { text: 'Offres de fidélité Hyundai : lecture…' })); return; }
     if (d.absent) { el.appendChild(h('p.doux.petit', { text: 'Offres de fidélité Hyundai : le script du site n\'est pas à jour (Fidelite.gs) — il faut le déployer.' })); return; }
     if (!d.offres.length) { el.appendChild(h('div.outils', [h('span.doux.petit', { text: 'Aucune offre de fidélité Hyundai lue. Dans SmartPortal (Pistes de vente), choisissez la liste « HACC CRM -- HACC CRM - Loyalty Special Offer », puis cliquez le favori :' })].concat(boutonsFidelite()))); return; }
-    /* 7 nov. (Maxime : « je ne vois pas les 37 actives dans le tableau ») : la carte se voit, s'ouvre depuis la tuile, et se
-       filtre (actives, avec ou sans contrat Hyundai Finance, expirées). La date d'expiration est verte si l'offre vaut encore,
-       rouge si elle est échue (« indique la date d'expiration en vert si encore valide et en rouge si non valide »). */
+    /* 7 nov. (Maxime : « pourquoi avoir séparé les 37 ? je les veux tous ensemble ») : plus de tableau à part. La tuile « Offres
+       de fidélité » met toutes les offres actives dans la liste des comptes : les clients de Hyundai Finance avec leur contrat,
+       les autres sur une ligne « Aucun contrat chez Hyundai Finance — client à appeler ». Cette barre ne garde que le résumé,
+       les expirées (date en rouge) et les boutons. */
     var act = d.offres.filter(function (o) { return o.active; }), avec = act.filter(function (o) { return o.comptes && o.comptes.length; });
-    var sans = act.filter(function (o) { return !(o.comptes && o.comptes.length); }), echues = d.offres.filter(function (o) { return !o.active; });
-    var nDbl = act.filter(function (o) { return o.type === 'double'; }).length, nExp = echues.length, etat = d.etats && d.etats[this.cie];
+    var nExp = d.offres.length - act.length, nDbl = act.filter(function (o) { return o.type === 'double'; }).length, etat = d.etats && d.etats[this.cie];
+    var dansListe = this.filtres.quoi === 'fidelite' && !this.ia;
     var resume = AMX.fmtNombre(act.length) + ' offre' + (act.length > 1 ? 's' : '') + ' active' + (act.length > 1 ? 's' : '') + (nDbl === act.length && act.length ? ' (toutes en double fidélité)' : ' (' + nDbl + ' double' + (nDbl > 1 ? 's' : '') + ')')
-      + ' · ' + avec.length + ' client' + (avec.length > 1 ? 's' : '') + ' de Hyundai Finance · ' + sans.length + ' sans contrat Hyundai Finance'
-      + (nExp ? ' · ' + nExp + ' expirée' + (nExp > 1 ? 's' : '') : '') + (etat && etat.le ? ' · lues le ' + AMX.fmtDate(etat.le) : '');
-    var ajd = iso(new Date());
-    var dateExp = function (o) {
-      if (!o.expiration) return h('td', { text: '—' });
-      var ok = o.active && String(o.expiration) >= ajd;
-      return h('td', [h('span.' + (ok ? 'eq-exp-ok' : 'eq-exp-non'), { text: AMX.fmtDate(o.expiration), title: ok ? 'Offre encore valide' : 'Offre expirée : le taux réduit ne s\'applique plus' }), h('div.sous', { text: ok ? 'valide' : 'expirée' })]);
-    };
-    var ligne = function (o) {
-      var contrat = o.comptes && o.comptes.length ? h('td', [h('div', { text: 'Hyundai Finance' }), h('div.sous', { text: o.comptes.join(', ') + (o.par === 'nom' ? ' · trouvé par le nom' : '') })]) : h('td', [h('div.doux', { text: 'aucun' }), h('div.sous', { text: o.active ? 'client à appeler' : '' })]);
-      return h('tr', [
-        h('td', [h('div', { text: [o.prenom, o.nom].filter(Boolean).join(' ') || '—' }), h('div.sous', { text: [o.ville, o.codePostal].filter(Boolean).join(' · ') })]),
-        h('td', d.contact ? [o.telephone ? h('div', [h('a', { href: 'tel:' + o.telephone.replace(/[^\d+]/g, ''), text: o.telephone })]) : null, o.courriel ? h('div', [h('a', { href: 'mailto:' + o.courriel, text: o.courriel })]) : null] : [h('span.doux', { text: '—' })]),
-        h('td', [h('div', [h('span.puce.eq-fid-puce', { text: texteFidelite(o) || 'Fidélité' })]), h('div.sous', { text: o.offre ? 'nº ' + o.offre : '' })]),
-        h('td.pin', { text: d.contact ? (o.pin || '—') : '—' }),
-        dateExp(o),
-        h('td', { text: o.recuLe ? AMX.fmtDate(o.recuLe) : '—' }),
-        contrat
-      ]);
-    };
-    var VUES = [['', 'Actives', act], ['avec', 'Avec contrat Hyundai Finance', avec], ['sans', 'Sans contrat (à appeler)', sans], ['expirees', 'Expirées', echues]];
-    if (!VUES.some(function (v) { return v[0] === self.fidVue; })) this.fidVue = '';
-    var choisie = VUES.filter(function (v) { return v[0] === self.fidVue; })[0];
-    var tri = choisie[2].slice().sort(function (a, b) { return ((b.comptes || []).length ? 1 : 0) - ((a.comptes || []).length ? 1 : 0) || String(a.expiration).localeCompare(String(b.expiration)) || String(a.nom).localeCompare(String(b.nom)); });
-    var vues = h('div.eq-fid-vues', VUES.filter(function (v) { return v[2].length || v[0] === ''; }).map(function (v) {
-      return h('button', { type: 'button', 'aria-pressed': v[0] === self.fidVue ? 'true' : 'false', text: v[1] + ' (' + v[2].length + ')', onclick: function () { self.fidVue = v[0]; self.fidOuvert = true; self.rendreFidelite(); } });
-    }));
-    var voir = avec.length ? h('button.btn.petit.primaire', { type: 'button', text: 'Voir les ' + avec.length + ' client' + (avec.length > 1 ? 's' : '') + ' de Hyundai Finance dans la liste', onclick: function () { self.ia = null; self.filtres.quoi = 'fidelite'; self.rendre(); } }) : null;
-    var exp = h('button.btn.petit', { type: 'button', text: 'Exporter les offres', onclick: function () { self.exporterFidelite(); } });
-    var det = h('details', { open: this.fidOuvert ? 'open' : null }, [
-      h('summary', [h('span.fleche', { text: '▸' }), h('b', { text: 'Offres de fidélité Hyundai' }), h('span', { text: resume }), h('span.ouvrir', { text: this.fidOuvert ? 'Masquer' : 'Voir les ' + act.length + ' offres' })]),
-      h('p.doux.petit', { style: { margin: '2px 0 0' }, text: 'Liste « HACC CRM – Loyalty Special Offer » de SmartPortal (J.D. Power). Fidélité : 1 point de moins sur le taux du programme du manufacturier ; double fidélité : 2 points (jamais sous 0 %). Le client présente son code PIN avant la date d\'expiration. Seuls les clients qui ont un contrat chez Hyundai Finance sont dans la liste des comptes plus bas (avec le taux réduit) ; les autres sont ici, à appeler.' + (d.contact ? '' : ' Coordonnées et codes PIN : réservés aux comptes qui ont l\'accès aux coordonnées.') }),
-      vues,
-      h('div.defile', [h('table', [h('thead', [h('tr', ['Client', 'Contact', 'Offre', 'Code PIN', 'Expire le', 'Reçue le', 'Contrat'].map(function (x) { return h('th', { text: x }); }))]), h('tbody', tri.length ? tri.map(ligne) : [h('tr', [h('td.doux', { colspan: '7', text: 'Aucune offre dans ce groupe.' })])])])]),
-      h('div.outils', [voir, exp].concat(boutonsFidelite()))
+      + ' · ' + avec.length + ' avec contrat Hyundai Finance · ' + (act.length - avec.length) + ' à appeler' + (nExp ? ' · ' + nExp + ' expirée' + (nExp > 1 ? 's' : '') : '') + (etat && etat.le ? ' · lues le ' + AMX.fmtDate(etat.le) : '');
+    var voir = dansListe ? null : h('button.btn.petit.primaire', { type: 'button', text: 'Voir les ' + act.length + ' offres dans la liste', onclick: function () { self.ia = null; self.filtres.quoi = 'fidelite'; self.rendre(); } });
+    var exp = nExp ? h('label.case.eq-fid-exp', [h('input', { type: 'checkbox', checked: this.fidExpirees ? 'checked' : null, onchange: function (ev) { self.fidExpirees = ev.target.checked; if (self.filtres.quoi !== 'fidelite') { self.filtres.quoi = 'fidelite'; self.rendre(); } else { self.rendreFidelite(); self.rendreTable(); } } }), ' Inclure les ' + nExp + ' expirée' + (nExp > 1 ? 's' : '') + ' (date en rouge)']) : null;
+    var xl = h('button.btn.petit', { type: 'button', text: 'Exporter les offres', onclick: function () { self.exporterFidelite(); } });
+    el.appendChild(h('div.eq-fid-barre', [h('div', [h('b', { text: 'Offres de fidélité Hyundai' }), h('span', { text: ' · ' + resume })]),
+      h('p.doux.petit', { style: { margin: '2px 0 0' }, text: 'Liste « HACC CRM – Loyalty Special Offer » de SmartPortal (J.D. Power). Fidélité : 1 point de moins sur le taux du programme du manufacturier ; double fidélité : 2 points (jamais sous 0 %). Le client présente son code PIN avant la date d\'expiration.' + (d.contact ? '' : ' Coordonnées et codes PIN : réservés aux comptes qui ont l\'accès aux coordonnées.') }),
+      h('div.outils', [voir, exp, xl].concat(boutonsFidelite()))]));
+  };
+  /** Les offres de fidélité qui n'ont pas de ligne de contrat dans la liste (sans contrat Hyundai Finance, ou expirées). */
+  VueEquite.prototype.offresSeules = function () {
+    var d = FID[this.cie] && FID[this.cie].donnees; if (!d || !d.offres) return [];
+    var f = this.filtres, q = AMX.motsCherches ? AMX.motsCherches(f.q) : String(f.q || '').toLowerCase(), self = this;
+    return d.offres.filter(function (o) {
+      if (o.active && o.comptes && o.comptes.length) return false;   /* déjà dans la liste, avec son contrat */
+      if (!o.active && !self.fidExpirees) return false;
+      if (q.length && !(AMX.correspond ? AMX.correspond([o.prenom, o.nom, o.courriel, o.telephone, o.ville, o.codePostal, o.pin, o.offre], q) : [o.prenom, o.nom, o.ville].join(' ').toLowerCase().indexOf(q) >= 0)) return false;
+      return true;
+    }).sort(function (a, b) { return (b.active ? 1 : 0) - (a.active ? 1 : 0) || String(a.expiration).localeCompare(String(b.expiration)) || String(a.nom).localeCompare(String(b.nom)); });
+  };
+  /** Une ligne de la liste pour une offre sans contrat chez Hyundai Finance (mêmes colonnes que les comptes). */
+  VueEquite.prototype.rangeeOffre = function (o, contact) {
+    var d = FID[this.cie] && FID[this.cie].donnees, voitContact = !!(d && d.contact);
+    var ok = o.active && String(o.expiration || '') >= iso(new Date());
+    var vide = function () { return h('td.num', [h('span.eq-nul', { text: '—' })]); };
+    var nom = [o.prenom, o.nom].filter(Boolean).join(' ') || '—';
+    var titre = [nom, [o.ville, o.codePostal].filter(Boolean).join(' · '), voitContact ? [o.telephone, o.courriel].filter(Boolean).join(' · ') : ''].filter(Boolean).join('\n');
+    var tel = voitContact && o.telephone ? h('a', { href: 'tel:' + o.telephone.replace(/[^\d+]/g, ''), text: o.telephone }) : null;
+    var mail = voitContact && o.courriel ? h('a.eq-mail', { href: 'mailto:' + o.courriel, text: '✉', title: o.courriel }) : null;
+    var puce = h('span.puce.eq-fid-puce', { text: (o.type === 'double' ? 'Fid ×2' : 'Fid'), title: texteFidelite(o) + (o.offre ? ' — offre nº ' + o.offre : '') });
+    var date = o.expiration ? h('span.' + (ok ? 'eq-exp-ok' : 'eq-exp-non'), { text: (ok ? 'exp. ' : 'expirée ') + AMX.fmtDateCourte(o.expiration), title: ok ? 'Offre valide jusqu\'au ' + AMX.fmtDate(o.expiration) : 'Offre expirée le ' + AMX.fmtDate(o.expiration) }) : null;
+    return h('tr.eq-offre-seule', [
+      h('td', { title: titre }, [h('div.nom.coupe', { text: nom }), h('div.sous.coupe', [tel || h('span', { text: court(o.ville, 18) }), mail ? ' ' : '', mail]), h('div.eq-puces', [puce, date])]),
+      h('td', [h('div.doux.coupe', { text: o.vehicule && !/any\/all/i.test(o.vehicule) ? o.vehicule : '—' })]),
+      h('td', { title: 'Aucun contrat chez Hyundai Finance' + (o.active ? ' — client à appeler' : ' — offre expirée') }, [h('div.coupe', { text: 'Aucun contrat HMF' }), h('div.sous.coupe', { text: o.active ? 'à appeler' : 'offre expirée' })]),
+      vide(), vide(), vide(), vide(), vide(),
+      h('td', { title: (o.offre ? 'Offre nº ' + o.offre : 'Offre de fidélité') + (voitContact && o.pin ? '\nCode PIN ' + o.pin : '') + (o.recuLe ? '\nReçue le ' + AMX.fmtDate(o.recuLe) : '') }, [h('div.coupe', { text: 'Offre ' + (o.offre ? 'nº ' + o.offre : 'fidélité') }), h('div.sous.coupe.pin', { text: voitContact && o.pin ? 'PIN ' + o.pin : '' })]),
+      h('td', [h('span.eq-nul', { text: '—' })]),
+      h('td', [h('span.eq-nul', { text: '—' })])
     ]);
-    det.addEventListener('toggle', function () { self.fidOuvert = det.open; var o = det.querySelector('summary .ouvrir'); if (o) o.textContent = det.open ? 'Masquer' : 'Voir les ' + act.length + ' offres'; });
-    el.appendChild(det);
   };
   VueEquite.prototype.exporterFidelite = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
@@ -1168,8 +1170,7 @@
            dans la liste ET ouvre la carte des offres. */
         var dF = FID[self.cie] && FID[self.cie].donnees, nAct = dF && dF.offres ? dF.offres.filter(function (o) { return o.active; }).length : null;
         var nListe = n(function (r) { return r.fidelite; });
-        var b = carte('vert', 'Offres de fidélité', nAct === null ? nListe : nAct, nAct === null ? 'taux du programme réduit' : nListe + ' avec contrat Hyundai Finance · ' + Math.max(0, nAct - nListe) + ' à appeler', 'fidelite');
-        b.addEventListener('click', function () { self.fidOuvert = true; self.rendreFidelite(); setTimeout(function () { if (self.elFid && self.elFid.scrollIntoView) self.elFid.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); });
+        var b = carte('vert', 'Offres de fidélité', nAct === null ? nListe : nAct, nAct === null ? 'taux du programme réduit' : nListe + ' avec contrat Hyundai Finance · ' + Math.max(0, nAct - nListe) + ' à appeler · toutes dans la liste', 'fidelite');
         return b;
       })() : null
     ].forEach(function (b) { if (b) el.appendChild(b); });
@@ -1286,22 +1287,47 @@
   };
   VueEquite.prototype.rendreTable = function () {
     var self = this, vis = this.visibles(), contact = !!(AMX.equite.enCache() && AMX.equite.enCache().contact);
-    if (this.elCompte) this.elCompte.textContent = AMX.fmtNombre(vis.length) + ' / ' + AMX.fmtNombre(this.lignes.length) + ' comptes';
+    var seules = this.filtres.quoi === 'fidelite' && !this.ia && estHmf(this.cie) ? this.offresSeules() : [];
+    if (this.elCompte) this.elCompte.textContent = seules.length ? AMX.fmtNombre(vis.length + seules.length) + ' offres de fidélité (' + AMX.fmtNombre(vis.length) + ' avec contrat Hyundai Finance)' : AMX.fmtNombre(vis.length) + ' / ' + AMX.fmtNombre(this.lignes.length) + ' comptes';
     AMX.vider(this.elTable);
-    if (!vis.length) { this.elTable.appendChild(h('p.doux', { style: { padding: '14px', textAlign: 'center' }, text: this.filtres.quoi === 'cibles' ? 'Aucune cible avec ces paramètres : élargissez la marge, changez le terme, ou lisez les valeurs OpenLane des comptes sans valeur.' : 'Aucun compte ne correspond.' })); return; }
-    var rows = vis.slice(0, 400).map(function (r) { return self.rangee(r, contact); });
-    this.elTable.appendChild(h('table.tableau', [h('thead', [h('tr', [h('th', 'Client'), h('th', 'Véhicule actuel'), h('th', 'Contrat'), h('th.num', 'Paiement'), h('th.num', 'Valeur'), h('th.num', 'Solde'), h('th.num', 'Équité'), h('th.num', { title: 'Gros É.-U. ($ CA) = MMR × taux du jour ajusté − ajustement, comparé à la dette' }, 'É.-U. vs dette'), h('th', 'Neuf proposé'), h('th.num', 'Nouvelle mensualité'), h('th', 'Conseiller'), h('th', 'Suivi')])]), h('tbody', rows)]));
+    if (!vis.length && !seules.length) { this.elTable.appendChild(h('p.doux', { style: { padding: '14px', textAlign: 'center' }, text: this.filtres.quoi === 'cibles' ? 'Aucune cible avec ces paramètres : élargissez la marge, changez le terme, ou lisez les valeurs OpenLane des comptes sans valeur.' : 'Aucun compte ne correspond.' })); return; }
+    var rows = vis.slice(0, 400).map(function (r) { return self.rangee(r, contact); }).concat(seules.map(function (o) { return self.rangeeOffre(o, contact); }));
+    var largeurs = ['15%', '14%', '11%', '6%', '7%', '7%', '7%', '7%', '14%', '6%', '6%'];
+    this.elTable.appendChild(h('table.tableau.eq-compact', [h('colgroup', largeurs.map(function (w) { return h('col', { style: { width: w } }); })), h('thead', [h('tr', [h('th', 'Client'), h('th', 'Véhicule'), h('th', { title: 'Type, terme, taux (* = estimé), échéance' }, 'Contrat'), h('th.num', { title: 'Paiement mensuel actuel' }, 'Paiem.'), h('th.num', { title: 'Valeur OpenLane au km estimé' }, 'Valeur'), h('th.num', { title: 'Dette du jour' }, 'Dette'), h('th.num', 'Équité'), h('th.num', { title: 'Gros É.-U. ($ CA) = MMR × taux du jour ajusté − ajustement, comparé à la dette' }, 'É.-U.'), h('th', 'Neuf proposé'), h('th', { title: 'Conseiller' }, 'Cons.'), h('th', 'Suivi')])]), h('tbody', rows)]));
     if (vis.length > 400) this.elTable.appendChild(h('p.doux.petit', { text: '… ' + (vis.length - 400) + ' autres : affinez les filtres ou exportez.' }));
   };
+  /* 7 nov. (Maxime : « réduire la hauteur des lignes, c'est beaucoup trop gros ; faire des abréviations et refaire la dimension
+     pour ne pas avoir à bouger le tableau de gauche à droite ») : une à trois lignes par client, le détail dans les infobulles,
+     colonnes de largeur fixe (table-layout: fixed) — le tableau tient dans la page. */
+  function court(s, n) { s = texte(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function fmtK(x) { if (x === null || x === undefined || isNaN(x)) return '—'; var a = Math.abs(x); return (x < 0 ? '−' : '') + (a >= 100000 ? Math.round(a / 1000) + ' k$' : (a >= 10000 ? (Math.round(a / 100) / 10).toFixed(1).replace('.', ',') + ' k$' : fmt$(a))); }
+  function fmtKSigne(x) { if (x === null || x === undefined || isNaN(x)) return '—'; return (x > 0 ? '+' : '') + fmtK(x); }
+  function moisAn(d) { var x = texte(d).slice(0, 7); return /^\d{4}-\d{2}$/.test(x) ? x.slice(5, 7) + '/' + x.slice(2, 4) : texte(d); }
+  function nomCourt(n) { var m = texte(n).split('@')[0].replace(/[._]/g, ' ').trim().split(/\s+/); if (m.length < 2) return m[0] || ''; return m[0].charAt(0).toUpperCase() + '. ' + m[m.length - 1]; }
+  function sourceDetteCourte(r) {
+    var d = r.dette || {}, qui = r.gm ? 'GM' : (r.mode === 'vw' ? 'VW' : (r.mode === 'hmf' ? 'HMF' : 'BMW'));
+    if (d.source === 'preteur') return qui + ' ' + AMX.fmtDateCourte(d.baseLe) + (d.paiements ? ' −' + d.paiements + ' m' : '');
+    if (d.source === 'contrat') return 'calculée';
+    if (d.source === 'fige') return qui + ' ' + AMX.fmtDateCourte(d.baseLe);
+    return 'à calc.';
+  }
   VueEquite.prototype.rangee = function (r, contact) {
     var self = this, c = r.compte;
     var cls = (r.cible ? '.cible' : '') + (r.sansValeur ? '.sans' : '');
     var contactEl = contact ? h('div.sous.eq-contact', [c.telephone ? h('a', { href: 'tel:' + c.telephone.replace(/[^\d+]/g, ''), text: c.telephone }) : null, c.courriel ? h('span', [' · ', h('a', { href: 'mailto:' + c.courriel, text: c.courriel })]) : null]) : null;
     var eqCls = r.equite === null ? '.eq-nul' : (r.equite >= 0 ? '.eq-pos' : '.eq-neg');
-    var valeurEl = r.valeur !== null ? h('button.eq-valeur', { type: 'button', title: 'Voir le calcul de la valeur OpenLane', onclick: function (ev) { ev.stopPropagation(); self.detailValeur(r); } }, [h('div', { text: fmt$(r.valeur) }), h('div.sous', { text: 'OpenLane' + (r.kmEstime ? ' · ' + AMX.fmtNombre(r.kmEstime) + ' km est.' : '') + ' ›' })]) : h('div', [h('span.valeur', { text: 'à lire' }), AMX.openlane ? h('div', [h('button.btn.petit', { type: 'button', text: 'OpenLane', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } })]) : null]);
+    var valeurEl = r.valeur !== null ? h('button.eq-valeur', { type: 'button', title: 'Valeur OpenLane ' + fmt$(r.valeur) + (r.kmEstime ? ' au km estimé de ' + AMX.fmtNombre(r.kmEstime) + ' km' : '') + ' — cliquez pour voir le calcul', onclick: function (ev) { ev.stopPropagation(); self.detailValeur(r); } }, [h('div', { text: fmtK(r.valeur) }), h('div.sous', { text: 'OL' + (r.kmEstime ? ' · ' + Math.round(r.kmEstime / 1000) + ' k km' : '') })]) : (AMX.openlane ? h('button.btn.petit', { type: 'button', text: 'Lire', title: 'Pas encore de valeur : lire OpenLane pour ce véhicule', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } }) : h('span.valeur', { text: 'à lire' }));
     var autres = r.proposition && r.propositions.length > 1 ? r.propositions.filter(function (p) { return p !== r.proposition; }).map(function (p) { return p.vehicule + ' — ' + fmt$(p.mensualite) + ' / mois · ' + texteProposition(p); }).join('\n') : '';
     var neufEl = r.proposition ? h('div', { title: autres ? 'Autres scénarios DealDriver :\n' + autres : '' }, [h('div.nom', { text: r.proposition.vehicule || '—' }), h('div.sous', { text: texteProposition(r.proposition) + ' · DealDriver' + (r.propositions.length > 1 ? ' · +' + (r.propositions.length - 1) + ' autre' + (r.propositions.length > 2 ? 's' : '') : '') })])
-      : r.neuf ? h('div', [h('div.nom', { text: [r.neuf.annee, r.mode !== 'bmw' ? r.neuf.v && r.neuf.v.marque : 'BMW', r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') }), h('div.sous', { text: texteNeuf(r) }), this.ligneVersion(r)]) : h('span.sous', { text: 'Aucun ' + (c.modele || 'modèle semblable') + ' neuf connu (stock, commandes, ventes)' });
+      : r.neuf ? (function () {
+          var nomN = [r.neuf.annee, r.neuf.modele, r.neuf.version].filter(Boolean).join(' ');
+          var marque = { meme: '✓', proche: '≈', choisie: '✓', autre: '⚠', inconnue: '?' }[r.versionVoie || 'inconnue'];
+          var vl = self.ligneVersion(r), bt = vl.querySelector('button');
+          if (bt) { bt.textContent = 'changer'; }
+          var titreV = (vl.querySelector('.v-txt') || {}).textContent || '';
+          return h('div', { title: nomN + '\n' + texteNeuf(r) + (titreV ? '\n' + titreV : '') }, [h('div.nom.coupe', { text: nomN }),
+            h('div.sous.coupe', [h('span.eq-v.' + (r.versionVoie || 'inconnue'), { text: marque + ' ' }), 'PDSF ' + fmtK(r.neuf.prix) + (r.neuf.etat === 'stock' ? ' · stock' : (r.neuf.etat ? ' · ' + (ETATS_NEUF[r.neuf.etat] || r.neuf.etat).toLowerCase() : '')), bt ? h('span', [' · ', bt]) : null])]);
+        })() : h('span.sous', { text: 'Aucun neuf connu', title: 'Aucun ' + (c.modele || 'modèle semblable') + ' neuf connu (stock, commandes, ventes)' });
     var ecartsTr = ecartsTransaction(r), titreProg = '';
     if (r.programme && !r.programme.manquant) {
       titreProg = (r.programme.libelle ? 'Source : ' + r.programme.libelle + '\n' : '') + (r.programme.type === 'location' ? 'Location comparée à la location du client : même terme et mêmes km par année que son contrat (grille du programme du manufacturier).' : 'Financement comparé au financement du client : même terme que son contrat.') + '\n'
@@ -1323,22 +1349,31 @@
       if (val && AMX.modale) { var ta = h('textarea.saisie', { placeholder: 'Note (facultatif) : ce qui a été dit, le véhicule proposé…', value: note }); AMX.modale({ titre: SUIVIS[val] + ' — ' + nomClient(c), corps: ta, boutons: [{ texte: 'Enregistrer', classe: 'btn primaire', action: function () { fin(ta.value); return true; } }, { texte: 'Annuler', action: function () { selSuivi.value = c.suivi || ''; return true; } }] }); }
       else fin(note);
     });
+    var titreClient = [nomClient(c), [c.ville, r.gm ? c.etatLead : c.compte].filter(Boolean).join(' · '), contact ? [c.telephone, c.courriel].filter(Boolean).join(' · ') : ''].filter(Boolean).join('\n');
+    var puces = [];
+    if (r.ndnc) puces.push(h('span.puce.eq-ndnc', { text: 'LNNTE', title: 'Ne pas téléphoner : inscrit à la Liste nationale de numéros de télécommunication exclus ou à la liste interne de la concession (GM Dealer Direct)' }));
+    if (r.sauver) puces.push(h('span.puce.eq-int-puce', { text: 'Intérêt −' + String(Math.round(r.ecartTaux * 10) / 10).replace('.', ','), title: 'Sauver de l\'intérêt\nTaux du contrat ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé à partir du rachat, du paiement et des mensualités qui restent : le prêteur ne donne pas le taux)' : ' (prêteur)') + '\nTaux du programme d\'aujourd\'hui ' + fmtTaux(r.tauxJour) + (r.programme && r.programme.libelle ? ' — ' + r.programme.libelle : '') + '\nÉcart : ' + String(r.ecartTaux).replace('.', ',') + ' points' + (r.interetMois ? '\nÀ dette égale (' + fmt$(r.solde) + ', ' + r.dette.n + ' mois) : ' + fmt$(r.interetMois) + ' de moins par mois, ≈ ' + fmt$(r.interetSauve) + ' d\'intérêts sauvés' : '') }));
+    if (r.fidelite) puces.push(h('span.puce.eq-fid-puce', { text: (r.fidelite.type === 'double' ? 'Fid ×2' : 'Fid') + (r.fidelite.expiration ? ' ' + AMX.fmtDateCourte(r.fidelite.expiration) : ''), title: texteFidelite(r.fidelite) + ' — offre de fidélité de Hyundai Canada' + (r.fidelite.offre ? ' nº ' + r.fidelite.offre : '') + ' (SmartPortal) : ' + r.fidelite.pct + ' point' + (r.fidelite.pct > 1 ? 's' : '') + ' de moins sur le taux du programme.' + (r.fidelite.expiration ? '\nValide jusqu\'au ' + AMX.fmtDate(r.fidelite.expiration) : '') + (r.fidelite.pin ? '\nCode PIN : ' + r.fidelite.pin : '') + (r.fidelite.par === 'nom' ? '\nClient retrouvé par le nom et le code postal (pas le même courriel).' : '') }));
+    if (r.exportable) puces.push(h('span.puce.eq-us-puce', { text: 'É.-U.', title: 'NIV fabriqué aux États-Unis : le véhicule peut être vendu aux É.-U. — voir la colonne « É.-U. ».' }));
+    var telEl = contact && c.telephone ? h('a', { href: 'tel:' + c.telephone.replace(/[^\d+]/g, ''), text: c.telephone, onclick: function (ev) { ev.stopPropagation(); } }) : null;
+    var mailEl = contact && c.courriel ? h('a.eq-mail', { href: 'mailto:' + c.courriel, text: '✉', title: c.courriel, onclick: function (ev) { ev.stopPropagation(); } }) : null;
+    var veh = vehiculeTexte(c), vehCourt = r.mode === 'gm' ? veh : ([c.annee, c.modele, c.version].filter(Boolean).join(' ') || veh), typeC = (r.location ? 'Loc ' : 'Fin ') + (c.terme ? c.terme + 'm' : '');
+    var titreContrat = (r.location ? 'Location' : 'Financement') + (c.terme ? ' ' + c.terme + ' mois' : '') + (r.tauxContrat !== null ? ' à ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé : rachat, paiement, mensualités)' : '') : '') + (c.echeance ? '\nÉchéance ' + AMX.fmtDate(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' mois)' : '') : '') + (r.location && c.kmContrat ? '\n' + AMX.fmtNombre(c.kmContrat) + ' km au contrat' + (c.usure === 'oui' ? ' · usure' : '') : '') + (c.neufUsage && /used|pre/i.test(c.neufUsage) ? '\nAcheté d\'occasion' : '');
+    var titreDette = 'Dette du jour ' + fmt$(r.solde) + ' — ' + texteDette(r) + (r.location && r.soldeEcheance !== null ? '\nRésiduel ' + fmt$(r.soldeEcheance) : '') + '\nCliquez pour voir le calcul';
+    var noteSuivi = [c.suiviNote, c.suiviLe ? AMX.fmtDateCourte(c.suiviLe) + (c.suiviPar ? ' · ' + String(c.suiviPar).split('@')[0] : '') : ''].filter(Boolean).join('\n');
+    if (noteSuivi) selSuivi.title = noteSuivi;
     return h('tr' + cls, [
-      h('td', [h('div.nom', { text: nomClient(c) }), h('div.sous', { text: [c.ville, r.gm ? c.etatLead : c.compte].filter(Boolean).join(' · ') }), contactEl, r.ndnc ? h('div.sous.eq-neg', { text: 'Ne pas téléphoner (LCAP)', title: 'Inscrit à la Liste nationale de numéros de télécommunication exclus ou à la liste interne de la concession, selon GM Dealer Direct' }) : null,
-        r.sauver ? h('div.eq-fid', [h('span.puce.eq-int-puce', { text: 'Sauver de l\'intérêt', title: 'Taux du contrat ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé à partir du rachat, du paiement et des mensualités qui restent : le prêteur ne donne pas le taux)' : ' (prêteur)') + '\nTaux du programme d\'aujourd\'hui ' + fmtTaux(r.tauxJour) + (r.programme && r.programme.libelle ? ' — ' + r.programme.libelle : '') + '\nÉcart : ' + String(r.ecartTaux).replace('.', ',') + ' points' + (r.interetMois ? '\nÀ dette égale (' + fmt$(r.solde) + ', ' + r.dette.n + ' mois) : ' + fmt$(r.interetMois) + ' de moins par mois, ≈ ' + fmt$(r.interetSauve) + ' d\'intérêts sauvés' : '') }), h('span.sous', { text: texteInteret(r) })]) : null,
-        r.fidelite ? h('div.eq-fid', [h('span.puce.eq-fid-puce', { text: texteFidelite(r.fidelite), title: 'Offre de fidélité de Hyundai Canada' + (r.fidelite.offre ? ' nº ' + r.fidelite.offre : '') + ' (SmartPortal) : ' + r.fidelite.pct + ' point' + (r.fidelite.pct > 1 ? 's' : '') + ' de moins sur le taux du programme du manufacturier.' + (r.fidelite.pin ? '\nCode PIN : ' + r.fidelite.pin : '') + (r.fidelite.par === 'nom' ? '\nClient retrouvé par le nom et le code postal (pas le même courriel).' : '') }), r.fidelite.expiration ? h('span.sous.eq-exp-ok', { text: 'exp. ' + AMX.fmtDateCourte(r.fidelite.expiration), title: 'Offre valide jusqu\'au ' + AMX.fmtDate(r.fidelite.expiration) }) : null]) : null]),
-      h('td', [h('div', { text: vehiculeTexte(c) }), h('div.vin', { text: c.vin || '' }), c.neufUsage && /used|pre/i.test(c.neufUsage) ? h('div.sous', { text: 'acheté d\'occasion' }) : null,
-        r.exportable ? h('div.eq-us', [h('span.puce.eq-us-puce', { text: 'É.-U.', title: 'NIV fabriqué aux États-Unis : le véhicule peut être vendu aux É.-U. — voir la colonne « É.-U. vs dette ».' })]) : null]),
-      h('td', [h('div', { text: (r.location ? 'Location' : 'Financement') + (c.terme ? ' ' + c.terme + ' mois' : '') + (r.tauxContrat !== null ? ' · ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé)' : '') : '') }), h('div.sous' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'échéance ' + AMX.fmtDate(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' mois)' : '') : '' }), r.location && c.kmContrat ? h('div.sous', { text: AMX.fmtNombre(c.kmContrat) + ' km au contrat' + (c.usure === 'oui' ? ' · usure' : '') }) : null]),
-      h('td.num', { text: fmt$(c.paiement) }),
+      h('td', { title: titreClient }, [h('div.nom.coupe', { text: nomClient(c) }), h('div.sous.coupe', [telEl || h('span', { text: court(c.ville, 18) }), mailEl ? ' ' : '', mailEl]), puces.length ? h('div.eq-puces', puces) : null]),
+      h('td', { title: veh + (c.vin ? '\nNIV ' + c.vin : '') }, [h('div.coupe', { text: vehCourt }), h('div.vin.coupe', { text: c.vin ? '…' + String(c.vin).slice(-8) : '' })]),
+      h('td', { title: titreContrat }, [h('div.coupe', { text: typeC + (r.tauxContrat !== null ? ' · ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? '*' : '') : '') }), h('div.sous.coupe' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'éch. ' + moisAn(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' m)' : '') : '' })]),
+      h('td.num', { text: fmtK(nombre(c.paiement)) }),
       h('td.num', [valeurEl]),
-      h('td.num', [h('button.eq-dette', { type: 'button', text: fmt$(r.solde), title: 'Comment la dette est calculée', onclick: function () { self.detailDette(r); } }), h('div.sous', { text: texteDette(r) }), r.location && r.soldeEcheance !== null ? h('div.sous', { text: 'résiduel ' + fmt$(r.soldeEcheance) }) : null]),
-      h('td.num', [h('div' + eqCls, { text: r.equite === null ? '—' : fmtSigne(r.equite) }), null, r.location && r.equiteEcheance !== null ? h('div.sous', { text: 'à l\'échéance ' + fmtSigne(r.equiteEcheance) }) : null]),
+      h('td.num', { title: titreDette }, [h('button.eq-dette', { type: 'button', text: fmtK(r.solde), onclick: function () { self.detailDette(r); } }), h('div.sous.coupe', { text: sourceDetteCourte(r) })]),
+      h('td.num', { title: r.location && r.equiteEcheance !== null ? 'À l\'échéance : ' + fmtSigne(r.equiteEcheance) : '' }, [h('div' + eqCls, { text: r.equite === null ? '—' : fmtKSigne(r.equite) }), r.location && r.equiteEcheance !== null ? h('div.sous', { text: 'éch. ' + fmtKSigne(r.equiteEcheance) }) : null]),
       h('td.num.eq-us-cell', [self.celluleUS(r)]),
       h('td', [neufEl]),
-      h('td.num', [mensEl]),
-      h('td', { text: c.conseiller || '—' }),
-      h('td', [selSuivi, c.suiviNote ? h('div.suivi-note', { text: c.suiviNote }) : null, c.suiviLe ? h('div.suivi-note', { text: AMX.fmtDateCourte(c.suiviLe) + (c.suiviPar ? ' · ' + String(c.suiviPar).split('@')[0] : '') }) : null])
+      h('td', { title: c.conseiller || '' }, [h('div.coupe', { text: nomCourt(c.conseiller) || '—' })]),
+      h('td', [selSuivi])
     ]);
   };
   /* ---- Calcul de la dette (5 nov.) : le détail d'un compte, et le bilan de la page ---- */
@@ -1397,16 +1432,13 @@
       try { mmrEl.blur(); } catch (e) {}
       self.planifierRendu(0);
     });
-    if (r.grosUS === null) return h('div.eq-us-vide', [T && T.taux ? mmrEl : h('span.sous', { text: 'taux du jour…' }), h('div.sous', [lienEval])]);
+    lienEval.textContent = 'éval.';
+    if (r.grosUS === null) return h('div.eq-us-vide', [T && T.taux ? mmrEl : h('span.sous', { text: 'taux…' }), h('div.sous', [lienEval])]);
     var cls = r.equiteUS === null ? '.eq-nul' : (r.equiteUS >= 0 ? '.eq-pos' : '.eq-neg');
     return h('div', { title: 'Gros É.-U. ' + fmt$(r.grosUS) + ' − dette ' + fmt$(r.solde) + (r.equite !== null ? ' ; au Canada (OpenLane) : ' + fmtSigne(r.equite) : '') }, [
-      h('div' + cls, { text: r.equiteUS === null ? '—' : fmtSigne(r.equiteUS) }),
-      h('div.sous', { text: 'gros É.-U. ' + fmt$(r.grosUS) }),
-      h('div.sous', { text: 'dette ' + fmt$(r.solde) }),
-      r.meilleurUS && r.equite !== null ? h('div.sous.eq-pos', { text: fmtSigne(r.equiteUS - r.equite) + ' vs Canada' }) : null,
-      r.usSource === 'evaluation'
-        ? h('div.sous', [(r.mmr ? 'MMR ' + AMX.fmtNombre(r.mmr) + ' $ US · ' : ''), lienEval, r.us && r.us.calculeLe ? ' du ' + AMX.fmtDateCourte(r.us.calculeLe) : ''])
-        : h('div.sous', [mmrEl, ' ', lienEval])
+      h('div' + cls, { text: r.equiteUS === null ? '—' : fmtKSigne(r.equiteUS) }),
+      h('div.sous.coupe', { text: 'gros ' + fmtK(r.grosUS) + (r.meilleurUS && r.equite !== null ? ' · ★' : '') }),
+      r.usSource === 'evaluation' ? h('div.sous', [lienEval]) : h('div.sous', [mmrEl])
     ]);
   };
   var VOIES_VERSION = { meme: 'même version', proche: 'même finition, ensemble différent', autre: 'autre version (la même n\'est pas connue)', choisie: 'version choisie', inconnue: 'version du client inconnue' };

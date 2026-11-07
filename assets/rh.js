@@ -62,7 +62,20 @@
     '.rhx-cases { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; } .rhx-cases label { display: flex; gap: 6px; align-items: center; }',
     '.rhx-prog { font-size: 12.5px; color: var(--encre-3); margin: 6px 0 0; }',
     '.rhx-apercu { max-height: 60vh; overflow: auto; background: var(--carte-2); padding: 8px; border-radius: 8px; } .rhx-apercu img { display: block; max-width: 100%; margin: 0 auto 8px; box-shadow: 0 1px 4px rgba(0,0,0,.15); background: #fff; }',
-    '.rhx-journal { font-size: 12px; color: var(--encre-3); } .rhx-journal li { padding: 2px 0; }'
+    '.rhx-journal { font-size: 12px; color: var(--encre-3); } .rhx-journal li { padding: 2px 0; }',
+    '.rhx-texte { background: #fff; color: #111; border: 1px solid var(--ligne); border-radius: 8px; padding: 14px 18px; line-height: 1.5; font-size: 14px; max-height: 60vh; overflow: auto; }',
+    '.rhx-texte h2, .rhx-texte h3 { font-size: 15px; margin: 14px 0 6px; } .rhx-texte p { margin: 0 0 8px; } .rhx-texte table { border-collapse: collapse; } .rhx-texte td, .rhx-texte th { border: 1px solid #ccc; padding: 3px 6px; }',
+    '.rhx-texte mark, .rhx-editeur mark { background: #FFE58F; color: #111; padding: 0 2px; border-radius: 3px; }',
+    '.rhx-outils { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 6px; }',
+    '.rhx-outils button { border: 1px solid var(--ligne); background: var(--carte); border-radius: 6px; padding: 4px 9px; font-size: 12.5px; cursor: pointer; color: var(--encre-2); }',
+    '.rhx-outils select { font-size: 12.5px; }',
+    '.rhx-editeur { background: #fff; color: #111; border: 1px solid var(--ligne); border-radius: 8px; padding: 12px 16px; min-height: 260px; max-height: 58vh; overflow: auto; line-height: 1.5; font-size: 14px; }',
+    '.rhx-editeur:focus { outline: 2px solid var(--vert); outline-offset: 1px; } .rhx-editeur h2 { font-size: 15px; } .rhx-editeur p { margin: 0 0 8px; }',
+    '.rhx-cat { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11.5px; font-weight: 700; background: var(--bleu-bg); color: var(--bleu); margin-right: 6px; }',
+    '.rhx-cat.lettre { background: var(--ambre-bg); color: var(--ambre); } .rhx-cat.pdf { background: var(--gris-bg); color: var(--encre-2); }',
+    '.rhx-trousse { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border: 1px dashed var(--ligne); border-radius: 10px; padding: 8px 10px; margin: 0 0 10px; }',
+    '.rhx-trousse select { flex: 1 1 240px; max-width: 420px; }',
+    '.rhx-revu { color: var(--vert-fonce); font-size: 12px; font-weight: 700; }'
   ].join('\n');
   function css() { if (!document.getElementById('css-rh')) { var s = document.createElement('style'); s.id = 'css-rh'; s.textContent = CSS; document.head.appendChild(s); } }
 
@@ -99,10 +112,17 @@
     if (!cache.rep || !d) return;
     var i = cache.rep.documents.findIndex(function (x) { return x.id === d.id; });
     if (i >= 0) cache.rep.documents[i] = d; else cache.rep.documents.push(d);
+    delete textesModeles[d.id];
+  }
+  function poserTrousse(t) {
+    if (!cache.rep || !t) return;
+    cache.rep.trousses = cache.rep.trousses || [];
+    var i = cache.rep.trousses.findIndex(function (x) { return x.id === t.id; });
+    if (i >= 0) cache.rep.trousses[i] = t; else cache.rep.trousses.push(t);
   }
   function ecrire(corps, opts) {
     return AMX.post(corps, Object.assign({ delai: 120000, secours: false }, opts || {})).then(function (d) {
-      if (d && d.vehicules && !d.envoi && !d.document && !d.reglages) throw new Error(SCRIPT_PAS_A_JOUR);
+      if (d && d.vehicules && !d.envoi && !d.document && !d.reglages && !d.trousse) throw new Error(SCRIPT_PAS_A_JOUR);
       return AMX.verifier(d);
     });
   }
@@ -240,6 +260,88 @@
     }).then(function (d) { poserDocument(d.document); return d.document; });
   }
 
+  /* ------------------------------------------------------------------------------- documents en texte (7 nov.) */
+  /* Champs remplis tout seuls à l'envoi ; les autres ({{remuneration}}, {{superieur}}…) se tapent dans l'envoi. */
+  var CHAMPS_AUTO = { nom: 1, prenom: 1, poste: 1, debut: 1, concession: 1, date: 1, rh: 1 };
+  var ALIAS = { candidat: 'nom', name: 'nom', employe: 'nom', position: 'poste', titre: 'poste', location: 'concession', dealer: 'concession', salaire: 'remuneration' };
+  var LIB_CHAMPS = { nom: 'Nom complet', prenom: 'Prénom', poste: 'Poste', debut: 'Date d\'entrée en poste', concession: 'Concession', date: 'Date du jour', rh: 'Personne des RH',
+    remuneration: 'Rémunération', superieur: 'Supérieur immédiat', horaire: 'Horaire de travail' };
+  var CATEGORIES = { politique: 'Politique', lettre: 'Lettre', autre: 'Document' };
+  var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var textesModeles = {};
+  function nomChamp(v) {
+    var n = String(v || '').toLowerCase();
+    if (n.normalize) n = n.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    n = n.replace(/[^a-z0-9]/g, '');
+    return ALIAS[n] || n;
+  }
+  function libChamp(n) { var v = (cache.rep && cache.rep.variables) || {}; return v[n] || LIB_CHAMPS[n] || n; }
+  function champsDe(html) {
+    var vus = {}, out = [];
+    String(html || '').replace(/\{\{\s*([^{}]{1,40}?)\s*\}\}/g, function (m, v) { var n = nomChamp(v); if (n && !vus[n]) { vus[n] = 1; out.push(n); } return m; });
+    return out;
+  }
+  function echapper(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function dateLongue(iso, en) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); if (!m) return '';
+    var j = Number(m[3]), mo = Number(m[2]) - 1;
+    return en ? MONTHS[mo] + ' ' + j + ', ' + m[1] : (j === 1 ? '1er' : String(j)) + ' ' + MOIS[mo] + ' ' + m[1];
+  }
+  function remplirTexte(html, valeurs) {
+    return String(html || '').replace(/\{\{\s*([^{}]{1,40}?)\s*\}\}/g, function (m, v) { var x = valeurs[nomChamp(v)]; return x ? echapper(x) : m; });
+  }
+  /* Les passages à compléter d'une lettre de HR4 (« (date) », « XX$ ») et les champs restés vides, surlignés pour la revue. */
+  function surligner(html) {
+    return String(html || '').replace(/(\{\{[^{}]{1,40}\}\}|\((?:[^()<>]{2,60})\)|\bX{1,3}\s?\$|\$\s?X{1,3}\b)/g, '<mark>$1</mark>');
+  }
+  var PASSAGES_A_COMPLETER = /\bX{1,3}\s?\$|\$\s?X{1,3}\b|\(\s*(?:date|mettre|titre|temps plein|nom|montant|salaire|inscrire|indiquer|programme)[^)]{0,60}\)/i;
+  function resteACompleter(html) { var t = String(html || '').replace(/<[^>]+>/g, ' '); return /\{\{[^{}]{1,40}\}\}|\bX{1,3}\s?\$/.test(t); }
+  function chargerTexte(id) {
+    if (textesModeles[id]) return Promise.resolve(textesModeles[id]);
+    return AMX.get({ rhDocument: 1, id: id, quoi: 'texte' }, { secours: false, delai: 60000 }).then(function (r) {
+      if (!r || r.ok === false) throw new Error((r && r.erreur) || 'Texte indisponible.');
+      if (typeof r.html !== 'string') throw new Error(SCRIPT_PAS_A_JOUR);
+      textesModeles[id] = r.html; return r.html;
+    });
+  }
+  /** Un petit éditeur : gras, italique, titre, liste, et l'insertion d'un champ {{…}}. → { el, valeur(), zone } */
+  function editeurTexte(html) {
+    var zone = h('div.rhx-editeur', { contenteditable: 'true', spellcheck: 'true' });
+    zone.innerHTML = html || '<p></p>';
+    var cmd = function (c, v) { zone.focus(); try { document.execCommand(c, false, v || null); } catch (e) {} };
+    var selChamp = h('select', { onchange: function () { if (selChamp.value) { cmd('insertText', '{{' + selChamp.value + '}}'); selChamp.value = ''; } } },
+      [h('option', { value: '', text: 'Insérer un champ…' })].concat(Object.keys(LIB_CHAMPS).map(function (k) { return h('option', { value: k, text: LIB_CHAMPS[k] + ' — {{' + k + '}}' }); })));
+    var outils = h('div.rhx-outils', [
+      h('button', { type: 'button', title: 'Gras', onmousedown: function (e) { e.preventDefault(); cmd('bold'); } }, [h('b', 'G')]),
+      h('button', { type: 'button', title: 'Italique', onmousedown: function (e) { e.preventDefault(); cmd('italic'); } }, [h('i', 'I')]),
+      h('button', { type: 'button', text: 'Titre', onmousedown: function (e) { e.preventDefault(); cmd('formatBlock', 'h2'); } }),
+      h('button', { type: 'button', text: 'Paragraphe', onmousedown: function (e) { e.preventDefault(); cmd('formatBlock', 'p'); } }),
+      h('button', { type: 'button', text: '• Liste', onmousedown: function (e) { e.preventDefault(); cmd('insertUnorderedList'); } }),
+      selChamp
+    ]);
+    return { el: h('div', [outils, zone]), zone: zone, valeur: function () { return zone.innerHTML.replace(/<\/?mark>/g, ''); } };
+  }
+  /* Import des modèles de HR4 : le fichier JSON lu dans HR4 (politiques du Manuel de l'employé, lettres d'offre). */
+  function modelesHr4(json) {
+    var out = [], vus = {};
+    var ajouter = function (nom, categorie, html) {
+      nom = String(nom || '').replace(/\{\{[^{}]*\}\}/g, '(poste)').replace(/\s+/g, ' ').trim().slice(0, 120);
+      if (nom.length < 3 || !html) return;
+      var cle = nom.toLowerCase();
+      if (vus[cle]) { if (vus[cle] === html) return; var n = 2; while (vus[cle + ' (' + n + ')']) n++; nom += ' (' + n + ')'; cle = nom.toLowerCase(); }
+      vus[cle] = html; out.push({ nom: nom, categorie: categorie, html: html });
+    };
+    (json.politiques || []).forEach(function (p) {
+      ajouter(p.titre, 'politique', (p.sections || []).map(function (x) { return (x.titre ? '<h2>' + echapper(x.titre) + '</h2>' : '') + (x.html || ''); }).join(''));
+    });
+    (json.lettres || []).forEach(function (l) {
+      var html = String(l.html || '').replace(/\{\{\s*([^{}]{1,40}?)\s*\}\}/g, function (m, v) { return '{{' + nomChamp(v) + '}}'; });
+      ajouter(l.titre, 'lettre', html);
+    });
+    return out;
+  }
+
   /* ------------------------------------------------------------------------------- page */
   function VueRh(conteneur, ctx) {
     css();
@@ -250,7 +352,7 @@
     this.ouvrirId = p.id || '';
     AMX.vider(conteneur);
     this.btnNouvel = h('button.btn.primaire', { type: 'button', text: 'Nouvel envoi', onclick: function () { self.nouvelEnvoi(); } });
-    this.btnDocs = h('button.btn', { type: 'button', text: 'Documents types', onclick: function () { self.documentsTypes(); } });
+    this.btnDocs = h('button.btn', { type: 'button', text: 'Bibliothèque', onclick: function () { self.documentsTypes(); } });
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnReglages = h('button.btn', { type: 'button', text: 'Réglages', onclick: function () { self.reglages(); } });
     this.btnReglages.hidden = !estProprio();
@@ -405,7 +507,7 @@
         h('dt', 'Cellulaire'), h('dd', { text: e.telephone ? e.telephone.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2-$3') : '—' }),
         h('dt', 'Concession'), h('dd', { text: nomCie(e.compagnie) + (e.langue === 'en' ? ' · en anglais' : '') }),
         h('dt', 'Entrée en poste'), h('dd', { text: e.debut ? dateCourte(e.debut) : '—' }),
-        h('dt', 'Préparé par'), h('dd', { text: (e.creeParNom || e.creePar) + ' le ' + dateHeure(e.creeLe) }),
+        h('dt', 'Préparé par'), h('dd', { text: (e.creeParNom || e.creePar) + ' le ' + dateHeure(e.creeLe) + (e.trousse ? ' · trousse ' + (((self.rep.trousses || []).filter(function (t) { return t.id === e.trousse; })[0] || {}).nom || e.trousse) : '') }),
         h('dt', 'Lien'), h('dd', [e.etat === 'retire' ? 'retiré' : 'valide jusqu\'au ' + dateCourte(e.expireLe) + ' ',
           h('button.btn.petit', { type: 'button', text: 'Copier le lien', onclick: function () { AMX.copier(e.lien, 'Lien copié'); } }), ' ',
           h('button.btn.petit', { type: 'button', text: 'Aperçu de la page', onclick: function () { window.open(e.lien + '&apercu=1', '_blank', 'noopener'); } })]),
@@ -415,11 +517,11 @@
       if (!(e.docs || []).length) corps.appendChild(h('p.rhx-prog', { text: 'Aucun document à signer : seulement des pièces à fournir.' }));
       corps.appendChild(h('ul.rhx-docs', (e.docs || []).map(function (d) {
         return h('li', [
-          h('div', [h('b', { text: d.nom }), h('span.q', { text: (d.nbPages ? d.nbPages + ' page(s) · ' : '') + (d.signeLe ? 'signé le ' + dateHeure(d.signeLe) : d.ouvertLe ? 'ouvert le ' + dateHeure(d.ouvertLe) + ', pas encore signé' : 'pas encore ouvert') + (d.certificatSeul ? ' · copie : certificat seul (original joint)' : '') }),
+          h('div', [h('b', { text: d.nom }), h('span.q', { text: (d.type === 'texte' ? (CATEGORIES[d.categorie] || 'Texte') + ' · ' : '') + (d.nbPages ? d.nbPages + ' page(s) · ' : '') + (d.signeLe ? 'signé le ' + dateHeure(d.signeLe) : d.ouvertLe ? 'ouvert le ' + dateHeure(d.ouvertLe) + ', pas encore signé' : 'pas encore ouvert') + (d.certificatSeul ? ' · copie : certificat seul (original joint)' : '') }),
             h('span.rhx-sha', { text: 'SHA-256 de l\'original : ' + (d.sha || '—') }), d.signeSha ? h('span.rhx-sha', { text: 'SHA-256 de la copie signée : ' + d.signeSha }) : null]),
           h('div.a', [
             d.copie ? h('button.btn.petit.primaire', { type: 'button', text: 'Copie signée', onclick: function () { ouvrirFichier({ rhFichier: 1, id: e.id, f: 'S:' + d.id }, d.nom + ' — signé'); } }) : null,
-            h('button.btn.petit', { type: 'button', text: 'Original', onclick: function () { ouvrirFichier({ rhFichier: 1, id: e.id, f: 'O:' + d.id }, d.nom); } })
+            h('button.btn.petit', { type: 'button', text: d.type === 'texte' ? 'Texte envoyé' : 'Original', onclick: function () { ouvrirFichier({ rhFichier: 1, id: e.id, f: 'O:' + d.id }, d.nom); } })
           ])
         ]);
       })));
@@ -476,8 +578,8 @@
 
   /* ------------------------------------------------------------------------------- nouvel envoi */
   VueRh.prototype.codesCies = function () { var c = AMX.codesPour ? AMX.codesPour('inventaire') : Object.keys(AMX.COMPAGNIES_TOUTES || {}); return c.length ? c : Object.keys(AMX.COMPAGNIES_TOUTES || {}); };
-  VueRh.prototype.nouvelEnvoi = function () {
-    var self = this;
+  VueRh.prototype.nouvelEnvoi = function (opts) {
+    var self = this; opts = opts || {};
     if (!this.rep) { AMX.toast('Patientez : la liste se charge.', 'attention'); return; }
     var codes = this.codesCies();
     var cie = this.compagnie && codes.indexOf(this.compagnie) >= 0 ? this.compagnie : (codes.length === 1 ? codes[0] : '');
@@ -489,16 +591,54 @@
     var inDebut = h('input', { type: 'date' });
     var selCie = h('select', [h('option', { value: '', text: 'Choisir…' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c), selected: c === cie }); })));
     var selLangue = h('select', [h('option', { value: 'fr', text: 'Français' }), h('option', { value: 'en', text: 'English' })]);
-    var choisis = {}, pieces = [];
-    var listeDocs = h('ul.rhx-choix'), listePieces = h('div'), prog = h('p.rhx-prog');
+    var choisis = {}, pieces = [], champsVals = {}, textesRevus = {};
+    var listeDocs = h('ul.rhx-choix'), listePieces = h('div'), listeChamps = h('div'), prog = h('p.rhx-prog');
     var docsPour = function (type) { var c = selCie.value; return self.rep.documents.filter(function (d) { return !d.retire && d.type === type && (!d.compagnie || d.compagnie === c) && (d.bibliotheque || choisis[d.id]); }); };
+    /* Les documents à lire et à signer : les politiques et lettres en texte d'abord, puis les PDF. */
+    var docsSigner = function () { return docsPour('texte').sort(function (a, b) { return String(b.categorie === 'lettre').localeCompare(String(a.categorie === 'lettre')) || a.nom.localeCompare(b.nom, 'fr'); }).concat(docsPour('signer')); };
+    var textesChoisis = function () { return docsPour('texte').filter(function (d) { return choisis[d.id]; }); };
+    /* Les valeurs que l'envoi donnera aux champs {{…}} (comme le serveur). */
+    var valeursEnvoi = function () {
+      var en = selLangue.value === 'en', nom = inNom.value.trim();
+      var v = { nom: nom, prenom: nom.split(/\s+/)[0] || '', poste: inPoste.value.trim(), debut: dateLongue(inDebut.value, en), concession: selCie.value ? nomCie(selCie.value) : '',
+        date: dateLongue(new Date().toISOString().slice(0, 10), en), rh: (AMX.session && (AMX.session.nom || (AMX.session.perms || {}).nom)) || '' };
+      Object.keys(champsVals).forEach(function (k) { if (String(champsVals[k] || '').trim()) v[k] = champsVals[k].trim(); });
+      return v;
+    };
+    var dessinerChamps = function () {
+      AMX.vider(listeChamps);
+      var noms = [];
+      textesChoisis().forEach(function (d) { (d.variables || []).forEach(function (n) { if (!CHAMPS_AUTO[n] && noms.indexOf(n) < 0) noms.push(n); }); });
+      if (!noms.length) return;
+      listeChamps.appendChild(h('div.rhx-h', { text: 'À remplir dans les lettres' }));
+      listeChamps.appendChild(h('div.grille', noms.map(function (n) {
+        var inp = h('input', { type: 'text', value: champsVals[n] || '', placeholder: n === 'remuneration' ? 'Ex. 22,50 $ de l\'heure, 40 heures par semaine' : '', oninput: function () { champsVals[n] = inp.value; } });
+        return champ(libChamp(n), inp);
+      })));
+      listeChamps.appendChild(h('p.rhx-prog', { text: 'Le nom, le poste, la date d\'entrée et la concession se remplissent tout seuls. « Revoir le texte » montre la lettre telle que l\'employé la lira et permet de compléter les passages surlignés.' }));
+    };
+    var revoir = function (d) {
+      chargerTexte(d.id).then(function (html) {
+        var ed = editeurTexte(textesRevus[d.id] || surligner(remplirTexte(html, valeursEnvoi())));
+        AMX.modale({ titre: 'Revoir « ' + d.nom + ' »', large: true, corps: h('div.rhx-form', [
+          h('p.rhx-prog', { text: 'Complétez les passages surlignés (« (date) », « XX$ »…). Ce texte part tel quel à l\'employé, puis dans la copie signée.' }), ed.el
+        ]), boutons: [
+          textesRevus[d.id] ? { texte: 'Revenir au modèle', action: function () { delete textesRevus[d.id]; dessinerDocs(); } } : null,
+          { texte: 'Annuler' },
+          { texte: 'Garder ce texte', classe: 'primaire', action: function () { textesRevus[d.id] = ed.valeur(); dessinerDocs(); } }
+        ].filter(Boolean) });
+      }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+    };
     var dessinerDocs = function () {
       AMX.vider(listeDocs);
-      var l = docsPour('signer');
-      if (!l.length) listeDocs.appendChild(h('li', [h('span', { text: 'Aucun document type' + (selCie.value ? ' pour ' + nomCie(selCie.value) : '') + ' : déposez-en un ci-dessous ou dans « Documents types ».' })]));
+      var l = docsSigner();
+      if (!l.length) listeDocs.appendChild(h('li', [h('span', { text: 'Aucun document' + (selCie.value ? ' pour ' + nomCie(selCie.value) : '') + ' : écrivez-en un dans la « Bibliothèque » ou déposez un PDF ci-dessous.' })]));
       l.forEach(function (d) {
-        var c = h('input', { type: 'checkbox', checked: !!choisis[d.id], onchange: function () { if (c.checked) choisis[d.id] = true; else delete choisis[d.id]; } });
-        listeDocs.appendChild(h('li', [c, h('div', [h('b', { text: d.nom }), h('span.q', { text: [d.nbPages + ' page(s)', d.compagnie ? nomCie(d.compagnie) : 'tout le groupe', d.bibliotheque ? '' : 'pour cet envoi seulement', d.description].filter(Boolean).join(' · ') })])]));
+        var c = h('input', { type: 'checkbox', checked: !!choisis[d.id], onchange: function () { if (c.checked) choisis[d.id] = true; else { delete choisis[d.id]; delete textesRevus[d.id]; } dessinerDocs(); dessinerChamps(); } });
+        var cat = d.type === 'texte' ? h('span.rhx-cat' + (d.categorie === 'lettre' ? '.lettre' : ''), { text: CATEGORIES[d.categorie] || 'Texte' }) : h('span.rhx-cat.pdf', { text: 'PDF' });
+        listeDocs.appendChild(h('li', [c, h('div', { style: { flex: '1 1 auto' } }, [cat, h('b', { text: d.nom }), h('span.q', { text: [d.nbPages ? d.nbPages + ' page(s)' : '', d.compagnie ? nomCie(d.compagnie) : 'tout le groupe', d.bibliotheque ? '' : 'pour cet envoi seulement', d.description].filter(Boolean).join(' · ') })]),
+          d.type === 'texte' && choisis[d.id] ? h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center' } }, [textesRevus[d.id] ? h('span.rhx-revu', { text: 'Revu ✓' }) : null,
+            h('button.btn.petit', { type: 'button', text: 'Revoir le texte', onclick: function () { revoir(d); } })]) : null]));
       });
     };
     var dessinerPieces = function () {
@@ -514,7 +654,48 @@
       if (!pieces.length) listePieces.appendChild(h('p.rhx-prog', { text: 'Aucune pièce demandée.' }));
     };
     var ajouterPiece = function (lib, note) { pieces.push({ libelle: lib || '', note: note || '', obligatoire: true, formulaire: '' }); dessinerPieces(); };
-    selCie.addEventListener('change', function () { dessinerDocs(); dessinerPieces(); });
+    /* Trousses par poste : un clic remplit les documents, les pièces, le message, le poste et la langue. */
+    var selTrousse = h('select', { onchange: function () { appliquerTrousse(selTrousse.value); } });
+    var zoneTrousse = h('div.rhx-trousse');
+    var trousses = function () { var c = selCie.value; return (self.rep.trousses || []).filter(function (t) { return !t.retire && (!t.compagnie || !c || t.compagnie === c); }); };
+    var dessinerTrousses = function () {
+      var l = trousses(), garde = selTrousse.value;
+      AMX.vider(selTrousse);
+      selTrousse.appendChild(h('option', { value: '', text: l.length ? 'Choisir une trousse…' : 'Aucune trousse' + (selCie.value ? ' pour ' + nomCie(selCie.value) : '') }));
+      l.forEach(function (t) { selTrousse.appendChild(h('option', { value: t.id, text: t.nom + (t.compagnie ? '' : ' (tout le groupe)'), selected: t.id === garde })); });
+      selTrousse.disabled = !l.length;
+    };
+    var appliquerTrousse = function (id) {
+      var t = (self.rep.trousses || []).filter(function (x) { return x.id === id; })[0]; if (!t) return;
+      if (t.compagnie && !selCie.value) { selCie.value = t.compagnie; }
+      choisis = {}; textesRevus = {};
+      (t.documents || []).forEach(function (d) { choisis[d] = true; });
+      pieces = (t.pieces || []).map(function (p) { return { libelle: p.libelle, note: p.note || '', obligatoire: p.obligatoire !== false, formulaire: p.formulaire || '' }; });
+      if (t.poste && !inPoste.value.trim()) inPoste.value = t.poste;
+      if (t.message && !inMessage.value.trim()) inMessage.value = t.message;
+      selLangue.value = t.langue === 'en' ? 'en' : 'fr';
+      dessinerTrousses(); selTrousse.value = t.id; dessinerDocs(); dessinerPieces(); dessinerChamps();
+    };
+    var enregistrerTrousse = function () {
+      var docs = Object.keys(choisis).filter(function (id) { return docsSigner().some(function (d) { return d.id === id; }); });
+      var ps = pieces.filter(function (p) { return String(p.libelle || '').trim(); });
+      if (!docs.length && !ps.length) { AMX.toast('Cochez des documents ou demandez des pièces d\'abord.', 'attention'); return; }
+      var base = (self.rep.trousses || []).filter(function (x) { return x.id === selTrousse.value; })[0];
+      var inT = h('input.saisie', { type: 'text', value: base ? base.nom : (inPoste.value.trim() ? inPoste.value.trim() + (selCie.value ? ' — ' + nomCie(selCie.value) : '') : ''), placeholder: 'Ex. Conseiller aux ventes — VW Brossard' });
+      var remplacer = h('input', { type: 'checkbox', checked: !!base });
+      AMX.modale({ titre: 'Enregistrer comme trousse', corps: h('div.rhx-form', [
+        h('div.champ', [h('label', { text: 'Nom de la trousse' }), inT]),
+        base ? h('label.rhx-cases', { style: { marginTop: '8px' } }, [remplacer, 'Remplacer la trousse « ' + base.nom + ' »']) : null,
+        h('p.rhx-prog', { text: docs.length + ' document(s), ' + ps.length + ' pièce(s), le message et le poste. ' + (selCie.value ? 'Pour ' + nomCie(selCie.value) + '.' : 'Pour tout le groupe.') })
+      ]), boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+        return ecrire({ action: 'rhTrousseEnregistrer', id: base && remplacer.checked ? base.id : '', nom: inT.value, compagnie: selCie.value, poste: inPoste.value, documents: docs, pieces: ps, message: inMessage.value, langue: selLangue.value })
+          .then(function (r) { poserTrousse(r.trousse); dessinerTrousses(); selTrousse.value = r.trousse.id; AMX.toast('Trousse « ' + r.trousse.nom + ' » enregistrée', 'ok'); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); return false; });
+      } }] });
+    };
+    zoneTrousse.appendChild(h('b', { text: 'Trousse' }));
+    zoneTrousse.appendChild(selTrousse);
+    zoneTrousse.appendChild(h('button.btn.petit', { type: 'button', text: 'Enregistrer comme trousse', onclick: enregistrerTrousse }));
+    selCie.addEventListener('change', function () { dessinerTrousses(); dessinerDocs(); dessinerPieces(); dessinerChamps(); });
     /* dépôt d'un document pour cet employé */
     var inFichier = h('input', { type: 'file', accept: 'application/pdf,image/jpeg,image/png', style: { display: 'none' } });
     var garder = h('input', { type: 'checkbox' });
@@ -533,9 +714,10 @@
     var majTexto = function () { var ok = /\d{3}\D*\d{3}\D*\d{4}/.test(inTel.value); caseTexto.disabled = !ok; if (!ok) caseTexto.checked = false; };
     inTel.addEventListener('input', majTexto); majTexto();
     var corps = h('div.rhx-form', [
+      zoneTrousse,
       h('div.rhx-h', { text: 'L\'employé' }),
       h('div.grille', [champ('Nom complet', inNom), champ('Courriel', inCourriel, 'Le lien part à cette adresse.'), champ('Cellulaire (facultatif)', inTel), champ('Poste', inPoste), champ('Entrée en poste', inDebut), champ('Concession', selCie), champ('Langue de la page', selLangue)]),
-      h('div.rhx-h', { text: 'Documents à lire et à signer' }), listeDocs,
+      h('div.rhx-h', { text: 'Documents à lire et à signer' }), listeDocs, listeChamps,
       h('div', { style: { display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', margin: '8px 0 0' } }, [
         h('button.btn.petit', { type: 'button', text: '+ Déposer un document (PDF)', onclick: function () { inFichier.click(); } }), inFichier,
         h('label.rhx-cases', [garder, 'Le garder dans les documents types'])]),
@@ -549,50 +731,112 @@
       h('div.rhx-cases', [h('label', [h('input', { type: 'checkbox', checked: true, disabled: true }), 'Par courriel']), h('label', [caseTexto, 'Aussi par texto'])]),
       h('p.rhx-prog', { text: 'Le lien est bon 14 jours. Quand tout est signé, le dossier part tout seul à ' + ((self.rep.reglages || {}).paie || ['paie@groupeautomax.com']).join(', ') + '.' })
     ]);
-    dessinerDocs(); dessinerPieces();
+    dessinerTrousses(); dessinerDocs(); dessinerPieces(); dessinerChamps();
+    if (opts.trousse) appliquerTrousse(opts.trousse);
     AMX.modale({ titre: 'Nouvel envoi à un employé', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer le lien', classe: 'primaire', action: function () {
-      var docs = Object.keys(choisis).filter(function (id) { return docsPour('signer').some(function (d) { return d.id === id; }); });
+      var docs = Object.keys(choisis).filter(function (id) { return docsSigner().some(function (d) { return d.id === id; }); });
+      var revus = {}; docs.forEach(function (id) { if (textesRevus[id]) revus[id] = textesRevus[id]; });
+      var aCompleter = Object.keys(revus).filter(function (id) { return resteACompleter(revus[id]); });
+      if (aCompleter.length) { AMX.toast('Il reste un champ {{…}} ou « XX$ » à compléter dans un texte revu.', 'attention', 6000); return false; }
       var ps = pieces.filter(function (p) { return String(p.libelle || '').trim(); });
       if (!selCie.value) { AMX.toast('Choisissez la concession.', 'attention'); return false; }
       if (!docs.length && !ps.length) { AMX.toast('Cochez au moins un document ou demandez une pièce.', 'attention'); return false; }
-      return ecrire({ action: 'rhEnvoyer', compagnie: selCie.value, langue: selLangue.value, employe: { nom: inNom.value, courriel: inCourriel.value, telephone: inTel.value, poste: inPoste.value, debut: inDebut.value },
-        documents: docs, pieces: ps, message: inMessage.value, texto: !!caseTexto.checked }).then(function (d) {
-        poserEnvoi(d.envoi); self.vue = 'encours'; self.rendre();
-        AMX.toast('Lien envoyé à ' + d.envoi.nom + (d.textoEnvoye ? ' (courriel et texto)' : ''), d.avertissement ? 'attention' : 'ok');
-        if (d.avertissement) AMX.toast(d.avertissement, 'attention', 8000);
-        setTimeout(function () { self.ouvrirFiche(d.envoi.id); }, 50);
-      }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur', 8000); return false; });
+      /* Une lettre de HR4 garde des passages à compléter (« (date) », « XX$ ») : elle se revoit avant l'envoi. */
+      var aRevoir = docs.map(function (id) { return docsSigner().filter(function (d) { return d.id === id; })[0]; }).filter(function (d) { return d && d.type === 'texte' && !revus[d.id]; });
+      return Promise.all(aRevoir.map(function (d) { return chargerTexte(d.id).then(function (html) { return { d: d, reste: PASSAGES_A_COMPLETER.test(String(html).replace(/<[^>]+>/g, ' ')) }; }); })).then(function (l) {
+        var reste = l.filter(function (x) { return x.reste; });
+        if (reste.length) { AMX.toast('« Revoir le texte » de « ' + reste[0].d.nom + ' » : des passages sont à compléter (surlignés).', 'attention', 8000); return false; }
+        return ecrire({ action: 'rhEnvoyer', compagnie: selCie.value, langue: selLangue.value, employe: { nom: inNom.value, courriel: inCourriel.value, telephone: inTel.value, poste: inPoste.value, debut: inDebut.value },
+          documents: docs, pieces: ps, message: inMessage.value, texto: !!caseTexto.checked, champs: champsVals, textes: revus, trousse: selTrousse.value }).then(function (d) {
+          poserEnvoi(d.envoi); self.vue = 'encours'; self.rendre();
+          AMX.toast('Lien envoyé à ' + d.envoi.nom + (d.textoEnvoye ? ' (courriel et texto)' : ''), d.avertissement ? 'attention' : 'ok');
+          if (d.avertissement) AMX.toast(d.avertissement, 'attention', 8000);
+          setTimeout(function () { self.ouvrirFiche(d.envoi.id); }, 50);
+        });
+      }).catch(function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur', 8000); return false; });
     } }] });
   };
 
-  /* ------------------------------------------------------------------------------- documents types */
+  /* ------------------------------------------------------------------------------- bibliothèque : trousses, textes, PDF, formulaires */
   VueRh.prototype.documentsTypes = function () {
     var self = this;
     if (!this.rep) return;
     var corps = h('div'), voirRetires = false, m;
     var codes = this.codesCies();
+    var ligneDoc = function (d) {
+      var cat = d.type === 'texte' ? h('span.rhx-cat' + (d.categorie === 'lettre' ? '.lettre' : ''), { text: CATEGORIES[d.categorie] || 'Texte' }) : h('span.rhx-cat.pdf', { text: d.type === 'formulaire' ? 'Formulaire' : 'PDF' });
+      var champs = (d.variables || []).filter(function (n) { return !CHAMPS_AUTO[n]; });
+      return h('li', [
+        h('div', [cat, h('b', { text: d.nom + (d.retire ? ' (retiré)' : '') }), h('span.q', { text: [d.nbPages ? d.nbPages + ' page(s)' : '', d.compagnie ? nomCie(d.compagnie) : 'tout le groupe',
+          champs.length ? 'à remplir à l\'envoi : ' + champs.map(libChamp).join(', ') : '', 'ajouté le ' + dateCourte(d.creeLe) + (d.creeParNom ? ' par ' + d.creeParNom : ''), d.description].filter(Boolean).join(' · ') })]),
+        h('div.a', [
+          h('button.btn.petit', { type: 'button', text: d.type === 'formulaire' ? 'Ouvrir' : 'Voir', onclick: function () { if (d.type === 'formulaire') ouvrirFichier({ rhDocument: 1, id: d.id, quoi: 'original' }, d.nom); else self.apercu(d, dessiner); } }),
+          h('button.btn.petit' + (d.retire ? '' : '.danger'), { type: 'button', text: d.retire ? 'Remettre' : 'Retirer', onclick: function () {
+            ecrire({ action: 'rhDocumentModifier', id: d.id, retirer: !d.retire }).then(function (r) { poserDocument(r.document); dessiner(); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); });
+          } })
+        ])
+      ]);
+    };
     var dessiner = function () {
       AMX.vider(corps);
+      /* trousses */
+      var tr = (self.rep.trousses || []).filter(function (t) { return voirRetires || !t.retire; });
+      corps.appendChild(h('div.rhx-h', { text: 'Trousses par poste (' + tr.length + ')' }));
+      corps.appendChild(h('p.rhx-prog', { text: 'Une trousse = les documents, les pièces et le message d\'un poste, envoyés en un clic. Elle s\'enregistre depuis « Nouvel envoi » (« Enregistrer comme trousse »).' }));
+      if (tr.length) corps.appendChild(h('ul.rhx-docs', tr.map(function (t) {
+        var noms = (t.documents || []).map(function (id) { var d = self.rep.documents.filter(function (x) { return x.id === id; })[0]; return d ? d.nom : id; });
+        return h('li', [
+          h('div', [h('b', { text: t.nom + (t.retire ? ' (retirée)' : '') }), h('span.q', { text: [t.compagnie ? nomCie(t.compagnie) : 'tout le groupe', t.poste, noms.join(', '), (t.pieces || []).length ? (t.pieces || []).map(function (p) { return p.libelle; }).join(', ') : ''].filter(Boolean).join(' · ') })]),
+          h('div.a', [
+            t.retire ? null : h('button.btn.petit.primaire', { type: 'button', text: 'Envoyer', onclick: function () { if (m) m.fermer(); self.nouvelEnvoi({ trousse: t.id }); } }),
+            h('button.btn.petit' + (t.retire ? '' : '.danger'), { type: 'button', text: t.retire ? 'Remettre' : 'Retirer', onclick: function () {
+              ecrire({ action: 'rhTrousseRetirer', id: t.id, retirer: !t.retire }).then(function (r) { poserTrousse(r.trousse); dessiner(); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); });
+            } })
+          ])
+        ]);
+      })));
       var l = self.rep.documents.filter(function (d) { return d.bibliotheque && (voirRetires || !d.retire); });
-      [['signer', 'À lire et à signer'], ['formulaire', 'Formulaires vierges (l\'employé les remplit et les renvoie)']].forEach(function (t) {
-        var x = l.filter(function (d) { return d.type === t[0]; });
+      [['texte', 'Politiques et lettres (texte)'], ['signer', 'PDF à lire et à signer'], ['formulaire', 'Formulaires vierges (l\'employé les remplit et les renvoie)']].forEach(function (t) {
+        var x = l.filter(function (d) { return d.type === t[0]; }).sort(function (a, b) { return String(a.categorie || '').localeCompare(String(b.categorie || '')) || a.nom.localeCompare(b.nom, 'fr'); });
         corps.appendChild(h('div.rhx-h', { text: t[1] + ' (' + x.length + ')' }));
-        if (!x.length) { corps.appendChild(h('p.rhx-prog', { text: 'Aucun.' })); return; }
-        corps.appendChild(h('ul.rhx-docs', x.map(function (d) {
-          return h('li', [
-            h('div', [h('b', { text: d.nom + (d.retire ? ' (retiré)' : '') }), h('span.q', { text: [d.nbPages ? d.nbPages + ' page(s)' : '', d.compagnie ? nomCie(d.compagnie) : 'tout le groupe', 'ajouté le ' + dateCourte(d.creeLe) + (d.creeParNom ? ' par ' + d.creeParNom : ''), d.description].filter(Boolean).join(' · ') })]),
-            h('div.a', [
-              h('button.btn.petit', { type: 'button', text: d.type === 'signer' ? 'Voir' : 'Ouvrir', onclick: function () { if (d.type === 'signer') self.apercu(d); else ouvrirFichier({ rhDocument: 1, id: d.id, quoi: 'original' }, d.nom); } }),
-              h('button.btn.petit' + (d.retire ? '' : '.danger'), { type: 'button', text: d.retire ? 'Remettre' : 'Retirer', onclick: function () {
-                ecrire({ action: 'rhDocumentModifier', id: d.id, retirer: !d.retire }).then(function (r) { poserDocument(r.document); dessiner(); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); });
-              } })
-            ])
-          ]);
-        })));
+        if (!x.length) { corps.appendChild(h('p.rhx-prog', { text: t[0] === 'texte' ? 'Aucun : écrivez-en un ou importez les modèles de HR4 ci-dessous.' : 'Aucun.' })); return; }
+        corps.appendChild(h('ul.rhx-docs', x.map(ligneDoc)));
       });
-      corps.appendChild(h('label.rhx-cases', { style: { marginTop: '8px' } }, [h('input', { type: 'checkbox', checked: voirRetires, onchange: function (ev) { voirRetires = ev.target.checked; dessiner(); } }), 'Voir les documents retirés']));
-      /* ajout */
-      var inNom = h('input', { type: 'text', placeholder: 'Ex. Politique sur le harcèlement' });
+      corps.appendChild(h('label.rhx-cases', { style: { marginTop: '8px' } }, [h('input', { type: 'checkbox', checked: voirRetires, onchange: function (ev) { voirRetires = ev.target.checked; dessiner(); } }), 'Voir les documents et trousses retirés']));
+      /* écrire un texte */
+      corps.appendChild(h('div.rhx-h', { text: 'Écrire une politique ou une lettre' }));
+      corps.appendChild(h('div', [h('button.btn', { type: 'button', text: 'Écrire un document', onclick: function () { self.editerTexte(null, dessiner); } }),
+        h('span.rhx-prog', { text: '  Les champs {{nom}}, {{poste}}, {{debut}}… se remplissent à l\'envoi ; {{remuneration}} et les autres se tapent dans l\'envoi.' })]));
+      /* importer de HR4 */
+      var inJson = h('input', { type: 'file', accept: 'application/json,.json', style: { display: 'none' } });
+      var progH = h('p.rhx-prog');
+      inJson.addEventListener('change', function () {
+        var f = inJson.files && inJson.files[0]; inJson.value = '';
+        if (!f) return;
+        f.text().then(function (t) {
+          var liste = modelesHr4(JSON.parse(t));
+          if (!liste.length) throw new Error('Aucun modèle dans ce fichier.');
+          return AMX.confirmer('Importer de HR4', liste.length + ' document(s) : ' + liste.filter(function (x) { return x.categorie === 'politique'; }).length + ' politique(s), '
+            + liste.filter(function (x) { return x.categorie === 'lettre'; }).length + ' lettre(s). Ils iront dans la bibliothèque pour tout le groupe ; un document déjà importé n\'est pas doublé.', { ok: 'Importer' }).then(function (oui) {
+            if (!oui) return;
+            var faits = 0, deja = 0, i = 0;
+            var suivant = function () {
+              if (i >= liste.length) { progH.textContent = faits + ' importé(s), ' + deja + ' déjà là.'; AMX.toast('Modèles de HR4 importés', 'ok'); dessiner(); return; }
+              var x = liste[i++]; progH.textContent = 'Import ' + i + ' / ' + liste.length + ' : ' + x.nom + '…';
+              return ecrire({ action: 'rhDocumentAjouter', type: 'texte', importe: 'hr4', nom: x.nom, categorie: x.categorie, html: x.html, compagnie: '', bibliotheque: true }).then(function (r) {
+                poserDocument(r.document); if (r.deja) deja++; else faits++; return suivant();
+              });
+            };
+            return suivant();
+          });
+        }).catch(function (e) { progH.textContent = ''; AMX.toast(AMX.erreurTexte(e), 'erreur', 8000); dessiner(); });
+      });
+      corps.appendChild(h('div.rhx-h', { text: 'Importer de HR4' }));
+      corps.appendChild(h('div', [h('button.btn', { type: 'button', text: 'Importer les modèles (fichier JSON)', onclick: function () { inJson.click(); } }), inJson,
+        h('span.rhx-prog', { text: '  Les politiques du Manuel de l\'employé et les lettres d\'offre lues dans HR4 (fichier hr4-modeles.json).' })]));
+      corps.appendChild(progH);
+      /* ajout d'un PDF */
+      var inNom = h('input', { type: 'text', placeholder: 'Ex. Contrat d\'embauche' });
       var inDesc = h('input', { type: 'text', placeholder: 'Facultatif' });
       var selType = h('select', [h('option', { value: 'signer', text: 'À lire et à signer' }), h('option', { value: 'formulaire', text: 'Formulaire vierge à remplir (TD1…)' })]);
       var selCie = h('select', [h('option', { value: '', text: 'Tout le groupe' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c) }); })));
@@ -607,7 +851,7 @@
           btn.disabled = false; AMX.toast('« ' + d.nom + ' » ajouté', 'ok'); dessiner();
         }, function (e) { btn.disabled = false; prog.textContent = ''; AMX.toast(AMX.erreurTexte(e), 'erreur', 8000); });
       } });
-      corps.appendChild(h('div.rhx-h', { text: 'Ajouter un document type' }));
+      corps.appendChild(h('div.rhx-h', { text: 'Ajouter un PDF' }));
       corps.appendChild(h('div.rhx-form', [h('div.grille', [
         h('div.champ', [h('label', { text: 'Nom' }), inNom]), h('div.champ', [h('label', { text: 'Description' }), inDesc]),
         h('div.champ', [h('label', { text: 'Type' }), selType]), h('div.champ', [h('label', { text: 'Pour' }), selCie]),
@@ -615,9 +859,37 @@
       ]), h('div', { style: { marginTop: '10px' } }, [btn]), prog]));
     };
     dessiner();
-    m = AMX.modale({ titre: 'Documents types', corps: corps, large: true, proteger: false, sansFocus: true, boutons: [{ texte: 'Fermer' }] });
+    m = AMX.modale({ titre: 'Bibliothèque des ressources humaines', corps: corps, large: true, proteger: false, sansFocus: true, boutons: [{ texte: 'Fermer' }] });
   };
-  VueRh.prototype.apercu = function (d) {
+  /** Écrire ou modifier un document en texte. d = null pour un nouveau. */
+  VueRh.prototype.editerTexte = function (d, apres) {
+    var self = this, codes = this.codesCies();
+    var inNom = h('input', { type: 'text', value: d ? d.nom : '', placeholder: 'Ex. Code vestimentaire, Lettre d\'offre — poste horaire' });
+    var selCat = h('select', Object.keys(CATEGORIES).map(function (k) { return h('option', { value: k, text: CATEGORIES[k], selected: d ? d.categorie === k : k === 'politique' }); }));
+    var selCie = h('select', { disabled: !!d }, [h('option', { value: '', text: 'Tout le groupe' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c), selected: d && d.compagnie === c }); })));
+    var zoneEd = h('div', [AMX.chargeur('Texte', { compact: true })]), ed = null;
+    var monter = function (html) { AMX.vider(zoneEd); ed = editeurTexte(html); zoneEd.appendChild(ed.el); };
+    if (d) chargerTexte(d.id).then(monter, function (e) { AMX.vider(zoneEd); zoneEd.appendChild(h('div.rhx-erreur', { text: AMX.erreurTexte(e) })); });
+    else monter('<h2>Objet</h2><p></p>');
+    AMX.modale({ titre: d ? 'Modifier « ' + d.nom + ' »' : 'Écrire un document', large: true, corps: h('div.rhx-form', [
+      h('div.grille', [h('div.champ', [h('label', { text: 'Nom' }), inNom]), h('div.champ', [h('label', { text: 'Sorte' }), selCat]), h('div.champ', [h('label', { text: 'Pour' }), selCie])]),
+      h('div.rhx-h', { text: 'Texte' }), zoneEd,
+      h('p.rhx-prog', { text: d ? 'Les envois déjà partis gardent leur propre copie : la modification vaut pour les prochains envois.' : 'Le texte est montré à l\'employé tel quel, puis reproduit dans la copie signée.' })
+    ]), boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+      if (!ed) return false;
+      var corps = d ? { action: 'rhDocumentModifier', id: d.id, nom: inNom.value, categorie: selCat.value, html: ed.valeur() }
+        : { action: 'rhDocumentAjouter', type: 'texte', nom: inNom.value, categorie: selCat.value, compagnie: selCie.value, html: ed.valeur(), bibliotheque: true };
+      return ecrire(corps).then(function (r) { poserDocument(r.document); AMX.toast('« ' + r.document.nom + ' » enregistré', 'ok'); if (apres) apres(); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur', 8000); return false; });
+    } }] });
+  };
+  VueRh.prototype.apercu = function (d, apres) {
+    var self = this;
+    if (d.type === 'texte') {
+      var zone = h('div.rhx-texte', [AMX.chargeur('Texte', { compact: true })]);
+      var mt = AMX.modale({ titre: d.nom, corps: zone, large: true, proteger: false, boutons: [{ texte: 'Modifier', action: function () { mt.fermer(); self.editerTexte(d, apres); return false; } }, { texte: 'Fermer' }] });
+      chargerTexte(d.id).then(function (html) { zone.innerHTML = surligner(html); }, function (e) { AMX.vider(zone); zone.appendChild(h('div.rhx-erreur', { text: AMX.erreurTexte(e) })); });
+      return;
+    }
     var corps = h('div.rhx-apercu', [AMX.chargeur('Pages', { compact: true })]);
     AMX.modale({ titre: d.nom, corps: corps, large: true, proteger: false, boutons: [{ texte: 'Original (PDF)', action: function () { ouvrirFichier({ rhDocument: 1, id: d.id, quoi: 'original' }, d.nom); return false; } }, { texte: 'Fermer' }] });
     AMX.get({ rhDocument: 1, id: d.id, quoi: 'pages' }, { secours: false, delai: 90000 }).then(function (r) {
@@ -632,11 +904,14 @@
     var self = this, r = (this.rep && this.rep.reglages) || {};
     var inPaie = h('input.saisie', { type: 'text', value: (r.paie || ['paie@groupeautomax.com']).join(', ') });
     var copie = h('input', { type: 'checkbox', checked: r.copieRh !== false });
+    var rj = r.rappelJours === undefined ? 3 : r.rappelJours;
+    var selRappel = h('select.saisie', [[0, 'Aucun rappel automatique'], [2, 'Après 2 jours'], [3, 'Après 3 jours'], [5, 'Après 5 jours'], [7, 'Après 7 jours']].map(function (x) { return h('option', { value: String(x[0]), text: x[1], selected: Number(rj) === x[0] }); }));
     AMX.modale({ titre: 'Réglages — ressources humaines', corps: h('div.rhx-form', [
       h('div.champ', [h('label', { text: 'Le dossier signé part à' }), inPaie, h('span.aide', { text: 'Jusqu\'à trois adresses, séparées par des virgules. Envoi automatique dès que l\'employé a tout signé (autorisé par Maxime le 7 nov.).' })]),
-      h('label.rhx-cases', { style: { marginTop: '10px' } }, [copie, 'Copie à la personne qui a fait l\'envoi'])
+      h('label.rhx-cases', { style: { marginTop: '10px' } }, [copie, 'Copie à la personne qui a fait l\'envoi']),
+      h('div.champ', { style: { marginTop: '12px' } }, [h('label', { text: 'Rappel automatique à l\'employé' }), selRappel, h('span.aide', { text: 'Un seul courriel de rappel quand l\'employé n\'a pas signé après ce délai (de 9 h à 19 h). Jamais de texto. Autorisé par Maxime le 7 nov.' })])
     ]), boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
-      return ecrire({ action: 'rhReglages', paie: inPaie.value, copieRh: !!copie.checked }).then(function (d) { self.rep.reglages = d.reglages; self.rendre(); AMX.toast('Réglages enregistrés', 'ok'); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); return false; });
+      return ecrire({ action: 'rhReglages', paie: inPaie.value, copieRh: !!copie.checked, rappelJours: Number(selRappel.value) }).then(function (d) { self.rep.reglages = d.reglages; self.rendre(); AMX.toast('Réglages enregistrés', 'ok'); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); return false; });
     } }] });
   };
 })();

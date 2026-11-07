@@ -1037,7 +1037,8 @@
     bdc: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'service/suivi', 'service/texto', 'outils/*'],
     service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'outils/*'],
     marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
-    utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*']
+    utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*'],
+    rh: ['vente/*', 'inventaire/*', 'relance/*', 'service/*', 'outils/*']   /* 7 nov. : rôle « Ressources humaines » — Outils › Ressources humaines et Aide seulement */
   };
   AMX.ONGLETS_CACHES_ROLE = ONGLETS_CACHES_ROLE;
   function cleDansListe(liste, cle) {
@@ -1356,7 +1357,7 @@
     var rech = h('div.recherche-globale', [h('span', { html: ICONES.recherche }), h('input', { type: 'search', id: 'recherche-globale', placeholder: 'NIV, # stock, modèle, client, téléphone…', autocomplete: 'off' }), h('kbd', '/')]);
     var usager = h('div.usager', { tabindex: '0' }, [
       h('div.avatar', { text: AMX.initiales(AMX.session.nom || AMX.session.courriel) }),
-      h('div', [h('div.nom', { text: AMX.session.nom || AMX.session.courriel }), h('div.role', { text: AMX.session.role || '' })]),
+      h('div', [h('div.nom', { text: AMX.session.nom || AMX.session.courriel }), h('div.role', { text: (AMX.session.perms && AMX.session.perms.roleLibelle) || AMX.session.role || '' })]),
       h('div.menu', [
         h('div.info', [h('div', { text: AMX.session.nom || '' }), h('div', { text: AMX.session.courriel }), AMX.sessionTexte() ? h('div.doux', { text: AMX.sessionTexte() }) : null]),
         h('div.sep'),

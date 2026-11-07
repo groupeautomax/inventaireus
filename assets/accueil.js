@@ -163,7 +163,7 @@
   Accueil.prototype.demonter = function () { var self = this; EVENEMENTS.forEach(function (ev) { document.removeEventListener(ev, self.sur); }); };
   Accueil.prototype.naviguer = function () { this.rendre(); };
 
-  var ROLES = { proprietaire: 'Propriétaire', admin: 'Administrateur', gestionnaire: 'Gestionnaire', utilisateur: 'Utilisateur', service: 'Service', marketing: 'Marketing', comptabilite: 'Comptabilité', ventes: 'Ventes', direction: 'Direction', direction_ventes: 'Direction des ventes', direction_service: 'Direction du service', vendeur: 'Vendeur', bdc: 'BDC' };
+  var ROLES = { proprietaire: 'Propriétaire', admin: 'Administrateur', gestionnaire: 'Gestionnaire', utilisateur: 'Utilisateur', service: 'Service', marketing: 'Marketing', comptabilite: 'Comptabilité', ventes: 'Ventes', direction: 'Direction', direction_ventes: 'Direction des ventes', direction_service: 'Direction du service', directeur_commercial: 'Directeur commercial (F&I)', vendeur: 'Vendeur', bdc: 'BDC', rh: 'Ressources humaines' };
   function prenom() { var n = String(AMX.session.nom || '').trim(); return n ? n.split(/\s+/)[0] : ''; }
   function salutation() { var hr = new Date().getHours(); return hr < 5 ? 'Bonne nuit' : (hr < 12 ? 'Bonjour' : (hr < 18 ? 'Bon après-midi' : 'Bonsoir')); }
   function dateLongue() { try { var t = new Date().toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); } catch (e) { return ''; } }

@@ -51,6 +51,7 @@
     { cle: 'direction_service', libelle: 'Direction service',            departement: 'service',   niveau: 'direction',    aide: 'Directeur du service : suivi service, reçoit les alertes des avis et sondages du service.' },
     { cle: 'service',           libelle: 'Service (conseiller)',         departement: 'service',   niveau: 'utilisateur',  aide: 'Conseiller technique / aviseur : suivi service, demandes d\'avis après un service.' },
     { cle: 'marketing',         libelle: 'Marketing',                    departement: 'marketing', niveau: 'utilisateur',  aide: 'Photos, fiches, avis Google (réponses).' },
+    { cle: 'rh',                libelle: 'Ressources humaines',          departement: 'administration', niveau: 'utilisateur', aide: 'Accès RH seulement : conditions d\'embauche, documents à signer, dossiers des employés, santé et sécurité. Seul le propriétaire donne ce rôle.' },
     { cle: 'utilisateur',       libelle: 'Utilisateur',                  departement: '',          niveau: 'utilisateur',  aide: 'Accès de base : consulter, scanner, fiche d\'achat, photos.' }
   ];
   var DEPARTEMENTS_DEFAUT = [
@@ -86,6 +87,7 @@
     return REF.roles.filter(function (r) {
       if (r.cle === 'proprietaire') return !!(moiInfo && moiInfo.role === 'proprietaire');
       if (r.cle === 'admin') return !!(moiInfo && moiInfo.gererAdmins);
+      if (r.cle === 'rh') return !!(moiInfo && moiInfo.role === 'proprietaire');   /* 7 nov. : accès RH exclusif, donné par le propriétaire */
       return true;
     });
   }

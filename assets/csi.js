@@ -46,6 +46,51 @@
   function compositeDe(s) { var c = s && s.composites; if (!c) return null; var m = c.marquePrincipale && c.marques && c.marques[c.marquePrincipale]; return m ? { nom: c.marquePrincipale, score: m.score, n: m.n, region: c.region } : (c.region ? { nom: 'Région', score: c.region.score, n: c.region.n, region: c.region } : null); }
 
   function nomCie(c) { return AMX.COMPAGNIES_TOUTES[c] || c || ''; }
+
+  /* ------------------------------ Alertes ------------------------------
+     7 nov. (Louis Prassinos, S436C5180F5) : un sondage CSI nouveau à 8 ou moins sur 10 envoie un courriel au DG et aux
+     directeurs du département (CsiAlertes.gs, quand le favori BoostCX l'apporte) ; il reste ici, en rouge, jusqu'à
+     « Marquer traité ». GET ?csiAlertes=1 · POST csiAlerteTraiter. */
+  var alertesCache = { d: null, quand: 0, promesse: null, pasAJour: false, qui: '' };
+  function quiEst() { return String((AMX.session && AMX.session.courriel) || ''); }
+  function chargerAlertes(force) {
+    if (alertesCache.qui !== quiEst()) alertesCache = { d: null, quand: 0, promesse: null, pasAJour: false, qui: quiEst() };   /* jamais les alertes d'un autre compte */
+    if (!force && alertesCache.d && Date.now() - alertesCache.quand < AMX.dureeCopie(120000)) return Promise.resolve(alertesCache.d);
+    if (alertesCache.promesse) return alertesCache.promesse;
+    alertesCache.promesse = AMX.get({ csiAlertes: 1 }, { discret: true, secours: false }).then(function (d) {
+      alertesCache.promesse = null; alertesCache.quand = Date.now();
+      if (d && Array.isArray(d.alertes)) { alertesCache.d = d; alertesCache.pasAJour = false; }
+      else { alertesCache.d = { alertes: [], ouvertes: 0, actives: [] }; alertesCache.pasAJour = true; }   /* script d'avant : rien */
+      try { document.dispatchEvent(new CustomEvent('amx:csiAlertes')); } catch (e) {}
+      return alertesCache.d;
+    }, function (e) { alertesCache.promesse = null; throw e; });
+    return alertesCache.promesse;
+  }
+  function alertesDe(cie) { if (alertesCache.qui !== quiEst()) return []; return ((alertesCache.d && alertesCache.d.alertes) || []).filter(function (a) { return !cie || a.compagnie === cie; }); }
+  function traiterAlerte(a, rouvrir) {
+    var faire = function (note) {
+      return AMX.post({ action: 'csiAlerteTraiter', cle: a.cle, note: note || '', rouvrir: !!rouvrir }, { rejouer: true }).then(function (r) {
+        if (r && r.ok && !r.alerte) throw new Error('Le script n\'est pas à jour : déployez la nouvelle version (CsiAlertes.gs).');
+        AMX.verifier(r, 'Impossible');
+        var l = (alertesCache.d && alertesCache.d.alertes) || [];
+        for (var i = 0; i < l.length; i++) if (l[i].cle === a.cle) l[i] = r.alerte;
+        alertesCache.d.ouvertes = l.filter(function (x) { return x.ouverte; }).length;
+        try { document.dispatchEvent(new CustomEvent('amx:csiAlertes')); } catch (e) {}
+        AMX.toast(r.message || 'Enregistré', 'ok');
+      });
+    };
+    if (rouvrir) return faire('').catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 7000); });
+    var inNote = h('textarea.saisie', { rows: '3', maxlength: '500', placeholder: 'Ce qui a été fait : client rappelé, geste offert…' });
+    AMX.modale({ titre: 'Sondage traité', corps: h('div', [h('p.doux', { text: a.nps + '/10 · ' + (a.type === 'service' ? 'service' : 'ventes') + (a.client ? ' · ' + a.client : '') }), h('label.champ', [h('span', 'Note (facultative)'), inNote])]),
+      boutons: [{ texte: 'Annuler' }, { texte: 'Marquer traité', classe: 'primaire', action: function () { return faire(inNote.value).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 7000); return false; }); } }] });
+    setTimeout(function () { inNote.focus(); }, 60);
+  }
+  AMX.csiAlertes = {
+    charger: chargerAlertes, enCache: function () { return alertesCache.qui === quiEst() ? alertesCache.d : null; },
+    /** Alertes à traiter d'une concession ('' = toutes celles du compte). */
+    ouvertes: function (cie) { return alertesDe(cie).filter(function (a) { return a.ouverte; }); },
+    vider: function () { alertesCache = { d: null, quand: 0, promesse: null, pasAJour: false, qui: '' }; }
+  };
   function pct(x, dec) { return x === null || x === undefined || isNaN(x) ? '—' : Number(x).toLocaleString('fr-CA', { minimumFractionDigits: dec === undefined ? 1 : dec, maximumFractionDigits: dec === undefined ? 1 : dec }) + ' %'; }
   function nb(x, dec) { return x === null || x === undefined || isNaN(x) ? '—' : Number(x).toLocaleString('fr-CA', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }); }
   function signe(x, dec) { if (x === null || x === undefined || isNaN(x)) return '—'; var n = Number(x); return (n > 0 ? '+' : (n < 0 ? '−' : '')) + Math.abs(n).toLocaleString('fr-CA', { minimumFractionDigits: dec === undefined ? 1 : dec, maximumFractionDigits: dec === undefined ? 1 : dec }); }
@@ -62,6 +107,15 @@
     var s = document.createElement('style'); s.id = 'css-csi';
     s.textContent = [
       '.csi-page .carte { margin-bottom: 14px; }',
+      /* 7 nov. : alertes des sondages à 8 ou moins */
+      '.csi-alertes .csi-al-tete h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; font-size: 16px; } .csi-alertes .csi-al-tete p { margin: 4px 0 10px; font-size: 13px; }',
+      '.csi-al-liste { display: grid; gap: 8px; } .csi-al-ligne { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 10px; border: 1px solid var(--ligne); border-left: 4px solid var(--rouge); border-radius: 8px; background: var(--carte); }',
+      '.csi-al-ligne.traitee { border-left-color: var(--vert); opacity: .85; } .csi-al-note { font-weight: 700; font-size: 15px; padding: 4px 8px; border-radius: 6px; min-width: 48px; text-align: center; }',
+      '.csi-al-note.rouge { background: var(--rouge-bg, #FDECEC); color: var(--rouge); } .csi-al-note.ambre { background: var(--ambre-bg); color: var(--ambre); } .csi-al-note.vert, .csi-al-note.gris { background: var(--fond); color: var(--encre-3); }',
+      '.csi-al-infos { font-size: 13px; font-weight: 600; color: var(--encre); } .csi-al-com { font-size: 13px; color: var(--encre-2, var(--encre)); margin-top: 3px; }',
+      '.csi-al-avis { display: inline-block; font-size: 12px; color: var(--encre-3); margin-top: 4px; } .csi-al-avis.rouge { color: var(--rouge); font-weight: 600; }',
+      '.csi-al-traite { display: grid; gap: 4px; justify-items: end; font-size: 12px; color: var(--encre-3); } .csi-al-plis { margin-top: 10px; } .csi-al-plis summary { cursor: pointer; font-size: 13px; color: var(--encre-3); margin-bottom: 8px; }',
+      '@media (max-width: 560px) { .csi-al-ligne { grid-template-columns: auto 1fr; } .csi-al-ligne > :last-child { grid-column: 1 / -1; justify-self: start; } .csi-al-traite { justify-items: start; } }',
       '.csi-page h1 .csi-h1-sous { display: block; font-size: 12.5px; font-weight: 400; color: var(--encre-3); letter-spacing: 0; margin-top: 2px; }',
       '.csi-page .csi-neg { color: var(--rouge); } .csi-page .csi-pos { color: var(--vert); } .csi-page tr.csi-actuelle td { background: var(--vert-clair); }',
       '.csi-page .csi-sous-titre { font-size: 13px; font-weight: 600; margin: 0 0 6px; }',
@@ -122,11 +176,15 @@
     this.recherche = '';
     this.construire();
     this.charger(false);
+    this.voirAlertes = !!(ctx && ctx.params && ctx.params.alertes);
+    chargerAlertes(false).then(function () { if (!self.detruit) { self.rendreAlertes(); if (self.voirAlertes) { self.voirAlertes = false; try { self.elAlertes.scrollIntoView({ block: 'start' }); } catch (e) {} } } }).catch(function () {});
+    this.surAlertes = function () { if (!self.detruit) self.rendreAlertes(); };
+    document.addEventListener('amx:csiAlertes', this.surAlertes);
     this.surProfil = function () { if (!self.detruit) { self.compagnie = AMX.compagnieChoisie('resultats') || ''; self.rendre(); } };
     this.surCie = function () { self.surProfil(); if (!self.detruit && AMX.gesteMenuRecent()) self.charger(false); };   /* 3 nov. : relit les scores */
     document.addEventListener('amx:compagnie', this.surCie);
   }
-  Csi.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:compagnie', this.surCie); };
+  Csi.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:csiAlertes', this.surAlertes); };
 
   Csi.prototype.construire = function () {
     var self = this;
@@ -136,6 +194,7 @@
     this.btnExport = h('button.btn', { type: 'button', html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
     this.elChoix = h('div.barre-cies');   /* 16 oct. : même rangée de concessions que partout */
     this.elComparaison = h('div.carte');
+    this.elAlertes = h('div.carte.csi-alertes.cache');
     this.elScores = h('div.csi-scores');
     this.elKpis = h('div.carte');
     this.elPersonnes = h('div.carte');
@@ -143,7 +202,7 @@
     this.elVide = h('div');
     this.el = h('div.page.etroite.csi-page', [
       h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', ['CSI', h('span.csi-h1-sous', { text: 'Satisfaction client déclarée au constructeur — ventes et service, comparée au composite de la marque' })]), this.elEtat]), h('div.actions', AMX.actionsEntete([this.elSites, this.btnRafraichir, this.btnExport], [this.elSites]))]),
-      this.elChoix, this.elVide, this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elSondages
+      this.elChoix, this.elAlertes, this.elVide, this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elSondages
     ]);
     this.conteneur.appendChild(this.el);
   };
@@ -188,6 +247,7 @@
       return ((d && d.scores) || []).filter(function (s) { return (!c || s.compagnie === c) && s.periode === '12M' && (s.type === 'ventes' || s.type === 'service'); }).reduce(function (a, s) { return a + (s.sondages || 0); }, 0);
     };
     AMX.barreConcessions(this.elChoix, { domaine: 'resultats', valeur: this.compagnie, compte: compte, onchange: function (c) { self.compagnie = c; self.rendre(); } });
+    this.rendreAlertes();
     if (this.erreur && !d) { this.elEtat.textContent = 'Serveur injoignable.'; this.elVide.appendChild(h('div.vide', [h('div', { html: I.alerte }), h('h3', 'Serveur injoignable'), h('div', { text: this.erreur })])); [this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elSondages].forEach(function (el) { AMX.vider(el); el.classList.add('cache'); }); return; }
     if (!d) return;
     var lues = this.compagniesLues().filter(function (c) { return !self.compagnie || c === self.compagnie; });
@@ -209,6 +269,37 @@
     var sansSondages = !nS;
     this.elPersonnes.classList.toggle('cache', sansSondages); this.elSondages.classList.toggle('cache', sansSondages);
     if (!sansSondages) { this.rendrePersonnes(); this.rendreSondages(); }
+  };
+
+
+  /* La carte « Alertes » : les sondages à 8 ou moins sur 10, ouverts d'abord ; les traités (30 jours) repliés. */
+  Csi.prototype.rendreAlertes = function () {
+    var self = this, el = this.elAlertes; if (!el) return;
+    AMX.vider(el);
+    var d = alertesCache.d;
+    var liste = alertesDe(this.compagnie), actives = (d && d.actives) || [];
+    var concernee = !this.compagnie ? actives.length > 0 : actives.indexOf(this.compagnie) >= 0;
+    if (!d || (!liste.length && !concernee)) { el.classList.add('cache'); return; }
+    el.classList.remove('cache');
+    var ouvertes = liste.filter(function (a) { return a.ouverte; }), traitees = liste.filter(function (a) { return !a.ouverte; });
+    var seuil = (d.seuils && d.seuils[this.compagnie]) || 8;
+    el.appendChild(h('div.csi-al-tete', [h('h2', ['Alertes — sondages à ' + seuil + ' ou moins sur 10', ouvertes.length ? h('span.badge.rouge', { text: ouvertes.length + ' à traiter' }) : h('span.badge.vert', { text: 'Rien à traiter' })]),
+      h('p.doux', { text: 'Un courriel part au DG et aux directeurs du département quand le favori BoostCX apporte un nouveau sondage à ' + seuil + ' ou moins. Marquez-le traité une fois le client rappelé.' })]));
+    var ligne = function (a) {
+      var veh = [a.annee, a.modele].filter(Boolean).join(' ');
+      var infos = [a.type === 'service' ? 'Service' : 'Ventes', a.completeLe, a.client, a.conseiller ? (a.type === 'service' ? 'aviseur ' : 'conseiller ') + nomCourt(a.conseiller) : '', veh, a.reference ? (a.type === 'service' ? 'BT ' : 'réf. ') + a.reference : ''].filter(Boolean).join(' · ');
+      var avis = a.avisErreur ? h('span.csi-al-avis.rouge', { text: a.avisErreur }) : (a.avisA ? h('span.csi-al-avis', { text: 'Courriel à ' + a.avisA.split(/,\s*/).length + ' personne(s)', title: a.avisA }) : null);
+      var droite = a.ouverte
+        ? (d.peutTraiter ? h('button.btn.petit.primaire', { type: 'button', text: 'Marquer traité', onclick: function () { traiterAlerte(a, false); } }) : null)
+        : h('div.csi-al-traite', [h('span', { text: 'Traité le ' + AMX.fmtDate(a.traiteLe) + (a.traiteParNom ? ' par ' + a.traiteParNom : '') }), d.peutTraiter ? h('button.btn.petit.fantome', { type: 'button', text: 'Rouvrir', onclick: function () { traiterAlerte(a, true); } }) : null]);
+      return h('div.csi-al-ligne' + (a.ouverte ? '' : '.traitee'), [
+        h('span.csi-al-note.' + classeNps(a.nps), { text: a.nps + '/10' }),
+        h('div.csi-al-corps', [h('div.csi-al-infos', { text: infos }), commentaireDe(a) ? h('div.csi-al-com', { text: '« ' + commentaireDe(a) + ' »' }) : null, a.note && !a.ouverte ? h('div.csi-al-com', { text: 'Note : ' + a.note }) : null, avis]),
+        droite
+      ]);
+    };
+    if (ouvertes.length) el.appendChild(h('div.csi-al-liste', ouvertes.map(ligne)));
+    if (traitees.length) el.appendChild(h('details.csi-al-plis', [h('summary', { text: traitees.length + ' traité' + (traitees.length > 1 ? 's' : '') + ' (30 derniers jours)' }), h('div.csi-al-liste', traitees.map(ligne))]));
   };
 
   Csi.prototype.scoreDe = function (type, periode) {

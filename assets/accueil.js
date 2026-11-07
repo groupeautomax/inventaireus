@@ -320,6 +320,7 @@
     if (ongletVoit('service', 'rendezvous') && AMX.rdv) AMX.rdv.charger(cieSvc, jourLocal(), jourLocal()).then(relancer, rien);
     if (ongletVoit('service', 'texto') && AMX.texto) AMX.texto.charger(cieSvc).then(relancer, rien);
     if (voit('avis') && AMX.avis) AMX.avis.charger().then(relancer, rien);
+    if (voit('csi') && AMX.csiAlertes) AMX.csiAlertes.charger().then(relancer, rien);   /* 7 nov. : sondages CSI à 8 ou moins */
     if (ongletVoit('offres', 'recues')) chargerOffres().then(relancer, rien);
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);   /* 2 nov. : jamais pour un représentant */
     if ((voit('demandesEval') || voit('evalPortail')) && AMX.evalDemandes) AMX.evalDemandes.charger().then(relancer, rien);   /* 27 oct. : demandes d'évaluation ; 2 nov. : portail du représentant */
@@ -522,6 +523,14 @@
         var na = compteurOnglet('avis', 'avis'), ns = compteurOnglet('avis', 'sondages');
         if (na) out.push({ ton: 'rouge', n: na, titre: 'Avis Google négatifs à traiter', href: AMX.lien('avis', 'avis'), ic: 'relance' });
         if (ns) out.push({ ton: 'ambre', n: ns, titre: 'Sondages clients notés 3 ou moins (7 derniers jours)', href: AMX.lien('avis', 'sondages'), ic: 'relance' });
+      }
+    }
+    // 7 nov. (Louis Prassinos) : sondages CSI à 8 ou moins sur 10, à traiter (CsiAlertes.gs)
+    if (voit('csi') && AMX.csiAlertes) {
+      if (!AMX.csiAlertes.enCache()) attente.push('CSI');
+      else {
+        var ca = AMX.csiAlertes.ouvertes(cie);
+        if (ca.length) out.push({ ton: 'rouge', n: ca.length, titre: 'Sondages CSI à 8 ou moins sur 10, à traiter', detail: ca.slice(0, 3).map(function (a) { return a.nps + '/10 ' + (a.type === 'service' ? 'service' : 'ventes') + (a.client ? ' — ' + a.client : ''); }).join(' · ') + (ca.length > 3 ? '…' : ''), href: AMX.lien('csi', '', { alertes: 1 }), ic: 'relance' });
       }
     }
     // Suggestions des employés (administrateurs)

@@ -847,7 +847,7 @@
     s.textContent = [
       '.eq-params { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; } .eq-params .champ { width: 110px; } .eq-params .champ input { height: 30px; }',
       '.eq-filtres { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; } .eq-filtres .recherche { flex: 1 1 180px; height: 30px; } .eq-filtres select { height: 30px; width: auto; } .eq-filtres .compte { margin-left: auto; font-size: 12px; color: var(--encre-3); }',
-      '.eq-table { overflow-x: auto; } .eq-table .tableau { width: 100%; } .eq-table .tableau.eq-compact { table-layout: fixed; } .eq-table .eq-compact td, .eq-table .eq-compact th { padding: 4px 6px; line-height: 1.3; overflow: hidden; } .eq-table .coupe { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .eq-table .eq-puces { display: flex; gap: 3px; flex-wrap: nowrap; overflow: hidden; margin-top: 2px; } .eq-table .eq-puces .puce { font-size: 11.5px; padding: 0 5px; line-height: 17px; border-radius: 7px; white-space: nowrap; } .eq-ndnc { background: #FDE2E2; color: #B42318; font-weight: 700; } .eq-table a.eq-mail { text-decoration: none; } .eq-table .eq-v.meme, .eq-table .eq-v.choisie { color: var(--vert-fonce, #0B6B3A); font-weight: 700; } .eq-table .eq-v.autre { color: var(--ambre, #955F10); font-weight: 700; } .eq-table .eq-v.proche, .eq-table .eq-v.inconnue { color: var(--encre-3); } .eq-table .eq-compact select.suivi { width: 100%; max-width: none; height: 24px; } .eq-table .eq-compact input.eq-mmr { width: 100%; max-width: 92px; } .eq-table .eq-compact td.eq-us-cell { min-width: 0; } .eq-table .eq-compact .btn.petit { height: 22px; padding: 0 6px; } @media (max-width: 1000px) { .eq-table .tableau.eq-compact { table-layout: auto; min-width: 980px; } } .eq-table td, .eq-table th { padding: 6px 8px; vertical-align: top; font-size: 12.5px; } .eq-table th { white-space: nowrap; } .eq-table td.num, .eq-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }',
+      '.eq-table { overflow-x: auto; } .eq-table .tableau { width: 100%; } .eq-table .tableau.eq-compact { table-layout: fixed; } .eq-table .eq-compact td, .eq-table .eq-compact th { padding: 4px 6px; line-height: 1.3; overflow: hidden; } .eq-table .coupe { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .eq-table .eq-puces { display: flex; gap: 3px; flex-wrap: nowrap; overflow: hidden; margin-top: 2px; } .eq-table .eq-puces .puce { font-size: 11.5px; padding: 0 5px; line-height: 17px; border-radius: 7px; white-space: nowrap; } .eq-ndnc { background: #FDE2E2; color: #B42318; font-weight: 700; } .eq-table a.eq-mail { text-decoration: none; } .eq-table .eq-v.meme, .eq-table .eq-v.choisie { color: var(--vert-fonce, #0B6B3A); font-weight: 700; } .eq-table .eq-v.autre { color: var(--ambre, #955F10); font-weight: 700; } .eq-table .eq-v.proche, .eq-table .eq-v.inconnue { color: var(--encre-3); } .eq-table .eq-compact select.suivi { width: 100%; max-width: none; height: 24px; } .eq-table .eq-compact input.eq-mmr { width: 100%; max-width: 92px; } .eq-table .eq-compact td.eq-us-cell { min-width: 0; } .eq-table .eq-compact .btn.petit { height: 22px; padding: 0 6px; } .eq-table .eq-proj { font-weight: 700; white-space: nowrap; } .eq-table th.eq-th-paie { white-space: normal; } .eq-table th .eq-th-sous { font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 11.5px; } .eq-table .eq-proj.eq-plus { color: var(--encre-2, #374151); } .eq-table .eq-proj.eq-manquant { font-weight: 600; font-size: 12px; white-space: normal; } .eq-table button.eq-changer { margin-top: 3px; border: 1px solid var(--bleu, #1A64BF); background: #fff; color: var(--bleu, #1A64BF); border-radius: 6px; padding: 0 7px; height: 21px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; } .eq-table button.eq-changer:hover { background: #E8F0FE; } .eq-table button.eq-changer.alerte { border-color: var(--ambre, #955F10); color: var(--ambre, #955F10); } @media (max-width: 1000px) { .eq-table .tableau.eq-compact { table-layout: auto; min-width: 980px; } } .eq-table td, .eq-table th { padding: 6px 8px; vertical-align: top; font-size: 12.5px; } .eq-table th { white-space: nowrap; } .eq-table td.num, .eq-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }',
       '.eq-table td .sous { font-size: 12px; color: var(--encre-3); } .eq-table td .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-3); } .eq-table td .nom { font-weight: 600; }',
       '.eq-table tr.cible td { background: var(--vert-clair); } .eq-table tr.sans td .valeur { color: var(--encre-3); font-style: italic; }',
       '.eq-table button.eq-dette { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; } .eq-table button.eq-dette:hover { color: var(--vert-fonce, var(--vert)); }',
@@ -1137,7 +1137,6 @@
       h('td', { title: 'Aucun contrat chez Hyundai Finance' + (o.active ? ' — client à appeler' : ' — offre expirée') }, [h('div.coupe', { text: 'Aucun contrat HMF' }), h('div.sous.coupe', { text: o.active ? 'à appeler' : 'offre expirée' })]),
       vide(), vide(), vide(), vide(), vide(),
       h('td', { title: (o.offre ? 'Offre nº ' + o.offre : 'Offre de fidélité') + (voitContact && o.pin ? '\nCode PIN ' + o.pin : '') + (o.recuLe ? '\nReçue le ' + AMX.fmtDate(o.recuLe) : '') }, [h('div.coupe', { text: 'Offre ' + (o.offre ? 'nº ' + o.offre : 'fidélité') }), h('div.sous.coupe.pin', { text: voitContact && o.pin ? 'PIN ' + o.pin : '' })]),
-      h('td', [h('span.eq-nul', { text: '—' })]),
       h('td', [h('span.eq-nul', { text: '—' })])
     ]);
   };
@@ -1292,13 +1291,14 @@
     AMX.vider(this.elTable);
     if (!vis.length && !seules.length) { this.elTable.appendChild(h('p.doux', { style: { padding: '14px', textAlign: 'center' }, text: this.filtres.quoi === 'cibles' ? 'Aucune cible avec ces paramètres : élargissez la marge, changez le terme, ou lisez les valeurs OpenLane des comptes sans valeur.' : 'Aucun compte ne correspond.' })); return; }
     var rows = vis.slice(0, 400).map(function (r) { return self.rangee(r, contact); }).concat(seules.map(function (o) { return self.rangeeOffre(o, contact); }));
-    var largeurs = ['15%', '14%', '11%', '6%', '7%', '7%', '7%', '7%', '14%', '6%', '6%'];
-    this.elTable.appendChild(h('table.tableau.eq-compact', [h('colgroup', largeurs.map(function (w) { return h('col', { style: { width: w } }); })), h('thead', [h('tr', [h('th', 'Client'), h('th', 'Véhicule'), h('th', { title: 'Type, terme, taux (* = estimé), échéance' }, 'Contrat'), h('th.num', { title: 'Paiement mensuel actuel' }, 'Paiem.'), h('th.num', { title: 'Valeur OpenLane au km estimé' }, 'Valeur'), h('th.num', { title: 'Dette du jour' }, 'Dette'), h('th.num', 'Équité'), h('th.num', { title: 'Gros É.-U. ($ CA) = MMR × taux du jour ajusté − ajustement, comparé à la dette' }, 'É.-U.'), h('th', 'Neuf proposé'), h('th', { title: 'Conseiller' }, 'Cons.'), h('th', 'Suivi')])]), h('tbody', rows)]));
+    var largeurs = ['15%', '13%', '10%', '11%', '7%', '7%', '7%', '7%', '16%', '7%'];
+    this.elTable.appendChild(h('table.tableau.eq-compact', [h('colgroup', largeurs.map(function (w) { return h('col', { style: { width: w } }); })), h('thead', [h('tr', [h('th', 'Client'), h('th', 'Véhicule'), h('th', { title: 'Type, terme, taux (* = estimé), échéance' }, 'Contrat'), h('th.num.eq-th-paie', { title: 'Paiement mensuel actuel, puis la nouvelle mensualité (même transaction, même terme que le contrat)' }, [h('div', { text: 'Paiement' }), h('div.eq-th-sous', { text: 'actuel → nouveau' })]), h('th.num', { title: 'Valeur OpenLane au km estimé' }, 'Valeur'), h('th.num', { title: 'Dette du jour' }, 'Dette'), h('th.num', 'Équité'), h('th.num', { title: 'Gros É.-U. ($ CA) = MMR × taux du jour ajusté − ajustement, comparé à la dette' }, 'É.-U.'), h('th', 'Neuf proposé'), h('th', 'Suivi')])]), h('tbody', rows)]));
     if (vis.length > 400) this.elTable.appendChild(h('p.doux.petit', { text: '… ' + (vis.length - 400) + ' autres : affinez les filtres ou exportez.' }));
   };
   /* 7 nov. (Maxime : « réduire la hauteur des lignes, c'est beaucoup trop gros ; faire des abréviations et refaire la dimension
      pour ne pas avoir à bouger le tableau de gauche à droite ») : une à trois lignes par client, le détail dans les infobulles,
      colonnes de largeur fixe (table-layout: fixed) — le tableau tient dans la page. */
+  function titreVersion(r) { return ({ meme: 'même version', proche: 'même finition, ensemble différent', autre: 'autre version que celle du client', choisie: 'version choisie', inconnue: 'version du client inconnue' })[r.versionVoie || 'inconnue']; }
   function court(s, n) { s = texte(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
   function fmtK(x) { if (x === null || x === undefined || isNaN(x)) return '—'; var a = Math.abs(x); return (x < 0 ? '−' : '') + (a >= 100000 ? Math.round(a / 1000) + ' k$' : (a >= 10000 ? (Math.round(a / 100) / 10).toFixed(1).replace('.', ',') + ' k$' : fmt$(a))); }
   function fmtKSigne(x) { if (x === null || x === undefined || isNaN(x)) return '—'; return (x > 0 ? '+' : '') + fmtK(x); }
@@ -1323,10 +1323,10 @@
           var nomN = [r.neuf.annee, r.neuf.modele, r.neuf.version].filter(Boolean).join(' ');
           var marque = { meme: '✓', proche: '≈', choisie: '✓', autre: '⚠', inconnue: '?' }[r.versionVoie || 'inconnue'];
           var vl = self.ligneVersion(r), bt = vl.querySelector('button');
-          if (bt) { bt.textContent = 'changer'; }
+          if (bt) { bt.textContent = '↻ Changer la version'; bt.className = 'eq-changer' + (r.versionVoie === 'autre' ? ' alerte' : ''); bt.title = 'Choisir la version du neuf à comparer (' + (titreVersion(r) || 'versions en stock') + ')'; }
           var titreV = (vl.querySelector('.v-txt') || {}).textContent || '';
           return h('div', { title: nomN + '\n' + texteNeuf(r) + (titreV ? '\n' + titreV : '') }, [h('div.nom.coupe', { text: nomN }),
-            h('div.sous.coupe', [h('span.eq-v.' + (r.versionVoie || 'inconnue'), { text: marque + ' ' }), 'PDSF ' + fmtK(r.neuf.prix) + (r.neuf.etat === 'stock' ? ' · stock' : (r.neuf.etat ? ' · ' + (ETATS_NEUF[r.neuf.etat] || r.neuf.etat).toLowerCase() : '')), bt ? h('span', [' · ', bt]) : null])]);
+            h('div.sous.coupe', [h('span.eq-v.' + (r.versionVoie || 'inconnue'), { text: marque + ' ' }), 'PDSF ' + fmtK(r.neuf.prix) + (r.neuf.etat === 'stock' ? ' · stock' : (r.neuf.etat ? ' · ' + (ETATS_NEUF[r.neuf.etat] || r.neuf.etat).toLowerCase() : ''))]), bt ? h('div', [bt]) : null]);
         })() : h('span.sous', { text: 'Aucun neuf connu', title: 'Aucun ' + (c.modele || 'modèle semblable') + ' neuf connu (stock, commandes, ventes)' });
     var ecartsTr = ecartsTransaction(r), titreProg = '';
     if (r.programme && !r.programme.manquant) {
@@ -1360,19 +1360,30 @@
     var veh = vehiculeTexte(c), vehCourt = r.mode === 'gm' ? veh : ([c.annee, c.modele, c.version].filter(Boolean).join(' ') || veh), typeC = (r.location ? 'Loc ' : 'Fin ') + (c.terme ? c.terme + 'm' : '');
     var titreContrat = (r.location ? 'Location' : 'Financement') + (c.terme ? ' ' + c.terme + ' mois' : '') + (r.tauxContrat !== null ? ' à ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé : rachat, paiement, mensualités)' : '') : '') + (c.echeance ? '\nÉchéance ' + AMX.fmtDate(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' mois)' : '') : '') + (r.location && c.kmContrat ? '\n' + AMX.fmtNombre(c.kmContrat) + ' km au contrat' + (c.usure === 'oui' ? ' · usure' : '') : '') + (c.neufUsage && /used|pre/i.test(c.neufUsage) ? '\nAcheté d\'occasion' : '');
     var titreDette = 'Dette du jour ' + fmt$(r.solde) + ' — ' + texteDette(r) + (r.location && r.soldeEcheance !== null ? '\nRésiduel ' + fmt$(r.soldeEcheance) : '') + '\nCliquez pour voir le calcul';
+    /* 7 nov. (Maxime : « faut voir les paiements mensuels actuel et projeté clairement, on ne les voit plus ») */
+    var titrePaie = 'Paiement actuel ' + fmt$(nombre(c.paiement)) + ' / mois';
+    var projEl;
+    if (r.mensualite !== null) {
+      projEl = h('div.eq-proj' + (r.cible ? '.eq-pos' : (r.ecart !== null && r.ecart > (nombre(this.params.marge) || 0) ? '.eq-plus' : '')), { text: '→ ' + fmt$(r.mensualite) + (r.ecart !== null ? ' (' + fmtSigne(r.ecart) + ')' : '') });
+      titrePaie += '\nNouvelle mensualité ' + fmt$(r.mensualite) + ' / mois' + (r.ecart !== null ? ' (' + fmtSigne(r.ecart) + ' vs actuel)' : '') + (r.sansValeur ? ' — sans valeur d\'échange (OpenLane à lire)' : '')
+        + (r.programme && !r.programme.manquant ? '\n' + texteProgramme(r) + (r.programme.type === 'location' ? ' · coût capitalisé ' : ' · financé ') + fmt$(r.finance) : '')
+        + (titreProg ? '\n\n' + titreProg : '') + (ecartsTr.length ? '\n\nÉcart avec le contrat : ' + ecartsTr.join(' · ') : '');
+    } else if (r.programmeManquant) {
+      projEl = h('div.eq-proj.eq-manquant', { text: '→ programme à trouver' });
+      titrePaie += '\nPas de nouvelle mensualité : ' + r.programme.raison + '. Les Programmes du mois sont lus tout seuls sur le site de la concession ou chez le manufacturier.';
+    } else projEl = h('div.eq-proj.eq-nul', { text: '→ —' });
     var noteSuivi = [c.suiviNote, c.suiviLe ? AMX.fmtDateCourte(c.suiviLe) + (c.suiviPar ? ' · ' + String(c.suiviPar).split('@')[0] : '') : ''].filter(Boolean).join('\n');
     if (noteSuivi) selSuivi.title = noteSuivi;
     return h('tr' + cls, [
       h('td', { title: titreClient }, [h('div.nom.coupe', { text: nomClient(c) }), h('div.sous.coupe', [telEl || h('span', { text: court(c.ville, 18) }), mailEl ? ' ' : '', mailEl]), puces.length ? h('div.eq-puces', puces) : null]),
       h('td', { title: veh + (c.vin ? '\nNIV ' + c.vin : '') }, [h('div.coupe', { text: vehCourt }), h('div.vin.coupe', { text: c.vin ? '…' + String(c.vin).slice(-8) : '' })]),
       h('td', { title: titreContrat }, [h('div.coupe', { text: typeC + (r.tauxContrat !== null ? ' · ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? '*' : '') : '') }), h('div.sous.coupe' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'éch. ' + moisAn(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' m)' : '') : '' })]),
-      h('td.num', { text: fmtK(nombre(c.paiement)) }),
+      h('td.num.eq-paie', { title: titrePaie }, [h('div', { text: fmt$(nombre(c.paiement)) }), projEl]),
       h('td.num', [valeurEl]),
       h('td.num', { title: titreDette }, [h('button.eq-dette', { type: 'button', text: fmtK(r.solde), onclick: function () { self.detailDette(r); } }), h('div.sous.coupe', { text: sourceDetteCourte(r) })]),
       h('td.num', { title: r.location && r.equiteEcheance !== null ? 'À l\'échéance : ' + fmtSigne(r.equiteEcheance) : '' }, [h('div' + eqCls, { text: r.equite === null ? '—' : fmtKSigne(r.equite) }), r.location && r.equiteEcheance !== null ? h('div.sous', { text: 'éch. ' + fmtKSigne(r.equiteEcheance) }) : null]),
       h('td.num.eq-us-cell', [self.celluleUS(r)]),
       h('td', [neufEl]),
-      h('td', { title: c.conseiller || '' }, [h('div.coupe', { text: nomCourt(c.conseiller) || '—' })]),
       h('td', [selSuivi])
     ]);
   };

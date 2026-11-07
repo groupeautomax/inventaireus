@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Vos documents à signer</title>
+<!--
+  Page de l'employé du portail RH (PortailRH.gs, 7 nov. 2026). Le lien vient des ressources humaines par courriel (ou texto) :
+  rh/signer.html?e=RH-101&k=CODE. Pas de compte. L'employé ouvre chaque document (ses pages, dessinées au dépôt), coche
+  « J'ai lu », ajoute les pièces demandées (spécimen de chèque, formulaire rempli…), tape son nom et signe au doigt.
+  La signature est celle des contrats de vente (tablette de site/mock/tablette-signature.js, recopiée ici, ES5).
+  &apercu=1 : la RH regarde la page — rien n'est noté ni signé.
+-->
+<style>
+  :root { --vert: #008840; --vert-f: #0a6136; --vert-p: #e7f5ed; --texte: #16181c; --doux: #5b6270; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px; --ambre: #8a5a00; --ambre-p: #fff4d6; --rouge: #8a1d1d; --rouge-p: #fdecec; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 760px; margin: 0 auto; }
+  .marque { font-weight: 700; color: var(--vert); font-size: 16px; }
+  .pousse { margin-left: auto; }
+  .langue { padding: 6px 10px; font: inherit; font-size: 13px; font-weight: 650; border-radius: 999px; border: 1px solid var(--trait); background: #fff; color: var(--texte); cursor: pointer; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px 16px 60px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  h1 { font-size: 22px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.3px; }
+  h2 { font-size: 17px; margin: 0 0 4px; display: flex; gap: 10px; align-items: center; }
+  h2 .num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--vert-p); color: var(--vert-f); font-size: 14px; flex: none; }
+  h2 .num.fait { background: var(--vert); color: #fff; }
+  .sous { color: var(--doux); font-size: 14px; margin: 0 0 10px; }
+  .message { border-left: 3px solid var(--vert); padding: 4px 12px; margin: 12px 0 0; font-size: 15px; white-space: pre-wrap; }
+  .bandeau { border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 14.5px; }
+  .bandeau.ambre { background: var(--ambre-p); color: var(--ambre); } .bandeau.vert { background: var(--vert-p); color: var(--vert-f); } .bandeau.rouge { background: var(--rouge-p); color: var(--rouge); }
+  .doc { border: 1px solid var(--trait); border-radius: 12px; margin-top: 10px; overflow: hidden; }
+  .doc .tete { display: flex; gap: 10px; align-items: center; padding: 12px 14px; cursor: pointer; }
+  .doc .tete .t { flex: 1; min-width: 0; } .doc .tete b { display: block; font-size: 15.5px; } .doc .tete small { color: var(--doux); font-size: 13px; }
+  .etat { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #eef0f3; color: var(--doux); white-space: nowrap; }
+  .etat.ok { background: var(--vert-p); color: var(--vert-f); }
+  .pages { background: #e9ebef; padding: 10px; max-height: 75vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .pages img { display: block; width: 100%; height: auto; background: #fff; margin: 0 auto 10px; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+  .lu { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-top: 1px solid var(--trait); font-size: 15px; background: #fbfcfd; }
+  .lu input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--vert); }
+  .piece { border: 1px solid var(--trait); border-radius: 12px; padding: 12px 14px; margin-top: 10px; }
+  .piece b { font-size: 15.5px; } .piece .note { color: var(--doux); font-size: 13.5px; margin: 2px 0 8px; }
+  .fichier { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 14px; padding: 6px 0; border-top: 1px dashed var(--trait); }
+  .boutons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  button.b { padding: 11px 16px; font: inherit; font-size: 15px; font-weight: 650; border-radius: 12px; cursor: pointer; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); }
+  button.b.principal { background: var(--vert); color: #fff; border-color: var(--vert); }
+  button.b.petit { padding: 6px 11px; font-size: 13px; border-radius: 10px; }
+  button.b:disabled { opacity: .45; cursor: not-allowed; }
+  label.champ { display: block; font-size: 13px; font-weight: 650; color: var(--doux); margin: 12px 0 4px; }
+  input.saisie { width: 100%; padding: 12px; font: inherit; font-size: 16px; border: 1px solid var(--trait); border-radius: 10px; }
+  .tablette { position: relative; height: 180px; border: 2px dashed #c9ced6; border-radius: 12px; background: #fff; touch-action: none; }
+  .tablette-canvas { display: block; touch-action: none; }
+  .tablette .indice { position: absolute; left: 12px; bottom: 8px; font-size: 12.5px; color: #9aa1ab; pointer-events: none; }
+  .accord { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: 14.5px; }
+  .accord input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--vert); }
+  .manque { font-size: 13.5px; color: var(--ambre); margin-top: 8px; }
+  .chargement { text-align: center; color: var(--doux); padding: 40px 0; }
+  .roue { width: 34px; height: 34px; border-radius: 50%; border: 4px solid var(--vert-p); border-top-color: var(--vert); margin: 0 auto 10px; animation: tourne 0.9s linear infinite; }
+  @keyframes tourne { to { transform: rotate(360deg); } }
+  .pied { text-align: center; color: var(--doux); font-size: 12.5px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<header><div class="rangee"><span class="marque" id="marque">Ressources humaines</span><span class="pousse"><button class="langue" id="langue" type="button">English</button></span></div></header>
+<main id="page"><div class="chargement"><div class="roue"></div>Chargement…</div></main>
+<script>
+(function () {
+  'use strict';
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+  var q = new URLSearchParams(location.search), E = (q.get('e') || '').trim(), K = (q.get('k') || '').trim(), APERCU = q.get('apercu') === '1';
+  var page = document.getElementById('page'), btnLangue = document.getElementById('langue');
+  var etat = { d: null, langue: 'fr', pages: {}, ouverts: {}, lus: {}, tablette: null, traits: null, nom: '', accord: false, envoi: false };
+  try { etat.lus = JSON.parse(localStorage.getItem('rh_lus_' + E) || '{}') || {}; } catch (e) {}
+  function t(fr, en) { return etat.langue === 'en' ? en : fr; }
+  function h(tag, attrs, enfants) {
+    var el = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      var v = attrs[k]; if (v === undefined || v === null || v === false) return;
+      if (k === 'text') el.textContent = v; else if (k === 'class') el.className = v; else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (v === true) el.setAttribute(k, ''); else el.setAttribute(k, v);
+    });
+    [].concat(enfants || []).forEach(function (c) { if (c === null || c === undefined || c === false) return; el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return el;
+  }
+  function vider(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+  function lire(params) {
+    var u = SCRIPT_URL + '?' + Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&') + (APERCU ? '&apercu=1' : '') + '&_=' + Date.now();
+    return fetch(u).then(function (r) { return r.json(); });
+  }
+  function ecrire(corps) {
+    return fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corps) }).then(function (r) { return r.json(); });
+  }
+  function dateTexte(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); if (!m) return '';
+    var mois = etat.langue === 'en' ? ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] : ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    var j = String(Number(m[3]));
+    return etat.langue === 'en' ? mois[Number(m[2]) - 1] + ' ' + j + ', ' + m[1] : j + (j === '1' ? 'er' : '') + ' ' + mois[Number(m[2]) - 1] + ' ' + m[1];
+  }
+  function memoLus() { try { localStorage.setItem('rh_lus_' + E, JSON.stringify(etat.lus)); } catch (e) {} }
+
+  /* --------------------------------------------------------------- tablette de signature (copie de site/mock/tablette-signature.js) */
+  function creerTablette(conteneur, opts) {
+    opts = opts || {};
+    var canvas = document.createElement('canvas');
+    canvas.className = 'tablette-canvas';
+    canvas.setAttribute('aria-label', 'Zone de signature');
+    conteneur.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
+    var traits = (opts.traits || []).map(function (t) { return t.slice(); });
+    var courant = null, largeur = 0, hauteur = 0, ratio = 1;
+    function mesurer() {
+      ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      largeur = Math.max(100, conteneur.clientWidth || 300);
+      hauteur = Math.max(100, conteneur.clientHeight || 180);
+      canvas.width = Math.round(largeur * ratio); canvas.height = Math.round(hauteur * ratio);
+      canvas.style.width = largeur + 'px'; canvas.style.height = hauteur + 'px';
+      redessiner();
+    }
+    function tracer(c, t, echelle, dx, dy) {
+      if (t.length < 2) { c.beginPath(); c.arc((t[0][0] - dx) * echelle, (t[0][1] - dy) * echelle, 1.3 * echelle, 0, Math.PI * 2); c.fill(); return; }
+      c.beginPath();
+      c.moveTo((t[0][0] - dx) * echelle, (t[0][1] - dy) * echelle);
+      for (var i = 1; i < t.length - 1; i++) {
+        var mx = (t[i][0] + t[i + 1][0]) / 2, my = (t[i][1] + t[i + 1][1]) / 2;
+        c.quadraticCurveTo((t[i][0] - dx) * echelle, (t[i][1] - dy) * echelle, (mx - dx) * echelle, (my - dy) * echelle);
+      }
+      var d = t[t.length - 1];
+      c.lineTo((d[0] - dx) * echelle, (d[1] - dy) * echelle);
+      c.stroke();
+    }
+    function preparer(c, echelle) { c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = '#111'; c.fillStyle = '#111'; c.lineWidth = 2.4 * echelle; }
+    function redessiner() {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      preparer(ctx, ratio);
+      traits.forEach(function (t) { tracer(ctx, t, ratio, 0, 0); });
+    }
+    function point(e) { var r = canvas.getBoundingClientRect(); return [Math.round((e.clientX - r.left) * 10) / 10, Math.round((e.clientY - r.top) * 10) / 10]; }
+    function debut(e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      courant = [point(e)];
+      traits.push(courant);
+    }
+    function mouvement(e) {
+      if (!courant) return;
+      e.preventDefault();
+      var p = point(e), d = courant[courant.length - 1];
+      if (Math.abs(p[0] - d[0]) < 0.6 && Math.abs(p[1] - d[1]) < 0.6) return;
+      courant.push(p);
+      preparer(ctx, ratio);
+      ctx.beginPath(); ctx.moveTo(d[0] * ratio, d[1] * ratio); ctx.lineTo(p[0] * ratio, p[1] * ratio); ctx.stroke();
+    }
+    function fin() { if (!courant) return; courant = null; redessiner(); if (opts.onChange) opts.onChange(); }
+    canvas.addEventListener('pointerdown', debut);
+    canvas.addEventListener('pointermove', mouvement);
+    canvas.addEventListener('pointerup', fin);
+    canvas.addEventListener('pointercancel', fin);
+    canvas.addEventListener('pointerleave', fin);
+    window.addEventListener('resize', mesurer);
+    mesurer();
+    function longueur() {
+      var l = 0;
+      traits.forEach(function (t) { for (var i = 1; i < t.length; i++) l += Math.sqrt(Math.pow(t[i][0] - t[i - 1][0], 2) + Math.pow(t[i][1] - t[i - 1][1], 2)); });
+      return l;
+    }
+    return {
+      vide: function () { return longueur() < 40; },
+      traits: function () { return traits.map(function (t) { return t.slice(); }); },
+      effacer: function () { traits = []; courant = null; redessiner(); if (opts.onChange) opts.onChange(); },
+      detruire: function () { window.removeEventListener('resize', mesurer); },
+      image: function () {
+        if (longueur() < 40) return '';
+        var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        traits.forEach(function (t) { t.forEach(function (p) { if (p[0] < x0) x0 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[0] > x1) x1 = p[0]; if (p[1] > y1) y1 = p[1]; }); });
+        var marge = 12, w = Math.max(40, x1 - x0 + marge * 2), hh = Math.max(40, y1 - y0 + marge * 2);
+        var echelle = Math.min(1, 600 / w, 220 / hh) * 2;
+        var sortie = document.createElement('canvas');
+        sortie.width = Math.ceil(w * echelle); sortie.height = Math.ceil(hh * echelle);
+        var c = sortie.getContext('2d');
+        preparer(c, echelle);
+        traits.forEach(function (t) { tracer(c, t, echelle, x0 - marge, y0 - marge); });
+        return sortie.toDataURL('image/png');
+      }
+    };
+  }
+
+  /* --------------------------------------------------------------- fichiers de l'employé (photo réduite, PDF tel quel) */
+  function lireDataUrl(f) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { rej(new Error(t('Lecture du fichier impossible.', 'Could not read the file.'))); }; r.readAsDataURL(f); }); }
+  function reduirePhoto(url) {
+    return new Promise(function (res) {
+      var img = new Image();
+      img.onload = function () {
+        var e = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * e); c.height = Math.round(img.naturalHeight * e);
+        var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+        res(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = function () { res(url); };   /* HEIC illisible ici : envoyé tel quel */
+      img.src = url;
+    });
+  }
+  function preparerPiece(f) {
+    if (f.size > 25 * 1024 * 1024) return Promise.reject(new Error(t('Fichier trop gros.', 'File too large.')));
+    return lireDataUrl(f).then(function (url) {
+      if (/^image\//.test(f.type) || /\.(heic|heif)$/i.test(f.name)) return reduirePhoto(url);
+      return url;
+    }).then(function (url) {
+      if (url.length > 10 * 1024 * 1024 * 4 / 3 + 200) throw new Error(t('Fichier trop gros (10 Mo au plus).', 'File too large (10 MB max).'));
+      return url;
+    });
+  }
+
+  /* --------------------------------------------------------------- page */
+  function charger() {
+    if (!/^RH-\d+$/i.test(E) || !K) { erreur('LIEN_INVALIDE'); return; }
+    lire({ rhLien: E, k: K }).then(function (d) {
+      if (!d || !d.ok) { erreur(d && d.code, d); return; }
+      etat.d = d;
+      if (!etat.langueChoisie) etat.langue = d.langue === 'en' ? 'en' : 'fr';
+      (d.docs || []).forEach(function (x) { if (x.ouvert) etat.ouverts[x.id] = true; });
+      rendre();
+    }).catch(function () { erreur('RESEAU'); });
+  }
+  function erreur(code, d) {
+    if (d && d.langue && !etat.langueChoisie) etat.langue = d.langue;
+    vider(page);
+    var textes = {
+      LIEN_INVALIDE: [t('Lien invalide', 'Invalid link'), t('Ce lien n\'est pas reconnu. Vérifiez qu\'il est complet, ou demandez un nouveau lien aux ressources humaines.', 'This link is not recognized. Check that it is complete, or ask human resources for a new link.')],
+      EXPIRE: [t('Lien expiré', 'Link expired'), d && d.signe ? t('Vos documents sont signés et transmis. Pour une copie, écrivez aux ressources humaines.', 'Your documents are signed and sent. For a copy, contact human resources.') : t('Ce lien n\'est plus valide. Demandez aux ressources humaines de vous le renvoyer.', 'This link is no longer valid. Ask human resources to send it again.')],
+      RETIRE: [t('Lien retiré', 'Link withdrawn'), t('Les ressources humaines ont retiré cet envoi. Communiquez avec elles au besoin.', 'Human resources withdrew this request. Contact them if needed.')],
+      RESEAU: [t('Connexion impossible', 'Connection problem'), t('Vérifiez votre connexion Internet, puis rechargez la page.', 'Check your Internet connection, then reload the page.')]
+    };
+    var x = textes[code] || [t('Erreur', 'Error'), (d && d.erreur) || t('Réessayez dans un instant.', 'Try again in a moment.')];
+    if (d && d.concession) document.getElementById('marque').textContent = d.concession;
+    page.appendChild(h('div', { class: 'bloc' }, [h('h1', { text: x[0] }), h('p', { class: 'sous', text: x[1] }), code === 'RESEAU' ? h('button', { class: 'b principal', type: 'button', text: t('Réessayer', 'Try again'), onclick: charger }) : null]));
+  }
+  function nbLus() { return (etat.d.docs || []).filter(function (x) { return etat.lus[x.id] && etat.ouverts[x.id]; }).length; }
+  function piecesManquantes() { return (etat.d.pieces || []).filter(function (p) { return p.obligatoire && !(p.fichiers || []).length; }); }
+  function rendre() {
+    var d = etat.d; if (!d) return;
+    if (etat.tablette) { etat.traits = etat.tablette.traits(); etat.tablette.detruire(); etat.tablette = null; }
+    document.documentElement.lang = etat.langue;
+    document.title = t('Vos documents à signer', 'Your documents to sign') + ' — ' + d.concession;
+    document.getElementById('marque').textContent = d.concession;
+    btnLangue.textContent = etat.langue === 'en' ? 'Français' : 'English';
+    vider(page);
+    if (APERCU) page.appendChild(h('div', { class: 'bandeau ambre', text: t('Aperçu des ressources humaines : rien n\'est noté et la signature est désactivée.', 'Human resources preview: nothing is recorded and signing is disabled.') }));
+    var tete = h('div', { class: 'bloc' }, [
+      h('h1', { text: (d.prenom ? t('Bonjour ', 'Hello ') + d.prenom + ',' : t('Bonjour,', 'Hello,')) }),
+      h('p', { class: 'sous', text: (d.signe
+        ? t('Merci : vos documents sont signés.', 'Thank you: your documents are signed.')
+        : t((d.rh ? d.rh + ', des ressources humaines de ' + d.concession + ', vous envoie' : d.concession + ' vous envoie') + ' des documents à lire et à signer. Le lien est valide jusqu\'au ' + dateTexte(d.expireLe) + '.',
+            (d.rh ? d.rh + ' from human resources at ' + d.concession + ' sent you' : d.concession + ' sent you') + ' documents to read and sign. The link is valid until ' + dateTexte(d.expireLe) + '.')) }),
+      d.message ? h('div', { class: 'message', text: d.message }) : null
+    ]);
+    page.appendChild(tete);
+    if (d.signe) { rendreSigne(d); return; }
+    var n = 1;
+    if ((d.docs || []).length) page.appendChild(blocDocuments(d, n++));
+    if ((d.pieces || []).length) page.appendChild(blocPieces(d, n++));
+    page.appendChild(blocSignature(d, n++));
+    page.appendChild(h('p', { class: 'pied', text: t('Lien personnel : ne le transférez pas. Vos renseignements sont transmis seulement au service de la paie de votre employeur.', 'Personal link: do not forward it. Your information is sent only to your employer\'s payroll department.') }));
+  }
+  function blocDocuments(d, n) {
+    var tous = nbLus() === d.docs.length;
+    var b = h('div', { class: 'bloc' }, [
+      h('h2', {}, [h('span', { class: 'num' + (tous ? ' fait' : ''), text: tous ? '✓' : String(n) }), t('Lire les documents', 'Read the documents')]),
+      h('p', { class: 'sous', text: t('Touchez chaque document pour le lire, puis cochez « J\'ai lu ce document ».', 'Tap each document to read it, then check “I have read this document”.') })
+    ]);
+    d.docs.forEach(function (x) {
+      var corps = h('div'), ouvert = { v: false };
+      var lu = !!(etat.lus[x.id] && etat.ouverts[x.id]);
+      var tete = h('div', { class: 'tete', role: 'button', tabindex: '0' }, [
+        h('div', { class: 't' }, [h('b', { text: x.nom }), h('small', { text: (x.nbPages ? x.nbPages + ' page' + (x.nbPages > 1 ? 's' : '') : '') + (x.description ? ' · ' + x.description : '') })]),
+        h('span', { class: 'etat' + (lu ? ' ok' : ''), text: lu ? t('Lu ✓', 'Read ✓') : t('À lire', 'To read') })
+      ]);
+      var bascule = function () {
+        ouvert.v = !ouvert.v; vider(corps);
+        if (!ouvert.v) return;
+        if (etat.pages[x.id]) { corps.appendChild(vue(x)); return; }
+        corps.appendChild(h('div', { class: 'chargement' }, [h('div', { class: 'roue' }), t('Ouverture du document…', 'Opening the document…')]));
+        lire({ rhDoc: E, k: K, doc: x.id, quoi: 'pages' }).then(function (r) {
+          if (!r || !r.ok) throw new Error((r && r.erreur) || t('Document indisponible.', 'Document unavailable.'));
+          etat.pages[x.id] = r.pages; etat.ouverts[x.id] = true;
+          if (!ouvert.v) return;   /* refermé pendant le chargement */
+          vider(corps); corps.appendChild(vue(x));
+        }).catch(function (e) { vider(corps); corps.appendChild(h('div', { class: 'bandeau rouge', text: e.message })); });
+      };
+      tete.addEventListener('click', bascule);
+      tete.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); bascule(); } });
+      b.appendChild(h('div', { class: 'doc' }, [tete, corps]));
+    });
+    return b;
+  }
+  function vue(x) {
+    var pages = h('div', { class: 'pages' }, etat.pages[x.id].map(function (src, i) { return h('img', { src: src, alt: t('Page ', 'Page ') + (i + 1), loading: 'lazy' }); }));
+    var c = h('input', { type: 'checkbox', checked: !!etat.lus[x.id] });
+    c.addEventListener('change', function () { if (c.checked) etat.lus[x.id] = new Date().toISOString(); else delete etat.lus[x.id]; memoLus(); rendre(); });
+    return h('div', {}, [pages, h('label', { class: 'lu' }, [c, h('span', { text: t('J\'ai lu ce document : « ' + x.nom + ' ».', 'I have read this document: “' + x.nom + '”.') })])]);
+  }
+  function blocPieces(d, n) {
+    var manque = piecesManquantes().length;
+    var b = h('div', { class: 'bloc' }, [
+      h('h2', {}, [h('span', { class: 'num' + (!manque ? ' fait' : ''), text: !manque ? '✓' : String(n) }), t('Fournir les pièces demandées', 'Provide the requested items')]),
+      h('p', { class: 'sous', text: t('Une photo nette ou un PDF. Un formulaire : téléchargez-le, remplissez-le, puis ajoutez-le ici.', 'A clear photo or a PDF. A form: download it, fill it in, then add it here.') })
+    ]);
+    d.pieces.forEach(function (p) {
+      var inF = h('input', { type: 'file', accept: 'image/*,application/pdf', style: 'display:none' });
+      var etatP = h('div', { class: 'manque' });
+      inF.addEventListener('change', function () {
+        var f = inF.files && inF.files[0]; inF.value = '';
+        if (!f) return;
+        if (APERCU) { etatP.textContent = t('Aperçu : rien n\'est envoyé.', 'Preview: nothing is sent.'); return; }
+        etatP.textContent = t('Envoi…', 'Sending…');
+        preparerPiece(f).then(function (url) { return ecrire({ action: 'rhPiece', e: E, k: K, piece: p.id, base64: url }); }).then(function (r) {
+          if (!r || !r.ok) throw new Error((r && r.erreur) || t('Envoi impossible.', 'Upload failed.'));
+          etat.d = r.envoi; rendre();
+        }).catch(function (e) { etatP.textContent = e.message; });
+      });
+      b.appendChild(h('div', { class: 'piece' }, [
+        h('b', { text: p.libelle + (p.obligatoire ? '' : t(' (facultatif)', ' (optional)')) }),
+        p.note ? h('div', { class: 'note', text: p.note }) : null,
+        h('div', {}, (p.fichiers || []).map(function (f) {
+          return h('div', { class: 'fichier' }, [h('span', { text: '✓ ' + f.nom }), h('button', { class: 'b petit', type: 'button', text: t('Retirer', 'Remove'), onclick: function () {
+            if (APERCU) return;
+            ecrire({ action: 'rhPieceRetirer', e: E, k: K, piece: p.id, fichier: f.id }).then(function (r) { if (r && r.ok) { etat.d = r.envoi; rendre(); } else etatP.textContent = (r && r.erreur) || ''; });
+          } })]);
+        })),
+        h('div', { class: 'boutons' }, [
+          h('button', { class: 'b', type: 'button', text: (p.fichiers || []).length ? t('Ajouter un autre fichier', 'Add another file') : t('Ajouter une photo ou un fichier', 'Add a photo or a file'), onclick: function () { inF.click(); } }), inF,
+          p.formulaire ? h('button', { class: 'b', type: 'button', text: t('Télécharger le formulaire', 'Download the form'), onclick: function () { telecharger({ rhDoc: E, k: K, quoi: 'formulaire', piece: p.id }, p.formulaire.nom + '.pdf'); } }) : null
+        ]),
+        etatP
+      ]));
+    });
+    return b;
+  }
+  function blocSignature(d, n) {
+    var inNom = h('input', { class: 'saisie', type: 'text', autocomplete: 'name', value: etat.nom || '', placeholder: t('Prénom et nom', 'First and last name') });
+    var zone = h('div', { class: 'tablette' }, [h('span', { class: 'indice', text: t('Signez ici avec le doigt ou la souris', 'Sign here with your finger or mouse') })]);
+    var accord = h('input', { type: 'checkbox', checked: etat.accord });
+    var nDocs = (d.docs || []).length;
+    var texteAccord = nDocs
+      ? t('Je confirme avoir lu ' + (nDocs > 1 ? 'les ' + nDocs + ' documents' : 'le document') + ' ci-dessus et je ' + (nDocs > 1 ? 'les' : 'le') + ' signe électroniquement. Ma signature tracée a la même valeur qu\'une signature manuscrite.',
+          'I confirm that I have read the ' + (nDocs > 1 ? nDocs + ' documents' : 'document') + ' above and I sign ' + (nDocs > 1 ? 'them' : 'it') + ' electronically. My drawn signature has the same value as a handwritten signature.')
+      : t('Je confirme que les pièces fournies sont les miennes et je signe électroniquement leur envoi.', 'I confirm that the items provided are mine and I electronically sign their submission.');
+    var manqueEl = h('div', { class: 'manque' });
+    var btn = h('button', { class: 'b principal', type: 'button', text: t('Signer et envoyer', 'Sign and send') });
+    var maj = function () {
+      etat.nom = inNom.value; etat.accord = accord.checked;
+      var m = [];
+      var aLire = (d.docs || []).filter(function (x) { return !(etat.lus[x.id] && etat.ouverts[x.id]); });
+      if (aLire.length) m.push(t('lire et cocher : ', 'read and check: ') + aLire.map(function (x) { return x.nom; }).join(', '));
+      var pm = piecesManquantes(); if (pm.length) m.push(t('ajouter : ', 'add: ') + pm.map(function (p) { return p.libelle; }).join(', '));
+      if (inNom.value.trim().length < 3) m.push(t('taper votre nom', 'type your name'));
+      if (!etat.tablette || etat.tablette.vide()) m.push(t('signer dans le cadre', 'sign in the box'));
+      if (!accord.checked) m.push(t('cocher la case', 'check the box'));
+      manqueEl.textContent = m.length ? t('Il reste à ', 'Still to do: ') + m.join(' · ') + '.' : '';
+      btn.disabled = !!m.length || etat.envoi || APERCU;
+    };
+    inNom.addEventListener('input', maj); accord.addEventListener('change', maj);
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      etat.envoi = true; btn.disabled = true; btn.textContent = t('Signature en cours…', 'Signing…');
+      ecrire({ action: 'rhSigner', e: E, k: K, nom: inNom.value.trim(), signatureImage: etat.tablette.image(), accepte: true,
+        lus: (d.docs || []).filter(function (x) { return etat.lus[x.id]; }).map(function (x) { return x.id; }), agent: navigator.userAgent }).then(function (r) {
+        etat.envoi = false;
+        if (!r || !r.ok) { btn.textContent = t('Signer et envoyer', 'Sign and send'); manqueEl.textContent = (r && r.erreur) || t('Signature impossible : réessayez.', 'Could not sign: try again.'); maj(); return; }
+        etat.d = r.envoi; try { localStorage.removeItem('rh_lus_' + E); } catch (e) {}
+        rendre(); window.scrollTo(0, 0);
+      }).catch(function () { etat.envoi = false; btn.textContent = t('Signer et envoyer', 'Sign and send'); manqueEl.textContent = t('Connexion impossible : réessayez.', 'Connection problem: try again.'); maj(); });
+    });
+    var b = h('div', { class: 'bloc' }, [
+      h('h2', {}, [h('span', { class: 'num', text: String(n) }), t('Signer', 'Sign')]),
+      h('label', { class: 'champ', text: t('Votre nom complet', 'Your full name') }), inNom,
+      h('label', { class: 'champ', text: t('Votre signature', 'Your signature') }), zone,
+      h('div', { class: 'boutons' }, [h('button', { class: 'b petit', type: 'button', text: t('Effacer la signature', 'Clear signature'), onclick: function () { if (etat.tablette) etat.tablette.effacer(); } })]),
+      h('label', { class: 'accord' }, [accord, h('span', { text: texteAccord })]),
+      h('div', { class: 'boutons', style: 'margin-top:14px' }, [btn]),
+      manqueEl
+    ]);
+    setTimeout(function () {
+      etat.tablette = creerTablette(zone, { traits: etat.traits || [], onChange: function () { var i = zone.querySelector('.indice'); if (i) i.style.display = etat.tablette && !etat.tablette.vide() ? 'none' : ''; maj(); } });
+      var i = zone.querySelector('.indice'); if (i && !etat.tablette.vide()) i.style.display = 'none';
+      maj();
+    }, 0);
+    return b;
+  }
+  function rendreSigne(d) {
+    var b = h('div', { class: 'bloc' }, [
+      h('div', { class: 'bandeau vert', text: t('Signé le ', 'Signed on ') + dateTexte(d.signeLe) + (d.signatureNom ? ' — ' + d.signatureNom : '') + '. ' + (d.transmis ? t('Votre dossier a été transmis au service de la paie.', 'Your file was sent to payroll.') : t('Votre dossier part au service de la paie dans la minute.', 'Your file is being sent to payroll.')) }),
+      h('h2', {}, [t('Vos copies signées', 'Your signed copies')]),
+      h('p', { class: 'sous', text: t('Gardez une copie pour vous. Elles sont téléchargeables jusqu\'au ', 'Keep a copy for yourself. They can be downloaded until ') + dateTexte(d.expireLe) + '.' })
+    ]);
+    (d.docs || []).forEach(function (x) {
+      var etatC = h('div', { class: 'manque' });
+      b.appendChild(h('div', { class: 'piece' }, [h('b', { text: x.nom }), h('div', { class: 'boutons' }, [h('button', { class: 'b', type: 'button', text: t('Télécharger ma copie signée', 'Download my signed copy'), onclick: function () {
+        etatC.textContent = t('Préparation…', 'Preparing…');
+        telecharger({ rhDoc: E, k: K, doc: x.id, quoi: 'signe' }, x.nom + ' — signé.pdf', etatC);
+      } })]), etatC]));
+    });
+    if (!(d.docs || []).length) b.appendChild(h('p', { text: t('Vos pièces ont été reçues.', 'Your items were received.') }));
+    page.appendChild(b);
+  }
+  function telecharger(params, nom, etatEl) {
+    lire(params).then(function (r) {
+      if (!r || !r.ok || !r.base64) throw new Error((r && r.erreur) || t('Fichier indisponible.', 'File unavailable.'));
+      var bin = atob(r.base64), oct = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) oct[i] = bin.charCodeAt(i);
+      var url = URL.createObjectURL(new Blob([oct], { type: r.mime || 'application/pdf' }));
+      var a = document.createElement('a'); a.href = url; a.download = r.nom || nom; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      if (etatEl) etatEl.textContent = '';
+    }).catch(function (e) { if (etatEl) etatEl.textContent = e.message; else alert(e.message); });
+  }
+  btnLangue.addEventListener('click', function () { etat.langueChoisie = true; etat.langue = etat.langue === 'en' ? 'fr' : 'en'; if (etat.d) rendre(); else charger(); });
+  charger();
+})();
+</script>
+</body>
+</html>

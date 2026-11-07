@@ -33,7 +33,7 @@
   var TAILLE_LOT = 300;
   /* 6 nov. : `taux` et `terme` ne servent plus (Maxime : « il faut enlever le paiement par défaut ») — gardés pour les réglages
      déjà mémorisés ; la mensualité vient seulement d'un programme du manufacturier, au terme du contrat. */
-  var PARAMS_DEFAUT = { taux: 5.99, terme: 60, frais: 2995, marge: 50, taxes: 14.975, comptant: 0, kmAn: 20000 };
+  var PARAMS_DEFAUT = { taux: 5.99, terme: 60, frais: 2995, marge: 50, taxes: 14.975, comptant: 0, kmAn: 20000, ecartTaux: 2 };
   var SUIVIS = { '': '—', contacte: 'Contacté', rdv: 'Rendez-vous', vendu: 'Vendu', pasInteresse: 'Pas intéressé', plusTard: 'Plus tard' };
   var SUIVIS_ORDRE = ['', 'contacte', 'rdv', 'vendu', 'pasInteresse', 'plusTard'];
   /* Colonnes de l'export InfoBahn → clés du serveur (Equite.gs). L'adresse civique n'est pas gardée. */
@@ -85,7 +85,7 @@
   function valeurChamp(r, champ) {
     var c = r.compte;
     switch (champ) {
-      case 'taux': return nombre(c.taux); case 'paiement': return nombre(c.paiement); case 'terme': return nombre(c.terme);
+      case 'taux': return r.tauxContrat !== undefined ? r.tauxContrat : nombre(c.taux); case 'paiement': return nombre(c.paiement); case 'terme': return nombre(c.terme);
       case 'moisRestants': return r.moisRestants; case 'echeance': return texte(c.echeance); case 'dateContrat': return texte(c.dateContrat);
       case 'typeContrat': return r.location ? 'location' : 'financement'; case 'annee': return nombre(c.annee);
       case 'marque': return texte(c.marque); case 'modele': return texte(c.modele); case 'version': return texte(c.version);
@@ -171,6 +171,48 @@
   function fractionMois(ajd, ech, n) {
     var a = dateMidi(ajd), e = dateMidi(ech); if (!a || !e || !n) return 0;
     return Math.max(0, Math.min(1, (a - ajouterMois(e, -n)) / JOUR_MS / MOIS_J));
+  }
+  /* ---- 7 nov. (Maxime : « faire des recherches de clients qui paient plus d'intérêt sur leur prêt qu'ils pourraient en payer
+     aujourd'hui, par 2 % et plus — pastille « Sauver de l'intérêt » », « pour toutes les concessions »). Le taux du contrat vient
+     du prêteur (InfoBahn, GM Dealer Direct, VW Finance) ; Hyundai Finance ne le donne pas : il se déduit du rachat, du paiement,
+     des mensualités qui restent (et du résiduel d'une location). Vérifié le 7 nov. sur 2 598 contrats : prêts 5,1 % en moyenne,
+     locations 4,1 % (paiement ramené avant taxes). ---- */
+  /** Le paiement qui rembourse `montant` en `mois` mensualités en laissant `reste` (résiduel d'une location) à la fin. */
+  function annuite(montant, reste, mois, tauxPct) {
+    var B = nombre(montant), R = nombre(reste) || 0, n = nombre(mois), i = (nombre(tauxPct) || 0) / 1200;
+    if (B === null || !n || n <= 0) return null;
+    var a = i ? (B - R * Math.pow(1 + i, -n)) * i / (1 - Math.pow(1 + i, -n)) : (B - R) / n;
+    return Math.max(0, a);
+  }
+  /** Le taux (% par année) qui fait que `mois` paiements de `paiement` (+ `reste` à la fin) valent `solde` aujourd'hui ; null hors de 0-30 %. */
+  function tauxDeduit(solde, paiement, mois, reste) {
+    var B = nombre(solde), P = nombre(paiement), n = nombre(mois), R = nombre(reste) || 0;
+    if (!(B > 0) || !(P > 0) || !(n > 0)) return null;
+    var va = function (i) { return (i ? P * (1 - Math.pow(1 + i, -n)) / i : P * n) + R * Math.pow(1 + i, -n); };
+    if (va(0) < B || va(0.025) > B) return null;
+    var lo = 0, hi = 0.025;
+    for (var k = 0; k < 60; k++) { var m = (lo + hi) / 2; if (va(m) > B) lo = m; else hi = m; }
+    return Math.round((lo + hi) / 2 * 1200 * 100) / 100;
+  }
+  /** Le taux du contrat d'un compte → { taux, source : preteur | estime | '' }. */
+  function tauxContrat(c, params, mode) {
+    var t = nombre(c.taux);
+    if (t !== null && t >= 100 && t < 100000) t = Math.round(t / 2400 * 1000) / 1000;   /* VW Finance : taux de location lu ×2 400 (favori du 4 nov.) */
+    else if (t !== null && t > 0 && t < 0.1) t = Math.round(t * 2400 * 1000) / 1000;   /* facteur de location pas converti */
+    if (t !== null && t >= 0 && t < 40) return { taux: t, source: 'preteur' };
+    var B = nombre(c.payoffBmw), P = nombre(c.paiement), le = texte(c.payoffLe || c.luLe).slice(0, 10);
+    if (!(B > 0) || !(P > 0) || !c.echeance || !dateMidi(le)) return { taux: null, source: '' };
+    var n = mensualitesRestantes(le, c.echeance); if (!n) return { taux: null, source: '' };
+    var loc = estLocation(c), R = loc ? (nombre(c.residuel) || 0) : 0;
+    if (loc && mode === 'hmf') P = P / (1 + (nombre(params && params.taxes) || 0) / 100);   /* Hyundai Finance : paiement taxes comprises */
+    var x = tauxDeduit(B, P, n, R);
+    return x === null ? { taux: null, source: '' } : { taux: x, source: 'estime' };
+  }
+  function fmtTaux(x) { return x === null || x === undefined ? '—' : String(Math.round(x * 100) / 100).replace('.', ',') + ' %'; }
+  /** Le texte de la pastille « Sauver de l'intérêt ». */
+  function texteInteret(r) {
+    return fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé)' : '') + ' → ' + fmtTaux(r.tauxJour) + ' · −' + String(r.ecartTaux).replace('.', ',') + ' pts'
+      + (r.interetSauve ? ' · ≈ ' + fmt$(r.interetSauve) + ' d\'intérêts' : '');
   }
   /** La dette d'un compte au jour `ajd` → { solde, echeance (dû à l'échéance), source : preteur | contrat | fige | '', base, baseLe, paiements, n, taux, paiement }. */
   function detteDe(c, ajd) {
@@ -632,6 +674,7 @@
       /* Solde : financement → payoff BMW ; location → résiduel + paiements restants (rachat maintenant) ; à l'échéance = résiduel. */
       /* 5 nov. : la dette du jour (detteDe) — solde du prêteur reporté à aujourd'hui, sinon calculée d'après le contrat. */
       r.dette = detteDe(c, ajd);
+      var tc = tauxContrat(c, params, mode); r.tauxContrat = tc.taux; r.tauxSource = tc.source;
       r.solde = r.dette.solde; r.soldeEcheance = r.location ? nombre(c.residuel) : 0;
       /* Valeur : OpenLane seulement (prévision, sinon ajusté au km, sinon moyenne des ventes). 4 nov. : plus l'estimation du prêteur
          (Black Book chez GM et VW) — Maxime : « on n'utilise pas Black Book mais OpenLane ». Sans lecture OpenLane : « à lire ». */
@@ -726,6 +769,18 @@
         r.ecart = r.mensualite !== null && paiement ? r.mensualite - paiement : null;
         r.cible = r.valeur !== null && r.ecart !== null && r.ecart <= (nombre(params.marge) || 0);
       } else { r.finance = null; r.mensualite = null; r.ecart = null; r.cible = false; }
+      /* Sauver de l'intérêt : le taux du contrat dépasse d'au moins `ecartTaux` points celui du programme d'aujourd'hui (même
+         transaction, même terme, fidélité comprise). Intérêts sauvés = (paiement au taux du contrat − paiement au taux du jour)
+         sur la dette du jour et les mensualités qui restent. */
+      r.tauxJour = r.programme && !r.programme.manquant && nombre(r.programme.taux) !== null ? nombre(r.programme.taux) : null;
+      r.ecartTaux = r.tauxContrat !== null && r.tauxJour !== null ? Math.round((r.tauxContrat - r.tauxJour) * 100) / 100 : null;
+      var nRest = r.dette ? r.dette.n : null, seuilTaux = nombre(params.ecartTaux) !== null ? nombre(params.ecartTaux) : 2;
+      r.interetMois = null; r.interetSauve = null;
+      if (r.ecartTaux !== null && r.ecartTaux > 0 && r.solde > 0 && nRest > 0) {
+        var resteR = r.location ? (nombre(c.residuel) || 0) : 0, pa = annuite(r.solde, resteR, nRest, r.tauxContrat), pb = annuite(r.solde, resteR, nRest, r.tauxJour);
+        if (pa !== null && pb !== null) { r.interetMois = Math.round((pa - pb) * 100) / 100; r.interetSauve = Math.round((pa - pb) * nRest); }
+      }
+      r.sauver = r.ecartTaux !== null && r.ecartTaux >= seuilTaux && r.solde > 0 && nRest > 0;
       r.sansValeur = r.valeur === null;
       r.ndnc = c.ndnc === 'oui';
       r.score = (r.cible ? 100000 : 0) + (r.equite || 0) + (r.echeanceProche ? 5000 : 0);
@@ -780,7 +835,7 @@
     },
     params: function () { var p = AMX.memo.lire('equite_params', null); return Object.assign({}, PARAMS_DEFAUT, p && typeof p === 'object' ? p : {}); },
     poserParams: function (p) { AMX.memo.ecrire('equite_params', Object.assign({}, AMX.equite.params(), p || {})); },
-    lireExport: lireExport, serieDe: serieDe, famille: famille, analyser: analyser, pmt: pmt, dateIso: dateIso, detteDe: detteDe, mensualitesRestantes: mensualitesRestantes,
+    lireExport: lireExport, serieDe: serieDe, famille: famille, analyser: analyser, pmt: pmt, dateIso: dateIso, detteDe: detteDe, mensualitesRestantes: mensualitesRestantes, tauxContrat: tauxContrat, tauxDeduit: tauxDeduit, annuite: annuite,
     kmAnContrat: kmAnContrat, grilleChoix: grilleChoix, programmeNeuf: programmeNeuf, mensualiteLocation: mensualiteLocation,
     PARAMS_DEFAUT: PARAMS_DEFAUT, SUIVIS: SUIVIS,
     monter: function (conteneur, cie, ctx) { return new VueEquite(conteneur, cie, ctx); }
@@ -810,8 +865,8 @@
       '.eq-page .eq-resume { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--fond-2, #F4F6F8); font-size: 13px; } .eq-page .eq-resume.ok { background: var(--vert-bg, #E6F4EC); } .eq-page .eq-resume.erreur { background: var(--rouge-bg); }',
       '.eq-page .eq-etapes { margin: 0; padding-left: 18px; line-height: 1.6; font-size: 13px; }',
       '.eq-ia { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; } .eq-ia .eq-ia-champ { flex: 1 1 auto; height: 34px; } .eq-ia .maxai-avatar, .eq-ia img { flex: 0 0 auto; }',
-      '.eq-fid { display: flex; gap: 6px; align-items: center; margin-top: 3px; flex-wrap: wrap; } .eq-fid-puce { background: #E3F4EA; color: #0B6B3A; font-weight: 700; font-size: 12px; padding: 1px 7px; border-radius: 8px; }',
-      '.eq-fid-carte { margin: 10px 0 4px; } .eq-fid-carte summary { cursor: pointer; padding: 6px 0; } .eq-fid-carte table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; } .eq-fid-carte th, .eq-fid-carte td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--ligne, #E4E8EC); vertical-align: top; } .eq-fid-carte th { font-size: 12px; color: var(--encre-3, #4B5563); font-weight: 600; } .eq-fid-carte .pin { font-family: ui-monospace, Menlo, monospace; } .eq-fid-carte .defile { overflow-x: auto; } .eq-fid-carte .outils { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }',
+      '.eq-int-puce { background: #E6EEFB; color: #1A4FA0; font-weight: 700; font-size: 12px; padding: 1px 7px; border-radius: 8px; } .eq-fid { display: flex; gap: 6px; align-items: center; margin-top: 3px; flex-wrap: wrap; } .eq-fid-puce { background: #E3F4EA; color: #0B6B3A; font-weight: 700; font-size: 12px; padding: 1px 7px; border-radius: 8px; }',
+      '.eq-fid-carte { margin: 10px 0 4px; border: 1px solid #BFE3CC; border-left: 4px solid #0B8A45; border-radius: 8px; background: #F4FBF6; padding: 2px 12px 8px; } .eq-fid-carte summary { cursor: pointer; padding: 8px 0 4px; list-style: none; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .eq-fid-carte summary::-webkit-details-marker { display: none; } .eq-fid-carte summary .fleche { display: inline-block; transition: transform .15s; color: #0B6B3A; } .eq-fid-carte details[open] summary .fleche { transform: rotate(90deg); } .eq-fid-carte summary .ouvrir { margin-left: auto; color: #0B6B3A; font-weight: 600; font-size: 13px; } .eq-fid-carte .eq-fid-vues { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; } .eq-fid-carte .eq-fid-vues button { border: 1px solid #BFE3CC; background: #fff; border-radius: 14px; padding: 3px 10px; font-size: 13px; cursor: pointer; } .eq-fid-carte .eq-fid-vues button[aria-pressed="true"] { background: #0B8A45; border-color: #0B8A45; color: #fff; } .eq-fid-carte table { background: #fff; } .eq-exp-ok { color: #0B6B3A; font-weight: 700; } .eq-exp-non { color: #B42318; font-weight: 700; } .eq-fid-carte table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; } .eq-fid-carte th, .eq-fid-carte td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--ligne, #E4E8EC); vertical-align: top; } .eq-fid-carte th { font-size: 12px; color: var(--encre-3, #4B5563); font-weight: 600; } .eq-fid-carte .pin { font-family: ui-monospace, Menlo, monospace; } .eq-fid-carte .defile { overflow-x: auto; } .eq-fid-carte .outils { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }',
       '.eq-us { display: flex; gap: 6px; align-items: center; margin-top: 3px; } .eq-us-puce { background: #E8F0FE; color: #1A64BF; font-weight: 700; font-size: 11.5px; padding: 1px 6px; border-radius: 8px; }',
       '.eq-ia-res { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 12px; border-radius: 10px; background: var(--vert-clair); font-size: 13px; } .eq-ia-res .sous { color: var(--encre-3); font-size: 12px; flex: 1 1 200px; }',
       '.eq-sync { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--fond-2, #F4F6F8); font-size: 13px; } .eq-sync.ok { background: var(--vert-clair); } .eq-sync.alerte { background: #FFF4E0; color: var(--ambre); } .eq-sync .eq-sync-txt { flex: 1 1 260px; }',
@@ -917,6 +972,7 @@
       if (quoi === 'exportables' && !r.exportable) return false;
       if (quoi === 'meilleurUS' && !r.meilleurUS) return false;
       if (quoi === 'fidelite' && !r.fidelite) return false;
+      if (quoi === 'interet' && !r.sauver) return false;
       if (f.type === 'location' && !r.location) return false;
       if (f.type === 'financement' && r.location) return false;
       if (f.echeance && (r.moisRestants === null || r.moisRestants > Number(f.echeance))) return false;
@@ -970,10 +1026,11 @@
     var paramsCorps = h('div.eq-params', [
       champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
       champ('marge', 'Marge $/mois', '1', 'Une cible peut payer jusqu\'à ce montant de plus par mois'), champ('taxes', 'Taxes %', '0.001', 'TPS + TVQ sur la différence prix − valeur de l\'échange'), champ('comptant', 'Comptant $', '1'), champ('kmAn', 'Km / an', '1000', 'Km estimé d\'un véhicule financé (pour OpenLane), et km d\'une location dont le contrat ne donne pas les km'),
+      champ('ecartTaux', 'Sauver de l\'intérêt : écart (pts)', '0.25', 'Pastille « Sauver de l\'intérêt » : le taux du contrat dépasse d\'au moins ce nombre de points celui du programme d\'aujourd\'hui (même transaction, même terme)'),
       h('span.doux.petit', { style: { alignSelf: 'center' } }, 'Même transaction que le contrat du client : un client en location se compare à une location du neuf au terme et aux km par année de son contrat (cap net = PDSF + frais − rabais − (valeur − dette) ; résiduel % du PDSF ; taxes sur chaque paiement) ; un client en financement, à un financement au terme de son contrat ((PDSF + frais − rabais − valeur) + taxes + dette). Taux, résiduel et rabais : programme du manufacturier seulement (Programmes du mois ; GM : Financière GM). Sans programme pour ce terme : « Programme à trouver », pas de mensualité.')
     ]);
     var P = this.params;
-    var params = h('details.eq-reglages', { open: this.reglagesOuverts ? 'open' : null }, [h('summary', [h('b', { text: 'Calcul de la nouvelle mensualité' }), h('span', { text: ' · même transaction et même terme que le contrat · programmes du manufacturier · frais ' + fmt$(P.frais) + ' · marge ' + fmt$(P.marge) + ' / mois · taxes ' + String(P.taxes).replace('.', ',') + ' %' + (nombre(P.comptant) ? ' · comptant ' + fmt$(P.comptant) : '') })]), paramsCorps]);
+    var params = h('details.eq-reglages', { open: this.reglagesOuverts ? 'open' : null }, [h('summary', [h('b', { text: 'Calcul de la nouvelle mensualité' }), h('span', { text: ' · même transaction et même terme que le contrat · programmes du manufacturier · frais ' + fmt$(P.frais) + ' · marge ' + fmt$(P.marge) + ' / mois · taxes ' + String(P.taxes).replace('.', ',') + ' %' + (nombre(P.comptant) ? ' · comptant ' + fmt$(P.comptant) : '') + ' · intérêt ≥ ' + String(nombre(P.ecartTaux) !== null ? nombre(P.ecartTaux) : 2).replace('.', ',') + ' pts' })]), paramsCorps]);
     params.addEventListener('toggle', function () { self.reglagesOuverts = params.open; });
     /* Filtres : recherche, type, échéance, conseiller ; puis les tuiles (chacune filtre aussi) — elles comptent ce que ces filtres gardent. */
     var conseillers = {}; this.lignes.forEach(function (r) { conseillers[r.compte.conseiller || '—'] = 1; });
@@ -1036,33 +1093,50 @@
     if (!d) { el.appendChild(h('p.doux.petit', { text: 'Offres de fidélité Hyundai : lecture…' })); return; }
     if (d.absent) { el.appendChild(h('p.doux.petit', { text: 'Offres de fidélité Hyundai : le script du site n\'est pas à jour (Fidelite.gs) — il faut le déployer.' })); return; }
     if (!d.offres.length) { el.appendChild(h('div.outils', [h('span.doux.petit', { text: 'Aucune offre de fidélité Hyundai lue. Dans SmartPortal (Pistes de vente), choisissez la liste « HACC CRM -- HACC CRM - Loyalty Special Offer », puis cliquez le favori :' })].concat(boutonsFidelite()))); return; }
+    /* 7 nov. (Maxime : « je ne vois pas les 37 actives dans le tableau ») : la carte se voit, s'ouvre depuis la tuile, et se
+       filtre (actives, avec ou sans contrat Hyundai Finance, expirées). La date d'expiration est verte si l'offre vaut encore,
+       rouge si elle est échue (« indique la date d'expiration en vert si encore valide et en rouge si non valide »). */
     var act = d.offres.filter(function (o) { return o.active; }), avec = act.filter(function (o) { return o.comptes && o.comptes.length; });
-    var nDbl = act.filter(function (o) { return o.type === 'double'; }).length, nExp = d.offres.length - act.length, etat = d.etats && d.etats[this.cie];
-    var resume = AMX.fmtNombre(act.length) + ' active' + (act.length > 1 ? 's' : '') + ' (' + nDbl + ' double' + (nDbl > 1 ? 's' : '') + ')'
-      + ' · ' + avec.length + ' client' + (avec.length > 1 ? 's' : '') + ' de Hyundai Finance (taux réduit dans la liste) · ' + (act.length - avec.length) + ' sans contrat Hyundai Finance'
+    var sans = act.filter(function (o) { return !(o.comptes && o.comptes.length); }), echues = d.offres.filter(function (o) { return !o.active; });
+    var nDbl = act.filter(function (o) { return o.type === 'double'; }).length, nExp = echues.length, etat = d.etats && d.etats[this.cie];
+    var resume = AMX.fmtNombre(act.length) + ' offre' + (act.length > 1 ? 's' : '') + ' active' + (act.length > 1 ? 's' : '') + (nDbl === act.length && act.length ? ' (toutes en double fidélité)' : ' (' + nDbl + ' double' + (nDbl > 1 ? 's' : '') + ')')
+      + ' · ' + avec.length + ' client' + (avec.length > 1 ? 's' : '') + ' de Hyundai Finance · ' + sans.length + ' sans contrat Hyundai Finance'
       + (nExp ? ' · ' + nExp + ' expirée' + (nExp > 1 ? 's' : '') : '') + (etat && etat.le ? ' · lues le ' + AMX.fmtDate(etat.le) : '');
+    var ajd = iso(new Date());
+    var dateExp = function (o) {
+      if (!o.expiration) return h('td', { text: '—' });
+      var ok = o.active && String(o.expiration) >= ajd;
+      return h('td', [h('span.' + (ok ? 'eq-exp-ok' : 'eq-exp-non'), { text: AMX.fmtDate(o.expiration), title: ok ? 'Offre encore valide' : 'Offre expirée : le taux réduit ne s\'applique plus' }), h('div.sous', { text: ok ? 'valide' : 'expirée' })]);
+    };
     var ligne = function (o) {
-      var contrat = o.comptes && o.comptes.length ? h('td', [h('div', { text: 'Hyundai Finance' }), h('div.sous', { text: o.comptes.join(', ') + (o.par === 'nom' ? ' · trouvé par le nom' : '') })]) : h('td', [h('div.doux', { text: 'aucun' }), h('div.sous', { text: 'client à appeler' })]);
+      var contrat = o.comptes && o.comptes.length ? h('td', [h('div', { text: 'Hyundai Finance' }), h('div.sous', { text: o.comptes.join(', ') + (o.par === 'nom' ? ' · trouvé par le nom' : '') })]) : h('td', [h('div.doux', { text: 'aucun' }), h('div.sous', { text: o.active ? 'client à appeler' : '' })]);
       return h('tr', [
         h('td', [h('div', { text: [o.prenom, o.nom].filter(Boolean).join(' ') || '—' }), h('div.sous', { text: [o.ville, o.codePostal].filter(Boolean).join(' · ') })]),
         h('td', d.contact ? [o.telephone ? h('div', [h('a', { href: 'tel:' + o.telephone.replace(/[^\d+]/g, ''), text: o.telephone })]) : null, o.courriel ? h('div', [h('a', { href: 'mailto:' + o.courriel, text: o.courriel })]) : null] : [h('span.doux', { text: '—' })]),
         h('td', [h('div', [h('span.puce.eq-fid-puce', { text: texteFidelite(o) || 'Fidélité' })]), h('div.sous', { text: o.offre ? 'nº ' + o.offre : '' })]),
         h('td.pin', { text: d.contact ? (o.pin || '—') : '—' }),
-        h('td', { text: o.expiration ? AMX.fmtDate(o.expiration) : '—' }),
+        dateExp(o),
         h('td', { text: o.recuLe ? AMX.fmtDate(o.recuLe) : '—' }),
         contrat
       ]);
     };
-    var tri = act.slice().sort(function (a, b) { return ((b.comptes || []).length ? 1 : 0) - ((a.comptes || []).length ? 1 : 0) || String(a.expiration).localeCompare(String(b.expiration)); });
-    var voir = avec.length ? h('button.btn.petit.primaire', { type: 'button', text: 'Voir les ' + avec.length + ' client' + (avec.length > 1 ? 's' : '') + ' de Hyundai Finance', onclick: function () { self.ia = null; self.filtres.quoi = 'fidelite'; self.rendre(); } }) : null;
+    var VUES = [['', 'Actives', act], ['avec', 'Avec contrat Hyundai Finance', avec], ['sans', 'Sans contrat (à appeler)', sans], ['expirees', 'Expirées', echues]];
+    if (!VUES.some(function (v) { return v[0] === self.fidVue; })) this.fidVue = '';
+    var choisie = VUES.filter(function (v) { return v[0] === self.fidVue; })[0];
+    var tri = choisie[2].slice().sort(function (a, b) { return ((b.comptes || []).length ? 1 : 0) - ((a.comptes || []).length ? 1 : 0) || String(a.expiration).localeCompare(String(b.expiration)) || String(a.nom).localeCompare(String(b.nom)); });
+    var vues = h('div.eq-fid-vues', VUES.filter(function (v) { return v[2].length || v[0] === ''; }).map(function (v) {
+      return h('button', { type: 'button', 'aria-pressed': v[0] === self.fidVue ? 'true' : 'false', text: v[1] + ' (' + v[2].length + ')', onclick: function () { self.fidVue = v[0]; self.fidOuvert = true; self.rendreFidelite(); } });
+    }));
+    var voir = avec.length ? h('button.btn.petit.primaire', { type: 'button', text: 'Voir les ' + avec.length + ' client' + (avec.length > 1 ? 's' : '') + ' de Hyundai Finance dans la liste', onclick: function () { self.ia = null; self.filtres.quoi = 'fidelite'; self.rendre(); } }) : null;
     var exp = h('button.btn.petit', { type: 'button', text: 'Exporter les offres', onclick: function () { self.exporterFidelite(); } });
     var det = h('details', { open: this.fidOuvert ? 'open' : null }, [
-      h('summary', [h('b', { text: 'Offres de fidélité Hyundai' }), h('span', { text: ' · ' + resume })]),
-      h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Liste « HACC CRM – Loyalty Special Offer » de SmartPortal (J.D. Power). Fidélité : 1 point de moins sur le taux du programme du manufacturier ; double fidélité : 2 points (jamais sous 0 %). Le client présente son code PIN avant la date d\'expiration.' + (d.contact ? '' : ' Coordonnées et codes PIN : réservés aux comptes qui ont l\'accès aux coordonnées.') }),
-      h('div.defile', [h('table', [h('thead', [h('tr', ['Client', 'Contact', 'Offre', 'Code PIN', 'Expire le', 'Reçue le', 'Contrat'].map(function (x) { return h('th', { text: x }); }))]), h('tbody', tri.map(ligne))])]),
+      h('summary', [h('span.fleche', { text: '▸' }), h('b', { text: 'Offres de fidélité Hyundai' }), h('span', { text: resume }), h('span.ouvrir', { text: this.fidOuvert ? 'Masquer' : 'Voir les ' + act.length + ' offres' })]),
+      h('p.doux.petit', { style: { margin: '2px 0 0' }, text: 'Liste « HACC CRM – Loyalty Special Offer » de SmartPortal (J.D. Power). Fidélité : 1 point de moins sur le taux du programme du manufacturier ; double fidélité : 2 points (jamais sous 0 %). Le client présente son code PIN avant la date d\'expiration. Seuls les clients qui ont un contrat chez Hyundai Finance sont dans la liste des comptes plus bas (avec le taux réduit) ; les autres sont ici, à appeler.' + (d.contact ? '' : ' Coordonnées et codes PIN : réservés aux comptes qui ont l\'accès aux coordonnées.') }),
+      vues,
+      h('div.defile', [h('table', [h('thead', [h('tr', ['Client', 'Contact', 'Offre', 'Code PIN', 'Expire le', 'Reçue le', 'Contrat'].map(function (x) { return h('th', { text: x }); }))]), h('tbody', tri.length ? tri.map(ligne) : [h('tr', [h('td.doux', { colspan: '7', text: 'Aucune offre dans ce groupe.' })])])])]),
       h('div.outils', [voir, exp].concat(boutonsFidelite()))
     ]);
-    det.addEventListener('toggle', function () { self.fidOuvert = det.open; });
+    det.addEventListener('toggle', function () { self.fidOuvert = det.open; var o = det.querySelector('summary .ouvrir'); if (o) o.textContent = det.open ? 'Masquer' : 'Voir les ' + act.length + ' offres'; });
     el.appendChild(det);
   };
   VueEquite.prototype.exporterFidelite = function () {
@@ -1087,8 +1161,17 @@
       carte(nSans ? 'rouge' : 'gris', 'Sans valeur', nSans, nSans ? (SYNCS[this.cie] && SYNCS[this.cie].enCours ? 'lecture OpenLane en cours' : 'à synchroniser avec OpenLane') : 'tout est valorisé', 'sansValeur'),
       carte('bleu', 'Exportables É.-U.', n(function (r) { return r.exportable; }), nCalculUS + ' avec le gros É.-U. calculé', 'exportables'),
       carte(nMeilleurUS ? 'vert' : 'gris', 'Plus payant aux É.-U.', nMeilleurUS, 'gros É.-U. − dette > équité au Canada', 'meilleurUS'),
+      (function () { var l = base.filter(function (r) { return r.sauver; }), tot = 0; l.forEach(function (r) { tot += r.interetSauve || 0; }); return carte(l.length ? 'vert' : 'gris', 'Sauver de l\'intérêt', l.length, 'taux ≥ ' + String(nombre(self.params.ecartTaux) !== null ? nombre(self.params.ecartTaux) : 2).replace('.', ',') + ' pts au-dessus d\'aujourd\'hui' + (tot ? ' · ≈ ' + fmt$(tot) + ' d\'intérêts' : ''), 'interet'); })(),
       carte('violet', 'En suivi', n(function (r) { return r.compte.suivi; }), 'contactés, rendez-vous, vendus', 'suivi'),
-      estHmf(this.cie) ? (function () { var nd = n(function (r) { return r.fidelite && r.fidelite.type === 'double'; }); return carte('vert', 'Offre de fidélité', n(function (r) { return r.fidelite; }), nd + ' double' + (nd > 1 ? 's' : '') + ' (−2 pts) · taux du programme réduit', 'fidelite'); })() : null
+      estHmf(this.cie) ? (function () {
+        /* 7 nov. : la tuile compte les offres actives (37), pas seulement les clients de Hyundai Finance ; un clic montre ceux-ci
+           dans la liste ET ouvre la carte des offres. */
+        var dF = FID[self.cie] && FID[self.cie].donnees, nAct = dF && dF.offres ? dF.offres.filter(function (o) { return o.active; }).length : null;
+        var nListe = n(function (r) { return r.fidelite; });
+        var b = carte('vert', 'Offres de fidélité', nAct === null ? nListe : nAct, nAct === null ? 'taux du programme réduit' : nListe + ' avec contrat Hyundai Finance · ' + Math.max(0, nAct - nListe) + ' à appeler', 'fidelite');
+        b.addEventListener('click', function () { self.fidOuvert = true; self.rendreFidelite(); setTimeout(function () { if (self.elFid && self.elFid.scrollIntoView) self.elFid.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); });
+        return b;
+      })() : null
     ].forEach(function (b) { if (b) el.appendChild(b); });
   };
   VueEquite.prototype.peutLireOpenlane = function () {
@@ -1242,10 +1325,11 @@
     });
     return h('tr' + cls, [
       h('td', [h('div.nom', { text: nomClient(c) }), h('div.sous', { text: [c.ville, r.gm ? c.etatLead : c.compte].filter(Boolean).join(' · ') }), contactEl, r.ndnc ? h('div.sous.eq-neg', { text: 'Ne pas téléphoner (LCAP)', title: 'Inscrit à la Liste nationale de numéros de télécommunication exclus ou à la liste interne de la concession, selon GM Dealer Direct' }) : null,
-        r.fidelite ? h('div.eq-fid', [h('span.puce.eq-fid-puce', { text: texteFidelite(r.fidelite), title: 'Offre de fidélité de Hyundai Canada' + (r.fidelite.offre ? ' nº ' + r.fidelite.offre : '') + ' (SmartPortal) : ' + r.fidelite.pct + ' point' + (r.fidelite.pct > 1 ? 's' : '') + ' de moins sur le taux du programme du manufacturier.' + (r.fidelite.pin ? '\nCode PIN : ' + r.fidelite.pin : '') + (r.fidelite.par === 'nom' ? '\nClient retrouvé par le nom et le code postal (pas le même courriel).' : '') }), r.fidelite.expiration ? h('span.sous', { text: 'exp. ' + AMX.fmtDateCourte(r.fidelite.expiration) }) : null]) : null]),
+        r.sauver ? h('div.eq-fid', [h('span.puce.eq-int-puce', { text: 'Sauver de l\'intérêt', title: 'Taux du contrat ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé à partir du rachat, du paiement et des mensualités qui restent : le prêteur ne donne pas le taux)' : ' (prêteur)') + '\nTaux du programme d\'aujourd\'hui ' + fmtTaux(r.tauxJour) + (r.programme && r.programme.libelle ? ' — ' + r.programme.libelle : '') + '\nÉcart : ' + String(r.ecartTaux).replace('.', ',') + ' points' + (r.interetMois ? '\nÀ dette égale (' + fmt$(r.solde) + ', ' + r.dette.n + ' mois) : ' + fmt$(r.interetMois) + ' de moins par mois, ≈ ' + fmt$(r.interetSauve) + ' d\'intérêts sauvés' : '') }), h('span.sous', { text: texteInteret(r) })]) : null,
+        r.fidelite ? h('div.eq-fid', [h('span.puce.eq-fid-puce', { text: texteFidelite(r.fidelite), title: 'Offre de fidélité de Hyundai Canada' + (r.fidelite.offre ? ' nº ' + r.fidelite.offre : '') + ' (SmartPortal) : ' + r.fidelite.pct + ' point' + (r.fidelite.pct > 1 ? 's' : '') + ' de moins sur le taux du programme du manufacturier.' + (r.fidelite.pin ? '\nCode PIN : ' + r.fidelite.pin : '') + (r.fidelite.par === 'nom' ? '\nClient retrouvé par le nom et le code postal (pas le même courriel).' : '') }), r.fidelite.expiration ? h('span.sous.eq-exp-ok', { text: 'exp. ' + AMX.fmtDateCourte(r.fidelite.expiration), title: 'Offre valide jusqu\'au ' + AMX.fmtDate(r.fidelite.expiration) }) : null]) : null]),
       h('td', [h('div', { text: vehiculeTexte(c) }), h('div.vin', { text: c.vin || '' }), c.neufUsage && /used|pre/i.test(c.neufUsage) ? h('div.sous', { text: 'acheté d\'occasion' }) : null,
         r.exportable ? h('div.eq-us', [h('span.puce.eq-us-puce', { text: 'É.-U.', title: 'NIV fabriqué aux États-Unis : le véhicule peut être vendu aux É.-U. — voir la colonne « É.-U. vs dette ».' })]) : null]),
-      h('td', [h('div', { text: (r.location ? 'Location' : 'Financement') + (c.terme ? ' ' + c.terme + ' mois' : '') + (c.taux !== null && c.taux !== undefined ? ' · ' + c.taux + ' %' : '') }), h('div.sous' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'échéance ' + AMX.fmtDate(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' mois)' : '') : '' }), r.location && c.kmContrat ? h('div.sous', { text: AMX.fmtNombre(c.kmContrat) + ' km au contrat' + (c.usure === 'oui' ? ' · usure' : '') }) : null]),
+      h('td', [h('div', { text: (r.location ? 'Location' : 'Financement') + (c.terme ? ' ' + c.terme + ' mois' : '') + (r.tauxContrat !== null ? ' · ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé)' : '') : '') }), h('div.sous' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'échéance ' + AMX.fmtDate(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' mois)' : '') : '' }), r.location && c.kmContrat ? h('div.sous', { text: AMX.fmtNombre(c.kmContrat) + ' km au contrat' + (c.usure === 'oui' ? ' · usure' : '') }) : null]),
       h('td.num', { text: fmt$(c.paiement) }),
       h('td.num', [valeurEl]),
       h('td.num', [h('button.eq-dette', { type: 'button', text: fmt$(r.solde), title: 'Comment la dette est calculée', onclick: function () { self.detailDette(r); } }), h('div.sous', { text: texteDette(r) }), r.location && r.soldeEcheance !== null ? h('div.sous', { text: 'résiduel ' + fmt$(r.soldeEcheance) }) : null]),
@@ -1399,7 +1483,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux %': c.taux, 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'Fidélité Hyundai': texteFidelite(r.fidelite), 'Fidélité : PIN': r.fidelite ? r.fidelite.pin || '' : '', 'Fidélité : expiration': r.fidelite ? r.fidelite.expiration || '' : '', 'Taux avant fidélité %': r.programme && r.programme.fidelite ? r.programme.tauxAvantFidelite : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Transaction du neuf': r.programme ? (r.programme.type === 'location' ? 'location' : 'financement') : '', 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Km / an du neuf': r.programme && r.programme.type === 'location' ? r.programme.kmAn || '' : '', 'Résiduel du neuf %': r.programme && r.programme.type === 'location' ? r.programme.residuelPct || '' : '', 'Écart avec le contrat': r.programmeManquant ? 'programme à trouver : ' + r.programme.raison : ecartsTransaction(r).join(' · '), 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux du contrat %': r.tauxContrat === null ? '' : r.tauxContrat, 'Taux du contrat : source': r.tauxSource === 'estime' ? 'estimé (rachat, paiement, mensualités)' : (r.tauxSource === 'preteur' ? 'prêteur' : ''), 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'Fidélité Hyundai': texteFidelite(r.fidelite), 'Fidélité : PIN': r.fidelite ? r.fidelite.pin || '' : '', 'Fidélité : expiration': r.fidelite ? r.fidelite.expiration || '' : '', 'Taux avant fidélité %': r.programme && r.programme.fidelite ? r.programme.tauxAvantFidelite : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Transaction du neuf': r.programme ? (r.programme.type === 'location' ? 'location' : 'financement') : '', 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Km / an du neuf': r.programme && r.programme.type === 'location' ? r.programme.kmAn || '' : '', 'Résiduel du neuf %': r.programme && r.programme.type === 'location' ? r.programme.residuelPct || '' : '', 'Écart avec le contrat': r.programmeManquant ? 'programme à trouver : ' + r.programme.raison : ecartsTransaction(r).join(' · '), 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Taux d\'aujourd\'hui %': r.tauxJour === null ? '' : r.tauxJour, 'Écart de taux (pts)': r.ecartTaux === null ? '' : r.ecartTaux, 'Sauver de l\'intérêt': r.sauver ? 'oui' : '', 'Intérêts sauvés (estimé)': r.interetSauve === null ? '' : r.interetSauve, 'Intérêts sauvés / mois': r.interetMois === null ? '' : r.interetMois, 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');

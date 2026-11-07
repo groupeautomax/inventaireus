@@ -39,6 +39,9 @@
   .etat.ok { background: var(--vert-p); color: var(--vert-f); }
   .pages { background: #e9ebef; padding: 10px; max-height: 75vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .pages img { display: block; width: 100%; height: auto; background: #fff; margin: 0 auto 10px; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+  .texte { background: #fff; color: #111; padding: 16px 18px; max-height: 75vh; overflow-y: auto; -webkit-overflow-scrolling: touch; line-height: 1.55; font-size: 15px; border-top: 1px solid #e3e6ea; }
+  .texte h2, .texte h3, .texte h4 { font-size: 16px; margin: 16px 0 6px; } .texte p { margin: 0 0 10px; } .texte ul, .texte ol { padding-left: 22px; }
+  .texte table { border-collapse: collapse; width: 100%; } .texte td, .texte th { border: 1px solid #ccc; padding: 4px 6px; font-size: 14px; }
   .lu { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-top: 1px solid var(--trait); font-size: 15px; background: #fbfcfd; }
   .lu input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--vert); }
   .piece { border: 1px solid var(--trait); border-radius: 12px; padding: 12px 14px; margin-top: 10px; }
@@ -276,7 +279,7 @@
       var corps = h('div'), ouvert = { v: false };
       var lu = !!(etat.lus[x.id] && etat.ouverts[x.id]);
       var tete = h('div', { class: 'tete', role: 'button', tabindex: '0' }, [
-        h('div', { class: 't' }, [h('b', { text: x.nom }), h('small', { text: (x.nbPages ? x.nbPages + ' page' + (x.nbPages > 1 ? 's' : '') : '') + (x.description ? ' · ' + x.description : '') })]),
+        h('div', { class: 't' }, [h('b', { text: x.nom }), h('small', { text: (x.type === 'texte' ? (x.categorie === 'lettre' ? t('Lettre', 'Letter') : x.categorie === 'politique' ? t('Politique', 'Policy') : t('Document', 'Document')) : (x.nbPages ? x.nbPages + ' page' + (x.nbPages > 1 ? 's' : '') : '')) + (x.description ? ' · ' + x.description : '') })]),
         h('span', { class: 'etat' + (lu ? ' ok' : ''), text: lu ? t('Lu ✓', 'Read ✓') : t('À lire', 'To read') })
       ]);
       var bascule = function () {
@@ -286,7 +289,8 @@
         corps.appendChild(h('div', { class: 'chargement' }, [h('div', { class: 'roue' }), t('Ouverture du document…', 'Opening the document…')]));
         lire({ rhDoc: E, k: K, doc: x.id, quoi: 'pages' }).then(function (r) {
           if (!r || !r.ok) throw new Error((r && r.erreur) || t('Document indisponible.', 'Document unavailable.'));
-          etat.pages[x.id] = r.pages; etat.ouverts[x.id] = true;
+          if (r.type === 'texte' ? typeof r.html !== 'string' : !Array.isArray(r.pages)) throw new Error(t('Document indisponible.', 'Document unavailable.'));
+          etat.pages[x.id] = r.type === 'texte' ? { html: r.html } : r.pages; etat.ouverts[x.id] = true;
           if (!ouvert.v) return;   /* refermé pendant le chargement */
           vider(corps); corps.appendChild(vue(x));
         }).catch(function (e) { vider(corps); corps.appendChild(h('div', { class: 'bandeau rouge', text: e.message })); });
@@ -297,8 +301,23 @@
     });
     return b;
   }
+  /* Le texte d'une lettre ou d'une politique : déjà nettoyé par le serveur, nettoyé encore ici (balises simples, sans attribut). */
+  function texteSur(html) {
+    var GARDE = { P: 1, BR: 1, STRONG: 1, EM: 1, U: 1, UL: 1, OL: 1, LI: 1, H2: 1, H3: 1, H4: 1, TABLE: 1, THEAD: 1, TBODY: 1, TR: 1, TD: 1, TH: 1 };
+    var doc = new DOMParser().parseFromString('<div>' + String(html || '') + '</div>', 'text/html'), out = document.createElement('div');
+    var copier = function (src, dest) {
+      [].forEach.call(src.childNodes, function (n) {
+        if (n.nodeType === 3) dest.appendChild(document.createTextNode(n.textContent));
+        else if (n.nodeType === 1) { if (GARDE[n.tagName]) { var e = document.createElement(n.tagName); dest.appendChild(e); copier(n, e); } else if (!/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|SVG|TEMPLATE)$/.test(n.tagName)) copier(n, dest); }
+      });
+    };
+    copier(doc.body.firstChild || doc.body, out);
+    out.className = 'texte';
+    return out;
+  }
   function vue(x) {
-    var pages = h('div', { class: 'pages' }, etat.pages[x.id].map(function (src, i) { return h('img', { src: src, alt: t('Page ', 'Page ') + (i + 1), loading: 'lazy' }); }));
+    var contenu = etat.pages[x.id];
+    var pages = Array.isArray(contenu) ? h('div', { class: 'pages' }, contenu.map(function (src, i) { return h('img', { src: src, alt: t('Page ', 'Page ') + (i + 1), loading: 'lazy' }); })) : texteSur(contenu.html);
     var c = h('input', { type: 'checkbox', checked: !!etat.lus[x.id] });
     c.addEventListener('change', function () { if (c.checked) etat.lus[x.id] = new Date().toISOString(); else delete etat.lus[x.id]; memoLus(); rendre(); });
     return h('div', {}, [pages, h('label', { class: 'lu' }, [c, h('span', { text: t('J\'ai lu ce document : « ' + x.nom + ' ».', 'I have read this document: “' + x.nom + '”.') })])]);

@@ -34,7 +34,7 @@
   var STATUT_LIB = { '': 'À voir', suivie: 'Suivie', ecartee: 'Écartée', achetee: 'Achetée' };
   var FILTRES_US = [['', 'Tous les véhicules'], ['us', 'Fabriqués aux É.-U. (exportables)'], ['plus', 'Plus payants aux É.-U.']];
   // 5 nov. : pastilles CARFAX (Badging API, rien de commandé) — AMX.cfxPastilles (carfax-api.js).
-  var FILTRES_CFX = [['', 'Tous les véhicules'], ['sans', 'Aucun accident déclaré'], ['verifier', 'Accident ? (pas « aucun accident déclaré »)'], ['inconnu', 'Pas de rapport CARFAX (ou pas encore lu)']];
+  var FILTRES_CFX = [['', 'Tous les véhicules'], ['sans', 'Aucun accident déclaré'], ['verifier', 'Rapport à lire (sans mention « aucun accident »)'], ['inconnu', 'Pas de rapport CARFAX (ou pas encore lu)']];
   function cfx() { return AMX.cfxPastilles || null; }
   function etatCfx(o) { var c = cfx(), x = c && c.de(o.vin); return x ? x.a : ''; }
   var TRIS = [['score', 'Meilleur profit'], ['gros', 'Profit au gros'], ['detail', 'Profit au détail'], ['cote', 'Meilleure cote CarGurus'], ['marche', 'Plus sous le marché'], ['prix', 'Prix le plus bas'], ['km', 'Km le plus bas'], ['nouveau', 'Plus récentes'], ['distance', 'Plus proches']];
@@ -1142,7 +1142,7 @@
     var aCfx = (this.listeSyncCfx || []).slice();
     if (aCfx.length && cfx()) {
       cfx().demander(aCfx);
-      if (!total) { AMX.toast('Lecture CARFAX de ' + AMX.fmtNombre(aCfx.length) + ' annonce' + (aCfx.length > 1 ? 's' : '') + ' lancée : les pastilles (accident ou non) apparaissent à mesure. Gratuit, rien n\'est commandé.', 'ok', 9000); return; }
+      if (!total) { AMX.toast('Lecture CARFAX de ' + AMX.fmtNombre(aCfx.length) + ' annonce' + (aCfx.length > 1 ? 's' : '') + ' lancée : les pastilles CARFAX apparaissent à mesure. Gratuit, rien n\'est commandé.', 'ok', 9000); return; }
     }
     if (!total || !d) return;
     var b = this.btnSync, parVin = {};
@@ -1440,7 +1440,7 @@
         'Source': libelleSource(o), 'Vendeur': o.vendeur, 'Ville': o.ville, 'Province': o.province,
         'Concession d\'arrivée': COURTS[k.dest] || k.dest, 'Distance (km)': k.distance, 'Transport': k.transport, 'Coût rendu': k.cout,
         'Prévision OpenLane': num(o.olPrix), 'Profit au gros': k.profitGros,
-        'CARFAX': ({ v: 'Accident ? (pas « aucun accident déclaré »)', n: 'Aucun accident déclaré', x: 'Aucun rapport' })[etatCfx(o)] || '', 'Rapport CARFAX': (cfx() && cfx().de(o.vin) || {}).l || '',
+        'CARFAX': ({ v: 'Rapport à lire (sans mention « aucun accident »)', n: 'Aucun accident déclaré', x: 'Aucun rapport' })[etatCfx(o)] || '', 'Rapport CARFAX': (cfx() && cfx().de(o.vin) || {}).l || '',
         'Fabriqué aux É.-U.': exportable(o) ? 'oui' : '', 'MMR ($ US)': (self.us(o) || {}).mmr || '', 'Gros É.-U.': (self.us(o) || {}).grosUS || '', 'Profit É.-U.': (self.us(o) || {}).profitUS === undefined || (self.us(o) || {}).profitUS === null ? '' : self.us(o).profitUS, 'Prix médian ajusté': k.refAjuste, 'Annonces de référence': num(o.refN), 'Recon': k.recon, 'Profit au détail': k.profitDetail, 'Achat max.': k.achatMax,
         'Cote CarGurus': COTES[o.coteCg] ? COTES[o.coteCg].t : '', 'Valeur du marché (CarGurus)': num(o.valeurMarche), 'Écart au marché': num(o.ecartMarche), 'Baisse de prix': num(o.baissePrix), 'Sites': num(o.nbSites),
         'Mise (DealerSource)': num(o.mise), 'Dommages estimés': num(o.dommages), 'Cote': o.cote, 'Fin de vente': o.finVente, 'Statut': STATUT_LIB[o.statut || ''], 'Note': o.note, 'Vue la première fois': o.premiereVue, 'Annonce': o.lien };

@@ -290,7 +290,8 @@
 })();
 
 /* =========================================================================
-   Pastilles CARFAX (5 nov. 2026) — « Sans accident » ou « Accident ? » (rouge), partout où un véhicule est montré, sans rien commander
+   Pastilles CARFAX (5 nov. 2026) — « Sans accident » (vert) ou « Rapport CARFAX » (gris depuis le 7 nov., plus de rouge :
+   voir texte()), partout où un véhicule est montré, sans rien commander
    Maxime : « dans Opportunités il faudrait pouvoir lire les CARFAX et avoir une icône très visible pour dire s'il y a un
    accident, sans que ça coûte des $ de notre compte », puis « applique l'API partout où on voit un stock dans le site,
    une auto accidentée en rouge ».
@@ -322,7 +323,7 @@
       '.cfx-pastille { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 999px; font: inherit; font-weight: 700; font-size: 12px; line-height: 1.2; padding: 3px 9px; margin: 0 4px; vertical-align: middle; white-space: nowrap; cursor: default; }',
       '.cfx-pastille:empty { display: none; }',
       '.cfx-pastille.lien { cursor: pointer; }',
-      '.cfx-pastille.v { background: #C62828; color: #fff; box-shadow: 0 0 0 2px rgba(198, 40, 40, .18); }',
+      '.cfx-pastille.v { background: #EEF2F7; color: #344054; }',   /* 7 nov. : plus de rouge (voir texte()) */
       '.cfx-pastille.n { background: #E3F4EA; color: #1E6B3A; }',
       '.cfx-pastille.x, .cfx-pastille.e { background: var(--fond-2, #F1F3F5); color: var(--encre-3, #4B5563); font-weight: 600; }',
       '.cfx-pastille.grande { font-size: 13.5px; padding: 6px 12px; margin: 0; }',
@@ -398,7 +399,12 @@
   }
   function texte(x, grande) {
     if (!x) return '';
-    if (x.a === 'v') return grande ? '⚠ Accident ? — pas de mention « Aucun accident déclaré » (CARFAX)' : '⚠ Accident ?';
+    /* 7 nov. (Maxime : « le système qui met en rouge les véhicules accidentés ne fonctionne pas, il montre plusieurs unités en
+       rouge qui n'ont pas d'accident », ex. 1GNS6TKLXTR348573) : la Badging API ne dit jamais « accident ». Seule la mention
+       « Aucun accident déclaré » est sûre. Vérifié sur de vrais rapports le 7 nov. : sans cette mention, un rapport peut avoir
+       un accident comme n'en avoir aucun (véhicule neuf, importé, historique court — 910 des 1 148 n'ont aucune pastille).
+       Donc plus de rouge : « Rapport CARFAX », à ouvrir. */
+    if (x.a === 'v') return grande ? 'Rapport CARFAX à lire — CARFAX ne dit pas « aucun accident »' : 'Rapport CARFAX';
     if (x.a === 'n') return grande ? '✓ Aucun accident déclaré (CARFAX)' : '✓ Sans accident';
     if (x.a === 'x') return grande ? 'Aucun rapport CARFAX pour ce NIV' : '';
     return grande ? 'CARFAX : lecture à refaire' : '';
@@ -406,7 +412,7 @@
   function infobulle(x) {
     if (!x) return '';
     var noms = x.p.map(nomPastille).filter(function (n) { return n !== NOMS.A; });
-    if (x.a === 'v') return 'Ce rapport CARFAX n\'a pas la mention « Aucun accident déclaré » : le plus souvent un accident ou un dommage inscrit, mais parfois un véhicule importé ou un historique trop court. Seul le rapport le confirme.' + (noms.length ? ' Pastilles : ' + noms.join(', ') + '.' : '') + (x.l ? ' Cliquez pour ouvrir le rapport.' : '') + ' Lu le ' + x.le + '.';
+    if (x.a === 'v') return 'Ce rapport CARFAX n\'a pas la mention « Aucun accident déclaré ». Ça ne veut pas dire qu\'il y a un accident : CARFAX ne donne pas cette mention à tous les véhicules (neuf, importé, historique court). Seul le rapport le dit (case « Accidents/dommages »).' + (noms.length ? ' Pastilles : ' + noms.join(', ') + '.' : '') + (x.l ? ' Cliquez pour ouvrir le rapport.' : '') + ' Lu le ' + x.le + '.';
     if (x.a === 'n') return 'Rapport CARFAX : aucun accident déclaré.' + (noms.length ? ' ' + noms.join(', ') + '.' : '') + (x.l ? ' Cliquez pour ouvrir le rapport.' : '') + ' Lu le ' + x.le + '.';
     if (x.a === 'x') return 'Aucun rapport CARFAX n\'existe encore pour ce NIV (lu le ' + x.le + ').';
     return 'La lecture CARFAX a échoué (' + x.le + ') : elle sera refaite.';
@@ -422,7 +428,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-cfx]'), remplir);
     Array.prototype.forEach.call(document.querySelectorAll('[data-cfx-ligne]'), function (el) {
       var x = de(el.getAttribute('data-cfx-ligne'));
-      el.classList.toggle('cfx-ligne-accident', !!(x && x.a === 'v'));
+      el.classList.remove('cfx-ligne-accident');
     });
   }
   function puce(vin, opts) {
@@ -446,7 +452,6 @@
     if (!el || !valide(vin)) return el;
     el.setAttribute('data-cfx-ligne', vin);
     var x = de(vin);
-    if (x && x.a === 'v') el.classList.add('cfx-ligne-accident');
     return el;
   }
   /* Bloc de la fiche d'un véhicule : la grande pastille, les autres pastilles, le lien du rapport, « Relire ». */
@@ -471,7 +476,7 @@
           }, function (er) { b.classList.remove('occupe'); AMX.toast(AMX.erreurTexte(er), 'erreur'); });
         } })
       ]));
-      if (x.a === 'v') corps.appendChild(h('div.petit', { text: 'CARFAX ne donne la mention « Aucun accident déclaré » qu\'aux véhicules sans accident inscrit, mais pas à tous (véhicule importé, historique court). Ouvrez le rapport : la case « Dossiers d\'accidents/dommages » confirme.' }));
+      if (x.a === 'v') corps.appendChild(h('div.petit', { text: 'CARFAX ne dit pas s\'il y a un accident : il donne seulement la mention « Aucun accident déclaré », et pas à tous les véhicules sans accident (neuf, importé, historique court). Ouvrez le rapport : la case « Accidents/dommages » le dit.' }));
       corps.appendChild(h('div.doux.petit', { text: 'Pastilles du rapport CARFAX déjà existant, lues le ' + x.le + '. Aucun rapport n\'est commandé ici.' }));
     };
     dessiner();
@@ -483,7 +488,7 @@
 
   AMX.cfxPastilles = {
     charger: charger, de: de, puce: puce, ligne: ligne, bloc: bloc, demander: demander, rafraichir: rafraichir,
-    accident: function (vin) { var x = de(vin); return x ? (x.a === 'n' ? false : (x.a === 'v' ? true : null)) : null; },
+    accident: function (vin) { var x = de(vin); return x && x.a === 'n' ? false : null; },   /* 7 nov. : jamais « oui » — CARFAX ne le dit pas */
     enFile: function () { return Object.keys(S.file).length + (S.enVol ? LOT : 0); },
     arret: function () { return S.arret; },
     nomPastille: nomPastille,

@@ -114,7 +114,8 @@
     visible: function () { return peutVoir(); },
     monter: function (conteneur, ctx) { return new VueEmb(conteneur, ctx); }
   });
-  AMX.embauches = { charger: charger, enCache: function () { return cache.rep; }, compteur: compteur, peutVoir: peutVoir, vider: function () { cache = { rep: null, le: 0, enCours: null }; modeles = {}; } };
+  AMX.embauches = { charger: charger, enCache: function () { return cache.rep; }, compteur: compteur, peutVoir: peutVoir, vider: function () { cache = { rep: null, le: 0, enCours: null }; modeles = {}; },
+    css: css };   /* 8 nov. : les styles .cex-* servent aussi à la page Départs (departs.js) */
 
   /* ------------------------------------------------------------------------------- outils */
   var STATUTS = { brouillon: 'Brouillon', approbation: 'En attente du DG', envoyee: 'Envoyée à la RH', traitee: 'Traitée par la RH', annulee: 'Annulée' };

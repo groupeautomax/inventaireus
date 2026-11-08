@@ -386,8 +386,10 @@
         { texte: 'Fermer' },
         e.statut === 'parti' ? { texte: 'Rétablir', action: function () { return self.depart(e, true).then(function (x) { if (x) { e = x; dessiner(); } return false; }); } }
           : { texte: 'Départ…', action: function () { self.depart(e, false).then(function (x) { if (x) { e = x; dessiner(); } }); return false; } },
+        /* 8 nov. : le départ suit le circuit directeur → DG → RH (departs.js) ; « Départ… » reste pour marquer « Parti » tout de suite. */
+        e.statut !== 'parti' && AMX.departs && AMX.departs.peutVoir() ? { texte: 'Fiche de départ', action: function (fermer) { fermer(); AMX.aller('departs', '', { nouveau: e.id }); return false; } } : null,
         { texte: 'Modifier', classe: 'primaire', action: function (fermer) { fermer(); self.modifier(e); return false; } }
-      ]);
+      ].filter(Boolean));
     };
     m = AMX.modale({ titre: 'Dossier ' + id, corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer' }] });
     fiche(id).then(function (d) {

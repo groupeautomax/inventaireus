@@ -805,6 +805,25 @@
 
   /* ---- Données ---- */
   var cache = { donnees: null, le: 0, promesse: null };
+  /* 8 nov. (Maxime : « dans le module équité on puisse envoyer les transactions possibles dans le CRM » et « attribuer à un
+     représentant en particulier ») : EquiteCrm.gs — ?equiteCrm=1&compagnie= donne l'adresse ADF de la concession, les
+     représentants qu'on peut attitrer, et, par compte, le représentant attitré et le dernier envoi au CRM. */
+  var CRM = {};
+  var CRM_MAX = 25;
+  function chargerCrm(cie, force) {
+    var x = CRM[cie] = CRM[cie] || {};
+    if (!force && x.donnees && Date.now() - x.le < 60000) return Promise.resolve(x.donnees);
+    if (x.promesse) return x.promesse;
+    x.promesse = AMX.get({ equiteCrm: 1, compagnie: cie }, { discret: true }).then(function (d) {
+      x.promesse = null;
+      if (d && d.refuse) throw new Error(d.erreur || 'Refusé par le serveur.');
+      if (!d || !d.crm) throw new Error('Le script n\'est pas à jour : déployez EquiteCrm.gs.');
+      x.donnees = d; x.le = Date.now(); x.erreur = '';
+      return d;
+    }, function (e) { x.promesse = null; throw e; });
+    return x.promesse;
+  }
+  function crmDe(cie, compte) { var d = CRM[cie] && CRM[cie].donnees; return d && d.crm ? d.crm[compte] || null : null; }
   var DUREE_CACHE_MS = 5 * 60000;
   AMX.equite = {
     charger: function (force) {
@@ -820,7 +839,8 @@
     },
     enCache: function () { return cache.donnees; },
     fidelite: chargerFidelite,
-    vider: function () { cache.donnees = null; cache.le = 0; FID = {}; AMX.cacheLocal.oublier('equite'); Object.keys(SYNCS).forEach(function (c) { if (SYNCS[c].enCours) SYNCS[c].arret = true; }); },
+    crm: chargerCrm, crmDe: crmDe,
+    vider: function () { cache.donnees = null; cache.le = 0; FID = {}; CRM = {}; AMX.cacheLocal.oublier('equite'); Object.keys(SYNCS).forEach(function (c) { if (SYNCS[c].enCours) SYNCS[c].arret = true; }); },
     /** Lectures OpenLane en cours ou finies, par concession (elles continuent hors de la page Équité). */
     synchros: function () { return SYNCS; },
     /** Comptes actifs d'une concession (ou de toutes), d'après le cache. */
@@ -845,6 +865,11 @@
     if (document.getElementById('css-equite')) return;
     var s = document.createElement('style'); s.id = 'css-equite';
     s.textContent = [
+      '.eq-crm-liste { list-style: none; margin: 0 0 12px; padding: 0; max-height: 260px; overflow: auto; border: 1px solid var(--ligne); border-radius: 10px; } .eq-crm-liste li { padding: 8px 12px; border-bottom: 1px solid var(--ligne); } .eq-crm-liste li:last-child { border-bottom: 0; }',
+      '.eq-crm-puces { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; } .eq-crm .champ { margin: 0 0 10px; } .eq-crm select, .eq-crm textarea { width: 100%; }',
+      '.eq-crm-case { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 8px; cursor: pointer; } .eq-crm-case input { margin-top: 3px; width: 18px; height: 18px; flex: none; } .eq-crm-case.inactif { opacity: .5; }',
+      'button.eq-crm { margin-top: 4px; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--vert); background: var(--carte); color: var(--vert-fonce); cursor: pointer; white-space: nowrap; } button.eq-crm:hover { background: var(--vert-clair); } button.eq-crm.envoye { border-color: var(--ligne-forte); color: var(--encre-2); background: var(--gris-bg); }',
+      '.eq-rep { color: var(--violet); font-weight: 600; } .eq-outils-liste { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; }',
       '.eq-params { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; } .eq-params .champ { width: 110px; } .eq-params .champ input { height: 30px; }',
       '.eq-filtres { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; } .eq-filtres .recherche { flex: 1 1 180px; height: 30px; } .eq-filtres select { height: 30px; width: auto; } .eq-filtres .compte { margin-left: auto; font-size: 12px; color: var(--encre-3); }',
       '.eq-table { overflow-x: auto; } .eq-table .tableau { width: 100%; } .eq-table .tableau.eq-compact { table-layout: fixed; } .eq-table .eq-compact td, .eq-table .eq-compact th { padding: 4px 6px; line-height: 1.3; overflow: hidden; } .eq-table .coupe { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .eq-table .eq-puces { display: flex; gap: 3px; flex-wrap: nowrap; overflow: hidden; margin-top: 2px; } .eq-table .eq-puces .puce { font-size: 11.5px; padding: 0 5px; line-height: 17px; border-radius: 7px; white-space: nowrap; } .eq-ndnc { background: #FDE2E2; color: #B42318; font-weight: 700; } .eq-table a.eq-mail { text-decoration: none; } .eq-table .eq-v.meme, .eq-table .eq-v.choisie { color: var(--vert-fonce, #0B6B3A); font-weight: 700; } .eq-table .eq-v.autre { color: var(--ambre, #955F10); font-weight: 700; } .eq-table .eq-v.proche, .eq-table .eq-v.inconnue { color: var(--encre-3); } .eq-table .eq-compact select.suivi { width: 100%; max-width: none; height: 24px; } .eq-table .eq-compact input.eq-mmr { width: 100%; max-width: 92px; } .eq-table .eq-compact td.eq-us-cell { min-width: 0; } .eq-table .eq-compact .btn.petit { height: 22px; padding: 0 6px; } .eq-table .eq-proj { font-weight: 700; white-space: nowrap; } .eq-table th.eq-th-paie { white-space: normal; } .eq-table th .eq-th-sous { font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 11.5px; } .eq-table .eq-proj.eq-plus { color: var(--encre-2, #374151); } .eq-table .eq-proj.eq-manquant { font-weight: 600; font-size: 12px; white-space: normal; } .eq-table button.eq-changer { margin-top: 3px; border: 1px solid var(--bleu, #1A64BF); background: #fff; color: var(--bleu, #1A64BF); border-radius: 6px; padding: 0 7px; height: 21px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; } .eq-table button.eq-changer:hover { background: #E8F0FE; } .eq-table button.eq-changer.alerte { border-color: var(--ambre, #955F10); color: var(--ambre, #955F10); } @media (max-width: 1000px) { .eq-table .tableau.eq-compact { table-layout: auto; min-width: 980px; } } .eq-table td, .eq-table th { padding: 6px 8px; vertical-align: top; font-size: 12.5px; } .eq-table th { white-space: nowrap; } .eq-table td.num, .eq-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }',
@@ -889,9 +914,21 @@
      ===================================================================== */
   function VueEquite(conteneur, cie, ctx) {
     injecterCss();
+    var moi = this;
     this.el = conteneur; this.cie = cie || 'BMW'; this.ctx = ctx || {};
+    /* 8 nov. : la liste garde le même conteneur d'un rendu à l'autre (la lecture OpenLane redessine souvent) : le mode
+       « Sélectionner » survit au redessin. Plusieurs clients cochés → « Envoyer au CRM ». */
+    this.elTable = h('div.eq-table');
+    this.sel = AMX.modeSelection ? AMX.modeSelection({ liste: this.elTable, selecteur: 'tr', actions: [
+      { texte: 'Envoyer au CRM', action: function (cles, fini) {
+        var idx = {}; (moi.lignes || []).forEach(function (r) { idx[r.compte.compte] = r; });
+        var rows = cles.map(function (k) { return idx[k]; }).filter(Boolean);
+        if (rows.length > CRM_MAX) { AMX.toast('Au plus ' + CRM_MAX + ' clients à la fois : ' + rows.length + ' sont cochés.', 'attention'); return; }
+        moi.ouvrirCrm(rows, fini);
+      } }
+    ] }) : null;
     this.params = AMX.equite.params();
-    this.filtres = { quoi: 'cibles', type: '', echeance: '', conseiller: '', q: '' };
+    this.filtres = { quoi: 'cibles', type: '', echeance: '', conseiller: '', rep: '', q: '' };
     this.ia = null;   /* filtres rendus par Einstein AI : { question, resume, conditions, tri, sens } */
     this.lignes = []; this.lecture = null;
     this.us = null;          /* calculs É.-U. des évaluations (?evaluationsUs=1), par NIV */
@@ -907,7 +944,7 @@
        de l'évaluation du NIV (boîte Canada ou É.-U.), sinon d'un MMR tapé dans la ligne, avec le taux du jour. */
     if (AMX.export && AMX.export.charger) Promise.all([AMX.export.charger(), AMX.export.verdicts ? AMX.export.verdicts() : {}]).then(function (r) { self.us = r[1] || {}; if (!self.detruit) self.planifierRendu(); }).catch(function () {});
   }
-  VueEquite.prototype.demonter = function () { this.detruit = true; clearTimeout(this.minuterieRendu); document.removeEventListener('amx:openlane', this.surOpenlane); document.removeEventListener('amx:equiteSync', this.surSync); };
+  VueEquite.prototype.demonter = function () { this.detruit = true; clearTimeout(this.minuterieRendu); if (this.sel && this.sel.actif && this.sel.actif()) { try { this.sel.quitter(); } catch (e) {} } document.removeEventListener('amx:openlane', this.surOpenlane); document.removeEventListener('amx:equiteSync', this.surSync); };
   /* Redessin regroupé (lecture OpenLane, export É.-U.) : jamais pendant qu'on tape dans un champ de la page. */
   VueEquite.prototype.planifierRendu = function (ms) {
     var self = this;
@@ -960,7 +997,7 @@
   };
   /** Les comptes que les filtres gardent ; sauf = 'quoi' : sans le filtre des tuiles (pour compter chaque tuile). */
   VueEquite.prototype.visibles = function (sauf) {
-    var f = this.filtres, q = AMX.motsCherches ? AMX.motsCherches(f.q) : f.q.toLowerCase(), ia = this.ia, quoi = (sauf === 'quoi' || ia) ? '' : f.quoi;
+    var cieV = this.cie, f = this.filtres, q = AMX.motsCherches ? AMX.motsCherches(f.q) : f.q.toLowerCase(), ia = this.ia, quoi = (sauf === 'quoi' || ia) ? '' : f.quoi;
     var liste = this.lignes.filter(function (r) {
       var c = r.compte;
       if (ia && !ia.conditions.every(function (k) { return condRespectee(r, k); })) return false;
@@ -973,6 +1010,9 @@
       if (quoi === 'meilleurUS' && !r.meilleurUS) return false;
       if (quoi === 'fidelite' && !r.fidelite) return false;
       if (quoi === 'interet' && !r.sauver) return false;
+      var cr = (quoi === 'crm' || f.rep) ? crmDe(cieV, c.compte) : null;
+      if (quoi === 'crm' && !(cr && cr.crmLe)) return false;
+      if (f.rep && (f.rep === '__sans' ? !!(cr && cr.representant) : (f.rep === '__crm' ? !(cr && cr.crmLe) : !(cr && cr.representant === f.rep)))) return false;
       if (f.type === 'location' && !r.location) return false;
       if (f.type === 'financement' && r.location) return false;
       if (f.echeance && (r.moisRestants === null || r.moisRestants > Number(f.echeance))) return false;
@@ -1022,6 +1062,8 @@
       return;
     }
     this.analyser();
+    var dCrm = CRM[this.cie] && CRM[this.cie].donnees;
+    if (!this.crmDemande) { this.crmDemande = true; chargerCrm(this.cie).then(function () { if (!self.detruit) self.planifierRendu(0); }).catch(function (e) { (CRM[self.cie] = CRM[self.cie] || {}).erreur = AMX.erreurTexte(e); }); }
     var champ = function (cle, libelle, pas, aide) { var inp = h('input', { type: 'number', step: pas || '0.01', value: String(self.params[cle]), title: aide || '' }); inp.addEventListener('change', function () { var v = nombre(inp.value); if (v === null) return; self.params[cle] = v; AMX.equite.poserParams(self.params); try { inp.blur(); } catch (e) {} setTimeout(function () { self.rendre(); }, 0); });   /* redessin différé : retirer le champ pendant son propre « change » fait échouer removeChild */ return h('div.champ', [h('label', { text: libelle }), inp]); };
     var paramsCorps = h('div.eq-params', [
       champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
@@ -1043,6 +1085,14 @@
       sel('type', [['', 'Location et financement'], ['location', 'Locations'], ['financement', 'Financements']]),
       sel('echeance', [['', 'Toute échéance'], ['3', '≤ 3 mois'], ['6', '≤ 6 mois'], ['12', '≤ 12 mois'], ['24', '≤ 24 mois']]),
       sel('conseiller', [['', 'Tous les conseillers']].concat(Object.keys(conseillers).sort().map(function (k) { return [k, k === '—' ? 'Sans conseiller' : k]; }))),
+      /* 8 nov. : le représentant attitré dans ScanAutomax (Équité → CRM) — pas le conseiller du prêteur. */
+      dCrm ? (function () {
+        var noms = {}; (dCrm.reps || []).forEach(function (r) { noms[r.courriel] = r.nom; });
+        Object.keys(dCrm.crm || {}).forEach(function (k) { var x = dCrm.crm[k]; if (x.representant && !noms[x.representant]) noms[x.representant] = x.representantNom || x.representant; });
+        var opts = [['', 'Tous les représentants'], ['__sans', 'Sans représentant attitré'], ['__crm', 'Envoyés au CRM']].concat(Object.keys(noms).sort(function (a, b) { return String(noms[a]).localeCompare(String(noms[b]), 'fr'); }).map(function (k) { return [k, noms[k]]; }));
+        if (self.filtres.rep && !opts.some(function (o) { return o[0] === self.filtres.rep; })) self.filtres.rep = '';
+        return sel('rep', opts);
+      })() : null,
       this.elCompte
     ]);
     /* Einstein AI : une question en français, des filtres en retour (rien des clients n'est envoyé). */
@@ -1063,8 +1113,9 @@
     this.elSync = h('div.eq-sync');
     this.elTuiles = h('div.eq-tuiles');
     this.elFid = estHmf(this.cie) ? h('div.eq-fid-carte') : null;
-    this.elTable = h('div.eq-table');
-    el.appendChild(h('div.carte', [h('div.carte-corps', [this.elSync, iaBarre, iaRes, filtres, this.elTuiles, this.elFid, params, this.elTable])]));
+    var contactOk = !!(d && d.contact);
+    var outilsListe = contactOk && this.sel ? h('div.eq-outils-liste', [this.sel.bouton, h('span.doux.petit', { text: 'Cochez des clients pour les envoyer au CRM (' + CRM_MAX + ' au plus à la fois), ou cliquez « → CRM » sur une ligne.' })]) : null;
+    el.appendChild(h('div.carte', [h('div.carte-corps', [this.elSync, iaBarre, iaRes, filtres, this.elTuiles, this.elFid, params, outilsListe, this.elTable])]));
     this.majSync();
     this.rendreTuiles();
     this.rendreFidelite();
@@ -1164,6 +1215,7 @@
       carte(nMeilleurUS ? 'vert' : 'gris', 'Plus payant aux É.-U.', nMeilleurUS, 'gros É.-U. − dette > équité au Canada', 'meilleurUS'),
       (function () { var l = base.filter(function (r) { return r.sauver; }), tot = 0; l.forEach(function (r) { tot += r.interetSauve || 0; }); return carte(l.length ? 'vert' : 'gris', 'Sauver de l\'intérêt', l.length, 'taux ≥ ' + String(nombre(self.params.ecartTaux) !== null ? nombre(self.params.ecartTaux) : 2).replace('.', ',') + ' pts au-dessus d\'aujourd\'hui' + (tot ? ' · ≈ ' + fmt$(tot) + ' d\'intérêts' : ''), 'interet'); })(),
       carte('violet', 'En suivi', n(function (r) { return r.compte.suivi; }), 'contactés, rendez-vous, vendus', 'suivi'),
+      (CRM[this.cie] && CRM[this.cie].donnees) ? (function () { var nC = n(function (r) { var x = crmDe(self.cie, r.compte.compte); return !!(x && x.crmLe); }); return carte(nC ? 'bleu' : 'gris', 'Envoyés au CRM', nC, 'transactions envoyées au CRM de la concession', 'crm'); })() : null,
       estHmf(this.cie) ? (function () {
         /* 7 nov. : la tuile compte les offres actives (37), pas seulement les clients de Hyundai Finance ; un clic montre ceux-ci
            dans la liste ET ouvre la carte des offres. */
@@ -1374,7 +1426,15 @@
     } else projEl = h('div.eq-proj.eq-nul', { text: '→ —' });
     var noteSuivi = [c.suiviNote, c.suiviLe ? AMX.fmtDateCourte(c.suiviLe) + (c.suiviPar ? ' · ' + String(c.suiviPar).split('@')[0] : '') : ''].filter(Boolean).join('\n');
     if (noteSuivi) selSuivi.title = noteSuivi;
-    return h('tr' + cls, [
+    /* 8 nov. : envoi au CRM et représentant attitré (EquiteCrm.gs). */
+    var cr = crmDe(self.cie, c.compte), crmEls = [];
+    if (contact && CRM[self.cie] && CRM[self.cie].donnees) {
+      var titreCrm = cr && cr.crmLe ? 'Envoyé au CRM le ' + AMX.fmtDate(cr.crmLe) + (cr.crmPar ? ' par ' + String(cr.crmPar).split('@')[0] : '') + (cr.crmFois > 1 ? ' (' + cr.crmFois + ' envois)' : '') + (cr.crmNeuf ? '\nVéhicule proposé : ' + cr.crmNeuf : '') + '\nCliquez pour l\'envoyer de nouveau ou changer le représentant.' : 'Envoyer cette transaction au CRM de la concession (ADF) et l\'attribuer à un représentant';
+      if (cr && cr.crmEtat && /^erreur/.test(cr.crmEtat)) titreCrm += '\nDernier essai : ' + cr.crmEtat;
+      crmEls.push(h('button.eq-crm' + (cr && cr.crmLe ? '.envoye' : ''), { type: 'button', text: cr && cr.crmLe ? 'CRM ✓ ' + AMX.fmtDateCourte(cr.crmLe) : '→ CRM', title: titreCrm, onclick: function (ev) { ev.stopPropagation(); self.ouvrirCrm([r]); } }));
+    }
+    if (cr && cr.representant) crmEls.push(h('div.sous.coupe.eq-rep', { text: nomCourt(cr.representantNom || cr.representant), title: 'Représentant attitré : ' + (cr.representantNom || cr.representant) + (cr.representantLe ? ' (depuis le ' + AMX.fmtDate(cr.representantLe) + ')' : '') }));
+    return h('tr' + cls, { 'data-vin': c.compte }, [
       h('td', { title: titreClient }, [h('div.nom.coupe', { text: nomClient(c) }), h('div.sous.coupe', [telEl || h('span', { text: court(c.ville, 18) }), mailEl ? ' ' : '', mailEl]), puces.length ? h('div.eq-puces', puces) : null]),
       h('td', { title: veh + (c.vin ? '\nNIV ' + c.vin : '') }, [h('div.coupe', { text: vehCourt }), h('div.vin.coupe', { text: c.vin ? '…' + String(c.vin).slice(-8) : '' })]),
       h('td', { title: titreContrat }, [h('div.coupe', { text: typeC + (r.tauxContrat !== null ? ' · ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? '*' : '') : '') }), h('div.sous.coupe' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'éch. ' + moisAn(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' m)' : '') : '' })]),
@@ -1384,8 +1444,99 @@
       h('td.num', { title: r.location && r.equiteEcheance !== null ? 'À l\'échéance : ' + fmtSigne(r.equiteEcheance) : '' }, [h('div' + eqCls, { text: r.equite === null ? '—' : fmtKSigne(r.equite) }), r.location && r.equiteEcheance !== null ? h('div.sous', { text: 'éch. ' + fmtKSigne(r.equiteEcheance) }) : null]),
       h('td.num.eq-us-cell', [self.celluleUS(r)]),
       h('td', [neufEl]),
-      h('td', [selSuivi])
+      h('td', [selSuivi].concat(crmEls))
     ]);
+  };
+  /* ---- 8 nov. : Équité → CRM. La page n'envoie que les chiffres de la transaction ; le serveur relit le client (nom,
+     téléphones, courriel, adresse) dans le portefeuille du prêteur et bâtit le ADF. ---- */
+  function transactionDe(r) {
+    var c = r.compte, n = r.neuf, p = r.programme && !r.programme.manquant ? r.programme : null, v = n && n.v ? n.v : {};
+    return {
+      neuf: n ? { annee: n.annee || v.annee || '', marque: v.marque || c.marque || '', modele: n.modele || v.modele || '', version: n.version || v.version || '', vin: n.vin || '', stock: v.stock || '', prix: n.prix, etat: n.etat || '' } : null,
+      type: p ? p.type : (r.location ? 'location' : 'financement'), terme: p ? p.terme : null, taux: p ? p.taux : null, kmAn: p ? p.kmAn : null,
+      mensualite: r.mensualite, ecart: r.ecart, paiementActuel: nombre(c.paiement),
+      valeur: r.valeur, dette: r.solde, equite: r.equite, equiteUS: r.equiteUS, kmEstime: r.kmEstime,
+      programme: p ? texteProgramme(r) : (r.programmeManquant ? 'programme du manufacturier à trouver pour ce terme' : ''),
+      fidelite: r.fidelite ? texteFidelite(r.fidelite) + (r.fidelite.offre ? ' (offre nº ' + r.fidelite.offre + ')' : '') + (r.fidelite.expiration ? ', valide jusqu\'au ' + AMX.fmtDate(r.fidelite.expiration) : '') : '',
+      interet: r.sauver ? 'Sauver de l\'intérêt : taux du contrat ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé)' : '') + ', taux du programme ' + fmtTaux(r.tauxJour) + (r.interetMois ? ', environ ' + fmt$(r.interetMois) + ' de moins par mois' : '') : ''
+    };
+  }
+  VueEquite.prototype.ouvrirCrm = function (rows, fini) {
+    var self = this, cie = this.cie;
+    rows = (rows || []).filter(Boolean);
+    if (!rows.length) return;
+    if (rows.length > CRM_MAX) { AMX.toast('Au plus ' + CRM_MAX + ' clients à la fois.', 'attention'); return; }
+    chargerCrm(cie).then(function (d) {
+      if (!d.peutEnvoyer) { AMX.toast('Votre compte ne peut pas envoyer au CRM (droit « Fiche d\'achat » ou « Changer le statut » requis).', 'erreur', 6000); return; }
+      var un = rows.length === 1, cr0 = un ? crmDe(cie, rows[0].compte.compte) : null, repActuel = cr0 && cr0.representant ? cr0.representant : '';
+      var avecRep = rows.some(function (r) { var x = crmDe(cie, r.compte.compte); return !!(x && x.representant); });
+      var reps = d.reps || [], ventes = reps.filter(function (x) { return x.role === 'vendeur' || x.role === 'bdc'; }), direction = reps.filter(function (x) { return x.role !== 'vendeur' && x.role !== 'bdc'; });
+      var opt = function (v, t) { return h('option', { value: v, text: t }); };
+      var selRep = h('select.saisie#eq-crm-rep', [opt('', un && repActuel ? 'Garder : ' + (cr0.representantNom || repActuel) : (un ? '— Aucun représentant —' : '— Ne pas changer —'))]
+        .concat(ventes.length ? [h('optgroup', { label: 'Représentants' }, ventes.map(function (x) { return opt(x.courriel, x.nom + (x.role === 'bdc' ? ' (BDC)' : '')); }))] : [])
+        .concat(direction.length ? [h('optgroup', { label: 'Direction des ventes' }, direction.map(function (x) { return opt(x.courriel, x.nom + ' (' + (x.roleLibelle || x.role) + ')'); }))] : [])
+        .concat(avecRep ? [opt('__retirer', 'Retirer le représentant attitré')] : []));
+      var cbEnvoyer = h('input#eq-crm-envoyer', { type: 'checkbox', checked: 'checked' });
+      var cbPrevenir = h('input#eq-crm-prevenir', { type: 'checkbox', checked: 'checked' });
+      var note = h('textarea.saisie#eq-crm-note', { rows: 2, placeholder: 'Note pour le CRM et le représentant (facultatif) : quoi proposer, quand appeler…' });
+      var ligneCase = function (cb, texte, aide) { return h('label.eq-crm-case', [cb, h('span', [h('b', { text: texte }), aide ? h('span.doux.petit', { text: ' — ' + aide }) : null])]); };
+      var lignePrevenir = ligneCase(cbPrevenir, 'Prévenir le représentant par courriel', 'un courriel avec la liste de ses clients');
+      var liste = h('ul.eq-crm-liste', rows.slice(0, 12).map(function (r) {
+        var c = r.compte, x = crmDe(cie, c.compte), puces = [];
+        if (x && x.crmLe) puces.push(h('span.puce.attention', { text: 'déjà envoyé le ' + AMX.fmtDateCourte(x.crmLe) }));
+        if (x && x.representantNom) puces.push(h('span.puce', { text: 'à ' + nomCourt(x.representantNom) }));
+        if (r.ndnc) puces.push(h('span.puce.danger', { text: 'Ne pas téléphoner' }));
+        if (!c.telephone && !c.courriel) puces.push(h('span.puce.attention', { text: 'ni téléphone ni courriel' }));
+        var nomN = r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') : '';
+        return h('li', [h('div', [h('b', { text: nomClient(c) }), ' · ', vehiculeTexte(c)]),
+          h('div.doux.petit', { text: (nomN ? '→ ' + nomN + ' · ' : '') + 'paiement ' + fmt$(nombre(c.paiement)) + (r.mensualite !== null ? ' → ' + fmt$(r.mensualite) + (r.ecart !== null ? ' (' + fmtSigne(r.ecart) + ')' : '') : '') + (r.equite !== null ? ' · équité ' + fmtSigne(r.equite) : '') }),
+          puces.length ? h('div.eq-crm-puces', puces) : null]);
+      }).concat(rows.length > 12 ? [h('li.doux', { text: '… et ' + (rows.length - 12) + ' autres.' })] : []));
+      var btnEnvoi = null;
+      var maj = function () {
+        var choisi = selRep.value && selRep.value !== '__retirer';
+        cbPrevenir.disabled = !choisi; lignePrevenir.classList.toggle('inactif', !choisi);
+        if (btnEnvoi) btnEnvoi.textContent = cbEnvoyer.checked ? 'Envoyer au CRM' + (un ? '' : ' (' + rows.length + ')') : (selRep.value === '__retirer' ? 'Retirer le représentant' : 'Attribuer');
+      };
+      selRep.addEventListener('change', maj); cbEnvoyer.addEventListener('change', maj);
+      var corps = h('div.eq-crm', [
+        h('p', { style: { margin: '0 0 10px' } }, ['La transaction part au CRM de ', h('b', { text: d.nomConcession || nomCie(cie) }), ' au format ADF (comme les leads) : le client, ses coordonnées tirées du portefeuille du prêteur, son véhicule (échange), le neuf proposé et la nouvelle mensualité.']),
+        liste,
+        h('div.champ', [h('label', { for: 'eq-crm-rep', text: 'Représentant attitré' }), selRep]),
+        ligneCase(cbEnvoyer, 'Envoyer au CRM', d.adresse || 'adresse ADF'),
+        lignePrevenir,
+        h('div.champ', [h('label', { for: 'eq-crm-note', text: 'Note' }), note]),
+        h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Les montants (valeur de gros, dette, équité) sont des estimations internes, notées comme telles dans le CRM.' + (d.quota !== null && d.quota !== undefined ? ' Courriels qui restent aujourd\'hui au compte d\'envoi : ' + d.quota + ' (' + d.reserve + ' gardés pour les codes de connexion).' : '') })
+      ]);
+      var m = AMX.modale({ titre: un ? 'Envoyer au CRM — ' + nomClient(rows[0].compte) : 'Envoyer ' + rows.length + ' clients au CRM', corps: corps, large: true, proteger: false, boutons: [
+        { texte: 'Annuler' },
+        { texte: 'Envoyer au CRM', classe: 'btn primaire', action: function () {
+          var r0 = selRep.value, envoyer = cbEnvoyer.checked;
+          if (!envoyer && !r0) { AMX.toast('Choisissez un représentant, ou cochez « Envoyer au CRM ».', 'attention'); return false; }
+          var corpsPost = { action: 'equiteCrm', compagnie: cie, items: rows.map(function (r) { return { compte: r.compte.compte, t: transactionDe(r) }; }),
+            representant: r0 && r0 !== '__retirer' ? r0 : '', retirer: r0 === '__retirer', envoyer: envoyer, prevenir: !!(r0 && r0 !== '__retirer' && cbPrevenir.checked), note: note.value.trim() };
+          return AMX.post(corpsPost, { secours: false, delai: 180000 }).then(function (res) {
+            if (res && res.vehicules && res.envoyes === undefined) throw new Error('Le script n\'est pas à jour : déployez EquiteCrm.gs.');
+            if (res && (res.refuse || res.ok === false) && !res.envoyes) throw new Error((res && res.erreur) || ((res.erreurs || [])[0] || {}).erreur || 'Refusé par le serveur.');
+            var x = CRM[cie] && CRM[cie].donnees;
+            if (x && res.crm) Object.keys(res.crm).forEach(function (k) { x.crm[k] = res.crm[k]; });
+            var morceaux = [];
+            if (envoyer) morceaux.push(res.envoyes + ' client' + (res.envoyes > 1 ? 's' : '') + ' envoyé' + (res.envoyes > 1 ? 's' : '') + ' au CRM');
+            if (res.attribues) morceaux.push('attribué' + (res.attribues > 1 ? 's' : '') + ' à ' + (selRep.options[selRep.selectedIndex].text || '').replace(/ \(.*\)$/, ''));
+            if (r0 === '__retirer') morceaux.push('représentant retiré');
+            if (res.prevenu) morceaux.push('représentant prévenu');
+            var errs = res.erreurs || [];
+            var phrase = morceaux.join(', ') || 'Enregistré'; AMX.toast(phrase.charAt(0).toUpperCase() + phrase.slice(1) + '.' + (errs.length ? ' ' + errs.length + ' problème' + (errs.length > 1 ? 's' : '') + ' : ' + errs[0].erreur : ''), errs.length ? 'attention' : 'ok', errs.length ? 9000 : 5000);
+            if (fini) fini();
+            self.rendre();
+          }).catch(function (e) { AMX.toast('Rien n\'est envoyé — ' + AMX.erreurTexte(e), 'erreur', 8000); throw e; });
+        } }
+      ] });
+      var modEl = corps.closest ? corps.closest('.modale') : null;
+      btnEnvoi = modEl ? modEl.querySelector('button.btn.primaire') : null;
+      maj();
+      void m;
+    }).catch(function (e) { AMX.toast('Envoi au CRM indisponible — ' + AMX.erreurTexte(e), 'erreur', 7000); });
   };
   /* ---- Calcul de la dette (5 nov.) : le détail d'un compte, et le bilan de la page ---- */
   VueEquite.prototype.detailDette = function (r) {

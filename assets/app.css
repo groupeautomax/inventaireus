@@ -1168,6 +1168,25 @@ body.avec-barre-selection #maxai-bulle { display: none; }
 .hub-tuile.ambre { --acc: var(--ambre); --acc-bg: var(--ambre-bg); }
 .hub-tuile.sarcelle { --acc: var(--sarcelle); --acc-bg: var(--sarcelle-bg); }
 .hub-tuile.prune { --acc: var(--prune); --acc-bg: var(--prune-bg); }
+.hub-tuile.rouge { --acc: var(--rouge); --acc-bg: var(--rouge-bg); }   /* 8 nov. : ici, pas seulement dans #css-amx-sujets (la tuile Départ restait grise) */
+.hub-tuile.gris { --acc: var(--encre-2); --acc-bg: var(--gris-bg); }
+/* 8 nov. (Maxime : « quand on clique Embauche et départ il doit y avoir deux grosses tuiles, embauche et départ séparées ») :
+   une page de choix à deux pages = deux très grosses tuiles sur toute la largeur. */
+.hub-tuiles.grandes { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 1200px; gap: 22px; }
+.hub-tuiles.grandes .hub-tuile { min-height: 300px; padding: 34px 32px 28px; gap: 16px; border-radius: 20px; }
+.hub-tuiles.grandes .hub-tuile::before { height: 6px; }
+.hub-tuiles.grandes .hub-tuile .haut { gap: 18px; }
+.hub-tuiles.grandes .hub-tuile .ic { width: 80px; height: 80px; border-radius: 20px; }
+.hub-tuiles.grandes .hub-tuile .ic svg { width: 40px; height: 40px; }
+.hub-tuiles.grandes .hub-tuile h2 { font-size: 32px; }
+.hub-tuiles.grandes .hub-tuile p { font-size: 16px; }
+.hub-tuiles.grandes .hub-tuile .ouvrir { font-size: 17px; }
+@media (max-width: 900px) {
+  .hub-tuiles.grandes { grid-template-columns: 1fr; gap: 14px; }
+  .hub-tuiles.grandes .hub-tuile { min-height: 190px; padding: 24px 20px 20px; }
+  .hub-tuiles.grandes .hub-tuile .ic { width: 60px; height: 60px; } .hub-tuiles.grandes .hub-tuile .ic svg { width: 30px; height: 30px; }
+  .hub-tuiles.grandes .hub-tuile h2 { font-size: 26px; }
+}
 /* 3 nov. : sur téléphone, des tuiles compactes (une colonne, pas de hauteur imposée). */
 @media (max-width: 900px) { .hub-tuile { min-height: 0; padding: 18px; gap: 10px; } .hub-tuile .ic { width: 46px; height: 46px; } .hub-tuile .ic svg { width: 24px; height: 24px; } .hub-tuile h2 { font-size: 19px; } }
 /* Au-dessus d'une page rangée sous une page de choix : le retour et les pages sœurs. */

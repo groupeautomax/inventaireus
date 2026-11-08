@@ -1074,8 +1074,10 @@
       { id: 'ressources', titre: 'Ressources humaines', hub: true, racine: true, icone: 'admin', desc: 'L\'embauche et le départ, les documents de référence, les dossiers des employés, les documents à signer et la santé et sécurité, pour toutes les concessions.' },
       /* 8 nov. (Maxime : « un gros onglet Embauche et départ, avec dedans Commencer le processus d'embauche et Départ ») */
       { id: 'embauchedepart', titre: 'Embauche et départ', hub: true, parent: 'ressources', icone: 'admin', couleur: 'violet', desc: 'Commencer une embauche ou un départ, et voir où en est chaque dossier.' },
-      { id: 'embauches', titre: 'Commencer le processus d\'embauche', de: 'embauches', onglet: '', parent: 'embauchedepart', cle: 'rh/embauches', icone: 'achat', couleur: 'vert', desc: 'Une nouvelle embauche : la fiche (le DG approuve celle d\'un directeur), puis la RH envoie les documents à signer. La ligne d\'avancement dit où en est chaque dossier.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
-      { id: 'departs', titre: 'Départ', de: 'departs', onglet: '', parent: 'embauchedepart', cle: 'rh/departs', icone: 'alerte', couleur: 'rouge', visible: function () { return !!(AMX.departs && AMX.departs.peutVoir()); }, desc: 'Un employé quitte : la fiche de départ, le DG l\'approuve, la RH fait la dernière paie, le relevé d\'emploi et retire les accès.', compteur: function () { return AMX.departs ? AMX.departs.compteur() : ''; } },   /* 8 nov. : departs.js, Departs.gs */
+      /* 8 nov. (« deux grosses tuiles pour embauche et départ séparées, et après on fait la suite séparément ») : deux très
+         grosses tuiles, Embauche et Départ ; chacune ouvre sa page (sa liste, son gros bouton, sa ligne d'avancement). */
+      { id: 'embauches', titre: 'Embauche', de: 'embauches', onglet: '', parent: 'embauchedepart', cle: 'rh/embauches', icone: 'achat', couleur: 'vert', ouvrir: 'Commencer ou suivre une embauche', desc: 'Commencer le processus d\'embauche : la fiche, l\'approbation du DG, puis la RH envoie les documents à signer. Chaque dossier a sa ligne d\'avancement.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
+      { id: 'departs', titre: 'Départ', de: 'departs', onglet: '', parent: 'embauchedepart', cle: 'rh/departs', icone: 'alerte', couleur: 'rouge', ouvrir: 'Commencer ou suivre un départ', visible: function () { return !!(AMX.departs && AMX.departs.peutVoir()); }, desc: 'Un employé quitte : la fiche de départ, le DG l\'approuve, la RH fait la dernière paie, le relevé d\'emploi et retire les accès.', compteur: function () { return AMX.departs ? AMX.departs.compteur() : ''; } },   /* 8 nov. : departs.js, Departs.gs */
       { id: 'reference', titre: 'Documents de référence', de: 'reference', onglet: '', parent: 'ressources', cle: 'rh/reference', icone: 'achat', couleur: 'bleu', visible: function () { return !!(AMX.reference && AMX.reference.peutVoir()); }, desc: 'Le Manuel de l\'employé, les lettres d\'offre, les formulaires et la santé et sécurité, rangés par sujet.' },   /* 8 nov. : reference.js, RhReference.gs */
       { id: 'employes', titre: 'Dossiers des employés', de: 'employes', onglet: '', parent: 'ressources', cle: 'rh/employes', icone: 'admin', couleur: 'bleu', desc: 'Le dossier de chaque employé par concession : emploi, coordonnées, contacts d\'urgence ; le NAS reste dans un fichier privé.' },
       { id: 'documents', titre: 'Documents à signer', de: 'rh', onglet: '', parent: 'ressources', cle: 'rh/rh', icone: 'achat', couleur: 'vert', desc: 'Politiques, lettres et formulaires envoyés aux nouveaux employés ; signature électronique, dossier envoyé à la paie.', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },   /* 7 nov. : rh.js, PortailRH.gs */
@@ -1210,7 +1212,7 @@
       var enfants = function () { return def.onglets.filter(function (e) { return e.parent === o.id; }); };
       return {
         id: o.id, titre: o.titre, de: o.de, onglet: o.onglet, fixes: o.fixes, vues: o.vues, monter: o.monter,
-        hub: !!o.hub, racine: !!o.racine, parent: o.parent || '', icone: o.icone, couleur: o.couleur, cle: cle,
+        hub: !!o.hub, racine: !!o.racine, parent: o.parent || '', icone: o.icone, couleur: o.couleur, ouvrir: o.ouvrir || '', cle: cle,
         desc: function () { try { return typeof o.desc === 'function' ? o.desc() : (o.desc || ''); } catch (e) { return ''; } },
         horsMenu: function () { try { return !!(o.horsMenu && o.horsMenu()); } catch (e) { return false; } },
         enfants: o.hub ? function () { return enfants().filter(function (e) { return e.visible() && !e.horsMenu(); }); } : null,   /* 8 nov. : sans les pages qui ont leur propre entrée (LMB, Échanges) */
@@ -1248,7 +1250,7 @@
     var self = this, t = this.tuile, o = this.o;
     AMX.vider(this.el);
     var liste = o.enfants ? o.enfants() : [];
-    var tuiles = h('div.hub-tuiles' + (liste.length === 4 ? '.quatre' : '') + (liste.length <= 2 ? '.deux' : ''));
+    var tuiles = h('div.hub-tuiles' + (liste.length === 4 ? '.quatre' : '') + (liste.length <= 2 ? '.deux.grandes' : ''));   /* 8 nov. : deux pages = deux très grosses tuiles */
     liste.forEach(function (e) {
       var c = ''; try { c = e.compteur(); } catch (er) {}
       var vues = e.vues ? vuesVisibles(e) : [];
@@ -1258,7 +1260,7 @@
         h('p', { text: e.desc() }),
         vues.length > 1 ? h('div.vues-tuile', vues.map(function (v) {
           return h('a', { href: AMX.lien(t.id, e.id, { vue: v.id }), onclick: function (ev) { ev.stopPropagation(); } }, v.titre);
-        })) : h('span.ouvrir', [h('span', 'Ouvrir'), h('span', { html: ICONES.chevron })])
+        })) : h('span.ouvrir', [h('span', { text: e.ouvrir || 'Ouvrir' }), h('span', { html: ICONES.chevron })])
       ]));
     });
     this.el.appendChild(h('div.page.hub-page', [

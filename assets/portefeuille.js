@@ -287,11 +287,13 @@
     a.km = v.km && v.km.projete ? v.km.projete : null;
     /* valeur : OpenLane lu en direct sur ce poste d'abord, sinon celle du portefeuille bâti */
     var ol = AMX.openlane && AMX.openlane.valeur ? AMX.openlane.valeur(v.vin) : null, base = null, kmBase = null, lu = '';
-    if (ol && (nombre(ol.prevision) || nombre(ol.prixMoy))) { base = nombre(ol.prevision) || nombre(ol.prixMoy); kmBase = nombre(ol.prevision) ? (nombre(ol.previsionKm) || nombre(ol.km)) : nombre(ol.kmMoy); lu = String(ol.luLe || '').slice(0, 10); }
-    else if (v.valeur) { base = nombre(v.valeur.prevision) || nombre(v.valeur.prixMoy); kmBase = nombre(v.valeur.prevision) ? nombre(v.valeur.previsionKm) : nombre(v.valeur.kmMoy); lu = v.valeur.luLe || ''; }
+    /* 8 nov. (Maxime, après Équité : « la moyenne des unités vendues et non les prévisions ») : la base est le prix moyen des ventes
+       comparables d'OpenLane, jamais la prévision ; le réglage « Ajustement au km » la ramène au km projeté (0 = telle quelle). */
+    if (ol && nombre(ol.prixMoy)) { base = nombre(ol.prixMoy); kmBase = nombre(ol.kmMoy); lu = String(ol.luLe || '').slice(0, 10); }
+    else if (v.valeur && nombre(v.valeur.prixMoy)) { base = nombre(v.valeur.prixMoy); kmBase = nombre(v.valeur.kmMoy); lu = v.valeur.luLe || ''; }
     if (base) {
       var val = base;
-      if (a.km && kmBase) val += (kmBase - a.km) * (nombre(p.tauxKm) || 0.10);
+      var tk = nombre(p.tauxKm); if (a.km && kmBase) val += (kmBase - a.km) * (tk !== null ? tk : 0.10);   /* 0 = pas d'ajustement */
       var rg = regle(p, v); if (rg) { val += Number(rg.ajustement) || 0; a.regle = rg; }
       val = Math.max(0, val);
       a.valeur = Math.round(val); a.valeurLu = lu; a.valeurBase = base;
@@ -1647,7 +1649,7 @@
     function champ(cle, libelle, aide) { var i = h('input.saisie', { type: 'number', step: 'any', value: p[cle] === undefined ? '' : p[cle] }); champs[cle] = i; return h('div.champ', [h('label', { text: libelle }), i, aide ? h('small.doux', { text: aide }) : null]); }
     corps.appendChild(h('p', { text: 'Réglages de ' + (AMX.COMPAGNIES_TOUTES[this.cie] || this.cie) + ' : ils changent la valeur montrée, la fourchette et les segments, sans relire les sources.' }));
     corps.appendChild(h('div.grille', [
-      champ('kmParAn', 'Km par année (estimé)', 'quand on n\'a qu\'une lecture ou aucune'), champ('tauxKm', 'Ajustement au km ($ / km)', 'prévision OpenLane ramenée au km projeté'),
+      champ('kmParAn', 'Km par année (estimé)', 'quand on n\'a qu\'une lecture ou aucune'), champ('tauxKm', 'Ajustement au km ($ / km)', 'moyenne des ventes OpenLane ramenée au km projeté ; 0 = la moyenne telle quelle, comme dans Équité'),
       champ('fourchetteBasPct', 'Fourchette : bas (%)', 'valeur − ce %'), champ('fourchetteHautPct', 'Fourchette : haut (%)', 'valeur + ce %'),
       champ('seuilEquite', 'Équité positive à partir de ($)'), champ('finContratMois', 'Fin de contrat dans (mois)'),
       champ('serviceInactifMois', 'Service inactif après (mois)'), champ('sweetSpotMin', 'Bon moment : à partir de (mois après l\'achat)'), champ('sweetSpotMax', 'Bon moment : jusqu\'à (mois)')

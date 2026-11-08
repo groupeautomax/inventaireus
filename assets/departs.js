@@ -289,7 +289,15 @@
 
   /* ------------------------------------------------------------------------------- formulaire : des choix partout */
   VueDep.prototype.formulaire = function (e, employeId) {
-    var self = this, rep = this.rep || {}, nouveau = !e;
+    var self = this;
+    /* La liste des employés arrive avec les fiches : un clic avant la fin du chargement attend les données (sinon la liste
+       des employés serait vide). */
+    if (!this.rep) {
+      AMX.toast('Chargement des employés…', 'info', 2500);
+      charger(false).then(function (d) { if (self.detruit) return; self.rep = d; self.formulaire(e, employeId); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur', 8000); });
+      return;
+    }
+    var rep = this.rep, nouveau = !e;
     e = e || { compagnie: this.compagnie, materiel: [] };
     var o = outils();
     var codes = AMX.codesPour ? AMX.codesPour('inventaire') : '*';

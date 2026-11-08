@@ -450,7 +450,7 @@
     var s = ' ' + String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ') + ' ';
     s = s.replace(/ plug in hybrid | plug in | hybride rechargeable | rechargeable | phev /g, ' phev ').replace(/ hybride | hybrid | hyb | hev /g, ' hev ').replace(/ electrique | electric /g, ' ev ')
       .replace(/ (2500|3500) ?hd /g, ' hd ').replace(/ ld /g, ' 1500 ').replace(/ ess /g, ' essential ').replace(/ pref | pre /g, ' preferred ').replace(/ ulti | ult /g, ' ultimate ')
-      .replace(/ cal | callig /g, ' calligraphy ').replace(/ lt([123]) /g, ' $1lt ').replace(/ trailboss /g, ' trail boss ').replace(/ privilegie /g, ' preferred ');
+      .replace(/ cal | callig /g, ' calligraphy ').replace(/ lt([123]) /g, ' $1lt ').replace(/ trailboss /g, ' trail boss ').replace(/ privilegie /g, ' preferred ').replace(/ vus /g, ' suv ').replace(/ camion /g, ' pickup ');   /* 8 nov. : « HUMMER EV VUS / CAMION » du DMS = SUV / Pickup des sites */
     var j = s.trim().split(/\s+/).filter(Boolean);
     if (j.some(function (x) { return /^[123]lt$/.test(x); }) && j.indexOf('lt') < 0) j.push('lt');   /* « LT » du bulletin GM = 1LT, 2LT, 3LT */
     if (/\b(lyriq|optiq|vistiq|celestiq|ioniq|hummer|bolt)\b/.test(j.join(' '))) j = j.filter(function (x) { return x !== 'ev'; });
@@ -594,7 +594,9 @@
       }
     }
     var quoi = (location ? 'location ' : 'financement ') + (voulu ? voulu + ' mois' : '') + (location && kmVoulu ? ' · ' + AMX.fmtNombre(kmVoulu) + ' km' : '');
-    return Object.assign({}, base, { manquant: true, terme: voulu, raison: c.length ? 'le programme du manufacturier n\'offre pas la ' + quoi.trim() : 'aucun programme de ' + (location ? 'location' : 'financement') + ' du manufacturier pour ce modèle ce mois-ci' });
+    /* 8 nov. : un modèle que le manufacturier offre seulement en financement ce mois-ci (ex. Cadillac Lyriq et Optiq 2027) */
+    var financementSeul = location && !c.length && (progs || []).some(function (p) { return p.type === 'financement' && progCorrespond(p, s); });
+    return Object.assign({}, base, { manquant: true, terme: voulu, financementSeul: financementSeul, raison: financementSeul ? 'le manufacturier n\'offre pas de location pour ce modèle ce mois-ci (financement seulement)' : (c.length ? 'le programme du manufacturier n\'offre pas la ' + quoi.trim() : 'aucun programme de ' + (location ? 'location' : 'financement') + ' du manufacturier pour ce modèle ce mois-ci') });
   }
   /** Mensualité d'une location (même formule que MOF_location_) : coût capitalisé net = prix + frais − rabais − (valeur −
       dette) − comptant ; résiduel = % du PDSF ; (cap net − résiduel) ÷ terme + (cap net + résiduel) × taux ÷ 2 400 ; taxes sur
@@ -1407,7 +1409,7 @@
     }
     var mensEl;
     if (r.mensualite !== null) mensEl = h('div', [h('div' + (r.cible ? '.eq-pos' : ''), { text: fmt$(r.mensualite) + ' / mois' }), h('div.sous', { text: r.proposition ? (r.ecart !== null ? fmtSigne(r.ecart) + ' vs actuel · calcul GM' : 'calcul GM') : (r.sansValeur ? 'sans valeur d\'échange' : (fmtSigne(r.ecart) + ' vs actuel · ' + (r.programme && r.programme.type === 'location' ? 'coût capitalisé ' : 'financé ') + fmt$(r.finance))) }), r.programme ? h('div.sous.eq-prog.' + r.programme.source, { text: texteProgramme(r), title: titreProg }) : null, ecartsTr.length ? h('div.sous.eq-ecart-tr', { text: ecartsTr.join(' · '), title: 'Le programme ne donne pas exactement la transaction du contrat du client.' }) : null]);
-    else if (r.programmeManquant) mensEl = h('div.eq-manquant', { title: 'Aucune mensualité : ' + r.programme.raison + '. Pas de taux ni de résiduel « par défaut ». Les Programmes du mois sont lus tout seuls sur le site de la concession ou chez le manufacturier ; un programme peut aussi être ajouté à la main dans Relance › Portefeuille clients › Programmes du mois.' }, [h('div', { text: 'Programme à trouver' }), h('div.sous', { text: texteManquant(r) })]);
+    else if (r.programmeManquant) mensEl = h('div.eq-manquant', { title: 'Aucune mensualité : ' + r.programme.raison + '. Pas de taux ni de résiduel « par défaut ». Les Programmes du mois sont lus tout seuls sur le site de la concession ou chez le manufacturier ; un programme peut aussi être ajouté à la main dans Relance › Portefeuille clients › Programmes du mois.' }, [h('div', { text: r.programme.financementSeul ? 'Location pas offerte' : 'Programme à trouver' }), h('div.sous', { text: r.programme.financementSeul ? 'financement seulement ce mois-ci' : texteManquant(r) })]);
     else mensEl = h('span.eq-nul', '—');
     var selSuivi = h('select.suivi', SUIVIS_ORDRE.map(function (k) { return h('option', { value: k, text: SUIVIS[k] }); }));
     selSuivi.value = c.suivi || '';
@@ -1441,7 +1443,7 @@
         + (r.programme && !r.programme.manquant ? '\n' + texteProgramme(r) + (r.programme.type === 'location' ? ' · coût capitalisé ' : ' · financé ') + fmt$(r.finance) : '')
         + (titreProg ? '\n\n' + titreProg : '') + (ecartsTr.length ? '\n\nÉcart avec le contrat : ' + ecartsTr.join(' · ') : '');
     } else if (r.programmeManquant) {
-      projEl = h('div.eq-proj.eq-manquant', { text: '→ programme à trouver' });
+      projEl = h('div.eq-proj.eq-manquant', { text: r.programme.financementSeul ? '→ location pas offerte' : '→ programme à trouver' });
       titrePaie += '\nPas de nouvelle mensualité : ' + r.programme.raison + '. Les Programmes du mois sont lus tout seuls sur le site de la concession ou chez le manufacturier.';
     } else projEl = h('div.eq-proj.eq-nul', { text: '→ —' });
     var noteSuivi = [c.suiviNote, c.suiviLe ? AMX.fmtDateCourte(c.suiviLe) + (c.suiviPar ? ' · ' + String(c.suiviPar).split('@')[0] : '') : ''].filter(Boolean).join('\n');

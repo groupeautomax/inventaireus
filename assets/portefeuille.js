@@ -1365,7 +1365,7 @@
     /* 6 nov. : programmes du manufacturier lus tout seuls (ProgrammesAuto.gs) — Hyundai : hyundaicanada.com ; VW, BMW, Ste-Marie,
        Hawkesbury : la grille de paiements du site de la concession (fait par D2C) ; GM : en plus, le bulletin « Programmes
        principaux » reçu par courriel ou déposé dans Drive (pas relu quand le site de la concession a été lu ce mois-ci). */
-    var sourcesAuto = cie === 'HYUNDAI' ? ['hyundai'] : (cie === 'VW' || cie === 'BMW') ? ['site_' + cie] : (cie === 'STM' || cie === 'HAWKS') ? ['site_' + cie, 'gm'] : [];
+    var sourcesAuto = cie === 'HYUNDAI' ? ['hyundai'] : (cie === 'VW' || cie === 'BMW') ? ['site_' + cie] : cie === 'STM' ? ['site_STM', 'gm'] : cie === 'HAWKS' ? ['site_HAWKS', 'site_HAWKSCAD', 'gm'] : [];
     function nomSource(src, r) {
       if (src === 'hyundai') return 'hyundaicanada.com';
       if (src === 'gm') return 'bulletin « Programmes principaux » de GM';

@@ -57,6 +57,40 @@
     '.rhx-piece { display: grid; grid-template-columns: 1.3fr 1.6fr 1.2fr auto auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--ligne); }',
     '@media (max-width: 760px) { .rhx-piece { grid-template-columns: 1fr 1fr; } }',
     '.rhx-piece label.case { display: flex; gap: 6px; align-items: center; font-size: 12.5px; white-space: nowrap; }',
+    /* 8 nov. : l'assistant « Nouvel employé » en 5 étapes et la fiche d'embauche */
+    '.rhx-gros { font-size: 15px; padding: 10px 18px; min-height: 42px; }',
+    '.rhx-pas { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }',
+    '.rhx-pas button { width: 100%; display: flex; gap: 8px; align-items: center; text-align: left; border: 1px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 8px 10px; cursor: pointer; font: inherit; color: var(--encre-2); min-height: 52px; }',
+    '.rhx-pas button:disabled { cursor: default; opacity: .5; }',
+    '.rhx-pas .n { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px; background: var(--gris-bg); color: var(--encre-2); }',
+    '.rhx-pas li.actif button { border-color: var(--vert-fonce); box-shadow: 0 0 0 2px var(--vert-clair); color: var(--encre); }',
+    '.rhx-pas li.actif .n { background: var(--vert-fonce); color: #fff; } .rhx-pas li.fait .n { background: var(--vert); color: #fff; }',
+    '.rhx-pas .t { display: flex; flex-direction: column; min-width: 0; } .rhx-pas .t b { font-size: 13.5px; } .rhx-pas .t small { font-size: 12px; color: var(--encre-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+    '@media (max-width: 760px) { .rhx-pas .t small { display: none; } .rhx-pas button { justify-content: center; padding: 6px; } .rhx-pas .t b { font-size: 12px; } }',
+    '@media (max-width: 520px) { .rhx-pas .t { display: none; } }',
+    '.rhx-assistant .modale-pied .btn { font-size: 15px; padding: 10px 20px; min-height: 44px; }',
+    '.rhx-intro { font-size: 14px; color: var(--encre-2); margin: 0 0 12px; }',
+    '.rhx-tuiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin: 4px 0 10px; }',
+    '.rhx-tuile { text-align: left; border: 2px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 12px 14px; cursor: pointer; font: inherit; color: var(--encre); display: flex; flex-direction: column; gap: 3px; min-height: 64px; }',
+    '.rhx-tuile:hover { border-color: var(--vert); } .rhx-tuile b { font-size: 14.5px; } .rhx-tuile small { font-size: 12px; color: var(--encre-3); }',
+    '.rhx-tuile.choisi { border-color: var(--vert-fonce); background: var(--vert-clair); } .rhx-tuile.choisi b::before { content: "✓ "; color: var(--vert-fonce); }',
+    '.rhx-tuile.autre { border-style: dashed; }',
+    '.rhx-groupe { border: 1px solid var(--ligne); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; }',
+    '.rhx-groupe-t { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 800; font-size: 14px; margin: 0 0 4px; }',
+    '.rhx-doc { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 4px; border-bottom: 1px dashed var(--ligne); }',
+    '.rhx-doc:last-child { border-bottom: none; } .rhx-doc.choisi { background: var(--vert-clair); border-radius: 8px; }',
+    '.rhx-doc input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 auto; margin: 0; }',
+    '.rhx-doc label { flex: 1 1 220px; cursor: pointer; font-size: 13.5px; } .rhx-doc label .q { display: block; font-size: 12px; color: var(--encre-3); }',
+    '.rhx-doc .etat-ok { color: var(--vert-fonce); font-size: 12.5px; font-weight: 700; white-space: nowrap; }',
+    '.rhx-doc .etat-manque { color: var(--ambre); border-color: var(--ambre); background: var(--ambre-bg); font-weight: 700; white-space: nowrap; }',
+    '.rhx-fiche-sec { border: 1px solid var(--ligne); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; }',
+    '.rhx-fiche-t { font-weight: 800; font-size: 14px; margin: 0 0 8px; } summary.rhx-fiche-t { cursor: pointer; margin: 0; } details[open] > summary.rhx-fiche-t { margin: 0 0 8px; }',
+    '.rhx-fiche .champ.large { grid-column: 1 / -1; }',
+    '.rhx-fiche .champ.manque input, .rhx-fiche .champ.manque select { border-color: var(--rouge); box-shadow: 0 0 0 2px var(--rouge-bg); }',
+    '.rhx-fiche .champ.manque label::after { content: " — demandé par un document"; color: var(--rouge); font-weight: 600; }',
+    '.rhx-resume { border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; margin: 0 0 6px; }',
+    '.rhx-resume-l { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--ligne); }',
+    '.rhx-resume-l:last-child { border-bottom: none; } .rhx-resume-l b { display: block; font-size: 13.5px; } .rhx-resume-l span { font-size: 13px; color: var(--encre-2); }',
     '.rhx-prereglages { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 8px; }',
     '.rhx-prereglages button { border: 1px dashed var(--ligne); background: var(--carte); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; color: var(--encre-2); }',
     '.rhx-cases { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; } .rhx-cases label { display: flex; gap: 6px; align-items: center; }',
@@ -269,12 +303,15 @@
   var CHAMPS_AUTO = { nom: 1, prenom: 1, poste: 1, debut: 1, concession: 1, date: 1, rh: 1 };
   var ALIAS = { candidat: 'nom', name: 'nom', employe: 'nom', position: 'poste', titre: 'poste', location: 'concession', dealer: 'concession', salaire: 'remuneration' };
   var LIB_CHAMPS = { nom: 'Nom complet', prenom: 'Prénom', poste: 'Poste', debut: 'Date d\'entrée en poste', concession: 'Concession', date: 'Date du jour', rh: 'Personne des RH',
-    remuneration: 'Rémunération', superieur: 'Supérieur immédiat', horaire: 'Horaire de travail',
+    remuneration: 'Résumé de la rémunération', superieur: 'Supérieur immédiat', horaire: 'Horaire de travail',
     /* 8 nov. : les montants du « Plan de rémunération — Directeur / Directrice » (modèle de HR4 copié sans ses montants). */
     remunerationtotale: 'Rémunération annuelle totale', salairebase: 'Salaire annuel de base', salairehebdo: 'Salaire hebdomadaire de base',
     bonismensuels: 'Bonis mensuels', bonistrimestriels: 'Bonis trimestriels', avantages: 'Bénéfices marginaux (total)',
     reer: 'Contribution de l\'employeur au REER', vacances: 'Vacances annuelles', allocationauto: 'Démonstrateur ou allocation automobile',
-    valeurtotale: 'Valeur totale du plan' };
+    valeurtotale: 'Valeur totale du plan',
+    /* 8 nov. : la fiche d'embauche (les lettres d'offre de HR4 y prennent leurs renseignements). */
+    tempstravail: 'Temps plein ou partiel', heures: 'Heures par semaine', duree: 'Durée de l\'emploi (mois)', fin: 'Date de fin de l\'emploi',
+    tauxhoraire: 'Taux horaire', programmeboni: 'Programme de bonification et de commission' };
   var CATEGORIES = { politique: 'Politique', lettre: 'Lettre', autre: 'Document' };
   var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -400,6 +437,102 @@
   }
 
   /* ------------------------------------------------------------------------------- page */
+  /* 8 nov. (Maxime : « plutôt que de faire remplir les champs manquants, il faut faire remplir une fiche qui va envoyer les
+     données nécessaires dans les politiques et les fichiers d'embauche, et non l'inverse ») : LA fiche d'embauche. Une seule
+     liste de renseignements ; chaque document y prend ce qu'il lui faut (champs {{…}} du même nom). Même fiche dans le
+     « Nouvel employé » de la RH et dans les Conditions d'embauche du DG (embauches.js). */
+  var FICHE = [
+    { id: 'emploi', titre: 'L\'emploi', champs: [
+      { n: 'tempstravail', choix: ['temps plein', 'temps partiel'] },
+      { n: 'superieur', ph: 'Ex. directeur des ventes' },
+      { n: 'horaire', ph: 'Ex. du lundi au vendredi, de 8 h à 17 h', large: true },
+      { n: 'heures', ph: 'Ex. 40' },
+      { n: 'duree', ph: 'Ex. 6', aide: 'En mois — emploi temporaire seulement.' },
+      { n: 'fin', ph: 'Ex. 31 mars 2027', aide: 'Emploi temporaire seulement.' }
+    ] },
+    { id: 'paie', titre: 'La rémunération', champs: [
+      { n: 'tauxhoraire', ph: 'Ex. 22,50 $', aide: 'Employé payé à l\'heure.' },
+      { n: 'salairebase', ph: 'Ex. 55 000 $', aide: 'Employé salarié.' },
+      { n: 'salairehebdo', ph: 'Ex. 1 057,69 $' },
+      { n: 'allocationauto', ph: 'Ex. 450 $ par mois, ou un démonstrateur', aide: 'S\'il n\'y en a pas : « aucune ».' },
+      { n: 'programmeboni', ph: 'Ex. Commission de 25 % du profit brut', large: true, aide: 'Le programme qui s\'applique au poste. S\'il n\'y en a pas : « aucun ».' },
+      { n: 'remuneration', ph: 'Se remplit tout seul à partir du taux ou du salaire', large: true, aide: 'Facultatif : le résumé montré à la RH et dans les anciennes lettres.' }
+    ] },
+    { id: 'plan', titre: 'Plan de rémunération (directeurs)', repli: true, champs: [
+      { n: 'remunerationtotale', ph: 'Ex. 150 000 $' }, { n: 'bonismensuels' }, { n: 'bonistrimestriels' }, { n: 'avantages' },
+      { n: 'reer' }, { n: 'vacances', ph: 'Ex. 4 semaines par année' }, { n: 'valeurtotale' }
+    ] }
+  ];
+  var FICHE_CONNUS = {}; FICHE.forEach(function (s) { s.champs.forEach(function (c) { FICHE_CONNUS[c.n] = s.id; }); });
+  /* Le résumé « Rémunération » (liste des conditions d'embauche, anciennes lettres {{remuneration}}), tiré de la fiche. */
+  function resumeRemuneration(v) {
+    v = v || {};
+    var t = function (k) { return String(v[k] || '').trim(); };
+    var r = t('tauxhoraire') ? t('tauxhoraire') + ' de l\'heure' + (t('heures') ? ', ' + t('heures') + ' h par semaine' : '')
+      : t('salairebase') ? t('salairebase') + ' par année' : t('remunerationtotale') ? t('remunerationtotale') + ' par année (rémunération totale)' : '';
+    if (r && t('programmeboni')) r += ' + ' + t('programmeboni');
+    return r;
+  }
+  /** La fiche à remplir : { el, valeurs(), besoin(noms), manque(noms), montrerManques() }. `besoin` = les champs que les
+      documents choisis demandent (encadrés en rouge s'ils sont vides ; un champ inconnu de la fiche y est ajouté). */
+  function ficheEmbauche(valeurs, opts) {
+    opts = opts || {}; css();   /* les styles de la fiche vivent ici, même ouverte depuis les conditions d'embauche */
+    var v = {}; Object.keys(valeurs || {}).forEach(function (k) { if (valeurs[k] !== undefined && valeurs[k] !== null) v[k] = String(valeurs[k]); });
+    var entrees = {}, besoins = {}, autres = [], sections = {};
+    var el = h('div.rhx-fiche');
+    var elAutres = h('div.grille'), secAutres = h('div.rhx-fiche-sec', [h('div.rhx-fiche-t', { text: 'Autres renseignements demandés par les documents' }), elAutres]);
+    var entree = function (c) {
+      var inp;
+      if (c.choix) {
+        inp = h('select', [h('option', { value: '', text: '—' })].concat(c.choix.map(function (x) { return h('option', { value: x, text: x.charAt(0).toUpperCase() + x.slice(1) }); })));
+        inp.value = v[c.n] || '';
+        inp.addEventListener('change', function () { v[c.n] = inp.value; maj(); if (opts.onChange) opts.onChange(); });
+      } else {
+        inp = h('input', { type: 'text', autocomplete: 'off', value: v[c.n] || '', placeholder: c.ph || '' });
+        inp.addEventListener('input', function () { v[c.n] = inp.value; maj(); if (opts.onChange) opts.onChange(); });
+      }
+      var bloc = h('div.champ' + (c.large ? '.large' : ''), [h('label', { text: libChamp(c.n) }), inp, c.aide ? h('span.aide', { text: c.aide }) : null]);
+      entrees[c.n] = { inp: inp, bloc: bloc };
+      return bloc;
+    };
+    FICHE.forEach(function (s) {
+      var grille = h('div.grille', s.champs.map(entree));
+      var sec = s.repli ? h('details.rhx-fiche-sec', [h('summary.rhx-fiche-t', { text: s.titre }), grille]) : h('div.rhx-fiche-sec', [h('div.rhx-fiche-t', { text: s.titre }), grille]);
+      sections[s.id] = sec; el.appendChild(sec);
+    });
+    el.appendChild(secAutres);
+    var ajouterAutres = function (noms) {
+      (noms || []).forEach(function (n) {
+        if (CHAMPS_AUTO[n] || FICHE_CONNUS[n] || autres.indexOf(n) >= 0) return;
+        autres.push(n); elAutres.appendChild(entree({ n: n }));
+      });
+    };
+    var rempli = function (n) { return !!String(v[n] || '').trim() || (n === 'remuneration' && !!resumeRemuneration(v)); };
+    var maj = function () {
+      Object.keys(entrees).forEach(function (n) { entrees[n].bloc.classList.toggle('manque', !!besoins[n] && !rempli(n)); });
+      secAutres.hidden = !autres.length;
+      var plan = sections.plan;
+      if (plan && !plan.open && FICHE[2].champs.some(function (c) { return besoins[c.n] || rempli(c.n); })) plan.open = true;
+    };
+    ajouterAutres(Object.keys(v).filter(function (k) { return String(v[k] || '').trim(); }));
+    maj();
+    var api = {
+      el: el,
+      valeurs: function () {
+        var out = {}; Object.keys(v).forEach(function (k) { var x = String(v[k] || '').trim(); if (x) out[k] = x; });
+        if (!out.remuneration) { var r = resumeRemuneration(out); if (r) out.remuneration = r; }
+        return out;
+      },
+      besoin: function (noms) { besoins = {}; (noms || []).forEach(function (n) { if (!CHAMPS_AUTO[n]) besoins[n] = 1; }); ajouterAutres(noms); maj(); },
+      manque: function (noms) { return (noms || []).filter(function (n) { return !CHAMPS_AUTO[n] && !rempli(n); }); },
+      montrerManques: function () {
+        var n = Object.keys(besoins).filter(function (k) { return !rempli(k); })[0];
+        if (n && entrees[n]) { if (FICHE_CONNUS[n] === 'plan') sections.plan.open = true; entrees[n].inp.focus(); entrees[n].bloc.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+      }
+    };
+    return api;
+  }
+
   function VueRh(conteneur, ctx) {
     css();
     var self = this, p = (ctx && ctx.params) || {};
@@ -408,7 +541,7 @@
     this.vue = p.voir || 'encours'; this.q = p.q || '';   /* « vue » est réservé par la tuile : la vue de la liste se lit dans « voir » */
     this.ouvrirId = p.id || '';
     AMX.vider(conteneur);
-    this.btnNouvel = h('button.btn.primaire', { type: 'button', text: 'Nouvel envoi', onclick: function () { self.nouvelEnvoi(); } });
+    this.btnNouvel = h('button.btn.primaire.rhx-gros', { type: 'button', text: '+ Nouvel employé', onclick: function () { self.nouvelEnvoi(); } });   /* 8 nov. : l'assistant en 5 étapes */
     this.btnDocs = h('button.btn', { type: 'button', text: 'Bibliothèque', onclick: function () { self.documentsTypes(); } });
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnReglages = h('button.btn', { type: 'button', text: 'Réglages', onclick: function () { self.reglages(); } });
@@ -515,7 +648,7 @@
     if (!liste.length) {
       this.elCorps.appendChild(h('div.carte', [h('div.rhx-vide', [
         h('p', { text: this.rep.envois.length ? 'Aucun envoi avec ces filtres.' : 'Aucun envoi pour l\'instant.' }),
-        this.rep.envois.length ? null : h('button.btn.primaire', { type: 'button', text: 'Préparer le premier envoi', onclick: function () { self.nouvelEnvoi(); } })
+        this.rep.envois.length ? null : h('button.btn.primaire', { type: 'button', text: '+ Nouvel employé', onclick: function () { self.nouvelEnvoi(); } })
       ])]));
       return;
     }
@@ -637,12 +770,22 @@
 
   /* ------------------------------------------------------------------------------- nouvel envoi */
   VueRh.prototype.codesCies = function () { var c = AMX.codesPour ? AMX.codesPour('inventaire') : Object.keys(AMX.COMPAGNIES_TOUTES || {}); return c.length ? c : Object.keys(AMX.COMPAGNIES_TOUTES || {}); };
+  /* 8 nov. (Maxime : « rendre ça super simple pour Sylvianne quand elle doit créer un employé : gros boutons, étape 1,
+     étape 2… pour que l'envoi à l'employé soit simple ») : le « Nouvel employé » en cinq étapes. La fiche (étape 2) remplit
+     toute seule les lettres et les politiques choisies à l'étape 3 ; rien ne se demande document par document. */
+  var ETAPES = [
+    { titre: 'L\'employé', aide: 'Qui on embauche' },
+    { titre: 'La fiche', aide: 'Emploi et rémunération' },
+    { titre: 'Les documents', aide: 'Lettres et politiques' },
+    { titre: 'Les pièces', aide: 'Ce que l\'employé fournit' },
+    { titre: 'Envoyer', aide: 'Vérifier et envoyer' }
+  ];
   VueRh.prototype.nouvelEnvoi = function (opts) {
     var self = this; opts = opts || {};
     if (!this.rep) { AMX.toast('Patientez : la liste se charge.', 'attention'); return; }
     var codes = this.codesCies();
     var cie = this.compagnie && codes.indexOf(this.compagnie) >= 0 ? this.compagnie : (codes.length === 1 ? codes[0] : '');
-    var champ = function (libelle, el, aide) { return h('div.champ', [h('label', { text: libelle }), el, aide ? h('span.aide', { text: aide }) : null]); };
+    var champ = function (libelle, el, aide, oblig) { return h('div.champ', [h('label', { text: libelle + (oblig ? ' *' : '') }), el, aide ? h('span.aide', { text: aide }) : null]); };
     var inNom = h('input', { type: 'text', autocomplete: 'off', placeholder: 'Prénom Nom' });
     var inCourriel = h('input', { type: 'email', autocomplete: 'off', placeholder: 'nom@exemple.com' });
     var inTel = h('input', { type: 'tel', autocomplete: 'off', placeholder: '514 555-0101' });
@@ -650,56 +793,221 @@
     var inDebut = h('input', { type: 'date' });
     var selCie = h('select', [h('option', { value: '', text: 'Choisir…' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c), selected: c === cie }); })));
     var selLangue = h('select', [h('option', { value: 'fr', text: 'Français' }), h('option', { value: 'en', text: 'English' })]);
-    var choisis = {}, pieces = [], champsVals = {}, textesRevus = {};
-    var listeDocs = h('ul.rhx-choix'), listePieces = h('div'), listeChamps = h('div'), prog = h('p.rhx-prog');
+    var inMessage = h('textarea', { rows: 3, placeholder: 'Bienvenue dans l\'équipe ! Voici vos documents d\'embauche…' });
+    var caseTexto = h('input', { type: 'checkbox' });
+    var majTexto = function () { var ok = /\d{3}\D*\d{3}\D*\d{4}/.test(inTel.value); caseTexto.disabled = !ok; if (!ok) caseTexto.checked = false; };
+    inTel.addEventListener('input', majTexto);
+    var eb = opts.embauche || null;
+    var choisis = {}, pieces = [], textesRevus = {}, trousseId = '';
+    var avisFiche = h('div');
+    var fiche = ficheEmbauche(eb ? eb.champs : {}, { onChange: function () { if (etape === 1) majAvisFiche(); } });
+
+    /* ---- les documents */
     var docsPour = function (type) { var c = selCie.value; return self.rep.documents.filter(function (d) { return !d.retire && d.type === type && (!d.compagnie || d.compagnie === c) && (d.bibliotheque || choisis[d.id]); }); };
-    /* Les documents à lire et à signer : les politiques et lettres en texte d'abord, puis les PDF. */
     var docsSigner = function () { return docsPour('texte').sort(function (a, b) { return String(b.categorie === 'lettre').localeCompare(String(a.categorie === 'lettre')) || a.nom.localeCompare(b.nom, 'fr'); }).concat(docsPour('signer')); };
-    var textesChoisis = function () { return docsPour('texte').filter(function (d) { return choisis[d.id]; }); };
-    /* Les valeurs que l'envoi donnera aux champs {{…}} (comme le serveur). */
+    var docsChoisis = function () { return docsSigner().filter(function (d) { return choisis[d.id]; }); };
+    var textesChoisis = function () { return docsChoisis().filter(function (d) { return d.type === 'texte'; }); };
+    /* Les valeurs que l'envoi donnera aux champs {{…}} (comme le serveur) : l'étape 1, puis la fiche. */
     var valeursEnvoi = function () {
       var en = selLangue.value === 'en', nom = inNom.value.trim();
       var v = { nom: nom, prenom: nom.split(/\s+/)[0] || '', poste: inPoste.value.trim(), debut: dateLongue(inDebut.value, en), concession: selCie.value ? nomCie(selCie.value) : '',
         date: dateLongue(new Date().toISOString().slice(0, 10), en), rh: (AMX.session && (AMX.session.nom || (AMX.session.perms || {}).nom)) || '' };
-      Object.keys(champsVals).forEach(function (k) { if (String(champsVals[k] || '').trim()) v[k] = champsVals[k].trim(); });
+      var f = fiche.valeurs(); Object.keys(f).forEach(function (k) { v[k] = f[k]; });
       return v;
     };
-    var dessinerChamps = function () {
-      AMX.vider(listeChamps);
-      var noms = [];
-      textesChoisis().forEach(function (d) { (d.variables || []).forEach(function (n) { if (!CHAMPS_AUTO[n] && noms.indexOf(n) < 0) noms.push(n); }); });
-      if (!noms.length) return;
-      listeChamps.appendChild(h('div.rhx-h', { text: 'À remplir dans les lettres' }));
-      listeChamps.appendChild(h('div.grille', noms.map(function (n) {
-        var inp = h('input', { type: 'text', value: champsVals[n] || '', placeholder: n === 'remuneration' ? 'Ex. 22,50 $ de l\'heure, 40 heures par semaine' : '', oninput: function () { champsVals[n] = inp.value; } });
-        return champ(libChamp(n), inp);
-      })));
-      listeChamps.appendChild(h('p.rhx-prog', { text: 'Le nom, le poste, la date d\'entrée et la concession se remplissent tout seuls. « Revoir le texte » montre la lettre telle que l\'employé la lira et permet de compléter les passages surlignés.' }));
+    var manquesDe = function (d) {
+      if (d.type !== 'texte' || textesRevus[d.id]) return [];
+      var val = valeursEnvoi();
+      return (d.variables || []).filter(function (n) { return !String(val[n] || '').trim(); });
     };
+    var besoinsDocs = function () {
+      var noms = [];
+      textesChoisis().forEach(function (d) { if (!textesRevus[d.id]) (d.variables || []).forEach(function (n) { if (noms.indexOf(n) < 0) noms.push(n); }); });
+      return noms;
+    };
+    var majBesoins = function () { fiche.besoin(besoinsDocs()); };
+
+    /* ---- les étapes */
+    var etape = 0, plusLoin = 0, m = null;
+    var barre = h('ol.rhx-pas'), corps = h('div.rhx-pas-corps');
+    var dessinerBarre = function () {
+      AMX.vider(barre);
+      ETAPES.forEach(function (e, i) {
+        barre.appendChild(h('li' + (i === etape ? '.actif' : i < etape ? '.fait' : ''), [
+          h('button', { type: 'button', disabled: i > plusLoin, 'aria-current': i === etape ? 'step' : null, onclick: function () { aller(i); } }, [
+            h('span.n', { text: i < etape ? '✓' : String(i + 1) }), h('span.t', [h('b', { text: e.titre }), h('small', { text: e.aide })])])]));
+      });
+    };
+    var vues = [vueEmploye, vueFiche, vueDocuments, vuePieces, vueEnvoyer];
+    function boutons() {
+      var l = [];
+      if (etape > 0) l.push({ texte: '‹ Retour', action: function () { aller(etape - 1); return false; } });
+      else l.push({ texte: 'Annuler' });
+      if (etape < ETAPES.length - 1) l.push({ texte: 'Suivant : ' + ETAPES[etape + 1].titre.toLowerCase() + ' ›', classe: 'primaire', action: function () { var r = aller(etape + 1); return r && r.then ? r.then(function () { return false; }) : false; } });
+      else l.push({ texte: 'Envoyer le lien' + (inNom.value.trim() ? ' à ' + inNom.value.trim().split(/\s+/)[0] : ''), classe: 'primaire', action: envoyer });
+      return l;
+    }
+    function montrer() {
+      dessinerBarre();
+      AMX.vider(corps); corps.appendChild(vues[etape]());
+      if (m) { m.boutons(boutons()); if (m.corps && m.corps.scrollTo) m.corps.scrollTo(0, 0); }
+    }
+    /* Aller à une étape : avancer vérifie les étapes passées (une à la fois) ; reculer ne vérifie rien. */
+    function aller(i) {
+      if (i <= etape) { etape = i; montrer(); return null; }
+      var r = valider(etape);
+      var suite = function (ok) { if (!ok) return; etape += 1; plusLoin = Math.max(plusLoin, etape); if (etape < i) aller(i); else montrer(); };
+      if (r && r.then) return r.then(suite);
+      suite(r); return null;
+    }
+    function valider(i) {
+      if (i === 0) {
+        var manque = [];
+        if (inNom.value.trim().length < 3) manque.push('le nom');
+        if (!/^[^\s@,;]+@[^\s@,;]+\.[a-z]{2,}$/i.test(inCourriel.value.trim())) manque.push('un courriel valide');
+        if (!inPoste.value.trim()) manque.push('le poste');
+        if (!inDebut.value) manque.push('la date d\'entrée');
+        if (!selCie.value) manque.push('la concession');
+        if (manque.length) { AMX.toast('Inscrivez ' + manque.join(', ') + '.', 'attention', 6000); return false; }
+        return true;
+      }
+      if (i === 2) {
+        var trous = textesChoisis().map(function (d) { return { d: d, n: manquesDe(d) }; }).filter(function (x) { return x.n.length; });
+        if (trous.length) {
+          AMX.toast('« ' + trous[0].d.nom + ' » attend : ' + trous[0].n.map(libChamp).join(', ') + '. Complétez la fiche (étape 2).', 'attention', 9000);
+          return false;
+        }
+        var aVoir = textesChoisis().filter(function (d) { return !textesRevus[d.id]; });
+        return Promise.all(aVoir.map(function (d) { return chargerTexte(d.id).then(function (html) { return { d: d, reste: PASSAGES_A_COMPLETER.test(String(html).replace(/<[^>]+>/g, ' ')) }; }); })).then(function (l) {
+          var reste = l.filter(function (x) { return x.reste; });
+          if (reste.length) { AMX.toast('« ' + reste[0].d.nom + ' » a des passages à compléter : « Voir le texte ».', 'attention', 8000); return false; }
+          return true;
+        }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+      }
+      return true;
+    }
+
+    /* Étape 1 — l'employé (et les conditions d'embauche déjà approuvées qui l'attendent) */
+    function vueEmploye() {
+      var attente = null;
+      if (!eb && AMX.embauches && AMX.embauches.enCache) {
+        var rep = AMX.embauches.enCache();
+        var l = rep && rep.embauches ? rep.embauches.filter(function (e) { return e.statut === 'envoyee' && (!selCie.value || e.compagnie === selCie.value); }) : [];
+        if (!rep && AMX.embauches.charger) AMX.embauches.charger().then(function () { if (etape === 0 && m) montrer(); }, function () {});
+        if (l.length) attente = h('div.rhx-groupe', [h('div.rhx-groupe-t', { text: 'Conditions d\'embauche approuvées qui attendent' }),
+          h('p.rhx-intro', { text: 'Un clic remplit l\'employé et la fiche avec ce que le DG a inscrit.' }),
+          h('div.rhx-tuiles', l.map(function (e) {
+            return h('button.rhx-tuile', { type: 'button', onclick: function (ev) {
+              var b = ev.currentTarget; b.disabled = true;
+              AMX.get({ rhEmbauche: e.id }, { delai: 60000, secours: false }).then(function (d) {
+                if (!d || d.ok === false || !d.embauche) throw new Error((d && d.erreur) || 'Fiche introuvable.');
+                m.fermer(); self.nouvelEnvoi({ embauche: d.embauche });
+              }).catch(function (er) { b.disabled = false; AMX.toast(AMX.erreurTexte(er), 'erreur'); });
+            } }, [h('b', { text: e.nom || e.id }), h('small', { text: [e.poste, nomCie(e.compagnie), e.debut ? 'entrée le ' + dateLongue(e.debut) : ''].filter(Boolean).join(' · ') })]);
+          }))]);
+      }
+      return h('div', [
+        eb ? h('div.rhx-ok', { text: 'Rempli à partir des conditions d\'embauche ' + eb.id + (eb.creeParNom ? ' (' + eb.creeParNom + ')' : '') + '. Vérifiez, puis « Suivant ».' }) : null,
+        attente,
+        h('p.rhx-intro', { text: 'Qui embauchez-vous ? Les champs marqués * sont obligatoires.' }),
+        h('div.grille', [champ('Nom complet', inNom, '', true), champ('Courriel', inCourriel, 'Le lien part à cette adresse.', true), champ('Cellulaire', inTel, 'Facultatif : pour aussi lui envoyer le lien par texto.'),
+          champ('Poste', inPoste, '', true), champ('Date d\'entrée en poste', inDebut, '', true), champ('Concession', selCie, '', true), champ('Langue des documents', selLangue)])
+      ]);
+    }
+    /* Étape 2 — la fiche d'embauche */
+    /* L'avis se refait pendant la saisie : il disparaît quand la fiche donne tout ce que les documents demandent. */
+    function majAvisFiche() {
+      var trous = [];
+      textesChoisis().forEach(function (d) { manquesDe(d).forEach(function (n) { if (trous.indexOf(n) < 0) trous.push(n); }); });
+      AMX.vider(avisFiche);
+      if (trous.length) avisFiche.appendChild(h('div.rhx-avis', { text: 'Les documents choisis demandent encore : ' + trous.map(libChamp).join(', ') + ' (encadrés en rouge).' }));
+      else if (textesChoisis().length) avisFiche.appendChild(h('div.rhx-ok', { text: 'La fiche donne tout ce que les documents choisis demandent.' }));
+    }
+    function vueFiche() {
+      majBesoins(); majAvisFiche();
+      return h('div', [
+        h('p.rhx-intro', { text: 'Ce que vous inscrivez ici se place tout seul dans les lettres et les politiques. Laissez vide ce qui ne s\'applique pas.' }),
+        avisFiche, fiche.el
+      ]);
+    }
+    /* Étape 3 — les documents */
     var revoir = function (d) {
       chargerTexte(d.id).then(function (html) {
         var ed = editeurTexte(textesRevus[d.id] || surligner(remplirTexte(html, valeursEnvoi())));
-        AMX.modale({ titre: 'Revoir « ' + d.nom + ' »', large: true, corps: h('div.rhx-form', [
-          h('p.rhx-prog', { text: 'Complétez les passages surlignés (« (date) », « XX$ »…). Ce texte part tel quel à l\'employé, puis dans la copie signée.' }), ed.el
+        AMX.modale({ titre: '« ' + d.nom + ' »', large: true, corps: h('div.rhx-form', [
+          h('p.rhx-prog', { text: 'Le texte tel que l\'employé le lira, rempli avec la fiche. Vous pouvez le modifier pour cet employé seulement ; ce qui est surligné reste à compléter.' }), ed.el
         ]), boutons: [
-          textesRevus[d.id] ? { texte: 'Revenir au modèle', action: function () { delete textesRevus[d.id]; dessinerDocs(); } } : null,
-          { texte: 'Annuler' },
-          { texte: 'Garder ce texte', classe: 'primaire', action: function () { textesRevus[d.id] = ed.valeur(); dessinerDocs(); } }
+          textesRevus[d.id] ? { texte: 'Revenir au modèle', action: function () { delete textesRevus[d.id]; montrer(); } } : null,
+          { texte: 'Fermer' },
+          { texte: 'Garder ce texte', classe: 'primaire', action: function () { textesRevus[d.id] = ed.valeur(); montrer(); } }
         ].filter(Boolean) });
       }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); });
     };
-    var dessinerDocs = function () {
-      AMX.vider(listeDocs);
-      var l = docsSigner();
-      if (!l.length) listeDocs.appendChild(h('li', [h('span', { text: 'Aucun document' + (selCie.value ? ' pour ' + nomCie(selCie.value) : '') + ' : écrivez-en un dans la « Bibliothèque » ou déposez un PDF ci-dessous.' })]));
-      l.forEach(function (d) {
-        var c = h('input', { type: 'checkbox', checked: !!choisis[d.id], onchange: function () { if (c.checked) choisis[d.id] = true; else { delete choisis[d.id]; delete textesRevus[d.id]; } dessinerDocs(); dessinerChamps(); } });
-        var cat = d.type === 'texte' ? h('span.rhx-cat' + (d.categorie === 'lettre' ? '.lettre' : ''), { text: CATEGORIES[d.categorie] || 'Texte' }) : h('span.rhx-cat.pdf', { text: 'PDF' });
-        listeDocs.appendChild(h('li', [c, h('div', { style: { flex: '1 1 auto' } }, [cat, h('b', { text: d.nom }), h('span.q', { text: [d.nbPages ? d.nbPages + ' page(s)' : '', d.compagnie ? nomCie(d.compagnie) : 'tout le groupe', d.bibliotheque ? '' : 'pour cet envoi seulement', d.description].filter(Boolean).join(' · ') })]),
-          d.type === 'texte' && choisis[d.id] ? h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center' } }, [textesRevus[d.id] ? h('span.rhx-revu', { text: 'Revu ✓' }) : null,
-            h('button.btn.petit', { type: 'button', text: 'Revoir le texte', onclick: function () { revoir(d); } })]) : null]));
-      });
+    var trousses = function () { var c = selCie.value; return (self.rep.trousses || []).filter(function (t) { return !t.retire && (!t.compagnie || !c || t.compagnie === c); }); };
+    var appliquerTrousse = function (id) {
+      var t = (self.rep.trousses || []).filter(function (x) { return x.id === id; })[0]; if (!t) return;
+      if (t.compagnie && !selCie.value) selCie.value = t.compagnie;
+      choisis = {}; textesRevus = {}; trousseId = t.id;
+      (t.documents || []).forEach(function (d) { choisis[d] = true; });
+      pieces = (t.pieces || []).map(function (p) { return { libelle: p.libelle, note: p.note || '', obligatoire: p.obligatoire !== false, formulaire: p.formulaire || '' }; });
+      if (t.poste && !inPoste.value.trim()) inPoste.value = t.poste;
+      if (t.message && !inMessage.value.trim()) inMessage.value = t.message;
+      selLangue.value = t.langue === 'en' ? 'en' : 'fr';
+      majBesoins();
     };
+    var inFichier = h('input', { type: 'file', accept: 'application/pdf,image/jpeg,image/png', style: { display: 'none' } });
+    var garder = h('input', { type: 'checkbox' }), prog = h('p.rhx-prog');
+    inFichier.addEventListener('change', function () {
+      var f = inFichier.files && inFichier.files[0]; inFichier.value = '';
+      if (!f) return;
+      var nom = f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
+      prog.textContent = 'Lecture de « ' + f.name + ' »…';
+      deposer(f, { nom: nom, type: 'signer', compagnie: selCie.value, bibliotheque: !!garder.checked }, function (t) { prog.textContent = t; }).then(function (d) {
+        choisis[d.id] = true; prog.textContent = ''; AMX.toast('« ' + d.nom + ' » ajouté (' + d.nbPages + ' page(s)).', 'ok'); montrer();
+      }, function (e) { prog.textContent = ''; AMX.toast(AMX.erreurTexte(e), 'erreur', 8000); });
+    });
+    function vueDocuments() {
+      var l = docsSigner();
+      var groupes = [
+        { titre: 'Lettre d\'offre et plan de rémunération', docs: l.filter(function (d) { return d.type === 'texte' && d.categorie === 'lettre'; }) },
+        { titre: 'Politiques — Manuel de l\'employé', tout: true, docs: l.filter(function (d) { return d.type === 'texte' && d.categorie === 'politique'; }) },
+        { titre: 'Autres textes', docs: l.filter(function (d) { return d.type === 'texte' && d.categorie !== 'lettre' && d.categorie !== 'politique'; }) },
+        { titre: 'Documents PDF à lire et à signer', tout: true, docs: l.filter(function (d) { return d.type !== 'texte'; }) }
+      ].filter(function (g) { return g.docs.length; });
+      var ts = trousses();
+      var ligne = function (d) {
+        var c = h('input', { type: 'checkbox', id: 'rhx-doc-' + d.id, checked: !!choisis[d.id], onchange: function () { if (c.checked) choisis[d.id] = true; else { delete choisis[d.id]; delete textesRevus[d.id]; } trousseId = ''; majBesoins(); montrer(); } });
+        var etat = null;
+        if (choisis[d.id] && d.type === 'texte') {
+          var n = manquesDe(d);
+          etat = textesRevus[d.id] ? h('span.etat-ok', { text: 'Texte revu ✓' })
+            : n.length ? h('button.btn.petit.etat-manque', { type: 'button', text: 'À compléter dans la fiche (' + n.length + ') ›', title: n.map(libChamp).join(', '), onclick: function () { aller(1); setTimeout(fiche.montrerManques, 60); } })
+            : (d.variables || []).some(function (x) { return !CHAMPS_AUTO[x]; }) ? h('span.etat-ok', { text: 'Rempli par la fiche ✓' }) : null;
+        }
+        return h('div.rhx-doc' + (choisis[d.id] ? '.choisi' : ''), [c,
+          h('label', { for: 'rhx-doc-' + d.id }, [h('b', { text: d.nom }), h('span.q', { text: [d.compagnie ? nomCie(d.compagnie) : 'tout le groupe', d.nbPages ? d.nbPages + ' page(s)' : '', d.bibliotheque ? '' : 'pour cet employé seulement'].filter(Boolean).join(' · ') })]),
+          etat,
+          d.type === 'texte' && choisis[d.id] ? h('button.btn.petit', { type: 'button', text: 'Voir le texte', onclick: function () { revoir(d); } }) : null]);
+      };
+      return h('div', [
+        h('p.rhx-intro', { text: 'Cochez ce que l\'employé doit lire et signer. Les lettres se remplissent avec la fiche.' }),
+        ts.length ? h('div.rhx-groupe', [h('div.rhx-groupe-t', { text: 'Trousses toutes prêtes' }), h('div.rhx-tuiles', ts.map(function (t) {
+          return h('button.rhx-tuile' + (trousseId === t.id ? '.choisi' : ''), { type: 'button', onclick: function () { appliquerTrousse(t.id); montrer(); } },
+            [h('b', { text: t.nom }), h('small', { text: pluriel((t.documents || []).length, 'document') + ' · ' + pluriel((t.pieces || []).length, 'pièce') })]);
+        }))]) : null,
+        l.length ? null : h('div.rhx-avis', { text: 'Aucun document pour ' + nomCie(selCie.value) + ' : écrivez-en un dans la « Bibliothèque » ou déposez un PDF ci-dessous.' }),
+        h('div', groupes.map(function (g) {
+          var tous = g.docs.every(function (d) { return choisis[d.id]; });
+          return h('div.rhx-groupe', [h('div.rhx-groupe-t', [h('span', { text: g.titre + ' (' + g.docs.filter(function (d) { return choisis[d.id]; }).length + ' / ' + g.docs.length + ')' }),
+            g.tout ? h('button.btn.petit', { type: 'button', text: tous ? 'Tout décocher' : 'Tout cocher', onclick: function () { g.docs.forEach(function (d) { if (tous) { delete choisis[d.id]; delete textesRevus[d.id]; } else choisis[d.id] = true; }); trousseId = ''; majBesoins(); montrer(); } }) : null]),
+            h('div', g.docs.map(ligne))]);
+        })),
+        h('div.rhx-cases', { style: { margin: '6px 0 0' } }, [h('button.btn.petit', { type: 'button', text: '+ Déposer un PDF pour cet employé', onclick: function () { inFichier.click(); } }), inFichier, h('label', [garder, 'Le garder aussi dans la bibliothèque'])]),
+        prog
+      ]);
+    }
+    /* Étape 4 — les pièces */
+    var listePieces = h('div');
     var dessinerPieces = function () {
       AMX.vider(listePieces);
       var formulaires = docsPour('formulaire');
@@ -708,115 +1016,70 @@
         var note = h('input.saisie', { type: 'text', value: p.note, placeholder: 'Précision (facultatif)', oninput: function () { p.note = note.value; } });
         var sel = h('select.saisie', { onchange: function () { p.formulaire = sel.value; } }, [h('option', { value: '', text: 'Sans formulaire vierge' })].concat(formulaires.map(function (d) { return h('option', { value: d.id, text: 'Formulaire : ' + d.nom, selected: d.id === p.formulaire }); })));
         var ob = h('input', { type: 'checkbox', checked: p.obligatoire, onchange: function () { p.obligatoire = ob.checked; } });
-        listePieces.appendChild(h('div.rhx-piece', [lib, note, sel, h('label.case', [ob, 'Obligatoire']), h('button.btn.petit', { type: 'button', text: 'Retirer', onclick: function () { pieces.splice(i, 1); dessinerPieces(); } })]));
+        listePieces.appendChild(h('div.rhx-piece', [lib, note, sel, h('label.case', [ob, 'Obligatoire']), h('button.btn.petit', { type: 'button', text: 'Retirer', onclick: function () { pieces.splice(i, 1); montrer(); } })]));
       });
-      if (!pieces.length) listePieces.appendChild(h('p.rhx-prog', { text: 'Aucune pièce demandée.' }));
     };
-    var ajouterPiece = function (lib, note) { pieces.push({ libelle: lib || '', note: note || '', obligatoire: true, formulaire: '' }); dessinerPieces(); };
-    /* Trousses par poste : un clic remplit les documents, les pièces, le message, le poste et la langue. */
-    var selTrousse = h('select', { onchange: function () { appliquerTrousse(selTrousse.value); } });
-    var zoneTrousse = h('div.rhx-trousse');
-    var trousses = function () { var c = selCie.value; return (self.rep.trousses || []).filter(function (t) { return !t.retire && (!t.compagnie || !c || t.compagnie === c); }); };
-    var dessinerTrousses = function () {
-      var l = trousses(), garde = selTrousse.value;
-      AMX.vider(selTrousse);
-      selTrousse.appendChild(h('option', { value: '', text: l.length ? 'Choisir une trousse…' : 'Aucune trousse' + (selCie.value ? ' pour ' + nomCie(selCie.value) : '') }));
-      l.forEach(function (t) { selTrousse.appendChild(h('option', { value: t.id, text: t.nom + (t.compagnie ? '' : ' (tout le groupe)'), selected: t.id === garde })); });
-      selTrousse.disabled = !l.length;
-    };
-    var appliquerTrousse = function (id) {
-      var t = (self.rep.trousses || []).filter(function (x) { return x.id === id; })[0]; if (!t) return;
-      if (t.compagnie && !selCie.value) { selCie.value = t.compagnie; }
-      choisis = {}; textesRevus = {};
-      (t.documents || []).forEach(function (d) { choisis[d] = true; });
-      pieces = (t.pieces || []).map(function (p) { return { libelle: p.libelle, note: p.note || '', obligatoire: p.obligatoire !== false, formulaire: p.formulaire || '' }; });
-      if (t.poste && !inPoste.value.trim()) inPoste.value = t.poste;
-      if (t.message && !inMessage.value.trim()) inMessage.value = t.message;
-      selLangue.value = t.langue === 'en' ? 'en' : 'fr';
-      dessinerTrousses(); selTrousse.value = t.id; dessinerDocs(); dessinerPieces(); dessinerChamps();
-    };
+    function vuePieces() {
+      dessinerPieces();
+      var a = function (lib) { return pieces.some(function (p) { return p.libelle === lib; }); };
+      return h('div', [
+        h('p.rhx-intro', { text: 'Ce que l\'employé doit vous fournir en ligne (photo ou PDF). Touchez une pièce pour la demander.' }),
+        h('div.rhx-tuiles', PREREGLAGES.map(function (x) {
+          return h('button.rhx-tuile' + (a(x[0]) ? '.choisi' : ''), { type: 'button', onclick: function () {
+            if (a(x[0])) pieces = pieces.filter(function (p) { return p.libelle !== x[0]; }); else pieces.push({ libelle: x[0], note: x[1], obligatoire: true, formulaire: '' });
+            trousseId = ''; montrer();
+          } }, [h('b', { text: x[0] }), h('small', { text: x[1] })]);
+        }).concat([h('button.rhx-tuile.autre', { type: 'button', onclick: function () { pieces.push({ libelle: '', note: '', obligatoire: true, formulaire: '' }); montrer(); } }, [h('b', { text: '+ Autre pièce' }), h('small', { text: 'Un autre document à fournir.' })])])),
+        pieces.length ? h('div.rhx-h', { text: 'Pièces demandées (' + pieces.length + ')' }) : null, listePieces,
+        h('p.rhx-prog', { text: 'Un formulaire rempli (TD1, TP-1015.3) contient le NAS : il reste seulement dans le dossier Drive privé et dans le courriel à la paie, jamais dans une feuille (Loi 25).' })
+      ]);
+    }
+    /* Étape 5 — vérifier et envoyer */
     var enregistrerTrousse = function () {
-      var docs = Object.keys(choisis).filter(function (id) { return docsSigner().some(function (d) { return d.id === id; }); });
+      var docs = docsChoisis().map(function (d) { return d.id; });
       var ps = pieces.filter(function (p) { return String(p.libelle || '').trim(); });
       if (!docs.length && !ps.length) { AMX.toast('Cochez des documents ou demandez des pièces d\'abord.', 'attention'); return; }
-      var base = (self.rep.trousses || []).filter(function (x) { return x.id === selTrousse.value; })[0];
+      var base = (self.rep.trousses || []).filter(function (x) { return x.id === trousseId; })[0];
       var inT = h('input.saisie', { type: 'text', value: base ? base.nom : (inPoste.value.trim() ? inPoste.value.trim() + (selCie.value ? ' — ' + nomCie(selCie.value) : '') : ''), placeholder: 'Ex. Conseiller aux ventes — VW Brossard' });
       var remplacer = h('input', { type: 'checkbox', checked: !!base });
       AMX.modale({ titre: 'Enregistrer comme trousse', corps: h('div.rhx-form', [
         h('div.champ', [h('label', { text: 'Nom de la trousse' }), inT]),
         base ? h('label.rhx-cases', { style: { marginTop: '8px' } }, [remplacer, 'Remplacer la trousse « ' + base.nom + ' »']) : null,
-        h('p.rhx-prog', { text: docs.length + ' document(s), ' + ps.length + ' pièce(s), le message et le poste. ' + (selCie.value ? 'Pour ' + nomCie(selCie.value) + '.' : 'Pour tout le groupe.') })
+        h('p.rhx-prog', { text: docs.length + ' document(s), ' + ps.length + ' pièce(s), le message et le poste. ' + (selCie.value ? 'Pour ' + nomCie(selCie.value) + '.' : 'Pour tout le groupe.') + ' La prochaine fois, un clic à l\'étape 3 les coche.' })
       ]), boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
         return ecrire({ action: 'rhTrousseEnregistrer', id: base && remplacer.checked ? base.id : '', nom: inT.value, compagnie: selCie.value, poste: inPoste.value, documents: docs, pieces: ps, message: inMessage.value, langue: selLangue.value })
-          .then(function (r) { poserTrousse(r.trousse); dessinerTrousses(); selTrousse.value = r.trousse.id; AMX.toast('Trousse « ' + r.trousse.nom + ' » enregistrée', 'ok'); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); return false; });
+          .then(function (r) { poserTrousse(r.trousse); trousseId = r.trousse.id; AMX.toast('Trousse « ' + r.trousse.nom + ' » enregistrée', 'ok'); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); return false; });
       } }] });
     };
-    zoneTrousse.appendChild(h('b', { text: 'Trousse' }));
-    zoneTrousse.appendChild(selTrousse);
-    zoneTrousse.appendChild(h('button.btn.petit', { type: 'button', text: 'Enregistrer comme trousse', onclick: enregistrerTrousse }));
-    selCie.addEventListener('change', function () { dessinerTrousses(); dessinerDocs(); dessinerPieces(); dessinerChamps(); });
-    /* dépôt d'un document pour cet employé */
-    var inFichier = h('input', { type: 'file', accept: 'application/pdf,image/jpeg,image/png', style: { display: 'none' } });
-    var garder = h('input', { type: 'checkbox' });
-    inFichier.addEventListener('change', function () {
-      var f = inFichier.files && inFichier.files[0]; inFichier.value = '';
-      if (!f) return;
-      if (!selCie.value) { AMX.toast('Choisissez d\'abord la concession.', 'attention'); return; }
-      var nom = f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').trim();
-      prog.textContent = 'Lecture de « ' + f.name + ' »…';
-      deposer(f, { nom: nom, type: 'signer', compagnie: selCie.value, bibliotheque: !!garder.checked }, function (t) { prog.textContent = t; }).then(function (d) {
-        choisis[d.id] = true; prog.textContent = '« ' + d.nom + ' » ajouté (' + d.nbPages + ' page(s)).'; dessinerDocs();
-      }, function (e) { prog.textContent = ''; AMX.toast(AMX.erreurTexte(e), 'erreur', 8000); });
-    });
-    var inMessage = h('textarea', { rows: 3, placeholder: 'Bienvenue dans l\'équipe ! Voici vos documents d\'embauche…' });
-    var caseTexto = h('input', { type: 'checkbox' });
-    var majTexto = function () { var ok = /\d{3}\D*\d{3}\D*\d{4}/.test(inTel.value); caseTexto.disabled = !ok; if (!ok) caseTexto.checked = false; };
-    inTel.addEventListener('input', majTexto); majTexto();
-    var corps = h('div.rhx-form', [
-      zoneTrousse,
-      h('div.rhx-h', { text: 'L\'employé' }),
-      h('div.grille', [champ('Nom complet', inNom), champ('Courriel', inCourriel, 'Le lien part à cette adresse.'), champ('Cellulaire (facultatif)', inTel), champ('Poste', inPoste), champ('Entrée en poste', inDebut), champ('Concession', selCie), champ('Langue de la page', selLangue)]),
-      h('div.rhx-h', { text: 'Documents à lire et à signer' }), listeDocs, listeChamps,
-      h('div', { style: { display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', margin: '8px 0 0' } }, [
-        h('button.btn.petit', { type: 'button', text: '+ Déposer un document (PDF)', onclick: function () { inFichier.click(); } }), inFichier,
-        h('label.rhx-cases', [garder, 'Le garder dans les documents types'])]),
-      prog,
-      h('div.rhx-h', { text: 'Pièces à fournir par l\'employé' }),
-      h('div.rhx-prereglages', PREREGLAGES.map(function (x) { return h('button', { type: 'button', text: '+ ' + x[0], onclick: function () { ajouterPiece(x[0], x[1]); } }); }).concat([h('button', { type: 'button', text: '+ Autre pièce', onclick: function () { ajouterPiece('', ''); } })])),
-      listePieces,
-      h('p.rhx-prog', { text: 'Un formulaire rempli (TD1, TP-1015.3) contient le NAS : il reste seulement dans le dossier Drive privé et dans le courriel à la paie, jamais dans une feuille (Loi 25).' }),
-      h('div.rhx-h', { text: 'Message à l\'employé (facultatif)' }), h('div.champ', [inMessage]),
-      h('div.rhx-h', { text: 'Envoyer le lien' }),
-      h('div.rhx-cases', [h('label', [h('input', { type: 'checkbox', checked: true, disabled: true }), 'Par courriel']), h('label', [caseTexto, 'Aussi par texto'])]),
-      h('p.rhx-prog', { text: 'Le lien est bon 14 jours. Quand tout est signé, le dossier part tout seul à ' + ((self.rep.reglages || {}).paie || ['paie@groupeautomax.com']).join(', ') + '.' })
-    ]);
-    /* 7 nov. : une fiche « Conditions d'embauche » remplie par le DG remplit l'envoi (employé, lettre revue, champs). */
-    var eb = opts.embauche || null;
-    if (eb) {
-      inNom.value = eb.nom || ''; inCourriel.value = eb.courriel || ''; inTel.value = eb.telephone || ''; inPoste.value = eb.poste || ''; inDebut.value = eb.debut || '';
-      if (eb.compagnie && codes.indexOf(eb.compagnie) >= 0) selCie.value = eb.compagnie;
-      selLangue.value = eb.langue === 'en' ? 'en' : 'fr';
-      Object.keys(eb.champs || {}).forEach(function (k) { champsVals[k] = eb.champs[k]; });
-      majTexto();
+    function vueEnvoyer() {
+      var docs = docsChoisis(), ps = pieces.filter(function (p) { return String(p.libelle || '').trim(); });
+      var f = fiche.valeurs(), nf = Object.keys(f).length;
+      var ligne = function (titre, texte, i) { return h('div.rhx-resume-l', [h('div', [h('b', { text: titre }), h('span', { text: texte })]), h('button.btn.petit', { type: 'button', text: 'Modifier', onclick: function () { aller(i); } })]); };
+      return h('div', [
+        h('p.rhx-intro', { text: 'Vérifiez, puis « Envoyer le lien ». L\'employé reçoit un courriel avec un lien pour tout lire, signer et téléverser ses pièces.' }),
+        h('div.rhx-resume', [
+          ligne('1. L\'employé', [inNom.value.trim(), inCourriel.value.trim(), inPoste.value.trim(), nomCie(selCie.value), inDebut.value ? 'entrée le ' + dateLongue(inDebut.value) : ''].filter(Boolean).join(' · '), 0),
+          ligne('2. La fiche', nf ? [f.tempstravail, f.superieur ? 'relève de : ' + f.superieur : '', f.remuneration].filter(Boolean).join(' · ') || pluriel(nf, 'renseignement') : 'Rien d\'inscrit', 1),
+          ligne('3. Les documents', docs.length ? pluriel(docs.length, 'document') + ' : ' + docs.slice(0, 4).map(function (d) { return d.nom; }).join(', ') + (docs.length > 4 ? '…' : '') : 'Aucun document', 2),
+          ligne('4. Les pièces', ps.length ? ps.map(function (p) { return p.libelle; }).join(', ') : 'Aucune pièce', 3)
+        ]),
+        h('div.rhx-h', { text: 'Message à l\'employé (facultatif)' }), h('div.champ', [inMessage]),
+        h('div.rhx-cases', [h('label', [h('input', { type: 'checkbox', checked: true, disabled: true }), 'Par courriel']), h('label', [caseTexto, 'Aussi par texto' + (caseTexto.disabled ? ' (inscrivez son cellulaire à l\'étape 1)' : '')])]),
+        h('p.rhx-prog', { text: 'Le lien est bon 14 jours. Quand tout est signé, le dossier part tout seul à ' + ((self.rep.reglages || {}).paie || ['paie@groupeautomax.com']).join(', ') + '.' }),
+        h('button.btn.petit', { type: 'button', text: 'Enregistrer ce choix comme trousse', onclick: enregistrerTrousse })
+      ]);
     }
-    dessinerTrousses(); dessinerDocs(); dessinerPieces(); dessinerChamps();
-    if (opts.trousse || (eb && eb.trousse)) appliquerTrousse(opts.trousse || eb.trousse);
-    if (eb && eb.modeleId) { choisis[eb.modeleId] = true; if (eb.texte) textesRevus[eb.modeleId] = remplirTexte(eb.texte, valeursEnvoi()); dessinerDocs(); dessinerChamps(); }
-    AMX.modale({ titre: eb ? 'Nouvel envoi — conditions d\'embauche ' + eb.id : 'Nouvel envoi à un employé', corps: corps, large: true, boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer le lien', classe: 'primaire', action: function () {
-      var docs = Object.keys(choisis).filter(function (id) { return docsSigner().some(function (d) { return d.id === id; }); });
+    function envoyer() {
+      if (valider(0) === false) { aller(0); return false; }
+      var docs = docsChoisis().map(function (d) { return d.id; });
       var revus = {}; docs.forEach(function (id) { if (textesRevus[id]) revus[id] = textesRevus[id]; });
-      var aCompleter = Object.keys(revus).filter(function (id) { return resteACompleter(revus[id]); });
-      if (aCompleter.length) { AMX.toast('Il reste un champ {{…}} ou « XX$ » à compléter dans un texte revu.', 'attention', 6000); return false; }
+      if (Object.keys(revus).some(function (id) { return resteACompleter(revus[id]); })) { AMX.toast('Il reste un passage à compléter dans un texte revu (« Voir le texte »).', 'attention', 7000); return false; }
       var ps = pieces.filter(function (p) { return String(p.libelle || '').trim(); });
-      if (!selCie.value) { AMX.toast('Choisissez la concession.', 'attention'); return false; }
-      if (!docs.length && !ps.length) { AMX.toast('Cochez au moins un document ou demandez une pièce.', 'attention'); return false; }
-      /* Une lettre de HR4 garde des passages à compléter (« (date) », « XX$ ») : elle se revoit avant l'envoi. */
-      var aRevoir = docs.map(function (id) { return docsSigner().filter(function (d) { return d.id === id; })[0]; }).filter(function (d) { return d && d.type === 'texte' && !revus[d.id]; });
-      return Promise.all(aRevoir.map(function (d) { return chargerTexte(d.id).then(function (html) { return { d: d, reste: PASSAGES_A_COMPLETER.test(String(html).replace(/<[^>]+>/g, ' ')) }; }); })).then(function (l) {
-        var reste = l.filter(function (x) { return x.reste; });
-        if (reste.length) { AMX.toast('« Revoir le texte » de « ' + reste[0].d.nom + ' » : des passages sont à compléter (surlignés).', 'attention', 8000); return false; }
+      if (!docs.length && !ps.length) { AMX.toast('Cochez au moins un document (étape 3) ou demandez une pièce (étape 4).', 'attention'); return false; }
+      return valider(2).then(function (pret) {
+        if (!pret) { aller(2); return false; }
         return ecrire({ action: 'rhEnvoyer', compagnie: selCie.value, langue: selLangue.value, employe: { nom: inNom.value, courriel: inCourriel.value, telephone: inTel.value, poste: inPoste.value, debut: inDebut.value },
-          documents: docs, pieces: ps, message: inMessage.value, texto: !!caseTexto.checked, champs: champsVals, textes: revus, trousse: selTrousse.value }).then(function (d) {
+          documents: docs, pieces: ps, message: inMessage.value, texto: !!caseTexto.checked, champs: fiche.valeurs(), textes: revus, trousse: trousseId }).then(function (d) {
           poserEnvoi(d.envoi); self.vue = 'encours'; self.rendre();
           if (eb && eb.id) ecrire({ action: 'rhEmbaucheAction', id: eb.id, op: 'traitee', envoiId: d.envoi.id }).then(function () { try { document.dispatchEvent(new CustomEvent('amx:embauches')); } catch (e2) {} }, function (e3) { AMX.toast('Envoi fait, mais la fiche ' + eb.id + ' n\'a pas été marquée traitée : ' + AMX.erreurTexte(e3), 'attention', 8000); });
           AMX.toast('Lien envoyé à ' + d.envoi.nom + (d.textoEnvoye ? ' (courriel et texto)' : ''), d.avertissement ? 'attention' : 'ok');
@@ -824,7 +1087,20 @@
           setTimeout(function () { self.ouvrirFiche(d.envoi.id); }, 50);
         });
       }).catch(function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur', 8000); return false; });
-    } }] });
+    }
+
+    /* Conditions d'embauche approuvées : l'employé, la fiche, la lettre déjà revue par le DG. */
+    if (eb) {
+      inNom.value = eb.nom || ''; inCourriel.value = eb.courriel || ''; inTel.value = eb.telephone || ''; inPoste.value = eb.poste || ''; inDebut.value = eb.debut || '';
+      if (eb.compagnie && codes.indexOf(eb.compagnie) >= 0) selCie.value = eb.compagnie;
+      selLangue.value = eb.langue === 'en' ? 'en' : 'fr';
+    }
+    if (opts.trousse || (eb && eb.trousse)) appliquerTrousse(opts.trousse || eb.trousse);
+    if (eb && eb.modeleId) { choisis[eb.modeleId] = true; if (eb.texte) textesRevus[eb.modeleId] = remplirTexte(eb.texte, valeursEnvoi()); }
+    majTexto(); majBesoins();
+    selCie.addEventListener('change', function () { trousseId = ''; });
+    m = AMX.modale({ titre: eb ? 'Nouvel employé — conditions d\'embauche ' + eb.id : 'Nouvel employé', classe: 'rhx-assistant', large: true, corps: h('div.rhx-form', [barre, corps]), boutons: [] });
+    montrer();
   };
 
   /* ------------------------------------------------------------------------------- bibliothèque : trousses, textes, PDF, formulaires */
@@ -988,10 +1264,10 @@
   /* 7 nov. : pour les conditions d'embauche (embauches.js) — les mêmes outils de lettre, et « Préparer l'envoi ». */
   var vueCourante = null, envoiEnAttente = null;
   AMX.rh.outils = { remplirTexte: remplirTexte, surligner: surligner, editeurTexte: editeurTexte, resteACompleter: resteACompleter, passages: PASSAGES_A_COMPLETER,
-    dateLongue: dateLongue, champsAuto: CHAMPS_AUTO, libChamp: libChamp, champsDe: champsDe };
+    dateLongue: dateLongue, champsAuto: CHAMPS_AUTO, libChamp: libChamp, champsDe: champsDe, ficheEmbauche: ficheEmbauche, resumeRemuneration: resumeRemuneration };
   AMX.rh.preparerEnvoi = function (embauche) {
     if (vueCourante && !vueCourante.detruit && vueCourante.rep) { vueCourante.nouvelEnvoi({ embauche: embauche }); return; }
     envoiEnAttente = embauche;
-    AMX.aller('rh', '', {});
+    AMX.aller('rh', 'documents', {});   /* 8 nov. : « rh » seul ouvre la page de choix de la tuile */
   };
 })();

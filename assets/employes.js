@@ -371,7 +371,7 @@
       if (!(e.documentsRh || []).length) corps.appendChild(h('p.emp-prog', { text: 'Aucun envoi du portail RH à ses courriels.' }));
       else corps.appendChild(h('ul.emp-liste', e.documentsRh.map(function (d) {
         return h('li', [h('b', { text: d.id + ' — ' + (d.docs || []).join(', ') }), h('span.q', { text: 'Envoyé le ' + dateCourte(d.creeLe) + (d.signeLe ? ' · signé le ' + dateCourte(d.signeLe) : ' · ' + (d.etat || '')) }),
-          AMX.rh && AMX.rh.peutVoir() ? h('button.btn.petit', { type: 'button', text: 'Ouvrir', onclick: function () { m.fermer(); AMX.aller('rh', '', { id: d.id }); } }) : null]);
+          AMX.rh && AMX.rh.peutVoir() ? h('button.btn.petit', { type: 'button', text: 'Ouvrir', onclick: function () { m.fermer(); AMX.aller('rh', 'documents', { id: d.id }); } }) : null]);
       })));
       corps.appendChild(h('div.emp-h', { text: 'Santé et sécurité' }));
       if (!(e.evenementsSst || []).length) corps.appendChild(h('p.emp-prog', { text: 'Aucun événement au registre.' }));

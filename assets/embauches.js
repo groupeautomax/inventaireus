@@ -253,7 +253,12 @@
       corps.appendChild(dl([['Nom', e.nom], ['Courriel', e.courriel], ['Cellulaire', tel(e.telephone)], ['Langue', e.langue === 'en' ? 'Anglais' : 'Français']]));
       corps.appendChild(h('div.cex-h', { text: 'Conditions' }));
       corps.appendChild(dl([['Concession', nomCie(e.compagnie)], ['Poste', e.poste], ['Type d\'emploi', type && type !== '—' ? type : ''], ['Entrée en poste', e.debut ? dateCourte(e.debut) : ''], ['Période d\'essai', e.essai],
-        ['Rémunération', c.remuneration], ['Horaire', c.horaire], ['Supérieur immédiat', c.superieur], ['Avantages', e.avantages], ['Notes à la RH', e.notes]].concat(Object.keys(c).filter(function (k) { return ['remuneration', 'horaire', 'superieur'].indexOf(k) < 0; }).map(function (k) { return [k, c[k]]; }))));
+        ['Avantages', e.avantages], ['Notes à la RH', e.notes]]));
+      /* 8 nov. : la fiche d'embauche, dans l'ordre de la fiche */
+      var oo = outils(), lib = function (k) { return oo ? oo.libChamp(k) : k; };
+      var ordre = ['tempstravail', 'superieur', 'horaire', 'heures', 'duree', 'fin', 'tauxhoraire', 'salairebase', 'salairehebdo', 'allocationauto', 'programmeboni', 'remuneration', 'remunerationtotale', 'bonismensuels', 'bonistrimestriels', 'avantages', 'reer', 'vacances', 'valeurtotale'];
+      var cles = ordre.filter(function (k) { return c[k]; }).concat(Object.keys(c).filter(function (k) { return ordre.indexOf(k) < 0; }));
+      if (cles.length) { corps.appendChild(h('div.cex-h', { text: 'Fiche d\'embauche' })); corps.appendChild(dl(cles.map(function (k) { return [lib(k), c[k]]; }))); }
       corps.appendChild(h('div.cex-h', { text: 'Lettre d\'offre' + (e.modeleNom ? ' — ' + e.modeleNom : '') }));
       if (e.texte) { var t = h('div.cex-texte'); var o = outils(); t.innerHTML = o ? o.surligner(e.texte) : e.texte; corps.appendChild(t); }
       else corps.appendChild(h('p.cex-prog', { text: e.modeleId ? 'Lettre choisie, pas encore remplie.' : 'Aucune lettre d\'offre choisie : la RH choisira les documents.' }));
@@ -298,10 +303,12 @@
     var inNom = saisie(e.nom, { placeholder: 'Prénom Nom' }), inCourriel = saisie(e.courriel, { type: 'email', placeholder: 'nom@exemple.com' }), inTel = saisie(tel(e.telephone), { inputmode: 'tel', placeholder: '514 555-0101' });
     var selLangue = choix(e.langue || 'fr', [['fr', 'Français'], ['en', 'Anglais']]);
     var inPoste = saisie(e.poste, { placeholder: 'Conseiller aux ventes' }), selType = choix(e.typeEmploi || '', TYPES), inDebut = saisie(e.debut, { type: 'date' }), inEssai = saisie(e.essai, { placeholder: '3 mois' });
-    var inRem = saisie(c0.remuneration, { placeholder: 'Ex. 55 000 $ par année, ou 22,50 $ de l\'heure + commissions' }), inHoraire = saisie(c0.horaire, { placeholder: 'Ex. lundi au vendredi, 8 h à 17 h' }), inSup = saisie(c0.superieur, { placeholder: 'Ex. Directeur des ventes' });
+    /* 8 nov. (Maxime : « faire remplir une fiche qui va envoyer les données dans les politiques et les fichiers d'embauche, et
+       non l'inverse ») : la fiche d'embauche de rh.js — la lettre d'offre et les documents de la RH s'y remplissent. */
+    var fe = outils().ficheEmbauche(c0);
     var inAvantages = zone(e.avantages, 2, 'Assurance collective après 3 mois, véhicule de démonstration…'), inNotes = zone(e.notes, 2, 'Ce que la RH doit savoir.');
-    var texte = e.texte || '', autres = {}; Object.keys(c0).forEach(function (k) { if (['remuneration', 'horaire', 'superieur'].indexOf(k) < 0) autres[k] = c0[k]; });
-    var selModele = h('select.saisie'), etat = h('span.cex-etat'), elAutres = h('div'), btnRemplir = h('button.btn.petit', { type: 'button', text: 'Remplir la lettre' });
+    var texte = e.texte || '';
+    var selModele = h('select.saisie'), etat = h('span.cex-etat'), btnRemplir = h('button.btn.petit', { type: 'button', text: 'Remplir la lettre' });
     var modelesPour = function () { var c = selCie.value; return (rep.modeles || []).filter(function (m) { return !m.compagnie || !c || m.compagnie === c; }); };
     var dessinerModeles = function () {
       var garde = selModele.value || e.modeleId || '';
@@ -321,25 +328,18 @@
     var valeurs = function () {
       var o = outils(), en = selLangue.value === 'en', nom = inNom.value.trim();
       var v = { nom: nom, prenom: nom.split(/\s+/)[0] || '', poste: inPoste.value.trim(), debut: o ? o.dateLongue(inDebut.value, en) : inDebut.value, concession: selCie.value ? nomCie(selCie.value) : '',
-        date: o ? o.dateLongue(new Date().toISOString().slice(0, 10), en) : '', remuneration: inRem.value.trim(), horaire: inHoraire.value.trim(), superieur: inSup.value.trim() };
-      Object.keys(autres).forEach(function (k) { if (String(autres[k] || '').trim()) v[k] = autres[k].trim(); });
+        date: o ? o.dateLongue(new Date().toISOString().slice(0, 10), en) : '' };
+      var f = fe.valeurs(); Object.keys(f).forEach(function (k) { v[k] = f[k]; });
       return v;
     };
     var remplir = function () {
       var o = outils(); if (!o) { AMX.toast('L\'éditeur de lettre n\'est pas chargé : rechargez la page.', 'erreur'); return; }
       modele(selModele.value).then(function (html) {
-        /* Les champs propres à cette lettre (autres que les champs connus) : à taper avant. */
-        AMX.vider(elAutres);
-        var connus = { nom: 1, prenom: 1, poste: 1, debut: 1, concession: 1, date: 1, rh: 1, remuneration: 1, horaire: 1, superieur: 1 };
-        o.champsDe(html).filter(function (n) { return !connus[n]; }).forEach(function (n) {
-          var inp = saisie(autres[n] || '', { oninput: function () { autres[n] = inp.value; } });
-          elAutres.appendChild(champ(o.libChamp(n), inp));
-        });
+        fe.besoin(o.champsDe(html));
         var base = texte || o.surligner(o.remplirTexte(html, valeurs()));
         var ed = o.editeurTexte(base, { contexte: function () { return { nom: selModele.selectedOptions && selModele.selectedOptions[0] ? selModele.selectedOptions[0].textContent : 'Lettre d\'offre', categorie: 'lettre' }; } });   /* 8 nov. : Einstein AI dans l'éditeur */
         AMX.modale({ titre: 'Remplir la lettre', large: true, corps: h('div.cex-form', [
-          h('p.cex-prog', { text: 'Le nom, le poste, la date d\'entrée, la rémunération et l\'horaire sont déjà remplis. Complétez les passages surlignés (« (date) », « XX$ »…). La signature de la RH ({{rh}}) se remplit à l\'envoi.' }),
-          elAutres.childNodes.length ? h('div', [h('div.cex-h', { text: 'Champs de cette lettre' }), h('div.grille', [elAutres])]) : null,
+          h('p.cex-prog', { text: 'La lettre est remplie avec la fiche. Ce qui est surligné manque dans la fiche (ou reste à compléter) ; la signature de la RH ({{rh}}) se remplit à l\'envoi.' }),
           ed.el
         ]), boutons: [
           texte ? { texte: 'Repartir du modèle', action: function () { texte = ''; majEtat(); } } : null,
@@ -349,29 +349,33 @@
       }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); });
     };
     btnRemplir.addEventListener('click', remplir);
-    selModele.addEventListener('change', function () { texte = ''; majEtat(); });
+    /* La lettre choisie dit ce qu'elle attend de la fiche (encadré en rouge tant que c'est vide). */
+    var besoinsLettre = function () { var o = outils(); if (!selModele.value || !o) { fe.besoin([]); return; } modele(selModele.value).then(function (html) { fe.besoin(o.champsDe(html)); }, function () {}); };
+    selModele.addEventListener('change', function () { texte = ''; majEtat(); besoinsLettre(); });
     selCie.addEventListener('change', dessinerModeles);
-    dessinerModeles();
+    dessinerModeles(); besoinsLettre();
     var corps = h('div.cex-form', [
       h('div.cex-prive', { text: 'La rémunération et les coordonnées du candidat restent dans un fichier privé : seuls la RH, les propriétaires et le DG de la concession les voient.' }),
       h('div.cex-h', { text: 'Candidat' }),
       h('div.grille', [champ('Nom complet', inNom), champ('Courriel', inCourriel, 'La RH lui enverra ses documents à signer.'), champ('Cellulaire (facultatif)', inTel), champ('Langue', selLangue)]),
       h('div.cex-h', { text: 'Conditions' }),
-      h('div.grille', [champ('Concession', selCie), champ('Poste', inPoste), champ('Type d\'emploi', selType), champ('Entrée en poste', inDebut), champ('Période d\'essai', inEssai), champ('Supérieur immédiat', inSup)]),
-      h('div.grille', { style: { marginTop: '10px' } }, [champ('Rémunération', inRem), champ('Horaire', inHoraire)]),
+      h('div.grille', [champ('Concession', selCie), champ('Poste', inPoste), champ('Type d\'emploi', selType), champ('Entrée en poste', inDebut), champ('Période d\'essai', inEssai)]),
       champ('Avantages (facultatif)', inAvantages),
       h('div.cex-h', { text: 'Lettre d\'offre (modèles de la RH)' }),
       h('div.cex-lettre', [selModele, btnRemplir, etat]),
+      h('div.cex-h', { text: 'Fiche d\'embauche' }),
+      h('p.cex-prog', { text: 'Ces renseignements se placent tout seuls dans la lettre d\'offre et les documents que la RH enverra. Laissez vide ce qui ne s\'applique pas.' }),
+      fe.el,
       h('div.cex-h', { text: 'Notes à la RH (facultatif)' }), inNotes
     ]);
     var lire = function () {
-      var champs = { remuneration: inRem.value, horaire: inHoraire.value, superieur: inSup.value };
-      Object.keys(autres).forEach(function (k) { champs[k] = autres[k]; });
+      var champs = fe.valeurs();
       return { id: e.id || '', compagnie: selCie.value, nom: inNom.value, courriel: inCourriel.value, telephone: inTel.value, langue: selLangue.value, poste: inPoste.value, typeEmploi: selType.value,
         debut: inDebut.value, essai: inEssai.value, modeleId: selModele.value, champs: champs, texte: selModele.value ? texte : '', avantages: inAvantages.value, notes: inNotes.value, trousse: e.trousse || '' };
     };
     var envoyer = function (versRh) {
       var x = lire();
+      if (versRh && !x.champs.remuneration) { AMX.toast('Inscrivez le taux horaire, le salaire ou la rémunération dans la fiche d\'embauche.', 'attention', 7000); return Promise.reject(new Error('lettre')); }
       if (versRh && x.modeleId && (!texte || resteDansLettre(texte))) { AMX.toast(!texte ? 'Remplissez la lettre d\'offre (ou choisissez « Aucune lettre »).' : 'Des passages de la lettre restent à compléter (surlignés).', 'attention', 7000); return Promise.reject(new Error('lettre')); }
       return ecrire({ action: 'rhEmbaucheEnregistrer', embauche: x, envoyer: !!versRh }).then(function (r) {
         poser(r.embauche);

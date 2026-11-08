@@ -69,6 +69,7 @@
     '@media (max-width: 760px) { .rhx-pas .t small { display: none; } .rhx-pas button { justify-content: center; padding: 6px; } .rhx-pas .t b { font-size: 12px; } }',
     '@media (max-width: 520px) { .rhx-pas .t { display: none; } }',
     '.rhx-assistant .modale-pied .btn { font-size: 15px; padding: 10px 20px; min-height: 44px; }',
+    '.voile.rhx-assistant .modale.large { width: min(1020px, 100%); }',
     '.rhx-intro { font-size: 14px; color: var(--encre-2); margin: 0 0 12px; }',
     '.rhx-tuiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin: 4px 0 10px; }',
     '.rhx-tuile { text-align: left; border: 2px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 12px 14px; cursor: pointer; font: inherit; color: var(--encre); display: flex; flex-direction: column; gap: 3px; min-height: 64px; }',
@@ -470,8 +471,21 @@
     var t = function (k) { return String(v[k] || '').trim(); };
     var r = t('tauxhoraire') ? t('tauxhoraire') + ' de l\'heure' + (t('heures') ? ', ' + t('heures') + ' h par semaine' : '')
       : t('salairebase') ? t('salairebase') + ' par année' : t('remunerationtotale') ? t('remunerationtotale') + ' par année (rémunération totale)' : '';
-    if (r && t('programmeboni')) r += ' + ' + t('programmeboni');
+    if (r && t('programmeboni') && !AUCUN.test(t('programmeboni'))) r += ' + ' + t('programmeboni');
     return r;
+  }
+  /* 8 nov. : un renseignement « aucun » (pas de commission, pas d'allocation automobile) retire de la lettre la phrase qui
+     l'annonce — son paragraphe ou sa ligne de liste — au lieu d'écrire « aucun » dans le texte. */
+  var AUCUN = /^(aucun|aucune|s\.?\s?o\.?|sans objet|n\/?a|non)\.?$/i;
+  function sansAucun(html, valeurs) {
+    var s = String(html || '');
+    Object.keys(valeurs || {}).forEach(function (n) {
+      if (!AUCUN.test(String(valeurs[n] || '').trim()) || !/^[a-z0-9]{2,30}$/.test(n)) return;
+      var champ = '\\{\\{\\s*' + n + '\\s*\\}\\}';
+      s = s.replace(new RegExp('<li>(?:(?!</li>)[\\s\\S])*?' + champ + '[\\s\\S]*?</li>', 'gi'), '');
+      s = s.replace(new RegExp('<p>(?:(?!</p>)[\\s\\S])*?' + champ + '[\\s\\S]*?</p>', 'gi'), '');
+    });
+    return s;
   }
   /** La fiche à remplir : { el, valeurs(), besoin(noms), manque(noms), montrerManques() }. `besoin` = les champs que les
       documents choisis demandent (encadrés en rouge s'ils sont vides ; un champ inconnu de la fiche y est ajouté). */
@@ -933,7 +947,8 @@
     /* Étape 3 — les documents */
     var revoir = function (d) {
       chargerTexte(d.id).then(function (html) {
-        var ed = editeurTexte(textesRevus[d.id] || surligner(remplirTexte(html, valeursEnvoi())));
+        var val = valeursEnvoi();
+        var ed = editeurTexte(textesRevus[d.id] || surligner(remplirTexte(sansAucun(html, val), val)));
         AMX.modale({ titre: '« ' + d.nom + ' »', large: true, corps: h('div.rhx-form', [
           h('p.rhx-prog', { text: 'Le texte tel que l\'employé le lira, rempli avec la fiche. Vous pouvez le modifier pour cet employé seulement ; ce qui est surligné reste à compléter.' }), ed.el
         ]), boutons: [
@@ -976,7 +991,11 @@
       ].filter(function (g) { return g.docs.length; });
       var ts = trousses();
       var ligne = function (d) {
-        var c = h('input', { type: 'checkbox', id: 'rhx-doc-' + d.id, checked: !!choisis[d.id], onchange: function () { if (c.checked) choisis[d.id] = true; else { delete choisis[d.id]; delete textesRevus[d.id]; } trousseId = ''; majBesoins(); montrer(); } });
+        var c = h('input', { type: 'checkbox', id: 'rhx-doc-' + d.id, checked: !!choisis[d.id], onchange: function () {
+          if (c.checked) { choisis[d.id] = true; if (d.type === 'texte') chargerTexte(d.id).catch(function () {}); }   /* lu d'avance : « Suivant » n'attend plus le serveur */
+          else { delete choisis[d.id]; delete textesRevus[d.id]; }
+          trousseId = ''; majBesoins(); montrer();
+        } });
         var etat = null;
         if (choisis[d.id] && d.type === 'texte') {
           var n = manquesDe(d);
@@ -1078,6 +1097,12 @@
       if (!docs.length && !ps.length) { AMX.toast('Cochez au moins un document (étape 3) ou demandez une pièce (étape 4).', 'attention'); return false; }
       return valider(2).then(function (pret) {
         if (!pret) { aller(2); return false; }
+        /* Une lettre qui parle d'un renseignement « aucun » part sans la phrase qui l'annonce (texte figé ici). */
+        var val = valeursEnvoi();
+        var aNettoyer = textesChoisis().filter(function (d) { return !revus[d.id] && (d.variables || []).some(function (n) { return AUCUN.test(String(val[n] || '').trim()); }); });
+        return Promise.all(aNettoyer.map(function (d) { return chargerTexte(d.id).then(function (html) { revus[d.id] = remplirTexte(sansAucun(html, val), val); }); })).then(function () { return true; });
+      }).then(function (pret) {
+        if (!pret) return false;
         return ecrire({ action: 'rhEnvoyer', compagnie: selCie.value, langue: selLangue.value, employe: { nom: inNom.value, courriel: inCourriel.value, telephone: inTel.value, poste: inPoste.value, debut: inDebut.value },
           documents: docs, pieces: ps, message: inMessage.value, texto: !!caseTexto.checked, champs: fiche.valeurs(), textes: revus, trousse: trousseId }).then(function (d) {
           poserEnvoi(d.envoi); self.vue = 'encours'; self.rendre();
@@ -1264,7 +1289,7 @@
   /* 7 nov. : pour les conditions d'embauche (embauches.js) — les mêmes outils de lettre, et « Préparer l'envoi ». */
   var vueCourante = null, envoiEnAttente = null;
   AMX.rh.outils = { remplirTexte: remplirTexte, surligner: surligner, editeurTexte: editeurTexte, resteACompleter: resteACompleter, passages: PASSAGES_A_COMPLETER,
-    dateLongue: dateLongue, champsAuto: CHAMPS_AUTO, libChamp: libChamp, champsDe: champsDe, ficheEmbauche: ficheEmbauche, resumeRemuneration: resumeRemuneration };
+    dateLongue: dateLongue, champsAuto: CHAMPS_AUTO, libChamp: libChamp, champsDe: champsDe, ficheEmbauche: ficheEmbauche, resumeRemuneration: resumeRemuneration, sansAucun: sansAucun };
   AMX.rh.preparerEnvoi = function (embauche) {
     if (vueCourante && !vueCourante.detruit && vueCourante.rep) { vueCourante.nouvelEnvoi({ embauche: embauche }); return; }
     envoiEnAttente = embauche;

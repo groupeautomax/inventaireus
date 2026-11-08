@@ -336,7 +336,7 @@
       var o = outils(); if (!o) { AMX.toast('L\'éditeur de lettre n\'est pas chargé : rechargez la page.', 'erreur'); return; }
       modele(selModele.value).then(function (html) {
         fe.besoin(o.champsDe(html));
-        var base = texte || o.surligner(o.remplirTexte(html, valeurs()));
+        var vv = valeurs(), base = texte || o.surligner(o.remplirTexte(o.sansAucun ? o.sansAucun(html, vv) : html, vv));   /* « aucun » retire sa phrase */
         var ed = o.editeurTexte(base, { contexte: function () { return { nom: selModele.selectedOptions && selModele.selectedOptions[0] ? selModele.selectedOptions[0].textContent : 'Lettre d\'offre', categorie: 'lettre' }; } });   /* 8 nov. : Einstein AI dans l'éditeur */
         AMX.modale({ titre: 'Remplir la lettre', large: true, corps: h('div.cex-form', [
           h('p.cex-prog', { text: 'La lettre est remplie avec la fiche. Ce qui est surligné manque dans la fiche (ou reste à compléter) ; la signature de la RH ({{rh}}) se remplit à l\'envoi.' }),

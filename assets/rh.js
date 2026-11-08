@@ -269,7 +269,12 @@
   var CHAMPS_AUTO = { nom: 1, prenom: 1, poste: 1, debut: 1, concession: 1, date: 1, rh: 1 };
   var ALIAS = { candidat: 'nom', name: 'nom', employe: 'nom', position: 'poste', titre: 'poste', location: 'concession', dealer: 'concession', salaire: 'remuneration' };
   var LIB_CHAMPS = { nom: 'Nom complet', prenom: 'Prénom', poste: 'Poste', debut: 'Date d\'entrée en poste', concession: 'Concession', date: 'Date du jour', rh: 'Personne des RH',
-    remuneration: 'Rémunération', superieur: 'Supérieur immédiat', horaire: 'Horaire de travail' };
+    remuneration: 'Rémunération', superieur: 'Supérieur immédiat', horaire: 'Horaire de travail',
+    /* 8 nov. : les montants du « Plan de rémunération — Directeur / Directrice » (modèle de HR4 copié sans ses montants). */
+    remunerationtotale: 'Rémunération annuelle totale', salairebase: 'Salaire annuel de base', salairehebdo: 'Salaire hebdomadaire de base',
+    bonismensuels: 'Bonis mensuels', bonistrimestriels: 'Bonis trimestriels', avantages: 'Bénéfices marginaux (total)',
+    reer: 'Contribution de l\'employeur au REER', vacances: 'Vacances annuelles', allocationauto: 'Démonstrateur ou allocation automobile',
+    valeurtotale: 'Valeur totale du plan' };
   var CATEGORIES = { politique: 'Politique', lettre: 'Lettre', autre: 'Document' };
   var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

@@ -973,11 +973,15 @@
        d'embauche : DG, directeurs, RH ; documents à signer : droit RH ou propriétaire ; dossiers : + les DG pour leur
        concession ; santé et sécurité : la gestion). Le rôle « Ressources humaines » ne voit que cette tuile et l'Aide.
        Les anciennes adresses (#/outils/ressources, rh, embauches, employes, sstrh) mènent ici (routeur). */
+    /* 8 nov. (Maxime : « quand on clique sur le menu Ressources humaines, ça doit ramener au menu principal avec les 4 grosses
+       tuiles ») : la tuile s'ouvre sur sa page de choix ; chaque page y revient par le fil « ‹ Ressources humaines ». */
     { id: 'rh', titre: 'Ressources humaines', court: 'RH', icone: 'admin', ordre: 45, onglets: [
-      { id: 'embauches', titre: 'Conditions d\'embauche', de: 'embauches', onglet: '', cle: 'rh/embauches', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
-      { id: 'documents', titre: 'Documents à signer', de: 'rh', onglet: '', cle: 'rh/rh', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },   /* 7 nov. : rh.js, PortailRH.gs */
-      { id: 'employes', titre: 'Dossiers des employés', de: 'employes', onglet: '', cle: 'rh/employes' },
-      { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '', cle: 'rh/sst', visible: function () { return !!(AMX.sst && AMX.sst.peutGerer()); }, compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } }
+      { id: 'ressources', titre: 'Ressources humaines', hub: true, icone: 'admin', desc: 'Les conditions d\'embauche, les documents à signer, les dossiers des employés et la santé et sécurité, pour toutes les concessions.' },
+      { id: 'embauches', titre: 'Conditions d\'embauche', de: 'embauches', onglet: '', parent: 'ressources', cle: 'rh/embauches', icone: 'achat', couleur: 'violet', desc: 'Le DG remplit les conditions d\'une nouvelle embauche et la lettre d\'offre (modèles de la RH) ; la RH les reçoit et envoie les documents à signer.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
+      { id: 'documents', titre: 'Documents à signer', de: 'rh', onglet: '', parent: 'ressources', cle: 'rh/rh', icone: 'achat', couleur: 'vert', desc: 'Politiques, lettres et formulaires envoyés aux nouveaux employés ; signature électronique, dossier envoyé à la paie.', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },   /* 7 nov. : rh.js, PortailRH.gs */
+      { id: 'employes', titre: 'Dossiers des employés', de: 'employes', onglet: '', parent: 'ressources', cle: 'rh/employes', icone: 'admin', couleur: 'bleu', desc: 'Le dossier de chaque employé par concession : emploi, coordonnées, contacts d\'urgence ; le NAS reste dans un fichier privé.' },
+      { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '', parent: 'ressources', cle: 'rh/sst', icone: 'alerte', couleur: 'ambre', visible: function () { return !!(AMX.sst && AMX.sst.peutGerer()); },
+        desc: 'Le registre des accidents, des premiers soins et des situations dangereuses, et la bibliothèque des documents.', compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } }
     ] },
     { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
       /* 3 nov. (Maxime : « regroupe dans un onglet que tu appelles Import l'onglet eBlock, OpenLane, CARFAX et D2C ») : une
@@ -1213,6 +1217,9 @@
        source rh.js : #/rh/embauches menait à « Documents à signer »). */
     var tu = AMX.sections[section];
     if (onglet && tu && tu.tuile && (tu.onglets || []).some(function (o) { return o.id === onglet; })) return null;
+    /* 8 nov. : « #/rh » (le menu de la tuile, sans onglet) n'est pas l'ancienne page rh.js : le routeur choisit l'onglet
+       de départ de la tuile (sa page de choix). */
+    if (!onglet && tu && tu.tuile) return null;
     var t = TRAD[section + '/' + (onglet || '')] || TRAD[section + '/*'];
     if (!t && AMX.sources[section] && !(AMX.sections[section] && AMX.sections[section].tuile)) {   /* onglet inconnu d'une source absorbée : son premier onglet */
       var pre = section + '/'; Object.keys(TRAD).some(function (k) { if (k.indexOf(pre) === 0) { t = TRAD[k]; return true; } return false; });
@@ -1248,7 +1255,12 @@
      visité sur cet appareil ; la première fois, l'onglet le plus utilisé (Inventaire → Occasion, Relance → Avis Google). */
   var ONGLET_DEFAUT = { inventaire: 'occasion', relance: 'avis' };   /* 3 nov. : Occasion = la page de choix */
   function ongletDeDepart(sec, onglets) {
-    var veut = function (id) { return id ? onglets.filter(function (o) { return o.id === id; })[0] : null; };
+    /* 8 nov. : un onglet retenu qui est rangé sous une page de choix rouvre la page de choix (mémoire d'avant la page RH). */
+    var veut = function (id) {
+      var o = id ? onglets.filter(function (x) { return x.id === id; })[0] : null;
+      var p = o && o.parent ? onglets.filter(function (x) { return x.id === o.parent; })[0] : null;
+      return p || o;
+    };
     if (!sec.tuile) return onglets[0];
     return veut(String(AMX.memo.lire('onglet_' + sec.id, '') || '')) || veut(ONGLET_DEFAUT[sec.id]) || onglets[0];
   }
@@ -1289,7 +1301,7 @@
     // 27 oct. : l'onglet « Import CARFAX » est retiré (l'API officielle de CARFAX lit les rapports) — l'ancienne adresse mène à Outils › Imports.
     if (r.section === 'outils' && r.onglet === 'carfax') { AMX.aller('outils', 'imports'); return; }
     // 8 nov. : « Ressources humaines » a quitté Outils pour sa propre tuile (liens des courriels des conditions d'embauche).
-    if (r.section === 'outils' && /^(ressources|rh|embauches|employes|sstrh)$/.test(r.onglet)) { AMX.aller('rh', { ressources: '', rh: 'documents', embauches: 'embauches', employes: 'employes', sstrh: 'sst' }[r.onglet], r.params); return; }
+    if (r.section === 'outils' && /^(ressources|rh|embauches|employes|sstrh)$/.test(r.onglet)) { AMX.aller('rh', { ressources: 'ressources', rh: 'documents', embauches: 'embauches', employes: 'employes', sstrh: 'sst' }[r.onglet], r.params); return; }
     // 4 nov. : « Listes et audits » a quitté Inventaire — Outils › Audit.
     if (r.section === 'inventaire' && r.onglet === 'listes') { AMX.aller('outils', 'listes', r.params); return; }
     // 3 nov. : « Évaluations demandées » a quitté Vente — Inventaire › Occasion › Évaluation (vue « Mes demandes » pour le

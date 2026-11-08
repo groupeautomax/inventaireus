@@ -149,7 +149,11 @@
     var self = this, p = (ctx && ctx.params) || {};
     this.conteneur = conteneur; this.detruit = false;
     this.compagnie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
-    this.voir = p.voir === 'registre' && peutGerer() ? 'registre' : 'bibliotheque';
+    /* 8 nov. (Maxime : « partout sous un modèle de pastilles ») : la page s'ouvre sur de grosses tuiles (le registre, puis un
+       thème par tuile) ; un clic ouvre le sujet. « sujet » = registre ou le code d'un thème. */
+    this.sujet = p.sujet || (p.voir === 'registre' ? 'registre' : '');
+    if (this.sujet === 'registre' && !peutGerer()) this.sujet = '';
+    this.voir = this.sujet === 'registre' ? 'registre' : 'bibliotheque';
     this.q = p.q || ''; this.statut = ''; this.ouvrirId = p.id || '';
     AMX.vider(conteneur);
     this.btnDoc = h('button.btn', { type: 'button', text: 'Ajouter un document', onclick: function () { self.ajouterDocument(); } });
@@ -157,11 +161,11 @@
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnDoc.hidden = !peutGerer(); this.btnDeclarer.hidden = !peutGerer();
     conteneur.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Santé et sécurité'), h('p', { text: 'Les politiques, les fiches et les formulaires de santé et sécurité ; pour la direction, le registre des accidents et des premiers soins.' })]),
-      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnDoc, this.btnDeclarer], [this.btnDeclarer]))
+      h('div', [h('h1', 'Santé et sécurité'), h('p', { text: 'Touchez un sujet : le registre des accidents (direction), puis les documents par thème.' })]),
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnDoc, this.btnDeclarer], []))   /* 8 nov. : « Déclarer » est une grosse tuile et le bouton du registre */
     ]));
     this.elCies = h('div.barre-cies'); conteneur.appendChild(this.elCies);
-    this.elOnglets = h('div.sst-onglets'); conteneur.appendChild(this.elOnglets);
+    this.elTete = h('div'); conteneur.appendChild(this.elTete);   /* 8 nov. : retour aux sujets et titre du sujet ouvert */
     this.inRecherche = h('input.saisie.recherche', { type: 'search', value: this.q, placeholder: 'Chercher un document ou un événement…', autocomplete: 'off', 'aria-label': 'Chercher' });
     this.elFiltres = h('div.sst-filtres', [this.inRecherche]); conteneur.appendChild(this.elFiltres);
     this.elPortee = h('div'); conteneur.appendChild(this.elPortee);
@@ -179,7 +183,9 @@
   VueSst.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:sst', this.surSst); };
   VueSst.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
-    if (p.voir && p.voir !== this.voir && (p.voir !== 'registre' || peutGerer())) { this.voir = p.voir; this.charger(false); }
+    var sujet = p.sujet || (p.voir === 'registre' ? 'registre' : '');
+    if (sujet === 'registre' && !peutGerer()) sujet = '';
+    if (sujet !== this.sujet) { this.ouvrirSujet(sujet); }
     if (p.id && this.reg) this.ouvrirEvenement(p.id);
   };
   VueSst.prototype.charger = function (force) {
@@ -197,6 +203,15 @@
       AMX.vider(self.elCorps); self.elCorps.appendChild(h('div.carte', [h('div.sst-vide', { text: AMX.erreurTexte(e) })]));
     });
   };
+  VueSst.prototype.ouvrirSujet = function (sujet) {
+    this.sujet = sujet || ''; this.voir = this.sujet === 'registre' ? 'registre' : 'bibliotheque'; this.q = ''; this.inRecherche.value = '';
+    if (this.voir === 'registre' && !this.reg) this.charger(false); else this.rendre();
+  };
+  VueSst.prototype.theme = function (id) { return THEMES.filter(function (t) { return t[0] === id; })[0] || null; };
+  VueSst.prototype.docsVisibles = function () {
+    var gere = !!(this.rep && this.rep.peutGerer), cie = this.compagnie;
+    return ((this.rep && this.rep.documents) || []).filter(function (d) { return (!d.retire || gere) && (!cie || !d.compagnie || d.compagnie === cie); });
+  };
   VueSst.prototype.rendre = function () {
     if (!this.rep || this.detruit) return;
     var self = this, gere = !!this.rep.peutGerer;
@@ -205,16 +220,19 @@
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.compagnie,
       compte: function (c) { return self.voir === 'registre' && self.reg ? self.reg.evenements.filter(function (e) { return (!c || e.compagnie === c) && e.statut !== 'ferme'; }).length : docs.filter(function (d) { return !d.retire && (!c || !d.compagnie || d.compagnie === c); }).length; },
       onchange: function (c) { self.compagnie = c; self.rendre(); } });
-    AMX.vider(this.elOnglets);
-    var onglet = function (id, titre, n, rouge) {
-      return h('button' + (self.voir === id ? '.actif' : '') + (rouge ? '.rouge' : ''), { type: 'button', onclick: function () { if (self.voir === id) return; self.voir = id; if (id === 'registre') self.charger(false); else self.rendre(); } }, [titre, n !== null ? h('span.n', { text: String(n) }) : null]);
-    };
-    this.elOnglets.appendChild(onglet('bibliotheque', 'Bibliothèque', docs.filter(function (d) { return !d.retire; }).length));
-    if (gere) {
-      var ouverts = this.reg ? this.reg.evenements.filter(function (e) { return e.statut !== 'ferme' && (!self.compagnie || e.compagnie === self.compagnie); }).length : (this.rep.registre ? this.rep.registre.ouverts : null);
-      this.elOnglets.appendChild(onglet('registre', 'Registre des accidents', ouverts, !!ouverts));
+    /* En-tête du sujet ouvert : retour aux tuiles, titre, phrase, bouton. */
+    AMX.vider(this.elTete);
+    var t = this.sujet && this.sujet !== 'registre' ? this.theme(this.sujet) : null;
+    if (this.sujet === 'registre') {
+      this.elTete.appendChild(AMX.retourSujets('Tous les sujets', AMX.lienIci({})));
+      this.elTete.appendChild(AMX.teteSujet('Registre des accidents', 'Les accidents, les premiers soins, les presque-accidents et les situations dangereuses de ' + (this.compagnie ? nomCie(this.compagnie) : 'toutes les concessions') + '.',
+        h('button.btn.primaire', { type: 'button', text: 'Déclarer un événement', onclick: function () { declarer({ compagnie: self.compagnie }); } })));
+    } else if (t) {
+      this.elTete.appendChild(AMX.retourSujets('Tous les sujets', AMX.lienIci({})));
+      this.elTete.appendChild(AMX.teteSujet(t[1], DESC_THEMES[t[0]] || '', gere ? h('button.btn', { type: 'button', text: '+ Ajouter un document', onclick: function () { self.ajouterDocument(t[0]); } }) : null));
     }
     AMX.vider(this.elFiltres); this.elFiltres.appendChild(this.inRecherche);
+    this.inRecherche.placeholder = this.sujet === 'registre' ? 'Chercher un événement : employé, lieu, blessure, AC-101…' : 'Chercher un document de santé et sécurité…';
     if (this.voir === 'registre') {
       this.selStatut = choix(this.statut, [['', 'Tous les statuts'], ['ouvert', 'Ouverts'], ['enquete', 'Enquête en cours'], ['ferme', 'Fermés']]);
       this.selStatut.addEventListener('change', function () { self.statut = self.selStatut.value; self.rafraichir(); });
@@ -223,45 +241,58 @@
     this.rafraichir();
   };
   VueSst.prototype.rafraichir = function () {
-    if (this.voir === 'registre') this.rendreRegistre(); else this.rendreBibliotheque();
+    if (this.voir === 'registre') this.rendreRegistre(); else if (this.sujet || this.q) this.rendreBibliotheque(); else this.rendreSujets();
+  };
+  var DESC_THEMES = { sst: 'La politique, le programme de prévention, les règles de l\'atelier.', ergonomie: 'Les bonnes postures et l\'aménagement du poste.',
+    technicien: 'Les consignes propres aux techniciens et à l\'atelier.', premiers: 'Les trousses, les secouristes et quoi faire.',
+    accident: 'Que faire après un accident : déclaration, CNESST, retour au travail.', formulaires: 'Les formulaires de santé et sécurité à remplir.' };
+  var COULEURS_THEMES = { sst: 'ambre', ergonomie: 'sarcelle', technicien: 'bleu', premiers: 'rouge', accident: 'rouge', formulaires: 'vert' };
+  /* La page d'accueil : de grosses tuiles. */
+  VueSst.prototype.rendreSujets = function () {
+    var self = this, gere = !!this.rep.peutGerer, docs = this.docsVisibles().filter(function (d) { return !d.retire; });
+    AMX.vider(this.elPortee); AMX.vider(this.elKpis); AMX.vider(this.elCorps);
+    if (gere) {
+      var ouverts = this.reg ? this.reg.evenements.filter(function (e) { return e.statut !== 'ferme' && (!self.compagnie || e.compagnie === self.compagnie); }).length : (this.rep.registre ? this.rep.registre.ouverts : '');
+      this.elCorps.appendChild(AMX.groupeSujets('Registre', [
+        { titre: 'Registre des accidents', desc: ouverts ? ouverts + ' événement' + (ouverts > 1 ? 's' : '') + ' pas encore fermé' + (ouverts > 1 ? 's' : '') + '. Enquête, mesures correctives, CNESST.' : 'Les accidents, les premiers soins et les situations dangereuses, avec l\'enquête et les mesures correctives.',
+          n: ouverts === '' ? '' : ouverts, couleur: ouverts ? 'rouge' : 'vert', icone: 'alerte', href: AMX.lienIci({ sujet: 'registre' }) },
+        { titre: 'Déclarer un événement', desc: 'Un accident, des premiers soins, un presque-accident ou une situation dangereuse : à inscrire le jour même.', couleur: 'ambre', icone: 'plus', ouvrir: 'Déclarer', onclick: function () { declarer({ compagnie: self.compagnie }); } }
+      ]));
+    }
+    var tuiles = THEMES.map(function (t) {
+      var n = docs.filter(function (d) { return d.theme === t[0]; }).length;
+      return n ? { titre: t[1], desc: DESC_THEMES[t[0]] || '', n: n, couleur: COULEURS_THEMES[t[0]] || 'gris', icone: t[0] === 'formulaires' ? 'achat' : 'alerte', href: AMX.lienIci({ sujet: t[0] }) } : null;
+    }).filter(Boolean);
+    if (tuiles.length) this.elCorps.appendChild(AMX.groupeSujets('Documents', tuiles));
+    else this.elCorps.appendChild(h('div.carte', [h('div.sst-vide', [h('p', { text: 'La bibliothèque est vide.' }), gere ? h('button.btn.primaire', { type: 'button', text: 'Ajouter un document', onclick: function () { self.ajouterDocument(); } }) : null])]));
   };
 
   /* ------------------------------------------------------------------------------- bibliothèque */
+  /* Un thème ouvert, ou une recherche dans tous les thèmes : une grosse ligne par document. */
   VueSst.prototype.rendreBibliotheque = function () {
-    var self = this, gere = !!this.rep.peutGerer, cie = this.compagnie, q = this.q;
-    var liste = this.rep.documents.filter(function (d) {
-      if (d.retire && !gere) return false;
-      if (cie && d.compagnie && d.compagnie !== cie) return false;
+    var self = this, gere = !!this.rep.peutGerer, q = this.q, sujet = this.sujet;
+    var liste = this.docsVisibles().filter(function (d) {
+      if (sujet && d.theme !== sujet) return false;
       if (q && !AMX.correspond([d.titre, d.description, d.themeNom, d.fichierNom, nomCie(d.compagnie)], q)) return false;
       return true;
     });
-    AMX.porteeChiffres(this.elPortee, { n: liste.filter(function (d) { return !d.retire; }).length, unite: ['document', 'documents'], contexte: [cie ? nomCie(cie) + ' et tout le groupe' : 'tout le groupe', 'bibliothèque'],
+    var n = liste.filter(function (d) { return !d.retire; }).length;
+    AMX.porteeChiffres(this.elPortee, { n: n, unite: ['document', 'documents'], contexte: [this.compagnie ? nomCie(this.compagnie) + ' et tout le groupe' : 'tout le groupe', sujet ? (this.theme(sujet) || [0, ''])[1] : 'tous les thèmes'],
       filtres: q ? ['« ' + q + ' »'] : [], effacer: function () { self.q = ''; self.inRecherche.value = ''; self.rafraichir(); } });
     AMX.vider(this.elKpis);
     AMX.vider(this.elCorps);
-    if (!liste.length) {
-      this.elCorps.appendChild(h('div.carte', [h('div.sst-vide', [h('p', { text: this.rep.documents.length ? 'Aucun document avec ces filtres.' : 'La bibliothèque est vide. La RH l\'importe de HR4 (Dossiers des employés › Importer) ou ajoute des documents.' })])]));
-      return;
-    }
-    var grille = h('div.sst-themes');
-    THEMES.forEach(function (t) {
-      var docs = liste.filter(function (d) { return d.theme === t[0]; });
-      if (!docs.length) return;
-      grille.appendChild(h('div.carte.sst-theme', [
-        h('h3', [t[1], h('span.n', { text: docs.filter(function (d) { return !d.retire; }).length + ' document(s)' })]),
-        h('ul.sst-docs', docs.map(function (d) {
-          return h('li' + (d.retire ? '.retire' : ''), [
-            h('div.t', { onclick: function () { ouvrirFichier({ sstDoc: d.id }, d.titre); } }, [h('b', { text: d.titre }), h('span.q', { text: [d.description, d.compagnie ? nomCie(d.compagnie) : '', d.mime === 'application/pdf' ? 'PDF' : 'Image', taille(d.octets), d.retire ? 'retiré' : ''].filter(Boolean).join(' · ') })]),
-            gere ? h('button.btn.petit', { type: 'button', text: 'Modifier', onclick: function () { self.modifierDocument(d); } }) : null
-          ]);
-        }))
-      ]));
+    var lignes = liste.map(function (d) {
+      var t = self.theme(d.theme);
+      return AMX.ligneDocument({ titre: d.titre + (d.retire ? ' (retiré)' : ''), retire: d.retire,
+        sous: [sujet ? '' : (t ? t[1] : ''), d.description, d.compagnie ? nomCie(d.compagnie) : '', taille(d.octets)].filter(Boolean).join(' · '),
+        genre: d.mime === 'application/pdf' ? 'PDF' : 'Image', genreCls: 'pdf', onclick: function () { ouvrirFichier({ sstDoc: d.id }, d.titre); },
+        actions: gere ? [h('button.btn.petit', { type: 'button', text: 'Modifier', onclick: function () { self.modifierDocument(d); } })] : [] });
     });
-    this.elCorps.appendChild(grille);
+    this.elCorps.appendChild(AMX.listeDocuments(lignes, q ? 'Aucun document pour « ' + q + ' ».' : 'Aucun document dans ce thème.'));
   };
-  VueSst.prototype.ajouterDocument = function () {
+  VueSst.prototype.ajouterDocument = function (theme) {
     var self = this, rep = this.rep || {};
-    var inTitre = saisie(''), inDesc = zone('', 2), selTheme = choix('sst', THEMES), inFichier = h('input', { type: 'file', accept: '.pdf,.jpg,.jpeg,.png' });
+    var inTitre = saisie(''), inDesc = zone('', 2), selTheme = choix(typeof theme === 'string' && theme ? theme : (this.sujet && this.sujet !== 'registre' ? this.sujet : 'sst'), THEMES), inFichier = h('input', { type: 'file', accept: '.pdf,.jpg,.jpeg,.png' });
     var codes = Object.keys(AMX.COMPAGNIES_TOUTES || {}).filter(function (c) { return !AMX.codesPour || AMX.codesPour('inventaire') === '*' || (AMX.codesPour('inventaire') || []).indexOf(c) >= 0; });
     var opts = codes.map(function (c) { return [c, nomCie(c)]; });
     if (perms().rh === true || role() === 'proprietaire') opts.unshift(['', 'Tout le groupe']);

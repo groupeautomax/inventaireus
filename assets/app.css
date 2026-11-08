@@ -883,6 +883,7 @@ html.ui2 .cote {
 .cote-titre:hover { background: var(--gris-bg); text-decoration: none; }
 .cote-tuile.actif > .cote-ligne .cote-titre .ic { color: var(--vert); }
 .cote-tuile.actif:not(.ouvert) > .cote-ligne .cote-titre { background: var(--vert-clair); color: var(--vert-fonce); }
+.cote-titre.actif { background: var(--vert-clair); color: var(--vert-fonce); }   /* 8 nov. : sur la page de grosses tuiles de la tuile */
 .cote-plier { width: 32px; height: 32px; flex: none; border: 0; background: none; border-radius: 8px; color: var(--encre-3); display: grid; place-items: center; cursor: pointer; }
 .cote-plier:hover { background: var(--gris-bg); color: var(--encre); }
 .cote-plier svg { width: 14px; height: 14px; transition: transform .15s; }

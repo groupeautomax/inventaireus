@@ -1285,12 +1285,41 @@
         ])
       ]);
     };
+    var vueBib = '';
+    var SUJETS_BIB = [
+      { id: 'trousses', titre: 'Trousses par poste', desc: 'Les documents, les pièces et le message d\'un poste, envoyés en un clic.', couleur: 'vert', icone: 'achat' },
+      { id: 'politiques', titre: 'Politiques', desc: 'Le Manuel de l\'employé et les autres textes à lire et à signer.', couleur: 'bleu', icone: 'achat' },
+      { id: 'lettres', titre: 'Lettres d\'offre et rémunération', desc: 'Les lettres et plans remplis par la fiche d\'embauche.', couleur: 'violet', icone: 'achat' },
+      { id: 'signer', titre: 'PDF à lire et à signer', desc: 'Contrats et documents en PDF que l\'employé signe.', couleur: 'sarcelle', icone: 'achat' },
+      { id: 'formulaire', titre: 'Formulaires vierges', desc: 'TD1, TP-1015.3… l\'employé les remplit et les renvoie.', couleur: 'ambre', icone: 'achat' },
+      { id: 'ajouter', titre: 'Ajouter un document', desc: 'Écrire une politique ou une lettre, déposer un PDF, importer les modèles de HR4.', couleur: 'gris', icone: 'plus', ouvrir: 'Ajouter' }
+    ];
+    var enSujet = function (d, id) {
+      if (id === 'politiques') return d.type === 'texte' && d.categorie !== 'lettre';
+      if (id === 'lettres') return d.type === 'texte' && d.categorie === 'lettre';
+      return d.type === id;
+    };
+    var dessinerTuiles = function () {
+      var docs = self.rep.documents.filter(function (d) { return d.bibliotheque && !d.retire; });
+      var nTr = (self.rep.trousses || []).filter(function (t) { return !t.retire; }).length;
+      corps.appendChild(AMX.tuilesSujets(SUJETS_BIB.map(function (x) {
+        return { titre: x.titre, desc: x.desc, couleur: x.couleur, icone: x.icone, ouvrir: x.ouvrir, n: x.id === 'ajouter' ? '' : x.id === 'trousses' ? nTr : docs.filter(function (d) { return enSujet(d, x.id); }).length,
+          onclick: function () { vueBib = x.id; dessiner(); } };
+      }), { petites: true }));
+    };
     var dessiner = function () {
       AMX.vider(corps);
+      /* 8 nov. (Maxime : « partout sous un modèle de pastilles ») : d'abord de grosses tuiles, puis le sujet choisi. */
+      if (!vueBib) { dessinerTuiles(); return; }
+      var sec = SUJETS_BIB.filter(function (x) { return x.id === vueBib; })[0];
+      corps.appendChild(AMX.retourSujets('Tous les sujets de la bibliothèque', function () { vueBib = ''; dessiner(); }));
+      corps.appendChild(AMX.teteSujet(sec.titre, sec.desc, sec.id === 'politiques' || sec.id === 'lettres' ? h('button.btn', { type: 'button', text: '+ Écrire un document', onclick: function () { self.editerTexte(null, dessiner); } })
+        : sec.id === 'signer' || sec.id === 'formulaire' ? h('button.btn', { type: 'button', text: '+ Ajouter un PDF', onclick: function () { vueBib = 'ajouter'; dessiner(); } }) : null));
+      if (vueBib === 'trousses') {
       /* trousses */
       var tr = (self.rep.trousses || []).filter(function (t) { return voirRetires || !t.retire; });
-      corps.appendChild(h('div.rhx-h', { text: 'Trousses par poste (' + tr.length + ')' }));
       corps.appendChild(h('p.rhx-prog', { text: 'Une trousse = les documents, les pièces et le message d\'un poste, envoyés en un clic. Elle s\'enregistre depuis « Nouvel envoi » (« Enregistrer comme trousse »).' }));
+      if (!tr.length) corps.appendChild(h('div.amx-vide-sujet', { text: 'Aucune trousse. Elle s\'enregistre à la fin d\'un envoi (« + Nouvel employé » › Envoyer › « Enregistrer ce choix comme trousse »).' }));
       if (tr.length) corps.appendChild(h('ul.rhx-docs', tr.map(function (t) {
         var noms = (t.documents || []).map(function (id) { var d = self.rep.documents.filter(function (x) { return x.id === id; })[0]; return d ? d.nom : id; });
         return h('li', [
@@ -1303,14 +1332,16 @@
           ])
         ]);
       })));
+      }
       var l = self.rep.documents.filter(function (d) { return d.bibliotheque && (voirRetires || !d.retire); });
-      [['texte', 'Politiques et lettres (texte)'], ['signer', 'PDF à lire et à signer'], ['formulaire', 'Formulaires vierges (l\'employé les remplit et les renvoie)']].forEach(function (t) {
-        var x = l.filter(function (d) { return d.type === t[0]; }).sort(function (a, b) { return String(a.categorie || '').localeCompare(String(b.categorie || '')) || a.nom.localeCompare(b.nom, 'fr'); });
-        corps.appendChild(h('div.rhx-h', { text: t[1] + ' (' + x.length + ')' }));
-        if (!x.length) { corps.appendChild(h('p.rhx-prog', { text: t[0] === 'texte' ? 'Aucun : écrivez-en un ou importez les modèles de HR4 ci-dessous.' : 'Aucun.' })); return; }
+      [[vueBib, sec.titre]].filter(function (t) { return t[0] === 'politiques' || t[0] === 'lettres' || t[0] === 'signer' || t[0] === 'formulaire'; }).forEach(function (t) {
+        var x = l.filter(function (d) { return enSujet(d, t[0]); }).sort(function (a, b) { return String(a.categorie || '').localeCompare(String(b.categorie || '')) || a.nom.localeCompare(b.nom, 'fr'); });
+        if (!x.length) { corps.appendChild(h('div.amx-vide-sujet', { text: t[0] === 'politiques' || t[0] === 'lettres' ? 'Aucun : écrivez-en un ou importez les modèles de HR4 (« Ajouter un document »).' : 'Aucun.' })); return; }
+
         corps.appendChild(h('ul.rhx-docs', x.map(ligneDoc)));
       });
-      corps.appendChild(h('label.rhx-cases', { style: { marginTop: '8px' } }, [h('input', { type: 'checkbox', checked: voirRetires, onchange: function (ev) { voirRetires = ev.target.checked; dessiner(); } }), 'Voir les documents et trousses retirés']));
+      if (vueBib !== 'ajouter') corps.appendChild(h('label.rhx-cases', { style: { marginTop: '8px' } }, [h('input', { type: 'checkbox', checked: voirRetires, onchange: function (ev) { voirRetires = ev.target.checked; dessiner(); } }), 'Voir les documents et trousses retirés']));
+      if (vueBib !== 'ajouter') return;
       /* écrire un texte */
       corps.appendChild(h('div.rhx-h', { text: 'Écrire une politique ou une lettre' }));
       corps.appendChild(h('div', [h('button.btn', { type: 'button', text: 'Écrire un document', onclick: function () { self.editerTexte(null, dessiner); } }),

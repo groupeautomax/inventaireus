@@ -125,7 +125,7 @@
     if (!d) return 'Accueil';
     var sec = AMX.sections[d.section]; if (!sec) return 'Accueil';
     var ong = (sec.onglets || []).filter(function (o) { return o.id === d.onglet; })[0];
-    return sec.titre + (ong && (sec.onglets || []).length > 1 ? ' › ' + ong.titre : '');
+    return sec.titre + (ong && !ong.racine && (sec.onglets || []).length > 1 ? ' › ' + ong.titre : '');   /* 8 nov. : la page de grosses tuiles = la tuile */
   }
   AMX.accueil = {
     /** { section, onglet } choisi par l'utilisateur, ou null = Accueil. */
@@ -251,7 +251,8 @@
     var tuiles = h('div.acc-tuiles');
     AMX.listeSections().filter(function (s) { return s.id !== 'accueil'; }).forEach(function (s) {
       var onglets = AMX.ongletsMenu ? AMX.ongletsMenu(s) : (s.onglets || []).filter(function (o) { return !o.visible || o.visible(); });   /* 3 nov. : sans les pages rangées dans une page de choix */
-      var premier = onglets[0] ? onglets[0].id : '';
+      var rac = AMX.racineTuile ? AMX.racineTuile(s) : null;   /* 8 nov. : la tuile s'ouvre sur sa page de grosses tuiles */
+      var premier = rac ? rac.id : (onglets[0] ? onglets[0].id : '');
       var estDepart = !!depart && depart.section === s.id;
       var btnDepart = h('button.depart' + (estDepart ? '.actif' : ''), { type: 'button', title: estDepart ? 'Le site s\'ouvre ici — cliquez pour revenir à l\'Accueil' : 'Ouvrir le site ici par défaut', 'aria-label': 'Page de départ', html: estDepart ? ETOILE_PLEINE : ETOILE, onclick: function (e) { e.preventDefault(); e.stopPropagation(); AMX.accueil.choisirDepart(estDepart ? '' : s.id, premier); } });
       var tuile = h('a.acc-tuile.' + (COULEURS[s.id] || 'gris') + (estDepart ? '.depart-actif' : ''), { href: AMX.lien(s.id, premier), 'data-section': s.id }, [
@@ -271,8 +272,13 @@
     var options = [{ v: '', t: 'Accueil (cette page)' }];
     AMX.listeSections().filter(function (s) { return s.id !== 'accueil'; }).forEach(function (s) {
       var onglets = (s.onglets || []).filter(function (o) { return (!o.visible || o.visible()) && !(o.horsMenu && o.horsMenu()); });
-      var titreDe = function (id) { var x = onglets.filter(function (y) { return y.id === id; })[0]; return x ? x.titre + ' › ' : ''; };   /* 3 nov. : « Inventaire › Occasion › Analyse » */
-      if (onglets.length > 1) onglets.forEach(function (o) { options.push({ v: s.id + '/' + o.id, t: s.titre + ' › ' + (o.parent ? titreDe(o.parent) : '') + o.titre }); });
+      /* 3 nov. : « Inventaire › Occasion › Analyse » ; 8 nov. : sur plusieurs niveaux, sans la page de grosses tuiles de la tuile */
+      var chemin = function (o) {
+        var t = [], x = o, n = 0;
+        while (x && x.parent && n++ < 5) { var p = x.parent; x = onglets.filter(function (y) { return y.id === p; })[0]; if (x && !x.racine) t.unshift(x.titre); }
+        return t.length ? t.join(' › ') + ' › ' : '';
+      };
+      if (onglets.length > 1) onglets.forEach(function (o) { options.push({ v: s.id + '/' + o.id, t: o.racine ? s.titre + ' (toutes les pages)' : s.titre + ' › ' + chemin(o) + o.titre }); });
       else options.push({ v: s.id + '/' + (onglets[0] ? onglets[0].id : ''), t: s.titre });
     });
     var actuel = depart ? depart.section + '/' + depart.onglet : '';

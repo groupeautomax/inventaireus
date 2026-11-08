@@ -364,6 +364,81 @@
     });
     return el;
   };
+  /* 8 nov. (Maxime : « revois le layout des documents dans RH pour que l'on soit partout sous un modèle de pastilles ») —
+     une seule présentation pour les documents : de grosses tuiles par sujet (AMX.tuilesSujets / AMX.groupeSujets), un
+     lien de retour (AMX.retourSujets), puis une grosse ligne par document (AMX.ligneDocument). Servent aux Documents de
+     référence, à Santé et sécurité et à la Bibliothèque des ressources humaines. Styles injectés une fois (#css-amx-sujets). */
+  var CSS_SUJETS = [
+    '.hub-tuile.rouge { --acc: var(--rouge); --acc-bg: var(--rouge-bg); } .hub-tuile.gris { --acc: var(--encre-2); --acc-bg: var(--gris-bg); }',
+    'button.hub-tuile { font: inherit; text-align: left; width: 100%; cursor: pointer; }',
+    '.hub-tuiles.petites { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }',
+    '.hub-tuiles.petites .hub-tuile { min-height: 132px; padding: 16px 16px 14px; gap: 8px; border-radius: 14px; }',
+    '.hub-tuiles.petites .hub-tuile .ic { width: 42px; height: 42px; border-radius: 12px; } .hub-tuiles.petites .hub-tuile .ic svg { width: 22px; height: 22px; }',
+    '.hub-tuiles.petites .hub-tuile h2 { font-size: 17px; } .hub-tuiles.petites .hub-tuile p { font-size: 13px; }',
+    '.amx-groupe { margin: 6px 0 20px; } .amx-groupe > h2 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--encre-2); margin: 0 0 8px; }',
+    '.amx-retour { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; color: var(--vert-fonce); text-decoration: none; margin: 0 0 10px; font-size: 14px; background: none; border: 0; padding: 4px 0; cursor: pointer; font-family: inherit; }',
+    '.amx-retour svg { transform: rotate(180deg); width: 16px; height: 16px; }',
+    '.amx-sujet-tete { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin: 0 0 12px; }',
+    '.amx-sujet-tete h2 { margin: 0 0 2px; font-size: 21px; } .amx-sujet-tete p { margin: 0; color: var(--encre-3); font-size: 14px; }',
+    '.amx-docs { display: flex; flex-direction: column; gap: 8px; }',
+    '.amx-doc { display: flex; gap: 10px; align-items: center; border: 1px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 6px 10px 6px 6px; min-height: 58px; }',
+    '.amx-doc.retire { opacity: .6; } .amx-doc:hover { border-color: var(--encre-4); }',
+    '.amx-doc-ouvrir { flex: 1 1 auto; min-width: 0; display: flex; gap: 12px; align-items: center; text-align: left; background: none; border: 0; padding: 8px 10px; cursor: pointer; font: inherit; color: var(--encre); border-radius: 9px; }',
+    '.amx-doc-ouvrir:hover { background: var(--carte-2); } .amx-doc-ouvrir:focus-visible { outline: 3px solid var(--vert); outline-offset: 1px; }',
+    '.amx-doc-ouvrir .t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .amx-doc-ouvrir b { font-size: 15px; } .amx-doc-ouvrir .q { font-size: 13px; color: var(--encre-3); }',
+    '.amx-doc .genre { flex: none; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 10px; background: var(--bleu-bg); color: var(--bleu); white-space: nowrap; }',
+    '.amx-doc .genre.pdf { background: var(--gris-bg); color: var(--encre-2); } .amx-doc .genre.lettre { background: var(--violet-bg); color: var(--violet); } .amx-doc .genre.formulaire { background: var(--vert-clair); color: var(--vert-fonce); }',
+    '.amx-doc .actions { display: flex; gap: 6px; flex: none; } .amx-vide-sujet { padding: 22px; text-align: center; color: var(--encre-3); border: 1px dashed var(--ligne); border-radius: 12px; }',
+    '@media (max-width: 640px) { .amx-doc { flex-wrap: wrap; } .amx-doc .actions { width: 100%; justify-content: flex-end; } }'
+  ].join('\n');
+  function cssSujets() { if (!document.getElementById('css-amx-sujets')) { var st = document.createElement('style'); st.id = 'css-amx-sujets'; st.textContent = CSS_SUJETS; document.head.appendChild(st); } }
+  /* L'adresse de la page affichée avec d'autres paramètres (une page montée sous deux tuiles garde la sienne). */
+  AMX.lienIci = function (params) {
+    var base = location.hash.replace(/^#\/?/, '').split('?')[0];
+    var q = Object.keys(params || {}).filter(function (k) { return params[k] !== '' && params[k] !== null && params[k] !== undefined; })
+      .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
+    return '#/' + base + (q ? '?' + q : '');
+  };
+  /* items : [{ titre, desc, n, couleur, icone, href | onclick, ouvrir }] ; opts.petites : tuiles plus basses (fenêtre). */
+  AMX.tuilesSujets = function (items, opts) {
+    cssSujets(); opts = opts || {};
+    var cls = 'div.hub-tuiles' + (opts.petites ? '.petites' : (items.length === 4 ? '.quatre' : '') + (items.length <= 2 ? '.deux' : ''));
+    return h(cls, items.map(function (x) {
+      var corps = [
+        h('div.haut', [h('span.ic', { html: ICONES[x.icone] || ICONES.achat }), h('h2', { text: x.titre }),
+          (x.n !== '' && x.n !== null && x.n !== undefined) ? h('span.n', { text: String(x.n) }) : null]),
+        x.desc ? h('p', { text: x.desc }) : null,
+        h('span.ouvrir', [h('span', { text: x.ouvrir || 'Ouvrir' }), h('span', { html: ICONES.chevron })])
+      ];
+      return x.href ? h('a.hub-tuile.' + (x.couleur || 'gris'), { href: x.href }, corps)
+        : h('button.hub-tuile.' + (x.couleur || 'gris'), { type: 'button', onclick: x.onclick }, corps);
+    }));
+  };
+  AMX.groupeSujets = function (titre, items, opts) {
+    if (!items || !items.length) return null;
+    cssSujets();
+    return h('section.amx-groupe', [titre ? h('h2', { text: titre }) : null, AMX.tuilesSujets(items, opts)]);
+  };
+  AMX.retourSujets = function (texte, cible) {
+    cssSujets();
+    var corps = [h('span', { html: ICONES.chevron }), h('span', { text: texte })];
+    return typeof cible === 'function' ? h('button.amx-retour', { type: 'button', onclick: cible }, corps) : h('a.amx-retour', { href: cible }, corps);
+  };
+  /* L'en-tête d'un sujet ouvert : titre, phrase, et un bouton à droite (facultatif). */
+  AMX.teteSujet = function (titre, desc, bouton) { cssSujets(); return h('div.amx-sujet-tete', [h('div', [h('h2', { text: titre }), desc ? h('p', { text: desc }) : null]), bouton || null]); };
+  /* o : { titre, sous, genre, genreCls, onclick, actions: [éléments], retire } */
+  AMX.ligneDocument = function (o) {
+    cssSujets();
+    return h('div.amx-doc' + (o.retire ? '.retire' : ''), [
+      h('button.amx-doc-ouvrir', { type: 'button', onclick: o.onclick, title: o.titre }, [
+        h('span.t', [h('b', { text: o.titre }), o.sous ? h('span.q', { text: o.sous }) : null]),
+        o.genre ? h('span.genre' + (o.genreCls ? '.' + o.genreCls : ''), { text: o.genre }) : null
+      ]),
+      o.actions && o.actions.filter(Boolean).length ? h('div.actions', o.actions.filter(Boolean)) : null
+    ]);
+  };
+  AMX.listeDocuments = function (lignes, vide) { cssSujets(); return lignes.length ? h('div.amx-docs', lignes) : h('div.amx-vide-sujet', { text: vide || 'Aucun document.' }); };
+
   AMX.confirmer = function (titre, message, opts) {
     opts = opts || {};
     return new Promise(function (res) {
@@ -921,16 +996,21 @@
      (#/offres/recues → #/vente/offres, #/outils/evaluation → #/inventaire/evaluations?vue=evaluation…), donc les liens
      écrits dans les modules n'ont pas changé. `fixes` = paramètres ajoutés à l'adresse de la source (mode d'une page). */
   var TUILES = [
+    /* 8 nov. (Maxime : « regarde pour que le layout du site soit bien uniforme avec cette présentation » → « Oui, partout ») :
+       chaque tuile s'ouvre sur sa page de grosses tuiles, comme Ressources humaines. L'onglet `racine` (id « menu ») est la
+       page de choix de la tuile : definirTuile range sous lui tout onglet sans parent ; les menus (barre de gauche,
+       sous-barre, Accueil) listent ses pages ; la tuile s'y rouvre toujours. */
     { id: 'vente', titre: 'Vente', icone: 'vente', ordre: 10, onglets: [
-      { id: 'board', titre: 'Board des ventes', de: 'board', onglet: '' },   /* 27 oct. : par représentant, neuf et occasion, objectifs, écran télé (board.js) */
+      { id: 'menu', titre: 'Vente', hub: true, racine: true, icone: 'vente', desc: 'Les ventes de chaque concession : le board, le Livre des ventes, les offres aux concessionnaires acheteurs, les résultats et les KPI.' },
+      { id: 'board', titre: 'Board des ventes', de: 'board', onglet: '', icone: 'vente', couleur: 'vert', desc: 'Les ventes du mois par représentant, en neuf et en occasion : objectifs, classement, écran télé.' },   /* 27 oct. : par représentant, neuf et occasion, objectifs, écran télé (board.js) */
       /* 3 nov. (Maxime : « nous avons un onglet évaluation et une autre évaluation demandée, ça porte à confusion ») :
          « Évaluations demandées » quitte Vente — le représentant trouve ses demandes dans Inventaire › Occasion › Évaluation
          (vue « Mes demandes »). L'ancienne adresse #/vente/evaldemandes y mène (router). */
-      { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'commandes', titre: 'Commandes vendues' }, { id: 'exclues', titre: 'Exclues' }, { id: 'refusees', titre: 'Refusées' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 3 nov. : + Refusées (lignes en rouge au livre de Ste-Marie : gardées, jamais comptées) ; 2 nov. : + Exclues (aftersale, accommodation, rachat de bail : gardées, jamais comptées) ; 1er nov. : + Commandes vendues (vendues, pas encore livrées) ; 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
+      { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', icone: 'achat', couleur: 'bleu', desc: 'Inscrire une vente : ScanAutomax remplit le Livre des ventes de la comptabilité. Commandes vendues, récapitulatif.', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'commandes', titre: 'Commandes vendues' }, { id: 'exclues', titre: 'Exclues' }, { id: 'refusees', titre: 'Refusées' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 3 nov. : + Refusées (lignes en rouge au livre de Ste-Marie : gardées, jamais comptées) ; 2 nov. : + Exclues (aftersale, accommodation, rachat de bail : gardées, jamais comptées) ; 1er nov. : + Commandes vendues (vendues, pas encore livrées) ; 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
       /* 3 nov. (Maxime : « regrouper offres reçues, en vente et acheteurs dans un onglet (Offre au marché) ; quand on clique
          sur l'onglet on voit clairement les choix de sous-menu en gros et non le détail ») : un onglet « page de choix »
          (hub) — trois grosses tuiles, la page s'ouvre au clic. */
-      { id: 'marche', titre: 'Offre au marché', hub: true, icone: 'offres', desc: 'Les véhicules offerts aux concessionnaires acheteurs : leurs offres, ce qui est en vente, la base des acheteurs.' },
+      { id: 'marche', titre: 'Offre au marché', hub: true, icone: 'offres', couleur: 'violet', desc: 'Les véhicules offerts aux concessionnaires acheteurs : leurs offres, ce qui est en vente, la base des acheteurs.' },
       { id: 'offres', titre: 'Offres reçues', de: 'offres', onglet: 'recues', parent: 'marche', icone: 'courriel', couleur: 'vert', desc: 'Les offres des acheteurs : accepter, contre-offre, contrat et signature.' },
       { id: 'envente', titre: 'En vente', de: 'offres', onglet: 'vente', parent: 'marche', icone: 'vente', couleur: 'bleu', desc: 'Les véhicules publiés sur la vitrine et l\'envoi du lien à un acheteur.' },
       { id: 'acheteurs', titre: 'Acheteurs', de: 'offres', onglet: 'acheteurs', parent: 'marche', icone: 'admin', couleur: 'violet', desc: 'Les concessionnaires acheteurs inscrits : inviter, envoyer un véhicule.' },
@@ -938,18 +1018,19 @@
       /* 4 nov. : les échanges de neufs vivent dans Inventaire › Neufs (bulle « Échanges », Ste-Marie et Hawkesbury). L'entrée
          reste, hors des menus, pour la clé de rôle 'vente/echanges' (Admin, Onglets.gs) et AMX.voitOnglet. */
       { id: 'echanges', titre: 'Échanges de neufs', de: 'inventaire', onglet: 'neufs', fixes: { onglet: 'echanges' }, horsMenu: function () { return true; } },
-      { id: 'resultats', titre: 'Résultats', de: 'resultat', vues: [{ id: 'us', titre: 'É.-U.' }, { id: 'can', titre: 'Wholesale Canada' }, { id: 'neuf', titre: 'Neufs' }] },
-      { id: 'kpi', titre: 'KPI', de: 'kpi', vues: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }] },   /* 22 oct. : le tableau de bord KPI du Groupe (Réalisés et états financiers lus dans les Drive partagés, kpi.js) */
+      { id: 'resultats', titre: 'Résultats', de: 'resultat', icone: 'resultat', couleur: 'sarcelle', desc: 'Les profits par période : É.-U., wholesale Canada et neufs, lus dans les Livres des ventes.', vues: [{ id: 'us', titre: 'É.-U.' }, { id: 'can', titre: 'Wholesale Canada' }, { id: 'neuf', titre: 'Neufs' }] },
+      { id: 'kpi', titre: 'KPI', de: 'kpi', icone: 'resultat', couleur: 'ambre', desc: 'Le tableau de bord du Groupe : le réel contre le budget, l\'année précédente et le composite.', vues: [{ id: 'sommaire', titre: 'Sommaire' }, { id: 'indicateurs', titre: 'Indicateurs' }, { id: 'departements', titre: 'Départements' }] },   /* 22 oct. : le tableau de bord KPI du Groupe (Réalisés et états financiers lus dans les Drive partagés, kpi.js) */
       /* 29 oct. : Location LMB, réservé au propriétaire (lmb.js, Lmb.gs). 3 nov. (Maxime : « fais apparaître LMB comme une
          autre entité distincte, comme une concession ») : dans la nouvelle interface, on y va par le choix de concession
          du haut (« Location LMB ») ; l'onglet ne paraît plus dans les menus (`horsMenu`). */
-      { id: 'lmb', titre: 'LMB', de: 'lmb', onglet: '', horsMenu: function () { return AMX.ui2(); } }
+      { id: 'lmb', titre: 'LMB', de: 'lmb', onglet: '', icone: 'voiture', couleur: 'gris', desc: 'Location LMB : la flotte, les contrats, les vendus, les achats et la revente.', horsMenu: function () { return AMX.ui2(); } }
     ] },
     { id: 'inventaire', titre: 'Inventaire', icone: 'inventaire', ordre: 20, onglets: [
-      { id: 'neufs', titre: 'Neufs', de: 'inventaire', onglet: 'neufs' },
+      { id: 'menu', titre: 'Inventaire', hub: true, racine: true, icone: 'inventaire', desc: 'Les neufs et les occasions de chaque concession, et le transport des achats.' },
+      { id: 'neufs', titre: 'Neufs', de: 'inventaire', onglet: 'neufs', icone: 'neufs', couleur: 'vert', desc: 'Le stock neuf du DMS et du manufacturier : commandes, ventes déclarées, écarts, marquage.' },
       /* 3 nov. (Maxime : « regroupé dans l'onglet Occasion analyse, fiche d'achat et évaluation en grosse tuile et après le
          détail s'affiche ») : Occasion est une page de choix ; l'inventaire d'occasion est la première tuile. */
-      { id: 'occasion', titre: 'Occasion', hub: true, icone: 'voiture', desc: 'L\'inventaire d\'occasion et ses outils : choisissez une page.' },   /* neutre : un vendeur n'y voit que deux tuiles */
+      { id: 'occasion', titre: 'Occasion', hub: true, icone: 'voiture', couleur: 'bleu', desc: 'L\'inventaire d\'occasion et ses outils : choisissez une page.' },   /* neutre : un vendeur n'y voit que deux tuiles */
       { id: 'usage', titre: 'Inventaire occasion', de: 'inventaire', onglet: 'usage', parent: 'occasion', icone: 'voiture', couleur: 'vert', desc: 'Les registres É.-U., Canada et Detail : statut, # stock, coût, photos, rapports.' },
       { id: 'analyse', titre: 'Analyse', de: 'analyse', onglet: '', parent: 'occasion', icone: 'resultat', couleur: 'bleu', desc: 'Le prix de chaque occasion face au marché : % du marché, rang, jours, conseil.' },   /* 24 oct. : façon vAuto (analyse-usage.js) */
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '', parent: 'occasion', icone: 'achat', couleur: 'ambre', desc: 'Inscrire un achat ou un échange : le véhicule entre au registre et suit partout.' },
@@ -965,20 +1046,22 @@
           { id: 'evaluations', titre: 'Registre', visible: function () { return AMX.voitEvaluations(); } },
           { id: 'torque', titre: 'Archive Torque', visible: function () { return AMX.voitEvaluations(); } }
         ] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
-      { id: 'transports', titre: 'Transports', de: 'transports', onglet: '', compteur: function () { return AMX.transport ? AMX.transport.compteur() : ''; } }   /* 23 oct. : transport des achats par Central Fleet (transport.js) */
+      { id: 'transports', titre: 'Transports', de: 'transports', onglet: '', icone: 'voiture', couleur: 'ambre', desc: 'Le transport des achats par Central Fleet : le release, la demande, le prix et le suivi.', compteur: function () { return AMX.transport ? AMX.transport.compteur() : ''; } }   /* 23 oct. : transport des achats par Central Fleet (transport.js) */
     ] },
     { id: 'relance', titre: 'Relance', icone: 'relance', ordre: 30, onglets: [
-      { id: 'equite', titre: 'Équité', visible: function () { return !!(AMX.relance && AMX.equite); }, monter: function (c, ctx) { return AMX.relance.equite(c, ctx); }, vues: [{ id: 'clients', titre: 'Clients' }, { id: 'import', titre: 'Importer le portefeuille', de: 'outils', onglet: 'equite', cachee: true }] },   /* 6 nov. : l'importation passe par Actions › Importer */
-      { id: 'portefeuille', titre: 'Portefeuille clients', de: 'portefeuille', onglet: '', vues: [{ id: 'clients', titre: 'Clients' }, { id: 'campagnes', titre: 'Campagnes', de: 'campagnesRelance', onglet: '' }, { id: 'matin', titre: 'Liste du matin', de: 'listeMatin', onglet: '' }] },   /* 5 nov. : portefeuille façon Drive AI (portefeuille.js, Portefeuille.gs) ; 6 nov. : Campagnes et Liste du matin (campagnes-relance.js, CampagnesRelance.gs) */
-      { id: 'leads', titre: 'Leads', de: 'offres', onglet: 'leads' },
-      { id: 'avis', titre: 'Avis Google', de: 'avis', vues: [{ id: 'apercu', titre: 'Aperçu' }, { id: 'avis', titre: 'Avis' }, { id: 'sondages', titre: 'Sondages' }] },
-      { id: 'csi', titre: 'CSI', de: 'csi', onglet: '' }
+      { id: 'menu', titre: 'Relance', hub: true, racine: true, icone: 'relance', desc: 'Retrouver les clients : l\'équité, le portefeuille, les leads, les avis Google et le CSI.' },
+      { id: 'equite', titre: 'Équité', icone: 'relance', couleur: 'vert', desc: 'Les clients qui pourraient changer de véhicule : équité, dette du jour, nouvelle mensualité.', visible: function () { return !!(AMX.relance && AMX.equite); }, monter: function (c, ctx) { return AMX.relance.equite(c, ctx); }, vues: [{ id: 'clients', titre: 'Clients' }, { id: 'import', titre: 'Importer le portefeuille', de: 'outils', onglet: 'equite', cachee: true }] },   /* 6 nov. : l'importation passe par Actions › Importer */
+      { id: 'portefeuille', titre: 'Portefeuille clients', de: 'portefeuille', onglet: '', icone: 'admin', couleur: 'bleu', desc: 'Tous nos clients et leurs véhicules : valeur, échéances, offres, campagnes et liste du matin.', vues: [{ id: 'clients', titre: 'Clients' }, { id: 'campagnes', titre: 'Campagnes', de: 'campagnesRelance', onglet: '' }, { id: 'matin', titre: 'Liste du matin', de: 'listeMatin', onglet: '' }] },   /* 5 nov. : portefeuille façon Drive AI (portefeuille.js, Portefeuille.gs) ; 6 nov. : Campagnes et Liste du matin (campagnes-relance.js, CampagnesRelance.gs) */
+      { id: 'leads', titre: 'Leads', de: 'offres', onglet: 'leads', icone: 'courriel', couleur: 'violet', desc: 'Les liens d\'évaluation envoyés aux clients et les demandes reçues.' },
+      { id: 'avis', titre: 'Avis Google', de: 'avis', icone: 'ok', couleur: 'ambre', desc: 'Les avis Google de chaque concession : répondre, suivre, sondages aux clients.', vues: [{ id: 'apercu', titre: 'Aperçu' }, { id: 'avis', titre: 'Avis' }, { id: 'sondages', titre: 'Sondages' }] },
+      { id: 'csi', titre: 'CSI', de: 'csi', onglet: '', icone: 'resultat', couleur: 'sarcelle', desc: 'Les scores CSI des constructeurs, ventes et service, par concession, et les alertes.' }
     ] },
     { id: 'service', titre: 'Service après-vente', court: 'Service', icone: 'service', ordre: 40, onglets: [
-      { id: 'suivi', titre: 'Suivi service', de: 'service', vues: [{ id: 'encours', titre: 'En cours' }, { id: 'autoriser', titre: 'Direction' }, { id: 'termines', titre: 'Terminés' }] },
-      { id: 'rendezvous', titre: 'Rendez-vous', de: 'service', onglet: 'rendezvous' },
-      { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' },
-      { id: 'courtoisie', titre: 'Courtoisie', de: 'courtoisie', onglet: '', compteur: function () { return AMX.courtoisie ? AMX.courtoisie.compteur() : ''; } }   /* 29 oct. : véhicules de courtoisie, LMB + fichier de suivi (courtoisie.js, Courtoisie.gs) */
+      { id: 'menu', titre: 'Service après-vente', hub: true, racine: true, icone: 'service', desc: 'Le suivi des véhicules au détail, les rendez-vous, les textos aux clients et les courtoisies.' },
+      { id: 'suivi', titre: 'Suivi service', de: 'service', icone: 'service', couleur: 'vert', desc: 'Le reconditionnement des véhicules au détail, étape par étape, jusqu\'à prêt à vendre.', vues: [{ id: 'encours', titre: 'En cours' }, { id: 'autoriser', titre: 'Direction' }, { id: 'termines', titre: 'Terminés' }] },
+      { id: 'rendezvous', titre: 'Rendez-vous', de: 'service', onglet: 'rendezvous', icone: 'service', couleur: 'bleu', desc: 'Le carnet de rendez-vous du service et l\'inspection filmée.' },
+      { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto', icone: 'texto', couleur: 'violet', desc: 'Les estimés, les conversations par texto et les paiements des clients.' },
+      { id: 'courtoisie', titre: 'Courtoisie', de: 'courtoisie', onglet: '', icone: 'voiture', couleur: 'ambre', desc: 'La flotte de courtoisie : km, rotation, écarts avec LMB.', compteur: function () { return AMX.courtoisie ? AMX.courtoisie.compteur() : ''; } }   /* 29 oct. : véhicules de courtoisie, LMB + fichier de suivi (courtoisie.js, Courtoisie.gs) */
     ] },
     /* 8 nov. (Maxime : « enlève RH de Outils et fais un onglet distinct ») : la tuile « Ressources humaines », entre Service et
        Outils. Clés « rh/… » (comme quand elles étaient sous Outils) : aucun rôle ne les cache, chaque page décide (conditions
@@ -988,7 +1071,7 @@
     /* 8 nov. (Maxime : « quand on clique sur le menu Ressources humaines, ça doit ramener au menu principal avec les 4 grosses
        tuiles ») : la tuile s'ouvre sur sa page de choix ; chaque page y revient par le fil « ‹ Ressources humaines ». */
     { id: 'rh', titre: 'Ressources humaines', court: 'RH', icone: 'admin', ordre: 45, onglets: [
-      { id: 'ressources', titre: 'Ressources humaines', hub: true, icone: 'admin', desc: 'L\'embauche et le départ, les documents de référence, les dossiers des employés, les documents à signer et la santé et sécurité, pour toutes les concessions.' },
+      { id: 'ressources', titre: 'Ressources humaines', hub: true, racine: true, icone: 'admin', desc: 'L\'embauche et le départ, les documents de référence, les dossiers des employés, les documents à signer et la santé et sécurité, pour toutes les concessions.' },
       /* 8 nov. (Maxime : « un gros onglet Embauche et départ, avec dedans Commencer le processus d'embauche et Départ ») */
       { id: 'embauchedepart', titre: 'Embauche et départ', hub: true, parent: 'ressources', icone: 'admin', couleur: 'violet', desc: 'Commencer une embauche ou un départ, et voir où en est chaque dossier.' },
       { id: 'embauches', titre: 'Commencer le processus d\'embauche', de: 'embauches', onglet: '', parent: 'embauchedepart', cle: 'rh/embauches', icone: 'achat', couleur: 'vert', desc: 'Une nouvelle embauche : la fiche (le DG approuve celle d\'un directeur), puis la RH envoie les documents à signer. La ligne d\'avancement dit où en est chaque dossier.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
@@ -1000,21 +1083,22 @@
         desc: 'Le registre des accidents, des premiers soins et des situations dangereuses, et la bibliothèque des documents.', compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } }
     ] },
     { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
+      { id: 'menu', titre: 'Outils', hub: true, racine: true, icone: 'outils', desc: 'Les imports des portails, les opportunités d\'achat, les audits et les comptes.' },
       /* 3 nov. (Maxime : « regroupe dans un onglet que tu appelles Import l'onglet eBlock, OpenLane, CARFAX et D2C ») : une
          page de choix ; « État des imports » (rouge = à faire) en premier. CARFAX n'a plus de page : l'API le lit seule. */
-      { id: 'import', titre: 'Import', hub: true, icone: 'telecharger', desc: 'Les imports des portails et des fichiers, par concession : ce qui est à jour, ce qui reste à faire.', compteur: function () { return AMX.importsEtat ? AMX.importsEtat.compteur() : ''; } },
+      { id: 'import', titre: 'Import', hub: true, icone: 'telecharger', couleur: 'vert', desc: 'Les imports des portails et des fichiers, par concession : ce qui est à jour, ce qui reste à faire.', compteur: function () { return AMX.importsEtat ? AMX.importsEtat.compteur() : ''; } },
       { id: 'imports', titre: 'État des imports', de: 'outils', onglet: 'imports', parent: 'import', icone: 'ok', couleur: 'vert', desc: 'Chaque import par concession, en vert ou en rouge, avec la marche à suivre et les favoris.', compteur: function () { return AMX.importsEtat ? AMX.importsEtat.compteur() : ''; } },   /* 27 oct. : tous les imports, par concession, rouge = à faire (imports.js) */
       { id: 'eblock', titre: 'Fiches eBlock', de: 'outils', onglet: 'eblock', parent: 'import', icone: 'voiture', couleur: 'bleu', desc: 'Les fiches descriptives des achats eBlock : rapport d\'état, dommages, photos.' },
       { id: 'openlane', titre: 'Valeurs OpenLane', de: 'outils', onglet: 'openlane', parent: 'import', icone: 'resultat', couleur: 'violet', desc: 'Les ventes et la prévision de gros OpenLane pour nos véhicules.' },
       { id: 'd2c', titre: 'Import D2C', de: 'outils', onglet: 'd2c', parent: 'import', icone: 'rafraichir', couleur: 'sarcelle', desc: 'L\'inventaire que D2C Media reçoit du DMS : neufs, occasions, km et CARFAX.' },
-      { id: 'opportunites', titre: 'Opportunités d\'achat', de: 'outils', onglet: 'opportunites' },   /* 24 oct. : Occasions.gs */
+      { id: 'opportunites', titre: 'Opportunités d\'achat', de: 'outils', onglet: 'opportunites', icone: 'recherche', couleur: 'bleu', desc: 'Les véhicules à vendre au Canada au prix de gros ou moins, transport compris.' },   /* 24 oct. : Occasions.gs */
       /* 4 nov. (Maxime : « il faut que l'onglet liste et audit et vérification excel soit ensemble dans outils et on peut
          l'appeler audit ») : une page de choix. « Listes et audits » quitte Inventaire mais garde sa clé de rôle
          « inventaire/listes » (`cle`) : mêmes droits sur le site, dans l'app (Audit) et au serveur (Onglets.gs). */
-      { id: 'audit', titre: 'Audit', hub: true, icone: 'scan', desc: 'Vérifier où sont les véhicules : une liste déposée (prêteur, plan de financement) ou un fichier Excel comparé aux registres.' },
+      { id: 'audit', titre: 'Audit', hub: true, icone: 'scan', couleur: 'violet', desc: 'Vérifier où sont les véhicules : une liste déposée (prêteur, plan de financement) ou un fichier Excel comparé aux registres.' },
       { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '', parent: 'audit', cle: 'inventaire/listes', icone: 'achat', couleur: 'vert', desc: 'Déposer une liste (PDF, Excel, CSV) : ScanAutomax dit où est chaque véhicule. L\'audit sur le terrain se fait dans l\'app.' },   /* 22 oct. : listes.js */
       { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification', parent: 'audit', icone: 'ok', couleur: 'bleu', desc: 'Comparer un fichier Excel (DMS, transporteur…) aux registres : ce qui manque d\'un côté ou de l\'autre.' },
-      { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '' }
+      { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '', icone: 'admin', couleur: 'sarcelle', desc: 'Les comptes, les rôles, les droits, les onglets et les réglages.' }
     ] },
     { id: 'aide', titre: 'Aide', icone: 'aide', ordre: 60, onglets: [{ de: 'aide', tous: true }, { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '' }] }   /* 7 nov. : la bibliothèque SST pour tous (sst.js) */
   ];
@@ -1088,8 +1172,26 @@
   /* Les onglets d'une tuile qui paraissent dans les menus (sous-barre, barre de gauche, Accueil) : visibles, pas les
      pages rangées dans un onglet « page de choix » (parent), pas ceux qui ont leur propre entrée (horsMenu, ex. LMB). */
   AMX.ongletsMenu = function (sec) {
-    return ((sec && sec.onglets) || []).filter(function (o) { return (!o.visible || o.visible()) && !o.parent && !(o.horsMenu && o.horsMenu()); });
+    var haut = ((sec && sec.onglets) || []).filter(function (o) { return (!o.visible || o.visible()) && !o.parent && !(o.horsMenu && o.horsMenu()); });
+    /* 8 nov. : une tuile qui s'ouvre sur sa page de grosses tuiles (onglet `racine`) : les menus listent les pages de
+       cette page de choix (la tuile elle-même y mène). */
+    if (haut.length === 1 && haut[0].racine && haut[0].enfants) return haut[0].enfants();
+    return haut;
   };
+  /* La page de grosses tuiles d'une tuile (onglet `racine`), ou null. */
+  AMX.racineTuile = function (sec) {
+    return ((sec && sec.onglets) || []).filter(function (o) { return o.racine && (!o.visible || o.visible()); })[0] || null;
+  };
+  /* Vrai si l'onglet `ong` est `id` ou rangé (sur un ou plusieurs niveaux) sous l'onglet `id`. */
+  function sousOnglet(onglets, ong, id) {
+    var x = ong, n = 0;
+    while (x && n++ < 6) {
+      if (x.id === id) return true;
+      var p = x.parent; x = p ? (onglets || []).filter(function (y) { return y.id === p; })[0] : null;
+    }
+    return false;
+  }
+  AMX.sousOnglet = sousOnglet;
   function definirTuile(t) {
     var onglets = [];
     t.onglets.forEach(function (o) {
@@ -1098,6 +1200,9 @@
         ((src && src.onglets) || []).forEach(function (so) { onglets.push({ id: so.id, titre: so.titre, de: o.de, onglet: so.id }); });
       } else onglets.push(o);
     });
+    /* 8 nov. : la page de grosses tuiles de la tuile (`racine`) prend sous elle tous les onglets qui n'ont pas de parent. */
+    var racine = onglets.filter(function (o) { return o.racine; })[0];
+    if (racine) onglets.forEach(function (o) { if (o !== racine && !o.parent) o.parent = racine.id; });
     var def = { id: t.id, titre: t.titre, court: t.court, icone: t.icone, ordre: t.ordre, tuile: true };
     def.onglets = onglets.map(function (o) {
       var src = function () { return o.de ? (AMX.sources[o.de] || AMX.sections[o.de]) : null; };
@@ -1105,12 +1210,12 @@
       var enfants = function () { return def.onglets.filter(function (e) { return e.parent === o.id; }); };
       return {
         id: o.id, titre: o.titre, de: o.de, onglet: o.onglet, fixes: o.fixes, vues: o.vues, monter: o.monter,
-        hub: !!o.hub, parent: o.parent || '', icone: o.icone, couleur: o.couleur, cle: cle,
+        hub: !!o.hub, racine: !!o.racine, parent: o.parent || '', icone: o.icone, couleur: o.couleur, cle: cle,
         desc: function () { try { return typeof o.desc === 'function' ? o.desc() : (o.desc || ''); } catch (e) { return ''; } },
         horsMenu: function () { try { return !!(o.horsMenu && o.horsMenu()); } catch (e) { return false; } },
-        enfants: o.hub ? function () { return enfants().filter(function (e) { return e.visible(); }); } : null,
+        enfants: o.hub ? function () { return enfants().filter(function (e) { return e.visible() && !e.horsMenu(); }); } : null,   /* 8 nov. : sans les pages qui ont leur propre entrée (LMB, Échanges) */
         visible: function () {
-          if (o.hub) return enfants().some(function (e) { return e.visible(); });   /* une page de choix vit de ses tuiles */
+          if (o.hub) return enfants().some(function (e) { return e.visible() && !e.horsMenu(); });   /* une page de choix vit de ses tuiles */
           if (AMX.ongletCache(cle)) return false;
           if (o.visible && !o.visible()) return false;
           if (o.vues) return vuesVisibles(o).length > 0;
@@ -1286,6 +1391,9 @@
       return p || o;
     };
     if (!sec.tuile) return onglets[0];
+    /* 8 nov. (« Oui, partout ») : une tuile qui a sa page de grosses tuiles s'ouvre toujours sur elle. */
+    var rac = onglets.filter(function (o) { return o.racine; })[0];
+    if (rac) return rac;
     return veut(String(AMX.memo.lire('onglet_' + sec.id, '') || '')) || veut(ONGLET_DEFAUT[sec.id]) || onglets[0];
   }
 
@@ -1606,19 +1714,19 @@
       var ouvert = plusieurs && (ouverts[s.id] !== undefined ? ouverts[s.id] : ici);
       var li = h('li.cote-tuile' + (ici ? '.actif' : '') + (ouvert ? '.ouvert' : ''));
       li.appendChild(h('div.cote-ligne', [
-        h('a.cote-titre', { href: s.tuile ? '#/' + s.id : AMX.lien(s.id, onglets[0] ? onglets[0].id : ''), 'aria-current': ici && !plusieurs ? 'page' : null, onclick: function () { if (plusieurs) ouverts[s.id] = true; } }, [h('span.ic', { html: ICONES[s.icone] || ICONES.inventaire }), h('span.t', { text: s.titre })]),
+        h('a.cote-titre' + (ici && courante.onglet && courante.onglet.racine ? '.actif' : ''), { href: s.tuile ? '#/' + s.id : AMX.lien(s.id, onglets[0] ? onglets[0].id : ''), 'aria-current': ici && (!plusieurs || (courante.onglet && courante.onglet.racine)) ? 'page' : null, onclick: function () { if (plusieurs) ouverts[s.id] = true; } }, [h('span.ic', { html: ICONES[s.icone] || ICONES.inventaire }), h('span.t', { text: s.titre })]),
         plusieurs ? h('button.cote-plier', { type: 'button', 'aria-expanded': ouvert ? 'true' : 'false', 'aria-label': (ouvert ? 'Replier ' : 'Déplier ') + s.titre, html: ICONES.chevron, onclick: function () { ouverts[s.id] = !ouvert; majCote(); } }) : null
       ]));
       if (ouvert) {
         var ongCourant = courante.onglet;
         li.appendChild(h('ul.cote-onglets', onglets.map(function (o) {
           var c = ''; try { c = o.compteur ? o.compteur() : ''; } catch (e) {}
-          var dedans = ici && !!ongCourant && ongCourant.id !== o.id && racineOnglet(s.onglets, ongCourant).id === o.id;   /* 8 nov. : aussi deux niveaux plus bas */
+          var dedans = ici && !!ongCourant && ongCourant.id !== o.id && sousOnglet(s.onglets, ongCourant, o.id);   /* 8 nov. : aussi deux niveaux plus bas */
           var actif = ici && (o.id === ongId || dedans);
           var enfants = o.hub && o.enfants && actif ? o.enfants() : [];   /* 3 nov. : les pages de la page de choix ouverte */
           return h('li', [h('a' + (actif ? '.actif' : ''), { href: AMX.lien(s.id, o.id), 'aria-current': actif && !dedans ? 'page' : null }, [h('span.t', { text: o.titre }), (c !== '' && c !== null && c !== undefined) ? h('span.n', { text: String(c) }) : null]),
             enfants.length > 1 ? h('ul.cote-enfants', enfants.map(function (e) {
-              var ac = e.id === ongId || (!!ongCourant && ongCourant.parent === e.id);
+              var ac = !!ongCourant && sousOnglet(s.onglets, ongCourant, e.id);
               return h('li', [h('a' + (ac ? '.actif' : ''), { href: AMX.lien(s.id, e.id), 'aria-current': ac ? 'page' : null }, [h('span.t', { text: e.titre })])]);
             })) : null]);
         })));
@@ -1897,7 +2005,8 @@
   function entreesPalette() {
     var out = [];
     AMX.listeSections().forEach(function (s) {
-      var onglets = (s.onglets || []).filter(function (o) { return !o.visible || o.visible(); });
+      var onglets = (s.onglets || []).filter(function (o) { return (!o.visible || o.visible()) && !o.racine && !(o.horsMenu && o.horsMenu()); });
+      if (s.tuile && AMX.racineTuile(s)) out.push({ groupe: 'Pages', t: s.titre, s: 'Toutes les pages', ic: s.icone, href: '#/' + s.id });   /* 8 nov. : la page de grosses tuiles */
       if (onglets.length > 1) onglets.forEach(function (o) { out.push({ groupe: 'Pages', t: o.titre, s: s.titre, ic: s.icone, href: AMX.lien(s.id, o.id) }); });
       else out.push({ groupe: 'Pages', t: s.titre, s: '', ic: s.icone, href: s.tuile ? '#/' + s.id : AMX.lien(s.id, onglets[0] ? onglets[0].id : '') });
     });
@@ -1986,7 +2095,7 @@
     sb.style.display = 'flex'; document.documentElement.style.setProperty('--sous-h', '44px');
     onglets.forEach(function (o) {
       var c = o.compteur ? o.compteur() : null;
-      var ici = !!ong && (ong.id === o.id || ong.parent === o.id || racineOnglet(sec.onglets, ong).id === o.id);   /* 3 nov. : la page de choix reste allumée sous ses pages (8 nov. : sur deux niveaux) */
+      var ici = !!ong && sousOnglet(sec.onglets, ong, o.id);   /* 3 nov. : la page de choix reste allumée sous ses pages (8 nov. : sur plusieurs niveaux) */
       sb.appendChild(h('a' + (ici ? '.actif' : ''), { href: AMX.lien(sec.id, o.id), 'aria-current': ici ? 'page' : null }, [o.titre, (c !== null && c !== undefined && c !== '') ? h('span.compteur', { text: String(c) }) : null]));
     });
     sb.appendChild(h('div.espace'));

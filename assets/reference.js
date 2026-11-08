@@ -139,10 +139,7 @@
   };
   VueRef.prototype.ligneDoc = function (d, sujet) {
     var pdf = d.type !== 'texte';
-    return h('button.ref-doc', { type: 'button', onclick: function () { ouvrirDoc(d); } }, [
-      h('span.t', [h('b', { text: d.nom }), (d.description || sujet || d.compagnieNom) ? h('span.q', { text: [sujet, d.description, d.compagnieNom].filter(Boolean).join(' · ') }) : null]),
-      h('span.genre' + (pdf ? '.pdf' : ''), { text: pdf ? 'PDF' : 'À lire' })
-    ]);
+    return AMX.ligneDocument({ titre: d.nom, sous: [sujet, d.description, d.compagnieNom].filter(Boolean).join(' · '), genre: pdf ? 'PDF' : 'À lire', genreCls: pdf ? 'pdf' : '', onclick: function () { ouvrirDoc(d); } });
   };
   VueRef.prototype.rendre = function () {
     if (!this.rep || this.detruit) return;
@@ -154,28 +151,21 @@
     if (this.q) {
       var trouve = [];
       rep.sujets.forEach(function (s) { s.docs.forEach(function (d) { if (AMX.correspond([d.nom, d.description, s.titre, d.compagnieNom], self.q)) trouve.push(self.ligneDoc(d, s.titre)); }); });
-      this.elCorps.appendChild(trouve.length ? h('div.ref-docs', trouve) : h('div.carte', [h('div.ref-vide', { text: 'Aucun document pour « ' + this.q + ' ».' })]));
+      this.elCorps.appendChild(AMX.listeDocuments(trouve, 'Aucun document pour « ' + this.q + ' ».'));
       return;
     }
     var s = this.sujet ? rep.sujets.filter(function (x) { return x.cle === self.sujet; })[0] : null;
     if (s) {
-      this.elCorps.appendChild(h('a.ref-retour', { href: AMX.lien('rh', 'reference') }, [h('span', { html: (AMX.icones && AMX.icones.chevron) || '‹' }), h('span', 'Tous les sujets')]));
-      this.elCorps.appendChild(h('h2', { text: s.titre, style: { margin: '0 0 4px' } }));
-      if (s.desc) this.elCorps.appendChild(h('p', { text: s.desc, style: { margin: '0 0 12px', color: 'var(--encre-3)' } }));
-      this.elCorps.appendChild(h('div.ref-docs', s.docs.map(function (d) { return self.ligneDoc(d); })));
+      this.elCorps.appendChild(AMX.retourSujets('Tous les sujets', AMX.lienIci({})));
+      this.elCorps.appendChild(AMX.teteSujet(s.titre, s.desc));
+      this.elCorps.appendChild(AMX.listeDocuments(s.docs.map(function (d) { return self.ligneDoc(d); })));
       return;
     }
     if (!rep.sujets.length) { this.elCorps.appendChild(h('div.carte', [h('div.ref-vide', { text: 'Aucun document de référence pour l\'instant.' })])); return; }
     var groupe = function (id, titre) {
-      var liste = rep.sujets.filter(function (x) { return x.groupe === id; });
-      if (!liste.length) return null;
-      return h('section.ref-groupe', [h('h2', { text: titre }), h('div.hub-tuiles' + (liste.length === 4 ? '.quatre' : '') + (liste.length <= 2 ? '.deux' : ''), liste.map(function (x) {
-        return h('a.hub-tuile.' + x.couleur, { href: AMX.lien('rh', 'reference', { sujet: x.cle }) }, [
-          h('div.haut', [h('span.ic', { html: (AMX.icones && (AMX.icones[x.icone] || AMX.icones.achat)) || '' }), h('h2', { text: x.titre }), h('span.n', { text: String(x.docs.length), title: x.docs.length + ' document' + (x.docs.length > 1 ? 's' : '') })]),
-          h('p', { text: x.desc }),
-          h('span.ouvrir', [h('span', 'Ouvrir'), h('span', { html: (AMX.icones && AMX.icones.chevron) || '' })])
-        ]);
-      }))]);
+      return AMX.groupeSujets(titre, rep.sujets.filter(function (x) { return x.groupe === id; }).map(function (x) {
+        return { titre: x.titre, desc: x.desc, n: x.docs.length, couleur: x.couleur, icone: x.icone, href: AMX.lienIci({ sujet: x.cle }) };
+      }));
     };
     this.elCorps.appendChild(groupe('rh', 'Ressources humaines'));
     this.elCorps.appendChild(groupe('sst', 'Santé et sécurité'));

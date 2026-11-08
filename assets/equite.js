@@ -868,6 +868,8 @@
       '.eq-crm-liste { list-style: none; margin: 0 0 12px; padding: 0; max-height: 260px; overflow: auto; border: 1px solid var(--ligne); border-radius: 10px; } .eq-crm-liste li { padding: 8px 12px; border-bottom: 1px solid var(--ligne); } .eq-crm-liste li:last-child { border-bottom: 0; }',
       '.eq-crm-puces { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; } .eq-crm .champ { margin: 0 0 10px; } .eq-crm select, .eq-crm textarea { width: 100%; }',
       '.eq-crm-case { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 8px; cursor: pointer; } .eq-crm-case input { margin-top: 3px; width: 18px; height: 18px; flex: none; } .eq-crm-case.inactif { opacity: .5; }',
+      '.eq-crm-avis { margin: -4px 0 10px; padding: 8px 12px; border-radius: 8px; background: var(--ambre-bg, #FFF4E0); color: var(--ambre, #955F10); font-size: 13px; line-height: 1.45; } .eq-crm-avis.bloque { background: var(--rouge-bg, #FDE2E2); color: var(--rouge, #B42318); } .eq-crm-avis[hidden] { display: none; }',
+      '.eq-crm-conflits { margin: 8px 0 0; padding-left: 18px; } .eq-crm-conflits li { margin: 2px 0; }',
       'button.eq-crm { margin-top: 4px; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--vert); background: var(--carte); color: var(--vert-fonce); cursor: pointer; white-space: nowrap; } button.eq-crm:hover { background: var(--vert-clair); } button.eq-crm.envoye { border-color: var(--ligne-forte); color: var(--encre-2); background: var(--gris-bg); }',
       '.eq-crm-puce { background: var(--bleu-bg); color: var(--bleu); border-color: transparent; font-weight: 700; } .eq-rep-puce { background: var(--violet-bg); color: var(--violet); border-color: transparent; font-weight: 700; }',
       '.eq-table tr.au-crm > td:first-child { box-shadow: inset 4px 0 0 var(--bleu); } select.eq-sel-crm.actif { border-color: var(--bleu); background: var(--bleu-bg); color: var(--bleu); font-weight: 700; }',
@@ -934,6 +936,8 @@
        suit toujours ») : les filtres « CRM » et « Représentant » sont gardés sur l'appareil (ils restent au retour sur la page). */
     var memoCrm = String(AMX.memo.lire('eq_filtre_crm', '') || ''), memoRep = String(AMX.memo.lire('eq_filtre_rep', '') || '');
     this.filtres = { quoi: 'cibles', type: '', echeance: '', conseiller: '', rep: memoRep === '__crm' ? '' : memoRep, crm: /^(envoyes|pasEnvoyes)$/.test(memoCrm) ? memoCrm : '', q: '' };
+    /* Un client envoyé au CRM n'est pas forcément une cible : avec ce filtre (ou un représentant), on part de tous les clients. */
+    if (this.filtres.crm === 'envoyes' || (this.filtres.rep && this.filtres.rep !== '__sans')) this.filtres.quoi = 'tous';
     this.ia = null;   /* filtres rendus par Einstein AI : { question, resume, conditions, tri, sens } */
     this.lignes = []; this.lecture = null;
     this.us = null;          /* calculs É.-U. des évaluations (?evaluationsUs=1), par NIV */
@@ -1082,7 +1086,7 @@
     params.addEventListener('toggle', function () { self.reglagesOuverts = params.open; });
     /* Filtres : recherche, type, échéance, conseiller ; puis les tuiles (chacune filtre aussi) — elles comptent ce que ces filtres gardent. */
     var conseillers = {}; this.lignes.forEach(function (r) { conseillers[r.compte.conseiller || '—'] = 1; });
-    var sel = function (cle, options) { var s = h('select' + (cle === 'crm' || cle === 'rep' ? '.eq-sel-crm' + (self.filtres[cle] ? '.actif' : '') : ''), options.map(function (o) { return h('option', { value: o[0], selected: self.filtres[cle] === o[0] ? 'selected' : null, text: o[1] }); })); s.value = self.filtres[cle]; s.addEventListener('change', function () { self.filtres[cle] = s.value; if (cle === 'crm' || cle === 'rep') AMX.memo.ecrire('eq_filtre_' + cle, s.value); setTimeout(function () { self.rendre(); }, 0); }); return s; };
+    var sel = function (cle, options) { var s = h('select' + (cle === 'crm' || cle === 'rep' ? '.eq-sel-crm' + (self.filtres[cle] ? '.actif' : '') : ''), options.map(function (o) { return h('option', { value: o[0], selected: self.filtres[cle] === o[0] ? 'selected' : null, text: o[1] }); })); s.value = self.filtres[cle]; s.addEventListener('change', function () { self.filtres[cle] = s.value; if (cle === 'crm' || cle === 'rep') { AMX.memo.ecrire('eq_filtre_' + cle, s.value); if ((s.value === 'envoyes' || (cle === 'rep' && s.value && s.value !== '__sans')) && self.filtres.quoi === 'cibles') self.filtres.quoi = 'tous'; } setTimeout(function () { self.rendre(); }, 0); }); return s; };
     var rech = h('input.recherche', { type: 'search', placeholder: 'Client, NIV, modèle, ville…', value: this.filtres.q });
     rech.addEventListener('input', function () { self.filtres.q = rech.value; self.rendreTuiles(); self.rendreTable(); });
     this.elCompte = h('span.compte');
@@ -1226,7 +1230,7 @@
         /* 8 nov. : la tuile allume le filtre « Envoyés au CRM », gardé sur l'appareil, qui se combine avec les autres tuiles. */
         var base2 = self.visibles('crm'), nC = base2.filter(function (r) { var x = crmDe(self.cie, r.compte.compte); return !!(x && x.crmLe); }).length, act = self.filtres.crm === 'envoyes';
         var b = h('button.eq-tuile.' + (nC ? 'bleu' : 'gris') + (act ? '.actif' : ''), { type: 'button', 'aria-pressed': act ? 'true' : 'false', title: act ? 'Cliquez pour voir tous les clients' : 'Montrer seulement les clients envoyés au CRM' }, [h('div.nom', { text: 'Envoyés au CRM' }), h('div.n', { text: AMX.fmtNombre(nC) }), h('div.bas', { text: act ? 'filtre actif — cliquez pour l\'enlever' : 'transactions envoyées au CRM de la concession' })]);
-        b.addEventListener('click', function () { self.filtres.crm = act ? '' : 'envoyes'; AMX.memo.ecrire('eq_filtre_crm', self.filtres.crm); self.rendre(); });
+        b.addEventListener('click', function () { self.filtres.crm = act ? '' : 'envoyes'; AMX.memo.ecrire('eq_filtre_crm', self.filtres.crm); if (!act && self.filtres.quoi === 'cibles') self.filtres.quoi = 'tous'; self.rendre(); });
         return b;
       })() : null,
       estHmf(this.cie) ? (function () {
@@ -1491,7 +1495,17 @@
       var selRep = h('select.saisie#eq-crm-rep', [opt('', un && repActuel ? 'Garder : ' + (cr0.representantNom || repActuel) : (un ? '— Aucun représentant —' : '— Ne pas changer —'))]
         .concat(ventes.length ? [h('optgroup', { label: 'Représentants' }, ventes.map(function (x) { return opt(x.courriel, x.nom + (x.role === 'bdc' ? ' (BDC)' : '')); }))] : [])
         .concat(direction.length ? [h('optgroup', { label: 'Direction des ventes' }, direction.map(function (x) { return opt(x.courriel, x.nom + ' (' + (x.roleLibelle || x.role) + ')'); }))] : [])
-        .concat(avecRep ? [opt('__retirer', 'Retirer le représentant attitré')] : []));
+        .concat(avecRep && d.peutReattribuer ? [opt('__retirer', 'Retirer le représentant attitré')] : []));
+      /* 8 nov. (Maxime : « un lead ne peut pas être envoyé à plusieurs représentants ; demander au gestionnaire des leads s'il
+         veut le réattribuer ») : un client déjà attitré garde son représentant ; en choisir un autre est une réattribution,
+         que seul un gestionnaire des leads fait (le serveur refuse les autres, et demande une confirmation). */
+      var dejaA = function (r) { var x = crmDe(cie, r.compte.compte); return x && x.representant ? x : null; };
+      var conflitsDe = function (v) {
+        if (!v) return [];
+        return rows.filter(function (r) { var x = dejaA(r); return x && (v === '__retirer' || String(x.representant).toLowerCase() !== String(v).toLowerCase()); })
+          .map(function (r) { var x = dejaA(r); return { client: nomClient(r.compte), de: x.representantNom || x.representant }; });
+      };
+      var avisRep = h('div.eq-crm-avis', { hidden: 'hidden', role: 'status' });
       var cbEnvoyer = h('input#eq-crm-envoyer', { type: 'checkbox', checked: 'checked' });
       var cbPrevenir = h('input#eq-crm-prevenir', { type: 'checkbox', checked: 'checked' });
       /* 8 nov. (Maxime : « le texto part au représentant quand un lead lui est envoyé par le CRM ») */
@@ -1520,13 +1534,26 @@
         var peutTexto = choisi && !!d.textos && !sansCell;
         cbTexto.disabled = !peutTexto; ligneTexto.classList.toggle('inactif', !peutTexto);
         aideTexto.textContent = !d.textos ? ' — les textos ne sont pas configurés (Admin › Alertes aux directeurs)' : (sansCell ? ' — pas de cellulaire dans son compte (Admin › Comptes et droits › Téléphone)' : ' — un court texto à son cellulaire : les clients, leur téléphone, le véhicule proposé');
-        if (btnEnvoi) btnEnvoi.textContent = cbEnvoyer.checked ? 'Envoyer au CRM' + (un ? '' : ' (' + rows.length + ')') : (selRep.value === '__retirer' ? 'Retirer le représentant' : 'Attribuer');
+        var cf = conflitsDe(selRep.value), bloque = cf.length > 0 && !d.peutReattribuer;
+        avisRep.textContent = '';
+        if (cf.length) {
+          var nomChoisi = selRep.value === '__retirer' ? '' : ((repDe(selRep.value) || {}).nom || selRep.value);
+          var lis = cf.slice(0, 6).map(function (x) { return h('li', { text: x.client + ' — déjà à ' + x.de }); });
+          if (cf.length > 6) lis.push(h('li', { text: '… et ' + (cf.length - 6) + ' autres' }));
+          avisRep.appendChild(h('div', { text: bloque
+            ? (cf.length > 1 ? cf.length + ' de ces clients sont' : 'Ce client est') + ' déjà attribué' + (cf.length > 1 ? 's' : '') + ' à un autre représentant. Un lead n\'a qu\'un représentant : seul un gestionnaire des leads peut le réattribuer. Choisissez « ' + (un ? 'Garder' : 'Ne pas changer') + ' », ou demandez-le à votre gestionnaire.'
+            : (selRep.value === '__retirer' ? 'Retirer le représentant attitré' : 'Choisir ' + nomChoisi) + ' réattribue ' + (cf.length > 1 ? 'ces ' + cf.length + ' clients' : 'ce client') + ' (un lead n\'a qu\'un représentant). On vous demandera de confirmer.' }));
+          avisRep.appendChild(h('ul.eq-crm-conflits', lis));
+        }
+        avisRep.hidden = !cf.length; avisRep.classList.toggle('bloque', bloque);
+        if (btnEnvoi) { btnEnvoi.textContent = cbEnvoyer.checked ? 'Envoyer au CRM' + (un ? '' : ' (' + rows.length + ')') : (selRep.value === '__retirer' ? 'Retirer le représentant' : (cf.length ? 'Réattribuer' : 'Attribuer')); btnEnvoi.disabled = bloque; }
       };
       selRep.addEventListener('change', maj); cbEnvoyer.addEventListener('change', maj);
       var corps = h('div.eq-crm', [
         h('p', { style: { margin: '0 0 10px' } }, ['La transaction part au CRM de ', h('b', { text: d.nomConcession || nomCie(cie) }), ' au format ADF (comme les leads) : le client, ses coordonnées tirées du portefeuille du prêteur, son véhicule (échange), le neuf proposé et la nouvelle mensualité.']),
         liste,
         h('div.champ', [h('label', { for: 'eq-crm-rep', text: 'Représentant attitré' }), selRep]),
+        avisRep,
         ligneCase(cbEnvoyer, 'Envoyer au CRM', d.adresse || 'adresse ADF'),
         lignePrevenir,
         ligneTexto,
@@ -1540,7 +1567,21 @@
           if (!envoyer && !r0) { AMX.toast('Choisissez un représentant, ou cochez « Envoyer au CRM ».', 'attention'); return false; }
           var corpsPost = { action: 'equiteCrm', compagnie: cie, items: rows.map(function (r) { return { compte: r.compte.compte, t: transactionDe(r) }; }),
             representant: r0 && r0 !== '__retirer' ? r0 : '', retirer: r0 === '__retirer', envoyer: envoyer, prevenir: !cbPrevenir.disabled && cbPrevenir.checked, texto: !cbTexto.disabled && cbTexto.checked, note: note.value.trim() };
-          return AMX.post(corpsPost, { secours: false, delai: 180000 }).then(function (res) {
+          var poster = function (corps) { return AMX.post(corps, { secours: false, delai: 180000 }); };
+          return poster(corpsPost).then(function (res) {
+            if (!res || res.code !== 'DEJA_ATTRIBUE') return res;
+            var cf = res.conflits || [];
+            if (!res.gestionnaire) { AMX.toast(res.erreur || 'Déjà attribué à un autre représentant : seul un gestionnaire des leads peut le réattribuer.', 'erreur', 9000); return false; }
+            var msg = h('div', [h('p', { style: { margin: '0 0 6px' }, text: (cf.length > 1 ? 'Ces clients sont déjà attribués' : 'Ce client est déjà attribué') + ' à un représentant. Un lead n\'a qu\'un représentant : ' + (corpsPost.retirer ? 'le retirer' : 'l\'envoyer à ' + ((repDe(corpsPost.representant) || {}).nom || corpsPost.representant)) + ' remplace l\'ancien.' }),
+              h('ul.eq-crm-conflits', cf.slice(0, 8).map(function (x) { return h('li', { text: x.client + ' — déjà à ' + x.de }); }).concat(cf.length > 8 ? [h('li', { text: '… et ' + (cf.length - 8) + ' autres' })] : [])),
+              h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'L\'ancien représentant n\'est pas prévenu ; la réattribution est notée au journal.' })]);
+            return AMX.confirmer(cf.length > 1 ? 'Réattribuer ' + cf.length + ' leads ?' : 'Réattribuer ce lead ?', msg, { ok: 'Réattribuer' }).then(function (oui) {
+              if (!oui) return false;
+              var c2 = {}; Object.keys(corpsPost).forEach(function (k) { c2[k] = corpsPost[k]; }); c2.reattribuer = true;
+              return poster(c2);
+            });
+          }).then(function (res) {
+            if (res === false) return false;
             if (res && res.vehicules && res.envoyes === undefined) throw new Error('Le script n\'est pas à jour : déployez EquiteCrm.gs.');
             if (res && (res.refuse || res.ok === false) && !res.envoyes) throw new Error((res && res.erreur) || ((res.erreurs || [])[0] || {}).erreur || 'Refusé par le serveur.');
             var x = CRM[cie] && CRM[cie].donnees;
@@ -1549,6 +1590,7 @@
             if (envoyer) morceaux.push(res.envoyes + ' client' + (res.envoyes > 1 ? 's' : '') + ' envoyé' + (res.envoyes > 1 ? 's' : '') + ' au CRM');
             if (res.attribues) morceaux.push('attribué' + (res.attribues > 1 ? 's' : '') + ' à ' + (selRep.options[selRep.selectedIndex].text || '').replace(/ \(.*\)$/, ''));
             if (r0 === '__retirer') morceaux.push('représentant retiré');
+            if (res.reattribues) morceaux.push(res.reattribues > 1 ? res.reattribues + ' leads réattribués' : 'lead réattribué');
             if (res.prevenu) morceaux.push((res.prevenus > 1 ? res.prevenus + ' représentants prévenus' : 'représentant prévenu') + ' par courriel');
             if (res.textos) morceaux.push(res.textos > 1 ? res.textos + ' textos envoyés' : 'texto envoyé');
             if (res.sansCellulaire && res.sansCellulaire.length) morceaux.push('pas de texto à ' + res.sansCellulaire.join(', ') + ' (pas de cellulaire dans son compte)');

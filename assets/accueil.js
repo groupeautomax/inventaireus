@@ -26,6 +26,7 @@
     vente: 'Livre des ventes (inscription, F&I, récapitulatif), offres reçues, véhicules en vente, acheteurs externes, soumissions de neufs, échanges entre concessions, résultats.',
     inventaire: 'Neufs (DMS et manufacturier, détail et flotte), occasion (É.-U., Canada, Detail), fiche d\'achat, évaluations.',
     relance: 'Équité des clients financés, leads, avis Google et sondages, CSI.',
+    rh: 'Conditions d\'embauche, documents à signer des nouveaux employés, dossiers des employés, santé et sécurité.',
     service: 'Suivi du reconditionnement (autorisation, bons de travail, livraison), rendez-vous, textos du service.',
     outils: 'Fiches eBlock, valeurs OpenLane, imports CARFAX et D2C, vérification Excel, comptes et droits.',
     aide: 'Guide de toutes les fonctions, nouveautés, suggestions.',
@@ -35,7 +36,7 @@
     resultat: 'Profits et résultats par période, concession et acheteur.',
     admin: 'Comptes, droits, concessions et réglages du site.'
   };
-  var COULEURS = { vente: 'bleu', inventaire: 'vert', relance: 'ambre', service: 'sarcelle', outils: 'gris', aide: 'violet', neufs: 'vert', offres: 'bleu', achat: 'violet', avis: 'ambre', resultat: 'prune', admin: 'noir' };
+  var COULEURS = { vente: 'bleu', inventaire: 'vert', relance: 'ambre', service: 'sarcelle', rh: 'prune', outils: 'gris', aide: 'violet', neufs: 'vert', offres: 'bleu', achat: 'violet', avis: 'ambre', resultat: 'prune', admin: 'noir' };
 
   function injecterCss() {
     if (document.getElementById('css-accueil')) return;

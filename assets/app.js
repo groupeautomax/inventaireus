@@ -968,6 +968,17 @@
       { id: 'texto', titre: 'Texto', de: 'service', onglet: 'texto' },
       { id: 'courtoisie', titre: 'Courtoisie', de: 'courtoisie', onglet: '', compteur: function () { return AMX.courtoisie ? AMX.courtoisie.compteur() : ''; } }   /* 29 oct. : véhicules de courtoisie, LMB + fichier de suivi (courtoisie.js, Courtoisie.gs) */
     ] },
+    /* 8 nov. (Maxime : « enlève RH de Outils et fais un onglet distinct ») : la tuile « Ressources humaines », entre Service et
+       Outils. Clés « rh/… » (comme quand elles étaient sous Outils) : aucun rôle ne les cache, chaque page décide (conditions
+       d'embauche : DG, directeurs, RH ; documents à signer : droit RH ou propriétaire ; dossiers : + les DG pour leur
+       concession ; santé et sécurité : la gestion). Le rôle « Ressources humaines » ne voit que cette tuile et l'Aide.
+       Les anciennes adresses (#/outils/ressources, rh, embauches, employes, sstrh) mènent ici (routeur). */
+    { id: 'rh', titre: 'Ressources humaines', court: 'RH', icone: 'admin', ordre: 45, onglets: [
+      { id: 'embauches', titre: 'Conditions d\'embauche', de: 'embauches', onglet: '', cle: 'rh/embauches', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
+      { id: 'documents', titre: 'Documents à signer', de: 'rh', onglet: '', cle: 'rh/rh', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },   /* 7 nov. : rh.js, PortailRH.gs */
+      { id: 'employes', titre: 'Dossiers des employés', de: 'employes', onglet: '', cle: 'rh/employes' },
+      { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '', cle: 'rh/sst', visible: function () { return !!(AMX.sst && AMX.sst.peutGerer()); }, compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } }
+    ] },
     { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
       /* 3 nov. (Maxime : « regroupe dans un onglet que tu appelles Import l'onglet eBlock, OpenLane, CARFAX et D2C ») : une
          page de choix ; « État des imports » (rouge = à faire) en premier. CARFAX n'a plus de page : l'API le lit seule. */
@@ -983,17 +994,6 @@
       { id: 'audit', titre: 'Audit', hub: true, icone: 'scan', desc: 'Vérifier où sont les véhicules : une liste déposée (prêteur, plan de financement) ou un fichier Excel comparé aux registres.' },
       { id: 'listes', titre: 'Listes et audits', de: 'listes', onglet: '', parent: 'audit', cle: 'inventaire/listes', icone: 'achat', couleur: 'vert', desc: 'Déposer une liste (PDF, Excel, CSV) : ScanAutomax dit où est chaque véhicule. L\'audit sur le terrain se fait dans l\'app.' },   /* 22 oct. : listes.js */
       { id: 'verification', titre: 'Vérification Excel', de: 'outils', onglet: 'verification', parent: 'audit', icone: 'ok', couleur: 'bleu', desc: 'Comparer un fichier Excel (DMS, transporteur…) aux registres : ce qui manque d\'un côté ou de l\'autre.' },
-      /* 7 nov. (suggestion S0F03522DC3 ; Maxime : « accès exclusif à Sylvianne au RH ») : portail RH (rh.js, PortailRH.gs). Clé « rh/rh » :
-         aucun rôle ne la cache ; seul le droit « Ressources humaines » (ou le propriétaire) l'ouvre — un DG ne la voit pas. */
-      /* 7 nov. (Maxime : « on fait dossier employé et santé sécurité, pour toutes les concessions » ; ScanAutomax remplace HR4) :
-         « Ressources humaines » devient une page de choix. Clés « rh/… » : aucun rôle ne les cache ; chaque page décide
-         (documents : droit RH ou propriétaire ; dossiers : + les DG pour leur concession ; santé et sécurité : la gestion). */
-      { id: 'ressources', titre: 'Ressources humaines', hub: true, icone: 'admin', desc: 'Les conditions d\'embauche, les documents à signer, les dossiers des employés et la santé et sécurité, pour toutes les concessions.' },
-      { id: 'rh', titre: 'Documents à signer', de: 'rh', onglet: '', parent: 'ressources', cle: 'rh/rh', icone: 'achat', couleur: 'vert', desc: 'Politiques, lettres et formulaires envoyés aux nouveaux employés ; signature électronique, dossier envoyé à la paie.', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },
-      { id: 'embauches', titre: 'Conditions d\'embauche', de: 'embauches', onglet: '', parent: 'ressources', cle: 'rh/embauches', icone: 'achat', couleur: 'violet', desc: 'Le DG remplit les conditions d\'une nouvelle embauche et la lettre d\'offre (modèles de la RH) ; la RH les reçoit et envoie les documents à signer.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
-      { id: 'employes', titre: 'Dossiers des employés', de: 'employes', onglet: '', parent: 'ressources', cle: 'rh/employes', icone: 'admin', couleur: 'bleu', desc: 'Le dossier de chaque employé par concession : emploi, coordonnées, contacts d\'urgence ; le NAS reste dans un fichier privé.' },
-      { id: 'sstrh', titre: 'Santé et sécurité', de: 'sst', onglet: '', parent: 'ressources', cle: 'rh/sst', icone: 'alerte', couleur: 'ambre', visible: function () { return !!(AMX.sst && AMX.sst.peutGerer()); },
-        desc: 'Le registre des accidents, des premiers soins et des situations dangereuses, et la bibliothèque des documents.', compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } },
       { id: 'admin', titre: 'Comptes et droits', de: 'admin', onglet: '' }
     ] },
     { id: 'aide', titre: 'Aide', icone: 'aide', ordre: 60, onglets: [{ de: 'aide', tous: true }, { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '' }] }   /* 7 nov. : la bibliothèque SST pour tous (sst.js) */
@@ -1038,7 +1038,7 @@
     service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'outils/*'],
     marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
     utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*'],
-    rh: ['vente/*', 'inventaire/*', 'relance/*', 'service/*', 'outils/*']   /* 7 nov. : rôle « Ressources humaines » — Outils › Ressources humaines et Aide seulement */
+    rh: ['vente/*', 'inventaire/*', 'relance/*', 'service/*', 'outils/*']   /* 7 nov. : rôle « Ressources humaines » — la tuile Ressources humaines et l'Aide seulement */
   };
   AMX.ONGLETS_CACHES_ROLE = ONGLETS_CACHES_ROLE;
   function cleDansListe(liste, cle) {
@@ -1209,6 +1209,10 @@
   /* L'adresse d'une ancienne section / d'un ancien onglet dans les tuiles ; null si rien à changer. */
   AMX.traduire = function (section, onglet, params) {
     if (!appliquerTuiles.fait) return null;
+    /* 8 nov. : une adresse qui nomme déjà un onglet de tuile n'est jamais traduite (la tuile « rh » porte le même nom que la
+       source rh.js : #/rh/embauches menait à « Documents à signer »). */
+    var tu = AMX.sections[section];
+    if (onglet && tu && tu.tuile && (tu.onglets || []).some(function (o) { return o.id === onglet; })) return null;
     var t = TRAD[section + '/' + (onglet || '')] || TRAD[section + '/*'];
     if (!t && AMX.sources[section] && !(AMX.sections[section] && AMX.sections[section].tuile)) {   /* onglet inconnu d'une source absorbée : son premier onglet */
       var pre = section + '/'; Object.keys(TRAD).some(function (k) { if (k.indexOf(pre) === 0) { t = TRAD[k]; return true; } return false; });
@@ -1284,6 +1288,8 @@
     if (r.section === 'inventaire' && /^(us|can|detail)$/.test(r.onglet) && AMX.inventaire && AMX.inventaire.registres) { var pr = { registre: r.onglet }; Object.keys(r.params || {}).forEach(function (k) { pr[k] = r.params[k]; }); AMX.aller('inventaire', 'usage', pr); return; }
     // 27 oct. : l'onglet « Import CARFAX » est retiré (l'API officielle de CARFAX lit les rapports) — l'ancienne adresse mène à Outils › Imports.
     if (r.section === 'outils' && r.onglet === 'carfax') { AMX.aller('outils', 'imports'); return; }
+    // 8 nov. : « Ressources humaines » a quitté Outils pour sa propre tuile (liens des courriels des conditions d'embauche).
+    if (r.section === 'outils' && /^(ressources|rh|embauches|employes|sstrh)$/.test(r.onglet)) { AMX.aller('rh', { ressources: '', rh: 'documents', embauches: 'embauches', employes: 'employes', sstrh: 'sst' }[r.onglet], r.params); return; }
     // 4 nov. : « Listes et audits » a quitté Inventaire — Outils › Audit.
     if (r.section === 'inventaire' && r.onglet === 'listes') { AMX.aller('outils', 'listes', r.params); return; }
     // 3 nov. : « Évaluations demandées » a quitté Vente — Inventaire › Occasion › Évaluation (vue « Mes demandes » pour le

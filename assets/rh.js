@@ -69,6 +69,10 @@
     '.rhx-outils { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 6px; }',
     '.rhx-outils button { border: 1px solid var(--ligne); background: var(--carte); border-radius: 6px; padding: 4px 9px; font-size: 12.5px; cursor: pointer; color: var(--encre-2); }',
     '.rhx-outils select { font-size: 12.5px; }',
+    '.rhx-outils button.rhx-ia { border-color: var(--vert); color: var(--vert-fonce); font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }',
+    '.rhx-ia-note { margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--vert-clair); color: var(--vert-fonce); font-size: 13px; }',
+    '.rhx-ia-form textarea { width: 100%; min-height: 110px; box-sizing: border-box; font: inherit; padding: 8px; border: 1px solid var(--ligne); border-radius: 8px; }',
+    '.rhx-ia-form .segment { margin: 0 0 10px; }',
     '.rhx-editeur { background: #fff; color: #111; border: 1px solid var(--ligne); border-radius: 8px; padding: 12px 16px; min-height: 260px; max-height: 58vh; overflow: auto; line-height: 1.5; font-size: 14px; }',
     '.rhx-editeur:focus { outline: 2px solid var(--vert); outline-offset: 1px; } .rhx-editeur h2 { font-size: 15px; } .rhx-editeur p { margin: 0 0 8px; }',
     '.rhx-cat { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11.5px; font-weight: 700; background: var(--bleu-bg); color: var(--bleu); margin-right: 6px; }',
@@ -305,8 +309,44 @@
       textesModeles[id] = r.html; return r.html;
     });
   }
-  /** Un petit éditeur : gras, italique, titre, liste, et l'insertion d'un champ {{…}}. → { el, valeur(), zone } */
-  function editeurTexte(html) {
+  /** 8 nov. (Maxime : « mets Einstein dans Ressources humaines lorsqu'il faut écrire un document ») : Einstein AI écrit un
+      brouillon ou améliore le texte de l'éditeur (POST rhRediger, PortailRH.gs). Le texte arrive dans l'éditeur ; rien n'est
+      enregistré tant que la personne ne clique pas « Enregistrer ». opts.contexte() → { nom, categorie }. */
+  function demanderEinstein(zone, note, opts) {
+    var ctx = (opts && opts.contexte && opts.contexte()) || {};
+    var texteActuel = String(zone.textContent || '').replace(/\s+/g, ' ').trim();
+    var mode = texteActuel.length >= 40 ? 'ameliorer' : 'ecrire';
+    var boutonsMode = {}, seg = h('div.segment');
+    [['ecrire', 'Écrire un nouveau texte'], ['ameliorer', 'Améliorer le texte actuel']].forEach(function (m) {
+      var b = h('button', { type: 'button', text: m[1], 'aria-pressed': String(mode === m[0]), onclick: function () { mode = m[0]; Object.keys(boutonsMode).forEach(function (k) { boutonsMode[k].setAttribute('aria-pressed', String(k === mode)); boutonsMode[k].classList.toggle('actif', k === mode); }); } });
+      if (mode === m[0]) b.classList.add('actif');
+      boutonsMode[m[0]] = b; seg.appendChild(b);
+    });
+    var demande = h('textarea', { placeholder: ctx.categorie === 'lettre'
+      ? 'Ex. Lettre d\'offre pour un poste de technicien, temps plein, avec période de probation de 3 mois et uniforme fourni.'
+      : 'Ex. Politique sur le cellulaire au travail : interdit dans l\'atelier, permis aux pauses, sanctions graduées.' });
+    var etat = h('p.rhx-prog');
+    var mo = AMX.modale({ titre: 'Écrire avec Einstein AI', corps: h('div.rhx-form.rhx-ia-form', [
+      seg,
+      h('div.champ', [h('label', { text: ctx.nom ? 'Ce que « ' + ctx.nom + ' » doit contenir' : 'Ce que le document doit contenir' }), demande]),
+      h('p.rhx-prog', { text: 'Einstein AI reçoit votre demande, le nom du document et, pour « améliorer », le texte de l\'éditeur. N\'y écrivez aucun renseignement personnel (NAS, santé, salaire d\'une personne) : les champs {{nom}}, {{remuneration}}… se remplissent à l\'envoi.' }),
+      etat
+    ]), boutons: [{ texte: 'Annuler' }, { texte: 'Rédiger', classe: 'primaire', action: function () {
+      if (mode === 'ecrire' && texteActuel.length >= 40 && !window.confirm('Le texte de l\'éditeur sera remplacé par celui d\'Einstein AI. Continuer ?')) return false;
+      etat.textContent = 'Einstein AI écrit… (30 secondes à une minute)';
+      return ecrire({ action: 'rhRediger', mode: mode, demande: demande.value, nom: ctx.nom || '', categorie: ctx.categorie || '', html: mode === 'ameliorer' ? zone.innerHTML : '' }).then(function (r) {
+        if (typeof r.html !== 'string') throw new Error(SCRIPT_PAS_A_JOUR);
+        zone.innerHTML = r.html;
+        note.textContent = 'Brouillon d\'Einstein AI : relisez-le et complétez-le avant d\'enregistrer.' + (r.remarques ? ' ' + r.remarques : '');
+        note.hidden = false;
+        AMX.toast('Texte d\'Einstein AI dans l\'éditeur', 'ok');
+      }, function (er) { etat.textContent = ''; AMX.toast(AMX.erreurTexte(er), 'erreur', 8000); return false; });
+    } }] });
+    setTimeout(function () { try { demande.focus(); } catch (e) {} }, 50);
+    return mo;
+  }
+  /** Un petit éditeur : gras, italique, titre, liste, l'insertion d'un champ {{…}} et Einstein AI. → { el, valeur(), zone } */
+  function editeurTexte(html, opts) {
     var zone = h('div.rhx-editeur', { contenteditable: 'true', spellcheck: 'true' });
     zone.innerHTML = html || '<p></p>';
     var cmd = function (c, v) { zone.focus(); try { document.execCommand(c, false, v || null); } catch (e) {} };
@@ -318,9 +358,12 @@
       h('button', { type: 'button', text: 'Titre', onmousedown: function (e) { e.preventDefault(); cmd('formatBlock', 'h2'); } }),
       h('button', { type: 'button', text: 'Paragraphe', onmousedown: function (e) { e.preventDefault(); cmd('formatBlock', 'p'); } }),
       h('button', { type: 'button', text: '• Liste', onmousedown: function (e) { e.preventDefault(); cmd('insertUnorderedList'); } }),
-      selChamp
+      selChamp,
+      h('button.rhx-ia', { type: 'button', title: 'Écrire ou améliorer le texte avec Einstein AI', onmousedown: function (e) { e.preventDefault(); }, onclick: function () { demanderEinstein(zone, noteIa, opts); } },
+        [AMX.maxai && AMX.maxai.avatar ? AMX.maxai.avatar(16, { bouton: false }) : null, 'Einstein AI'].filter(Boolean))
     ]);
-    return { el: h('div', [outils, zone]), zone: zone, valeur: function () { return zone.innerHTML.replace(/<\/?mark>/g, ''); } };
+    var noteIa = h('p.rhx-ia-note', { hidden: true });
+    return { el: h('div', [outils, zone, noteIa]), zone: zone, valeur: function () { return zone.innerHTML.replace(/<\/?mark>/g, ''); } };
   }
   /* Import des modèles de HR4 : le fichier JSON lu dans HR4 (politiques du Manuel de l'employé, lettres d'offre). */
   /* 8 nov. (Maxime) : « Groupe Park Avenue » (ancien nom du groupe dans les modèles de HR4) devient « Groupe Automax ».
@@ -890,7 +933,7 @@
     var selCat = h('select', Object.keys(CATEGORIES).map(function (k) { return h('option', { value: k, text: CATEGORIES[k], selected: d ? d.categorie === k : k === 'politique' }); }));
     var selCie = h('select', { disabled: !!d }, [h('option', { value: '', text: 'Tout le groupe' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c), selected: d && d.compagnie === c }); })));
     var zoneEd = h('div', [AMX.chargeur('Texte', { compact: true })]), ed = null;
-    var monter = function (html) { AMX.vider(zoneEd); ed = editeurTexte(html); zoneEd.appendChild(ed.el); };
+    var monter = function (html) { AMX.vider(zoneEd); ed = editeurTexte(html, { contexte: function () { return { nom: inNom.value, categorie: selCat.value }; } }); zoneEd.appendChild(ed.el); };
     if (d) chargerTexte(d.id).then(monter, function (e) { AMX.vider(zoneEd); zoneEd.appendChild(h('div.rhx-erreur', { text: AMX.erreurTexte(e) })); });
     else monter('<h2>Objet</h2><p></p>');
     AMX.modale({ titre: d ? 'Modifier « ' + d.nom + ' »' : 'Écrire un document', large: true, corps: h('div.rhx-form', [

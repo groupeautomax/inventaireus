@@ -336,7 +336,7 @@
           elAutres.appendChild(champ(o.libChamp(n), inp));
         });
         var base = texte || o.surligner(o.remplirTexte(html, valeurs()));
-        var ed = o.editeurTexte(base);
+        var ed = o.editeurTexte(base, { contexte: function () { return { nom: selModele.selectedOptions && selModele.selectedOptions[0] ? selModele.selectedOptions[0].textContent : 'Lettre d\'offre', categorie: 'lettre' }; } });   /* 8 nov. : Einstein AI dans l'éditeur */
         AMX.modale({ titre: 'Remplir la lettre', large: true, corps: h('div.cex-form', [
           h('p.cex-prog', { text: 'Le nom, le poste, la date d\'entrée, la rémunération et l\'horaire sont déjà remplis. Complétez les passages surlignés (« (date) », « XX$ »…). La signature de la RH ({{rh}}) se remplit à l\'envoi.' }),
           elAutres.childNodes.length ? h('div', [h('div.cex-h', { text: 'Champs de cette lettre' }), h('div.grille', [elAutres])]) : null,

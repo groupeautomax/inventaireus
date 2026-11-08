@@ -323,10 +323,19 @@
     return { el: h('div', [outils, zone]), zone: zone, valeur: function () { return zone.innerHTML.replace(/<\/?mark>/g, ''); } };
   }
   /* Import des modèles de HR4 : le fichier JSON lu dans HR4 (politiques du Manuel de l'employé, lettres d'offre). */
+  /* 8 nov. (Maxime) : « Groupe Park Avenue » (ancien nom du groupe dans les modèles de HR4) devient « Groupe Automax ».
+     Même règle que RH_marque_ (PortailRH.gs) ; une adresse courriel ou web n'est jamais touchée. */
+  function marque(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/Groupe(?:\s|&nbsp;|&#160;)+Park(?:\s|&nbsp;|&#160;)+Avenue/gi, 'Groupe Automax')
+      .replace(/Groupe(?:\s|&nbsp;|&#160;)+AutoMax\b/g, 'Groupe Automax')
+      .replace(/Groupe Automax[ \u00a0]+([.,])/g, 'Groupe Automax$1');
+  }
   function modelesHr4(json) {
     var out = [], vus = {};
     var ajouter = function (nom, categorie, html) {
-      nom = String(nom || '').replace(/\{\{[^{}]*\}\}/g, '(poste)').replace(/\s+/g, ' ').trim().slice(0, 120);
+      nom = marque(String(nom || '').replace(/\{\{[^{}]*\}\}/g, '(poste)').replace(/\s+/g, ' ').trim()).slice(0, 120);
+      html = marque(html);
       if (nom.length < 3 || !html) return;
       var cle = nom.toLowerCase();
       if (vus[cle]) { if (vus[cle] === html) return; var n = 2; while (vus[cle + ' (' + n + ')']) n++; nom += ' (' + n + ')'; cle = nom.toLowerCase(); }

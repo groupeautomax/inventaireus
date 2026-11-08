@@ -688,6 +688,7 @@
     this.compagnie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
     this.vue = p.voir || 'encours'; this.q = p.q || '';   /* « vue » est réservé par la tuile : la vue de la liste se lit dans « voir » */
     this.ouvrirId = p.id || '';
+    this.nouveauDemande = p.nouveau === '1';   /* 8 nov. : « Envoyer les documents » depuis Embauche et départ */
     AMX.vider(conteneur);
     this.btnNouvel = h('button.btn.primaire.rhx-gros', { type: 'button', text: '+ Nouvel employé', onclick: function () { self.nouvelEnvoi(); } });   /* 8 nov. : l'assistant en 5 étapes */
     this.btnDocs = h('button.btn', { type: 'button', text: 'Bibliothèque', onclick: function () { self.documentsTypes(); } });
@@ -696,7 +697,7 @@
     this.btnReglages.hidden = !estProprio();
     this.elSous = h('p', { text: 'Documents à lire et à signer des nouveaux employés. Le dossier signé part tout seul à la paie.' });
     conteneur.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Ressources humaines'), this.elSous]),
+      h('div', [h('h1', 'Documents à signer'), this.elSous]),
       h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnReglages, this.btnDocs, this.btnNouvel], [this.btnDocs, this.btnNouvel]))
     ]));
     this.elCies = h('div.barre-cies'); conteneur.appendChild(this.elCies);
@@ -720,6 +721,7 @@
   VueRh.prototype.demonter = function () { if (vueCourante === this) vueCourante = null; this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:rh', this.surRh); };
   VueRh.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
+    if (p.nouveau === '1' && this.rep) this.nouvelEnvoi();
     if (p.voir && p.voir !== this.vue) { this.vue = p.voir; this.rendre(); }
     if (p.id && this.rep) this.ouvrirFiche(p.id);
   };
@@ -730,6 +732,7 @@
       self.rep = d; self.erreur = ''; self.rendre(); AMX.rafraichirSousBarre && AMX.rafraichirSousBarre();
       if (self.ouvrirId) { var id = self.ouvrirId; self.ouvrirId = ''; self.ouvrirFiche(id); }
       if (envoiEnAttente) { var ea = envoiEnAttente; envoiEnAttente = null; self.nouvelEnvoi({ embauche: ea }); }
+      else if (self.nouveauDemande) { self.nouveauDemande = false; self.nouvelEnvoi(); }
       if (force) AMX.toast('Ressources humaines à jour', 'ok');
     }, function (e) {
       if (self.detruit) return;

@@ -352,6 +352,18 @@
   };
   AMX.modale.n = 0;
   AMX.modale.pile = [];
+  /* 8 nov. (Maxime : « une ligne d'avancement comme le suivi service, pour savoir où le processus est ») : la ligne d'un
+     processus (embauche, départ), même dessin que le parcours du Suivi service (.svc-parcours, app.css).
+     pas = [{ court, titre, etat: fait | encours | attente | refuse | saute | afaire, courante }]. */
+  AMX.ligneAvancement = function (pas, opts) {
+    opts = opts || {};
+    var el = h('div.svc-parcours.amx-avancement' + (opts.compact ? '.compact' : ''), { role: 'img', 'aria-label': opts.libelle || pas.map(function (p) { return p.titre || p.court; }).join(' ; ') });
+    pas.forEach(function (p) {
+      var cls = (p.etat || 'afaire') + (p.courante ? ' courante' : '');
+      el.appendChild(h('div.svc-pas.' + cls.split(' ').join('.'), { title: p.titre || p.court }, [h('span.pt'), opts.compact ? null : h('span.lb', { text: p.court })]));
+    });
+    return el;
+  };
   AMX.confirmer = function (titre, message, opts) {
     opts = opts || {};
     return new Promise(function (res) {
@@ -976,11 +988,14 @@
     /* 8 nov. (Maxime : « quand on clique sur le menu Ressources humaines, ça doit ramener au menu principal avec les 4 grosses
        tuiles ») : la tuile s'ouvre sur sa page de choix ; chaque page y revient par le fil « ‹ Ressources humaines ». */
     { id: 'rh', titre: 'Ressources humaines', court: 'RH', icone: 'admin', ordre: 45, onglets: [
-      { id: 'ressources', titre: 'Ressources humaines', hub: true, icone: 'admin', desc: 'Les conditions d\'embauche, les documents à signer, les dossiers des employés, les départs et la santé et sécurité, pour toutes les concessions.' },
-      { id: 'embauches', titre: 'Conditions d\'embauche', de: 'embauches', onglet: '', parent: 'ressources', cle: 'rh/embauches', icone: 'achat', couleur: 'violet', desc: 'Le DG remplit les conditions d\'une nouvelle embauche et la lettre d\'offre (modèles de la RH) ; la RH les reçoit et envoie les documents à signer.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
-      { id: 'documents', titre: 'Documents à signer', de: 'rh', onglet: '', parent: 'ressources', cle: 'rh/rh', icone: 'achat', couleur: 'vert', desc: 'Politiques, lettres et formulaires envoyés aux nouveaux employés ; signature électronique, dossier envoyé à la paie.', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },   /* 7 nov. : rh.js, PortailRH.gs */
+      { id: 'ressources', titre: 'Ressources humaines', hub: true, icone: 'admin', desc: 'L\'embauche et le départ, les documents de référence, les dossiers des employés, les documents à signer et la santé et sécurité, pour toutes les concessions.' },
+      /* 8 nov. (Maxime : « un gros onglet Embauche et départ, avec dedans Commencer le processus d'embauche et Départ ») */
+      { id: 'embauchedepart', titre: 'Embauche et départ', hub: true, parent: 'ressources', icone: 'admin', couleur: 'violet', desc: 'Commencer une embauche ou un départ, et voir où en est chaque dossier.' },
+      { id: 'embauches', titre: 'Commencer le processus d\'embauche', de: 'embauches', onglet: '', parent: 'embauchedepart', cle: 'rh/embauches', icone: 'achat', couleur: 'vert', desc: 'Une nouvelle embauche : la fiche (le DG approuve celle d\'un directeur), puis la RH envoie les documents à signer. La ligne d\'avancement dit où en est chaque dossier.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
+      { id: 'departs', titre: 'Départ', de: 'departs', onglet: '', parent: 'embauchedepart', cle: 'rh/departs', icone: 'alerte', couleur: 'rouge', visible: function () { return !!(AMX.departs && AMX.departs.peutVoir()); }, desc: 'Un employé quitte : la fiche de départ, le DG l\'approuve, la RH fait la dernière paie, le relevé d\'emploi et retire les accès.', compteur: function () { return AMX.departs ? AMX.departs.compteur() : ''; } },   /* 8 nov. : departs.js, Departs.gs */
+      { id: 'reference', titre: 'Documents de référence', de: 'reference', onglet: '', parent: 'ressources', cle: 'rh/reference', icone: 'achat', couleur: 'bleu', visible: function () { return !!(AMX.reference && AMX.reference.peutVoir()); }, desc: 'Le Manuel de l\'employé, les lettres d\'offre, les formulaires et la santé et sécurité, rangés par sujet.' },   /* 8 nov. : reference.js, RhReference.gs */
       { id: 'employes', titre: 'Dossiers des employés', de: 'employes', onglet: '', parent: 'ressources', cle: 'rh/employes', icone: 'admin', couleur: 'bleu', desc: 'Le dossier de chaque employé par concession : emploi, coordonnées, contacts d\'urgence ; le NAS reste dans un fichier privé.' },
-      { id: 'departs', titre: 'Départs', de: 'departs', onglet: '', parent: 'ressources', cle: 'rh/departs', icone: 'alerte', couleur: 'rouge', visible: function () { return !!(AMX.departs && AMX.departs.peutVoir()); }, desc: 'Le directeur commence la fiche de départ d\'un employé, le DG l\'approuve, la RH la traite : dernière paie, relevé d\'emploi, matériel, accès.', compteur: function () { return AMX.departs ? AMX.departs.compteur() : ''; } },   /* 8 nov. : departs.js, Departs.gs */
+      { id: 'documents', titre: 'Documents à signer', de: 'rh', onglet: '', parent: 'ressources', cle: 'rh/rh', icone: 'achat', couleur: 'vert', desc: 'Politiques, lettres et formulaires envoyés aux nouveaux employés ; signature électronique, dossier envoyé à la paie.', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },   /* 7 nov. : rh.js, PortailRH.gs */
       { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '', parent: 'ressources', cle: 'rh/sst', icone: 'alerte', couleur: 'ambre', visible: function () { return !!(AMX.sst && AMX.sst.peutGerer()); },
         desc: 'Le registre des accidents, des premiers soins et des situations dangereuses, et la bibliothèque des documents.', compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } }
     ] },
@@ -1115,6 +1130,14 @@
   }
   /* 3 nov. — la page d'un onglet « page de choix » (hub) : une grosse tuile par page, son titre, ce qu'on y fait, son
      compteur et ses vues ; rien d'autre. Les pages s'ouvrent au clic. */
+  /* 8 nov. : une page de choix peut être rangée dans une autre (Ressources humaines › Embauche et départ) : la racine
+     d'un onglet est sa page de choix du haut (celle des menus). */
+  function racineOnglet(onglets, o) {
+    var x = o, n = 0;
+    while (x && x.parent && n++ < 5) { var p = (onglets || []).filter(function (y) { return y.id === x.parent; })[0]; if (!p) break; x = p; }
+    return x || o;
+  }
+  AMX.racineOnglet = racineOnglet;
   function PageChoix(tuile, o, conteneur) { this.tuile = tuile; this.o = o; this.el = conteneur; this.rendre(); }
   PageChoix.prototype.rendre = function () {
     var self = this, t = this.tuile, o = this.o;
@@ -1590,12 +1613,12 @@
         var ongCourant = courante.onglet;
         li.appendChild(h('ul.cote-onglets', onglets.map(function (o) {
           var c = ''; try { c = o.compteur ? o.compteur() : ''; } catch (e) {}
-          var dedans = ici && !!ongCourant && ongCourant.parent === o.id;
+          var dedans = ici && !!ongCourant && ongCourant.id !== o.id && racineOnglet(s.onglets, ongCourant).id === o.id;   /* 8 nov. : aussi deux niveaux plus bas */
           var actif = ici && (o.id === ongId || dedans);
           var enfants = o.hub && o.enfants && actif ? o.enfants() : [];   /* 3 nov. : les pages de la page de choix ouverte */
           return h('li', [h('a' + (actif ? '.actif' : ''), { href: AMX.lien(s.id, o.id), 'aria-current': actif && !dedans ? 'page' : null }, [h('span.t', { text: o.titre }), (c !== '' && c !== null && c !== undefined) ? h('span.n', { text: String(c) }) : null]),
             enfants.length > 1 ? h('ul.cote-enfants', enfants.map(function (e) {
-              var ac = e.id === ongId;
+              var ac = e.id === ongId || (!!ongCourant && ongCourant.parent === e.id);
               return h('li', [h('a' + (ac ? '.actif' : ''), { href: AMX.lien(s.id, e.id), 'aria-current': ac ? 'page' : null }, [h('span.t', { text: e.titre })])]);
             })) : null]);
         })));
@@ -1963,7 +1986,7 @@
     sb.style.display = 'flex'; document.documentElement.style.setProperty('--sous-h', '44px');
     onglets.forEach(function (o) {
       var c = o.compteur ? o.compteur() : null;
-      var ici = !!ong && (ong.id === o.id || ong.parent === o.id);   /* 3 nov. : la page de choix reste allumée sous ses pages */
+      var ici = !!ong && (ong.id === o.id || ong.parent === o.id || racineOnglet(sec.onglets, ong).id === o.id);   /* 3 nov. : la page de choix reste allumée sous ses pages (8 nov. : sur deux niveaux) */
       sb.appendChild(h('a' + (ici ? '.actif' : ''), { href: AMX.lien(sec.id, o.id), 'aria-current': ici ? 'page' : null }, [o.titre, (c !== null && c !== undefined && c !== '') ? h('span.compteur', { text: String(c) }) : null]));
     });
     sb.appendChild(h('div.espace'));

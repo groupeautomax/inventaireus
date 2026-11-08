@@ -26,7 +26,8 @@
     '.dpx-materiel label { display: flex; gap: 8px; align-items: center; border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 10px; font-size: 13.5px; cursor: pointer; }',
     '.dpx-materiel label.choisi { border-color: var(--vert-fonce); background: var(--vert-clair); } .dpx-materiel input { width: 18px; height: 18px; margin: 0; }',
     '.dpx-compte { border-left: 4px solid var(--rouge); background: var(--rouge-bg); padding: 10px 12px; border-radius: 8px; margin: 10px 0; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }',
-    '.dpx-compte.ok { border-left-color: var(--vert); background: var(--vert-clair); }'
+    '.dpx-compte.ok { border-left-color: var(--vert); background: var(--vert-clair); }',
+    '.cex-commencer.depart { border-left-color: var(--rouge); }'
   ].join('\n');
   function css() { if (AMX.embauches && AMX.embauches.css) AMX.embauches.css(); if (!document.getElementById('css-departs')) { var s = document.createElement('style'); s.id = 'css-departs'; s.textContent = CSS; document.head.appendChild(s); } }
 
@@ -86,7 +87,7 @@
 
   /* ------------------------------------------------------------------------------- outils */
   var STATUTS = { brouillon: 'Brouillon', approbation: 'En attente du DG', envoyee: 'À la RH', traitee: 'Traité par la RH', annulee: 'Annulé' };
-  var VUES = [['encours', 'En cours'], ['traitee', 'Traités'], ['annulee', 'Annulés'], ['tous', 'Tous']];
+  var VUES = [['encours', 'En cours'], ['traitee', 'Terminés'], ['annulee', 'Annulés'], ['tous', 'Tous']];
   var TYPES = [['demission', 'Démission'], ['finContrat', 'Fin de contrat'], ['congediement', 'Congédiement'], ['miseAPied', 'Mise à pied'], ['retraite', 'Retraite'], ['abandon', 'Abandon de poste']];
   var PREAVIS = [['employeRespecte', 'Préavis de l\'employé respecté'], ['employeNonRespecte', 'Préavis de l\'employé non respecté'], ['employeur', 'Préavis donné par l\'employeur'],
     ['indemnite', 'Indemnité tenant lieu de préavis'], ['aucun', 'Aucun préavis']];
@@ -101,6 +102,32 @@
   function nomCie(c) { return (AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[c]) || c || ''; }
   function dateCourte(iso) { if (!iso) return ''; var d = new Date(String(iso).length === 10 ? iso + 'T12:00:00' : iso); return isNaN(d) ? String(iso) : d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' }); }
   function dateHeure(iso) { return iso ? AMX.fmtDate(iso, true) : ''; }
+  /* 8 nov. (Maxime : « une ligne d'avancement comme le suivi service ») — Fiche · DG · RH · Liste · Parti. */
+  function avancement(e) {
+    var st = e.statut, renvoi = st === 'brouillon' && !!e.renvoiRaison, recue = st === 'envoyee' || st === 'traitee';
+    var parDirecteur = !!e.demandeLe || !!e.approuveLe || ROLES_DIRECTEUR.indexOf(e.creeParRole) >= 0;
+    var nT = (e.taches || []).length || 7, nF = e.tachesFaites || 0;
+    var pas = [
+      { court: 'Fiche', titre: 'Fiche remplie' + (e.creeParNom ? ' par ' + e.creeParNom : ''), etat: st === 'brouillon' ? 'encours' : 'fait', courante: st === 'brouillon' },
+      { court: 'DG', titre: 'Approbation du DG', etat: 'afaire' },
+      { court: 'RH', titre: 'Reçue par la RH', etat: recue ? 'fait' : 'afaire' },
+      { court: 'Liste', titre: 'Liste de la RH : ' + nF + ' tâche' + (nF > 1 ? 's' : '') + ' sur ' + nT, etat: st === 'traitee' ? 'fait' : st === 'envoyee' ? (nF ? 'encours' : 'attente') : 'afaire', courante: st === 'envoyee' },
+      { court: 'Parti', titre: st === 'traitee' ? 'Traité le ' + dateCourte(e.traiteLe) + (e.dossierMaj ? ' : « Parti » dans son dossier' : '') : 'L\'employé passe à « Parti »', etat: st === 'traitee' ? 'fait' : 'afaire' }
+    ];
+    var dg = pas[1];
+    if (st === 'approbation') { dg.etat = 'attente'; dg.courante = true; dg.titre = 'En attente du DG depuis le ' + dateCourte(e.demandeLe); }
+    else if (e.approuveLe) { dg.etat = 'fait'; dg.titre = 'Approuvée par ' + (e.approuvePar || 'le DG') + ' le ' + dateCourte(e.approuveLe); }
+    else if (renvoi) { dg.etat = 'refuse'; dg.titre = 'Renvoyée par le DG : ' + e.renvoiRaison; }
+    else if (recue || !parDirecteur) { dg.etat = 'saute'; dg.titre = 'Pas d\'approbation : remplie par le DG ou la RH'; }
+    if (st === 'annulee') pas.forEach(function (p) { if (p.etat !== 'fait') { p.etat = 'saute'; p.courante = false; p.titre = 'Annulé'; } });
+    var phrase = st === 'annulee' ? 'Annulé'
+      : st === 'brouillon' ? (renvoi ? 'Renvoyé par le DG : à corriger' : 'Brouillon : pas encore envoyé')
+      : st === 'approbation' ? 'En attente du DG depuis le ' + dateCourte(e.demandeLe)
+      : st === 'envoyee' ? 'À la RH : ' + nF + ' tâche' + (nF > 1 ? 's' : '') + ' sur ' + nT + ' faite' + (nF > 1 ? 's' : '')
+      : 'Terminé : parti le ' + dateCourte(e.dernierJour || e.traiteLe);
+    return { pas: pas, phrase: phrase };
+  }
+  function ligneDe(e) { var a = avancement(e); return h('div.cex-avance', [AMX.ligneAvancement(a.pas, { libelle: a.phrase }), h('span.s', { text: a.phrase })]); }
   function dansVue(e, v) { if (v === 'encours') return e.statut === 'brouillon' || e.statut === 'approbation' || e.statut === 'envoyee'; if (v === 'tous') return true; return e.statut === v; }
   function champ(libelleTxt, el, aide) { return h('div.champ', [h('label', { text: libelleTxt }), el, aide ? h('span.aide', { text: aide }) : null]); }
   function choix(valeur, options, vide) { var s = h('select.saisie'); s.appendChild(h('option', { value: '', text: vide || '— choisir —' })); options.forEach(function (o) { s.appendChild(h('option', { value: o[0], text: o[1], selected: o[0] === (valeur || '') })); }); return s; }
@@ -114,13 +141,19 @@
     this.compagnie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
     this.vue = p.voir || 'encours'; this.q = p.q || ''; this.ouvrirId = p.id || ''; this.nouveauPour = p.nouveau || '';
     AMX.vider(conteneur);
-    this.btnNouvelle = h('button.btn.primaire', { type: 'button', text: '+ Fiche de départ', onclick: function () { self.formulaire(null); } });
+    this.btnNouvelle = h('button.btn.primaire.cex-gros', { type: 'button', text: '+ Commencer un départ', onclick: function () { self.formulaire(null); } });
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     conteneur.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Départs'), h('p', { text: 'Le directeur commence la fiche de départ, le DG l\'approuve, la RH la traite : dernière paie, relevé d\'emploi, matériel, accès. L\'employé passe ensuite à « Parti » dans son dossier.' })]),
-      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnNouvelle], [this.btnNouvelle]))
+      h('div', [h('h1', 'Départs'), h('p', { text: 'Commencez un départ et voyez où en est chaque dossier.' })]),
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir], []))
     ]));
     this.elCies = h('div.barre-cies'); conteneur.appendChild(this.elCies);
+    /* 8 nov. (Maxime : « ultra simple ») : un gros bouton pour commencer, et les étapes en une ligne. */
+    conteneur.appendChild(h('div.cex-commencer.depart', [
+      h('div.cex-commencer-txt', [h('b', { text: 'Un employé quitte ?' }), h('span', { text: 'La fiche de départ, l\'approbation du DG, puis la RH fait la dernière paie, le relevé d\'emploi et retire les accès.' }),
+        AMX.ligneAvancement([{ court: 'Fiche' }, { court: 'DG' }, { court: 'RH' }, { court: 'Liste' }, { court: 'Parti' }], { libelle: 'Les étapes d\'un départ' })]),
+      h('div.cex-commencer-btns', [this.btnNouvelle])
+    ]));
     this.elVues = h('div.cex-vues'); conteneur.appendChild(this.elVues);
     this.inRecherche = h('input.saisie.recherche', { type: 'search', value: this.q, placeholder: 'Chercher : employé, poste, DP-101…', autocomplete: 'off', 'aria-label': 'Chercher une fiche' });
     conteneur.appendChild(h('div.cex-filtres', [this.inRecherche]));
@@ -176,20 +209,11 @@
     var self = this, liste = this.filtrer();
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['fiche', 'fiches'], contexte: [this.compagnie ? nomCie(this.compagnie) : 'toutes les concessions', ({ encours: 'en cours', traitee: 'traités', annulee: 'annulés', tous: 'tous' })[this.vue]],
       filtres: this.q ? ['« ' + this.q + ' »'] : [], effacer: function () { self.q = ''; self.inRecherche.value = ''; self.rafraichir(); } });
-    AMX.vider(this.elKpis);
-    var tuile = function (v, lib, sous, cls) { var el = h('div.kpi', [h('div.valeur', { text: String(v) }), h('div.libelle', { text: lib }), sous ? h('div.sous', { text: sous }) : null]); if (cls) el.classList.add(cls); return el; };
-    var br = liste.filter(function (e) { return e.statut === 'brouillon'; }).length, app = liste.filter(function (e) { return e.statut === 'approbation'; }).length, env = liste.filter(function (e) { return e.statut === 'envoyee'; }).length;
-    var ajd = new Date().toISOString().slice(0, 10);
-    var passes = liste.filter(function (e) { return e.statut !== 'traitee' && e.statut !== 'annulee' && e.dernierJour && e.dernierJour < ajd; }).length;
-    this.elKpis.appendChild(tuile(liste.length, 'Fiches', 'dans cette liste', 'neutre'));
-    this.elKpis.appendChild(tuile(br, 'Brouillons', 'pas encore envoyés', br ? 'attention' : 'neutre'));
-    this.elKpis.appendChild(tuile(app, 'En attente du DG', 'commencées par un directeur', app ? 'attention' : 'neutre'));
-    this.elKpis.appendChild(tuile(env, 'À traiter par la RH', 'paie, relevé d\'emploi, accès', env ? 'attention' : 'neutre'));
-    this.elKpis.appendChild(tuile(passes, 'Dernier jour passé', 'pas encore traités', passes ? 'alerte' : 'neutre'));
+    AMX.vider(this.elKpis);   /* 8 nov. : plus de tuiles de chiffres ici — la ligne d'avancement de chaque fiche les remplace */
     AMX.vider(this.elCorps);
     if (!liste.length) {
       this.elCorps.appendChild(h('div.carte', [h('div.cex-vide', [h('p', { text: this.rep.departs.length ? 'Aucune fiche avec ces filtres.' : 'Aucune fiche de départ. Un employé quitte ? Commencez la fiche : le DG l\'approuve, la RH la traite.' }),
-        h('button.btn.primaire', { type: 'button', text: '+ Fiche de départ', onclick: function () { self.formulaire(null); } })])]));
+        h('button.btn.primaire', { type: 'button', text: '+ Commencer un départ', onclick: function () { self.formulaire(null); } })])]));
       return;
     }
     var corps = h('tbody');
@@ -199,11 +223,11 @@
         h('td', [h('span', { text: e.poste || '—' }), h('span.s', { text: e.typeNom || '' })]),
         h('td', { text: nomCie(e.compagnie) }),
         h('td', { text: e.dernierJour ? dateCourte(e.dernierJour) : '—' }),
-        h('td', [h('span.cex-puce.' + e.statut, { text: STATUTS[e.statut] || e.statut }), h('span.s', { text: e.statut === 'envoyee' ? e.tachesFaites + ' / ' + e.taches.length + ' tâches' : e.statut === 'approbation' ? 'depuis le ' + dateCourte(e.demandeLe) : e.statut === 'traitee' ? 'le ' + dateCourte(e.traiteLe) : e.renvoiRaison ? 'renvoyée par le DG' : 'modifiée le ' + dateCourte(e.majLe || e.creeLe) })]),
+        h('td.cex-col-avance', [ligneDe(e)]),
         h('td', { text: e.creeParNom || '' })
       ]));
     });
-    this.elCorps.appendChild(h('div.carte', [h('div.cex-cadre', [h('table.tableau.cex-table', [h('thead', [h('tr', [h('th', 'Employé'), h('th', 'Poste'), h('th', 'Concession'), h('th', 'Dernier jour'), h('th', 'État'), h('th', 'Commencée par')])]), corps])])]));
+    this.elCorps.appendChild(h('div.carte', [h('div.cex-cadre', [h('table.tableau.cex-table', [h('thead', [h('tr', [h('th', 'Employé'), h('th', 'Poste'), h('th', 'Concession'), h('th', 'Dernier jour'), h('th', 'Avancement'), h('th', 'Commencée par')])]), corps])])]));
   };
 
   /* ------------------------------------------------------------------------------- fiche */
@@ -213,6 +237,7 @@
     fiche(id).then(function (e) {
       var dessiner = function () {
         AMX.vider(corps);
+        corps.appendChild(ligneDe(e));   /* 8 nov. : où en est le départ */
         if (e.statut === 'approbation') corps.appendChild(h('div.cex-avis', { text: 'Commencée par ' + (e.creeParNom || 'un directeur') + ', en attente de l\'approbation du DG depuis le ' + dateHeure(e.demandeLe) + '.' }));
         if (e.statut === 'brouillon' && e.renvoiRaison) corps.appendChild(h('div.cex-avis', { text: 'Renvoyée par le DG : ' + e.renvoiRaison }));
         if (e.approuveLe) corps.appendChild(h('div.cex-ok', { text: 'Approuvée par ' + (e.approuvePar || 'le DG') + ' le ' + dateHeure(e.approuveLe) + '.' }));

@@ -302,10 +302,10 @@
     var selCie = choix(e.compagnie || (codes.length === 1 ? codes[0] : ''), [['', '— choisir —']].concat(codes.map(function (c) { return [c, nomCie(c)]; })));
     var inNom = saisie(e.nom, { placeholder: 'Prénom Nom' }), inCourriel = saisie(e.courriel, { type: 'email', placeholder: 'nom@exemple.com' }), inTel = saisie(tel(e.telephone), { inputmode: 'tel', placeholder: '514 555-0101' });
     var selLangue = choix(e.langue || 'fr', [['fr', 'Français'], ['en', 'Anglais']]);
-    var inPoste = saisie(e.poste, { placeholder: 'Conseiller aux ventes' }), selType = choix(e.typeEmploi || '', TYPES), inDebut = saisie(e.debut, { type: 'date' }), inEssai = saisie(e.essai, { placeholder: '3 mois' });
+    var inPoste = outils().choixOuAutre(outils().POSTES, e.poste || '', { ph: 'Le titre du poste' }), selType = choix(e.typeEmploi || '', TYPES), inDebut = saisie(e.debut, { type: 'date' }), inEssai = choix(e.essai || '', [['', '— choisir —'], ['aucune', 'Aucune'], ['1 mois', '1 mois'], ['2 mois', '2 mois'], ['3 mois', '3 mois'], ['6 mois', '6 mois']].concat(e.essai && ['', 'aucune', '1 mois', '2 mois', '3 mois', '6 mois'].indexOf(e.essai) < 0 ? [[e.essai, e.essai]] : []));
     /* 8 nov. (Maxime : « faire remplir une fiche qui va envoyer les données dans les politiques et les fichiers d'embauche, et
        non l'inverse ») : la fiche d'embauche de rh.js — la lettre d'offre et les documents de la RH s'y remplissent. */
-    var fe = outils().ficheEmbauche(c0);
+    var fe = outils().ficheEmbauche(c0, { compagnie: function () { return selCie.value; } });
     var inAvantages = zone(e.avantages, 2, 'Assurance collective après 3 mois, véhicule de démonstration…'), inNotes = zone(e.notes, 2, 'Ce que la RH doit savoir.');
     var texte = e.texte || '';
     var selModele = h('select.saisie'), etat = h('span.cex-etat'), btnRemplir = h('button.btn.petit', { type: 'button', text: 'Remplir la lettre' });
@@ -352,14 +352,14 @@
     /* La lettre choisie dit ce qu'elle attend de la fiche (encadré en rouge tant que c'est vide). */
     var besoinsLettre = function () { var o = outils(); if (!selModele.value || !o) { fe.besoin([]); return; } modele(selModele.value).then(function (html) { fe.besoin(o.champsDe(html)); }, function () {}); };
     selModele.addEventListener('change', function () { texte = ''; majEtat(); besoinsLettre(); });
-    selCie.addEventListener('change', dessinerModeles);
+    selCie.addEventListener('change', function () { dessinerModeles(); fe.majConcession(); });
     dessinerModeles(); besoinsLettre();
     var corps = h('div.cex-form', [
       h('div.cex-prive', { text: 'La rémunération et les coordonnées du candidat restent dans un fichier privé : seuls la RH, les propriétaires et le DG de la concession les voient.' }),
       h('div.cex-h', { text: 'Candidat' }),
       h('div.grille', [champ('Nom complet', inNom), champ('Courriel', inCourriel, 'La RH lui enverra ses documents à signer.'), champ('Cellulaire (facultatif)', inTel), champ('Langue', selLangue)]),
       h('div.cex-h', { text: 'Conditions' }),
-      h('div.grille', [champ('Concession', selCie), champ('Poste', inPoste), champ('Type d\'emploi', selType), champ('Entrée en poste', inDebut), champ('Période d\'essai', inEssai)]),
+      h('div.grille', [champ('Concession', selCie), champ('Poste', inPoste.el), champ('Type d\'emploi', selType), champ('Entrée en poste', inDebut), champ('Période d\'essai', inEssai)]),
       champ('Avantages (facultatif)', inAvantages),
       h('div.cex-h', { text: 'Lettre d\'offre (modèles de la RH)' }),
       h('div.cex-lettre', [selModele, btnRemplir, etat]),

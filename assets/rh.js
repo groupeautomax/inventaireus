@@ -87,6 +87,8 @@
     '.rhx-fiche-sec { border: 1px solid var(--ligne); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; }',
     '.rhx-fiche-t { font-weight: 800; font-size: 14px; margin: 0 0 8px; } summary.rhx-fiche-t { cursor: pointer; margin: 0; } details[open] > summary.rhx-fiche-t { margin: 0 0 8px; }',
     '.rhx-fiche .champ.large { grid-column: 1 / -1; }',
+    '.rhx-choix-autre { display: grid; gap: 6px; } .rhx-choix-autre input[hidden] { display: none; }',
+    '.rhx-calcul { min-height: 36px; display: flex; align-items: center; padding: 6px 10px; border: 1px dashed var(--ligne); border-radius: 8px; background: var(--carte-2, var(--fond)); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--encre); }',
     '.rhx-fiche .champ.manque input, .rhx-fiche .champ.manque select { border-color: var(--rouge); box-shadow: 0 0 0 2px var(--rouge-bg); }',
     '.rhx-fiche .champ.manque label::after { content: " — demandé par un document"; color: var(--rouge); font-weight: 600; }',
     '.rhx-resume { border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; margin: 0 0 6px; }',
@@ -308,7 +310,7 @@
     /* 8 nov. : les montants du « Plan de rémunération — Directeur / Directrice » (modèle de HR4 copié sans ses montants). */
     remunerationtotale: 'Rémunération annuelle totale', salairebase: 'Salaire annuel de base', salairehebdo: 'Salaire hebdomadaire de base',
     bonismensuels: 'Bonis mensuels', bonistrimestriels: 'Bonis trimestriels', avantages: 'Bénéfices marginaux (total)',
-    reer: 'Contribution de l\'employeur au REER', vacances: 'Vacances annuelles', allocationauto: 'Démonstrateur ou allocation automobile',
+    reer: 'Contribution de l\'employeur au REER', reerpct: 'Contribution au REER (taux)', vacances: 'Vacances annuelles', allocationauto: 'Démonstrateur ou allocation automobile',
     valeurtotale: 'Valeur totale du plan',
     /* 8 nov. : la fiche d'embauche (les lettres d'offre de HR4 y prennent leurs renseignements). */
     tempstravail: 'Temps plein ou partiel', heures: 'Heures par semaine', duree: 'Durée de l\'emploi (mois)', fin: 'Date de fin de l\'emploi',
@@ -441,37 +443,109 @@
   /* 8 nov. (Maxime : « plutôt que de faire remplir les champs manquants, il faut faire remplir une fiche qui va envoyer les
      données nécessaires dans les politiques et les fichiers d'embauche, et non l'inverse ») : LA fiche d'embauche. Une seule
      liste de renseignements ; chaque document y prend ce qu'il lui faut (champs {{…}} du même nom). Même fiche dans le
-     « Nouvel employé » de la RH et dans les Conditions d'embauche du DG (embauches.js). */
-  var FICHE = [
-    { id: 'emploi', titre: 'L\'emploi', champs: [
-      { n: 'tempstravail', choix: ['temps plein', 'temps partiel'] },
-      { n: 'superieur', ph: 'Ex. directeur des ventes' },
-      { n: 'horaire', ph: 'Ex. du lundi au vendredi, de 8 h à 17 h', large: true },
-      { n: 'heures', ph: 'Ex. 40' },
-      { n: 'duree', ph: 'Ex. 6', aide: 'En mois — emploi temporaire seulement.' },
-      { n: 'fin', ph: 'Ex. 31 mars 2027', aide: 'Emploi temporaire seulement.' }
-    ] },
-    { id: 'paie', titre: 'La rémunération', champs: [
-      { n: 'tauxhoraire', ph: 'Ex. 22,50 $', aide: 'Employé payé à l\'heure.' },
-      { n: 'salairebase', ph: 'Ex. 55 000 $', aide: 'Employé salarié.' },
-      { n: 'salairehebdo', ph: 'Ex. 1 057,69 $' },
-      { n: 'allocationauto', ph: 'Ex. 450 $ par mois, ou un démonstrateur', aide: 'S\'il n\'y en a pas : « aucune ».' },
-      { n: 'programmeboni', ph: 'Ex. Commission de 25 % du profit brut', large: true, aide: 'Le programme qui s\'applique au poste. S\'il n\'y en a pas : « aucun ».' },
-      { n: 'remuneration', ph: 'Se remplit tout seul à partir du taux ou du salaire', large: true, aide: 'Facultatif : le résumé montré à la RH et dans les anciennes lettres.' }
-    ] },
-    { id: 'plan', titre: 'Plan de rémunération (directeurs)', repli: true, champs: [
-      { n: 'remunerationtotale', ph: 'Ex. 150 000 $' }, { n: 'bonismensuels' }, { n: 'bonistrimestriels' }, { n: 'avantages' },
-      { n: 'reer' }, { n: 'vacances', ph: 'Ex. 4 semaines par année' }, { n: 'valeurtotale' }
-    ] }
+     « Nouvel employé » de la RH et dans les Conditions d'embauche du DG (embauches.js).
+     8 nov., suite (« les champs doivent contenir des choix, comme les directeurs, leurs heures de travail ; ne pas laisser des
+     champs à écrire ») : des listes partout ; seuls le taux horaire et les montants du salaire se tapent, en chiffres ; les
+     totaux du plan des directeurs se calculent. « Autre… » reste au bout d'une liste pour un cas rare. */
+  var POSTES = [
+    { g: 'Ventes', l: ['Conseiller aux ventes', 'Conseiller aux ventes — véhicules neufs', 'Conseiller aux ventes — véhicules d\'occasion', 'Agent BDC (centre de contact)', 'Directeur commercial (F&I)', 'Directeur des ventes', 'Directeur des ventes — véhicules d\'occasion', 'Secrétaire des ventes', 'Préposé à la livraison'] },
+    { g: 'Service', l: ['Technicien', 'Apprenti technicien', 'Conseiller technique', 'Préposé au service', 'Préposé à l\'esthétique', 'Laveur', 'Préposé à la cour', 'Contremaître', 'Directeur du service', 'Directeur des opérations fixes'] },
+    { g: 'Pièces et carrosserie', l: ['Commis aux pièces', 'Directeur des pièces', 'Estimateur en carrosserie', 'Carrossier', 'Peintre'] },
+    { g: 'Administration', l: ['Réceptionniste', 'Commis comptable', 'Technicien comptable', 'Commis aux réclamations', 'Contrôleur', 'Directeur général'] }
   ];
-  var FICHE_CONNUS = {}; FICHE.forEach(function (s) { s.champs.forEach(function (c) { FICHE_CONNUS[c.n] = s.id; }); });
+  var TITRES_SUPERIEUR = [
+    { v: 'le directeur général', t: 'Directeur général' }, { v: 'le directeur des ventes', t: 'Directeur des ventes' },
+    { v: 'le directeur commercial', t: 'Directeur commercial (F&I)' }, { v: 'le directeur du service', t: 'Directeur du service' },
+    { v: 'le directeur des pièces', t: 'Directeur des pièces' }, { v: 'le directeur des opérations fixes', t: 'Directeur des opérations fixes' },
+    { v: 'le contremaître', t: 'Contremaître' }, { v: 'le contrôleur', t: 'Contrôleur' }
+  ];
+  var HORAIRES = ['du lundi au vendredi, de 8 h à 17 h', 'du lundi au vendredi, de 8 h 30 à 17 h', 'du lundi au vendredi, de 9 h à 17 h',
+    'du lundi au vendredi, de 7 h 30 à 16 h 30', 'du lundi au vendredi, de 7 h à 15 h 30', 'du lundi au jeudi, de 7 h à 17 h 30 (4 jours)',
+    'de soir, du lundi au jeudi, de 16 h à 0 h 30', 'selon l\'horaire du département des ventes (jour, soir et samedi)', 'selon l\'horaire du département, établi par votre supérieur'];
+  var HEURES = ['20', '24', '25', '28', '30', '32', '35', '37,5', '40', '42,5', '44', '45', '48', '50'];
+  var DUREES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '18', '24'].map(function (x) { return { v: x, t: x + ' mois' }; });
+  var PROGRAMMES = [{ v: 'aucun', t: 'Aucun' },
+    { v: 'Il s\'agit du programme de commission des ventes, décrit dans votre plan de paie.', t: 'Commission des ventes (plan de paie)' },
+    { v: 'Il s\'agit du programme de commission du service, décrit dans votre plan de paie.', t: 'Commission du service (plan de paie)' },
+    { v: 'Il s\'agit du programme de bonification selon les objectifs de la concession.', t: 'Boni selon les objectifs de la concession' },
+    { v: 'Les détails vous seront remis avec votre plan de rémunération.', t: 'Plan de rémunération remis séparément' }];
+  var ALLOCATIONS = [{ v: 'aucune', t: 'Aucune' }, { v: 'un véhicule démonstrateur', t: 'Véhicule démonstrateur' },
+    '300 $ par mois', '400 $ par mois', '500 $ par mois', '600 $ par mois', '800 $ par mois'];
+  var REER = [{ v: '0', t: 'Aucune' }, { v: '3', t: '3 %' }, { v: '4', t: '4 %' }, { v: '5', t: '5 %' }, { v: '6', t: '6 %' }, { v: '7,5', t: '7,5 %' }];
+  var VACANCES = ['2 semaines par année (4 %)', '3 semaines par année (6 %)', '4 semaines par année (8 %)', '5 semaines par année (10 %)'];
+  /* Les postes abrégés des dossiers importés (« Dir.commercial ») en toutes lettres, pour la lettre. */
+  var ABREV_POSTES = [[/^dir\.?\s*g[ée]n\.?\s*ventes/i, 'directeur général des ventes'], [/^dir\.?\s*g[ée]n[ée]?r?a?l?\.?$/i, 'directeur général'],
+    [/^dir\.?\s*commercial/i, 'directeur commercial'], [/^dir\.?\s*adj\.?\s*service/i, 'directeur adjoint du service'], [/^dir\.?\s*service/i, 'directeur du service'],
+    [/^dir\.?\s*ops?\.?\s*fixes/i, 'directeur des opérations fixes'], [/^dir\.?\s*renouvel/i, 'directeur du renouvellement'],
+    [/^dir\.?\s*vtes?\.?\s*usag/i, 'directeur des ventes de véhicules d\'occasion'], [/^dir\.?\s*vtes?\.?\s*neuf/i, 'directeur des ventes de véhicules neufs'],
+    [/^dir\.?\s*r\.?\s*t\.?\s*et paie/i, 'directeur des ressources humaines et de la paie'], [/^dir\.?\s*pi[eè]ces/i, 'directeur des pièces'],
+    [/^contr[oô]leur/i, 'contrôleur'], [/^contrema/i, 'contremaître'], [/^chef d.?[ée]quipe/i, 'chef d\'équipe']];
+  function titreComplet(poste) {
+    var p = String(poste || '').replace(/&icirc;/g, 'î').trim();
+    for (var i = 0; i < ABREV_POSTES.length; i++) if (ABREV_POSTES[i][0].test(p)) return ABREV_POSTES[i][1];
+    return p.charAt(0).toLowerCase() + p.slice(1);
+  }
+  var EST_DIRECTION = /^dir\b|dir\.|direct|g[ée]rant|chef|contr[oô]leur|contrema|superviseur/i;
+  /* Les employés des dossiers (RH, propriétaires, DG) : les directeurs de la concession deviennent des choix de supérieur. */
+  var employesPromesse = null;
+  function chargerEmployes() {
+    if (!employesPromesse) {
+      employesPromesse = AMX.get({ employes: 1 }, { delai: 90000, secours: false, discret: true })
+        .then(function (d) { return d && Array.isArray(d.employes) ? d.employes.filter(function (e) { return e.statut !== 'parti'; }) : []; }, function () { return []; });
+    }
+    return employesPromesse;
+  }
+  function superieursPour(cie, employes) {
+    var gens = (employes || []).filter(function (e) { return (!cie || e.compagnie === cie) && EST_DIRECTION.test(e.poste || ''); })
+      .map(function (e) { var nom = e.nomComplet || [e.prenom, e.nom].filter(Boolean).join(' '); var t = titreComplet(e.poste); return { v: nom + ', ' + t, t: nom + ' — ' + t }; })
+      .sort(function (a, b) { return a.t.localeCompare(b.t, 'fr'); });
+    return gens.length ? [{ g: 'Directeurs de la concession (dossiers des employés)', l: gens }, { g: 'Ou un titre', l: TITRES_SUPERIEUR }] : TITRES_SUPERIEUR;
+  }
+  /** Une liste, avec « Autre… » au bout pour un cas rare : { el, value (lecture / écriture), options(liste) }. */
+  function choixOuAutre(liste, valeur, opts) {
+    opts = opts || {};
+    var sel = h('select'), autre = h('input', { type: 'text', autocomplete: 'off', placeholder: opts.ph || 'Écrivez-le ici', hidden: true });
+    var el = h('div.rhx-choix-autre', [sel, autre]);
+    var courant = String(valeur || '');
+    var item = function (o) { return typeof o === 'string' ? { v: o, t: o.charAt(0).toUpperCase() + o.slice(1) } : o; };
+    var valeurs = function () { var out = []; (opts.liste || []).forEach(function (o) { if (o && o.g) (o.l || []).forEach(function (x) { out.push(item(x).v); }); else out.push(item(o).v); }); return out; };
+    var dessiner = function () {
+      AMX.vider(sel);
+      sel.appendChild(h('option', { value: '', text: opts.vide || '— choisir —' }));
+      (opts.liste || []).forEach(function (o) {
+        if (o && o.g) sel.appendChild(h('optgroup', { label: o.g }, (o.l || []).map(function (x) { x = item(x); return h('option', { value: x.v, text: x.t }); })));
+        else { var x = item(o); sel.appendChild(h('option', { value: x.v, text: x.t })); }
+      });
+      if (opts.autre !== false) sel.appendChild(h('option', { value: '__autre__', text: 'Autre… (l\'écrire)' }));
+      var connu = !courant || valeurs().indexOf(courant) >= 0;
+      sel.value = connu ? courant : (opts.autre !== false ? '__autre__' : '');
+      autre.hidden = sel.value !== '__autre__'; if (!connu) autre.value = courant;
+    };
+    sel.addEventListener('change', function () {
+      autre.hidden = sel.value !== '__autre__';
+      courant = sel.value === '__autre__' ? autre.value.trim() : sel.value;
+      if (!autre.hidden) autre.focus();
+      if (opts.onChange) opts.onChange(courant);
+    });
+    autre.addEventListener('input', function () { courant = autre.value.trim(); if (opts.onChange) opts.onChange(courant); });
+    opts.liste = liste; dessiner();
+    var api = { el: el, select: sel, options: function (l) { opts.liste = l; dessiner(); }, focus: function () { (autre.hidden ? sel : autre).focus(); } };
+    Object.defineProperty(api, 'value', { get: function () { return courant; }, set: function (v) { courant = String(v || ''); dessiner(); } });
+    return api;
+  }
+  /* Un montant en chiffres (« 22,5 » → « 22,50 $ », « 55000 » → « 55 000 $ ») ; nombre() relit « 55 000 $ ». */
+  function nombre(s) { var t = String(s || '').replace(/[\s  $]/g, '').replace(/,(?=\d{1,2}$)/, '.').replace(/,/g, ''); var n = parseFloat(t); return isFinite(n) ? n : 0; }
+  function argent(n, dec) {
+    if (!n) return '';
+    var x = Number(n).toFixed(dec || 0).split('.');
+    return x[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (x[1] ? ',' + x[1] : '') + ' $';
+  }
   /* Le résumé « Rémunération » (liste des conditions d'embauche, anciennes lettres {{remuneration}}), tiré de la fiche. */
   function resumeRemuneration(v) {
     v = v || {};
     var t = function (k) { return String(v[k] || '').trim(); };
     var r = t('tauxhoraire') ? t('tauxhoraire') + ' de l\'heure' + (t('heures') ? ', ' + t('heures') + ' h par semaine' : '')
       : t('salairebase') ? t('salairebase') + ' par année' : t('remunerationtotale') ? t('remunerationtotale') + ' par année (rémunération totale)' : '';
-    if (r && t('programmeboni') && !AUCUN.test(t('programmeboni'))) r += ' + ' + t('programmeboni');
     return r;
   }
   /* 8 nov. : un renseignement « aucun » (pas de commission, pas d'allocation automobile) retire de la lettre la phrase qui
@@ -487,26 +561,68 @@
     });
     return s;
   }
-  /** La fiche à remplir : { el, valeurs(), besoin(noms), manque(noms), montrerManques() }. `besoin` = les champs que les
-      documents choisis demandent (encadrés en rouge s'ils sont vides ; un champ inconnu de la fiche y est ajouté). */
+  var FICHE = [
+    { id: 'emploi', titre: 'L\'emploi', champs: [
+      { n: 'tempstravail', type: 'choix', liste: ['temps plein', 'temps partiel'] },
+      { n: 'superieur', type: 'autre', liste: TITRES_SUPERIEUR, superieur: true },
+      { n: 'horaire', type: 'autre', liste: HORAIRES, large: true },
+      { n: 'heures', type: 'choix', liste: HEURES.map(function (x) { return { v: x, t: x + ' heures' }; }) },
+      { n: 'duree', type: 'choix', liste: DUREES, aide: 'Emploi temporaire seulement.' },
+      { n: 'fin', type: 'date', aide: 'Emploi temporaire seulement.' }
+    ] },
+    { id: 'paie', titre: 'La rémunération', champs: [
+      { n: 'tauxhoraire', type: 'montant', dec: 2, ph: 'Ex. 22,50', aide: 'Employé payé à l\'heure.' },
+      { n: 'salairebase', type: 'montant', dec: 0, ph: 'Ex. 55000', aide: 'Employé salarié.' },
+      { n: 'salairehebdo', type: 'calcul', aide: 'Calculé : salaire annuel ÷ 52.' },
+      { n: 'allocationauto', type: 'autre', liste: ALLOCATIONS },
+      { n: 'programmeboni', type: 'autre', liste: PROGRAMMES, large: true },
+      { n: 'remuneration', type: 'calcul', large: true, aide: 'Calculé : le résumé montré à la RH.' }
+    ] },
+    { id: 'plan', titre: 'Plan de rémunération (directeurs)', repli: true, champs: [
+      { n: 'bonismensuels', type: 'montant', dec: 0, ph: 'Ex. 52800', aide: 'Total de l\'année.' },
+      { n: 'bonistrimestriels', type: 'montant', dec: 0, ph: 'Ex. 32000', aide: 'Total de l\'année.' },
+      { n: 'reerpct', type: 'choix', liste: REER },
+      { n: 'vacances', type: 'choix', liste: VACANCES },
+      { n: 'remunerationtotale', type: 'calcul', aide: 'Salaire annuel + bonis.' },
+      { n: 'reer', type: 'calcul', aide: 'Rémunération totale × taux REER.' },
+      { n: 'avantages', type: 'calcul', aide: 'La contribution au REER.' },
+      { n: 'valeurtotale', type: 'calcul', aide: 'Rémunération totale + bénéfices marginaux.' }
+    ] }
+  ];
+  var FICHE_CONNUS = { finiso: 'emploi' }; FICHE.forEach(function (s) { s.champs.forEach(function (c) { FICHE_CONNUS[c.n] = s.id; }); });
+  /** La fiche à remplir : { el, valeurs(), besoin(noms), manque(noms), montrerManques(), majConcession() }. `besoin` = les
+      champs que les documents choisis demandent (encadrés en rouge s'ils sont vides ; un champ inconnu de la fiche y est
+      ajouté) ; opts.compagnie() = la concession choisie (les directeurs proposés en dépendent). */
   function ficheEmbauche(valeurs, opts) {
     opts = opts || {}; css();   /* les styles de la fiche vivent ici, même ouverte depuis les conditions d'embauche */
     var v = {}; Object.keys(valeurs || {}).forEach(function (k) { if (valeurs[k] !== undefined && valeurs[k] !== null) v[k] = String(valeurs[k]); });
-    var entrees = {}, besoins = {}, autres = [], sections = {};
+    var entrees = {}, besoins = {}, autres = [], sections = {}, employes = null;
     var el = h('div.rhx-fiche');
     var elAutres = h('div.grille'), secAutres = h('div.rhx-fiche-sec', [h('div.rhx-fiche-t', { text: 'Autres renseignements demandés par les documents' }), elAutres]);
+    var changer = function () { calculer(); maj(); if (opts.onChange) opts.onChange(); };
     var entree = function (c) {
-      var inp;
-      if (c.choix) {
-        inp = h('select', [h('option', { value: '', text: '—' })].concat(c.choix.map(function (x) { return h('option', { value: x, text: x.charAt(0).toUpperCase() + x.slice(1) }); })));
-        inp.value = v[c.n] || '';
-        inp.addEventListener('change', function () { v[c.n] = inp.value; maj(); if (opts.onChange) opts.onChange(); });
+      var ctl, inp;
+      if (c.type === 'choix') {
+        inp = h('select', [h('option', { value: '', text: '— choisir —' })].concat(c.liste.map(function (x) { x = typeof x === 'string' ? { v: x, t: x.charAt(0).toUpperCase() + x.slice(1) } : x; return h('option', { value: x.v, text: x.t }); })));
+        inp.value = v[c.n] || ''; inp.addEventListener('change', function () { v[c.n] = inp.value; changer(); });
+      } else if (c.type === 'autre') {
+        ctl = choixOuAutre(c.liste, v[c.n] || '', { onChange: function (x) { v[c.n] = x; changer(); } });
+        inp = ctl.el;
+      } else if (c.type === 'date') {
+        inp = h('input', { type: 'date', value: v.finiso || '' });
+        inp.addEventListener('change', function () { v.finiso = inp.value; v[c.n] = inp.value ? dateLongue(inp.value) : ''; changer(); });
+      } else if (c.type === 'montant') {
+        inp = h('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', value: v[c.n] || '', placeholder: c.ph || '' });
+        inp.addEventListener('input', function () { v[c.n] = inp.value; changer(); });
+        inp.addEventListener('blur', function () { var n = nombre(inp.value); inp.value = n ? argent(n, c.dec) : ''; v[c.n] = inp.value; changer(); });
+      } else if (c.type === 'calcul') {
+        inp = h('div.rhx-calcul', { text: v[c.n] || '—' });
       } else {
         inp = h('input', { type: 'text', autocomplete: 'off', value: v[c.n] || '', placeholder: c.ph || '' });
-        inp.addEventListener('input', function () { v[c.n] = inp.value; maj(); if (opts.onChange) opts.onChange(); });
+        inp.addEventListener('input', function () { v[c.n] = inp.value; changer(); });
       }
-      var bloc = h('div.champ' + (c.large ? '.large' : ''), [h('label', { text: libChamp(c.n) }), inp, c.aide ? h('span.aide', { text: c.aide }) : null]);
-      entrees[c.n] = { inp: inp, bloc: bloc };
+      var bloc = h('div.champ' + (c.large ? '.large' : '') + (c.type === 'calcul' ? '.calcul' : ''), [h('label', { text: libChamp(c.n) }), inp, c.aide ? h('span.aide', { text: c.aide }) : null]);
+      entrees[c.n] = { inp: inp, bloc: bloc, ctl: ctl, def: c };
       return bloc;
     };
     FICHE.forEach(function (s) {
@@ -521,30 +637,48 @@
         autres.push(n); elAutres.appendChild(entree({ n: n }));
       });
     };
-    var rempli = function (n) { return !!String(v[n] || '').trim() || (n === 'remuneration' && !!resumeRemuneration(v)); };
+    /* Les calculs : salaire de la semaine, totaux du plan, REER, résumé. */
+    var calculer = function () {
+      var base = nombre(v.salairebase), bm = nombre(v.bonismensuels), bt = nombre(v.bonistrimestriels), pct = nombre(v.reerpct);
+      var total = base + bm + bt, reer = v.reerpct ? Math.round(total * pct / 100) : 0;
+      v.salairehebdo = base ? argent(base / 52, 2) : '';
+      v.remunerationtotale = (bm || bt) && total ? argent(total) : '';
+      v.reer = v.reerpct === '0' ? 'Aucune contribution' : reer ? argent(reer) + ' (' + v.reerpct + ' % de la rémunération totale)' : '';
+      v.avantages = reer ? argent(reer) : '';
+      v.valeurtotale = v.remunerationtotale ? argent(total + reer) : '';
+      var r = resumeRemuneration(v); if (r || !valeurs || !valeurs.remuneration || nombre(v.tauxhoraire) || base) v.remuneration = r;
+      FICHE.forEach(function (s) { s.champs.forEach(function (c) { if (c.type === 'calcul' && entrees[c.n]) entrees[c.n].inp.textContent = v[c.n] || '—'; }); });
+    };
+    var rempli = function (n) { return !!String(v[n] || '').trim(); };
     var maj = function () {
       Object.keys(entrees).forEach(function (n) { entrees[n].bloc.classList.toggle('manque', !!besoins[n] && !rempli(n)); });
       secAutres.hidden = !autres.length;
       var plan = sections.plan;
-      if (plan && !plan.open && FICHE[2].champs.some(function (c) { return besoins[c.n] || rempli(c.n); })) plan.open = true;
+      if (plan && !plan.open && FICHE[2].champs.some(function (c) { return besoins[c.n] || (c.type !== 'calcul' && rempli(c.n)); })) plan.open = true;
     };
+    var majConcession = function () {
+      var e = entrees.superieur; if (!e || !e.ctl) return;
+      var cie = opts.compagnie ? opts.compagnie() : '';
+      e.ctl.options(superieursPour(cie, employes));
+    };
+    chargerEmployes().then(function (l) { employes = l; majConcession(); });
     ajouterAutres(Object.keys(v).filter(function (k) { return String(v[k] || '').trim(); }));
-    maj();
-    var api = {
+    calculer(); maj();
+    return {
       el: el,
-      valeurs: function () {
-        var out = {}; Object.keys(v).forEach(function (k) { var x = String(v[k] || '').trim(); if (x) out[k] = x; });
-        if (!out.remuneration) { var r = resumeRemuneration(out); if (r) out.remuneration = r; }
-        return out;
-      },
+      valeurs: function () { calculer(); var out = {}; Object.keys(v).forEach(function (k) { var x = String(v[k] || '').trim(); if (x) out[k] = x; }); return out; },
       besoin: function (noms) { besoins = {}; (noms || []).forEach(function (n) { if (!CHAMPS_AUTO[n]) besoins[n] = 1; }); ajouterAutres(noms); maj(); },
       manque: function (noms) { return (noms || []).filter(function (n) { return !CHAMPS_AUTO[n] && !rempli(n); }); },
       montrerManques: function () {
         var n = Object.keys(besoins).filter(function (k) { return !rempli(k); })[0];
-        if (n && entrees[n]) { if (FICHE_CONNUS[n] === 'plan') sections.plan.open = true; entrees[n].inp.focus(); entrees[n].bloc.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
-      }
+        if (!n || !entrees[n]) return;
+        if (FICHE_CONNUS[n] === 'plan') sections.plan.open = true;
+        var e = entrees[n], cible = FICHE_CONNUS[n] === 'plan' && e.def.type === 'calcul' ? entrees.salairebase : e;
+        if (cible.ctl) cible.ctl.focus(); else if (cible.inp.focus) cible.inp.focus();
+        cible.bloc.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      },
+      majConcession: majConcession
     };
-    return api;
   }
 
   function VueRh(conteneur, ctx) {
@@ -803,7 +937,7 @@
     var inNom = h('input', { type: 'text', autocomplete: 'off', placeholder: 'Prénom Nom' });
     var inCourriel = h('input', { type: 'email', autocomplete: 'off', placeholder: 'nom@exemple.com' });
     var inTel = h('input', { type: 'tel', autocomplete: 'off', placeholder: '514 555-0101' });
-    var inPoste = h('input', { type: 'text', autocomplete: 'off', placeholder: 'Conseiller aux ventes' });
+    var inPoste = choixOuAutre(POSTES, '', { ph: 'Le titre du poste' });   /* 8 nov. : des choix, pas un champ à écrire */
     var inDebut = h('input', { type: 'date' });
     var selCie = h('select', [h('option', { value: '', text: 'Choisir…' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c), selected: c === cie }); })));
     var selLangue = h('select', [h('option', { value: 'fr', text: 'Français' }), h('option', { value: 'en', text: 'English' })]);
@@ -814,7 +948,7 @@
     var eb = opts.embauche || null;
     var choisis = {}, pieces = [], textesRevus = {}, trousseId = '';
     var avisFiche = h('div');
-    var fiche = ficheEmbauche(eb ? eb.champs : {}, { onChange: function () { if (etape === 1) majAvisFiche(); } });
+    var fiche = ficheEmbauche(eb ? eb.champs : {}, { compagnie: function () { return selCie.value; }, onChange: function () { if (etape === 1) majAvisFiche(); } });
 
     /* ---- les documents */
     var docsPour = function (type) { var c = selCie.value; return self.rep.documents.filter(function (d) { return !d.retire && d.type === type && (!d.compagnie || d.compagnie === c) && (d.bibliotheque || choisis[d.id]); }); };
@@ -925,7 +1059,7 @@
         attente,
         h('p.rhx-intro', { text: 'Qui embauchez-vous ? Les champs marqués * sont obligatoires.' }),
         h('div.grille', [champ('Nom complet', inNom, '', true), champ('Courriel', inCourriel, 'Le lien part à cette adresse.', true), champ('Cellulaire', inTel, 'Facultatif : pour aussi lui envoyer le lien par texto.'),
-          champ('Poste', inPoste, '', true), champ('Date d\'entrée en poste', inDebut, '', true), champ('Concession', selCie, '', true), champ('Langue des documents', selLangue)])
+          champ('Poste', inPoste.el, '', true), champ('Date d\'entrée en poste', inDebut, '', true), champ('Concession', selCie, '', true), champ('Langue des documents', selLangue)])
       ]);
     }
     /* Étape 2 — la fiche d'embauche */
@@ -1123,7 +1257,7 @@
     if (opts.trousse || (eb && eb.trousse)) appliquerTrousse(opts.trousse || eb.trousse);
     if (eb && eb.modeleId) { choisis[eb.modeleId] = true; if (eb.texte) textesRevus[eb.modeleId] = remplirTexte(eb.texte, valeursEnvoi()); }
     majTexto(); majBesoins();
-    selCie.addEventListener('change', function () { trousseId = ''; });
+    selCie.addEventListener('change', function () { trousseId = ''; fiche.majConcession(); });
     m = AMX.modale({ titre: eb ? 'Nouvel employé — conditions d\'embauche ' + eb.id : 'Nouvel employé', classe: 'rhx-assistant', large: true, corps: h('div.rhx-form', [barre, corps]), boutons: [] });
     montrer();
   };
@@ -1289,7 +1423,7 @@
   /* 7 nov. : pour les conditions d'embauche (embauches.js) — les mêmes outils de lettre, et « Préparer l'envoi ». */
   var vueCourante = null, envoiEnAttente = null;
   AMX.rh.outils = { remplirTexte: remplirTexte, surligner: surligner, editeurTexte: editeurTexte, resteACompleter: resteACompleter, passages: PASSAGES_A_COMPLETER,
-    dateLongue: dateLongue, champsAuto: CHAMPS_AUTO, libChamp: libChamp, champsDe: champsDe, ficheEmbauche: ficheEmbauche, resumeRemuneration: resumeRemuneration, sansAucun: sansAucun };
+    dateLongue: dateLongue, champsAuto: CHAMPS_AUTO, libChamp: libChamp, champsDe: champsDe, ficheEmbauche: ficheEmbauche, resumeRemuneration: resumeRemuneration, sansAucun: sansAucun, choixOuAutre: choixOuAutre, POSTES: POSTES };
   AMX.rh.preparerEnvoi = function (embauche) {
     if (vueCourante && !vueCourante.detruit && vueCourante.rep) { vueCourante.nouvelEnvoi({ embauche: embauche }); return; }
     envoiEnAttente = embauche;

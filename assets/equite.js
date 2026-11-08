@@ -869,6 +869,8 @@
       '.eq-crm-puces { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; } .eq-crm .champ { margin: 0 0 10px; } .eq-crm select, .eq-crm textarea { width: 100%; }',
       '.eq-crm-case { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 8px; cursor: pointer; } .eq-crm-case input { margin-top: 3px; width: 18px; height: 18px; flex: none; } .eq-crm-case.inactif { opacity: .5; }',
       'button.eq-crm { margin-top: 4px; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--vert); background: var(--carte); color: var(--vert-fonce); cursor: pointer; white-space: nowrap; } button.eq-crm:hover { background: var(--vert-clair); } button.eq-crm.envoye { border-color: var(--ligne-forte); color: var(--encre-2); background: var(--gris-bg); }',
+      '.eq-crm-puce { background: var(--bleu-bg); color: var(--bleu); border-color: transparent; font-weight: 700; } .eq-rep-puce { background: var(--violet-bg); color: var(--violet); border-color: transparent; font-weight: 700; }',
+      '.eq-table tr.au-crm > td:first-child { box-shadow: inset 4px 0 0 var(--bleu); } select.eq-sel-crm.actif { border-color: var(--bleu); background: var(--bleu-bg); color: var(--bleu); font-weight: 700; }',
       '.eq-rep { color: var(--violet); font-weight: 600; } .eq-outils-liste { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; }',
       '.eq-params { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; } .eq-params .champ { width: 110px; } .eq-params .champ input { height: 30px; }',
       '.eq-filtres { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; } .eq-filtres .recherche { flex: 1 1 180px; height: 30px; } .eq-filtres select { height: 30px; width: auto; } .eq-filtres .compte { margin-left: auto; font-size: 12px; color: var(--encre-3); }',
@@ -928,7 +930,10 @@
       } }
     ] }) : null;
     this.params = AMX.equite.params();
-    this.filtres = { quoi: 'cibles', type: '', echeance: '', conseiller: '', rep: '', q: '' };
+    /* 8 nov. (Maxime : « quand un client est envoyé au CRM, on doit le voir dans le système et il doit y avoir un filtre qui
+       suit toujours ») : les filtres « CRM » et « Représentant » sont gardés sur l'appareil (ils restent au retour sur la page). */
+    var memoCrm = String(AMX.memo.lire('eq_filtre_crm', '') || ''), memoRep = String(AMX.memo.lire('eq_filtre_rep', '') || '');
+    this.filtres = { quoi: 'cibles', type: '', echeance: '', conseiller: '', rep: memoRep === '__crm' ? '' : memoRep, crm: /^(envoyes|pasEnvoyes)$/.test(memoCrm) ? memoCrm : '', q: '' };
     this.ia = null;   /* filtres rendus par Einstein AI : { question, resume, conditions, tri, sens } */
     this.lignes = []; this.lecture = null;
     this.us = null;          /* calculs É.-U. des évaluations (?evaluationsUs=1), par NIV */
@@ -1010,9 +1015,10 @@
       if (quoi === 'meilleurUS' && !r.meilleurUS) return false;
       if (quoi === 'fidelite' && !r.fidelite) return false;
       if (quoi === 'interet' && !r.sauver) return false;
-      var cr = (quoi === 'crm' || f.rep) ? crmDe(cieV, c.compte) : null;
-      if (quoi === 'crm' && !(cr && cr.crmLe)) return false;
-      if (f.rep && (f.rep === '__sans' ? !!(cr && cr.representant) : (f.rep === '__crm' ? !(cr && cr.crmLe) : !(cr && cr.representant === f.rep)))) return false;
+      var fcrm = sauf === 'crm' ? '' : f.crm, cr = (fcrm || f.rep) ? crmDe(cieV, c.compte) : null;
+      if (fcrm === 'envoyes' && !(cr && cr.crmLe)) return false;
+      if (fcrm === 'pasEnvoyes' && cr && cr.crmLe) return false;
+      if (f.rep && (f.rep === '__sans' ? !!(cr && cr.representant) : !(cr && cr.representant === f.rep))) return false;
       if (f.type === 'location' && !r.location) return false;
       if (f.type === 'financement' && r.location) return false;
       if (f.echeance && (r.moisRestants === null || r.moisRestants > Number(f.echeance))) return false;
@@ -1076,7 +1082,7 @@
     params.addEventListener('toggle', function () { self.reglagesOuverts = params.open; });
     /* Filtres : recherche, type, échéance, conseiller ; puis les tuiles (chacune filtre aussi) — elles comptent ce que ces filtres gardent. */
     var conseillers = {}; this.lignes.forEach(function (r) { conseillers[r.compte.conseiller || '—'] = 1; });
-    var sel = function (cle, options) { var s = h('select', options.map(function (o) { return h('option', { value: o[0], selected: self.filtres[cle] === o[0] ? 'selected' : null, text: o[1] }); })); s.value = self.filtres[cle]; s.addEventListener('change', function () { self.filtres[cle] = s.value; setTimeout(function () { self.rendre(); }, 0); }); return s; };
+    var sel = function (cle, options) { var s = h('select' + (cle === 'crm' || cle === 'rep' ? '.eq-sel-crm' + (self.filtres[cle] ? '.actif' : '') : ''), options.map(function (o) { return h('option', { value: o[0], selected: self.filtres[cle] === o[0] ? 'selected' : null, text: o[1] }); })); s.value = self.filtres[cle]; s.addEventListener('change', function () { self.filtres[cle] = s.value; if (cle === 'crm' || cle === 'rep') AMX.memo.ecrire('eq_filtre_' + cle, s.value); setTimeout(function () { self.rendre(); }, 0); }); return s; };
     var rech = h('input.recherche', { type: 'search', placeholder: 'Client, NIV, modèle, ville…', value: this.filtres.q });
     rech.addEventListener('input', function () { self.filtres.q = rech.value; self.rendreTuiles(); self.rendreTable(); });
     this.elCompte = h('span.compte');
@@ -1089,10 +1095,11 @@
       dCrm ? (function () {
         var noms = {}; (dCrm.reps || []).forEach(function (r) { noms[r.courriel] = r.nom; });
         Object.keys(dCrm.crm || {}).forEach(function (k) { var x = dCrm.crm[k]; if (x.representant && !noms[x.representant]) noms[x.representant] = x.representantNom || x.representant; });
-        var opts = [['', 'Tous les représentants'], ['__sans', 'Sans représentant attitré'], ['__crm', 'Envoyés au CRM']].concat(Object.keys(noms).sort(function (a, b) { return String(noms[a]).localeCompare(String(noms[b]), 'fr'); }).map(function (k) { return [k, noms[k]]; }));
+        var opts = [['', 'Tous les représentants'], ['__sans', 'Sans représentant attitré']].concat(Object.keys(noms).sort(function (a, b) { return String(noms[a]).localeCompare(String(noms[b]), 'fr'); }).map(function (k) { return [k, noms[k]]; }));
         if (self.filtres.rep && !opts.some(function (o) { return o[0] === self.filtres.rep; })) self.filtres.rep = '';
         return sel('rep', opts);
       })() : null,
+      dCrm ? sel('crm', [['', 'CRM : tous les clients'], ['envoyes', 'Envoyés au CRM'], ['pasEnvoyes', 'Pas encore envoyés au CRM']]) : null,
       this.elCompte
     ]);
     /* Einstein AI : une question en français, des filtres en retour (rien des clients n'est envoyé). */
@@ -1215,7 +1222,13 @@
       carte(nMeilleurUS ? 'vert' : 'gris', 'Plus payant aux É.-U.', nMeilleurUS, 'gros É.-U. − dette > équité au Canada', 'meilleurUS'),
       (function () { var l = base.filter(function (r) { return r.sauver; }), tot = 0; l.forEach(function (r) { tot += r.interetSauve || 0; }); return carte(l.length ? 'vert' : 'gris', 'Sauver de l\'intérêt', l.length, 'taux ≥ ' + String(nombre(self.params.ecartTaux) !== null ? nombre(self.params.ecartTaux) : 2).replace('.', ',') + ' pts au-dessus d\'aujourd\'hui' + (tot ? ' · ≈ ' + fmt$(tot) + ' d\'intérêts' : ''), 'interet'); })(),
       carte('violet', 'En suivi', n(function (r) { return r.compte.suivi; }), 'contactés, rendez-vous, vendus', 'suivi'),
-      (CRM[this.cie] && CRM[this.cie].donnees) ? (function () { var nC = n(function (r) { var x = crmDe(self.cie, r.compte.compte); return !!(x && x.crmLe); }); return carte(nC ? 'bleu' : 'gris', 'Envoyés au CRM', nC, 'transactions envoyées au CRM de la concession', 'crm'); })() : null,
+      (CRM[this.cie] && CRM[this.cie].donnees) ? (function () {
+        /* 8 nov. : la tuile allume le filtre « Envoyés au CRM », gardé sur l'appareil, qui se combine avec les autres tuiles. */
+        var base2 = self.visibles('crm'), nC = base2.filter(function (r) { var x = crmDe(self.cie, r.compte.compte); return !!(x && x.crmLe); }).length, act = self.filtres.crm === 'envoyes';
+        var b = h('button.eq-tuile.' + (nC ? 'bleu' : 'gris') + (act ? '.actif' : ''), { type: 'button', 'aria-pressed': act ? 'true' : 'false', title: act ? 'Cliquez pour voir tous les clients' : 'Montrer seulement les clients envoyés au CRM' }, [h('div.nom', { text: 'Envoyés au CRM' }), h('div.n', { text: AMX.fmtNombre(nC) }), h('div.bas', { text: act ? 'filtre actif — cliquez pour l\'enlever' : 'transactions envoyées au CRM de la concession' })]);
+        b.addEventListener('click', function () { self.filtres.crm = act ? '' : 'envoyes'; AMX.memo.ecrire('eq_filtre_crm', self.filtres.crm); self.rendre(); });
+        return b;
+      })() : null,
       estHmf(this.cie) ? (function () {
         /* 7 nov. : la tuile compte les offres actives (37), pas seulement les clients de Hyundai Finance ; un clic montre ceux-ci
            dans la liste ET ouvre la carte des offres. */
@@ -1365,7 +1378,7 @@
   }
   VueEquite.prototype.rangee = function (r, contact) {
     var self = this, c = r.compte;
-    var cls = (r.cible ? '.cible' : '') + (r.sansValeur ? '.sans' : '');
+    var crL = crmDe(this.cie, c.compte), cls = (r.cible ? '.cible' : '') + (r.sansValeur ? '.sans' : '') + (crL && crL.crmLe ? '.au-crm' : '');
     var contactEl = contact ? h('div.sous.eq-contact', [c.telephone ? h('a', { href: 'tel:' + c.telephone.replace(/[^\d+]/g, ''), text: c.telephone }) : null, c.courriel ? h('span', [' · ', h('a', { href: 'mailto:' + c.courriel, text: c.courriel })]) : null]) : null;
     var eqCls = r.equite === null ? '.eq-nul' : (r.equite >= 0 ? '.eq-pos' : '.eq-neg');
     var valeurEl = r.valeur !== null ? h('button.eq-valeur', { type: 'button', title: 'Valeur OpenLane ' + fmt$(r.valeur) + (r.kmEstime ? ' au km estimé de ' + AMX.fmtNombre(r.kmEstime) + ' km' : '') + ' — cliquez pour voir le calcul', onclick: function (ev) { ev.stopPropagation(); self.detailValeur(r); } }, [h('div', { text: fmtK(r.valeur) }), h('div.sous', { text: 'OL' + (r.kmEstime ? ' · ' + Math.round(r.kmEstime / 1000) + ' k km' : '') })]) : (AMX.openlane ? h('button.btn.petit', { type: 'button', text: 'Lire', title: 'Pas encore de valeur : lire OpenLane pour ce véhicule', onclick: function (ev) { ev.stopPropagation(); self.lireUn(r); } }) : h('span.valeur', { text: 'à lire' }));
@@ -1406,6 +1419,9 @@
     if (r.ndnc) puces.push(h('span.puce.eq-ndnc', { text: 'LNNTE', title: 'Ne pas téléphoner : inscrit à la Liste nationale de numéros de télécommunication exclus ou à la liste interne de la concession (GM Dealer Direct)' }));
     if (r.sauver) puces.push(h('span.puce.eq-int-puce', { text: 'Intérêt −' + String(Math.round(r.ecartTaux * 10) / 10).replace('.', ','), title: 'Sauver de l\'intérêt\nTaux du contrat ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé à partir du rachat, du paiement et des mensualités qui restent : le prêteur ne donne pas le taux)' : ' (prêteur)') + '\nTaux du programme d\'aujourd\'hui ' + fmtTaux(r.tauxJour) + (r.programme && r.programme.libelle ? ' — ' + r.programme.libelle : '') + '\nÉcart : ' + String(r.ecartTaux).replace('.', ',') + ' points' + (r.interetMois ? '\nÀ dette égale (' + fmt$(r.solde) + ', ' + r.dette.n + ' mois) : ' + fmt$(r.interetMois) + ' de moins par mois, ≈ ' + fmt$(r.interetSauve) + ' d\'intérêts sauvés' : '') }));
     if (r.fidelite) puces.push(h('span.puce.eq-fid-puce', { text: (r.fidelite.type === 'double' ? 'Fid ×2' : 'Fid') + (r.fidelite.expiration ? ' ' + AMX.fmtDateCourte(r.fidelite.expiration) : ''), title: texteFidelite(r.fidelite) + ' — offre de fidélité de Hyundai Canada' + (r.fidelite.offre ? ' nº ' + r.fidelite.offre : '') + ' (SmartPortal) : ' + r.fidelite.pct + ' point' + (r.fidelite.pct > 1 ? 's' : '') + ' de moins sur le taux du programme.' + (r.fidelite.expiration ? '\nValide jusqu\'au ' + AMX.fmtDate(r.fidelite.expiration) : '') + (r.fidelite.pin ? '\nCode PIN : ' + r.fidelite.pin : '') + (r.fidelite.par === 'nom' ? '\nClient retrouvé par le nom et le code postal (pas le même courriel).' : '') }));
+    var crP = crmDe(self.cie, c.compte);
+    if (crP && crP.crmLe) puces.unshift(h('span.puce.eq-crm-puce', { text: 'Au CRM ' + AMX.fmtDateCourte(crP.crmLe) + (crP.representantNom ? ' · ' + nomCourt(crP.representantNom) : ''), title: 'Envoyé au CRM le ' + AMX.fmtDate(crP.crmLe) + (crP.crmPar ? ' par ' + String(crP.crmPar).split('@')[0] : '') + (crP.crmFois > 1 ? ' (' + crP.crmFois + ' envois)' : '') + (crP.representantNom ? '\nReprésentant attitré : ' + crP.representantNom : '') + (crP.crmNeuf ? '\nVéhicule proposé : ' + crP.crmNeuf : '') }));
+    else if (crP && crP.representantNom) puces.unshift(h('span.puce.eq-rep-puce', { text: 'À ' + nomCourt(crP.representantNom), title: 'Représentant attitré : ' + crP.representantNom + ' (pas encore envoyé au CRM)' }));
     if (r.exportable) puces.push(h('span.puce.eq-us-puce', { text: 'É.-U.', title: 'NIV fabriqué aux États-Unis : le véhicule peut être vendu aux É.-U. — voir la colonne « É.-U. ».' }));
     var telEl = contact && c.telephone ? h('a', { href: 'tel:' + c.telephone.replace(/[^\d+]/g, ''), text: c.telephone, onclick: function (ev) { ev.stopPropagation(); } }) : null;
     var mailEl = contact && c.courriel ? h('a.eq-mail', { href: 'mailto:' + c.courriel, text: '✉', title: c.courriel, onclick: function (ev) { ev.stopPropagation(); } }) : null;
@@ -1478,9 +1494,13 @@
         .concat(avecRep ? [opt('__retirer', 'Retirer le représentant attitré')] : []));
       var cbEnvoyer = h('input#eq-crm-envoyer', { type: 'checkbox', checked: 'checked' });
       var cbPrevenir = h('input#eq-crm-prevenir', { type: 'checkbox', checked: 'checked' });
+      /* 8 nov. (Maxime : « le texto part au représentant quand un lead lui est envoyé par le CRM ») */
+      var cbTexto = h('input#eq-crm-texto', { type: 'checkbox', checked: d.textos ? 'checked' : null });
       var note = h('textarea.saisie#eq-crm-note', { rows: 2, placeholder: 'Note pour le CRM et le représentant (facultatif) : quoi proposer, quand appeler…' });
       var ligneCase = function (cb, texte, aide) { return h('label.eq-crm-case', [cb, h('span', [h('b', { text: texte }), aide ? h('span.doux.petit', { text: ' — ' + aide }) : null])]); };
       var lignePrevenir = ligneCase(cbPrevenir, 'Prévenir le représentant par courriel', 'un courriel avec la liste de ses clients');
+      var aideTexto = h('span.doux.petit'), ligneTexto = h('label.eq-crm-case', [cbTexto, h('span', [h('b', { text: 'Prévenir le représentant par texto' }), aideTexto])]);
+      var repDe = function (courriel) { return reps.filter(function (x) { return x.courriel === courriel; })[0] || null; };
       var liste = h('ul.eq-crm-liste', rows.slice(0, 12).map(function (r) {
         var c = r.compte, x = crmDe(cie, c.compte), puces = [];
         if (x && x.crmLe) puces.push(h('span.puce.attention', { text: 'déjà envoyé le ' + AMX.fmtDateCourte(x.crmLe) }));
@@ -1494,8 +1514,12 @@
       }).concat(rows.length > 12 ? [h('li.doux', { text: '… et ' + (rows.length - 12) + ' autres.' })] : []));
       var btnEnvoi = null;
       var maj = function () {
-        var choisi = selRep.value && selRep.value !== '__retirer';
+        var choisi = (selRep.value && selRep.value !== '__retirer') || (!selRep.value && avecRep);   /* sans nouveau choix : le représentant déjà attitré */
         cbPrevenir.disabled = !choisi; lignePrevenir.classList.toggle('inactif', !choisi);
+        var rx = selRep.value && selRep.value !== '__retirer' ? repDe(selRep.value) : null, sansCell = !!(rx && rx.cellulaire === false);
+        var peutTexto = choisi && !!d.textos && !sansCell;
+        cbTexto.disabled = !peutTexto; ligneTexto.classList.toggle('inactif', !peutTexto);
+        aideTexto.textContent = !d.textos ? ' — les textos ne sont pas configurés (Admin › Alertes aux directeurs)' : (sansCell ? ' — pas de cellulaire dans son compte (Admin › Comptes et droits › Téléphone)' : ' — un court texto à son cellulaire : les clients, leur téléphone, le véhicule proposé');
         if (btnEnvoi) btnEnvoi.textContent = cbEnvoyer.checked ? 'Envoyer au CRM' + (un ? '' : ' (' + rows.length + ')') : (selRep.value === '__retirer' ? 'Retirer le représentant' : 'Attribuer');
       };
       selRep.addEventListener('change', maj); cbEnvoyer.addEventListener('change', maj);
@@ -1505,6 +1529,7 @@
         h('div.champ', [h('label', { for: 'eq-crm-rep', text: 'Représentant attitré' }), selRep]),
         ligneCase(cbEnvoyer, 'Envoyer au CRM', d.adresse || 'adresse ADF'),
         lignePrevenir,
+        ligneTexto,
         h('div.champ', [h('label', { for: 'eq-crm-note', text: 'Note' }), note]),
         h('p.doux.petit', { style: { margin: '8px 0 0' }, text: 'Les montants (valeur de gros, dette, équité) sont des estimations internes, notées comme telles dans le CRM.' + (d.quota !== null && d.quota !== undefined ? ' Courriels qui restent aujourd\'hui au compte d\'envoi : ' + d.quota + ' (' + d.reserve + ' gardés pour les codes de connexion).' : '') })
       ]);
@@ -1514,7 +1539,7 @@
           var r0 = selRep.value, envoyer = cbEnvoyer.checked;
           if (!envoyer && !r0) { AMX.toast('Choisissez un représentant, ou cochez « Envoyer au CRM ».', 'attention'); return false; }
           var corpsPost = { action: 'equiteCrm', compagnie: cie, items: rows.map(function (r) { return { compte: r.compte.compte, t: transactionDe(r) }; }),
-            representant: r0 && r0 !== '__retirer' ? r0 : '', retirer: r0 === '__retirer', envoyer: envoyer, prevenir: !!(r0 && r0 !== '__retirer' && cbPrevenir.checked), note: note.value.trim() };
+            representant: r0 && r0 !== '__retirer' ? r0 : '', retirer: r0 === '__retirer', envoyer: envoyer, prevenir: !cbPrevenir.disabled && cbPrevenir.checked, texto: !cbTexto.disabled && cbTexto.checked, note: note.value.trim() };
           return AMX.post(corpsPost, { secours: false, delai: 180000 }).then(function (res) {
             if (res && res.vehicules && res.envoyes === undefined) throw new Error('Le script n\'est pas à jour : déployez EquiteCrm.gs.');
             if (res && (res.refuse || res.ok === false) && !res.envoyes) throw new Error((res && res.erreur) || ((res.erreurs || [])[0] || {}).erreur || 'Refusé par le serveur.');
@@ -1524,7 +1549,10 @@
             if (envoyer) morceaux.push(res.envoyes + ' client' + (res.envoyes > 1 ? 's' : '') + ' envoyé' + (res.envoyes > 1 ? 's' : '') + ' au CRM');
             if (res.attribues) morceaux.push('attribué' + (res.attribues > 1 ? 's' : '') + ' à ' + (selRep.options[selRep.selectedIndex].text || '').replace(/ \(.*\)$/, ''));
             if (r0 === '__retirer') morceaux.push('représentant retiré');
-            if (res.prevenu) morceaux.push('représentant prévenu');
+            if (res.prevenu) morceaux.push((res.prevenus > 1 ? res.prevenus + ' représentants prévenus' : 'représentant prévenu') + ' par courriel');
+            if (res.textos) morceaux.push(res.textos > 1 ? res.textos + ' textos envoyés' : 'texto envoyé');
+            if (res.sansCellulaire && res.sansCellulaire.length) morceaux.push('pas de texto à ' + res.sansCellulaire.join(', ') + ' (pas de cellulaire dans son compte)');
+            if (res.textosInactifs) morceaux.push('textos non configurés');
             var errs = res.erreurs || [];
             var phrase = morceaux.join(', ') || 'Enregistré'; AMX.toast(phrase.charAt(0).toUpperCase() + phrase.slice(1) + '.' + (errs.length ? ' ' + errs.length + ' problème' + (errs.length > 1 ? 's' : '') + ' : ' + errs[0].erreur : ''), errs.length ? 'attention' : 'ok', errs.length ? 9000 : 5000);
             if (fini) fini();
@@ -1677,7 +1705,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux du contrat %': r.tauxContrat === null ? '' : r.tauxContrat, 'Taux du contrat : source': r.tauxSource === 'estime' ? 'estimé (rachat, paiement, mensualités)' : (r.tauxSource === 'preteur' ? 'prêteur' : ''), 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'Fidélité Hyundai': texteFidelite(r.fidelite), 'Fidélité : PIN': r.fidelite ? r.fidelite.pin || '' : '', 'Fidélité : expiration': r.fidelite ? r.fidelite.expiration || '' : '', 'Taux avant fidélité %': r.programme && r.programme.fidelite ? r.programme.tauxAvantFidelite : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Transaction du neuf': r.programme ? (r.programme.type === 'location' ? 'location' : 'financement') : '', 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Km / an du neuf': r.programme && r.programme.type === 'location' ? r.programme.kmAn || '' : '', 'Résiduel du neuf %': r.programme && r.programme.type === 'location' ? r.programme.residuelPct || '' : '', 'Écart avec le contrat': r.programmeManquant ? 'programme à trouver : ' + r.programme.raison : ecartsTransaction(r).join(' · '), 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Taux d\'aujourd\'hui %': r.tauxJour === null ? '' : r.tauxJour, 'Écart de taux (pts)': r.ecartTaux === null ? '' : r.ecartTaux, 'Sauver de l\'intérêt': r.sauver ? 'oui' : '', 'Intérêts sauvés (estimé)': r.interetSauve === null ? '' : r.interetSauve, 'Intérêts sauvés / mois': r.interetMois === null ? '' : r.interetMois, 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '' }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux du contrat %': r.tauxContrat === null ? '' : r.tauxContrat, 'Taux du contrat : source': r.tauxSource === 'estime' ? 'estimé (rachat, paiement, mensualités)' : (r.tauxSource === 'preteur' ? 'prêteur' : ''), 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur': r.valeur, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'Fidélité Hyundai': texteFidelite(r.fidelite), 'Fidélité : PIN': r.fidelite ? r.fidelite.pin || '' : '', 'Fidélité : expiration': r.fidelite ? r.fidelite.expiration || '' : '', 'Taux avant fidélité %': r.programme && r.programme.fidelite ? r.programme.tauxAvantFidelite : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Transaction du neuf': r.programme ? (r.programme.type === 'location' ? 'location' : 'financement') : '', 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Km / an du neuf': r.programme && r.programme.type === 'location' ? r.programme.kmAn || '' : '', 'Résiduel du neuf %': r.programme && r.programme.type === 'location' ? r.programme.residuelPct || '' : '', 'Écart avec le contrat': r.programmeManquant ? 'programme à trouver : ' + r.programme.raison : ecartsTransaction(r).join(' · '), 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Taux d\'aujourd\'hui %': r.tauxJour === null ? '' : r.tauxJour, 'Écart de taux (pts)': r.ecartTaux === null ? '' : r.ecartTaux, 'Sauver de l\'intérêt': r.sauver ? 'oui' : '', 'Intérêts sauvés (estimé)': r.interetSauve === null ? '' : r.interetSauve, 'Intérêts sauvés / mois': r.interetMois === null ? '' : r.interetMois, 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '', 'Représentant attitré': (crmDe(r.compte.compagnie || '', c.compte) || {}).representantNom || '', 'Envoyé au CRM le': ((crmDe(r.compte.compagnie || '', c.compte) || {}).crmLe || '').slice(0, 10) }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');

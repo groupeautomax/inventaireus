@@ -906,7 +906,7 @@
     AMX.ventes.declarer({
       compagnie: String(valeur('f-compagnie') || '').toUpperCase(), type: dest === 'US' || dest === 'CAN' ? 'wholesale' : 'usage',
       vin: vin.length === 17 ? vin : '', stock: valeur('f-stock') || stock || '', annee: valeur('f-annee'), marque: valeur('f-marque'), modele: valeur('f-modele'),
-      coutant: this.coutant ? String(Math.round(this.coutant * 100) / 100) : '', source: 'Fiche d\'achat', resterIci: true,
+      coutant: this.coutant ? String(Math.round(this.coutant * 100) / 100) : '', acheteur: valeur('f-acheteur'), source: 'Fiche d\'achat', resterIci: true,   /* 9 nov. : l'acheteur suit jusqu'au livre */
       apres: function () { self.rendreVente(self.vinCourant); }
     });
   };

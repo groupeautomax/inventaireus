@@ -1206,7 +1206,7 @@
      ci-dessous ne sert que si le serveur n'est pas encore à jour. « tuile/* » = tous les onglets de la tuile. Les autres
      rôles (direction, gestionnaire, admin, propriétaire) n'ont rien de caché par le rôle : leurs droits décident. */
   var ONGLETS_CACHES_ROLE = {
-    vendeur: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
+    vendeur: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
     bdc: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'service/suivi', 'service/texto', 'outils/*'],
     service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'outils/*'],
     marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],

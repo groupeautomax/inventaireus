@@ -28,6 +28,10 @@
     var codes = AMX.codesPour ? AMX.codesPour('inventaire') : [];
     var choisie = AMX.compagnieChoisie('inventaire');
     this.cie = choisie || (codes.indexOf(CIE_DEFAUT) >= 0 ? CIE_DEFAUT : (codes[0] || CIE_DEFAUT));
+    /* 9 nov. : lien d'un courriel ou d'un texto au représentant (?cie=HYUNDAI&compte=…) : cette concession, ce client. */
+    var pr = (ctx && ctx.params) || {};
+    this.compteDemande = pr.compte ? String(pr.compte) : '';
+    if (pr.cie && (!codes.length || codes.indexOf(String(pr.cie).toUpperCase()) >= 0)) this.cie = String(pr.cie).toUpperCase();
     this.vue = null;
     this.construire();
     this.rendre();
@@ -56,6 +60,8 @@
       AMX.equite.charger(true).then(function () { self.btnRafraichir.classList.remove('occupe'); self.rendre(); AMX.toast('Portefeuille mis à jour.', 'ok'); }, function (e) { self.btnRafraichir.classList.remove('occupe'); AMX.toast('Mise à jour impossible — ' + AMX.erreurTexte(e), 'erreur'); });
     } });
     this.btnImporter = h('a.btn', { href: AMX.lien('relance', 'equite', { vue: 'import' }), html: I.telecharger + '<span>Importer le portefeuille</span>', title: 'Déposer l\'export InfoBahn (BMW Financial Services)' });
+    /* 9 nov. : un vendeur voit ses clients (EquiteVendeur.gs) ; l'import du portefeuille reste à la direction. */
+    if (AMX.session && AMX.session.perms && AMX.session.perms.role === 'vendeur') this.btnImporter.hidden = true;
     /* 6 nov. (Maxime) : « fais un gros onglet Synchroniser OpenLane pour que les valeurs se calculent ; le lien d'importation est
        à deux places, mets-le dans Actions et efface les deux autres ». Un seul gros bouton dans l'en-tête ; l'importation, le
        calcul de la dette, l'export et Rafraîchir vont dans le menu Actions. */
@@ -96,6 +102,7 @@
     this.rendreEntete();
     if (this.vue && this.vue.demonter) { try { this.vue.demonter(); } catch (e) {} }
     AMX.vider(this.elCorps);
-    this.vue = AMX.equite.monter(this.elCorps, this.cie, { boutonSync: this.btnSync });
+    this.vue = AMX.equite.monter(this.elCorps, this.cie, { boutonSync: this.btnSync, compte: this.compteDemande });
+    this.compteDemande = '';
   };
 })();

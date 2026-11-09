@@ -22,9 +22,36 @@
   var h = AMX.h, I = AMX.icones;
   AMX.icones.csi = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.4l-5.3 2.8 1.1-5.9L3.5 9.2l5.9-.8z"/></svg>';
 
-  var PERIODES = [['MTD', 'Mois en cours'], ['3M', '3 mois'], ['12M', '12 mois']];
+  var PERIODES = [['MTD', 'Mois en cours'], ['3M', '3 mois'], ['AAD', 'Année à date'], ['12M', '12 mois']];   /* 9 nov. : AAD (Louis Prassinos) */
   var TYPES = [['ventes', 'Ventes'], ['service', 'Service']];
-  var FENETRES = [[30, '30 jours'], [90, '3 mois'], [365, '12 mois']];
+  var FENETRES = [[30, '30 jours'], [90, '3 mois'], ['aad', 'Année à date'], [365, '12 mois']];
+  function debutAnnee() { return new Date().getFullYear() + '-01-01'; }
+  /* 9 nov. (Louis Prassinos, Hyundai : « peut-on avoir AAD au lieu des 12 derniers mois ») : le constructeur ne donne ses scores
+     que pour le mois, 3 mois et 12 mois. L'année à date se calcule avec les sondages reçus depuis le 1er janvier (NPS = % de 9-10
+     moins % de 0-6), seulement pour les concessions dont l'échelle est un NPS (Hyundai, BMW) ; marqué « calculé ». */
+  var ECHELLES_NPS = { nps: 1, npsc: 1 };
+  function avecAad(d) {
+    if (!d || !d.scores || !d.sondages) return d;
+    var debut = debutAnnee(), echelle = {}, source = {};
+    d.scores.forEach(function (s) { if (s.periode !== 'AAD' && !echelle[s.compagnie]) { echelle[s.compagnie] = s.echelle || 'nps'; source[s.compagnie] = s.source; } });
+    var par = {};
+    d.sondages.forEach(function (x) {
+      var n = Number(x.nps); if (x.nps === null || x.nps === undefined || x.nps === '' || isNaN(n) || n < 0 || n > 10) return;
+      if (String(x.completeLe || '').slice(0, 10) < debut) return;
+      var e = echelle[x.compagnie] || 'nps'; if (!ECHELLES_NPS[e]) return;
+      [x.type, 'combine'].forEach(function (t) {
+        var k = x.compagnie + '|' + t, a = par[k] || (par[k] = { compagnie: x.compagnie, type: t, n: 0, prom: 0, pass: 0, detr: 0, echelle: e });
+        a.n++; if (n >= 9) a.prom++; else if (n >= 7) a.pass++; else a.detr++;
+      });
+    });
+    var aad = Object.keys(par).map(function (k) {
+      var a = par[k], pp = 100 * a.prom / a.n, pa = 100 * a.pass / a.n, pd = 100 * a.detr / a.n, nps = Math.round((pp - pd) * 10) / 10;
+      return { compagnie: a.compagnie, source: source[a.compagnie] || '', periode: 'AAD', type: a.type, score: nps, nps: nps, sondages: a.n, promoteurs: Math.round(pp * 10) / 10,
+        passifs: Math.round(pa * 10) / 10, detracteurs: Math.round(pd * 10) / 10, recommandation: Math.round(pp * 10) / 10, echelle: a.echelle, cibleEcart: null,
+        district: null, zone: null, national: null, rangDistrict: '', rangZone: '', rangNational: '', changement: null, tauxReponse: null, kpis: [], composites: null, calcule: true, depuis: debut };
+    });
+    return Object.assign({}, d, { scores: d.scores.filter(function (s) { return s.periode !== 'AAD'; }).concat(aad) });
+  }
   // Site CSI de chaque constructeur (le favori « Automax ← Constructeur », dans Inventaire › Neufs, se clique là).
   var SITES_CSI = {
     HYUNDAI: { nom: 'BoostCX', url: 'https://hacc.boostcx.com/bcx/dashboard/combined', echelle: 'nps' },
@@ -172,7 +199,7 @@
     this.compagnie = AMX.compagnieChoisie('resultats') || '';
     this.periode = AMX.memo.lire('csi_periode', 'MTD'); if (!PERIODES.some(function (p) { return p[0] === self.periode; })) this.periode = 'MTD';
     this.type = AMX.memo.lire('csi_type', 'ventes'); if (!TYPES.some(function (t) { return t[0] === self.type; })) this.type = 'ventes';
-    this.fenetre = parseInt(AMX.memo.lire('csi_fenetre', '90'), 10) || 90;
+    var fen = String(AMX.memo.lire('csi_fenetre', '90')); this.fenetre = fen === 'aad' ? 'aad' : (parseInt(fen, 10) || 90);
     this.recherche = '';
     this.construire();
     this.charger(false);
@@ -214,14 +241,14 @@
     if (!this.donnees) {
       AMX.vider(this.elScores); this.elScores.appendChild(AMX.chargeur('CSI'));
       /* 16 oct. (Google lent) : la dernière copie du navigateur s'affiche tout de suite, le serveur corrige ensuite */
-      AMX.cacheLocal.lireGz('csi', 7 * 86400000).then(function (o) { if (self.detruit || gen !== self.generation || self.donnees || !o || !o.donnees || !o.donnees.scores) return; self.donnees = o.donnees; self.copieLe = o.quand; self.erreur = ''; self.rendre(); }).catch(function () {});
+      AMX.cacheLocal.lireGz('csi', 7 * 86400000).then(function (o) { if (self.detruit || gen !== self.generation || self.donnees || !o || !o.donnees || !o.donnees.scores) return; self.donnees = avecAad(o.donnees); self.copieLe = o.quand; self.erreur = ''; self.rendre(); }).catch(function () {});
     }
     return AMX.get({ csi: 1 }, { copie: 'csi', secours: false }).then(function (d) {
       if (self.detruit || gen !== self.generation) return;
       self.enChargement = false; self.btnRafraichir.classList.remove('occupe');
       if (!d || d.refuse) throw new Error((d && (d.erreur || d.message)) || 'Accès refusé.');
       if (d.ok === false) throw new Error(d.erreur || 'Réponse inattendue du serveur');
-      self.donnees = d; self.erreur = ''; self.copieLe = 0;
+      self.donnees = avecAad(d); self.erreur = ''; self.copieLe = 0;
       self.rendre();
       if (manuel) AMX.toast('CSI mis à jour — ' + self.sondagesVisibles().length + ' sondage' + (self.sondagesVisibles().length > 1 ? 's' : ''), 'ok');
     }, function (e) {
@@ -388,12 +415,12 @@
       var ecart = s.cibleEcart, cls = ecart === null || ecart === undefined ? 'gris' : (ecart >= 0 ? 'vert' : 'rouge');
       var tot = (s.promoteurs || 0) + (s.passifs || 0) + (s.detracteurs || 0);
       var comp = compositeDe(s);
-      var colonnes = e.sur5 || s.echelle === 'irc' ? [h('span', [h('b', { text: s.rangDistrict || '—' }), e.rangNom || 'Classement']), h('span', [h('b', { text: signe(s.changement, e.dec || 0) }), 'vs période préc.']), h('span', [h('b', { text: pct(s.tauxReponse, 1) }), 'Taux de réponse'])] : comp ? [h('span', [h('b', { text: nb(comp.score, 1) }), 'Composite ' + comp.nom]), comp.region ? h('span', [h('b', { text: nb(comp.region.score, 1) }), 'Région']) : null, s.recommandation !== null && s.recommandation !== undefined ? h('span', [h('b', { text: pct(s.recommandation, 1) }), 'Recommandent']) : null] : [h('span', [h('b', { text: nb(s.district, 1) }), 'District']), h('span', [h('b', { text: nb(s.zone, 1) }), 'Zone']), h('span', [h('b', { text: nb(s.national, 1) }), 'National'])];
+      var colonnes = s.calcule ? [h('span', [h('b', { text: nb(s.sondages) }), 'Sondages']), h('span', [h('b', { text: pct(s.promoteurs, 0) }), '9-10']), h('span', [h('b', { text: pct(s.detracteurs, 0) }), '0-6'])] : e.sur5 || s.echelle === 'irc' ? [h('span', [h('b', { text: s.rangDistrict || '—' }), e.rangNom || 'Classement']), h('span', [h('b', { text: signe(s.changement, e.dec || 0) }), 'vs période préc.']), h('span', [h('b', { text: pct(s.tauxReponse, 1) }), 'Taux de réponse'])] : comp ? [h('span', [h('b', { text: nb(comp.score, 1) }), 'Composite ' + comp.nom]), comp.region ? h('span', [h('b', { text: nb(comp.region.score, 1) }), 'Région']) : null, s.recommandation !== null && s.recommandation !== undefined ? h('span', [h('b', { text: pct(s.recommandation, 1) }), 'Recommandent']) : null] : [h('span', [h('b', { text: nb(s.district, 1) }), 'District']), h('span', [h('b', { text: nb(s.zone, 1) }), 'Zone']), h('span', [h('b', { text: nb(s.national, 1) }), 'National'])];
       self.elScores.appendChild(h('div.csi-score.' + cls, [
         h('div.nom', { text: e.nom + ' ' + c[1] + (s.multi ? ' · ' + s.multi + ' concessions' : '') }),
         h('div.val', [nb(s.score, e.dec !== undefined ? e.dec : 1) + (e.sur5 ? ' / 5' : ''), ecart !== null && ecart !== undefined ? h('small', { text: signe(ecart) + ' pt' + (Math.abs(ecart) >= 2 ? 's' : '') + ' vs ' + e.ref, title: 'Écart par rapport ' + (e.ref === 'cible' ? 'à la cible du constructeur' : 'au composite de la marque (toutes les concessions de la marque dans la région)') }) : null]),
         h('div.comp', colonnes),
-        h('div.rangs', { text: e.sur5 ? ['5 étoiles ' + pct(s.promoteurs, 0), '4 étoiles ' + pct(s.passifs, 0), '3 étoiles et moins ' + pct(s.detracteurs, 0)].join(' · ') : (s.echelle === 'irc' ? ['promoteurs ' + pct(s.promoteurs, 0), 'passifs ' + pct(s.passifs, 0), 'détracteurs ' + pct(s.detracteurs, 0)].join(' · ') : [s.rangDistrict ? (e.rangNom || 'District') + ' ' + s.rangDistrict : '', s.rangZone ? 'zone ' + s.rangZone : '', s.rangNational ? 'national ' + s.rangNational : '', s.changement !== null && s.changement !== undefined ? 'variation ' + signe(s.changement) : '', s.sondages !== null && s.sondages !== undefined ? nb(s.sondages) + ' sondage' + (s.sondages > 1 ? 's' : '') : '', s.tauxReponse !== null && s.tauxReponse !== undefined ? 'réponse ' + pct(s.tauxReponse) : '', comp && comp.n ? 'composite sur ' + nb(comp.n) + ' sondages' : '', s.nps !== null && s.nps !== undefined ? 'NPS ' + nb(s.nps, 1) : ''].filter(Boolean).join(' · ')) }),
+        h('div.rangs', { text: s.calcule ? 'Calculé avec les ' + nb(s.sondages) + ' sondages reçus depuis le 1er janvier (pas le score officiel du constructeur, qui ne donne pas l\'année à date)' : e.sur5 ? ['5 étoiles ' + pct(s.promoteurs, 0), '4 étoiles ' + pct(s.passifs, 0), '3 étoiles et moins ' + pct(s.detracteurs, 0)].join(' · ') : (s.echelle === 'irc' ? ['promoteurs ' + pct(s.promoteurs, 0), 'passifs ' + pct(s.passifs, 0), 'détracteurs ' + pct(s.detracteurs, 0)].join(' · ') : [s.rangDistrict ? (e.rangNom || 'District') + ' ' + s.rangDistrict : '', s.rangZone ? 'zone ' + s.rangZone : '', s.rangNational ? 'national ' + s.rangNational : '', s.changement !== null && s.changement !== undefined ? 'variation ' + signe(s.changement) : '', s.sondages !== null && s.sondages !== undefined ? nb(s.sondages) + ' sondage' + (s.sondages > 1 ? 's' : '') : '', s.tauxReponse !== null && s.tauxReponse !== undefined ? 'réponse ' + pct(s.tauxReponse) : '', comp && comp.n ? 'composite sur ' + nb(comp.n) + ' sondages' : '', s.nps !== null && s.nps !== undefined ? 'NPS ' + nb(s.nps, 1) : ''].filter(Boolean).join(' · ')) }),
         tot ? h('div.csi-repartition', { title: e.sur5 ? '5 étoiles ' + pct(s.promoteurs, 0) + ' · 4 étoiles ' + pct(s.passifs, 0) + ' · 3 étoiles et moins ' + pct(s.detracteurs, 0) : 'Promoteurs ' + pct(s.promoteurs) + ' · passifs ' + pct(s.passifs) + ' · détracteurs ' + pct(s.detracteurs) }, [h('i.vert', { style: { width: (100 * (s.promoteurs || 0) / tot) + '%' } }), h('i.ambre', { style: { width: (100 * (s.passifs || 0) / tot) + '%' } }), h('i.rouge', { style: { width: (100 * (s.detracteurs || 0) / tot) + '%' } })]) : null
       ]));
     });
@@ -419,7 +446,7 @@
   };
 
   Csi.prototype.sondagesFenetre = function () {
-    var depuis = isoJoursAvant(this.fenetre), t = this.type;
+    var depuis = this.fenetre === 'aad' ? debutAnnee() : isoJoursAvant(this.fenetre), t = this.type;
     return this.sondagesVisibles().filter(function (s) { return s.type === t && String(s.completeLe || s.dateRdr || '') >= depuis; });
   };
 

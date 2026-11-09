@@ -47,7 +47,7 @@
   var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   /* Les 16 produits F&I du livre BMW (Maxime, 21 oct.) — le serveur envoie la même liste (`produits`), celle-ci sert de repli. */
   var PRODUITS_DEFAUT = [['ristourne', 'RISTOURNE'], ['gprolonge', 'GPROLONGÉ'], ['pneusJantes', 'PNEUS ET JANTES'], ['entretien', 'ENTRETIEN INCLUS'], ['esthetiqueUpsale', 'ESTHÉTIQUE UPSALE'], ['esthetiqueBase', 'ESTHÉTIQUE BASE'],
-    ['adr', 'ADR / ass. rempl.'], ['usure', 'USURE EXCESSIVE'], ['assCredit', 'ASS CRÉDIT'], ['tag', 'TAG'], ['peinture', 'PEINTURE'], ['cuir', 'CUIR'], ['vinlock', 'VINLOCK (marquage BMW)'], ['vitres', 'VITRES'], ['demarreur', 'DÉMARREUR'], ['protex', 'PROTEX']];
+    ['adr', 'ADR / ass. rempl.'], ['usure', 'USURE EXCESSIVE'], ['assCredit', 'ASS CRÉDIT'], ['tag', 'TAG'], ['peinture', 'PEINTURE'], ['cuir', 'CUIR'], ['vinlock', 'VINLOCK (marquage BMW)'], ['vitres', 'VITRES'], ['demarreur', 'DÉMARREUR'], ['protex', 'PROTEX'], ['antirouille', 'ANTIROUILLE']];
 
   function isoLocal(d) { var p = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
   function moisDe(periode) {
@@ -138,8 +138,11 @@
   function sorteEx(v) { var s = String((v && v.horsVente) || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); return /^retir/.test(s) ? 'retiree' : (/\blmb\b/.test(s) ? 'lmb' : (/rachat/.test(s) ? 'rachat' : (/accom/.test(s) ? 'accommodation' : (/after/.test(s) ? 'aftersale' : 'autre')))); }
   function capitale(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   function nombre(x) { if (x === null || x === undefined || x === '') return null; if (typeof x === 'number') return isNaN(x) ? null : x; var s = String(x).replace(/\s| | /g, '').replace(/\$/g, ''); var neg = /^\(.*\)$/.test(s) || s.indexOf('-') >= 0; s = s.replace(/[()\-]/g, ''); var v = s.lastIndexOf(','), pt = s.lastIndexOf('.'); if (v >= 0 && pt >= 0) { if (v > pt) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(/,/g, ''); } else if (v >= 0) s = s.replace(',', '.'); var n = parseFloat(s); return isNaN(n) ? null : (neg ? -n : n); }
-  function argent(n) { return n === null || n === undefined || n === '' || isNaN(n) ? '—' : AMX.fmtArgent(n); }
-  function signe(n) { if (n === null || n === undefined || isNaN(n)) return '—'; return (n > 0 ? '+' : '') + AMX.fmtArgent(n); }
+  /* 9 nov. (Annie Gagné, Hyundai : « 1814.10 $ il inscrit 1814 $ ») : un montant qui a des cents s'affiche avec ses cents
+     (il était gardé au serveur, mais montré arrondi au dollar). Un montant rond reste sans « ,00 ». */
+  function decimalesDe(n) { var x = typeof n === 'number' ? n : AMX.montant(n); return isNaN(x) || Math.round(Math.abs(x) * 100) % 100 === 0 ? 0 : 2; }
+  function argent(n) { return n === null || n === undefined || n === '' || isNaN(typeof n === 'number' ? n : AMX.montant(n)) ? '—' : AMX.fmtArgent(n, decimalesDe(n)); }
+  function signe(n) { if (n === null || n === undefined || isNaN(n)) return '—'; return (n > 0 ? '+' : '') + AMX.fmtArgent(n, decimalesDe(n)); }
   function libCategorie(type, c) { if (c === 'lmb') return 'LMB'; var l = CATEGORIES[type] || []; for (var i = 0; i < l.length; i++) if (l[i][0] === c) return l[i][1]; return c || ''; }
   function libPaiement(p) { for (var i = 0; i < PAIEMENTS.length; i++) if (PAIEMENTS[i][0] === p) return PAIEMENTS[i][1]; return p || ''; }
   function vehiculeTexte(v) { return v.vehicule || [v.annee, v.marque, v.modele, v.version].filter(Boolean).join(' ') || v.modeleTexte || ''; }

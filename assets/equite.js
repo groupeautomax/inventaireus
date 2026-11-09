@@ -1020,6 +1020,7 @@
       '.eq-orph-puce { background: var(--ambre-bg, #FFF4E0); color: var(--ambre, #955F10); border-color: transparent; font-weight: 700; } .eq-crm-origine { margin: -4px 0 10px; font-size: 13px; color: var(--encre-3); } .eq-crm-origine b { color: var(--encre); }',
       '.eq-table tr.au-crm > td:first-child { box-shadow: inset 4px 0 0 var(--bleu); } select.eq-sel-crm.actif { border-color: var(--bleu); background: var(--bleu-bg); color: var(--bleu); font-weight: 700; }',
       '.eq-rep { color: var(--violet); font-weight: 600; } .eq-outils-liste { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; }',
+      '.eq-vendeur { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px; background: var(--vert-clair); color: var(--vert-fonce); font-size: 14px; }',
       '.eq-params { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; } .eq-params .champ { width: 110px; } .eq-params .champ input { height: 30px; }',
       '.eq-filtres { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; } .eq-filtres .recherche { flex: 1 1 180px; height: 30px; } .eq-filtres select { height: 30px; width: auto; } .eq-filtres .compte { margin-left: auto; font-size: 12px; color: var(--encre-3); }',
       '.eq-table { overflow-x: auto; } .eq-table .tableau { width: 100%; } .eq-table .tableau.eq-compact { table-layout: fixed; } .eq-table .eq-compact td, .eq-table .eq-compact th { padding: 4px 6px; line-height: 1.3; overflow: hidden; } .eq-table .coupe { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .eq-table .eq-puces { display: flex; gap: 3px; flex-wrap: nowrap; overflow: hidden; margin-top: 2px; } .eq-table .eq-puces .puce { font-size: 11.5px; padding: 0 5px; line-height: 17px; border-radius: 7px; white-space: nowrap; } .eq-ndnc { background: #FDE2E2; color: #B42318; font-weight: 700; } .eq-table a.eq-mail { text-decoration: none; } .eq-table .eq-v.meme, .eq-table .eq-v.choisie { color: var(--vert-fonce, #0B6B3A); font-weight: 700; } .eq-table .eq-v.autre { color: var(--ambre, #955F10); font-weight: 700; } .eq-table .eq-v.proche, .eq-table .eq-v.inconnue { color: var(--encre-3); } .eq-table .eq-compact select.suivi { width: 100%; max-width: none; height: 24px; } .eq-table .eq-compact input.eq-mmr { width: 100%; max-width: 92px; } .eq-table .eq-compact td.eq-us-cell { min-width: 0; } .eq-table .eq-compact .btn.petit { height: 22px; padding: 0 6px; } .eq-table .eq-proj { font-weight: 700; white-space: nowrap; } .eq-table th.eq-th-paie { white-space: normal; } .eq-table th .eq-th-sous { font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 11.5px; } .eq-table .eq-proj.eq-plus { color: var(--encre-2, #374151); } .eq-table .eq-proj.eq-manquant { font-weight: 600; font-size: 12px; white-space: normal; } .eq-table button.eq-changer { margin-top: 3px; border: 1px solid var(--bleu, #1A64BF); background: #fff; color: var(--bleu, #1A64BF); border-radius: 6px; padding: 0 7px; height: 21px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; } .eq-table button.eq-changer:hover { background: #E8F0FE; } .eq-table button.eq-changer.alerte { border-color: var(--ambre, #955F10); color: var(--ambre, #955F10); } @media (max-width: 1000px) { .eq-table .tableau.eq-compact { table-layout: auto; min-width: 980px; } } .eq-table td, .eq-table th { padding: 6px 8px; vertical-align: top; font-size: 12.5px; } .eq-table th { white-space: nowrap; } .eq-table td.num, .eq-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }',
@@ -1085,6 +1086,8 @@
     this.filtres = { quoi: 'cibles', type: '', echeance: '', conseiller: '', rep: memoRep === '__crm' ? '' : memoRep, crm: /^(envoyes|pasEnvoyes)$/.test(memoCrm) ? memoCrm : '', q: '' };
     /* Un client envoyé au CRM n'est pas forcément une cible : avec ce filtre (ou un représentant), on part de tous les clients. */
     if (this.filtres.crm === 'envoyes' || (this.filtres.rep && this.filtres.rep !== '__sans')) this.filtres.quoi = 'tous';
+    /* 9 nov. : le lien du courriel ou du texto au représentant (#/relance/equite?cie=HYUNDAI&compte=…) ouvre la liste sur ce client. */
+    if (this.ctx.compte) { this.filtres.q = String(this.ctx.compte); this.filtres.quoi = 'tous'; this.filtres.crm = ''; this.filtres.rep = ''; }
     this.ia = null;   /* filtres rendus par Einstein AI : { question, resume, conditions, tri, sens } */
     this.lignes = []; this.lecture = null;
     this.us = null;          /* calculs É.-U. des évaluations (?evaluationsUs=1), par NIV */
@@ -1283,8 +1286,11 @@
     this.elTuiles = h('div.eq-tuiles');
     this.elFid = estHmf(this.cie) ? h('div.eq-fid-carte') : null;
     var contactOk = !!(d && d.contact);
-    var outilsListe = contactOk && this.sel ? h('div.eq-outils-liste', [this.sel.bouton, h('span.doux.petit', { text: 'Cochez des clients pour les envoyer au CRM (' + CRM_MAX + ' au plus à la fois), ou cliquez « → CRM » sur une ligne.' })]) : null;
-    el.appendChild(h('div.carte', [h('div.carte-corps', [this.elSync, iaBarre, iaRes, filtres, this.elTuiles, this.elFid, params, outilsListe, this.elTable])]));
+    /* 9 nov. (EquiteVendeur.gs) : un vendeur ne reçoit que ses clients ; la direction distribue (pas d'envoi au CRM). */
+    var restreint = !!(d && d.restreint);
+    var avisVendeur = restreint ? h('p.eq-vendeur', { text: 'Vos clients seulement : ceux qui vous sont attitrés, et ceux que vous avez vendus (le prêteur vous nomme, ou la vente est à votre nom au Livre des ventes). La direction des ventes distribue les autres.' }) : null;
+    var outilsListe = contactOk && this.sel && !restreint ? h('div.eq-outils-liste', [this.sel.bouton, h('span.doux.petit', { text: 'Cochez des clients pour les envoyer au CRM (' + CRM_MAX + ' au plus à la fois), ou cliquez « → CRM » sur une ligne.' })]) : null;
+    el.appendChild(h('div.carte', [h('div.carte-corps', [avisVendeur, this.elSync, iaBarre, iaRes, filtres, this.elTuiles, this.elFid, params, outilsListe, this.elTable])]));
     this.majSync();
     this.rendreTuiles();
     this.rendreFidelite();
@@ -1609,7 +1615,7 @@
     if (noteSuivi) selSuivi.title = noteSuivi;
     /* 8 nov. : envoi au CRM et représentant attitré (EquiteCrm.gs). */
     var cr = crmDe(self.cie, c.compte), crmEls = [];
-    if (contact && CRM[self.cie] && CRM[self.cie].donnees) {
+    if (contact && CRM[self.cie] && CRM[self.cie].donnees && CRM[self.cie].donnees.peutEnvoyer !== false) {
       var titreCrm = cr && cr.crmLe ? 'Envoyé au CRM le ' + AMX.fmtDate(cr.crmLe) + (cr.crmPar ? ' par ' + String(cr.crmPar).split('@')[0] : '') + (cr.crmFois > 1 ? ' (' + cr.crmFois + ' envois)' : '') + (cr.crmNeuf ? '\nVéhicule proposé : ' + cr.crmNeuf : '') + '\nCliquez pour l\'envoyer de nouveau ou changer le représentant.' : 'Envoyer cette transaction au CRM de la concession (ADF) et l\'attribuer à un représentant';
       if (cr && cr.crmEtat && /^erreur/.test(cr.crmEtat)) titreCrm += '\nDernier essai : ' + cr.crmEtat;
       crmEls.push(h('button.eq-crm' + (cr && cr.crmLe ? '.envoye' : ''), { type: 'button', text: cr && cr.crmLe ? 'CRM ✓ ' + AMX.fmtDateCourte(cr.crmLe) : '→ CRM', title: titreCrm, onclick: function (ev) { ev.stopPropagation(); self.ouvrirCrm([r]); } }));
@@ -1639,8 +1645,22 @@
       valeur: r.valeur, dette: r.solde, equite: r.equite, equiteUS: r.equiteUS, kmEstime: r.kmEstime,
       programme: p ? texteProgramme(r) : (r.programmeManquant ? 'programme du manufacturier à trouver pour ce terme' : ''),
       fidelite: r.fidelite ? texteFidelite(r.fidelite) + (r.fidelite.offre ? ' (offre nº ' + r.fidelite.offre + ')' : '') + (r.fidelite.expiration ? ', valide jusqu\'au ' + AMX.fmtDate(r.fidelite.expiration) : '') : '',
-      interet: r.sauver ? 'Sauver de l\'intérêt : taux du contrat ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé)' : '') + ', taux du programme ' + fmtTaux(r.tauxJour) + (r.interetMois ? ', environ ' + fmt$(r.interetMois) + ' de moins par mois' : '') : ''
+      interet: r.sauver ? 'Sauver de l\'intérêt : taux du contrat ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé)' : '') + ', taux du programme ' + fmtTaux(r.tauxJour) + (r.interetMois ? ', environ ' + fmt$(r.interetMois) + ' de moins par mois' : '') : '',
+      provenance: provenanceDe(r)
     };
+  }
+  /* 9 nov. (Louis Prassinos, Hyundai : « voir le type de lead, provenance pub, équité, etc. ») : pourquoi ce client est une
+     transaction possible. Le serveur valide les codes (EQC_PROVENANCES_) et les écrit dans l'ADF, le texto et le courriel. */
+  function provenanceDe(r) {
+    var c = r.compte || {}, l = [];
+    if (r.fidelite) l.push(r.fidelite.type === 'double' ? 'doubleFidelite' : 'fidelite');
+    if (/programme du constructeur/i.test(String(c.listes || ''))) l.push('programme');
+    if (r.equite !== null && r.equite !== undefined && r.equite > 0) l.push('equite');
+    if (r.echeanceProche) l.push('echeance');
+    if (r.sauver) l.push('interet');
+    if (r.cible) l.push('paiement');
+    if (r.meilleurUS) l.push('us');
+    return l;
   }
   VueEquite.prototype.ouvrirCrm = function (rows, fini) {
     var self = this, cie = this.cie;

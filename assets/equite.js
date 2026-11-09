@@ -898,22 +898,32 @@
     return faibles.length === 1 ? faibles[0] : null;
   }
   /* Le Livre des ventes, par NIV, pour les prêteurs qui ne nomment pas le représentant (chargé une fois par concession). */
-  var LIVRE_ORIG = {};
+  /* La version légère du livre (?leger=1 : NIV, conseiller, dates — même lecture que la recherche du haut), une fois pour
+     toutes les concessions : la liste complète d'une concession prenait 30 s et plus. Un script d'avant renvoie la liste
+     complète : elle sert telle quelle. */
+  var LIVRE_ORIG = {}, LIVRE_TOUT = null;
   function chargerLivreOrigine(cie) {
     var x = LIVRE_ORIG[cie] = LIVRE_ORIG[cie] || {};
-    if (x.index || x.promesse || x.erreur || !AMX.ventes || !AMX.ventes.charger) return Promise.resolve(x.index || null);
-    x.promesse = AMX.ventes.charger(cie, 'tout').then(function (d) {
+    if (x.index || x.promesse || x.erreur) return x.promesse || Promise.resolve(x.index || null);
+    if (!LIVRE_TOUT) LIVRE_TOUT = AMX.get({ ventes: 1, mois: 'tout', leger: 1 }, { gz: true, secours: false, discret: true, delai: 90000 }).then(function (d) {
+      if (!d || d.refuse || !Array.isArray(d.ventes)) throw new Error((d && (d.erreur || d.message)) || 'Livre des ventes illisible');
+      return d.ventes;
+    });
+    x.promesse = LIVRE_TOUT.then(function (ventes) {
       var index = {};
-      ((d && d.ventes) || []).forEach(function (v) {
+      ventes.forEach(function (v) {
+        if (v.compagnie && String(v.compagnie).toUpperCase() !== cie) return;
         var vin = texte(v.vin).toUpperCase();
         if (vin.length < 8 || !v.conseiller || v.statut === 'annulee' || v.type === 'wholesale' || v.horsVente) return;
         [vin, vin.slice(-8)].forEach(function (k) { (index[k] = index[k] || []).push({ nom: v.conseiller, date: texte(v.dateVente || v.dateLivraison || v.declareLe).slice(0, 10) }); });
       });
       x.index = index; x.promesse = null; ORIGINES = {};
       return index;
-    }, function (e) { x.promesse = null; x.erreur = AMX.erreurTexte(e); return null; });
+    }, function (e) { LIVRE_TOUT = null; x.promesse = null; x.erreur = AMX.erreurTexte(e); ORIGINES = {}; return null; });
     return x.promesse;
   }
+  /** Le livre est-il encore à lire pour cette concession ? (pas encore lu, ni en erreur) */
+  function livreEnAttente(cie) { var x = LIVRE_ORIG[cie]; return !(x && (x.index || x.erreur)); }
   function venteDuLivre(cie, c) {
     var x = LIVRE_ORIG[cie], vin = texte(c.vin).toUpperCase();
     if (!x || !x.index || vin.length < 8) return null;
@@ -936,6 +946,8 @@
     if (ORIGINES[cle]) return ORIGINES[cle];
     var nom = nomPropre(c.conseiller), source = nom ? 'preteur' : '';
     if (!nom) { var v = venteDuLivre(cie, c); if (v && nomPropre(v.nom)) { nom = nomPropre(v.nom); source = 'livre'; } }
+    /* Pas encore de nom et le livre n'est pas lu : on ne dit pas « orphelin » trop tôt. */
+    if (!nom && livreEnAttente(cie) && !(crmDe(cie, c.compte) || {}).representant) return { nom: '', source: '', rep: null, orphelin: false, attente: true, raison: 'lecture du Livre des ventes en cours' };
     var rep = nom ? repDuNom(nom, d.reps) : null, nomC = nomCie(cie);
     var o = { nom: nom, source: source, rep: rep, orphelin: !rep,
       raison: rep ? '' : (nom ? nom + ' n\'a pas de compte actif chez ' + nomC + ' (parti, ou pas encore dans ScanAutomax)' : 'aucun représentant d\'origine connu (le prêteur ne le donne pas' + (LIVRE_ORIG[cie] && LIVRE_ORIG[cie].index ? ' et la vente de ce NIV n\'est pas au Livre des ventes)' : ')')) };
@@ -952,6 +964,7 @@
   }
   function texteOrigine(o) {
     if (!o) return '';
+    if (o.attente) return 'Représentant d\'origine : lecture du Livre des ventes en cours…';
     if (o.attitre && o.attitre.actif) return 'Représentant attitré : ' + o.attitre.nom + (o.nom ? '\nReprésentant d\'origine : ' + o.nom : '');
     if (o.rep) return 'Représentant d\'origine : ' + o.rep.nom + (o.source === 'livre' ? ' (Livre des ventes)' : ' (prêteur)');
     return 'Orphelin : ' + o.raison;
@@ -1217,7 +1230,7 @@
     /* 9 nov. : le Livre des ventes, pour le représentant d'origine des clients dont le prêteur ne le donne pas (VW, Hyundai). */
     if (this.livreDemande !== this.cie && this.lignes.some(function (r) { return !nomPropre(r.compte.conseiller); })) {
       this.livreDemande = this.cie;
-      chargerLivreOrigine(this.cie).then(function (ix) { if (ix && !self.detruit) self.planifierRendu(0); });
+      chargerLivreOrigine(this.cie).then(function () { if (!self.detruit) self.planifierRendu(0); });   /* lu ou en erreur : les « en lecture » deviennent connus ou orphelins */
     }
     var champ = function (cle, libelle, pas, aide) { var inp = h('input', { type: 'number', step: pas || '0.01', value: String(self.params[cle]), title: aide || '' }); inp.addEventListener('change', function () { var v = nombre(inp.value); if (v === null) return; self.params[cle] = v; AMX.equite.poserParams(self.params); try { inp.blur(); } catch (e) {} setTimeout(function () { self.rendre(); }, 0); });   /* redessin différé : retirer le champ pendant son propre « change » fait échouer removeChild */ return h('div.champ', [h('label', { text: libelle }), inp]); };
     var paramsCorps = h('div.eq-params', [

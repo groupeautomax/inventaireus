@@ -678,6 +678,66 @@
     for (var i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
     return new Response(new Blob([octets]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
   }
+  /* 9 nov. 2026 (vitesse, A) — les petites demandes lancées en même temps partent en un seul envoi (?lot=[…], RoutesAjout.gs
+     ROUTES_lot_) : moins d'exécutions chez Google, donc moins de file d'attente pour tout le monde (le compte n'en fait que 30 à
+     la fois, site + app + horloge). Seulement les routes de LOT_ROUTES (petites réponses), seulement au premier essai : une
+     relance ou un secours part seul. Un script d'avant (pas de « lot » dans la réponse) : chaque demande repart seule, et le
+     site ne regroupe plus jusqu'au prochain chargement. */
+  var LOT_FENETRE_MS = 30, LOT_MAX = 6, lotIndispo = false, lotEnAttente = null;
+  var LOT_ROUTES = /^(achatsAuto|achatsCourriels|rdv|avis|csiAlertes|importsEtat|evalDemandes|pagesOffre|suggestions|demandes|evaluations|provenances|usagesSupprimes|photosD2c|cfxEtat|rabaisD2c|programmesMois|fidelite|equiteCrm|traction|iaReglages|saaqEtat|prixDetail)$/;
+  function lotPermis(params, opts) {
+    if (lotIndispo || opts.lot === false || !params || typeof params !== 'object') return false;
+    var k = Object.keys(params)[0];
+    if (!LOT_ROUTES.test(k || '') || params.frais || params.force) return false;
+    if (k === 'avis' && !params.resume) return false;   // la liste complète des avis (4 Mo) part seule
+    return true;
+  }
+  function erreurAbandon() { var e; try { e = new DOMException('abandon', 'AbortError'); } catch (x) { e = new Error('abandon'); e.name = 'AbortError'; } return e; }
+  function lotUnSeul(it) {
+    var base1 = URL_BACKEND + '?' + it.q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&_=' + Date.now() + Math.floor(Math.random() * 1000);
+    _fetch(base1, { method: 'GET', cache: 'no-store', signal: it.ctrl ? it.ctrl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(it.ok, it.ko);
+  }
+  function lotEnvoyer() {
+    var lot = lotEnAttente; lotEnAttente = null;
+    if (!lot) return;
+    clearTimeout(lot.minuterie);
+    var items = lot.items.filter(function (it) { return !it.fini; });
+    if (!items.length) return;
+    if (items.length === 1 || lotIndispo) { items.forEach(lotUnSeul); return; }
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var delai = Math.max.apply(null, items.map(function (it) { return it.delai || 30000; }));
+    var minuterie = ctrl ? setTimeout(function () { ctrl.abort(); }, delai) : null;
+    var url = URL_BACKEND + '?lot=' + encodeURIComponent(JSON.stringify(items.map(function (it) { return it.q; }))) + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&_=' + Date.now() + Math.floor(Math.random() * 1000);
+    _fetch(url, { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (t) {
+        if (minuterie) clearTimeout(minuterie);
+        var d = null; try { d = JSON.parse(t); } catch (e) { d = null; }
+        if (!d || d.ok !== true || !Array.isArray(d.lot) || d.lot.length !== items.length) {
+          // Script d'avant (ou réponse inattendue) : chacune repart seule, plus de lot pour cette session de page.
+          if (!(d && d.refuse)) lotIndispo = true;
+          items.forEach(lotUnSeul); return;
+        }
+        items.forEach(function (it, i) { if (typeof d.lot[i] === 'string') it.ok(d.lot[i]); else lotUnSeul(it); });
+      }, function (err) {
+        if (minuterie) clearTimeout(minuterie);
+        items.forEach(function (it) { it.ko(err && err.name === 'AbortError' ? erreurAbandon() : err); });
+      });
+  }
+  // Renvoie une promesse du TEXTE de la réponse, comme fetch().text() pour une demande seule.
+  function lotAjouter(q, ctrl, delai) {
+    return new Promise(function (ok, ko) {
+      var it = { q: q, ctrl: ctrl, delai: delai, fini: false };
+      it.ok = function (t) { if (it.fini) return; it.fini = true; ok(t); };
+      it.ko = function (e) { if (it.fini) return; it.fini = true; ko(e); };
+      if (ctrl && ctrl.signal) ctrl.signal.addEventListener('abort', function () { it.ko(erreurAbandon()); });
+      if (!lotEnAttente) lotEnAttente = { items: [], minuterie: setTimeout(lotEnvoyer, LOT_FENETRE_MS) };
+      lotEnAttente.items.push(it);
+      if (lotEnAttente.items.length >= LOT_MAX) lotEnvoyer();
+    });
+  }
   AMX.get = function (params, opts) {
     opts = opts || {};
     if (opts.gz && GZ_POSSIBLE && params && typeof params === 'object' && !params.gz) params = Object.assign({}, params, { gz: 1 });
@@ -692,16 +752,18 @@
     var delaiPremier = opts.delai || (lent ? D.lent : D.premier);
     var delaiRelance = opts.delaiRelance || (opts.delai ? opts.delai : D.relance);
     var aborts = [], attenteTotale = 0, debutTout = Date.now();
-    var unAppel = function (delai) {
+    var unAppel = function (delai, enLot) {
       var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       if (ctrl) aborts.push(ctrl);
       var t0 = Date.now();
       var minuterie = ctrl ? setTimeout(function () { ctrl.abort(); }, delai) : null;
       var fin = function () { if (minuterie) clearTimeout(minuterie); };
-      return _fetch(base + '&_=' + Date.now() + Math.floor(Math.random() * 1000), { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
+      // 9 nov. (vitesse, A) : une petite demande peut partir avec d'autres en un seul envoi (lotAjouter) ; la réponse est la même.
+      var texte = enLot ? lotAjouter(q, ctrl, delai) : _fetch(base + '&_=' + Date.now() + Math.floor(Math.random() * 1000), { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
-      }).then(function (t) {
+      });
+      return texte.then(function (t) {
         fin(); noterReponse(Date.now() - t0, false);
         var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Réponse illisible du serveur'); }
         if (refusTemporaire(d)) throw new Error(d.erreur || 'Le serveur n\'a pas pu vérifier la session.');   // panne passagère côté Google : on réessaie, on ne déconnecte pas
@@ -718,8 +780,8 @@
       var lancer = function () {
         if (fini || restants <= 0) return;
         restants--; enVol++;
-        var delai = premiere ? delaiPremier : delaiRelance; premiere = false;
-        unAppel(delai).then(function (d) {
+        var delai = premiere ? delaiPremier : delaiRelance, enLot = premiere && lotPermis(params, opts); premiere = false;
+        unAppel(delai, enLot).then(function (d) {
           if (fini) return;
           fini = true; if (secours) clearTimeout(secours);
           aborts.forEach(function (c) { try { c.abort(); } catch (e) {} });

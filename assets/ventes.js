@@ -1916,6 +1916,8 @@
     var corps = h('div.ventes-form.ventes-compta', [resumeVente(v, montants), h('p.ventes-aide#compta-chargement', { text: 'Lecture de la ligne ' + (v.livreLigne || '') + ' dans le livre de la concession…' })]);
     var m = AMX.modale({ titre: 'Comptabilité — ' + v.id, corps: corps, large: true, boutons: [{ texte: 'Fermer' }] });
     var champs = [];
+    /* 9 nov. : « Can't find variable: dl » chez BMW (holdback et banque BMW FS) — `dl` n'existait que dans la fiche d'une vente. */
+    var dl = function (lignes) { return h('dl', lignes.filter(Boolean).map(function (x) { return [h('dt', { text: x[0] }), h('dd', x[1] instanceof Node ? [x[1]] : { text: String(x[1]) })]; })); };
     function dessiner(r) {
       AMX.vider(corps);
       corps.appendChild(resumeVente(r.vente || v, montants));

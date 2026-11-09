@@ -155,7 +155,7 @@
 
   /* ----------------------------- Cache (AMX.avis) ---------------------------- */
   var cache = { reponse: null, quand: 0 };
-  var promesse = null;
+  var promesse = null, promesseResume = null;
   AMX.avis = {
     enCache: function () { return cache.reponse; },
     charger: function (force) {
@@ -172,7 +172,28 @@
       }, function (e) { promesse = null; throw e; });
       return promesse;
     },
-    invalider: function () { cache.quand = 0; },
+    invalider: function () { cache.quand = 0; cache.resume = null; cache.resumeQuand = 0; },
+    /** 9 nov. (vitesse) : seulement les deux nombres (avis négatifs à traiter, sondages au seuil ou moins depuis 7 jours) —
+        pour l'Accueil et les onglets. Avec un script d'avant (« resume » inconnu), la liste complète revient et sert telle quelle. */
+    resume: function (force) {
+      if (!force && cache.resume && Date.now() - (cache.resumeQuand || 0) < AMX.dureeCopie(60000)) return Promise.resolve(cache.resume);
+      if (!force && cache.reponse && cache.quand && Date.now() - cache.quand < AMX.dureeCopie(60000)) return Promise.resolve(null);
+      if (promesseResume) return promesseResume;
+      promesseResume = AMX.get({ avis: 1, resume: 1 }, { secours: false }).then(function (d) {
+        promesseResume = null;
+        if (d && d.ok && d.resume) {
+          if (d.seuilNegatif >= 1 && d.seuilNegatif <= 4) SEUIL = Number(d.seuilNegatif);
+          cache.resume = d.resume; cache.resumeQuand = Date.now();
+        } else if (d && d.ok && Array.isArray(d.avis)) {
+          if (d.seuilNegatif >= 1 && d.seuilNegatif <= 4) SEUIL = Number(d.seuilNegatif);
+          cache.reponse = d; cache.quand = Date.now(); cache.copieLe = 0;
+        } else AMX.verifier(d, 'Suivi des avis indisponible');
+        document.dispatchEvent(new CustomEvent('amx:avis'));
+        return cache.resume;
+      }, function (e) { promesseResume = null; throw e; });
+      return promesseResume;
+    },
+    aDesNombres: function () { return !!(cache.resume || cache.reponse); },
     // 16 oct. (Google lent) : la dernière réponse gardée dans le navigateur (gzip), affichée en attendant le serveur.
     copie: function () {
       if (cache.reponse) return Promise.resolve({ donnees: cache.reponse, quand: cache.copieLe || 0 });
@@ -203,14 +224,24 @@
   function signe(n) { if (n === null || n === undefined || isNaN(n)) return ''; return (n > 0 ? '+' : '') + String(Math.round(n * 100) / 100).replace('.', ','); }
   function badgeEtat(etat) { var e = ETATS[etat] || { libelle: etat, couleur: 'gris' }; return h('span.badge.' + e.couleur, { text: e.libelle }); }
   function estNegatif(a) { return a.etoiles > 0 && a.etoiles <= SEUIL; }
+  /* 9 nov. (vitesse) : les nombres des onglets Avis et Sondages (et de l'Accueil) — la liste complète si elle est fraîche, sinon le
+     résumé du serveur (?avis=1&resume=1, quelques octets au lieu de 4,1 Mo), sinon la copie gardée dans le navigateur. */
+  function nombreATraiter(quoi) {
+    var d = cache.reponse, r = cache.resume;
+    if (d && d.avis && (cache.quand || !r)) {
+      if (quoi === 'avis') return d.avis.filter(function (a) { return A_TRAITER[a.etat] && estNegatif(a); }).length;
+      return d.sondages.filter(function (s) { return s.note !== null && s.note <= SEUIL && AMX.joursDepuis(s.reponduLe) <= 7; }).length;
+    }
+    return r ? (Number(r[quoi]) || 0) : 0;
+  }
 
   /* --------------------------------- Section -------------------------------- */
   AMX.section('avis', {
     titre: 'Avis', icone: 'avis', ordre: 45,
     onglets: [
       { id: 'apercu', titre: 'Aperçu' },
-      { id: 'avis', titre: 'Avis', compteur: function () { var d = cache.reponse; return d ? d.avis.filter(function (a) { return A_TRAITER[a.etat] && estNegatif(a); }).length || '' : ''; } },
-      { id: 'sondages', titre: 'Sondages', compteur: function () { var d = cache.reponse; return d ? d.sondages.filter(function (s) { return s.note !== null && s.note <= SEUIL && AMX.joursDepuis(s.reponduLe) <= 7; }).length || '' : ''; } }
+      { id: 'avis', titre: 'Avis', compteur: function () { var n = nombreATraiter('avis'); return n || ''; } },
+      { id: 'sondages', titre: 'Sondages', compteur: function () { var n = nombreATraiter('sondages'); return n || ''; } }
     ],
     monter: function (conteneur, ctx) { return new Avis(conteneur, ctx); }
   });

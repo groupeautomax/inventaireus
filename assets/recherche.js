@@ -55,7 +55,9 @@
       champs: function (e) { var s = e.suivi || {}; return [e.vin, e.annee, e.marque, e.modele, e.version, s.client, s.courriel, s.conseiller, e.par].join(' '); }, tel: function (e) { return (e.suivi || {}).telephone; },
       modele: function (e) { return vehiculeTexte(e); },
       puce: function (e) { var s = e.suivi || {}; return { t: 'Évaluation ' + jour(e.dateMaj) + (s.client ? ' · ' + s.client : ''), c: 'violet', href: AMX.lien('outils', 'evaluation', { vin: e.vin }) }; } },
-    { id: 'vente', nom: 'Livre des ventes', section: 'ventes', charger: function () { return AMX.ventes ? AMX.ventes.charger('', 'tout').then(function (d) { return d.ventes || []; }) : Promise.resolve([]); },
+    /* 9 nov. (vitesse) : seulement les champs utiles à la recherche (?leger=1) — la liste complète du livre pesait 14,5 Mo (36 s).
+       Un script d'avant ignore « leger » et renvoie la liste complète : elle sert telle quelle. */
+    { id: 'vente', nom: 'Livre des ventes', section: 'ventes', charger: function () { return AMX.ventes ? AMX.get({ ventes: 1, mois: 'tout', leger: 1 }, { secours: false, discret: true }).then(function (d) { return (d && d.ok !== false && d.ventes) || []; }) : Promise.resolve([]); },
       cie: function (v) { return v.compagnie; }, vin: function (v) { return v.vin; },
       champs: function (v) { return [v.id, v.vin, v.stock, v.annee, v.marque, v.modele, v.client, v.courriel, v.conseiller, v.venduA, v.echangeVin, v.echangeStock].join(' '); }, tel: function (v) { return v.telephone; },
       modele: function (v) { return vehiculeTexte(v); }, stock: function (v) { return v.stock; },

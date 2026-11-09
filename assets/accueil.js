@@ -326,7 +326,7 @@
     if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) AMX.achatsAuto.contrats.charger().then(relancer, rien);
     if (ongletVoit('service', 'rendezvous') && AMX.rdv) AMX.rdv.charger(cieSvc, jourLocal(), jourLocal()).then(relancer, rien);
     if (ongletVoit('service', 'texto') && AMX.texto) AMX.texto.charger(cieSvc).then(relancer, rien);
-    if (voit('avis') && AMX.avis) AMX.avis.charger().then(relancer, rien);
+    if (voit('avis') && AMX.avis) (AMX.avis.resume ? AMX.avis.resume() : AMX.avis.charger()).then(relancer, rien);   /* 9 nov. (vitesse) : les deux nombres seulement, pas les 4,1 Mo d'avis */
     if (voit('csi') && AMX.csiAlertes) AMX.csiAlertes.charger().then(relancer, rien);   /* 7 nov. : sondages CSI à 8 ou moins */
     if (ongletVoit('offres', 'recues')) chargerOffres().then(relancer, rien);
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);   /* 2 nov. : jamais pour un représentant */
@@ -525,7 +525,7 @@
     }
     // Avis Google et sondages
     if (voit('avis') && AMX.avis) {
-      if (!AMX.avis.enCache()) attente.push('avis');
+      if (!(AMX.avis.aDesNombres ? AMX.avis.aDesNombres() : AMX.avis.enCache())) attente.push('avis');
       else {
         var na = compteurOnglet('avis', 'avis'), ns = compteurOnglet('avis', 'sondages');
         if (na) out.push({ ton: 'rouge', n: na, titre: 'Avis Google négatifs à traiter', href: AMX.lien('avis', 'avis'), ic: 'relance' });

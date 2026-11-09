@@ -100,9 +100,13 @@
     this.recherche = '';
     this.tri = { cle: 'luLe', desc: true };
     this.construire();
-    var local = AMX.cacheLocal.lire('openlane', 7 * 86400000);
-    if (local && Array.isArray(local.donnees)) { this.liste = local.donnees; this.duCache = true; }
     this.rendre();
+    // 9 nov. : la copie du navigateur est maintenant dans IndexedDB (asynchrone) ; elle s'affiche si le serveur n'a pas encore répondu.
+    var self0 = this, gen0 = this.generation;
+    AMX.cacheLocal.lireGz('openlane', 7 * 86400000).then(function (local) {
+      if (gen0 !== self0.generation - 1 || self0.liste || !local || !Array.isArray(local.donnees)) return;
+      self0.liste = local.donnees; self0.duCache = true; self0.rendre();
+    }).catch(function () {});
     this.naviguer(ctx || {});
     this.charger();
     var moi = this;
@@ -221,7 +225,8 @@
     var self = this, gen = ++this.generation;
     tentative = tentative || 1;
     if (manuel) this.btnRafraichir.classList.add('occupe');
-    return AMX.get({ openlane: 1 }, { secours: false }).then(function (d) {
+    // 9 nov. : « Rafraîchir » demande au serveur de reconstruire sa liste (?frais=1) ; sinon il répond de son cache (10 min au plus).
+    return AMX.get(manuel ? { openlane: 1, frais: 1 } : { openlane: 1 }, { secours: false }).then(function (d) {
       if (gen !== self.generation) return;
       self.btnRafraichir.classList.remove('occupe');
       if (d && d.refuse) { self.refus = d.erreur || 'Accès refusé.'; self.rendre(); return; }
@@ -596,22 +601,43 @@
 
   /* ---------------- Index par NIV (lignes d'inventaire et de service) ---------------- */
   var olIndex = null, olPromesse = null, olQuand = 0, directConnu = null;
+  // 9 nov. : copie dans IndexedDB, au plus une écriture par 2 s (la lecture en direct de plusieurs NIV de suite en demandait une par NIV).
+  var olMinuterieCopie = null;
+  function garderCopie() {
+    if (olMinuterieCopie) return;
+    olMinuterieCopie = setTimeout(function () {
+      olMinuterieCopie = null;
+      if (!olIndex || !(AMX.session && AMX.session.courriel)) return;
+      AMX.cacheLocal.ecrireGz('openlane', Object.keys(olIndex).map(function (k) { return olIndex[k]; }));
+    }, 2000);
+  }
+  // L'ancienne copie non compressée (jusqu'à 4,2 Mo dans localStorage) n'est plus lue : on libère sa place.
+  try { localStorage.removeItem('amx_cache_openlane'); } catch (eL) {}
   function indexer(liste) { var idx = {}; (liste || []).forEach(function (r) { if (r && r.vin) idx[String(r.vin).toUpperCase()] = r; }); return idx; }
   AMX.openlane = {
     charger: function (force) {
       if (!force && olIndex && Date.now() - olQuand < 3600000) return Promise.resolve(olIndex);
       if (olPromesse) return olPromesse;
-      if (!olIndex) { var local = AMX.cacheLocal.lire('openlane', 7 * 86400000); if (local && Array.isArray(local.donnees)) { olIndex = indexer(local.donnees); olQuand = local.quand || 0; if (!force && Date.now() - olQuand < 3600000) return Promise.resolve(olIndex); } }
-      olPromesse = AMX.get({ openlane: 1 }, { essais: 2 }).then(function (d) {
-        olPromesse = null;
-        if (!d || !d.ok) { if (!olIndex) olIndex = {}; return olIndex; }
-        if (d.direct !== undefined) directConnu = !!d.direct;
-        AMX.openlane.poser(d.valeurs || []);
-        return olIndex;
-      }, function (e) { olPromesse = null; if (!olIndex) olIndex = {}; throw e; });
+      // 9 nov. (vitesse) : la copie du navigateur est dans IndexedDB (AMX.cacheLocal.lireGz) — 4,2 Mo ne tiennent pas dans
+      // localStorage à côté des autres copies : elles se chassaient l'une l'autre. Lecture asynchrone, puis le serveur si besoin.
+      var avant = olIndex ? Promise.resolve(null) : AMX.cacheLocal.lireGz('openlane', 7 * 86400000).catch(function () { return null; });
+      olPromesse = avant.then(function (local) {
+        if (local && Array.isArray(local.donnees) && !olIndex) {
+          olIndex = indexer(local.donnees); olQuand = local.quand || 0;
+          document.dispatchEvent(new CustomEvent('amx:openlane'));
+          if (!force && Date.now() - olQuand < 3600000) { olPromesse = null; return olIndex; }
+        }
+        return AMX.get({ openlane: 1 }, { essais: 2 }).then(function (d) {
+          olPromesse = null;
+          if (!d || !d.ok) { if (!olIndex) olIndex = {}; return olIndex; }
+          if (d.direct !== undefined) directConnu = !!d.direct;
+          AMX.openlane.poser(d.valeurs || []);
+          return olIndex;
+        }, function (e) { olPromesse = null; if (!olIndex) olIndex = {}; throw e; });
+      });
       return olPromesse;
     },
-    poser: function (liste) { olIndex = indexer(liste); olQuand = Date.now(); AMX.cacheLocal.ecrire('openlane', liste); document.dispatchEvent(new CustomEvent('amx:openlane')); },
+    poser: function (liste) { olIndex = indexer(liste); olQuand = Date.now(); garderCopie(); document.dispatchEvent(new CustomEvent('amx:openlane')); },
     valeur: function (vin) { return (olIndex && olIndex[String(vin || '').toUpperCase()]) || null; },
     enCache: function () { return olIndex; },
     ajuste: ajuste,
@@ -625,7 +651,7 @@
       var corps = { action: 'openlaneDirect', vin: String(vin || '').trim().toUpperCase(), km: km === undefined || km === null || km === '' ? '' : String(km), source: opts.source || 'direct', compagnie: opts.compagnie || '' };
       if (opts.forcer) corps.forcer = true;
       return AMX.post(corps, { delai: 90000 }).then(function (r) {
-        if (r && r.ok && r.valeur) { directConnu = true; if (!olIndex) olIndex = {}; r.valeur.aLire = false; olIndex[r.valeur.vin] = r.valeur; AMX.cacheLocal.ecrire('openlane', Object.keys(olIndex).map(function (k) { return olIndex[k]; })); }
+        if (r && r.ok && r.valeur) { directConnu = true; if (!olIndex) olIndex = {}; r.valeur.aLire = false; olIndex[r.valeur.vin] = r.valeur; garderCopie(); }
         if (r && r.nonConnecte) directConnu = false;
         return r;
       });

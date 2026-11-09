@@ -329,7 +329,15 @@
     else t += ' à ';
     /* la note de la source (« vwbrossard.com · Tiguan 2026 · toutes versions ») va dans l'infobulle */
     var tx = String(p.taux).replace('.', ',') + ' %' + (p.fidelite ? ' (' + String(p.tauxAvantFidelite).replace('.', ',') + ' % − ' + p.fidelite.pct + ' pt' + (p.fidelite.pct > 1 ? 's' : '') + ' fidélité)' : '');
-    return t + tx + ' · ' + String(p.libelle || '').replace(/\s*\([^)]*\)/, '') + (p.rabais ? ' · rabais ' + fmt$(p.rabais) : '');
+    return t + tx + ' · ' + String(p.libelle || '').replace(/\s*\(.*\)/, '') + (p.rabais ? ' · rabais ' + fmt$(p.rabais) : '');
+  }
+  /** 9 nov. (Maxime : « dans BMW je vois partout 72 mois, enlève-le et inscris le bon terme ») : la note d'une ligne de
+      programme dit le terme, les km et le résiduel de SA ligne (« bmwsherbrooke.com · M3 Competition 2026 · 72 mois (taux du
+      constructeur) ») ; la grille donne le terme du contrat. La source n'en garde que le site et le modèle. */
+  function noteSource(note) {
+    return String(note || '').split(' · ').map(function (x) { return x.trim(); }).filter(function (x) {
+      return x && !/^(location\s+)?\d{1,3}\s*mois\b/i.test(x) && !/^\d[\d\s ]*km\b/i.test(x) && !/^r[ée]siduel\b/i.test(x);
+    }).join(' · ');
   }
   /** 6 nov. : texte de l'offre de fidélité Hyundai d'un compte (« Double fidélité −2 pts »). */
   function texteFidelite(fo) { return fo ? (fo.type === 'double' ? 'Double fidélité' : 'Fidélité') + ' −' + fo.pct + ' pt' + (fo.pct > 1 ? 's' : '') : ''; }
@@ -581,7 +589,7 @@
     /* le programme le plus précis qui DONNE ce terme (sa grille, ou sa ligne quand elle est à ce terme) */
     for (var i = 0; i < c.length; i++) {
       var p0 = c[i], t0 = voulu, ch = grilleChoix(p0, t0, kmVoulu), o = null;
-      var lib = { source: 'programme', libelle: 'programme du mois' + (p0.note ? ' (' + p0.note + ')' : '') };
+      var lib = { source: 'programme', libelle: 'programme du mois' + (noteSource(p0.note) ? ' (' + noteSource(p0.note) + ')' : ''), note: p0.note || '' };
       if (ch && ch.taux !== null && (!location || ch.residuelPct > 0)) {
         o = Object.assign({}, base, lib, { taux: ch.taux, terme: ch.terme, termeExact: ch.termeExact, interpole: ch.interpole });
         if (location) Object.assign(o, { kmAn: ch.kmAn || kmVoulu, kmExact: ch.kmExact, residuelPct: ch.residuelPct });
@@ -607,7 +615,7 @@
     var quoi = (location ? 'location ' : 'financement ') + (voulu ? voulu + ' mois' : '') + (location && kmVoulu ? ' · ' + AMX.fmtNombre(kmVoulu) + ' km' : '');
     /* 8 nov. : un modèle que le manufacturier offre seulement en financement ce mois-ci (ex. Cadillac Lyriq et Optiq 2027) */
     var financementSeul = location && !c.length && (progs || []).some(function (p) { return p.type === 'financement' && progCorrespond(p, s); });
-    return Object.assign({}, base, { manquant: true, terme: voulu, financementSeul: financementSeul, raison: financementSeul ? 'le manufacturier n\'offre pas de location pour ce modèle ce mois-ci (financement seulement)' : (c.length ? 'le programme du manufacturier n\'offre pas la ' + quoi.trim() : 'aucun programme de ' + (location ? 'location' : 'financement') + ' du manufacturier pour ce modèle ce mois-ci') });
+    return Object.assign({}, base, { manquant: true, terme: voulu, financementSeul: financementSeul, raison: financementSeul ? 'le manufacturier n\'offre pas de location pour ce modèle ce mois-ci (financement seulement)' : (c.length ? 'le programme du manufacturier n\'offre pas ' + (location ? 'la ' : 'le ') + quoi.trim() : 'aucun programme de ' + (location ? 'location' : 'financement') + ' du manufacturier pour ce modèle ce mois-ci') });
   }
   /** Mensualité d'une location (même formule que MOF_location_) : coût capitalisé net = prix + frais − rabais − (valeur −
       dette) − comptant ; résiduel = % du PDSF ; (cap net − résiduel) ÷ terme + (cap net + résiduel) × taux ÷ 2 400 ; taxes sur
@@ -780,6 +788,11 @@
           if (cumul) fin.libelle += ' + rabais ' + (cash ? 'cumulables ' : '') + 'du site';
         }
         r.finance = res.finance; r.taxes = res.taxes; r.prixNeuf = prix; r.programme = fin; r.residuelNeuf = !fin.manquant && fin.type === 'location' ? res.residuel : null;
+        /* 9 nov. : le détail du calcul, pour la fenêtre « Nouveau paiement » (clic sur la mensualité) */
+        r.calcul = fin.manquant ? null : { pdsf: r.neuf.prix, frais: nombre(params.frais) || 0, prix: prix, rabais: fin.rabais || 0,
+          rabaisAvant: fin.type === 'location' ? (fin.rabais || 0) : (fin.rabaisAvantTaxes ? (fin.rabais || 0) : 0), valeur: valeur, dette: r.solde || 0,
+          comptant: nombre(params.comptant) || 0, taxePct: nombre(params.taxes) || 0, taxes: res.taxes, finance: res.finance,
+          residuel: res.residuel === undefined ? null : res.residuel, avantTaxes: res.avantTaxes === undefined ? null : res.avantTaxes };
         r.programmeManquant = !!fin.manquant;
         r.mensualite = res.mensualite;
         r.ecart = r.mensualite !== null && paiement ? r.mensualite - paiement : null;
@@ -872,7 +885,7 @@
     params: function () { var p = AMX.memo.lire('equite_params', null); return Object.assign({}, PARAMS_DEFAUT, p && typeof p === 'object' ? p : {}); },
     poserParams: function (p) { AMX.memo.ecrire('equite_params', Object.assign({}, AMX.equite.params(), p || {})); },
     lireExport: lireExport, serieDe: serieDe, famille: famille, analyser: analyser, pmt: pmt, dateIso: dateIso, detteDe: detteDe, mensualitesRestantes: mensualitesRestantes, tauxContrat: tauxContrat, tauxDeduit: tauxDeduit, annuite: annuite,
-    kmAnContrat: kmAnContrat, grilleChoix: grilleChoix, programmeNeuf: programmeNeuf, mensualiteLocation: mensualiteLocation,
+    kmAnContrat: kmAnContrat, termeContrat: termeContrat, noteSource: noteSource, texteProgramme: texteProgramme, grilleChoix: grilleChoix, programmeNeuf: programmeNeuf, mensualiteLocation: mensualiteLocation,
     PARAMS_DEFAUT: PARAMS_DEFAUT, SUIVIS: SUIVIS,
     monter: function (conteneur, cie, ctx) { return new VueEquite(conteneur, cie, ctx); }
   };
@@ -896,6 +909,7 @@
       '.eq-table td .sous { font-size: 12px; color: var(--encre-3); } .eq-table td .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-3); } .eq-table td .nom { font-weight: 600; }',
       '.eq-table tr.cible td { background: var(--vert-clair); } .eq-table tr.sans td .valeur { color: var(--encre-3); font-style: italic; }',
       '.eq-table button.eq-dette { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; } .eq-table button.eq-dette:hover { color: var(--vert-fonce, var(--vert)); }',
+      '.eq-proj-btn { display: block; width: 100%; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: right; } .eq-proj-btn:hover, .eq-proj-btn:focus-visible { text-decoration: underline; } .eq-pai-titre { margin: 14px 0 4px; font-size: 14px; } .eq-pai .eq-dette-tab td:first-child { white-space: normal; }',
       '.eq-dette-tab { width: 100%; border-collapse: collapse; font-size: 13px; } .eq-dette-tab td { padding: 5px 6px; border-bottom: 1px solid var(--ligne, #E3E7EB); } .eq-dette-tab td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; } .eq-dette-tab tr.total td { font-weight: 700; border-bottom: 0; }',
       '.eq-pos { color: var(--vert); font-weight: 700; } .eq-neg { color: var(--rouge); font-weight: 700; } .eq-nul { color: var(--encre-3); }',
       '.eq-table button.eq-valeur { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: right; } .eq-table button.eq-valeur > div:first-child { text-decoration: underline dotted; text-underline-offset: 3px; } .eq-table button.eq-valeur:hover > div:first-child { color: var(--vert-fonce, #0B6B3A); }',
@@ -1453,12 +1467,12 @@
     var titrePaie = 'Paiement actuel ' + fmt$(nombre(c.paiement)) + ' / mois';
     var projEl;
     if (r.mensualite !== null) {
-      projEl = h('div.eq-proj' + (r.cible ? '.eq-pos' : (r.ecart !== null && r.ecart > (nombre(this.params.marge) || 0) ? '.eq-plus' : '')), { text: '→ ' + fmt$(r.mensualite) + (r.ecart !== null ? ' (' + fmtSigne(r.ecart) + ')' : '') });
+      projEl = h('button.eq-proj.eq-proj-btn' + (r.cible ? '.eq-pos' : (r.ecart !== null && r.ecart > (nombre(this.params.marge) || 0) ? '.eq-plus' : '')), { type: 'button', text: '→ ' + fmt$(r.mensualite) + (r.ecart !== null ? ' (' + fmtSigne(r.ecart) + ')' : ''), onclick: function (ev) { ev.stopPropagation(); self.detailPaiement(r); } });
       titrePaie += '\nNouvelle mensualité ' + fmt$(r.mensualite) + ' / mois' + (r.ecart !== null ? ' (' + fmtSigne(r.ecart) + ' vs actuel)' : '') + (r.sansValeur ? ' — sans valeur d\'échange (OpenLane à lire)' : '')
         + (r.programme && !r.programme.manquant ? '\n' + texteProgramme(r) + (r.programme.type === 'location' ? ' · coût capitalisé ' : ' · financé ') + fmt$(r.finance) : '')
         + (titreProg ? '\n\n' + titreProg : '') + (ecartsTr.length ? '\n\nÉcart avec le contrat : ' + ecartsTr.join(' · ') : '');
     } else if (r.programmeManquant) {
-      projEl = h('div.eq-proj.eq-manquant', { text: r.programme.financementSeul ? '→ location pas offerte' : '→ programme à trouver' });
+      projEl = h('button.eq-proj.eq-proj-btn.eq-manquant', { type: 'button', text: r.programme.financementSeul ? '→ location pas offerte' : '→ programme à trouver', onclick: function (ev) { ev.stopPropagation(); self.detailPaiement(r); } });
       titrePaie += '\nPas de nouvelle mensualité : ' + r.programme.raison + '. Les Programmes du mois sont lus tout seuls sur le site de la concession ou chez le manufacturier.';
     } else projEl = h('div.eq-proj.eq-nul', { text: '→ —' });
     var noteSuivi = [c.suiviNote, c.suiviLe ? AMX.fmtDateCourte(c.suiviLe) + (c.suiviPar ? ' · ' + String(c.suiviPar).split('@')[0] : '') : ''].filter(Boolean).join('\n');
@@ -1727,6 +1741,69 @@
     fermer = m && m.fermer ? m.fermer : function () { var v = document.querySelector('.voile:last-of-type'); if (v) v.remove(); };
   };
   /** Le calcul de la valeur OpenLane d'un client : d'où vient la valeur, le km, la dette, l'équité, puis le détail d'OpenLane. */
+  /** 9 nov. (Maxime : « fais ouvrir une fenêtre pour voir le nouveau paiement du manufacturier ») : clic sur la nouvelle
+      mensualité — le contrat du client, le neuf proposé, le programme du manufacturier (au terme du contrat) et le calcul, ligne
+      par ligne. Même calcul qu'analyser() (calcul / mensualiteLocation), rien de recalculé autrement. */
+  VueEquite.prototype.detailPaiement = function (r) {
+    var c = r.compte, p = r.programme || {}, k = r.calcul, n = r.neuf, blocs = [];
+    var table = function (titre, lignes) {
+      blocs.push(h('h4.eq-pai-titre', { text: titre }));
+      blocs.push(h('table.eq-dette-tab', [h('tbody', lignes.filter(Boolean).map(function (l) { return h('tr' + (l[2] || ''), [h('td', { text: l[0] }), h('td.num', { text: l[1] })]); }))]));
+    };
+    var kmAn = r.location ? kmAnContrat(c) : null, termeC = termeContrat(c);
+    table('Le contrat du client', [
+      ['Transaction', r.location ? 'Location' : 'Financement'],
+      ['Terme', termeC ? termeC + ' mois' + (nombre(c.terme) ? '' : ' (d\'après les dates du contrat)') : 'inconnu'],
+      r.tauxContrat !== null && r.tauxContrat !== undefined ? ['Taux du contrat' + (r.tauxSource === 'estime' ? ' (estimé : rachat, paiement, mensualités)' : ''), fmtTaux(r.tauxContrat)] : null,
+      kmAn ? ['Km par année au contrat', AMX.fmtNombre(kmAn) + ' km'] : null,
+      c.echeance ? ['Échéance', AMX.fmtDate(c.echeance) + (r.moisRestants !== null && r.moisRestants !== undefined ? ' (' + r.moisRestants + ' mois)' : '')] : null,
+      ['Paiement actuel', fmt$(nombre(c.paiement)) + ' / mois', '.total']
+    ]);
+    if (n) table('Le neuf proposé', [
+      [[n.annee, n.modele, n.version].filter(Boolean).join(' '), ETATS_NEUF[n.etat] || n.etat || ''],
+      ['Version', libelleVersion(n.ver) || '—'],
+      ['PDSF', fmt$(n.prix)]
+    ]);
+    if (p.manquant || !k) {
+      blocs.push(h('p.eq-manquant', { style: { margin: '12px 0 0' }, text: 'Pas de nouvelle mensualité : ' + (p.raison || 'aucun neuf semblable connu') + '.' }));
+      blocs.push(h('p.doux.petit', { text: 'La mensualité se calcule seulement avec un programme du manufacturier au même terme que le contrat (' + (termeC ? termeC + ' mois' : 'terme inconnu') + (r.location && kmAn ? ', ' + AMX.fmtNombre(kmAn) + ' km par année' : '') + '). Les Programmes du mois sont lus tout seuls sur le site de la concession ou chez le manufacturier ; un programme peut aussi être ajouté à la main dans Relance › Portefeuille clients › Programmes du mois.' }));
+    } else {
+      var loc = p.type === 'location', ecarts = ecartsTransaction(r);
+      table('Le programme du manufacturier', [
+        ['Transaction', (loc ? 'Location' : 'Financement') + ' (comme le contrat)'],
+        ['Terme', p.terme + ' mois' + (termeC && p.terme === termeC ? ' (le terme du contrat)' : '')],
+        ['Taux', fmtTaux(nombre(p.taux)) + (p.fidelite ? ' (' + fmtTaux(nombre(p.tauxAvantFidelite)) + ' − ' + p.fidelite.pct + ' pt' + (p.fidelite.pct > 1 ? 's' : '') + ' fidélité)' : '')],
+        loc ? ['Résiduel', String(p.residuelPct).replace('.', ',') + ' % du PDSF'] : null,
+        loc && p.kmAn ? ['Km par année', AMX.fmtNombre(p.kmAn) + ' km' + (p.kmExact === false && p.kmVoulu ? ' (le contrat en a ' + AMX.fmtNombre(p.kmVoulu) + ')' : '')] : null,
+        ['Source', p.source === 'gm' ? 'Financière GM (scénarios lus dans GM Dealer Direct ce mois-ci, au terme du contrat)' : (noteSource(p.note) || 'Programmes du mois')]
+      ]);
+      if (ecarts.length) blocs.push(h('p.doux.petit', { style: { margin: '4px 0 0' }, text: 'À savoir : ' + ecarts.join(' · ') + '.' }));
+      var lignes = [['Prix du neuf : PDSF ' + fmt$(k.pdsf) + ' + frais ' + fmt$(k.frais), fmt$(k.prix)]];
+      if (k.rabais) lignes.push(['Rabais' + (p.rabaisD2c ? ' affichés sur le site' : ' du manufacturier') + (loc || k.rabaisAvant ? ' (avant taxes)' : ' (après taxes)'), '− ' + fmt$(k.rabais)]);
+      if (loc) {
+        lignes.push(['Valeur d\'échange (moyenne des ventes OpenLane)', '− ' + fmt$(k.valeur)]);
+        lignes.push(['Dette du jour (' + texteDette(r) + ')', '+ ' + fmt$(k.dette)]);
+        if (k.comptant) lignes.push(['Comptant', '− ' + fmt$(k.comptant)]);
+        lignes.push(['Coût capitalisé net', fmt$(k.finance), '.total']);
+        lignes.push(['Résiduel : PDSF × ' + String(p.residuelPct).replace('.', ',') + ' %', fmt$(k.residuel)]);
+        lignes.push(['Paiement avant taxes : (coût net − résiduel) ÷ ' + p.terme + ' + (coût net + résiduel) × ' + fmtTaux(nombre(p.taux)) + ' ÷ 2 400', fmt$(k.avantTaxes)]);
+        lignes.push(['Taxes ' + String(k.taxePct).replace('.', ',') + ' % sur chaque paiement', '+ ' + fmt$(k.taxes)]);
+      } else {
+        lignes.push(['Valeur d\'échange (moyenne des ventes OpenLane)', '− ' + fmt$(k.valeur)]);
+        lignes.push(['Taxes ' + String(k.taxePct).replace('.', ',') + ' % sur ' + fmt$(Math.max(0, k.prix - k.rabaisAvant - k.valeur)), '+ ' + fmt$(k.taxes)]);
+        lignes.push(['Dette du jour (' + texteDette(r) + ')', '+ ' + fmt$(k.dette)]);
+        if (k.comptant) lignes.push(['Comptant', '− ' + fmt$(k.comptant)]);
+        lignes.push(['Montant financé', fmt$(k.finance), '.total']);
+        lignes.push(['Mensualité : ' + fmt$(k.finance) + ' à ' + fmtTaux(nombre(p.taux)) + ' sur ' + p.terme + ' mois', '']);
+      }
+      lignes.push(['Nouvelle mensualité', fmt$(r.mensualite) + ' / mois', '.total']);
+      if (r.ecart !== null) lignes.push(['Écart avec le paiement actuel (' + fmt$(nombre(c.paiement)) + ')', fmtSigne(r.ecart) + ' / mois', '.total']);
+      table('Le calcul', lignes);
+      if (r.sansValeur) blocs.push(h('p.doux.petit', { text: 'Pas encore de valeur OpenLane pour ce véhicule : l\'échange est compté à 0 $. Synchronisez OpenLane pour le calcul complet.' }));
+      if (p.rabaisComptant) blocs.push(h('p.doux.petit', { text: 'Rabais au comptant affiché sur le site (' + fmt$(p.rabaisComptant) + ') : il ne se combine pas avec le taux du programme, pas compté.' }));
+    }
+    AMX.modale({ titre: 'Nouveau paiement — ' + nomClient(c), large: true, corps: h('div.eq-pai', [h('p.doux', { style: { margin: '0 0 6px' }, text: vehiculeTexte(c) + (c.vin ? ' · ' + c.vin : '') })].concat(blocs)), boutons: [{ texte: 'Fermer', action: function () { return true; } }] });
+  };
   VueEquite.prototype.detailValeur = function (r) {
     var self = this, c = r.compte, ol = r.openlane || {}, lignes = [];
     var ligne = function (a, b, cls) { lignes.push(h('tr' + (cls || ''), [h('td', { text: a }), h('td.num', { text: b })])); };

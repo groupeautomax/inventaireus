@@ -618,6 +618,12 @@
     pages: chargerPages, pagesEnCache: function (cie) { return pages.par[cie] ? pages.par[cie].rep : null; },
     reponsesATraiter: function (cie) { var out = []; (cie ? [cie] : Object.keys(pages.par)).forEach(function (c) { var x = pages.par[c]; if (x && x.rep) x.rep.pages.forEach(function (p) { if (p.aTraiter) out.push(p); }); }); return out; } };
 
+  /** 9 nov. : la source d'un programme sans le terme, les km ni le résiduel de SA ligne (« … · 72 mois ») — l'offre est au terme
+      du contrat. Même règle qu'Équité (AMX.equite.noteSource) et que MOF_noteSource_ (MoteurOffres.gs). */
+  function noteProg(note) {
+    if (AMX.equite && AMX.equite.noteSource) return AMX.equite.noteSource(note);
+    return String(note || '').split(' · ').map(function (x) { return x.trim(); }).filter(function (x) { return x && !/^(location\s+)?\d{1,3}\s*mois\b/i.test(x) && !/^\d[\d\s ]*km\b/i.test(x) && !/^r[ée]siduel\b/i.test(x); }).join(' · ');
+  }
   /* --------------------------------------------------------------------------------------------- page */
   function VuePortefeuille(conteneur, ctx) {
     css();
@@ -1118,7 +1124,7 @@
         h('div', [h('span.t', { text: 'Écart' }), h('b.ec' + (ec === null || ec === undefined ? '' : (ec > 0 ? '.plus' : '.moins')), { text: ec === null || ec === undefined ? '—' : (ec > 0 ? '+' : '') + AMX.fmtArgent(ec) }), h('span.s', { text: o.actuel ? 'vs ' + AMX.fmtArgent(o.actuel) + ' / mois actuel' : 'paiement actuel inconnu' })])
       ]),
       photo,
-      h('div.pied', { text: [o.stock ? '# ' + o.stock : '', o.jours !== null && o.jours !== undefined ? 'en stock depuis ' + o.jours + ' j' : '', o.programme ? 'programme : ' + (o.programme.note || o.programme.id) : ''].filter(Boolean).join(' · ') }),
+      h('div.pied', { text: [o.stock ? '# ' + o.stock : '', o.jours !== null && o.jours !== undefined ? 'en stock depuis ' + o.jours + ' j' : '', o.programme ? 'programme : ' + (noteProg(o.programme.note) || o.programme.id) : ''].filter(Boolean).join(' · ') }),
       (o.raisons || []).length ? h('div.r', { text: o.raisons.join(' · ') }) : null,
       h('details.calc', [h('summary', { text: 'Détail du calcul' }), carteOffre(o)])
     ]);
@@ -1348,7 +1354,7 @@
     return h('div.ptf-offre' + (o.statut === 'prete' ? '.prete' : ''), [
       h('div.t', [h('b', { text: o.vehicule + (o.stock ? ' · # ' + o.stock : '') }), h('span.ptf-puce' + (o.statut === 'prete' ? '.vert' : '.ambre'), { text: o.statut === 'prete' ? 'Prête' : 'À réviser' })]),
       h('div.t', [h('span.p', { text: AMX.fmtArgent(o.paiement) + ' / mois' }), h('span', { text: (o.type === 'location' ? 'Location ' : 'Financement ') + o.terme + ' mois à ' + String(o.taux).replace('.', ',') + ' %' + (o.kmAn ? ' · ' + AMX.fmtNombre(o.kmAn) + ' km / an' : '') + (ec !== null && ec !== undefined ? ' · ' + (ec > 0 ? '+' : '') + AMX.fmtArgent(ec) + ' vs le paiement actuel (' + AMX.fmtArgent(o.actuel) + ')' : '') })]),
-      h('div.doux.petit', { text: (o.neuf ? 'Neuf' : 'Occasion') + ' · ' + ({ memeModele: 'même modèle', memeSegment: 'même catégorie', occasion: 'même modèle, plus récent' }[o.groupe] || '') + (o.programme ? ' · programme : ' + (o.programme.note || o.programme.id) : '') + (o.rabaisNotes && o.rabaisNotes.length ? ' · rabais : ' + o.rabaisNotes.join(', ') : '') + (o.rabaisD2c && o.rabaisD2c.length ? ' · rabais du site (D2C) : ' + o.rabaisD2c.map(function (x) { return x.nom + ' ' + AMX.fmtArgent(x.montant) + (x.comptant ? ' (comptant)' : ''); }).join(', ') + (o.choixRabais === 'comptant' ? ' — pris au comptant, au taux par défaut : moins cher que le taux spécial' : (o.choixRabais === 'taux' ? ' — taux spécial gardé, sans le rabais comptant' : '')) : '') }),
+      h('div.doux.petit', { text: (o.neuf ? 'Neuf' : 'Occasion') + ' · ' + ({ memeModele: 'même modèle', memeSegment: 'même catégorie', occasion: 'même modèle, plus récent' }[o.groupe] || '') + (o.programme ? ' · programme : ' + (noteProg(o.programme.note) || o.programme.id) : '') + (o.rabaisNotes && o.rabaisNotes.length ? ' · rabais : ' + o.rabaisNotes.join(', ') : '') + (o.rabaisD2c && o.rabaisD2c.length ? ' · rabais du site (D2C) : ' + o.rabaisD2c.map(function (x) { return x.nom + ' ' + AMX.fmtArgent(x.montant) + (x.comptant ? ' (comptant)' : ''); }).join(', ') + (o.choixRabais === 'comptant' ? ' — pris au comptant, au taux par défaut : moins cher que le taux spécial' : (o.choixRabais === 'taux' ? ' — taux spécial gardé, sans le rabais comptant' : '')) : '') }),
       h('table', [tb]),
       (o.raisons || []).length ? h('div.r', { text: o.raisons.join(' · ') }) : null
     ]);

@@ -1211,7 +1211,8 @@
     service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'outils/*'],
     marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
     utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*'],
-    rh: ['vente/*', 'inventaire/*', 'relance/*', 'service/*', 'outils/*']   /* 7 nov. : rôle « Ressources humaines » — la tuile Ressources humaines et l'Aide seulement */
+    rh: ['vente/*', 'inventaire/*', 'relance/*', 'service/*', 'outils/*'],   /* 7 nov. : rôle « Ressources humaines » — la tuile Ressources humaines et l'Aide seulement */
+    evaluateur: ['vente/*', 'relance/*', 'service/*']   /* 9 nov. : rôle « Évaluateur » — inventaire, évaluations, analyse, outils */
   };
   AMX.ONGLETS_CACHES_ROLE = ONGLETS_CACHES_ROLE;
   function cleDansListe(liste, cle) {

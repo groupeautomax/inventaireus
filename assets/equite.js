@@ -847,12 +847,115 @@
       x.promesse = null;
       if (d && d.refuse) throw new Error(d.erreur || 'Refusé par le serveur.');
       if (!d || !d.crm) throw new Error('Le script n\'est pas à jour : déployez EquiteCrm.gs.');
-      x.donnees = d; x.le = Date.now(); x.erreur = '';
+      x.donnees = d; x.le = Date.now(); x.erreur = ''; ORIGINES = {};
       return d;
     }, function (e) { x.promesse = null; throw e; });
     return x.promesse;
   }
   function crmDe(cie, compte) { var d = CRM[cie] && CRM[cie].donnees; return d && d.crm ? d.crm[compte] || null : null; }
+
+  /* 9 nov. (Maxime : « dans le module Équité, le représentant d'origine doit être par défaut celui à qui on envoie la demande,
+     ou indiquer orphelin si le représentant n'est plus là »). Le représentant d'origine d'un client : celui du prêteur
+     (InfoBahn « Sales Person », GM Dealer Direct), sinon le conseiller de la vente de ce NIV au Livre des ventes (VW Finance et
+     Hyundai Finance n'en donnent pas). Il est relié à un compte ACTIF de la concession (reps de ?equiteCrm=1) par le prénom et
+     le nom, ou par l'adresse courriel (« GAETAN DUBOIS » ↔ compte « Gaetan », gdubois@…). Sans compte actif : « orphelin ». */
+  var SURNOMS = { mike: 'michel michael mickael mikael', alex: 'alexandre alexandra alexis', sam: 'samuel samantha', jess: 'jessica jessy', ben: 'benoit benjamin', fred: 'frederic frederick', nick: 'nicolas', nic: 'nicolas', dan: 'daniel', dany: 'daniel', danny: 'daniel', chris: 'christian christopher christophe', max: 'maxime maximilien', gab: 'gabriel gabrielle', steph: 'stephane stephanie', seb: 'sebastien', jon: 'jonathan', manu: 'emmanuel', phil: 'philippe', vince: 'vincent', tom: 'thomas', will: 'william', bill: 'william', bob: 'robert', joe: 'joseph', zack: 'zakary zachary', zach: 'zakary zachary', mat: 'mathieu matthieu', matt: 'mathieu matthieu' };
+  var NOM_GENERIQUE = /^(internal sales|ventes internes|house|maison|inconnu|unknown|none|aucun|n ?a|test)$/;
+  function jetonsNom(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim().split(' ').filter(Boolean); }
+  function prenomsCompat(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.length === 1 || b.length === 1) return a.charAt(0) === b.charAt(0);                          /* « S. Hotte » */
+    if (a.length >= 3 && b.length >= 3 && (a.indexOf(b) === 0 || b.indexOf(a) === 0)) return true;   /* Pat / Patrick, Stephan / Stephane */
+    var sa = SURNOMS[a], sb = SURNOMS[b];
+    return !!((sa && (' ' + sa + ' ').indexOf(' ' + b + ' ') >= 0) || (sb && (' ' + sb + ' ').indexOf(' ' + a + ' ') >= 0));
+  }
+  /** Le nom d'un représentant tel qu'écrit par le prêteur ou le livre (« DUBOIS, GAETAN », « Julie / Marc » → le premier). */
+  function nomPropre(nom) {
+    var s = texte(nom).replace(/^["'\s]+|["'\s]+$/g, '');
+    s = s.split(/\s*(?:\/|&|\+|\bet\b)\s*/i)[0] || '';
+    if (s.indexOf(',') > 0) { var p = s.split(','); s = (p.slice(1).join(' ') + ' ' + p[0]).trim(); }
+    return NOM_GENERIQUE.test(jetonsNom(s).join(' ')) ? '' : s.trim();
+  }
+  /** Le compte (parmi reps) qui correspond à un nom, ou null. */
+  function repDuNom(nom, reps) {
+    var t = jetonsNom(nomPropre(nom));
+    if (!t.length || !reps || !reps.length) return null;
+    var prenom = t[0], noms = t.slice(1), familles = noms.concat(noms.length > 1 ? [noms.join('')] : []);
+    var forts = [], faibles = [];
+    reps.forEach(function (r) {
+      var n = jetonsNom(r.nom), loc = String(r.courriel || '').split('@')[0].toLowerCase().replace(/[^a-z]/g, '');
+      var pr = n[0] || '', nn = n.slice(1);
+      var prenomOk = prenomsCompat(pr, prenom) || (pr && pr === loc);                   /* le nom du compte est son adresse (« pgrenon ») */
+      var courrielOk = !!loc && familles.some(function (L) { return L.length >= 2 && (loc === prenom + L || loc === prenom.charAt(0) + L || loc === L + prenom.charAt(0) || loc === L); });
+      var nomOk = nn.length > 0 && noms.length > 0 && noms.indexOf(nn[nn.length - 1]) >= 0;
+      if (prenomOk && (nomOk || courrielOk)) { forts.push(r); return; }
+      /* Le prénom seul (le livre écrit parfois « Gary ») : seulement si rien ne dit un autre nom de famille. */
+      var autreNom = nn.length > 0 || (loc && loc !== pr && !prenomsCompat(loc, prenom) && !courrielOk);
+      if (prenomsCompat(pr, prenom) && (noms.length === 0 ? true : !autreNom)) faibles.push(r);
+    });
+    if (forts.length) return forts[0];                      /* reps est trié : représentants avant la direction */
+    return faibles.length === 1 ? faibles[0] : null;
+  }
+  /* Le Livre des ventes, par NIV, pour les prêteurs qui ne nomment pas le représentant (chargé une fois par concession). */
+  var LIVRE_ORIG = {};
+  function chargerLivreOrigine(cie) {
+    var x = LIVRE_ORIG[cie] = LIVRE_ORIG[cie] || {};
+    if (x.index || x.promesse || x.erreur || !AMX.ventes || !AMX.ventes.charger) return Promise.resolve(x.index || null);
+    x.promesse = AMX.ventes.charger(cie, 'tout').then(function (d) {
+      var index = {};
+      ((d && d.ventes) || []).forEach(function (v) {
+        var vin = texte(v.vin).toUpperCase();
+        if (vin.length < 8 || !v.conseiller || v.statut === 'annulee' || v.type === 'wholesale' || v.horsVente) return;
+        [vin, vin.slice(-8)].forEach(function (k) { (index[k] = index[k] || []).push({ nom: v.conseiller, date: texte(v.dateVente || v.dateLivraison || v.declareLe).slice(0, 10) }); });
+      });
+      x.index = index; x.promesse = null; ORIGINES = {};
+      return index;
+    }, function (e) { x.promesse = null; x.erreur = AMX.erreurTexte(e); return null; });
+    return x.promesse;
+  }
+  function venteDuLivre(cie, c) {
+    var x = LIVRE_ORIG[cie], vin = texte(c.vin).toUpperCase();
+    if (!x || !x.index || vin.length < 8) return null;
+    var liste = x.index[vin.length === 17 ? vin : vin.slice(-8)] || x.index[vin.slice(-8)] || [];
+    if (!liste.length) return null;
+    var ref = texte(c.dateContrat).slice(0, 10), refMs = ref ? Date.parse(ref) : NaN;
+    var tri = liste.slice().sort(function (a, b) {
+      if (!isNaN(refMs)) return Math.abs(Date.parse(a.date) - refMs) - Math.abs(Date.parse(b.date) - refMs);
+      return String(b.date).localeCompare(String(a.date));
+    });
+    if (!isNaN(refMs) && Math.abs(Date.parse(tri[0].date) - refMs) > 180 * 86400000) return null;   /* une vente d'un autre propriétaire */
+    return tri[0];
+  }
+  var ORIGINES = {};
+  /** { nom, source: 'preteur' | 'livre' | '', rep (compte actif) | null, orphelin, raison } — null tant que les représentants ne sont pas lus. */
+  function origineDe(cie, c) {
+    var d = CRM[cie] && CRM[cie].donnees;
+    if (!d || !d.reps) return null;
+    var cle = cie + '|' + c.compte;
+    if (ORIGINES[cle]) return ORIGINES[cle];
+    var nom = nomPropre(c.conseiller), source = nom ? 'preteur' : '';
+    if (!nom) { var v = venteDuLivre(cie, c); if (v && nomPropre(v.nom)) { nom = nomPropre(v.nom); source = 'livre'; } }
+    var rep = nom ? repDuNom(nom, d.reps) : null, nomC = nomCie(cie);
+    var o = { nom: nom, source: source, rep: rep, orphelin: !rep,
+      raison: rep ? '' : (nom ? nom + ' n\'a pas de compte actif chez ' + nomC + ' (parti, ou pas encore dans ScanAutomax)' : 'aucun représentant d\'origine connu (le prêteur ne le donne pas' + (LIVRE_ORIG[cie] && LIVRE_ORIG[cie].index ? ' et la vente de ce NIV n\'est pas au Livre des ventes)' : ')')) };
+    /* Un représentant attitré dans ScanAutomax l'emporte ; s'il n'est plus actif, le client redevient orphelin. */
+    var cr = crmDe(cie, c.compte);
+    if (cr && cr.representant) {
+      var actif = d.reps.some(function (x) { return x.courriel === String(cr.representant).toLowerCase(); });
+      o.attitre = { courriel: cr.representant, nom: cr.representantNom || cr.representant, actif: actif };
+      if (actif) o.orphelin = false;
+      else { o.orphelin = true; o.raison = (cr.representantNom || cr.representant) + ', représentant attitré, n\'a plus de compte actif'; }
+    }
+    ORIGINES[cle] = o;
+    return o;
+  }
+  function texteOrigine(o) {
+    if (!o) return '';
+    if (o.attitre && o.attitre.actif) return 'Représentant attitré : ' + o.attitre.nom + (o.nom ? '\nReprésentant d\'origine : ' + o.nom : '');
+    if (o.rep) return 'Représentant d\'origine : ' + o.rep.nom + (o.source === 'livre' ? ' (Livre des ventes)' : ' (prêteur)');
+    return 'Orphelin : ' + o.raison;
+  }
   var DUREE_CACHE_MS = 5 * 60000;
   AMX.equite = {
     charger: function (force) {
@@ -901,6 +1004,7 @@
       '.eq-crm-conflits { margin: 8px 0 0; padding-left: 18px; } .eq-crm-conflits li { margin: 2px 0; }',
       'button.eq-crm { margin-top: 4px; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--vert); background: var(--carte); color: var(--vert-fonce); cursor: pointer; white-space: nowrap; } button.eq-crm:hover { background: var(--vert-clair); } button.eq-crm.envoye { border-color: var(--ligne-forte); color: var(--encre-2); background: var(--gris-bg); }',
       '.eq-crm-puce { background: var(--bleu-bg); color: var(--bleu); border-color: transparent; font-weight: 700; } .eq-rep-puce { background: var(--violet-bg); color: var(--violet); border-color: transparent; font-weight: 700; }',
+      '.eq-orph-puce { background: var(--ambre-bg, #FFF4E0); color: var(--ambre, #955F10); border-color: transparent; font-weight: 700; } .eq-crm-origine { margin: -4px 0 10px; font-size: 13px; color: var(--encre-3); } .eq-crm-origine b { color: var(--encre); }',
       '.eq-table tr.au-crm > td:first-child { box-shadow: inset 4px 0 0 var(--bleu); } select.eq-sel-crm.actif { border-color: var(--bleu); background: var(--bleu-bg); color: var(--bleu); font-weight: 700; }',
       '.eq-rep { color: var(--violet); font-weight: 600; } .eq-outils-liste { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; }',
       '.eq-params { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; } .eq-params .champ { width: 110px; } .eq-params .champ input { height: 30px; }',
@@ -1052,7 +1156,13 @@
       var fcrm = sauf === 'crm' ? '' : f.crm, cr = (fcrm || f.rep) ? crmDe(cieV, c.compte) : null;
       if (fcrm === 'envoyes' && !(cr && cr.crmLe)) return false;
       if (fcrm === 'pasEnvoyes' && cr && cr.crmLe) return false;
-      if (f.rep && (f.rep === '__sans' ? !!(cr && cr.representant) : !(cr && cr.representant === f.rep))) return false;
+      /* 9 nov. : « Orphelins » ; un représentant = ses clients attitrés, et ceux dont il est le représentant d'origine (pas encore attitrés). */
+      if (f.rep === '__sans' && cr && cr.representant) return false;
+      if (f.rep === '__orphelin') { var og = origineDe(cieV, c); if (!og || !og.orphelin) return false; }
+      if (f.rep && f.rep !== '__sans' && f.rep !== '__orphelin' && !(cr && cr.representant === f.rep)) {
+        var og2 = cr && cr.representant ? null : origineDe(cieV, c);
+        if (!(og2 && og2.rep && og2.rep.courriel === f.rep)) return false;
+      }
       if (f.type === 'location' && !r.location) return false;
       if (f.type === 'financement' && r.location) return false;
       if (f.echeance && (r.moisRestants === null || r.moisRestants > Number(f.echeance))) return false;
@@ -1104,6 +1214,11 @@
     this.analyser();
     var dCrm = CRM[this.cie] && CRM[this.cie].donnees;
     if (!this.crmDemande) { this.crmDemande = true; chargerCrm(this.cie).then(function () { if (!self.detruit) self.planifierRendu(0); }).catch(function (e) { (CRM[self.cie] = CRM[self.cie] || {}).erreur = AMX.erreurTexte(e); }); }
+    /* 9 nov. : le Livre des ventes, pour le représentant d'origine des clients dont le prêteur ne le donne pas (VW, Hyundai). */
+    if (this.livreDemande !== this.cie && this.lignes.some(function (r) { return !nomPropre(r.compte.conseiller); })) {
+      this.livreDemande = this.cie;
+      chargerLivreOrigine(this.cie).then(function (ix) { if (ix && !self.detruit) self.planifierRendu(0); });
+    }
     var champ = function (cle, libelle, pas, aide) { var inp = h('input', { type: 'number', step: pas || '0.01', value: String(self.params[cle]), title: aide || '' }); inp.addEventListener('change', function () { var v = nombre(inp.value); if (v === null) return; self.params[cle] = v; AMX.equite.poserParams(self.params); try { inp.blur(); } catch (e) {} setTimeout(function () { self.rendre(); }, 0); });   /* redessin différé : retirer le champ pendant son propre « change » fait échouer removeChild */ return h('div.champ', [h('label', { text: libelle }), inp]); };
     var paramsCorps = h('div.eq-params', [
       champ('frais', 'Frais $', '1', 'Transport et préparation, autres frais ajoutés au PDSF'),
@@ -1129,7 +1244,7 @@
       dCrm ? (function () {
         var noms = {}; (dCrm.reps || []).forEach(function (r) { noms[r.courriel] = r.nom; });
         Object.keys(dCrm.crm || {}).forEach(function (k) { var x = dCrm.crm[k]; if (x.representant && !noms[x.representant]) noms[x.representant] = x.representantNom || x.representant; });
-        var opts = [['', 'Tous les représentants'], ['__sans', 'Sans représentant attitré']].concat(Object.keys(noms).sort(function (a, b) { return String(noms[a]).localeCompare(String(noms[b]), 'fr'); }).map(function (k) { return [k, noms[k]]; }));
+        var opts = [['', 'Tous les représentants'], ['__sans', 'Sans représentant attitré'], ['__orphelin', 'Orphelins (représentant parti ou inconnu)']].concat(Object.keys(noms).sort(function (a, b) { return String(noms[a]).localeCompare(String(noms[b]), 'fr'); }).map(function (k) { return [k, noms[k]]; }));
         if (self.filtres.rep && !opts.some(function (o) { return o[0] === self.filtres.rep; })) self.filtres.rep = '';
         return sel('rep', opts);
       })() : null,
@@ -1449,7 +1564,8 @@
       if (val && AMX.modale) { var ta = h('textarea.saisie', { placeholder: 'Note (facultatif) : ce qui a été dit, le véhicule proposé…', value: note }); AMX.modale({ titre: SUIVIS[val] + ' — ' + nomClient(c), corps: ta, boutons: [{ texte: 'Enregistrer', classe: 'btn primaire', action: function () { fin(ta.value); return true; } }, { texte: 'Annuler', action: function () { selSuivi.value = c.suivi || ''; return true; } }] }); }
       else fin(note);
     });
-    var titreClient = [nomClient(c), [c.ville, r.gm ? c.etatLead : c.compte].filter(Boolean).join(' · '), contact ? [c.telephone, c.courriel].filter(Boolean).join(' · ') : ''].filter(Boolean).join('\n');
+    var og = origineDe(self.cie, c);
+    var titreClient = [nomClient(c), [c.ville, r.gm ? c.etatLead : c.compte].filter(Boolean).join(' · '), contact ? [c.telephone, c.courriel].filter(Boolean).join(' · ') : '', texteOrigine(og)].filter(Boolean).join('\n');
     var puces = [];
     if (r.ndnc) puces.push(h('span.puce.eq-ndnc', { text: 'LNNTE', title: 'Ne pas téléphoner : inscrit à la Liste nationale de numéros de télécommunication exclus ou à la liste interne de la concession (GM Dealer Direct)' }));
     if (r.sauver) puces.push(h('span.puce.eq-int-puce', { text: 'Intérêt −' + String(Math.round(r.ecartTaux * 10) / 10).replace('.', ','), title: 'Sauver de l\'intérêt\nTaux du contrat ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? ' (estimé à partir du rachat, du paiement et des mensualités qui restent : le prêteur ne donne pas le taux)' : ' (prêteur)') + '\nTaux du programme d\'aujourd\'hui ' + fmtTaux(r.tauxJour) + (r.programme && r.programme.libelle ? ' — ' + r.programme.libelle : '') + '\nÉcart : ' + String(r.ecartTaux).replace('.', ',') + ' points' + (r.interetMois ? '\nÀ dette égale (' + fmt$(r.solde) + ', ' + r.dette.n + ' mois) : ' + fmt$(r.interetMois) + ' de moins par mois, ≈ ' + fmt$(r.interetSauve) + ' d\'intérêts sauvés' : '') }));
@@ -1457,6 +1573,7 @@
     var crP = crmDe(self.cie, c.compte);
     if (crP && crP.crmLe) puces.unshift(h('span.puce.eq-crm-puce', { text: 'Au CRM ' + AMX.fmtDateCourte(crP.crmLe) + (crP.representantNom ? ' · ' + nomCourt(crP.representantNom) : ''), title: 'Envoyé au CRM le ' + AMX.fmtDate(crP.crmLe) + (crP.crmPar ? ' par ' + String(crP.crmPar).split('@')[0] : '') + (crP.crmFois > 1 ? ' (' + crP.crmFois + ' envois)' : '') + (crP.representantNom ? '\nReprésentant attitré : ' + crP.representantNom : '') + (crP.crmNeuf ? '\nVéhicule proposé : ' + crP.crmNeuf : '') }));
     else if (crP && crP.representantNom) puces.unshift(h('span.puce.eq-rep-puce', { text: 'À ' + nomCourt(crP.representantNom), title: 'Représentant attitré : ' + crP.representantNom + ' (pas encore envoyé au CRM)' }));
+    if (og && og.orphelin) puces.unshift(h('span.puce.eq-orph-puce', { text: 'Orphelin', title: 'Orphelin : ' + og.raison + '.\nÀ « Envoyer au CRM », choisissez un représentant.' }));
     if (r.exportable) puces.push(h('span.puce.eq-us-puce', { text: 'É.-U.', title: 'NIV fabriqué aux États-Unis : le véhicule peut être vendu aux É.-U. — voir la colonne « É.-U. ».' }));
     var telEl = contact && c.telephone ? h('a', { href: 'tel:' + c.telephone.replace(/[^\d+]/g, ''), text: c.telephone, onclick: function (ev) { ev.stopPropagation(); } }) : null;
     var mailEl = contact && c.courriel ? h('a.eq-mail', { href: 'mailto:' + c.courriel, text: '✉', title: c.courriel, onclick: function (ev) { ev.stopPropagation(); } }) : null;
@@ -1531,8 +1648,34 @@
          veut le réattribuer ») : un client déjà attitré garde son représentant ; en choisir un autre est une réattribution,
          que seul un gestionnaire des leads fait (le serveur refuse les autres, et demande une confirmation). */
       var dejaA = function (r) { var x = crmDe(cie, r.compte.compte); return x && x.representant ? x : null; };
+      /* 9 nov. : par défaut, le représentant d'origine (s'il a un compte actif) ; sinon le client est « orphelin ». */
+      var origines = rows.map(function (r) { return origineDe(cie, r.compte); });
+      var sansAttitre = rows.filter(function (r) { return !dejaA(r); });
+      var avecOrigine = sansAttitre.filter(function (r) { var o = origineDe(cie, r.compte); return !!(o && o.rep); });
+      var orphelinsSel = sansAttitre.filter(function (r) { var o = origineDe(cie, r.compte); return !(o && o.rep); });
+      var ligneOrigine = null, boiteOrph = null, selOrph = null;
+      if (un) {
+        var o1 = origines[0];
+        if (!repActuel && o1 && o1.rep) {
+          Array.prototype.forEach.call(selRep.options, function (op) { if (op.value === o1.rep.courriel) op.textContent += ' — représentant d\'origine'; });
+          selRep.value = o1.rep.courriel;
+          ligneOrigine = h('div.eq-crm-origine', ['Représentant d\'origine : ', h('b', { text: o1.rep.nom }), ' (' + (o1.source === 'livre' ? 'vente au Livre des ventes' : 'contrat du prêteur') + '), choisi par défaut.']);
+        } else if (o1 && o1.orphelin) {
+          ligneOrigine = h('div.eq-crm-avis', { role: 'status' }, [h('b', { text: 'Orphelin' }), ' — ' + o1.raison + '. Choisissez un représentant.']);
+        }
+      } else if (avecOrigine.length || orphelinsSel.length) {
+        if (avecOrigine.length) {
+          selRep.insertBefore(opt('__origine', 'Le représentant d\'origine de chaque client (' + avecOrigine.length + ')'), selRep.children[1] || null);   /* children : options[1] est dans un optgroup */
+          selRep.value = '__origine';
+        }
+        selOrph = h('select.saisie#eq-crm-orph', [opt('', '— Aucun représentant —')]
+          .concat(ventes.length ? [h('optgroup', { label: 'Représentants' }, ventes.map(function (x) { return opt(x.courriel, x.nom + (x.role === 'bdc' ? ' (BDC)' : '')); }))] : [])
+          .concat(direction.length ? [h('optgroup', { label: 'Direction des ventes' }, direction.map(function (x) { return opt(x.courriel, x.nom + ' (' + (x.roleLibelle || x.role) + ')'); }))] : []));
+        boiteOrph = h('div.champ', [h('label', { for: 'eq-crm-orph', text: 'Pour les orphelins (' + orphelinsSel.length + ')' }), selOrph]);
+        ligneOrigine = h('div.eq-crm-origine', { text: [avecOrigine.length ? avecOrigine.length + ' avec un représentant d\'origine' : '', orphelinsSel.length ? orphelinsSel.length + ' orphelin' + (orphelinsSel.length > 1 ? 's' : '') + ' (représentant parti ou inconnu)' : '', rows.length - sansAttitre.length ? (rows.length - sansAttitre.length) + ' déjà attitré' + (rows.length - sansAttitre.length > 1 ? 's' : '') + ' (gardent leur représentant)' : ''].filter(Boolean).join(' · ') + '.' });
+      }
       var conflitsDe = function (v) {
-        if (!v) return [];
+        if (!v || v === '__origine') return [];
         return rows.filter(function (r) { var x = dejaA(r); return x && (v === '__retirer' || String(x.representant).toLowerCase() !== String(v).toLowerCase()); })
           .map(function (r) { var x = dejaA(r); return { client: nomClient(r.compte), de: x.representantNom || x.representant }; });
       };
@@ -1550,6 +1693,7 @@
         var c = r.compte, x = crmDe(cie, c.compte), puces = [];
         if (x && x.crmLe) puces.push(h('span.puce.attention', { text: 'déjà envoyé le ' + AMX.fmtDateCourte(x.crmLe) }));
         if (x && x.representantNom) puces.push(h('span.puce', { text: 'à ' + nomCourt(x.representantNom) }));
+        else { var oL = origineDe(cie, c); if (oL && oL.rep) puces.push(h('span.puce', { text: 'origine : ' + nomCourt(oL.rep.nom), title: texteOrigine(oL) })); else if (oL && oL.orphelin) puces.push(h('span.puce.eq-orph-puce', { text: 'Orphelin', title: oL.raison })); }
         if (r.ndnc) puces.push(h('span.puce.danger', { text: 'Ne pas téléphoner' }));
         if (!c.telephone && !c.courriel) puces.push(h('span.puce.attention', { text: 'ni téléphone ni courriel' }));
         var nomN = r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].filter(Boolean).join(' ') : '';
@@ -1560,6 +1704,7 @@
       var btnEnvoi = null;
       var maj = function () {
         var choisi = (selRep.value && selRep.value !== '__retirer') || (!selRep.value && avecRep);   /* sans nouveau choix : le représentant déjà attitré */
+        if (boiteOrph) boiteOrph.style.display = selRep.value === '__origine' && orphelinsSel.length ? '' : 'none';
         cbPrevenir.disabled = !choisi; lignePrevenir.classList.toggle('inactif', !choisi);
         var rx = selRep.value && selRep.value !== '__retirer' ? repDe(selRep.value) : null, sansCell = !!(rx && rx.cellulaire === false);
         var peutTexto = choisi && !!d.textos && !sansCell;
@@ -1584,6 +1729,8 @@
         h('p', { style: { margin: '0 0 10px' } }, ['La transaction part au CRM de ', h('b', { text: d.nomConcession || nomCie(cie) }), ' au format ADF (comme les leads) : le client, ses coordonnées tirées du portefeuille du prêteur, son véhicule (échange), le neuf proposé et la nouvelle mensualité.']),
         liste,
         h('div.champ', [h('label', { for: 'eq-crm-rep', text: 'Représentant attitré' }), selRep]),
+        ligneOrigine,
+        boiteOrph,
         avisRep,
         ligneCase(cbEnvoyer, 'Envoyer au CRM', d.adresse || 'adresse ADF'),
         lignePrevenir,
@@ -1599,7 +1746,38 @@
           var corpsPost = { action: 'equiteCrm', compagnie: cie, items: rows.map(function (r) { return { compte: r.compte.compte, t: transactionDe(r) }; }),
             representant: r0 && r0 !== '__retirer' ? r0 : '', retirer: r0 === '__retirer', envoyer: envoyer, prevenir: !cbPrevenir.disabled && cbPrevenir.checked, texto: !cbTexto.disabled && cbTexto.checked, note: note.value.trim() };
           var poster = function (corps) { return AMX.post(corps, { secours: false, delai: 180000 }); };
-          return poster(corpsPost).then(function (res) {
+          /* 9 nov. : « représentant d'origine de chaque client » = un envoi par représentant (le serveur prend un seul
+             représentant par envoi) ; les clients déjà attitrés gardent le leur, les orphelins vont au choix « Pour les orphelins ». */
+          var envoyerParOrigine = function () {
+            var groupes = {}, ordre = [];
+            rows.forEach(function (r) {
+              var o = origineDe(cie, r.compte), k = dejaA(r) ? '' : (o && o.rep ? o.rep.courriel : (selOrph ? selOrph.value : ''));
+              if (!groupes[k]) { groupes[k] = []; ordre.push(k); }
+              groupes[k].push(r);
+            });
+            var acc = { ok: true, parOrigine: true, envoyes: 0, attribues: 0, reattribues: 0, prevenus: 0, prevenu: false, textos: 0, sansCellulaire: [], erreurs: [], crm: {} };
+            return ordre.reduce(function (p, k) {
+              return p.then(function () {
+                var c2 = {}; Object.keys(corpsPost).forEach(function (cle) { c2[cle] = corpsPost[cle]; });
+                c2.representant = k; c2.items = groupes[k].map(function (r) { return { compte: r.compte.compte, t: transactionDe(r) }; });
+                return poster(c2).then(function (res) {
+                  if (res && res.vehicules && res.envoyes === undefined) throw new Error('Le script n\'est pas à jour : déployez EquiteCrm.gs.');
+                  if (!res || res.refuse || (res.ok === false && !res.envoyes && !res.attribues)) { acc.erreurs.push({ erreur: (res && res.erreur) || ((res && res.erreurs) || [])[0] && res.erreurs[0].erreur || 'Refusé par le serveur.' }); return; }
+                  ['envoyes', 'attribues', 'reattribues', 'prevenus', 'textos'].forEach(function (f) { acc[f] += Number(res[f]) || 0; });
+                  if (res.prevenu) acc.prevenu = true;
+                  if (res.textosInactifs) acc.textosInactifs = true;
+                  (res.sansCellulaire || []).forEach(function (n) { if (acc.sansCellulaire.indexOf(n) < 0) acc.sansCellulaire.push(n); });
+                  (res.erreurs || []).forEach(function (e) { acc.erreurs.push(e); });
+                  Object.keys(res.crm || {}).forEach(function (cle) { acc.crm[cle] = res.crm[cle]; });
+                });
+              });
+            }, Promise.resolve()).then(function () {
+              if (!acc.envoyes && !acc.attribues && acc.erreurs.length) acc.ok = false;
+              if (acc.prevenu && !acc.prevenus) acc.prevenus = 1;
+              return acc;
+            });
+          };
+          var envoi = r0 === '__origine' ? envoyerParOrigine() : poster(corpsPost).then(function (res) {
             if (!res || res.code !== 'DEJA_ATTRIBUE') return res;
             var cf = res.conflits || [];
             if (!res.gestionnaire) { AMX.toast(res.erreur || 'Déjà attribué à un autre représentant : seul un gestionnaire des leads peut le réattribuer.', 'erreur', 9000); return false; }
@@ -1611,15 +1789,17 @@
               var c2 = {}; Object.keys(corpsPost).forEach(function (k) { c2[k] = corpsPost[k]; }); c2.reattribuer = true;
               return poster(c2);
             });
-          }).then(function (res) {
+          });
+          return envoi.then(function (res) {
             if (res === false) return false;
             if (res && res.vehicules && res.envoyes === undefined) throw new Error('Le script n\'est pas à jour : déployez EquiteCrm.gs.');
             if (res && (res.refuse || res.ok === false) && !res.envoyes) throw new Error((res && res.erreur) || ((res.erreurs || [])[0] || {}).erreur || 'Refusé par le serveur.');
             var x = CRM[cie] && CRM[cie].donnees;
             if (x && res.crm) Object.keys(res.crm).forEach(function (k) { x.crm[k] = res.crm[k]; });
+            ORIGINES = {};
             var morceaux = [];
             if (envoyer) morceaux.push(res.envoyes + ' client' + (res.envoyes > 1 ? 's' : '') + ' envoyé' + (res.envoyes > 1 ? 's' : '') + ' au CRM');
-            if (res.attribues) morceaux.push('attribué' + (res.attribues > 1 ? 's' : '') + ' à ' + (selRep.options[selRep.selectedIndex].text || '').replace(/ \(.*\)$/, ''));
+            if (res.attribues) morceaux.push('attribué' + (res.attribues > 1 ? 's' : '') + ' à ' + (res.parOrigine ? 'leur représentant d\'origine' + (selOrph && selOrph.value ? ' (orphelins : ' + (selOrph.options[selOrph.selectedIndex].text || '').replace(/ \(.*\)$/, '') + ')' : '') : (selRep.options[selRep.selectedIndex].text || '').replace(/ — représentant d'origine$/, '').replace(/ \(.*\)$/, '')));
             if (r0 === '__retirer') morceaux.push('représentant retiré');
             if (res.reattribues) morceaux.push(res.reattribues > 1 ? res.reattribues + ' leads réattribués' : 'lead réattribué');
             if (res.prevenu) morceaux.push((res.prevenus > 1 ? res.prevenus + ' représentants prévenus' : 'représentant prévenu') + ' par courriel');
@@ -1841,7 +2021,7 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux du contrat %': r.tauxContrat === null ? '' : r.tauxContrat, 'Taux du contrat : source': r.tauxSource === 'estime' ? 'estimé (rachat, paiement, mensualités)' : (r.tauxSource === 'preteur' ? 'prêteur' : ''), 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur (moyenne des ventes OpenLane)': r.valeur, 'Ventes OpenLane': r.nVentes, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'Fidélité Hyundai': texteFidelite(r.fidelite), 'Fidélité : PIN': r.fidelite ? r.fidelite.pin || '' : '', 'Fidélité : expiration': r.fidelite ? r.fidelite.expiration || '' : '', 'Taux avant fidélité %': r.programme && r.programme.fidelite ? r.programme.tauxAvantFidelite : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Transaction du neuf': r.programme ? (r.programme.type === 'location' ? 'location' : 'financement') : '', 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Km / an du neuf': r.programme && r.programme.type === 'location' ? r.programme.kmAn || '' : '', 'Résiduel du neuf %': r.programme && r.programme.type === 'location' ? r.programme.residuelPct || '' : '', 'Écart avec le contrat': r.programmeManquant ? 'programme à trouver : ' + r.programme.raison : ecartsTransaction(r).join(' · '), 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Taux d\'aujourd\'hui %': r.tauxJour === null ? '' : r.tauxJour, 'Écart de taux (pts)': r.ecartTaux === null ? '' : r.ecartTaux, 'Sauver de l\'intérêt': r.sauver ? 'oui' : '', 'Intérêts sauvés (estimé)': r.interetSauve === null ? '' : r.interetSauve, 'Intérêts sauvés / mois': r.interetMois === null ? '' : r.interetMois, 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '', 'Représentant attitré': (crmDe(r.compte.compagnie || '', c.compte) || {}).representantNom || '', 'Envoyé au CRM le': ((crmDe(r.compte.compagnie || '', c.compte) || {}).crmLe || '').slice(0, 10) }; });
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux du contrat %': r.tauxContrat === null ? '' : r.tauxContrat, 'Taux du contrat : source': r.tauxSource === 'estime' ? 'estimé (rachat, paiement, mensualités)' : (r.tauxSource === 'preteur' ? 'prêteur' : ''), 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': c.paiement, 'Valeur (moyenne des ventes OpenLane)': r.valeur, 'Ventes OpenLane': r.nVentes, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'Fidélité Hyundai': texteFidelite(r.fidelite), 'Fidélité : PIN': r.fidelite ? r.fidelite.pin || '' : '', 'Fidélité : expiration': r.fidelite ? r.fidelite.expiration || '' : '', 'Taux avant fidélité %': r.programme && r.programme.fidelite ? r.programme.tauxAvantFidelite : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Transaction du neuf': r.programme ? (r.programme.type === 'location' ? 'location' : 'financement') : '', 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Km / an du neuf': r.programme && r.programme.type === 'location' ? r.programme.kmAn || '' : '', 'Résiduel du neuf %': r.programme && r.programme.type === 'location' ? r.programme.residuelPct || '' : '', 'Écart avec le contrat': r.programmeManquant ? 'programme à trouver : ' + r.programme.raison : ecartsTransaction(r).join(' · '), 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Taux d\'aujourd\'hui %': r.tauxJour === null ? '' : r.tauxJour, 'Écart de taux (pts)': r.ecartTaux === null ? '' : r.ecartTaux, 'Sauver de l\'intérêt': r.sauver ? 'oui' : '', 'Intérêts sauvés (estimé)': r.interetSauve === null ? '' : r.interetSauve, 'Intérêts sauvés / mois': r.interetMois === null ? '' : r.interetMois, 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '', 'Représentant attitré': (crmDe(r.compte.compagnie || '', c.compte) || {}).representantNom || '', 'Représentant d\'origine': (origineDe(r.compte.compagnie || '', c) || {}).nom || '', 'Orphelin': (function () { var o = origineDe(r.compte.compagnie || '', c); return o ? (o.orphelin ? 'oui — ' + o.raison : 'non') : ''; })(), 'Envoyé au CRM le': ((crmDe(r.compte.compagnie || '', c.compte) || {}).crmLe || '').slice(0, 10) }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');

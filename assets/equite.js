@@ -507,8 +507,16 @@
      résiduel « par défaut ». Le Portefeuille clients (MOF_grilleChoix_) garde, lui, le terme offert le plus proche. */
   /** Km par année du contrat : le km du contrat est un total ; divisé par les années du terme (un total qui donnerait moins de
       8 000 km par année est en fait un km annuel). Arrondi au millier. */
+  /** 9 nov. : le terme du contrat en mois — celui du prêteur, sinon les mois entre la date du contrat et l'échéance (6 à 96). */
+  function termeContrat(c) {
+    var t = nombre(c && c.terme); if (t > 0) return t;
+    var d1 = Date.parse(c && c.dateContrat), d2 = Date.parse(c && c.echeance);
+    if (!isFinite(d1) || !isFinite(d2)) return null;
+    var m = Math.round((d2 - d1) / (30.4375 * 86400000));
+    return m >= 6 && m <= 96 ? m : null;
+  }
   function kmAnContrat(c) {
-    var km = nombre(c && c.kmContrat), t = nombre(c && c.terme); if (!(km > 0)) return null;
+    var km = nombre(c && c.kmContrat), t = termeContrat(c); if (!(km > 0)) return null;
     var parAn = t > 0 ? km / (t / 12) : null;
     if (parAn !== null && parAn >= 8000) return Math.round(parAn / 1000) * 1000;
     return km >= 8000 && km <= 40000 ? Math.round(km / 1000) * 1000 : null;
@@ -567,9 +575,12 @@
     var base = { type: type, rabais: rabais, rabaisAvantTaxes: avant, rabaisNoms: noms, termeVoulu: voulu, kmVoulu: kmVoulu, residuelPct: null, kmAn: kmVoulu, interpole: null, termeExact: true, kmExact: true };
     var c = (progs || []).filter(function (p) { return p.type === type && nombre(p.taux) !== null && (nombre(p.terme) || p.grille) && progCorrespond(p, s); });
     c.sort(function (a, b) { return progPrecision(b) - progPrecision(a); });
+    /* 9 nov. (Maxime : « le terme du contrat doit être le même que celui proposé ») : sans le terme du contrat (ni terme, ni
+       dates chez le prêteur), on ne prend jamais le terme du programme à la place — pas de mensualité. */
+    if (!voulu) return Object.assign({}, base, { manquant: true, terme: null, financementSeul: false, raison: 'le terme du contrat est inconnu (le prêteur ne le donne pas) : impossible de comparer au même terme' });
     /* le programme le plus précis qui DONNE ce terme (sa grille, ou sa ligne quand elle est à ce terme) */
     for (var i = 0; i < c.length; i++) {
-      var p0 = c[i], t0 = voulu || nombre(p0.terme), ch = grilleChoix(p0, t0, kmVoulu), o = null;
+      var p0 = c[i], t0 = voulu, ch = grilleChoix(p0, t0, kmVoulu), o = null;
       var lib = { source: 'programme', libelle: 'programme du mois' + (p0.note ? ' (' + p0.note + ')' : '') };
       if (ch && ch.taux !== null && (!location || ch.residuelPct > 0)) {
         o = Object.assign({}, base, lib, { taux: ch.taux, terme: ch.terme, termeExact: ch.termeExact, interpole: ch.interpole });
@@ -743,7 +754,7 @@
         var prix = r.neuf.prix + (nombre(params.frais) || 0);
         var valeur = r.valeur !== null ? r.valeur : 0;
         /* 6 nov. (soir) : la même transaction que le contrat — location au terme et aux km du contrat, financement au terme */
-        var contrat = { location: r.location, terme: nombre(c.terme), kmAn: r.location ? kmAnContrat(c) : null };
+        var contrat = { location: r.location, terme: termeContrat(c), kmAn: r.location ? kmAnContrat(c) : null };
         var fin = programmeNeuf(r.neuf, parModele ? familleDe(r.neuf.modele) : '', params, progs, tauxGm, contrat);
         if (fo && fo.pct && !fin.manquant && nombre(fin.taux) !== null) fin = Object.assign({}, fin, { tauxAvantFidelite: fin.taux, taux: Math.max(0, Math.round((nombre(fin.taux) - fo.pct) * 1000) / 1000), fidelite: fo });
         var calcul = function (rabais, avant, taux, terme) {

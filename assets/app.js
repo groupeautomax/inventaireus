@@ -493,6 +493,7 @@
   /* ------------------------------ Client API --------------------------- */
   var _fetch = window.fetch.bind(window);
   var enCours = 0;
+  var SECOURS_MAX_EN_COURS = 4;   // 9 nov. : au-delà, une demande lente n'a pas de requête de secours (voir AMX.get)
   function majEtat(err) {
     var e = document.getElementById('etat-sync'); if (!e) return;
     var lent = AMX.reseau && AMX.reseau.lent;
@@ -734,7 +735,9 @@
       lancer();
       // Requête de secours (course) seulement quand Google est vif : quand il est lent, elle ne gagnait plus rien
       // (mesuré le 16 oct. : les deux restaient 90 s) et doublait la charge.
-      if (!lent && opts.secours !== false) secours = setTimeout(function () { if (!fini && !AMX.reseau.estLent()) lancer(); }, opts.secours || D.secours);
+      // 9 nov. (vitesse) : pas de secours non plus quand plusieurs demandes sont déjà en route (au démarrage, l'Accueil en lance
+      // une quinzaine : mesuré, 5 secours repartaient à 6 s et chargeaient encore Google au pire moment).
+      if (!lent && opts.secours !== false) secours = setTimeout(function () { if (!fini && !AMX.reseau.estLent() && enCours <= SECOURS_MAX_EN_COURS) lancer(); }, opts.secours || D.secours);
     });
     var promesse = course.then(function (d) {
       enCours--; majEtat(false);
@@ -854,7 +857,8 @@
     [CLE.mail, CLE.nom, CLE.role, CLE.jeton, CLE.perms, CLE.expire, CLE.tel, CLE.textos, 'pg_unlocked_v1', 'pg_unlocked_scan_v1'].forEach(effacer);
     try { if (AMX.inventaire) AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e) {}
     try { if (AMX.recherche && AMX.recherche.vider) AMX.recherche.vider(); if (AMX.maxai && AMX.maxai.vider) AMX.maxai.vider(); if (AMX.evaluations && AMX.evaluations.vider) AMX.evaluations.vider(); if (AMX.achatsAuto) { AMX.achatsAuto.vider(); if (AMX.achatsAuto.contrats) AMX.achatsAuto.contrats.vider(); } if (AMX.photosD2c) AMX.photosD2c.vider(); if (AMX.lmb) AMX.lmb.vider(); if (AMX.courtoisie) AMX.courtoisie.vider(); if (AMX.portefeuille) AMX.portefeuille.vider(); if (AMX.campagnesRelance) AMX.campagnesRelance.vider(); if (AMX.equite && AMX.equite.vider) AMX.equite.vider(); if (AMX.rh) AMX.rh.vider(); if (AMX.employes) AMX.employes.vider(); if (AMX.sst) AMX.sst.vider(); if (AMX.embauches) AMX.embauches.vider(); } catch (e2) {}   // 22 oct. : recherche et discussion Einstein AI ; 26 oct. : registre des évaluations de l'Accueil
-    try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
+    try { Object.keys(localStorage).filter(function (k) { return /^amx_cache_/.test(k); }).forEach(effacer); } catch (e3) {}
+    try { AMX.cacheLocal.viderTout(); } catch (e5) {}   // 9 nov. : les copies d'IndexedDB aussi   // 16 oct. : toutes les copies locales, jamais celles d'une autre personne
     AMX.session = { courriel: '', nom: '', role: '', perms: null, telephone: '', textos: null };
     document.getElementById('appli').classList.remove('pret');
     porte(message || '');
@@ -953,6 +957,7 @@
           }
           AMX.session.courriel = courrielEnCours;
           try { AMX.inventaire.vider(); if (AMX.service && AMX.service.vider) AMX.service.vider(); AMX.cacheLocal.oublier('eblock'); } catch (e2) {}   // jamais les listes d'une autre personne
+          try { AMX.cacheLocal.viderTout(); } catch (e6) {}   // 9 nov. : ni ses copies d'IndexedDB
           return chargerProfil().then(function () { ouvrir(); AMX.toast('Connecté pour ' + (d.dureeJours || 30) + ' jours sur cet appareil.', 'ok', 5000); try { AMX.inventaire.precharger(); if (AMX.service && AMX.service.precharger) AMX.service.precharger(); } catch (e3) {} });
         }).catch(function () { bouton.disabled = false; bouton.textContent = 'Se connecter'; erreur.textContent = 'Serveur injoignable. Réessayez.'; });
       };
@@ -2140,24 +2145,78 @@
     ecrire: function (cle, donnees) {
       try { ecrireStockage('amx_cache_' + cle, JSON.stringify({ quand: Date.now(), donnees: donnees })); } catch (e) { /* trop gros : tant pis */ }
     },
-    oublier: function (cle) { try { localStorage.removeItem('amx_cache_' + cle); localStorage.removeItem('amx_cache_' + cle + '_gz'); } catch (e) {} },
-    // 16 oct. : copies COMPRESSÉES (gzip + base64) pour les grosses réponses (neufs 1,4 Mo → ~125 Ko, portail, résultats,
-    // OpenLane…) — localStorage n'a que ~5 Mo. Asynchrones ; sans CompressionStream (vieux Safari) on ne garde rien.
+    oublier: function (cle) {
+      try { localStorage.removeItem('amx_cache_' + cle); localStorage.removeItem('amx_cache_' + cle + '_gz'); } catch (e) {}
+      idbOp('readwrite', function (st) { return st.delete(cle); }).catch(function () {});
+    },
+    // 16 oct. : copies des grosses réponses (neufs, portail, résultats, OpenLane…), asynchrones.
+    // 9 nov. (vitesse) : dans IndexedDB plutôt que localStorage. localStorage n'a qu'environ 5 Mo pour tout le site : mesuré le
+    // 9 nov., les copies se chassaient l'une l'autre (OpenLane 4,2 Mo, Occasion et Service 760 Ko chacune…) et Neufs, Ventes,
+    // Équité repartaient de zéro (12 à 42 s). IndexedDB garde des centaines de Mo, sans compression. Repli sur l'ancienne façon
+    // (gzip dans localStorage) si IndexedDB n'est pas offert. Tout est effacé à la déconnexion (viderTout).
     ecrireGz: function (cle, donnees) {
-      if (!GZ_ECRIRE_POSSIBLE) return Promise.resolve(false);
-      var quand = Date.now();
-      return gonfler(JSON.stringify(donnees)).then(function (b64) {
-        if (b64.length > CACHE_GZ_MAX) return false;
-        return ecrireStockage('amx_cache_' + cle + '_gz', JSON.stringify({ quand: quand, gz: b64 }));
-      }).catch(function () { return false; });
+      var gen = idbGen, quand = Date.now();
+      return idbOp('readwrite', function (st) { return gen === idbGen ? st.put({ quand: quand, donnees: donnees }, cle) : null; }).then(function () {
+        if (gen !== idbGen) return false;
+        try { localStorage.removeItem('amx_cache_' + cle + '_gz'); } catch (e) {}   // l'ancienne copie compressée libère sa place
+        return true;
+      }).catch(function () { return gen === idbGen ? ecrireGzLocal(cle, donnees, quand) : false; });
     },
     lireGz: function (cle, maxAge) {
-      if (!GZ_POSSIBLE) return Promise.resolve(null);
-      var o; try { var t = localStorage.getItem('amx_cache_' + cle + '_gz'); o = t ? JSON.parse(t) : null; } catch (e) { o = null; }
-      if (!o || !o.quand || !o.gz || (maxAge && Date.now() - o.quand > maxAge)) return Promise.resolve(null);
-      return degonfler(o.gz).then(function (t2) { return { quand: o.quand, donnees: JSON.parse(t2) }; }).catch(function () { return null; });
-    }
+      return idbOp('readonly', function (st) { return st.get(cle); }).catch(function () { return null; }).then(function (o) {
+        if (o && o.quand && o.donnees !== undefined) return (maxAge && Date.now() - o.quand > maxAge) ? null : { quand: o.quand, donnees: o.donnees };
+        return lireGzLocal(cle, maxAge);
+      });
+    },
+    /** 9 nov. : efface toutes les copies d'IndexedDB (déconnexion, connexion d'une autre personne). */
+    viderTout: function () { idbGen++; return idbOp('readwrite', function (st) { return st.clear(); }).catch(function () {}); }
   };
+  function ecrireGzLocal(cle, donnees, quand) {
+    if (!GZ_ECRIRE_POSSIBLE) return Promise.resolve(false);
+    return gonfler(JSON.stringify(donnees)).then(function (b64) {
+      if (b64.length > CACHE_GZ_MAX) return false;
+      return ecrireStockage('amx_cache_' + cle + '_gz', JSON.stringify({ quand: quand || Date.now(), gz: b64 }));
+    }).catch(function () { return false; });
+  }
+  function lireGzLocal(cle, maxAge) {
+    if (!GZ_POSSIBLE) return Promise.resolve(null);
+    var o; try { var t = localStorage.getItem('amx_cache_' + cle + '_gz'); o = t ? JSON.parse(t) : null; } catch (e) { o = null; }
+    if (!o || !o.quand || !o.gz || (maxAge && Date.now() - o.quand > maxAge)) return Promise.resolve(null);
+    return degonfler(o.gz).then(function (t2) { return { quand: o.quand, donnees: JSON.parse(t2) }; }).catch(function () { return null; });
+  }
+  /* IndexedDB : une base « amx_copies », un magasin « c » (clé = nom de la copie, valeur = { quand, donnees }).
+     Ouverture une fois ; si elle échoue (navigateur qui refuse, mode très restreint) on n'essaie plus et on reste sur localStorage. */
+  var IDB_NOM = 'amx_copies', IDB_MAGASIN = 'c', idbPromesse = null, idbHS = false, idbGen = 0;
+  function idbOuvrir() {
+    if (idbHS) return Promise.reject(new Error('IndexedDB indisponible'));
+    if (idbPromesse) return idbPromesse;
+    idbPromesse = new Promise(function (ok, ko) {
+      var fini = false, fin = function (f, v) { if (fini) return; fini = true; clearTimeout(minuterie); f(v); };
+      var minuterie = setTimeout(function () { fin(ko, new Error('IndexedDB trop lent')); }, 4000);
+      try {
+        if (typeof indexedDB === 'undefined' || !indexedDB) return fin(ko, new Error('IndexedDB absent'));
+        var r = indexedDB.open(IDB_NOM, 1);
+        r.onupgradeneeded = function () { var db = r.result; if (!db.objectStoreNames.contains(IDB_MAGASIN)) db.createObjectStore(IDB_MAGASIN); };
+        r.onsuccess = function () { var db = r.result; db.onversionchange = function () { try { db.close(); } catch (e) {} idbPromesse = null; }; fin(ok, db); };
+        r.onerror = function () { fin(ko, r.error || new Error('IndexedDB refusé')); };
+        r.onblocked = function () { fin(ko, new Error('IndexedDB bloqué')); };
+      } catch (e) { fin(ko, e); }
+    });
+    idbPromesse.catch(function () { idbHS = true; idbPromesse = null; });
+    return idbPromesse;
+  }
+  function idbOp(mode, faire) {
+    return idbOuvrir().then(function (db) {
+      return new Promise(function (ok, ko) {
+        var tx, req, res;
+        try { tx = db.transaction(IDB_MAGASIN, mode); req = faire(tx.objectStore(IDB_MAGASIN)); } catch (e) { ko(e); return; }
+        if (req) req.onsuccess = function () { res = req.result; };
+        tx.oncomplete = function () { ok(res); };
+        tx.onerror = function () { ko(tx.error || new Error('IndexedDB')); };
+        tx.onabort = function () { ko(tx.error || new Error('IndexedDB annulé')); };
+      });
+    });
+  }
   var CACHE_GZ_MAX = 900000;   // ~900 Ko de base64 par copie, au-delà on n'encombre pas le navigateur
   var GZ_ECRIRE_POSSIBLE = GZ_POSSIBLE && (typeof CompressionStream === 'function');
   function gonfler(texte) {

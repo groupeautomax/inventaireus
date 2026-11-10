@@ -83,6 +83,7 @@
     if (/ ALPINA B8 /.test(t)) return '8 SERIES';
     if ((m = / I([4-7]) /.exec(t))) return m[1] + ' SERIES';
     if ((m = / ([2-8]) SERIES /.exec(t))) return m[1] + ' SERIES';
+    if ((m = / SERIE ([2-8]) /.exec(t))) return m[1] + ' SERIES';   /* « BMW SERIE 3 2015 » (registre, export du DMS) */
     if ((m = / M?([2-8])\d\d[A-Z]{0,2} /.exec(t))) return m[1] + ' SERIES';
     if ((m = / M([2-8]) /.exec(t))) return m[1] + ' SERIES';
     return '';
@@ -212,7 +213,35 @@
     return out.filter(function (x) { if (vus[x.vin]) return false; vus[x.vin] = 1; return true; }).slice(0, max || 8).map(function (x) { return x.v; });
   }
 
-  var Calcul = { chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
+  /* -- Nos BMW en stock (Maxime, 10 nov. : « à côté de Trouver, cliquer et chercher une BMW à travers nos stocks de BMW ») --
+     Les BMW de nos registres (le modèle dit BMW), pas vendues ni parties ; un NIV une fois (Detail d'abord). */
+  var STATUTS_PARTIS = ['arrive', 'comptabilise', 'transit', 'manheimpa'];
+  var RANG_FEUILLE = { DETAIL: 0, CAN: 1, US: 2 };
+  function anneeDe(txt) { var m = /\b(19[89]\d|20\d\d)\b/.exec(String(txt || '')); return m ? Number(m[1]) : null; }
+  function bmwEnStock(liste) {
+    var vus = {}, out = [];
+    (liste || []).slice().sort(function (a, b) { return (RANG_FEUILLE[a._feuille] === undefined ? 9 : RANG_FEUILLE[a._feuille]) - (RANG_FEUILLE[b._feuille] === undefined ? 9 : RANG_FEUILLE[b._feuille]); }).forEach(function (v) {
+      var vin = cleRech(v.vin);
+      if (vin.length !== 17 || vus[vin]) return;
+      if (!/\bBMW\b/i.test(String(v.modele || ''))) return;
+      if (STATUTS_PARTIS.indexOf(v.statut) >= 0) return;
+      vus[vin] = 1;
+      out.push({ v: v, vin: vin, annee: anneeDe(v.modele), serie: serieDe(v.modele) });
+    });
+    return out;
+  }
+  /* Dans la grille ? { ok, raison } — l'année, puis la série pour cette année (une série inconnue : on laisse choisir). */
+  function admissible(prog, x) {
+    var annees = {}, series = {};
+    ((prog && prog.grille) || []).forEach(function (l) { annees[l[0]] = 1; series[l[0] + '|' + l[1]] = 1; });
+    var liste = Object.keys(annees).map(Number).sort();
+    if (!x.annee || !liste.length) return { ok: true, raison: '' };
+    if (!annees[x.annee]) return { ok: false, raison: x.annee + ' : hors de la grille (' + liste[0] + ' à ' + liste[liste.length - 1] + ')' };
+    if (x.serie && !series[x.annee + '|' + x.serie]) return { ok: false, raison: 'pas de ' + nomSerie(x.serie) + ' ' + x.annee + ' dans la grille' };
+    return { ok: true, raison: '' };
+  }
+
+  var Calcul = { bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
   /* ======================================================= La page */
@@ -225,6 +254,23 @@
     '.lbm-page .lbm-sugg button:last-child { border-bottom: none; } .lbm-page .lbm-sugg button:hover, .lbm-page .lbm-sugg button:focus-visible { background: var(--vert-clair); outline: none; }',
     '.lbm-page .lbm-sugg .st { font-weight: 800; min-width: 64px; } .lbm-page .lbm-sugg .mod { font-weight: 600; } .lbm-page .lbm-sugg .vin { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--encre-3); } .lbm-page .lbm-sugg .etat { margin-left: auto; font-size: 12px; color: var(--encre-3); }',
     '.lbm-page .lbm-sugg .rien { padding: 10px 12px; font-size: 13px; color: var(--encre-3); }',
+    '.lbm-stock .lbm-stock-outils { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }',
+    '.lbm-stock .lbm-stock-outils input[type=search] { width: 100%; }',
+    '.lbm-stock .lbm-stock-pastilles { display: flex; flex-wrap: wrap; gap: 6px; }',
+    '.lbm-stock .lbm-stock-pastilles button { border: 1px solid var(--ligne); background: var(--carte); color: var(--encre); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; min-height: 34px; }',
+    '.lbm-stock .lbm-stock-pastilles button.actif { background: var(--vert-fonce); border-color: var(--vert-fonce); color: #fff; }',
+    '.lbm-stock .lbm-stock-pastilles button .n { opacity: .75; margin-left: 5px; font-variant-numeric: tabular-nums; }',
+    '.lbm-stock .lbm-stock-case { display: inline-flex; gap: 6px; align-items: center; font-size: 13.5px; cursor: pointer; } .lbm-stock .lbm-stock-case input { width: 18px; height: 18px; }',
+    '.lbm-stock .lbm-stock-compte { font-size: 13px; color: var(--encre-3); }',
+    '.lbm-stock .lbm-stock-liste { display: flex; flex-direction: column; border: 1px solid var(--ligne); border-radius: 10px; overflow: hidden; }',
+    '.lbm-stock .lbm-stock-liste button { text-align: left; border: none; border-bottom: 1px solid var(--ligne); background: transparent; padding: 10px 12px; font: inherit; color: var(--encre); cursor: pointer; display: flex; gap: 4px 12px; align-items: baseline; flex-wrap: wrap; min-height: 48px; }',
+    '.lbm-stock .lbm-stock-liste button:last-child { border-bottom: none; } .lbm-stock .lbm-stock-liste button:hover, .lbm-stock .lbm-stock-liste button:focus-visible { background: var(--vert-clair); outline: none; }',
+    '.lbm-stock .lbm-stock-liste .st { font-weight: 800; min-width: 72px; } .lbm-stock .lbm-stock-liste .mod { font-weight: 600; } .lbm-stock .lbm-stock-liste .vin { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--encre-3); }',
+    '.lbm-stock .lbm-stock-liste .etat { margin-left: auto; font-size: 12.5px; color: var(--encre-3); text-align: right; }',
+    '.lbm-stock .lbm-stock-liste button.hors .mod, .lbm-stock .lbm-stock-liste button.hors .st { color: var(--encre-3); }',
+    '.lbm-stock .lbm-stock-liste .hors-puce { font-size: 12px; color: var(--ambre); background: var(--ambre-bg); border-radius: 999px; padding: 1px 8px; }',
+    '.lbm-stock .lbm-stock-liste .rien { padding: 16px; text-align: center; font-size: 13.5px; color: var(--encre-3); }',
+    '@media (max-width: 640px) { .lbm-page .lbm-niv { flex-wrap: wrap; } .lbm-page .lbm-niv .scan-env, .lbm-page .lbm-niv > input { flex: 1 1 100%; } .lbm-page .lbm-niv > .btn { flex: 1 1 0; justify-content: center; } .lbm-stock .lbm-stock-liste .etat { margin-left: 0; text-align: left; flex-basis: 100%; } }',
     '.lbm-page .lbm-vehicule { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }',
     '.lbm-page .lbm-veh-titre { font-size: 17px; font-weight: 700; } .lbm-page .lbm-veh-sous { font-size: 13px; color: var(--encre-3); }',
     '.lbm-page .lbm-version { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .lbm-page .lbm-version select { flex: 1 1 320px; min-width: 0; max-width: 620px; }',
@@ -321,6 +367,7 @@
     /* 1. Le véhicule */
     this.inVin = h('input.saisie.niv#lbm-vin', { type: 'text', maxlength: '17', value: String(p.vin || p.stock || '').toUpperCase(), placeholder: 'NIV, 6 derniers du NIV ou # stock', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'NIV ou # stock' });
     this.btnTrouver = h('button.btn.primaire', { type: 'button', html: (A.icones.recherche || '') + '<span>Trouver</span>', onclick: function () { self.trouverSaisie(); } });
+    this.btnStock = h('button.btn', { type: 'button', title: 'Parcourir nos BMW en stock (tous les registres)', html: (A.icones.voiture || A.icones.inventaire || '') + '<span>Nos BMW</span>', onclick: function () { self.ouvrirStock(); } });
     this.elSugg = h('div.lbm-sugg', { hidden: true, role: 'listbox', 'aria-label': 'Véhicules de notre inventaire' });
     this.inKm = h('input#lbm-km', { type: 'text', inputmode: 'numeric', value: this.o.km, placeholder: 'ex. 42 000', autocomplete: 'off' });
     this.elKmAide = h('div.aide', { text: 'Le km au compteur aujourd\'hui.' });
@@ -329,7 +376,7 @@
       h('div.carte-entete', [h('h2', '1. Le véhicule')]),
       h('div.carte-corps', [
         h('div.lbm-grille', [
-          h('div.champ', { style: { gridColumn: 'span 2' } }, [h('label', { for: 'lbm-vin', text: 'NIV ou # stock' }), h('div.lbm-niv', [this.inVin, this.btnTrouver]), this.elSugg, h('div.aide', { text: 'Le NIV complet, ses 6 derniers caractères, ou le # stock d\'un véhicule de nos registres.' })]),
+          h('div.champ', { style: { gridColumn: 'span 2' } }, [h('label', { for: 'lbm-vin', text: 'NIV ou # stock' }), h('div.lbm-niv', [this.inVin, this.btnTrouver, this.btnStock]), this.elSugg, h('div.aide', { text: 'Le NIV complet, ses 6 derniers caractères ou le # stock d\'un véhicule de nos registres — ou « Nos BMW » pour parcourir nos BMW en stock.' })]),
           h('div.champ', [h('label', { for: 'lbm-km', text: 'Km au compteur' }), this.inKm, this.elKmAide])
         ]),
         this.elVeh
@@ -508,6 +555,81 @@
     if (v.length === 17) { this.cacherSugg(); this.lireVin(true); return; }
     if (v.length < 3) { A.toast('Tapez le NIV, les 6 derniers du NIV ou le # stock.', 'attention'); return; }
     this.suggerer(true);
+  };
+  /* -- « Nos BMW » : les BMW de nos registres, à parcourir et filtrer ; un clic les met dans le calculateur -- */
+  VueLocation.prototype.ouvrirStock = function () {
+    var self = this;
+    this.cacherSugg();
+    var f = { q: '', feuille: '', serie: '', seulsProgramme: true };
+    var inQ = h('input.saisie', { type: 'search', placeholder: 'Modèle, série, année, # stock ou 6 derniers du NIV', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Chercher dans nos BMW' });
+    var elFeuilles = h('div.lbm-stock-pastilles', { role: 'group', 'aria-label': 'Registre' });
+    var elSeries = h('div.lbm-stock-pastilles', { role: 'group', 'aria-label': 'Série' });
+    var caseProg = h('input', { type: 'checkbox', checked: true });
+    var elCompte = h('span.lbm-stock-compte');
+    var elListe = h('div.lbm-stock-liste', { role: 'listbox', 'aria-label': 'Nos BMW en stock' });
+    var corps = h('div', [
+      h('div.lbm-stock-outils', [inQ, elFeuilles, elSeries, h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, [h('label.lbm-stock-case', [caseProg, h('span', { text: 'Seulement les années et séries du programme' })]), elCompte])]),
+      elListe
+    ]);
+    var m = A.modale({ titre: 'Nos BMW en stock', corps: corps, large: true, classe: 'lbm-stock', proteger: false, boutons: [{ texte: 'Fermer' }] });
+    elListe.appendChild(A.chargeur('Lecture de nos registres', { compact: true }));
+    var tous = null;
+    var nomF = function (fe) { return A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(fe) : fe; };
+    var garde = function (x, sauf) {
+      if (sauf !== 'feuille' && f.feuille && x.v._feuille !== f.feuille) return false;
+      if (sauf !== 'serie' && f.serie && (x.serie || '?') !== f.serie) return false;
+      if (sauf !== 'prog' && f.seulsProgramme && !x.adm.ok) return false;
+      if (f.q && !(A.correspond ? A.correspond([x.v.modele, x.v.stock, x.vin, x.v.compagnie, nomF(x.v._feuille), x.serie ? nomSerie(x.serie) : '', x.annee], f.q) : (x.v.modele + ' ' + x.v.stock + ' ' + x.vin).toUpperCase().indexOf(f.q.toUpperCase()) >= 0)) return false;
+      return true;
+    };
+    var pastilles = function (el, cle, choix) {
+      A.vider(el);
+      choix.forEach(function (c) {
+        var n = tous.filter(function (x) { return garde(x, cle) && (!c.val || (cle === 'feuille' ? x.v._feuille : (x.serie || '?')) === c.val); }).length;
+        if (c.val && !n && f[cle] !== c.val) return;
+        el.appendChild(h('button' + (f[cle] === c.val ? '.actif' : ''), { type: 'button', 'aria-pressed': f[cle] === c.val ? 'true' : 'false', onclick: function () { f[cle] = c.val; dessiner(); } }, [document.createTextNode(c.lib), h('span.n', { text: String(n) })]));
+      });
+    };
+    var ligne = function (x) {
+      var v = x.v, st = A.statut ? A.statut(v.statut, v._feuille) : { libelle: v.statut || '' };
+      var jours = A.joursDepuis && v.dateAjout ? A.joursDepuis(v.dateAjout) : null;
+      return h('button' + (x.adm.ok ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirInv(v); } }, [
+        h('span.st', { text: v.stock ? '# ' + v.stock : 'sans # stock' }),
+        h('span.mod', { text: v.modele || '—' }),
+        h('span.vin', { text: '…' + x.vin.slice(-8) }),
+        x.adm.ok ? null : h('span.hors-puce', { text: 'Hors programme · ' + x.adm.raison }),
+        h('span.etat', { text: [st.libelle, nomF(v._feuille), v.compagnie, (jours !== null && !isNaN(jours)) ? jours + ' j' : ''].filter(Boolean).join(' · ') })
+      ]);
+    };
+    var dessiner = function () {
+      if (!tous) return;
+      var feuilles = [{ val: '', lib: 'Tous les registres' }].concat(['DETAIL', 'CAN', 'US'].map(function (fe) { return { val: fe, lib: nomF(fe) }; }));
+      pastilles(elFeuilles, 'feuille', feuilles);
+      var vues = {}; tous.forEach(function (x) { vues[x.serie || '?'] = 1; });
+      var series = [{ val: '', lib: 'Toutes les séries' }].concat(Object.keys(vues).sort(function (a, b) { return (a === '?') - (b === '?') || nomSerie(a).localeCompare(nomSerie(b), 'fr', { numeric: true }); }).map(function (s) { return { val: s, lib: s === '?' ? 'Autre' : nomSerie(s) }; }));
+      pastilles(elSeries, 'serie', series);
+      var l = tous.filter(function (x) { return garde(x); });
+      var hors = tous.filter(function (x) { return garde(x, 'prog') && !x.adm.ok; }).length;
+      elCompte.textContent = l.length + ' BMW' + (f.seulsProgramme && hors ? ' · ' + hors + ' hors programme cachée' + (hors > 1 ? 's' : '') : '');
+      A.vider(elListe);
+      if (!l.length) { elListe.appendChild(h('div.rien', { text: tous.length ? 'Aucune BMW ne répond à ces filtres.' : 'Aucune BMW en stock dans nos registres.' })); return; }
+      l.forEach(function (x) { elListe.appendChild(ligne(x)); });
+    };
+    inQ.addEventListener('input', A.debounce(function () { f.q = inQ.value.trim(); dessiner(); }, 150));
+    inQ.addEventListener('keydown', function (e) { if (e.key === 'Enter') { var b = elListe.querySelector('button'); if (b && elListe.querySelectorAll('button').length === 1) { e.preventDefault(); b.click(); } } else if (e.key === 'ArrowDown') { var p = elListe.querySelector('button'); if (p) { e.preventDefault(); p.focus(); } } });
+    elListe.addEventListener('keydown', function (e) {
+      var l = [].slice.call(elListe.querySelectorAll('button')), i = l.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' && i < l.length - 1) { e.preventDefault(); l[i + 1].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (i > 0) l[i - 1].focus(); else inQ.focus(); }
+    });
+    caseProg.addEventListener('change', function () { f.seulsProgramme = caseProg.checked; dessiner(); });
+    var prog = this.prog();
+    this.invPret.then(function () {
+      tous = bmwEnStock(self.invListe).map(function (x) { x.adm = admissible(prog, x); return x; });
+      tous.sort(function (a, b) { return (b.adm.ok - a.adm.ok) || (RANG_FEUILLE[a.v._feuille] - RANG_FEUILLE[b.v._feuille]) || String(a.v.modele || '').localeCompare(String(b.v.modele || ''), 'fr', { numeric: true }) || ((b.annee || 0) - (a.annee || 0)); });
+      if (!tous.some(function (x) { return x.adm.ok; })) { f.seulsProgramme = false; caseProg.checked = false; }
+      dessiner();
+    });
   };
   VueLocation.prototype.choisirInv = function (v) {
     this.cacherSugg();

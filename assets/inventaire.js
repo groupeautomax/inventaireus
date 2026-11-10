@@ -1176,6 +1176,8 @@
           AMX.demandes.retouche(v);
         } }) : null,
         (AMX.sections.offres && voitOng('vente', 'envente')) ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
+        // 10 nov. : le paiement de location BMW Services financiers d'une BMW d'occasion (location-bmw.js) — le km vient de la fiche d'achat.
+        (cfg.feuille === 'DETAIL' && String(v.compagnie || '').toUpperCase() === 'BMW' && /BMW/i.test(String(v.modele || 'BMW')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0 && AMX.locationBmw && AMX.locationBmw.peutVoir() && voitOng('inventaire', 'locbmw')) ? h('a.btn', { href: AMX.lien('locbmw', '', { vin: v.vin }), title: 'Calculer le paiement de location BMW Services financiers (programme d\'occasion du mois)', html: (I.voiture || '') + '<span>Calculer la location</span>' }) : null,
         voitOng('inventaire', 'achat') ? h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }) : null
       ])
     ]);

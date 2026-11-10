@@ -1155,6 +1155,11 @@
           { id: 'evaluations', titre: 'Registre', visible: function () { return AMX.voitEvaluations(); } },
           { id: 'torque', titre: 'Archive Torque', visible: function () { return AMX.voitEvaluations(); } }
         ] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
+      /* 10 nov. (Maxime : « un outil dans le site avec un NIV et un km pour calculer les locations uniquement pour BMW ; ce
+         programme est bon nov et déc ») : le programme de location de BMW Services financiers pour les BMW d'occasion
+         (location-bmw.js ; la grille et les taux restent dans le script, LocationBmw.gs). Comptes qui voient BMW Sherbrooke et
+         qui vendent ou évaluent. */
+      { id: 'locbmw', titre: 'Location BMW', de: 'locbmw', onglet: '', parent: 'occasion', icone: 'voiture', couleur: 'prune', desc: 'Le paiement de location BMW Services financiers pour une BMW d\'occasion : NIV et km, résiduel et taux du mois, paiement par durée.', visible: function () { return !!(AMX.locationBmw && AMX.locationBmw.peutVoir()); } },
       { id: 'transports', titre: 'Transports', de: 'transports', onglet: '', icone: 'voiture', couleur: 'ambre', desc: 'Le transport des achats par Central Fleet : le release, la demande, le prix et le suivi.', compteur: function () { return AMX.transport ? AMX.transport.compteur() : ''; } }   /* 23 oct. : transport des achats par Central Fleet (transport.js) */
     ] },
     { id: 'relance', titre: 'Relance', icone: 'relance', ordre: 30, onglets: [

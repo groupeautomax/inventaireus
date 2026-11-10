@@ -1672,11 +1672,11 @@
       ['Concession', AMX.COMPAGNIES_TOUTES[v.compagnie] || v.compagnie], ['Type', (TYPES[v.type] || v.type) + (v.type === 'wholesale' ? (marcheDe(v) === 'US' ? ' États-Unis' : ' Canada') : '') + ' · ' + libCategorie(v.type, v.categorie)], v.type === 'usage' && (v.cpoNiveau || v.cpo) ? ['CPO', (v.cpoLibelle || 'Pas CPO') + (v.cpo ? ' — livre : « ' + v.cpo + ' »' : '')] : null, ['Date de vente', AMX.fmtDate(v.dateVente)], ['Livraison', v.dateLivraison ? AMX.fmtDate(v.dateLivraison) : '—'],
       v.dateRdr ? ['Date RDR', AMX.fmtDate(v.dateRdr) + (v.codeRdr ? ' · code ' + v.codeRdr : '')] : (v.type === 'neuf' && v.statut !== 'annulee' && !v.horsVente ? ['Date RDR', h('span.puce' + (dateLivraisonOk(v) ? '.alerte' : ''), { text: 'pas inscrite au livre' })] : null),
       [ws ? 'Vendu à' : 'Client', v.client || v.venduA || '—'], v.noClient ? ['No client (DMS)', v.noClient] : null, v.telephone ? ['Téléphone', AMX.telephoneTexte ? AMX.telephoneTexte(v.telephone) : v.telephone] : null, v.courriel ? ['Courriel', v.courriel] : null,
-      ws ? ['Acheté de', v.acheteDe || '—'] : null, ['Véhicule', vehiculeTexte(v) || '—'], ['# Stock', v.stock || '—'], ['NIV', v.vin || '—'], v.type !== 'neuf' && (v.acheteur || ws) ? ['Acheteur interne', v.acheteur || '—'] : null, ['Conseiller', v.conseiller || '—'],   /* 9 nov. : l'acheteur de la fiche d'achat */
-      montants ? ['Prix de vente', argent(v.prixVente)] : null, montants && ws ? ['Coûtant', argent(v.coutant)] : null, ['Paiement', libPaiement(v.paiement) || '—'],
-      montants ? ['Front estimé (voiture)', argent(frontE(v))] : null, montants ? ['Front comptable', frontC(v) === null ? 'pas encore inscrit' : argent(frontC(v))] : null,
-      montants && ecartEC(frontE(v), frontC(v)) !== null ? ['Écart front', h('span' + classeEcart(ecartEC(frontE(v), frontC(v))), { text: signe(ecartEC(frontE(v), frontC(v))) + ' (comptable − estimé)' })] : null,
-      montants ? ['Accessoires', argent(v.accessoires)] : null, v.note ? ['Note', v.note] : null
+      ws ? ['Acheté de', v.acheteDe || '—'] : null, ['Véhicule', vehiculeTexte(v) || '—'], ['# Stock', v.stock || '—'], ['NIV', v.vin || '—'], v.type !== 'neuf' && (v.acheteur || ws) ? ['Acheteur interne', v.acheteur || '—'] : null, ws ? null : ['Conseiller', v.conseiller || '—'],   /* 10 nov. : un wholesale n'a ni conseiller, ni paiement autre que comptant, ni accessoires */   /* 9 nov. : l'acheteur de la fiche d'achat */
+      montants ? ['Prix de vente', argent(v.prixVente)] : null, montants && ws ? ['Coûtant', argent(v.coutant)] : null, ws ? null : ['Paiement', libPaiement(v.paiement) || '—'],
+      montants ? [ws ? 'Profit estimé' : 'Front estimé (voiture)', argent(frontE(v))] : null, montants ? [ws ? 'Profit comptable' : 'Front comptable', frontC(v) === null ? 'pas encore inscrit' : argent(frontC(v))] : null,
+      montants && ecartEC(frontE(v), frontC(v)) !== null ? [ws ? 'Écart' : 'Écart front', h('span' + classeEcart(ecartEC(frontE(v), frontC(v))), { text: signe(ecartEC(frontE(v), frontC(v))) + ' (comptable − estimé)' })] : null,
+      montants && !ws ? ['Accessoires', argent(v.accessoires)] : null, v.note ? ['Note', v.note] : null
     ]));
     if (aEchange) {
       corps.appendChild(h('h4', 'Échange'));
@@ -2451,6 +2451,12 @@
     ]) : null;
     /* 26 oct. : le F&I n'est plus dans cette fenêtre (« Profits F&I » a la sienne) ; à l'inscription, on dit seulement qui sera prévenu. */
     var sectionFI = edition ? null : h('p.ventes-aide' + (!fiDest || (fiDest.courriels && fiDest.courriels.length) ? '.fi' : '.alerte') + '#vente-avis-fi', { text: texteFI });
+    /* 10 nov. (Maxime : « quand on inscrit une vente wholesale il faut enlever les éléments de vente au détail : il n'y a que des
+       ventes au comptant, pas de F&I, ça doit être simple ») : en wholesale, ni livraison prévue, ni conseiller, ni mode de
+       paiement (toujours « Comptant »), ni accessoires ; « Profit front prévu » devient « Profit prévu ». */
+    var titreVente = h('h4', 'Vente — direction des ventes');
+    var champLivraison = champ('vente-livraison', 'Livraison (prévue)', inLivraison), champConseiller = champ('vente-conseiller-liste', 'Conseiller', menuConseiller.el);
+    var champPaiement = champ('vente-paiement', 'Mode de paiement', selPaiement), champFront = champ('vente-front', 'Profit front prévu', inFront), champAccess = champ('vente-accessoires', 'Accessoires ($)', inAccess);
     var corps = h('div.ventes-form', [
       edition ? h('p.ventes-aide', { text: v.id + ' · ' + (TYPES[v.type] || v.type) + ' · ' + (v.importee ? 'importée du livre' : 'inscrite par ' + (v.declareParNom || v.declarePar || '')) + (v.livre === 'ecrit' ? ' · au livre ligne ' + v.livreLigne : '') + ' · ' + capitale(v.moisLibelle || moisLibelle(moisDeVente(v))) }) : null,
       h('div.grille', [champ('vente-compagnie', 'Concession', selCie), champ('vente-type', 'Type de vente', segType)]),
@@ -2458,8 +2464,8 @@
       edition ? null : h('div.ventes-vehicule', [champ('vente-recherche', '# stock ou NIV', inRecherche), btnChercher]),
       edition ? null : elTrouve,
       h('div.grille', [champ('vente-vin', 'NIV', inVin), champ('vente-stock', '# Stock', inStock), champ('vente-annee', 'Année', inAnnee), champ('vente-marque', 'Marque', inMarque), champ('vente-modele', 'Modèle', inModele), champ('vente-version', 'Version', inVersion)]),
-      h('h4', 'Vente — direction des ventes'),
-      h('div.grille', [champ('vente-date', 'Date de vente', inDate), champ('vente-livraison', 'Livraison (prévue)', inLivraison), champRdr, champCodeRdr, champ('vente-categorie', 'Catégorie', selCat), champProvenance, champ('vente-conseiller-liste', 'Conseiller', menuConseiller.el), champDirecteur, champ('vente-prix', 'Prix de vente', inPrix), champ('vente-paiement', 'Mode de paiement', selPaiement), champ('vente-front', 'Profit front prévu', inFront), champ('vente-accessoires', 'Accessoires ($)', inAccess), champPneus, champAcheteur]),
+      titreVente,
+      h('div.grille', [champ('vente-date', 'Date de vente', inDate), champLivraison, champRdr, champCodeRdr, champ('vente-categorie', 'Catégorie', selCat), champProvenance, champConseiller, champDirecteur, champ('vente-prix', 'Prix de vente', inPrix), champPaiement, champFront, champAccess, champPneus, champAcheteur]),
       dlConseillers, dlAcheteurs, dlDirecteurs, dlMarques, dlModeles, dlVersions,
       h('h4#vente-titre-client', 'Client'),
       blocClient, blocWholesale,
@@ -2483,6 +2489,9 @@
       if (h2 && !edition) h2.textContent = rachat ? 'Inscrire un rachat de bail' : 'Inscrire une vente';
       if (sectionFI) sectionFI.style.display = ws ? 'none' : '';   /* 1er nov. : pas de F&I en wholesale */
       champDirecteur.style.display = ws ? 'none' : ''; champPneus.style.display = ws ? 'none' : '';
+      [champLivraison, champConseiller, champPaiement, champAccess].forEach(function (c) { c.style.display = ws ? 'none' : ''; });
+      titreVente.textContent = ws ? 'Vente wholesale (au comptant)' : 'Vente — direction des ventes';
+      var lf = champFront.querySelector('label'); if (lf) lf.textContent = ws ? 'Profit prévu' : 'Profit front prévu';
       champAcheteur.style.display = type === 'neuf' || rachat ? 'none' : '';   /* 9 nov. : occasion et wholesale */
       if (type !== 'neuf' && !rachat) acheteurDeFiche(inVin.value);
       champRdr.style.display = ws ? 'none' : ''; champCodeRdr.style.display = ws || String(selCie.value || cie).toUpperCase() !== 'STM' ? 'none' : '';
@@ -2644,7 +2653,7 @@
         if (echVin && echVin.length !== 17) { AMX.toast('Le NIV de l\'échange a 17 caractères (ou laissez-le vide).', 'erreur'); inEchVin.focus(); return false; }
         var corpsEnvoi = { compagnie: compagnie, type: type, vin: vin, stock: stock, annee: inAnnee.value.trim(), marque: inMarque.value.trim(), modele: inModele.value.trim(), version: inVersion.value.trim(),
           client: inClient.value.trim(), noClient: type === 'wholesale' ? undefined : inNoClient.value.replace(/\s+/g, ''), telephone: inTel.value.trim(), courriel: inCourriel.value.trim(), dateVente: inDate.value, dateLivraison: inLivraison.value, categorie: rachat ? 'rachat' : selCat.value, conseiller: inConseiller.value.trim(),
-          prixVente: inPrix.value.trim(), paiement: selPaiement.value, provenance: type === 'neuf' && compagnie === 'BMW' ? selProvenance.value : undefined, profitPrevu: inFront.value.trim(), accessoires: inAccess.value.trim(), overUnder: inOver.value.trim(),
+          prixVente: inPrix.value.trim(), paiement: type === 'wholesale' ? 'comptant' : selPaiement.value, provenance: type === 'neuf' && compagnie === 'BMW' ? selProvenance.value : undefined, profitPrevu: inFront.value.trim(), accessoires: inAccess.value.trim(), overUnder: inOver.value.trim(),
           echangeStock: inEchStock.value.trim(), echangeModele: inEchModele.value.trim(), echangeVin: echVin, echangeKm: inEchKm.value.trim(), echangeValeur: inEchValeur.value.trim(), echangeEvaluation: inEchEval.value.trim(), echangeEvalLe: evalMeta.le, echangeEvalPar: evalMeta.par,
           dateRdr: type === 'wholesale' ? '' : inRdr.value, codeRdr: type === 'wholesale' ? '' : inCodeRdr.value.trim(),
           note: inNote.value.trim(), venduA: inVenduA.value.trim(), acheteDe: inAcheteDe.value.trim(), acheteur: type === 'neuf' ? undefined : inAcheteur.value.trim(), marche: type === 'wholesale' && !marcheFige ? marche : undefined, coutant: inCoutant.value.trim(), source: 'site' };

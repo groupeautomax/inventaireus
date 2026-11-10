@@ -1204,3 +1204,45 @@ body.avec-barre-selection #maxai-bulle { display: none; }
 .cote-enfants a:hover { background: var(--gris-bg); color: var(--encre); text-decoration: none; }
 .cote-enfants a.actif { color: var(--vert-fonce); font-weight: 700; }
 .cie-point.lmb { background: var(--prune); }
+
+/* 10 nov. (Maxime : « lorsqu'on choisit un stock dans les tableaux, le détail devrait prendre l'étendue de l'écran et non un
+   rectangle à droite — fais cette transition partout ») : un élément choisi, son détail prend toute la largeur de la page ; la
+   liste et son volet de filtres se cachent ; « ‹ Retour à la liste » la ramène au même endroit (app.js, détail plein écran).
+   Vaut pour toutes les pages à panneau : Occasion, Suivi service, Offre au marché, Leads, Comptes et droits. */
+.agencement.avec-panneau,
+.agencement.sans-rail.avec-panneau,
+.agencement.svc-fiche.avec-panneau,
+.agencement.svc-fiche:not(.sans-rail).avec-panneau,
+.agencement.sans-rail.svc-fiche.avec-panneau,
+html.ui2 .agencement:not(.sans-rail).avec-panneau { grid-template-columns: minmax(0, 1fr) !important; }
+.agencement.avec-panneau > :not(.panneau) { display: none !important; }
+.agencement.avec-panneau > .panneau {
+  position: static !important; inset: auto !important; width: auto !important; max-height: none !important;
+  overflow: visible !important; box-shadow: none !important; padding: 0 !important; z-index: auto !important; background: none !important;
+  container-type: inline-size; animation: amx-detail .18s ease-out;
+}
+@keyframes amx-detail { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .agencement.avec-panneau > .panneau { animation: none; } }
+.agencement.avec-panneau > .panneau .panneau-entete { justify-content: flex-start; align-items: center; gap: 14px; }
+.agencement.avec-panneau > .panneau .panneau-entete > :not(.fermer) { flex: 1 1 auto; }
+.agencement.avec-panneau > .panneau .panneau-entete > button.fermer {
+  order: -1; flex: 0 0 auto; width: auto; height: 36px; padding: 0 14px; gap: 6px; display: inline-flex; align-items: center;
+  border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--encre); font-weight: 600; font-size: 14px; white-space: nowrap;
+}
+.agencement.avec-panneau > .panneau .panneau-entete > button.fermer:hover { background: var(--gris-bg); }
+.agencement.avec-panneau > .panneau .panneau-entete > button.fermer svg { display: none; }
+.agencement.avec-panneau > .panneau .panneau-entete > button.fermer::before { content: '‹\00a0 Retour à la liste'; }
+.agencement.avec-panneau > .panneau .panneau-entete h2 { font-size: 18px; }
+/* Les blocs du détail sur deux colonnes (trois sur un grand écran) quand la largeur le permet. */
+@container (min-width: 860px) {
+  .agencement.avec-panneau > .panneau > .carte:has(> .bloc) { column-count: 2; column-gap: 0; column-rule: 1px solid var(--ligne); }
+  .agencement.avec-panneau > .panneau > .carte:has(> .bloc) > :not(.bloc) { column-span: all; }
+  .agencement.avec-panneau > .panneau > .carte > .bloc { break-inside: avoid; }
+}
+@container (min-width: 1400px) {
+  .agencement.avec-panneau > .panneau > .carte:has(> .bloc) { column-count: 3; }
+}
+@media (max-width: 640px) {
+  .agencement.avec-panneau > .panneau .panneau-entete { flex-wrap: wrap; }
+  .agencement.avec-panneau > .panneau .panneau-entete > button.fermer { flex-basis: 100%; justify-content: flex-start; }
+}

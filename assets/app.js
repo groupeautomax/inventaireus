@@ -271,6 +271,44 @@
 
   /* ------------------------------ Modales ------------------------------ */
   // AMX.modale({ titre, corps (Node|string), boutons: [{texte, classe, action(fermer), primaire}], large })
+  /* 10 nov. (Maxime : « le détail devrait prendre l'étendue de l'écran, fais cette transition partout ») : quand une page ouvre
+     son panneau de détail (.agencement.avec-panneau, app.css), la page monte au début du détail ; au retour à la liste, elle
+     revient où elle était. Échap ferme le détail (sauf dans un champ ou une fenêtre). */
+  (function detailPleinEcran() {
+    var positions = typeof WeakMap === 'function' ? new WeakMap() : null;
+    var hautFixe = function () { var cs = getComputedStyle(document.documentElement); return (parseFloat(cs.getPropertyValue('--barre-h')) || 0) + (parseFloat(cs.getPropertyValue('--sous-h')) || 0) + 10; };
+    var surClasse = function (el, avant) {
+      var ouvert = el.classList.contains('avec-panneau'), etait = /(^|\s)avec-panneau(\s|$)/.test(avant || '');
+      if (ouvert === etait || !positions) return;
+      if (ouvert) {
+        positions.set(el, window.scrollY);
+        var haut = el.getBoundingClientRect().top + window.scrollY - hautFixe();
+        window.scrollTo(0, Math.max(0, haut));
+      } else {
+        var y = positions.get(el); positions.delete(el);
+        if (y === undefined) return;
+        requestAnimationFrame(function () {
+          window.scrollTo(0, y);
+          var actif = el.querySelector('.ligne.actif, tr.actif, [data-vin].actif');
+          if (actif && actif.getBoundingClientRect) { var b = actif.getBoundingClientRect(); if (b.top < hautFixe() || b.bottom > window.innerHeight) actif.scrollIntoView({ block: 'center' }); }
+        });
+      }
+    };
+    if (typeof MutationObserver === 'function') {
+      new MutationObserver(function (muts) {
+        muts.forEach(function (m) { if (m.target && m.target.classList && m.target.classList.contains('agencement')) surClasse(m.target, m.oldValue); });
+      }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'], attributeOldValue: true, subtree: true });
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (document.querySelector('.voile')) return;
+      var t = e.target, tag = t && t.tagName ? t.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable)) return;
+      var b = document.querySelector('.agencement.avec-panneau > .panneau .panneau-entete > button.fermer');
+      if (b) { e.preventDefault(); b.click(); }
+    });
+  })();
+
   AMX.modale = function (o) {
     /* v130 (rapport « Refonte ergonomique », gain rapide 8) : la fenêtre est annoncée comme dialogue, le clavier reste
        dedans (Tab tourne entre ses boutons), le focus revient où il était à la fermeture, et une saisie modifiée n'est

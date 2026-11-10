@@ -188,7 +188,31 @@
   var MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juill.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
   function dateFr(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? (Number(m[3]) === 1 ? '1er' : Number(m[3])) + ' ' + MOIS[Number(m[2]) - 1] + ' ' + m[1] : String(iso || ''); }
 
-  var Calcul = { norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
+  /* -- Chercher un véhicule de nos registres par # stock ou NIV (complet, fin du NIV, ou un bout) : Maxime, 10 nov. -- */
+  function cleRech(s) { return String(s === undefined || s === null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function chercherInventaire(liste, q, max) {
+    var k = cleRech(q), vus = {}, out = [];
+    if (k.length < 3) return [];
+    (liste || []).forEach(function (v) {
+      var vin = cleRech(v.vin), st = cleRech(v.stock), s = 0;
+      if (vin.length !== 17) return;
+      if (st && st === k) s = 100;
+      else if (vin === k) s = 95;
+      else if (k.length >= 4 && vin.slice(-k.length) === k) s = 80;          /* la fin du NIV : les 6 (ou 8) derniers */
+      else if (st && st.indexOf(k) === 0) s = 60;
+      else if (st && st.indexOf(k) >= 0) s = 40;
+      else if (k.length >= 5 && vin.indexOf(k) >= 0) s = 30;
+      if (!s) return;
+      if (String(v.compagnie || '').toUpperCase() === 'BMW') s += 5;
+      if (['arrive', 'comptabilise'].indexOf(v.statut) < 0) s += 3;
+      if (/\bBMW\b/i.test(String(v.modele || ''))) s += 2;
+      out.push({ v: v, s: s, vin: vin });
+    });
+    out.sort(function (a, b) { return b.s - a.s; });
+    return out.filter(function (x) { if (vus[x.vin]) return false; vus[x.vin] = 1; return true; }).slice(0, max || 8).map(function (x) { return x.v; });
+  }
+
+  var Calcul = { chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
   /* ======================================================= La page */
@@ -196,6 +220,11 @@
     '.lbm-page .lbm-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px 14px; align-items: start; }',
     '.lbm-page .lbm-niv { display: flex; gap: 8px; align-items: stretch; } .lbm-page .lbm-niv .scan-env, .lbm-page .lbm-niv input { flex: 1 1 auto; min-width: 0; }',
     '.lbm-page .lbm-niv input { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }',
+    '.lbm-page .lbm-sugg { display: flex; flex-direction: column; border: 1px solid var(--ligne); border-radius: 10px; margin-top: 6px; overflow: hidden; background: var(--carte); box-shadow: var(--ombre); }',
+    '.lbm-page .lbm-sugg button { text-align: left; border: none; border-bottom: 1px solid var(--ligne); background: transparent; padding: 10px 12px; font: inherit; color: var(--encre); cursor: pointer; display: flex; gap: 6px 12px; align-items: baseline; flex-wrap: wrap; min-height: 44px; }',
+    '.lbm-page .lbm-sugg button:last-child { border-bottom: none; } .lbm-page .lbm-sugg button:hover, .lbm-page .lbm-sugg button:focus-visible { background: var(--vert-clair); outline: none; }',
+    '.lbm-page .lbm-sugg .st { font-weight: 800; min-width: 64px; } .lbm-page .lbm-sugg .mod { font-weight: 600; } .lbm-page .lbm-sugg .vin { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--encre-3); } .lbm-page .lbm-sugg .etat { margin-left: auto; font-size: 12px; color: var(--encre-3); }',
+    '.lbm-page .lbm-sugg .rien { padding: 10px 12px; font-size: 13px; color: var(--encre-3); }',
     '.lbm-page .lbm-vehicule { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }',
     '.lbm-page .lbm-veh-titre { font-size: 17px; font-weight: 700; } .lbm-page .lbm-veh-sous { font-size: 13px; color: var(--encre-3); }',
     '.lbm-page .lbm-version { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .lbm-page .lbm-version select { flex: 1 1 320px; min-width: 0; max-width: 620px; }',
@@ -290,8 +319,9 @@
     this.elAvisProg = h('div'); this.el.appendChild(this.elAvisProg);
 
     /* 1. Le véhicule */
-    this.inVin = h('input.saisie.niv#lbm-vin', { type: 'text', maxlength: '17', value: String(p.vin || '').toUpperCase(), placeholder: 'NIV (17 caractères)', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'NIV' });
-    this.btnTrouver = h('button.btn.primaire', { type: 'button', html: (A.icones.recherche || '') + '<span>Trouver</span>', onclick: function () { self.lireVin(true); } });
+    this.inVin = h('input.saisie.niv#lbm-vin', { type: 'text', maxlength: '17', value: String(p.vin || p.stock || '').toUpperCase(), placeholder: 'NIV, 6 derniers du NIV ou # stock', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'NIV ou # stock' });
+    this.btnTrouver = h('button.btn.primaire', { type: 'button', html: (A.icones.recherche || '') + '<span>Trouver</span>', onclick: function () { self.trouverSaisie(); } });
+    this.elSugg = h('div.lbm-sugg', { hidden: true, role: 'listbox', 'aria-label': 'Véhicules de notre inventaire' });
     this.inKm = h('input#lbm-km', { type: 'text', inputmode: 'numeric', value: this.o.km, placeholder: 'ex. 42 000', autocomplete: 'off' });
     this.elKmAide = h('div.aide', { text: 'Le km au compteur aujourd\'hui.' });
     this.elVeh = h('div.lbm-vehicule');
@@ -299,7 +329,7 @@
       h('div.carte-entete', [h('h2', '1. Le véhicule')]),
       h('div.carte-corps', [
         h('div.lbm-grille', [
-          h('div.champ', { style: { gridColumn: 'span 2' } }, [h('label', { for: 'lbm-vin', text: 'NIV' }), h('div.lbm-niv', [this.inVin, this.btnTrouver])]),
+          h('div.champ', { style: { gridColumn: 'span 2' } }, [h('label', { for: 'lbm-vin', text: 'NIV ou # stock' }), h('div.lbm-niv', [this.inVin, this.btnTrouver]), this.elSugg, h('div.aide', { text: 'Le NIV complet, ses 6 derniers caractères, ou le # stock d\'un véhicule de nos registres.' })]),
           h('div.champ', [h('label', { for: 'lbm-km', text: 'Km au compteur' }), this.inKm, this.elKmAide])
         ]),
         this.elVeh
@@ -347,15 +377,32 @@
     this.inVin.addEventListener('input', function () {
       var v = self.inVin.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (v !== self.inVin.value) self.inVin.value = v;
-      if (v.length === 17 && v !== self.vinCourant) self.lireVin(false);
+      if (v.length === 17 && v !== self.vinCourant) { self.cacherSugg(); self.lireVin(false); }
+      else if (v.length < 17) suggerer();
     });
-    this.inVin.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.lireVin(true); } });
+    var suggerer = A.debounce(function () { self.suggerer(false); }, 200);
+    this.inVin.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); self.trouverSaisie(); }
+      else if (e.key === 'Escape') self.cacherSugg();
+      else if (e.key === 'ArrowDown' && !self.elSugg.hidden) { var b = self.elSugg.querySelector('button'); if (b) { e.preventDefault(); b.focus(); } }
+    });
+    this.elSugg.addEventListener('keydown', function (e) {
+      var l = [].slice.call(self.elSugg.querySelectorAll('button')), i = l.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' && i < l.length - 1) { e.preventDefault(); l[i + 1].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (i > 0) l[i - 1].focus(); else self.inVin.focus(); }
+      else if (e.key === 'Escape') { self.cacherSugg(); self.inVin.focus(); }
+    });
+    /* Un clic ailleurs ferme la liste des véhicules. */
+    document.addEventListener('click', function (e) { if (self.detruit || self.elSugg.hidden) return; if (self.elSugg.contains(e.target) || e.target === self.inVin || self.btnTrouver.contains(e.target)) return; self.cacherSugg(); });
+    /* Nos registres (É.-U., Canada, Detail) : pour chercher par # stock ou par la fin du NIV. */
+    this.invListe = null;
+    this.invPret = (A.inventaire && A.inventaire.tout ? A.inventaire.tout() : Promise.resolve([])).then(function (l) { self.invListe = l || []; return self.invListe; }, function () { self.invListe = []; return []; });
     this.inVin.addEventListener('change', function () { var v = self.inVin.value.trim().toUpperCase(); if (v.length === 17 && v !== self.vinCourant) self.lireVin(false); });
 
     charger(false).then(function (rep) {
       if (self.detruit) return;
       self.rep = rep; self.rendreProgramme();
-      if (self.inVin.value.trim().length === 17) self.lireVin(false); else self.rendreResultat();
+      if (self.inVin.value.trim().length === 17) self.lireVin(false); else { self.rendreResultat(); if (self.inVin.value.trim()) self.trouverSaisie(); }
     }, function (e) {
       if (self.detruit) return;
       A.vider(self.elAvisProg);
@@ -366,6 +413,7 @@
   VueLocation.prototype.demonter = function () { this.detruit = true; };
   VueLocation.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
+    if (p.stock && !p.vin) { this.inVin.value = String(p.stock).toUpperCase(); if (p.km) this.inKm.value = p.km; if (p.prix) this.inPrix.value = p.prix; this.lireSaisies(); if (this.rep) this.trouverSaisie(); return; }
     if (p.vin && String(p.vin).toUpperCase() !== this.vinCourant) {
       this.inVin.value = String(p.vin).toUpperCase();
       if (p.km) this.inKm.value = p.km;
@@ -422,9 +470,51 @@
   };
   VueLocation.prototype.effacer = function () {
     this.inVin.value = ''; this.inKm.value = ''; this.inPrix.value = ''; this.inComptant.value = '';
-    this.vinCourant = ''; this.dec = null; this.trouve = null; this.ligne = null; this.manuel = false; this.forcerManuel = false; this.choixManuel = false; this.caseIx.checked = false; this.o.ixNbv = false;
+    this.vinCourant = ''; this.invChoisi = null; this.cacherSugg(); this.dec = null; this.trouve = null; this.ligne = null; this.manuel = false; this.forcerManuel = false; this.choixManuel = false; this.caseIx.checked = false; this.o.ixNbv = false;
     this.lireSaisies(); A.vider(this.elVeh); this.elKmAide.textContent = 'Le km au compteur aujourd\'hui.'; this.rendreResultat();
     try { this.inVin.focus(); } catch (e) {}
+  };
+
+  /* -- Chercher par # stock ou NIV dans nos registres -- */
+  VueLocation.prototype.cacherSugg = function () { A.vider(this.elSugg); this.elSugg.hidden = true; this.entreeQ = ''; };
+  VueLocation.prototype.ligneSugg = function (v) {
+    var self = this, st = A.statut ? A.statut(v.statut, v._feuille) : { libelle: v.statut || '' };
+    var vin = String(v.vin || '').toUpperCase();
+    return h('button', { type: 'button', role: 'option', title: vin, onclick: function () { self.choisirInv(v); } }, [
+      h('span.st', { text: v.stock ? '# ' + v.stock : 'sans # stock' }),
+      h('span.mod', { text: v.modele || '—' }),
+      h('span.vin', { text: '…' + vin.slice(-8) }),
+      h('span.etat', { text: [st.libelle, A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(v._feuille) : v._feuille, v.compagnie].filter(Boolean).join(' · ') })
+    ]);
+  };
+  /** Montre les véhicules qui répondent (dès 3 caractères). entree = l'employé a fait Entrée ou « Trouver ». */
+  VueLocation.prototype.suggerer = function (entree) {
+    var self = this, q = this.inVin.value.trim();
+    if (q.length < 3 || q.length >= 17) { this.cacherSugg(); return; }
+    if (!this.invListe) { this.invPret.then(function () { if (!self.detruit && self.inVin.value.trim() === q) self.suggerer(entree); }); return; }
+    var l = chercherInventaire(this.invListe, q, 8);
+    if (entree && l.length === 1) { this.choisirInv(l[0]); return; }
+    if (entree && l.length && cleRech(l[0].stock) === cleRech(q) && !(l[1] && cleRech(l[1].stock) === cleRech(q))) { this.choisirInv(l[0]); return; }
+    if (entree) this.entreeQ = q;
+    else if (this.entreeQ === q) return;   /* la liste (ou « aucun véhicule ») d'un Entrée reste : la frappe en attente ne l'efface pas */
+    A.vider(this.elSugg);
+    if (!l.length) { if (entree) this.elSugg.appendChild(h('div.rien', { text: 'Aucun véhicule de nos registres avec « ' + q + ' ». Tapez le NIV complet (17 caractères).' })); else { this.cacherSugg(); return; } }
+    l.forEach(function (v) { self.elSugg.appendChild(self.ligneSugg(v)); });
+    this.elSugg.hidden = false;
+  };
+  VueLocation.prototype.trouverSaisie = function () {
+    var v = this.inVin.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    this.inVin.value = v;
+    if (v.length === 17) { this.cacherSugg(); this.lireVin(true); return; }
+    if (v.length < 3) { A.toast('Tapez le NIV, les 6 derniers du NIV ou le # stock.', 'attention'); return; }
+    this.suggerer(true);
+  };
+  VueLocation.prototype.choisirInv = function (v) {
+    this.cacherSugg();
+    this.inVin.value = String(v.vin || '').toUpperCase();
+    this.invChoisi = v;
+    this.vinCourant = '';
+    this.lireVin(false);
   };
 
   /* -- Le NIV : décoder, retrouver la version, compléter le km et le prix si le véhicule est à notre inventaire -- */
@@ -437,7 +527,7 @@
     A.vider(this.elVeh);
     this.elVeh.appendChild(A.chargeur('Décodage du NIV', { compact: true }));
     var cleOk = A.niv ? A.niv.cleValide(vin) : true;
-    var inv = A.inventaire && A.inventaire.parVin ? A.inventaire.parVin(vin) : null;
+    var inv = (this.invChoisi && String(this.invChoisi.vin || '').toUpperCase() === vin) ? this.invChoisi : (A.inventaire && A.inventaire.parVin ? A.inventaire.parVin(vin) : null);
     var fiche = A.ficheDe ? A.ficheDe(vin).catch(function () { return null; }) : Promise.resolve(null);
     Promise.all([decoder(vin), fiche]).then(function (res) {
       if (self.detruit || self.vinCourant !== vin) return;
@@ -462,7 +552,7 @@
     var lignes = [];
     if (!this.cleOk) lignes.push(h('div.lbm-avis.ambre', { text: 'Le chiffre de contrôle de ce NIV ne concorde pas : vérifiez-le (une lettre ou un chiffre mal lu).' }));
     if (!dec) lignes.push(h('div.lbm-avis.ambre', { text: 'Le NIV n\'a pas pu être décodé : choisissez l\'année et la version à la main.' }));
-    else lignes.push(h('div', [h('div.lbm-veh-titre', { text: [dec.annee, dec.marque, dec.modele, dec.version].filter(Boolean).join(' ') }), h('div.lbm-veh-sous', { text: 'Décodé par ' + (dec.source || 'NHTSA vPIC') + (this.inv ? ' · à notre inventaire : # stock ' + (this.inv.stock || '—') + (this.inv.compagnie ? ' (' + this.inv.compagnie + ')' : '') : '') })]));
+    else lignes.push(h('div', [h('div.lbm-veh-titre', { text: [dec.annee, dec.marque, dec.modele, dec.version].filter(Boolean).join(' ') }), h('div.lbm-veh-sous', { text: 'Décodé par ' + (dec.source || 'NHTSA vPIC') + (this.inv ? ' · à notre inventaire : # stock ' + (this.inv.stock || '—') + ' · ' + [A.statut ? A.statut(this.inv.statut, this.inv._feuille).libelle : this.inv.statut, A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(this.inv._feuille) : this.inv._feuille, this.inv.compagnie].filter(Boolean).join(' · ') : '') })]));
     if (t && t.raison && !t.candidats.length) lignes.push(h('div.lbm-avis.rouge', { text: t.raison }));
     /* La version de la grille : les candidats de la même série et de la même année, sinon toute la grille (à la main). */
     if (!t || !t.candidats.length) this.manuel = true;

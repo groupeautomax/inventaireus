@@ -1139,6 +1139,10 @@
       { id: 'usage', titre: 'Inventaire occasion', de: 'inventaire', onglet: 'usage', parent: 'occasion', icone: 'voiture', couleur: 'vert', desc: 'Les registres É.-U., Canada et Detail : statut, # stock, coût, photos, rapports.' },
       { id: 'analyse', titre: 'Analyse', de: 'analyse', onglet: '', parent: 'occasion', icone: 'resultat', couleur: 'bleu', desc: 'Le prix de chaque occasion face au marché : % du marché, rang, jours, conseil.' },   /* 24 oct. : façon vAuto (analyse-usage.js) */
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '', parent: 'occasion', icone: 'achat', couleur: 'ambre', desc: 'Inscrire un achat ou un échange : le véhicule entre au registre et suit partout.' },
+      /* 10 nov. (Maxime : « un rapport par concession pour les échanges chaque semaine par conseiller des ventes, et un rapport pour
+         les acheteurs ») : rapports-occasion.js, RapportsOccasion.gs ; le courriel du lundi se règle sur la page. */
+      { id: 'rapportsocc', titre: 'Rapports', de: 'rapportsocc', parent: 'occasion', icone: 'resultat', couleur: 'sarcelle', desc: 'Les échanges par conseiller des ventes et les achats par acheteur : ce qu\'ils sont devenus, chaque semaine.',
+        vues: [{ id: 'echanges', titre: 'Échanges' }, { id: 'achats', titre: 'Achats' }] },
       { id: 'evaluations', titre: 'Évaluation', de: 'outils', parent: 'occasion', icone: 'outils', couleur: 'violet',
         desc: function () { return AMX.voitEvaluations() ? 'Évaluer un véhicule, les demandes des représentants, le registre et l\'archive Torque.' : 'Demander une évaluation et suivre vos demandes : le montant paraît une fois confirmé par la direction.'; },
         visible: function () { return AMX.voitEvaluations() || AMX.representantEval(); },
@@ -1244,11 +1248,11 @@
      ci-dessous ne sert que si le serveur n'est pas encore à jour. « tuile/* » = tous les onglets de la tuile. Les autres
      rôles (direction, gestionnaire, admin, propriétaire) n'ont rien de caché par le rôle : leurs droits décident. */
   var ONGLETS_CACHES_ROLE = {
-    vendeur: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
-    bdc: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/transports', 'service/suivi', 'service/texto', 'outils/*'],
-    service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'outils/*'],
-    marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
-    utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*'],
+    vendeur: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
+    bdc: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'service/suivi', 'service/texto', 'outils/*'],
+    service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'outils/*'],
+    marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
+    utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/rapportsocc', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*'],
     rh: ['vente/*', 'inventaire/*', 'relance/*', 'service/*', 'outils/*'],   /* 7 nov. : rôle « Ressources humaines » — la tuile Ressources humaines et l'Aide seulement */
     evaluateur: ['vente/*', 'relance/*', 'service/*']   /* 9 nov. : rôle « Évaluateur » — inventaire, évaluations, analyse, outils */
   };

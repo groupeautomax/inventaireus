@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141A1F">
+<title>Pas de connexion — Automax 2.0</title>
+<style>
+  :root { --vert: #008840; --encre: #141A1F; --encre-3: #4B5563; --fond: #F4F6F8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--fond); color: var(--encre); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; }
+  main { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; text-align: center; }
+  img { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 4px 18px rgba(16, 24, 40, .12); }
+  h1 { font-size: 22px; margin: 20px 0 6px; }
+  p { margin: 0 0 20px; color: var(--encre-3); max-width: 420px; }
+  button { font: inherit; font-weight: 600; color: #fff; background: var(--vert); border: 0; border-radius: 12px; padding: 12px 22px; min-height: 48px; cursor: pointer; }
+  button:focus-visible { outline: 3px solid rgba(0, 136, 64, .35); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <img src="assets/icones/icone-192.png" alt="">
+  <h1>Pas de connexion Internet</h1>
+  <p>Automax 2.0 a besoin d'Internet pour lire l'inventaire, les ventes et le service. Vérifiez le Wi-Fi ou les données cellulaires, puis réessayez.</p>
+  <button type="button" onclick="location.reload()">Réessayer</button>
+</main>
+<script>window.addEventListener('online', function () { location.reload(); });</script>
+</body>
+</html>

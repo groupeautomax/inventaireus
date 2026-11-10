@@ -1,0 +1,41 @@
+{
+  "id": "./",
+  "name": "Automax 2.0",
+  "short_name": "Automax 2.0",
+  "description": "Inventaire, évaluations, ventes, service et relance du Groupe Automax.",
+  "lang": "fr-CA",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFFFFF",
+  "theme_color": "#141A1F",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "assets/icones/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icones/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scanner un NIV",
+      "short_name": "Scanner",
+      "description": "Lire le code-barres du NIV avec la caméra et trouver le véhicule",
+      "url": "./?scan=1",
+      "icons": [{ "src": "assets/icones/icone-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Évaluations",
+      "short_name": "Évaluations",
+      "url": "./#/inventaire/evaluations",
+      "icons": [{ "src": "assets/icones/icone-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Inventaire occasion",
+      "short_name": "Occasion",
+      "url": "./#/inventaire/usage",
+      "icons": [{ "src": "assets/icones/icone-96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ]
+}

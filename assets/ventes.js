@@ -141,6 +141,9 @@
   /* 9 nov. (Annie Gagné, Hyundai : « 1814.10 $ il inscrit 1814 $ ») : un montant qui a des cents s'affiche avec ses cents
      (il était gardé au serveur, mais montré arrondi au dollar). Un montant rond reste sans « ,00 ». */
   function decimalesDe(n) { var x = typeof n === 'number' ? n : AMX.montant(n); return isNaN(x) || Math.round(Math.abs(x) * 100) % 100 === 0 ? 0 : 2; }
+  /* 10 nov. (Maxime) : la direction voit tous les profits ; un vendeur, ceux de ses ventes (montantsMiens : le serveur
+     masque les autres ventes, montantsMasques). */
+  function montantsVue(d) { return !!(d && (d.montants || d.montantsMiens)); }
   function argent(n) { return n === null || n === undefined || n === '' || isNaN(typeof n === 'number' ? n : AMX.montant(n)) ? '—' : AMX.fmtArgent(n, decimalesDe(n)); }
   function signe(n) { if (n === null || n === undefined || isNaN(n)) return '—'; return (n > 0 ? '+' : '') + AMX.fmtArgent(n, decimalesDe(n)); }
   function libCategorie(type, c) { if (c === 'lmb') return 'LMB'; var l = CATEGORIES[type] || []; for (var i = 0; i < l.length; i++) if (l[i][0] === c) return l[i][1]; return c || ''; }
@@ -986,9 +989,11 @@
       this.elKpis.appendChild(kpi('annulee', 'Annulées', c.etat.annulee, ''));
     }
     if (c.etat.erreur || this.filtres.drapeau === 'erreur') this.elKpis.appendChild(kpi('erreur', 'Pas au livre', c.etat.erreur, 'alerte'));
-    if (d.montants) {
+    if (montantsVue(d)) {
       // Les montants portent sur les ventes gardées par les filtres, annulées exclues (sauf si on regarde les annulées).
+      // 10 nov. : un vendeur ne voit que ses ventes dans ces chiffres (le serveur masque les autres).
       var vues = this.visibles(), actives = this.filtres.etat === 'annulee' ? vues : vues.filter(function (v) { return v.statut !== 'annulee'; });
+      if (!d.montants) actives = actives.filter(function (v) { return !v.montantsMasques; });
       var nAnnulees = vues.length - actives.length;
       var cp = cumulProfits(actives);
       var moy = function (q) { return { e: q.nEstime ? q.estime / q.nEstime : null, c: q.nComptable ? q.comptable / q.nComptable : null }; };
@@ -1003,7 +1008,7 @@
         return h('tr' + (cls || ''), [h('th', { scope: 'row', text: l }), cellule(e, q.nEstime)].concat(avecC ? [cellule(c, q.nComptable), h('td.num' + (d === null ? '' : classeEcart(d)), { text: d === null ? '—' : signe(Math.round(d)), title: q.nPaires ? 'comptable − estimé, sur ' + pluriel(q.nPaires, 'vente') + ' qui ont les deux' : '' })] : []));
       };
       var prixMoy = prixL.length ? prixL.reduce(function (a, b) { return a + b; }, 0) / prixL.length : null;
-      var titreMoy = 'Moyennes par unité · ' + pluriel(actives.length, 'vente');
+      var titreMoy = (d.montants ? 'Moyennes par unité · ' : 'Vos ventes · moyennes par unité · ') + pluriel(actives.length, 'vente');
       var carteMoy = h('div.kpi.neutre.ventes-comp.ventes-moy#ventes-kpi-moyennes', { title: nAnnulees ? nAnnulees + ' vente(s) annulée(s) exclue(s) des montants' : '' }, [h('div.titre', { text: titreMoy }),
         h('table.ventes-moy-table', [
           h('thead', [h('tr', [h('th', { text: '' }), h('th.num', { text: 'Estimé' })].concat(avecC ? [h('th.num', { text: 'Comptable' }), h('th.num', { text: 'Écart' })] : []))]),
@@ -1289,7 +1294,7 @@
   }
   VueVentes.prototype.rendreListe = function () {
     var self = this, d = cache.rep; if (!d) return;
-    var liste = this.visibles(), montants = !!d.montants, ajs = this.ajustementsVisibles(), parV = this.parVente();
+    var liste = this.visibles(), montants = montantsVue(d), ajs = this.ajustementsVisibles(), parV = this.parVente();
     /* 6 nov. : rangées par date de vente, la plus récente d'abord (à égalité, la dernière inscrite) */
     if (parV) liste = liste.slice().sort(function (a, b) { return (dateVenteRef(b) + String(b.declareLe || '')).localeCompare(dateVenteRef(a) + String(a.declareLe || '')); });
     AMX.vider(this.elListe);
@@ -1457,7 +1462,7 @@
     this.rafraichirExclues();
   };
   VueVentes.prototype.rafraichirExclues = function () {
-    var self = this, d = cache.rep, ref = this.vueRef(), rac = this.modeRachat(), f = ref ? this.filtresRef : this.filtresEx, liste = this.exclusVisibles(), montants = !!(d && d.montants), q = (f.recherche || '').trim();
+    var self = this, d = cache.rep, ref = this.vueRef(), rac = this.modeRachat(), f = ref ? this.filtresRef : this.filtresEx, liste = this.exclusVisibles(), montants = montantsVue(d), q = (f.recherche || '').trim();
     var sortes = ref ? SORTES_REF : SORTES_EX, sorte = ref ? sorteRef : sorteEx;
     var cg = {}, ct = {};
     this.exclusVisibles('genre').forEach(function (v) { cg[''] = (cg[''] || 0) + 1; var g = sorte(v); cg[g] = (cg[g] || 0) + 1; });
@@ -1489,7 +1494,7 @@
   };
   VueVentes.prototype.exporterExclues = function () {
     if (typeof XLSX === 'undefined') return;
-    var d = cache.rep, montants = !!(d && d.montants), ref = this.vueRef();
+    var d = cache.rep, montants = montantsVue(d), ref = this.vueRef();
     var lignes = this.exclusVisibles().map(function (v) {
       var o = { Id: v.id, Concession: v.compagnie, 'Ligne du livre': v.horsVente, Type: TYPES[v.type] || v.type, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA || '', '# stock': v.stock, NIV: v.vin, 'Véhicule': vehiculeTexte(v), Conseiller: v.conseiller, 'État': ETATS[v.statut] || v.statut, 'Onglet du livre': v.livreOnglet || '', 'Ligne': v.livreLigne || '' };
       if (montants) { o.Prix = nombre(v.prixVente); o['Front prévu'] = frontE(v); o['Front réel'] = frontC(v); o['F&I prévu'] = fiE(v); o['F&I réel'] = fiC(v); }
@@ -1501,7 +1506,7 @@
   };
   VueVentes.prototype.exporter = function () {
     if (this.vue === 'exclues' || this.vue === 'refusees' || this.modeRachat()) { this.exporterExclues(); return; }
-    var d = cache.rep, liste = this.visibles(), montants = !!(d && d.montants), defs = AMX.ventes.produits(), sansFI = this.filtres.type === 'wholesale';
+    var d = cache.rep, liste = this.visibles(), montants = montantsVue(d), defs = AMX.ventes.produits(), sansFI = this.filtres.type === 'wholesale';
     var lignes = liste.map(function (v) {
       var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Marché': v.type === 'wholesale' ? (marcheDe(v) === 'US' ? 'É.-U.' : 'Canada') : '', 'Catégorie': libCategorie(v.type, v.categorie), CPO: v.type === 'usage' ? (v.cpoLibelle || '') : '', 'CPO (livre)': v.type === 'usage' ? (v.cpo || '') : '', 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'No client (DMS)': v.noClient || '', Provenance: v.provenance || '', 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
       o['Mois (livraison)'] = moisDeVente(v); o['Mois selon'] = dateLivraisonOk(v) ? 'livraison' : 'vente'; o['Mois (vente)'] = moisVenteRef(v);
@@ -1663,8 +1668,8 @@
     return m;
   }
   function remplirFiche(corps, v) {
-    var d = cache.rep, montants = d && d.montants !== undefined ? !!d.montants : AMX.ventes.montants();
-    if (v.montantsMasques) montants = false;
+    var d = cache.rep, montants = d && d.montants !== undefined ? montantsVue(d) : AMX.ventes.montants();
+    if (v.montantsMasques) montants = false; else if (d && d.montantsMiens) montants = true;   /* 10 nov. : la vente d'un vendeur, la sienne */
     var ws = v.type === 'wholesale', prd = produitsListe(v), aEchange = !!(v.echangeStock || v.echangeModele || v.echangeVin);
     var dl = function (lignes) { return h('dl', lignes.filter(Boolean).map(function (x) { return [h('dt', { text: x[0] }), h('dd', x[1] instanceof Node ? [x[1]] : { text: String(x[1]) })]; })); };
     corps.appendChild(h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' } }, [v.horsVente ? h('span.puce.alerte', estRefusee(v) ? { text: 'Refusée · en rouge au livre', title: 'Ligne peinte en rouge au livre (ou au statut « Refusé ») : elle ne compte dans aucun chiffre (ventes, moyennes, Board, RDR, Résultats)' } : { text: 'Exclue des ventes · ' + v.horsVente, title: 'Ligne du livre qui n\'est pas une vente : elle ne compte dans aucun chiffre (ventes, moyennes, Board, Résultats)' }) : null, puceEtat(v), puceLivre(v), h('span.puce.mono', { text: v.id }), v.importee ? h('span.puce', { text: 'importée du livre', title: 'Ligne lue dans le livre de la comptabilité' }) : null, h('span.puce', { text: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), title: 'Mois afférent (date de vente inscrite)' })]));

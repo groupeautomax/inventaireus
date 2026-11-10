@@ -73,7 +73,8 @@
     '.crt-groupe-tete h3 { margin: 2px 0 2px; font-size: 15px; } .crt-groupe-tete p { margin: 0; font-size: 13px; color: var(--encre-2); }',
     '.crt-table td .crt-unite { white-space: normal; } .crt-table tbody tr:focus { outline: 2px solid var(--vert); outline-offset: -2px; }',
     '.crt-table td:first-child { min-width: 210px; } .crt-filtres .saisie.recherche { flex: 1 1 240px; }',
-    '@media (max-width: 640px) { .crt-table th:nth-child(3), .crt-table td:nth-child(3) { display: none; } .crt-select { max-width: none; flex: 1 1 100%; } }'
+    '.crt-table.par-stock td:first-child { min-width: 90px; } .crt-table.par-stock td:nth-child(2) { min-width: 210px; }',
+    '@media (max-width: 640px) { .crt-table:not(.par-stock) th:nth-child(3), .crt-table:not(.par-stock) td:nth-child(3), .crt-table.par-stock th:nth-child(4), .crt-table.par-stock td:nth-child(4) { display: none; } .crt-select { max-width: none; flex: 1 1 100%; } }'
   ].join('\n');
   function css() { if (!document.getElementById('css-courtoisie')) { var s = document.createElement('style'); s.id = 'css-courtoisie'; s.textContent = CSS; document.head.appendChild(s); } }
 
@@ -148,6 +149,7 @@
      - plus de rangées de pastilles ni de petites tuiles de chiffres : dans une liste, une recherche et un menu « Utilisation » ;
      - « À régler » est rangé par problème (avec quoi faire), « À sortir » en deux groupes (maintenant, bientôt). */
   var VUES = {
+    tous: { titre: 'Toutes les courtoisies', desc: 'Tous les véhicules de courtoisie, en service et sortis, par numéro de stock.' },
     service: { titre: 'En service', desc: 'Les véhicules de courtoisie sur la route.' },
     sortir: { titre: 'À sortir de la route', desc: 'Km ou mois de service dépassés, ou bientôt.' },
     regler: { titre: 'À régler', desc: 'Le fichier de courtoisie et LMB ne disent pas la même chose : voici quoi corriger, problème par problème.' },
@@ -158,7 +160,6 @@
   function vueDe(p) {
     var x = p.voir || p.vue;
     if (VUES[x]) return x;
-    if (x === 'tous') return 'accueil';
     if (p.ecart) return CODES_SORTIR.indexOf(p.ecart) >= 0 ? 'sortir' : 'regler';   /* anciens liens (?ecart=) */
     return 'accueil';
   }
@@ -174,7 +175,7 @@
     this.conteneur = conteneur; this.detruit = false;
     this.compagnie = AMX.compagnieChoisie ? AMX.compagnieChoisie('service') : '';
     this.vue = vueDe(p);
-    this.q = p.q || ''; this.categorie = '';
+    this.q = p.q || ''; this.categorie = ''; this.etatFiltre = '';
     AMX.vider(conteneur);
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', text: 'Exporter (Excel)', onclick: function () { self.exporter(); } });
@@ -207,7 +208,7 @@
   VueCourtoisie.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('keydown', this.surTouche); };
   VueCourtoisie.prototype.naviguer = function (ctx) {
     var v = vueDe((ctx && ctx.params) || {});
-    if (v !== this.vue) { this.vue = v; this.q = ''; this.categorie = ''; this.rendre(); window.scrollTo(0, 0); }
+    if (v !== this.vue) { this.vue = v; this.q = ''; this.categorie = ''; this.etatFiltre = ''; this.rendre(); window.scrollTo(0, 0); }
   };
   /* Changer de liste passe par l'adresse : le bouton Précédent du navigateur ramène à l'accueil de la page. */
   VueCourtoisie.prototype.aller = function (vue) {
@@ -253,6 +254,7 @@
     return this.base().filter(function (v) {
       if (self.vue !== 'accueil' && !self.dansVue(v)) return false;
       if (!sansCategorie && self.categorie && v.categorie !== self.categorie) return false;
+      if (self.vue === 'tous' && self.etatFiltre && v.etat !== self.etatFiltre) return false;
       if (self.q && !AMX.correspond(champsRecherche(v), self.q)) return false;
       return true;
     });
@@ -293,6 +295,8 @@
     var boite = h('input.saisie.recherche', { type: 'search', value: this.q, placeholder: 'Chercher un véhicule : unité, NIV, plaque, modèle, client, no LOC…', autocomplete: 'off', 'aria-label': 'Chercher un véhicule de courtoisie' });
     var resultats = h('div');
     var tuiles = AMX.tuilesSujets([
+      { titre: 'Toutes les courtoisies', n: b.length, icone: 'inventaire', couleur: 'bleu', onclick: function () { self.aller('tous'); },
+        desc: 'Vue d\'ensemble par stock : ' + enService.length + ' en service, ' + nSortis + ' sorti' + (nSortis > 1 ? 's' : '') + '.' },
       { titre: 'En service', n: enService.length, icone: 'voiture', couleur: 'vert', onclick: function () { self.aller('service'); },
         desc: enService.length ? [km === null ? '' : 'Km moyen ' + AMX.fmtNombre(Math.round(km)), m === null ? '' : 'âge moyen ' + (Math.round(m * 10) / 10).toLocaleString('fr-CA') + ' mois'].filter(Boolean).join(' · ') || 'Les véhicules sur la route.' : 'Aucun véhicule en service.' },
       { titre: 'À sortir de la route', n: maintenant, icone: 'alerte', couleur: maintenant ? 'rouge' : (bientot ? 'ambre' : 'gris'), onclick: function () { self.aller('sortir'); },
@@ -336,19 +340,25 @@
       })));
       sel.addEventListener('change', function () { self.categorie = sel.value; dessiner(); });
     }
-    this.elCorps.appendChild(h('div.crt-filtres', [boite, sel]));
+    var selEtat = null;
+    if (this.vue === 'tous') {
+      var nS = this.filtrer(true).filter(function (v) { return v.etat === 'service'; }).length, nO = this.filtrer(true).filter(function (v) { return v.etat === 'sorti'; }).length;
+      selEtat = h('select.saisie.crt-select', { 'aria-label': 'État' }, [['', 'En service et sortis'], ['service', 'En service (' + nS + ')'], ['sorti', 'Sortis de la route (' + nO + ')']].map(function (o) { return h('option', { value: o[0], selected: self.etatFiltre === o[0] ? 'selected' : null, text: o[1] }); }));
+      selEtat.addEventListener('change', function () { self.etatFiltre = selEtat.value; dessiner(); });
+    }
+    this.elCorps.appendChild(h('div.crt-filtres', [boite, selEtat, sel]));
     var elListe = h('div');
     this.elCorps.appendChild(elListe);
     var dessiner = function () {
       var liste = self.filtrer();
       AMX.vider(elTete);
-      var filtre = [self.categorie ? NOM_CAT[self.categorie] : '', self.q ? '« ' + self.q + ' »' : ''].filter(Boolean).join(' · ');
+      var filtre = [self.etatFiltre ? (self.etatFiltre === 'service' ? 'en service' : 'sortis') : '', self.categorie ? NOM_CAT[self.categorie] : '', self.q ? '« ' + self.q + ' »' : ''].filter(Boolean).join(' · ');
       elTete.appendChild(AMX.teteSujet(def.titre + ' · ' + liste.length, desc + (self.compagnie ? '' : ' Toutes les concessions.') + (filtre ? ' Filtre : ' + filtre + '.' : '')));
       AMX.vider(elListe);
       if (!liste.length) { elListe.appendChild(h('div.carte', [h('div.crt-vide', { text: self.q || self.categorie ? 'Aucun véhicule ne correspond.' : (self.vue === 'regler' ? 'Rien à régler : le fichier de courtoisie et LMB concordent.' : (self.vue === 'sortir' ? 'Aucun véhicule à sortir de la route.' : 'Aucun véhicule.')) })])); return; }
       if (self.vue === 'regler') self.rendreRegler(elListe, liste);
       else if (self.vue === 'sortir') self.rendreSortir(elListe, liste);
-      else elListe.appendChild(self.tableVehicules(liste));
+      else elListe.appendChild(self.tableVehicules(liste, { parStock: self.vue === 'tous' }));
     };
     var relancer = AMX.debounce(function () { self.q = boite.value.trim(); dessiner(); }, 160);
     boite.addEventListener('input', relancer);
@@ -383,7 +393,10 @@
     });
   };
   /* Le tableau des véhicules : six colonnes, un clic = la fiche. */
-  VueCourtoisie.prototype.tableVehicules = function (liste) {
+  /* Le numéro de stock d'une courtoisie : celui du fichier (ou du DMS), sinon le no LOC de LMB, sinon l'unité. */
+  function stockDe(v) { return String(v.stock || (v.lmb && v.lmb.stock) || (v.vendu && v.vendu.stock) || v.unite || '').replace(/^#/, ''); }
+  VueCourtoisie.prototype.tableVehicules = function (liste, opts) {
+    opts = opts || {};
     var self = this, P = this.rep.params || { kmMax: 12000, moisMax: 6 };
     var tri = liste.slice().sort(function (a, b) {
       var ra = a.alertes.some(function (x) { return x.niveau === 'rouge'; }) ? 0 : (a.alertes.length ? 1 : 2), rb = b.alertes.some(function (x) { return x.niveau === 'rouge'; }) ? 0 : (b.alertes.length ? 1 : 2);
@@ -391,6 +404,7 @@
       return String(a.unite || 'zz').localeCompare(String(b.unite || 'zz'), 'fr', { numeric: true });
     });
     if (this.vue === 'sortir') tri = liste;   /* déjà rangée du plus vieux au plus récent */
+    if (opts.parStock) tri = liste.slice().sort(function (a, b) { var x = stockDe(a), y = stockDe(b); if (!x !== !y) return x ? -1 : 1; return x.localeCompare(y, 'fr', { numeric: true }); });
     var tbody = h('tbody');
     tri.forEach(function (v) {
       var jaugeKm = typeof v.km === 'number' ? Math.min(100, Math.round(v.km / P.kmMax * 100)) : null;
@@ -398,7 +412,9 @@
       var puces = v.alertes.map(function (a) { var e = ECART[a.code]; return h('span.crt-puce.' + a.niveau, { text: e ? e[1] : a.code, title: a.texte }); });
       if (!puces.length) puces.push(h('span.crt-puce.' + (v.etat === 'sorti' ? 'gris' : 'ok'), { text: v.etat === 'sorti' ? 'Sorti · réglé' : 'OK' }));
       var source = v.lmb ? 'LMB ' + v.lmb.stock : (v.vendu ? 'LMB ' + v.vendu.stock + ' (vendu)' : (v.demo ? 'Neuf · ' + (v.demo.origine === 'dms' ? 'DMS' : 'manufacturier') : ''));
+      var stk = stockDe(v), autreNo = v.lmb && v.lmb.stock && v.lmb.stock !== stk ? v.lmb.stock : (v.unite && v.unite.replace(/^#/, '') !== stk ? v.unite : '');
       var tr = h('tr' + (v.etat === 'sorti' ? '.sorti' : ''), { 'data-vin': v.cle, tabindex: '0' }, [
+        opts.parStock ? h('td', [h('span.crt-unite', { text: stk || '—' }), autreNo ? h('span.s', { text: autreNo }) : null, h('span.s', { text: v.etat === 'sorti' ? 'Sorti' : 'En service' })]) : null,
         h('td', [h('span.crt-unite', { text: (v.unite ? v.unite + ' · ' : '') + (v.vehicule || v.vehiculeFichier || 'Véhicule') }),
           h('span.s', { text: [v.plaque ? 'Plaque ' + v.plaque : '', source, self.compagnie ? '' : nomCie(v.compagnie)].filter(Boolean).join(' · ') || v.vin })]),
         h('td', [h('span.crt-cat.' + v.categorie, { text: NOM_CAT[v.categorie] || v.categorie })]),
@@ -412,8 +428,8 @@
       tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') self.detail(v); });
       tbody.appendChild(tr);
     });
-    return h('div.carte', [h('div.crt-cadre', [h('table.tableau.crt-table', [
-      h('thead', [h('tr', ['Véhicule', 'Utilisation', 'Chez / activité', 'En service depuis', 'Km', 'État'].map(function (t, i) { return h('th' + (i === 4 ? '.num' : ''), { text: t }); }))]),
+    return h('div.carte', [h('div.crt-cadre', [h('table.tableau.crt-table' + (opts.parStock ? '.par-stock' : ''), [
+      h('thead', [h('tr', (opts.parStock ? ['Stock'] : []).concat(['Véhicule', 'Utilisation', 'Chez / activité', 'En service depuis', 'Km', 'État']).map(function (t) { return h('th' + (t === 'Km' ? '.num' : ''), { text: t }); }))]),
       tbody])])]);
   };
 

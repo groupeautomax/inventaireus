@@ -61,7 +61,19 @@
     '.crt-tele-etat { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--carte-2); margin: 0 0 10px; }',
     '.crt-tele-etat.ok { background: var(--vert-clair); } .crt-tele-etat.erreur { background: var(--rouge-bg); }',
     '.crt-reglages .case { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 8px; font-size: 13px; } .crt-reglages .case input { margin-top: 3px; }',
-    '.crt-tele-boutons { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; }'
+    '.crt-tele-boutons { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; }',
+    /* 10 nov. : page plus simple — accueil à grosses tuiles, listes avec « Retour », groupes « À régler » / « À sortir » */
+    '.crt-recherche { margin: 0 0 14px; } .crt-recherche .saisie.recherche { width: 100%; max-width: 640px; height: 44px; font-size: 15px; }',
+    '.crt-page .amx-retour { margin: 0 0 8px; }',
+    '.crt-select { max-width: 260px; }',
+    '.crt-groupe { margin: 0 0 16px; } .crt-groupe .carte { margin-top: 6px; }',
+    '.crt-groupe-tete { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--carte-2); border-left: 4px solid var(--ligne); }',
+    '.crt-groupe.rouge .crt-groupe-tete { background: var(--rouge-bg); border-color: var(--rouge); } .crt-groupe.ambre .crt-groupe-tete { background: var(--ambre-bg); border-color: var(--ambre); } .crt-groupe.mauve .crt-groupe-tete { background: #EEE8FB; border-color: #5B3FB0; }',
+    '.crt-groupe-tete .n { min-width: 34px; height: 30px; border-radius: 999px; display: inline-grid; place-items: center; font-weight: 800; font-size: 14px; background: var(--carte); padding: 0 9px; }',
+    '.crt-groupe-tete h3 { margin: 2px 0 2px; font-size: 15px; } .crt-groupe-tete p { margin: 0; font-size: 13px; color: var(--encre-2); }',
+    '.crt-table td .crt-unite { white-space: normal; } .crt-table tbody tr:focus { outline: 2px solid var(--vert); outline-offset: -2px; }',
+    '.crt-table td:first-child { min-width: 210px; } .crt-filtres .saisie.recherche { flex: 1 1 240px; }',
+    '@media (max-width: 640px) { .crt-table th:nth-child(3), .crt-table td:nth-child(3) { display: none; } .crt-select { max-width: none; flex: 1 1 100%; } }'
   ].join('\n');
   function css() { if (!document.getElementById('css-courtoisie')) { var s = document.createElement('style'); s.id = 'css-courtoisie'; s.textContent = CSS; document.head.appendChild(s); } }
 
@@ -129,13 +141,40 @@
   AMX.courtoisie = { charger: charger, enCache: function () { return cache.rep; }, compteur: compteur, vider: function () { cache = { rep: null, le: 0, enCours: null, copieLe: 0 }; } };
 
   /* ------------------------------------------------------------------------------------ page */
+  /* 10 nov. (Maxime : « rends le module de courtoisie plus convivial et plus facile à utiliser, il y a plein de petites
+     tuiles partout et pour revenir au menu principal de la page il faut effacer les filtres ») :
+     - l'accueil de la page = une recherche et quatre grosses tuiles (En service, À sortir de la route, À régler, Sortis) ;
+     - une tuile ouvre SA liste, avec « ‹ Retour à Courtoisie » en haut (ou Échap, ou le bouton Précédent du navigateur) ;
+     - plus de rangées de pastilles ni de petites tuiles de chiffres : dans une liste, une recherche et un menu « Utilisation » ;
+     - « À régler » est rangé par problème (avec quoi faire), « À sortir » en deux groupes (maintenant, bientôt). */
+  var VUES = {
+    service: { titre: 'En service', desc: 'Les véhicules de courtoisie sur la route.' },
+    sortir: { titre: 'À sortir de la route', desc: 'Km ou mois de service dépassés, ou bientôt.' },
+    regler: { titre: 'À régler', desc: 'Le fichier de courtoisie et LMB ne disent pas la même chose : voici quoi corriger, problème par problème.' },
+    sortis: { titre: 'Sortis de la route', desc: 'Les véhicules retirés de la courtoisie.' }
+  };
+  var CODES_SORTIR = ['aSortir', 'bientot', 'noteSortir'];
+  /* La liste ouverte se lit dans ?voir= (le paramètre « vue » est réservé par la tuile du site). */
+  function vueDe(p) {
+    var x = p.voir || p.vue;
+    if (VUES[x]) return x;
+    if (x === 'tous') return 'accueil';
+    if (p.ecart) return CODES_SORTIR.indexOf(p.ecart) >= 0 ? 'sortir' : 'regler';   /* anciens liens (?ecart=) */
+    return 'accueil';
+  }
+  /* Le problème principal d'un véhicule à régler : le premier de ECARTS (les plus graves d'abord). */
+  function ecartPrincipal(v) {
+    for (var i = 0; i < ECARTS.length; i++) if (A_REGLER.indexOf(ECARTS[i][0]) >= 0 && aCode(v, ECARTS[i][0])) return ECARTS[i][0];
+    return '';
+  }
+
   function VueCourtoisie(conteneur, ctx) {
     css();
     var self = this, p = (ctx && ctx.params) || {};
     this.conteneur = conteneur; this.detruit = false;
     this.compagnie = AMX.compagnieChoisie ? AMX.compagnieChoisie('service') : '';
-    this.vue = p.vue || 'service';
-    this.q = p.q || ''; this.categorie = ''; this.ecart = p.ecart || '';
+    this.vue = vueDe(p);
+    this.q = p.q || ''; this.categorie = '';
     AMX.vider(conteneur);
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', text: 'Exporter (Excel)', onclick: function () { self.exporter(); } });
@@ -147,19 +186,17 @@
       h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnExport, this.btnReglages, this.btnFichier], [this.btnFichier]))
     ]));
     this.elCies = h('div.barre-cies'); conteneur.appendChild(this.elCies);
-    this.elVues = h('div.crt-vues'); conteneur.appendChild(this.elVues);
-    this.inRecherche = h('input.saisie.recherche', { type: 'search', value: this.q, placeholder: 'Chercher : unité, NIV, plaque, modèle, client, no LOC…', autocomplete: 'off', 'aria-label': 'Chercher un véhicule de courtoisie' });
-    conteneur.appendChild(h('div.crt-filtres', [this.inRecherche]));
-    this.elCats = h('div.crt-pastilles'); conteneur.appendChild(this.elCats);
-    this.elEcarts = h('div.crt-pastilles'); conteneur.appendChild(this.elEcarts);
-    this.elPortee = h('div'); conteneur.appendChild(this.elPortee);
-    this.elKpis = h('div.kpis'); conteneur.appendChild(this.elKpis);
-    this.elCorps = h('div'); conteneur.appendChild(this.elCorps);
-    var relancer = AMX.debounce(function () { self.q = self.inRecherche.value; self.rafraichir(); }, 160);
-    this.inRecherche.addEventListener('input', relancer);
-    this.inRecherche.addEventListener('keydown', function (e) { if (e.key === 'Escape') { self.inRecherche.value = ''; self.q = ''; self.rafraichir(); } });
-    this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.rendre(); if (!self.detruit && AMX.gesteMenuRecent()) self.charger(); };
+    this.elCorps = h('div.crt-page'); conteneur.appendChild(this.elCorps);
+    this.surCie = function (e) { self.compagnie = (e.detail && e.detail.compagnie) || ''; self.categorie = ''; self.rendre(); if (!self.detruit && AMX.gesteMenuRecent()) self.charger(); };
     document.addEventListener('amx:compagnie', this.surCie);
+    /* Échap dans une liste = retour à l'accueil de la page (pas pendant une fenêtre ou une saisie). */
+    this.surTouche = function (e) {
+      if (e.key !== 'Escape' || self.vue === 'accueil' || self.detruit) return;
+      if (document.querySelector('.voile')) return;
+      var t = e.target; if (t && /INPUT|TEXTAREA|SELECT/.test(t.tagName)) return;
+      self.aller('accueil');
+    };
+    document.addEventListener('keydown', this.surTouche);
     if (cache.rep) { this.rep = cache.rep; this.rendre(); }
     else {
       this.elCorps.appendChild(AMX.chargeur('Courtoisie'));
@@ -167,10 +204,19 @@
     }
     this.charger(false);
   }
-  VueCourtoisie.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); };
+  VueCourtoisie.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('keydown', this.surTouche); };
   VueCourtoisie.prototype.naviguer = function (ctx) {
-    var p = (ctx && ctx.params) || {};
-    if (p.vue && p.vue !== this.vue) { this.vue = p.vue; this.rendre(); }
+    var v = vueDe((ctx && ctx.params) || {});
+    if (v !== this.vue) { this.vue = v; this.q = ''; this.categorie = ''; this.rendre(); window.scrollTo(0, 0); }
+  };
+  /* Changer de liste passe par l'adresse : le bouton Précédent du navigateur ramène à l'accueil de la page. */
+  VueCourtoisie.prototype.aller = function (vue) {
+    var base = String(location.hash || '#/service/courtoisie').split('?')[0];
+    var cible = base + (vue && vue !== 'accueil' ? '?voir=' + vue : '');
+    if (location.hash === cible) { this.naviguer({ params: { voir: vue } }); return; }
+    location.hash = cible;
+    /* au cas où le routeur ne rappelle pas naviguer pour un simple changement de paramètre */
+    var self = this; setTimeout(function () { if (!self.detruit && self.vue !== (vue || 'accueil')) self.naviguer({ params: { voir: vue } }); }, 60);
   };
   VueCourtoisie.prototype.charger = function (force) {
     var self = this;
@@ -196,17 +242,17 @@
   VueCourtoisie.prototype.dansVue = function (v, vue) {
     vue = vue || this.vue;
     if (vue === 'service') return v.etat === 'service';
-    if (vue === 'regler') return aRegler(v) || aCode(v, 'aSortir');
+    if (vue === 'sortir') return v.etat === 'service' && CODES_SORTIR.some(function (c) { return aCode(v, c); });
+    if (vue === 'regler') return aRegler(v);
     if (vue === 'sortis') return v.etat === 'sorti';
     return true;
   };
-  /* Tous les filtres sauf `sauf` (pour compter chaque pastille avec les autres filtres). */
-  VueCourtoisie.prototype.filtrer = function (sauf) {
+  /* La liste ouverte : la vue, l'utilisation choisie et la recherche. */
+  VueCourtoisie.prototype.filtrer = function (sansCategorie) {
     var self = this;
     return this.base().filter(function (v) {
-      if (sauf !== 'vue' && !self.dansVue(v)) return false;
-      if (sauf !== 'categorie' && self.categorie && v.categorie !== self.categorie) return false;
-      if (sauf !== 'ecart' && self.ecart && !aCode(v, self.ecart)) return false;
+      if (self.vue !== 'accueil' && !self.dansVue(v)) return false;
+      if (!sansCategorie && self.categorie && v.categorie !== self.categorie) return false;
       if (self.q && !AMX.correspond(champsRecherche(v), self.q)) return false;
       return true;
     });
@@ -224,132 +270,151 @@
     var base = this.rep.vehicules;
     AMX.barreConcessions(this.elCies, { domaine: 'service', valeur: this.compagnie,
       compte: function (c) { return base.filter(function (v) { return (!c || v.compagnie === c) && v.etat === 'service'; }).length; },
-      onchange: function (c) { self.compagnie = c; self.rendre(); } });
-    this.rendreVues();
-    this.rafraichir();
-  };
-  VueCourtoisie.prototype.rendreVues = function () {
-    var self = this, b = this.base();
-    AMX.vider(this.elVues);
-    [['service', 'En service'], ['regler', 'À régler'], ['sortis', 'Sortis de la route'], ['tous', 'Tous']].forEach(function (x) {
-      var n = b.filter(function (v) { return self.dansVue(v, x[0]); }).length;
-      self.elVues.appendChild(h('button' + (self.vue === x[0] ? '.actif' : '') + (x[0] === 'regler' && n ? '.rouge' : ''), { type: 'button', onclick: function () { self.vue = x[0]; self.ecart = ''; self.rendreVues(); self.rafraichir(); } },
-        [x[1], h('span.n', { text: String(n) })]));
-    });
-  };
-  VueCourtoisie.prototype.rafraichir = function () {
-    if (!this.rep) return;
-    var self = this;
-    /* Catégories : comptées avec les autres filtres. */
-    var pourCat = this.filtrer('categorie');
-    AMX.vider(this.elCats);
-    this.elCats.appendChild(h('span.l', { text: 'Utilisation' }));
-    this.elCats.appendChild(h('button' + (!this.categorie ? '.actif' : ''), { type: 'button', text: 'Toutes · ' + pourCat.length, onclick: function () { self.categorie = ''; self.rafraichir(); } }));
-    CATEGORIES.forEach(function (c) {
-      var n = pourCat.filter(function (v) { return v.categorie === c[0]; }).length;
-      if (!n && self.categorie !== c[0]) return;
-      self.elCats.appendChild(h('button' + (self.categorie === c[0] ? '.actif' : ''), { type: 'button', text: c[1] + ' · ' + n, onclick: function () { self.categorie = self.categorie === c[0] ? '' : c[0]; self.rafraichir(); } }));
-    });
-    /* Écarts : seulement ceux qui existent. */
-    var pourEc = this.filtrer('ecart');
-    AMX.vider(this.elEcarts);
-    var nEc = 0;
-    ECARTS.forEach(function (e) {
-      var n = pourEc.filter(function (v) { return aCode(v, e[0]); }).length;
-      if (!n && self.ecart !== e[0]) return;
-      if (!nEc) self.elEcarts.appendChild(h('span.l', { text: 'Écarts' }));
-      nEc++;
-      self.elEcarts.appendChild(h('button.' + (e[2] === 'mauve' ? 'ambre' : e[2]) + (self.ecart === e[0] ? '.actif' : ''), { type: 'button', text: e[1] + ' · ' + n, title: e[3], onclick: function () { self.ecart = self.ecart === e[0] ? '' : e[0]; self.rafraichir(); } }));
-    });
-    this.elEcarts.hidden = !nEc;
-    var liste = this.filtrer();
-    var filtres = [];
-    if (this.categorie) filtres.push(NOM_CAT[this.categorie]);
-    if (this.ecart) filtres.push(ECART[this.ecart][1]);
-    if (this.q) filtres.push('« ' + this.q + ' »');
-    var vueNom = { service: 'en service', regler: 'à régler', sortis: 'sortis de la route', tous: 'tous' }[this.vue];
-    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['véhicule', 'véhicules'], contexte: [this.compagnie ? nomCie(this.compagnie) : 'toutes les concessions', vueNom], filtres: filtres,
-      effacer: function () { self.categorie = ''; self.ecart = ''; self.q = ''; self.inRecherche.value = ''; self.rafraichir(); } });
-    this.rendreKpis(liste);
-    this.rendreListe(liste);
-  };
-  VueCourtoisie.prototype.rendreKpis = function (liste) {
-    var self = this, P = this.rep.params || { kmMax: 12000, moisMax: 6 };
-    AMX.vider(this.elKpis);
-    var tuile = function (valeur, libelle, sous, cls, clic) {
-      var el = h(clic ? 'button.kpi' : 'div.kpi' + (cls ? '' : ''), clic ? { type: 'button', onclick: clic } : {}, [h('div.valeur', { text: String(valeur) }), h('div.libelle', { text: libelle }), sous ? h('div.sous', { text: sous }) : null]);
-      if (cls) el.classList.add(cls);
-      return el;
-    };
-    var enService = liste.filter(function (v) { return v.etat === 'service'; });
-    var aSortir = liste.filter(function (v) { return aCode(v, 'aSortir'); }).length, bientot = liste.filter(function (v) { return aCode(v, 'bientot'); }).length;
-    var aReg = liste.filter(aRegler).length;
-    var kms = enService.map(function (v) { return v.km; }).filter(function (k) { return typeof k === 'number' && k > 0; });
-    var mois = enService.map(function (v) { return v.mois; }).filter(function (m) { return typeof m === 'number'; });
-    var moy = function (l) { return l.length ? l.reduce(function (a, b) { return a + b; }, 0) / l.length : null; };
-    this.elKpis.appendChild(tuile(liste.length, 'Véhicules', enService.length + ' en service', 'neutre'));
-    this.elKpis.appendChild(tuile(aSortir, 'À sortir de la route', (bientot ? bientot + ' bientôt · ' : '') + 'max. ' + AMX.fmtNombre(P.kmMax) + ' km ou ' + P.moisMax + ' mois', aSortir ? 'alerte' : 'neutre',
-      aSortir ? function () { self.ecart = 'aSortir'; self.rafraichir(); } : null));
-    this.elKpis.appendChild(tuile(aReg, 'Écarts à régler', 'fichier de courtoisie et LMB', aReg ? 'attention' : 'neutre', aReg ? function () { self.vue = 'regler'; self.ecart = ''; self.rendreVues(); self.rafraichir(); } : null));
-    var km = moy(kms), m = moy(mois);
-    this.elKpis.appendChild(tuile(km === null ? '—' : AMX.fmtNombre(Math.round(km)) + ' km', 'Km moyen', kms.length ? 'sur ' + pluriel(kms.length, 'véhicule') + ' en service' : 'km pas inscrit au fichier', 'neutre'));
-    this.elKpis.appendChild(tuile(m === null ? '—' : (Math.round(m * 10) / 10).toLocaleString('fr-CA') + ' mois', 'Âge moyen en service', mois.length ? 'depuis la mise en service' : 'date pas inscrite au fichier', 'neutre'));
-  };
-  VueCourtoisie.prototype.rendreListe = function (liste) {
-    var self = this, P = this.rep.params || { kmMax: 12000, moisMax: 6 };
+      onchange: function (c) { self.compagnie = c; self.categorie = ''; self.rendre(); } });
     AMX.vider(this.elCorps);
     var erreurs = [];
-    ((this.rep.sources && this.rep.sources.fichiers) || []).forEach(function (f) { if (f.erreur) erreurs.push('Fichier « ' + (f.nom || f.id) + ' » : ' + f.erreur); });
-    ((this.rep.sources && this.rep.sources.lmb && this.rep.sources.lmb.erreurs) || []).forEach(function (e) { erreurs.push('LMB — ' + e); });
+    ((rep.sources && rep.sources.fichiers) || []).forEach(function (x) { if (x.erreur) erreurs.push('Fichier « ' + (x.nom || x.id) + ' » : ' + x.erreur); });
+    ((rep.sources && rep.sources.lmb && rep.sources.lmb.erreurs) || []).forEach(function (e) { erreurs.push('LMB — ' + e); });
     erreurs.forEach(function (e) { self.elCorps.appendChild(h('div.crt-erreur', { text: e })); });
-    if (this.vue === 'regler' && !this.ecart) this.elCorps.appendChild(this.carteActions());
-    if (!liste.length) { this.elCorps.appendChild(h('div.carte', [h('div.crt-vide', { text: this.base().length ? 'Aucun véhicule ne correspond à ces filtres.' : 'Aucun véhicule de courtoisie pour cette concession.' })])); return; }
+    if (this.vue === 'accueil') this.rendreAccueil(); else this.rendreVue();
+  };
+
+  /* ------------------------------------------------------------------- accueil de la page */
+  VueCourtoisie.prototype.rendreAccueil = function () {
+    var self = this, P = this.rep.params || { kmMax: 12000, moisMax: 6 }, b = this.base();
+    var n = function (vue) { return b.filter(function (v) { return self.dansVue(v, vue); }).length; };
+    var enService = b.filter(function (v) { return v.etat === 'service'; });
+    var maintenant = enService.filter(function (v) { return aCode(v, 'aSortir'); }).length, bientot = n('sortir') - maintenant;
+    var kms = enService.map(function (v) { return v.km; }).filter(function (k) { return typeof k === 'number' && k > 0; });
+    var mois = enService.map(function (v) { return v.mois; }).filter(function (m) { return typeof m === 'number'; });
+    var moy = function (l) { return l.length ? l.reduce(function (x, y) { return x + y; }, 0) / l.length : null; };
+    var km = moy(kms), m = moy(mois), nReg = n('regler'), nSortis = n('sortis');
+    /* La recherche : toute la flotte de la concession, résultats tout de suite sous la boîte. */
+    var boite = h('input.saisie.recherche', { type: 'search', value: this.q, placeholder: 'Chercher un véhicule : unité, NIV, plaque, modèle, client, no LOC…', autocomplete: 'off', 'aria-label': 'Chercher un véhicule de courtoisie' });
+    var resultats = h('div');
+    var tuiles = AMX.tuilesSujets([
+      { titre: 'En service', n: enService.length, icone: 'voiture', couleur: 'vert', onclick: function () { self.aller('service'); },
+        desc: enService.length ? [km === null ? '' : 'Km moyen ' + AMX.fmtNombre(Math.round(km)), m === null ? '' : 'âge moyen ' + (Math.round(m * 10) / 10).toLocaleString('fr-CA') + ' mois'].filter(Boolean).join(' · ') || 'Les véhicules sur la route.' : 'Aucun véhicule en service.' },
+      { titre: 'À sortir de la route', n: maintenant, icone: 'alerte', couleur: maintenant ? 'rouge' : (bientot ? 'ambre' : 'gris'), onclick: function () { self.aller('sortir'); },
+        desc: 'Plus de ' + AMX.fmtNombre(P.kmMax) + ' km ou ' + P.moisMax + ' mois de service' + (bientot ? ' · ' + bientot + ' bientôt' : '') + '.' },
+      { titre: 'À régler', n: nReg, icone: 'info', couleur: nReg ? 'ambre' : 'gris', onclick: function () { self.aller('regler'); },
+        desc: nReg ? 'Le fichier de courtoisie et LMB ne concordent pas : quoi corriger.' : 'Rien à régler : le fichier et LMB concordent.' },
+      { titre: 'Sortis de la route', n: nSortis, icone: 'ok', couleur: 'gris', onclick: function () { self.aller('sortis'); }, desc: 'Les véhicules retirés de la courtoisie.' }
+    ]);
+    var dessiner = function () {
+      AMX.vider(resultats);
+      tuiles.hidden = !!self.q;
+      if (!self.q) return;
+      var l = self.filtrer();
+      resultats.appendChild(AMX.teteSujet(pluriel(l.length, 'véhicule') + ' pour « ' + self.q + ' »', 'En service et sortis de la route. Échap efface la recherche.'));
+      resultats.appendChild(l.length ? self.tableVehicules(l) : h('div.carte', [h('div.crt-vide', { text: 'Aucun véhicule de courtoisie ne correspond.' })]));
+    };
+    var relancer = AMX.debounce(function () { self.q = boite.value.trim(); dessiner(); }, 160);
+    boite.addEventListener('input', relancer);
+    boite.addEventListener('keydown', function (e) { if (e.key === 'Escape') { boite.value = ''; self.q = ''; dessiner(); } });
+    this.elCorps.appendChild(h('div.crt-recherche', [boite]));
+    this.elCorps.appendChild(tuiles);
+    this.elCorps.appendChild(resultats);
+    dessiner();
+  };
+
+  /* ------------------------------------------------------------------- une liste */
+  VueCourtoisie.prototype.rendreVue = function () {
+    var self = this, def = VUES[this.vue], P = this.rep.params || { kmMax: 12000, moisMax: 6 };
+    var desc = this.vue === 'sortir' ? 'Plus de ' + AMX.fmtNombre(P.kmMax) + ' km ou ' + P.moisMax + ' mois de service (Réglages), ou bientôt.' : def.desc;
+    this.elCorps.appendChild(AMX.retourSujets('Retour à Courtoisie', function () { self.aller('accueil'); }));
+    var elTete = h('div');
+    this.elCorps.appendChild(elTete);
+    /* Une recherche, et un menu « Utilisation » seulement quand la liste en a plusieurs. */
+    var boite = h('input.saisie.recherche', { type: 'search', value: this.q, placeholder: 'Chercher dans cette liste…', autocomplete: 'off', 'aria-label': 'Chercher dans la liste' });
+    var cats = {};
+    this.filtrer(true).forEach(function (v) { cats[v.categorie] = (cats[v.categorie] || 0) + 1; });
+    var sel = null;
+    if (Object.keys(cats).length > 1 || this.categorie) {
+      sel = h('select.saisie.crt-select', { 'aria-label': 'Utilisation' }, [h('option', { value: '', text: 'Toutes les utilisations' })].concat(CATEGORIES.filter(function (c) { return cats[c[0]] || self.categorie === c[0]; }).map(function (c) {
+        return h('option', { value: c[0], selected: self.categorie === c[0] ? 'selected' : null, text: c[1] + ' (' + (cats[c[0]] || 0) + ')' });
+      })));
+      sel.addEventListener('change', function () { self.categorie = sel.value; dessiner(); });
+    }
+    this.elCorps.appendChild(h('div.crt-filtres', [boite, sel]));
+    var elListe = h('div');
+    this.elCorps.appendChild(elListe);
+    var dessiner = function () {
+      var liste = self.filtrer();
+      AMX.vider(elTete);
+      var filtre = [self.categorie ? NOM_CAT[self.categorie] : '', self.q ? '« ' + self.q + ' »' : ''].filter(Boolean).join(' · ');
+      elTete.appendChild(AMX.teteSujet(def.titre + ' · ' + liste.length, desc + (self.compagnie ? '' : ' Toutes les concessions.') + (filtre ? ' Filtre : ' + filtre + '.' : '')));
+      AMX.vider(elListe);
+      if (!liste.length) { elListe.appendChild(h('div.carte', [h('div.crt-vide', { text: self.q || self.categorie ? 'Aucun véhicule ne correspond.' : (self.vue === 'regler' ? 'Rien à régler : le fichier de courtoisie et LMB concordent.' : (self.vue === 'sortir' ? 'Aucun véhicule à sortir de la route.' : 'Aucun véhicule.')) })])); return; }
+      if (self.vue === 'regler') self.rendreRegler(elListe, liste);
+      else if (self.vue === 'sortir') self.rendreSortir(elListe, liste);
+      else elListe.appendChild(self.tableVehicules(liste));
+    };
+    var relancer = AMX.debounce(function () { self.q = boite.value.trim(); dessiner(); }, 160);
+    boite.addEventListener('input', relancer);
+    boite.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (boite.value) { boite.value = ''; self.q = ''; dessiner(); } else self.aller('accueil'); } });
+    dessiner();
+  };
+  /* « À régler » : un groupe par problème (le plus grave du véhicule), avec quoi faire. */
+  VueCourtoisie.prototype.rendreRegler = function (el, liste) {
+    var self = this, groupes = {};
+    liste.forEach(function (v) { var c = ecartPrincipal(v); (groupes[c] = groupes[c] || []).push(v); });
+    ECARTS.forEach(function (e) {
+      var l = groupes[e[0]]; if (!l || !l.length) return;
+      el.appendChild(h('section.crt-groupe.' + e[2], [
+        h('div.crt-groupe-tete', [h('span.n', { text: String(l.length) }), h('div', [h('h3', { text: e[1] }), h('p', { text: e[3] })])]),
+        self.tableVehicules(l)
+      ]));
+    });
+  };
+  /* « À sortir » : maintenant, puis bientôt ; les plus vieux en premier. */
+  VueCourtoisie.prototype.rendreSortir = function (el, liste) {
+    var self = this, P = this.rep.params || { kmMax: 12000, moisMax: 6 };
+    var cle = function (v) { return Math.max((typeof v.km === 'number' ? v.km / P.kmMax : 0), (typeof v.mois === 'number' ? v.mois / P.moisMax : 0)); };
+    var tri = function (l) { return l.slice().sort(function (a, b) { return cle(b) - cle(a); }); };
+    var maintenant = liste.filter(function (v) { return aCode(v, 'aSortir'); }), bientot = liste.filter(function (v) { return !aCode(v, 'aSortir'); });
+    [['Maintenant', maintenant, 'rouge', 'Le km ou les mois de service sont dépassés : planifier la sortie (retour à LMB ou revente).'],
+      ['Bientôt', bientot, 'ambre', 'Approche du maximum, ou le fichier dit de le sortir : prévoir le remplaçant.']].forEach(function (g) {
+      if (!g[1].length) return;
+      el.appendChild(h('section.crt-groupe.' + g[2], [
+        h('div.crt-groupe-tete', [h('span.n', { text: String(g[1].length) }), h('div', [h('h3', { text: g[0] }), h('p', { text: g[3] })])]),
+        self.tableVehicules(tri(g[1]))
+      ]));
+    });
+  };
+  /* Le tableau des véhicules : six colonnes, un clic = la fiche. */
+  VueCourtoisie.prototype.tableVehicules = function (liste) {
+    var self = this, P = this.rep.params || { kmMax: 12000, moisMax: 6 };
     var tri = liste.slice().sort(function (a, b) {
       var ra = a.alertes.some(function (x) { return x.niveau === 'rouge'; }) ? 0 : (a.alertes.length ? 1 : 2), rb = b.alertes.some(function (x) { return x.niveau === 'rouge'; }) ? 0 : (b.alertes.length ? 1 : 2);
       if (ra !== rb) return ra - rb;
       return String(a.unite || 'zz').localeCompare(String(b.unite || 'zz'), 'fr', { numeric: true });
     });
+    if (this.vue === 'sortir') tri = liste;   /* déjà rangée du plus vieux au plus récent */
     var tbody = h('tbody');
     tri.forEach(function (v) {
       var jaugeKm = typeof v.km === 'number' ? Math.min(100, Math.round(v.km / P.kmMax * 100)) : null;
       var clsJ = jaugeKm === null ? '' : (jaugeKm >= 100 ? 'rouge' : (v.km >= (P.kmAvertir || P.kmMax * 0.85) ? 'ambre' : ''));
       var puces = v.alertes.map(function (a) { var e = ECART[a.code]; return h('span.crt-puce.' + a.niveau, { text: e ? e[1] : a.code, title: a.texte }); });
-      if (!puces.length) puces.push(h('span.crt-puce.' + (v.etat === 'sorti' ? 'gris' : 'ok'), { text: v.etat === 'sorti' ? 'Sorti · réglé' : (v.demo ? (v.demo.origine === 'dms' ? 'Selon le DMS' : 'Selon le manufacturier') : (v.sansFichier ? 'Selon LMB' : 'Concorde')) }));
-      /* 10 nov. : une démo ou une courtoisie des neufs (concession sans fichier de courtoisie) — d'où elle vient, à la place de LMB */
-      var lmb = v.lmb ? [h('span.mono', { text: v.lmb.stock }), h('span.s', { text: (v.lmb.type || 'floor plan vide') + (v.lmb.note ? ' · ' + v.lmb.note : '') })]
-        : (v.vendu ? [h('span.mono', { text: v.vendu.stock }), h('span.s', { text: 'vendu' })]
-          : (v.demo ? [h('span', { text: 'Neuf · ' + (v.demo.origine === 'dms' ? 'DMS' : 'manufacturier') }), h('span.s', { text: v.demo.gl ? 'compte GL ' + v.demo.gl : (v.demo.pourquoi || 'statut DEMO') })] : [h('span.s', { text: '—' })]));
-      var tr = h('tr' + (v.etat === 'sorti' ? '.sorti' : ''), { 'data-vin': v.cle }, [
-        h('td', [h('span.crt-unite', { text: v.unite || '—' }), h('span.s', { text: nomCie(v.compagnie) })]),
-        h('td', [h('b', { text: v.vehicule || v.vehiculeFichier || 'Véhicule' }), h('span.s.mono', { text: v.vin }), v.plaque ? h('span.s', { text: 'Plaque ' + v.plaque }) : null]),
+      if (!puces.length) puces.push(h('span.crt-puce.' + (v.etat === 'sorti' ? 'gris' : 'ok'), { text: v.etat === 'sorti' ? 'Sorti · réglé' : 'OK' }));
+      var source = v.lmb ? 'LMB ' + v.lmb.stock : (v.vendu ? 'LMB ' + v.vendu.stock + ' (vendu)' : (v.demo ? 'Neuf · ' + (v.demo.origine === 'dms' ? 'DMS' : 'manufacturier') : ''));
+      var tr = h('tr' + (v.etat === 'sorti' ? '.sorti' : ''), { 'data-vin': v.cle, tabindex: '0' }, [
+        h('td', [h('span.crt-unite', { text: (v.unite ? v.unite + ' · ' : '') + (v.vehicule || v.vehiculeFichier || 'Véhicule') }),
+          h('span.s', { text: [v.plaque ? 'Plaque ' + v.plaque : '', source, self.compagnie ? '' : nomCie(v.compagnie)].filter(Boolean).join(' · ') || v.vin })]),
         h('td', [h('span.crt-cat.' + v.categorie, { text: NOM_CAT[v.categorie] || v.categorie })]),
         h('td', [h('span', { text: v.chez || '—' }), v.bt ? h('span.s', { text: 'BT ' + v.bt }) : null]),
         h('td', { title: v.demo && v.miseTexte ? 'Mise en service : ' + v.miseTexte : '' }, [h('span', { text: v.miseService ? dateCourte(v.miseService) : (v.miseTexte || '—') }), typeof v.mois === 'number' ? h('span.s', { text: (Math.round(v.mois * 10) / 10).toLocaleString('fr-CA') + ' mois' }) : null]),
         h('td.num', [h('span', { text: typeof v.km === 'number' ? AMX.fmtNombre(v.km) : '—' }), v.kmSource === 'telematique' ? h('span.crt-auto', { text: 'auto', title: infoKm(v) }) : null,
           jaugeKm === null ? null : h('div.crt-jauge', [h('i' + (clsJ ? '.' + clsJ : ''), { style: { width: jaugeKm + '%' } })]), niveauTele(v) ? h('span.s', { text: niveauTele(v) }) : null]),
-        h('td', lmb),
         h('td', puces)
       ]);
       tr.addEventListener('click', function () { self.detail(v); });
+      tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') self.detail(v); });
       tbody.appendChild(tr);
     });
-    this.elCorps.appendChild(h('div.carte', [h('div.crt-cadre', [h('table.tableau.crt-table', [
-      h('thead', [h('tr', ['Unité', 'Véhicule', 'Utilisation', 'Chez / activité', 'En service depuis', 'Km', 'LMB', 'État'].map(function (t, i) { return h('th' + (i === 5 ? '.num' : ''), { text: t }); }))]),
-      tbody])])]));
-  };
-  /* Vue « À régler » : un résumé par type d'écart, avec quoi faire. */
-  VueCourtoisie.prototype.carteActions = function () {
-    var self = this, b = this.filtrer('ecart'), ul = h('ul');
-    ECARTS.forEach(function (e) {
-      if (e[0] === 'bientot' || e[0] === 'noteSortir') return;
-      var n = b.filter(function (v) { return aCode(v, e[0]); }).length;
-      if (!n) return;
-      var li = h('li', [h('span.n.' + e[2], { text: String(n) }), h('div', [h('b', { text: e[1] }), h('span.q', { text: e[3] })])]);
-      li.addEventListener('click', function () { self.ecart = e[0]; self.rafraichir(); });
-      ul.appendChild(li);
-    });
-    if (!ul.children.length) return h('div.carte.crt-actions', [h('div.crt-vide', { text: 'Rien à régler : le fichier de courtoisie et LMB concordent.' })]);
-    return h('div.carte.crt-actions', [h('h2', 'Quoi faire'), ul]);
+    return h('div.carte', [h('div.crt-cadre', [h('table.tableau.crt-table', [
+      h('thead', [h('tr', ['Véhicule', 'Utilisation', 'Chez / activité', 'En service depuis', 'Km', 'État'].map(function (t, i) { return h('th' + (i === 4 ? '.num' : ''), { text: t }); }))]),
+      tbody])])]);
   };
 
   /* ------------------------------------------------------------------------------------ détail */

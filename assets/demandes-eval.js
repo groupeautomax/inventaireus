@@ -101,6 +101,10 @@
   /* 2 nov. : ce qui attend la direction (DG, direction des ventes) */
   function aApprouver(cie) { var d = cache.rep; if (!d || !(d.moi || {}).diriger) return []; return d.demandes.filter(function (x) { return x.etat === 'approbation' && (!cie || x.compagnie === cie); }); }
   function aConfirmer(cie) { var d = cache.rep; if (!d || !(d.moi || {}).diriger) return []; return d.demandes.filter(function (x) { return x.etat === 'aconfirmer' && (!cie || x.compagnie === cie); }); }
+  /* 10 nov. (Maxime) : une demande venue de Traction reste en rouge tant que la valeur n'est pas donnée (à approuver,
+     à prendre ou en évaluation). Une fois la valeur donnée, montant à confirmer compris, elle reprend ses couleurs. */
+  function tractionATraiter(x) { return !!x && x.source === 'traction' && (x.etat === 'approbation' || x.etat === 'afaire' || x.etat === 'encours'); }
+  function tractionsATraiter(cie) { var d = cache.rep; if (!d) return null; return d.demandes.filter(function (x) { return tractionATraiter(x) && (!cie || x.compagnie === cie); }); }
 
   /* ------------------------------ Petits outils ------------------------------ */
   function nomCie(c) { return (AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[c]) || c; }
@@ -884,6 +888,7 @@
     var parVue = base.filter(direction ? function () { return true; } : (this.vue === 'pourMoi' ? function (x) { return x.pourMoi; } : function (x) { return x.deMoi; }));
     var etats = direction ? [
       ['attente', 'À traiter', attendDirection, 'rouge'],
+      ['traction', 'Traction · valeur à donner', tractionATraiter, 'rouge'],
       ['approbation', 'À approuver', function (x) { return x.etat === 'approbation'; }, 'violet'],
       ['aconfirmer', 'Montants à confirmer', function (x) { return x.etat === 'aconfirmer'; }, 'bleu'],
       ['ouvertes', 'Chez les évaluateurs', estOuverte, 'ambre'],
@@ -891,6 +896,7 @@
       ['refusee', 'Refusées', function (x) { return x.etat === 'refusee'; }, 'gris'],
       ['toutes', 'Toutes', function () { return true; }, '']] : [
       ['ouvertes', 'Ouvertes', this.vue === 'deMoi' ? enCours : estOuverte, 'rouge'],
+      ['traction', 'Traction · valeur à donner', tractionATraiter, 'rouge'],
       ['info', 'Question en attente', function (x) { return x.infoDemandee; }, 'ambre'],
       ['valeur', 'Valeur donnée', function (x) { return phase(x) === 'faite'; }, 'vert'],
       ['conclues', 'Achetées / perdues', function (x) { return x.issue === 'achetee' || x.issue === 'perdue'; }, 'bleu'],
@@ -903,7 +909,7 @@
     AMX.vider(this.elEtats); this.elEtats.style.display = '';
     etats.forEach(function (e) {
       var n = parVue.filter(e[2]).length;
-      if (!n && e[0] !== self.etat && (e[0] === 'info' || e[0] === 'echues' || e[0] === 'annulee' || e[0] === 'refusee')) return;
+      if (!n && e[0] !== self.etat && (e[0] === 'info' || e[0] === 'echues' || e[0] === 'annulee' || e[0] === 'refusee' || e[0] === 'traction')) return;
       self.elEtats.appendChild(h('button.inv2-pastille' + (self.etat === e[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': String(self.etat === e[0]), onclick: function () { self.etat = e[0]; self.etatChoisi = true; self.rendre(); } }, [e[3] ? h('i', { style: { background: 'var(--' + e[3] + ')' } }) : null, e[1], h('b', { text: String(n) })]));
     });
     var filtre = etats.filter(function (e) { return e[0] === self.etat; })[0][2];
@@ -912,7 +918,7 @@
       : { approbation: 0, afaire: 1, encours: 2, aconfirmer: 3, faite: 4, echue: 5, achetee: 6, perdue: 7, refusee: 8, annulee: 9 };
     /* question en attente d'abord, puis par étape ; les ouvertes de la plus vieille à la plus récente (la plus urgente en haut), les autres de la plus récente à la plus vieille */
     liste = liste.slice().sort(function (a, b) {
-      var r = ((b.infoDemandee ? 1 : 0) - (a.infoDemandee ? 1 : 0)) || ((RANG[phase(a)] || 0) - (RANG[phase(b)] || 0));
+      var r = ((tractionATraiter(b) ? 1 : 0) - (tractionATraiter(a) ? 1 : 0)) || ((b.infoDemandee ? 1 : 0) - (a.infoDemandee ? 1 : 0)) || ((RANG[phase(a)] || 0) - (RANG[phase(b)] || 0));   /* 10 nov. : Traction pas encore évaluée en tête */
       if (r) return r;
       return enCours(a) ? String(a.creeLe || '').localeCompare(String(b.creeLe || '')) : String(b.creeLe || '').localeCompare(String(a.creeLe || ''));
     });
@@ -1017,10 +1023,11 @@
       x.reprendDe ? h('div.mini', { text: 'Réévaluation de ' + x.reprendDe }) : null,
       x.remplaceePar ? h('div.mini', { text: 'Réévaluée : voir ' + x.remplaceePar }) : null,
       /* 1er nov. : demande venue du CRM Traction — la valeur y retourne d'elle-même (Traction.gs) */
-      x.source === 'traction' && x.crm ? h('div.mini.de-traction', [h('span.badge.bleu.sans-point', { text: 'Traction' }),
+      x.source === 'traction' && x.crm ? h('div.mini.de-traction', [tractionATraiter(x) ? h('span.badge.rouge.sans-point', { text: 'Traction · valeur à donner' }) : h('span.badge.bleu.sans-point', { text: 'Traction' }),
         x.crm.url ? h('a', { href: x.crm.url, target: '_blank', rel: 'noopener', text: ' Opportunité ' + (x.crm.opportuniteId || '') + ' ↗' }) : h('span', { text: ' Opportunité ' + (x.crm.opportuniteId || '—') }),
         h('span', { text: x.crm.echec ? ' · renvoi à Traction en échec : ' + x.crm.echec : (x.crm.envoye ? ' · valeur renvoyée dans la cotation' : (x.etat === 'faite' ? ' · valeur en route vers Traction' : '')) }),
-        (x.crm.photos || []).length ? h('span', [h('span', { text: ' · photos : ' })].concat(x.crm.photos.map(function (u, i) { return h('a', { href: u, target: '_blank', rel: 'noopener', text: (i ? ', ' : '') + (i + 1) }); }))) : null]) : null,
+        (x.crm.photos || []).length ? h('span', [h('span', { text: ' · photos : ' })].concat(x.crm.photos.map(function (u, i) { return h('a', { href: u, target: '_blank', rel: 'noopener', text: (i ? ', ' : '') + (i + 1) }); }))) : null,
+        (x.crm.alerte || []).length && !self.portail ? h('span', { text: ' · alerte envoyée à ' + x.crm.alerte.join(', ') }) : null]) : null,
       x.note ? h('div.de-note', { text: x.note }) : null,
       x.detail && resumeDetail(x.detail) ? h('div.mini.de-detail', [h('b', 'Détail inscrit : '), h('span', { text: resumeDetail(x.detail) })]) : null,
       x.etat === 'annulee' && x.annuleRaison ? h('div.mini', { text: 'Annulée : ' + x.annuleRaison }) : null,
@@ -1050,7 +1057,7 @@
         return h('button.btn.petit' + (x.issue === k ? '.actif.' + k : ''), { type: 'button', 'aria-pressed': String(x.issue === k), onclick: function () { choisirIssue(x, k); } }, [k === 'perdue' ? 'Perdue…' : ISSUES[k]]);
       })).concat([x.issue === 'perdue' && x.issueRaison ? h('span.mini', { text: x.issueRaison }) : null, x.issueSource === 'suivi' ? h('span.mini', { text: 'd\'après le suivi de l\'évaluation' }) : null]));
     } else if (x.issue) resultat = h('div.de-resultat', [h('span.mini', { text: 'Résultat : ' + ISSUES[x.issue] + (x.issueRaison ? ' — ' + x.issueRaison : '') })]);
-    var carte = h('div.de-carte.' + ph + (c ? '.t-' + c.ton : ''), { 'data-id': x.id }, [
+    var carte = h('div.de-carte.' + ph + (c ? '.t-' + c.ton : '') + (tractionATraiter(x) ? '.trx-rouge' : ''), { 'data-id': x.id }, [
       tete,
       c ? h('div.de-progres', [h('i.' + c.ton, { style: { width: Math.round(c.part * 100) + '%' } })]) : null,
       etapes,
@@ -1107,11 +1114,11 @@
     var bas = c ? h('span.de-chrono.' + c.ton, { text: '⏱ ' + duree(c.min) + (x.etat === 'afaire' && c.min >= R.prise ? ' · pas prise' : '') }) :
       (x.etat === 'faite' ? h('b.de-mini-valeur', { text: (x.valeur ? argent(x.valeur) : 'valeur') + (x.issue ? ' · ' + ISSUES[x.issue] : (x.expiree ? ' · échue' : '')) }) :
         (x.etat === 'approbation' ? h('span.mini', { text: 'depuis ' + duree(depuis(x.creeLe)) }) : (x.etat === 'aconfirmer' ? h('b.de-mini-valeur.attente', { text: (x.valeurEvaluateur ? argent(x.valeurEvaluateur) + ' · ' : '') + 'à confirmer' }) : null)));
-    return h('button.de-compact.' + ph + (c ? '.t-' + c.ton : ''), { type: 'button', 'data-id': x.id, onclick: function () { self.ouvrirDetail(x.id); } }, [
+    return h('button.de-compact.' + ph + (c ? '.t-' + c.ton : '') + (tractionATraiter(x) ? '.trx-rouge' : ''), { type: 'button', 'data-id': x.id, onclick: function () { self.ouvrirDetail(x.id); } }, [
       h('b', { text: x.vehicule || x.vin }),
       h('span.mini', { text: [x.client, x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : ''].filter(Boolean).join(' · ') }),
       h('span.mini', { text: (x.demandeParNom || '—') + ' → ' + texteEvaluateurs(x) }),
-      x.source === 'traction' ? h('span.badge.bleu.sans-point', { text: 'Traction' }) : null,
+      x.source === 'traction' ? (tractionATraiter(x) ? h('span.badge.rouge.sans-point', { text: 'Traction · valeur à donner' }) : h('span.badge.bleu.sans-point', { text: 'Traction' })) : null,
       x.infoDemandee ? h('span.badge.ambre.sans-point', { text: 'Question en attente' }) : null,
       bas
     ]);
@@ -1184,6 +1191,7 @@
   AMX.evalDemandes = {
     charger: charger, enCache: function () { return cache.rep; }, demander: demander, poser: poser,
     aFairePourMoi: aFairePourMoi, pretesPourMoi: pretesPourMoi, questionsPourMoi: questionsPourMoi, aApprouver: aApprouver, aConfirmer: aConfirmer,
+    tractionsATraiter: tractionsATraiter, tractionATraiter: tractionATraiter,
     /* 2 nov. : la page d'évaluation propose « Confirmer le montant » au directeur, juste après l'enregistrement. */
     confirmer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); confirmerMontant(x); } },
     approuver: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); approuver(x, cache.rep); } },
@@ -1246,6 +1254,8 @@
       '.de-kanban.large { grid-template-columns: repeat(6, minmax(190px, 1fr)); } .de-col.approbation .de-col-tete b { color: var(--violet, #6D4FC7); } .de-col.aconfirmer .de-col-tete b { color: var(--bleu, #1A64BF); }',
       '.de-compact.approbation { border-left-color: var(--violet, #6D4FC7); } .de-compact.aconfirmer { border-left-color: var(--bleu, #1A64BF); } .de-compact.refusee { border-left-color: #9AA5AE; }',
       '.de-carte.t-rouge { box-shadow: 0 0 0 2px #D64545 inset; } .de-cible { outline: 3px solid var(--vert); outline-offset: 2px; }',
+      /* 10 nov. : demande de Traction pas encore évaluée — rouge, quelle que soit l'étape */
+      '.de-carte.trx-rouge, .de-compact.trx-rouge { background: #FDECEC; border-left-color: #B42318; box-shadow: 0 0 0 2px #D64545 inset; }',
       '.de-tete { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; } .de-tete .de-quand, .de-tete .de-chrono { margin-left: auto; }',
       '.de-chrono { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; } .de-chrono.vert { color: #1E6B3A; } .de-chrono.ambre { color: #955F10; } .de-chrono.rouge { color: #B42318; }',
       '.de-progres { height: 4px; border-radius: 3px; background: rgba(0,0,0,.07); margin: 8px 0 2px; overflow: hidden; } .de-progres i { display: block; height: 100%; border-radius: 3px; }',

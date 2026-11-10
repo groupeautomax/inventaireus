@@ -15,7 +15,13 @@
   'use strict';
   var h = AMX.h, I = AMX.icones;
   var SCRIPT_PAS_A_JOUR = 'Le script n\'est pas à jour : déployez une nouvelle version (RapportsOccasion.gs).';
-  var VUES = ['echanges', 'achats'];
+  var VUES = ['echanges', 'achats', 'hausses'];
+  /* 10 nov. : hausses de valeur d'échange (HaussesEchange.gs) — la valeur donnée au client dépasse celle de l'évaluateur. */
+  var SOURCES_H = [['torque', 'Torque', 'violet'], ['evaluation', 'Évaluation ScanAutomax', 'vert'], ['demande', 'Demande d\'évaluation', 'bleu'], ['livre', 'Livre des ventes', 'sarcelle']];
+  var SOURCE_LIB = {}; SOURCES_H.forEach(function (x) { SOURCE_LIB[x[0]] = x; });
+  var SANS_EVAL = '__sans';
+  function cleNom(n) { return String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim() || SANS_EVAL; }
+  function pctTxt(x) { return nb(x) ? (Math.round(x * 10) / 10).toLocaleString('fr-CA') + ' %' : ''; }
   var PERIODES = [['semaine', 'La semaine dernière'], ['semaineCourante', 'Cette semaine'], ['mois', 'Ce mois-ci'], ['moisPrec', 'Le mois dernier'],
     ['30j', '30 derniers jours'], ['90j', '90 derniers jours'], ['annee', 'Depuis le 1er janvier'], ['dates', 'Dates…']];
   var ETATS = [['stock', 'En stock', 'bleu'], ['detail', 'Vendu au détail', 'vert'], ['gros', 'Vendu en gros', 'sarcelle'], ['us', 'Vendu aux É.-U.', 'violet'], ['parti', 'Sorti du registre', 'gris'], ['inconnu', 'Introuvable', 'ambre']];
@@ -44,7 +50,8 @@
     var cle = vue + '|' + (cie || '*') + '|' + per.du + '|' + per.au, c = cache[cle];
     if (!force && c && c.rep && Date.now() - c.quand < AMX.dureeCopie(120000)) return Promise.resolve(c.rep);
     if (!force && c && c.promesse) return c.promesse;
-    var params = vue === 'achats' ? { rapportAchats: 1 } : { rapportEchanges: 1 };
+    var params = vue === 'achats' ? { rapportAchats: 1 } : (vue === 'hausses' ? { haussesEchange: 1 } : { rapportEchanges: 1 });
+    if (force === 'frais') params.frais = 1;
     params.du = per.du; params.au = per.au; if (cie) params.compagnie = cie;
     c = cache[cle] = cache[cle] || {};
     c.promesse = AMX.get(params, { delai: 90000, gz: true }).then(function (d) {
@@ -125,6 +132,41 @@
   });
   AMX.rapportsOccasion = { charger: charger, vider: vider, parConseiller: parConseiller, parAcheteur: parAcheteur, periode: periode };
 
+  /* Hausses : par évaluateur et par concession. */
+  function parEvaluateur(lignes, seuil) {
+    var m = {};
+    lignes.forEach(function (l) {
+      var k = cleNom(l.evaluateur), x = m[k] = m[k] || { cle: k, nom: l.evaluateur || '(sans évaluateur)', n: 0, plus: 0, total: 0, max: 0, cies: {} };
+      x.n++; x.total += l.ecart || 0; x.max = Math.max(x.max, l.ecart || 0); if ((l.ecart || 0) > (seuil || 1000)) x.plus++; x.cies[l.compagnie] = 1;
+    });
+    return Object.keys(m).map(function (k) { var x = m[k]; x.moyenne = x.n ? x.total / x.n : 0; return x; }).sort(function (a, b) { return b.total - a.total; });
+  }
+  /* Le nombre d'évaluations (Torque et ScanAutomax) d'une concession dans la période : les mois, au prorata des jours. */
+  function evaluationsPeriode(base, c, du, au) {
+    var b = base && base[c]; if (!b || !du || !au) return 0;
+    var total = 0;
+    Object.keys(b).forEach(function (m) {
+      var d1 = m + '-01', fin = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0), jours = fin.getDate(), d2 = m + '-' + ('0' + jours).slice(-2);
+      var a = du > d1 ? du : d1, z = au < d2 ? au : d2; if (a > z) return;
+      var n = Math.round((new Date(z + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5) + 1;
+      total += b[m] * n / jours;
+    });
+    return total;
+  }
+  function parConcessionH(lignes, seuil, base, du, au) {
+    var m = {};
+    lignes.forEach(function (l) {
+      var x = m[l.compagnie] = m[l.compagnie] || { cie: l.compagnie, n: 0, plus: 0, total: 0, max: 0, nEval: 0 };
+      x.n++; x.total += l.ecart || 0; x.max = Math.max(x.max, l.ecart || 0); if ((l.ecart || 0) > (seuil || 1000)) x.plus++;
+      if ((l.sources || [l.source]).some(function (s) { return s === 'torque' || s === 'evaluation'; })) x.nEval++;
+    });
+    return Object.keys(m).map(function (k) {
+      var x = m[k], ev = evaluationsPeriode(base, k, du, au);
+      x.moyenne = x.n ? x.total / x.n : 0; x.evals = Math.round(ev); x.taux = ev >= 1 && x.nEval <= ev ? Math.round(x.nEval * 1000 / ev) / 10 : null;
+      return x;
+    }).sort(function (a, b) { return b.total - a.total; });
+  }
+
   function VueRapports(conteneur, ctx) {
     injecterCss();
     var self = this, pr = (ctx && ctx.params) || {};
@@ -133,7 +175,7 @@
     if (pr.cie) AMX.choisirCompagnie(String(pr.cie).toUpperCase());
     this.perNom = pr.du && pr.au ? 'dates' : AMX.memo.lire('rpo_periode', 'semaine');
     this.du = pr.du || ''; this.au = pr.au || '';
-    this.f = { q: '', etat: '', personne: pr.acheteur || pr.conseiller || '' };
+    this.f = { q: '', etat: '', personne: pr.acheteur || pr.conseiller || pr.evaluateur || '', plus: false };
     if (this.vue === 'achats' && !this.f.personne && !estDirection() && AMX.session.perms && AMX.session.perms.estAcheteur) this.f.personne = String(AMX.session.courriel || '').toLowerCase();
     this.d = null; this.erreur = '';
     this.construire();
@@ -144,7 +186,7 @@
   VueRapports.prototype.demonter = function () { this.detruit = true; this.generation++; document.removeEventListener('amx:compagnie', this.surCie); };
   VueRapports.prototype.naviguer = function (ctx) {
     var v = ctx && ctx.onglet; if (VUES.indexOf(v) < 0 || v === this.vue) return;
-    this.vue = v; this.f = { q: '', etat: '', personne: '' }; this.elQ.value = ''; this.d = null; this.charger(false);
+    this.vue = v; this.f = { q: '', etat: '', personne: '', plus: false }; this.elQ.value = ''; this.d = null; this.majBoutons(); this.charger(false);
   };
   VueRapports.prototype.cie = function () { return AMX.compagnieChoisie('inventaire') || ''; };
   VueRapports.prototype.per = function () { return periode(this.perNom, this.du, this.au); };
@@ -155,9 +197,11 @@
     this.elSous = h('p', 'Chargement…');
     this.btnRafraichir = h('button.btn', { type: 'button', html: (I.rafraichir || '') + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
     this.btnExport = h('button.btn', { type: 'button', html: (I.telecharger || '') + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } });
-    this.btnEnvoi = h('button.btn', { type: 'button', html: (I.courriel || I.ok || '') + '<span>Courriel du lundi</span>', onclick: function () { self.fenetreEnvoi(); } });
+    this.btnEnvoi = h('button.btn', { type: 'button', html: (I.courriel || I.ok || '') + '<span>Courriel du lundi</span>', onclick: function () { if (self.vue === 'hausses') self.fenetreHausses(); else self.fenetreEnvoi(); } });
     this.btnEnvoi.hidden = !AMX.estAdmin();
-    var actions = [this.btnRafraichir, this.btnExport, this.btnEnvoi];
+    this.btnRelire = h('button.btn', { type: 'button', html: (I.rafraichir || '') + '<span>Relire les sources maintenant</span>', onclick: function () { self.charger('frais'); } });
+    this.btnRelire.hidden = true;
+    var actions = [this.btnRafraichir, this.btnExport, this.btnEnvoi, this.btnRelire];
     this.elCies = h('div.barre-cies');
     this.selPer = h('select.saisie#rpo-periode', { 'aria-label': 'Période', onchange: function () { self.perNom = self.selPer.value; if (self.perNom !== 'dates') AMX.memo.ecrire('rpo_periode', self.perNom); self.majDates(); if (self.perNom !== 'dates' || (self.inDu.value && self.inAu.value)) self.charger(false); } },
       PERIODES.map(function (p) { return h('option', { value: p[0], text: p[1] }); }));
@@ -172,7 +216,7 @@
     this.elEtats = h('div.inv2-statuts#rpo-etats', { role: 'group', 'aria-label': 'Ce qu\'il est devenu' });
     this.elFiltres = h('div.inv2-filtres.rpo-filtres', [
       h('div.rpo-ligne', [this.selPer, this.elDates, h('div.recherche.inv2-recherche', [h('span', { html: I.recherche }), this.elQ]), this.selPers]),
-      h('div.rpo-ligne', [h('span.rpo-lib', 'Devenu'), this.elEtats])]);
+      h('div.rpo-ligne', [this.elEtatsLib = h('span.rpo-lib', 'Devenu'), this.elEtats])]);
     this.elPortee = h('div.portee-chiffres');
     this.elKpis = h('div.kpis.rpo-kpis');
     this.elPar = h('div.carte.rpo-par');
@@ -180,18 +224,24 @@
     this.conteneur.appendChild(h('div.page.rpo-page', [h('div.entete-page', [h('div', [this.elTitre, this.elSous]), h('div.actions', AMX.actionsEntete ? AMX.actionsEntete(actions, []) : actions)]),
       this.elCies, this.elFiltres, this.elPortee, this.elKpis, this.elPar, this.elListe]));
     this.majDates();
+    this.majBoutons();
+  };
+  VueRapports.prototype.majBoutons = function () {
+    var hs = this.vue === 'hausses';
+    var sp = this.btnEnvoi.querySelector('span'); if (sp) sp.textContent = hs ? 'Courriel et texto des hausses' : 'Courriel du lundi';
+    this.btnRelire.hidden = !(hs && AMX.estAdmin());
   };
   VueRapports.prototype.majDates = function () { this.elDates.hidden = this.perNom !== 'dates'; };
 
   VueRapports.prototype.charger = function (force) {
     var self = this, gen = ++this.generation, per = this.per(), vue = this.vue;
-    this.elTitre.textContent = vue === 'achats' ? 'Achats par acheteur' : 'Échanges par conseiller';
+    this.elTitre.textContent = vue === 'achats' ? 'Achats par acheteur' : (vue === 'hausses' ? 'Hausses de valeur d\'échange' : 'Échanges par conseiller');
     AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.cie(), onchange: function (c) { AMX.choisirCompagnie(c); } });
-    if (!this.d) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur(vue === 'achats' ? 'Achats' : 'Échanges')); }
+    if (!this.d || force === 'frais') { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur(vue === 'achats' ? 'Achats' : (vue === 'hausses' ? (force === 'frais' ? 'Lecture de Torque, des évaluations et du Livre des ventes' : 'Hausses') : 'Échanges'))); }
     this.elSous.textContent = 'Lecture du ' + jour(per.du) + ' au ' + jour(per.au) + '…';
     charger(vue, this.cie(), per, force).then(function (d) {
       if (gen !== self.generation || self.detruit) return;
-      self.d = d; self.erreur = ''; if (force) AMX.toast('Rapport relu', 'ok');
+      self.d = d; self.erreur = ''; if (force === 'frais' && d.relu) AMX.toast('Sources relues : ' + d.relu.nouvelles + ' nouvelle(s) hausse(s)', 'ok'); else if (force) AMX.toast('Rapport relu', 'ok');
       self.rendre();
     }, function (e) {
       if (gen !== self.generation || self.detruit) return;
@@ -206,6 +256,13 @@
   VueRapports.prototype.filtrer = function (sauf) {
     var f = this.f, d = this.d, achats = this.vue === 'achats', mots = AMX.motsCherches(f.q);
     if (!d) return [];
+    if (this.vue === 'hausses') return d.lignes.filter(function (l) {
+      if (sauf !== 'etat' && f.etat && (l.sources || [l.source]).indexOf(f.etat) < 0) return false;
+      if (sauf !== 'plus' && f.plus && !((l.ecart || 0) > (d.seuil || 1000))) return false;
+      if (sauf !== 'personne' && f.personne && cleNom(l.evaluateur) !== f.personne) return false;
+      if (mots.length && !AMX.correspond([l.vin, l.vehicule, l.evaluateur, l.hausseePar, l.conseiller, l.statut, l.sourceId].filter(Boolean), mots)) return false;
+      return true;
+    });
     return d.lignes.filter(function (l) {
       if (sauf !== 'etat' && f.etat && l.etat !== f.etat) return false;
       if (sauf !== 'personne' && f.personne) {
@@ -225,6 +282,19 @@
     var lu = d.genereLe ? new Date(d.genereLe) : null;
     this.elSous.textContent = 'Du ' + jourLong(d.du) + ' au ' + jourLong(d.au) + (lu ? ' · lu à ' + lu.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }) : '')
       + (d.montants ? '' : ' · sans les montants (droit des coûts)') + (d.erreurs && d.erreurs.length ? ' · ' + d.erreurs.join(' · ') : '');
+    if (this.vue === 'hausses') {
+      var ls = d.dernierScan ? new Date(d.dernierScan) : null;
+      this.elSous.textContent = 'Du ' + jourLong(d.du) + ' au ' + jourLong(d.au) + (ls ? ' · sources lues le ' + ls.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' }) + ' à ' + ls.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }) : ' · sources pas encore lues')
+        + ' · envois ' + (d.actif ? 'activés' : 'pas activés') + (d.erreurs && d.erreurs.length ? ' · ' + d.erreurs.join(' · ') : '');
+      var evs = parEvaluateur(d.lignes, d.seuil), act = this.f.personne;
+      AMX.vider(this.selPers);
+      this.selPers.appendChild(h('option', { value: '', text: 'Tous les évaluateurs' }));
+      evs.forEach(function (x) { self.selPers.appendChild(h('option', { value: x.cle, text: x.nom })); });
+      if (act && ![].some.call(this.selPers.options, function (o) { return o.value === act; })) this.selPers.appendChild(h('option', { value: act, text: act }));
+      this.selPers.value = act;
+      this.rafraichir();
+      return;
+    }
     // Le choix de la personne (conseiller ou acheteur), tiré du rapport.
     var gens = this.vue === 'achats' ? parAcheteur(d.lignes) : parConseiller(d.lignes, this.ventesPar());
     var actuel = this.f.personne;
@@ -243,28 +313,31 @@
   };
   VueRapports.prototype.rafraichir = function () {
     if (!this.d) return;
-    var self = this, f = this.f, achats = this.vue === 'achats';
-    // Pastilles « Devenu », comptées avec les autres filtres.
+    var self = this, f = this.f, achats = this.vue === 'achats', hausses = this.vue === 'hausses';
+    // Pastilles « Devenu » (« Source » pour les hausses), comptées avec les autres filtres.
     AMX.vider(this.elEtats);
+    this.elEtatsLib.textContent = hausses ? 'Source' : 'Devenu';
     var pourE = this.filtrer('etat');
     var pastille = function (actif, lib, n, couleur, clic) {
       self.elEtats.appendChild(h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: clic }, [couleur ? h('i.rpo-pt.' + couleur) : null, h('span', { text: lib }), h('b', { text: String(n) })]));
     };
     pastille(!f.etat, 'Tous', pourE.length, '', function () { f.etat = ''; self.rafraichir(); });
-    ETATS.forEach(function (e) {
-      var n = pourE.filter(function (l) { return l.etat === e[0]; }).length;
+    (hausses ? SOURCES_H : ETATS).forEach(function (e) {
+      var n = pourE.filter(function (l) { return hausses ? (l.sources || [l.source]).indexOf(e[0]) >= 0 : l.etat === e[0]; }).length;
       if (!n && f.etat !== e[0]) return;
       pastille(f.etat === e[0], e[1], n, e[2], function () { f.etat = f.etat === e[0] ? '' : e[0]; self.rafraichir(); });
     });
     var liste = this.filtrer();
     var actifs = [];
     if (f.q) actifs.push('« ' + f.q + ' »');
-    if (f.etat) actifs.push(ETAT_LIB[f.etat][1]);
+    if (f.etat) actifs.push((hausses ? SOURCE_LIB[f.etat] : ETAT_LIB[f.etat])[1]);
+    if (hausses && f.plus) actifs.push('plus de ' + argent(this.d.seuil || 1000));
     if (f.personne) { var o = [].filter.call(this.selPers.options, function (x) { return x.value === f.personne; })[0]; actifs.push(o ? o.text : f.personne); }
     var cie = this.cie();
-    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: achats ? ['achat', 'achats'] : ['échange', 'échanges'], contexte: [cie ? (AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[cie]) || cie : 'toutes les concessions', this.selPer.options[this.selPer.selectedIndex].text],
-      filtres: actifs, effacer: function () { f.q = ''; f.etat = ''; f.personne = ''; self.elQ.value = ''; self.selPers.value = ''; self.rafraichir(); } });
-    if (achats) { this.rendreKpisAchats(liste); this.rendreParAcheteur(liste); this.rendreListeAchats(liste); }
+    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: hausses ? ['hausse', 'hausses'] : (achats ? ['achat', 'achats'] : ['échange', 'échanges']), contexte: [cie ? (AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[cie]) || cie : 'toutes les concessions', this.selPer.options[this.selPer.selectedIndex].text],
+      filtres: actifs, effacer: function () { f.q = ''; f.etat = ''; f.personne = ''; f.plus = false; self.elQ.value = ''; self.selPers.value = ''; self.rafraichir(); } });
+    if (hausses) { this.rendreKpisHausses(liste); this.rendreParHausses(liste); this.rendreListeHausses(liste); }
+    else if (achats) { this.rendreKpisAchats(liste); this.rendreParAcheteur(liste); this.rendreListeAchats(liste); }
     else { this.rendreKpisEchanges(liste); this.rendreParConseiller(liste); this.rendreListeEchanges(liste); }
   };
 
@@ -402,6 +475,71 @@
     this.elListe.appendChild(h('div.rpo-defile', [h('table.tableau.rpo-table', [h('thead', [h('tr', tete.map(function (t) { return Array.isArray(t) ? h('th.num', { text: t[0] }) : h('th', { text: t }); }))]), tbody])]));
   };
 
+  /* ------------------------------ Hausses de valeur d'échange ------------------------------ */
+  function nomCie(c) { return (AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[c]) || c; }
+  VueRapports.prototype.rendreKpisHausses = function (liste) {
+    var self = this, d = this.d, f = this.f, seuil = d.seuil || 1000;
+    AMX.vider(this.elKpis);
+    var total = somme(liste, function (l) { return l.ecart; }), plus = liste.filter(function (l) { return (l.ecart || 0) > seuil; });
+    var tri = liste.map(function (l) { return l.ecart || 0; }).sort(function (a, b) { return a - b; }), med = tri.length ? tri[Math.floor(tri.length / 2)] : null;
+    var top = liste.slice().sort(function (a, b) { return (b.ecart || 0) - (a.ecart || 0); })[0];
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(liste.length), 'Hausses', liste.length ? argent(total) + ' donnés en plus' : 'aucune dans la période', '', 'La valeur donnée au client dépasse la valeur de l\'évaluateur : Torque (valeur client contre valeur interne), évaluations et demandes de ScanAutomax, Livre des ventes (over / under). Une même voiture compte une fois.'));
+    this.elKpis.appendChild(tuile(liste.length ? argent(total / liste.length) : '—', 'Hausse moyenne', nb(med) ? 'médiane ' + argent(med) : ''));
+    this.elKpis.appendChild(tuile(AMX.fmtNombre(plus.length), 'Plus de ' + argent(seuil), plus.length ? argent(somme(plus, function (l) { return l.ecart; })) + ' · seuil du texto' : 'le seuil du texto', plus.length ? 'neg' : '', 'Hausses qui dépassent le seuil du texto (Hawkesbury, Ste-Marie, Hyundai).', function () { f.plus = !f.plus; self.rafraichir(); }));
+    if (top) this.elKpis.appendChild(tuile(argent(top.ecart), 'Plus grosse', (top.vehicule || '') + ' · ' + nomCie(top.compagnie)));
+    var cies = parConcessionH(liste, seuil, d.base, d.du, d.au), nE = 0, ev = 0;
+    cies.forEach(function (x) { if (x.evals) { nE += x.nEval; ev += x.evals; } });
+    if (ev >= 1 && nE <= ev) this.elKpis.appendChild(tuile(pctTxt(nE * 100 / ev), 'Des évaluations', nE + ' sur ' + Math.round(ev) + ' évaluations', '', 'Hausses vues dans une évaluation (Torque ou ScanAutomax) ÷ évaluations de la période (au prorata des jours du mois).'));
+  };
+  VueRapports.prototype.rendreParHausses = function (liste) {
+    var self = this, d = this.d, f = this.f, seuil = d.seuil || 1000, toutes = !this.cie();
+    AMX.vider(this.elPar);
+    if (!liste.length) { this.elPar.hidden = true; return; }
+    this.elPar.hidden = false;
+    var tbody = h('tbody'), tete;
+    if (toutes) {
+      this.elPar.appendChild(h('div.rpo-tete', [h('h3', 'Par concession'), h('p.mini', { text: 'Clic sur une concession pour la choisir. Taux : hausses vues dans une évaluation ÷ évaluations de la période.' })]));
+      tete = ['Concession', ['Hausses', 1], ['Plus de ' + argent(seuil), 1], ['Total', 1], ['Moyenne', 1], ['Plus grosse', 1], ['Taux', 1]];
+      parConcessionH(liste, seuil, d.base, d.du, d.au).forEach(function (x) {
+        tbody.appendChild(h('tr.cliquable', { onclick: function () { AMX.choisirCompagnie(x.cie); } }, [h('td', [h('b', { text: nomCie(x.cie) }), (d.ciesEnvoi || []).indexOf(x.cie) < 0 ? h('span.mini', { text: ' · pas d\'envoi' }) : null]),
+          h('td.num', [h('b', { text: String(x.n) })]), h('td.num' + (x.plus ? '.neg' : ''), { text: String(x.plus) }), h('td.num', { text: argent(x.total) }), h('td.num', { text: argent(x.moyenne) }), h('td.num', { text: argent(x.max) }),
+          h('td.num', { text: x.taux !== null ? pctTxt(x.taux) + ' (' + x.nEval + ' / ' + x.evals + ')' : '—' })]));
+      });
+    } else {
+      this.elPar.appendChild(h('div.rpo-tete', [h('h3', 'Par évaluateur'), h('p.mini', { text: 'Évaluateur : le directeur inscrit dans Torque, celui qui a enregistré l\'évaluation ou fait la demande. Clic sur une ligne : ses hausses seulement.' })]));
+      tete = ['Évaluateur', ['Hausses', 1], ['Plus de ' + argent(seuil), 1], ['Total', 1], ['Moyenne', 1], ['Plus grosse', 1]];
+      parEvaluateur(liste, seuil).forEach(function (x) {
+        var actif = f.personne === x.cle;
+        tbody.appendChild(h('tr.cliquable' + (actif ? '.actif' : ''), { onclick: function () { f.personne = actif ? '' : x.cle; self.selPers.value = f.personne; self.rafraichir(); } }, [h('td', [h('b', { text: x.nom })]),
+          h('td.num', [h('b', { text: String(x.n) })]), h('td.num' + (x.plus ? '.neg' : ''), { text: String(x.plus) }), h('td.num', { text: argent(x.total) }), h('td.num', { text: argent(x.moyenne) }), h('td.num', { text: argent(x.max) })]));
+      });
+    }
+    this.elPar.appendChild(h('div.rpo-defile', [h('table.tableau.rpo-table', [h('thead', [h('tr', tete.map(function (t) { return Array.isArray(t) ? h('th.num', { text: t[0] }) : h('th', { text: t }); }))]), tbody])]));
+  };
+  VueRapports.prototype.rendreListeHausses = function (liste) {
+    var d = this.d, seuil = d.seuil || 1000, toutes = !this.cie();
+    AMX.vider(this.elListe);
+    if (!liste.length) { this.elListe.appendChild(h('div.vide', { text: d.dernierScan ? 'Aucune hausse pour cette période et ces filtres.' : 'Les sources n\'ont pas encore été lues : elles le sont aux 2 heures de 7 h à 21 h (ou « Relire les sources maintenant »).' })); return; }
+    var tete = ['Date', 'Véhicule'].concat(toutes ? ['Concession'] : []).concat(['Évaluateur', 'Haussé par / conseiller', ['Évaluateur $', 1], ['Donné $', 1], ['Hausse', 1], 'Source']);
+    var tbody = h('tbody');
+    liste.slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (b.ecart || 0) - (a.ecart || 0); }).slice(0, 600).forEach(function (l) {
+      var envois = [l.texteLe ? (/déjà/.test(l.texteA || '') ? 'texto déjà parti (demande)' : 'texto ' + jour(l.texteLe)) : '', l.courrielLe ? 'courriel ' + jour(l.courrielLe) : ''].filter(Boolean).join(' · ');
+      tbody.appendChild(h('tr', [
+        h('td', { text: jour(l.date) }),
+        h('td', [h('span', { text: l.vehicule || '—' }), h('div.mini', { text: [l.vin ? '…' + l.vin.slice(-8) : '', l.statut, l.disparue ? 'plus dans les sources' : ''].filter(Boolean).join(' · ') })])
+      ].concat(toutes ? [h('td', { text: nomCie(l.compagnie) })] : []).concat([
+        h('td', { text: l.evaluateur || '—' }),
+        h('td', { text: [l.hausseePar, l.conseiller].filter(Boolean).join(' / ') || '—' }),
+        h('td.num', { text: nb(l.valeurEval) ? argent(l.valeurEval) : '—' }),
+        h('td.num', { text: nb(l.valeurDonnee) ? argent(l.valeurDonnee) : '—' }),
+        h('td.num' + ((l.ecart || 0) > seuil ? '.neg' : ''), [h('b', { text: '+' + argent(l.ecart) }), nb(l.pct) ? h('div.mini', { text: '+' + pctTxt(l.pct) }) : (nb(l.valeurEval) ? null : h('div.mini', { text: 'over / under' }))]),
+        h('td', [h('span', { text: (l.sources || [l.source]).map(function (s) { return (SOURCE_LIB[s] || [0, s])[1]; }).join(', ') }), envois ? h('div.mini', { text: envois }) : null])
+      ])));
+    });
+    this.elListe.appendChild(h('div.rpo-tete', [h('h3', 'Les hausses'), liste.length > 600 ? h('p.mini', { text: '600 premières sur ' + liste.length + ' (l\'export Excel les a toutes).' }) : null]));
+    this.elListe.appendChild(h('div.rpo-defile', [h('table.tableau.rpo-table', [h('thead', [h('tr', tete.map(function (t) { return Array.isArray(t) ? h('th.num', { text: t[0] }) : h('th', { text: t }); }))]), tbody])]));
+  };
+
   /* ------------------------------ Export ------------------------------ */
   VueRapports.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
@@ -410,6 +548,18 @@
     if (!liste.length) { AMX.toast('Rien à exporter.', 'attention'); return; }
     var etat = function (l) { return (ETAT_LIB[l.etat] || [])[1] || l.etat; };
     var rv = function (l, k) { return l.revente ? l.revente[k] : ''; };
+    if (this.vue === 'hausses') {
+      var seuilX = this.d.seuil || 1000;
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(liste.map(function (l) {
+        return { Concession: l.compagnie, Date: l.date, 'Véhicule': l.vehicule, NIV: l.vin, Statut: l.statut, 'Évaluateur': l.evaluateur, 'Haussé par': l.hausseePar, Conseiller: l.conseiller,
+          'Valeur de l\'évaluateur': nb(l.valeurEval) ? l.valeurEval : '', 'Valeur donnée': nb(l.valeurDonnee) ? l.valeurDonnee : '', Hausse: l.ecart, 'Hausse (%)': nb(l.pct) ? l.pct : '',
+          'Plus que le seuil': (l.ecart || 0) > seuilX ? 'oui' : '', Sources: (l.sources || [l.source]).map(function (s) { return (SOURCE_LIB[s] || [0, s])[1]; }).join(', '), 'Référence': l.sourceId,
+          'Vue le': l.premiereVue, 'Texto le': l.texteLe, 'Courriel le': l.courrielLe };
+      })), 'Hausses');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(parEvaluateur(liste, seuilX).map(function (x) { return { 'Évaluateur': x.nom, Hausses: x.n, 'Plus que le seuil': x.plus, Total: Math.round(x.total), Moyenne: Math.round(x.moyenne), 'Plus grosse': x.max, Concessions: Object.keys(x.cies).join(', ') }; })), 'Par évaluateur');
+      XLSX.writeFile(wb, 'hausses-echange-' + (this.cie() || 'groupe').toLowerCase() + '-' + this.d.du + '-' + this.d.au + '.xlsx');
+      return;
+    }
     if (achats) {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(parAcheteur(liste).map(function (x) {
         var o = { Acheteur: x.nom, Courriel: x.courriel, Achats: x.achats, 'En stock': x.enStock, 'Plus de 45 j': x.longs, 'Vendus détail': x.detail, 'Vendus gros': x.gros, 'Vendus É.-U.': x.us, 'Jours avant la vente': x.joursVenteMoy };
@@ -452,17 +602,65 @@
         var r = d.reglages, st = d.etat || {};
         corps.appendChild(h('p', { html: r.actif ? '<b>Activé</b> : le lundi vers 7 h, les rapports de la semaine d\'avant partent par courriel.' : '<b>Pas activé</b> : rien ne part tant que la propriétaire ne l\'a pas activé. Voici qui le recevrait lundi.' }));
         if (st.semaine) corps.appendChild(h('p.mini', { text: 'Dernier envoi : semaine du ' + jourLong(st.semaine) + ' — ' + (st.envoyes || 0) + ' courriel(s)' + (st.arret ? ' · ' + st.arret : '') }));
-        corps.appendChild(h('p.mini', { text: 'Semaine du ' + jourLong(d.semaine.du) + ' au ' + jourLong(d.semaine.au) + '. Échanges : droit « Rapport du lundi — échanges » (DG et direction des ventes d\'office). Achats : droit « Rapport du lundi — achats » (DG d\'office) et chaque acheteur pour ses propres achats. Un compte « tout le groupe » seulement si on lui coche le droit (Admin › Comptes et droits).' }));
+        corps.appendChild(h('p.mini', { text: 'Semaine du ' + jourLong(d.semaine.du) + ' au ' + jourLong(d.semaine.au) + '. Le directeur général de chaque concession reçoit les échanges par conseiller et les achats par acheteur de sa concession ; les acheteurs cochés plus bas reçoivent seulement leurs propres achats. Les conseillers ne reçoivent rien. Un autre compte seulement si on lui coche le droit « Rapport du lundi » (Admin › Comptes et droits).' }));
         if (!d.destinataires.length) corps.appendChild(h('div.vide', { text: 'Personne ne recevrait de rapport cette semaine.' }));
         else corps.appendChild(h('table.tableau', [h('thead', [h('tr', [h('th', 'Personne'), h('th', 'Concession'), h('th', 'Échanges'), h('th', 'Achats de la concession'), h('th', 'Ses achats')])]),
           h('tbody', d.destinataires.map(function (x) { return h('tr', [h('td', { text: x.nom || x.qui }), h('td', { text: x.concession === '*' ? 'Tout le groupe' : x.concession }), h('td', { text: x.echanges.join(', ') || '—' }), h('td', { text: x.achats.join(', ') || '—' }), h('td', { text: x.moi ? x.moi.achetes + ' acheté(s), ' + x.moi.vendus + ' vendu(s), ' + x.moi.enStock + ' en stock' : '—' })]); }))]));
         if (d.erreurs && d.erreurs.length) corps.appendChild(h('p.mini', { text: 'Sources illisibles : ' + d.erreurs.join(' · ') }));
+        /* Les acheteurs qui reçoivent leurs propres achats (10 nov., Maxime : Tristan, Fred, Julien et Marc-André). */
+        var possibles = d.acheteursPossibles || [], cases = [];
+        if (possibles.length) {
+          corps.appendChild(h('p.rpo-sous', { text: 'Acheteurs qui reçoivent leurs propres achats' }));
+          corps.appendChild(h('div.rpo-acheteurs', possibles.map(function (a) {
+            var c = h('input', { type: 'checkbox', checked: !!a.choisi, disabled: !d.peutRegler, value: a.courriel }); cases.push(c);
+            return h('label.rpo-case', [c, ' ' + a.nom + (a.actif ? '' : ' (compte inactif)')]);
+          })));
+        }
         if (d.peutRegler) {
-          var chk = h('input', { type: 'checkbox', checked: r.acheteurs !== false });
-          corps.appendChild(h('label.rpo-case', [chk, ' Les acheteurs reçoivent leurs propres achats']));
+          var choisis = function () { return cases.filter(function (c) { return c.checked; }).map(function (c) { return c.value; }); };
+          var envoyer = function (corpsPost, msg, bouton) {
+            bouton.disabled = true;
+            AMX.post(Object.assign({ action: 'rapportsOccasionReglages' }, corpsPost)).then(function (x) { AMX.verifier(x, 'Refusé'); AMX.toast(msg(x.reglages), 'ok'); dessiner(); }, function (e) { bouton.disabled = false; AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+          };
+          var btnListe = h('button.btn.fantome', { type: 'button', text: 'Enregistrer les acheteurs', onclick: function () { envoyer({ acheteursListe: choisis(), acheteurs: true }, function (x) { return x.acheteursListe.length + ' acheteur(s) recevront leurs achats'; }, btnListe); } });
           var btn = h('button.btn' + (r.actif ? '.fantome' : '.primaire'), { type: 'button', text: r.actif ? 'Désactiver le courriel du lundi' : 'Activer le courriel du lundi', onclick: function () {
+            envoyer({ actif: !r.actif, acheteursListe: choisis(), acheteurs: true }, function (x) { return x.actif ? 'Courriel du lundi activé' : 'Courriel du lundi désactivé'; }, btn);
+          } });
+          corps.appendChild(h('div.rpo-envoi-actions', possibles.length ? [btnListe, btn] : [btn]));
+        }
+      }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('div.vide', { text: AMX.erreurTexte(e) })); });
+    };
+    dessiner();
+  };
+
+  /* ------------------------------ Courriel et texto des hausses ------------------------------ */
+  VueRapports.prototype.fenetreHausses = function () {
+    var corps = h('div.rpo-envoi', [AMX.chargeur('Envois des hausses', { compact: true })]);
+    AMX.modale({ titre: 'Hausses de valeur d\'échange — courriel et texto', corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer', classe: 'fantome' }] });
+    var dessiner = function () {
+      AMX.get({ haussesEchangeEnvoi: 1 }, { delai: 120000 }).then(function (d) {
+        AMX.verifier(d, 'Lecture impossible');
+        if (!d.reglages || !d.simulation) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (HaussesEchange.gs).');
+        AMX.vider(corps);
+        var r = d.reglages, sim = d.simulation, noms = function (l) { return (l || []).map(function (x) { return x.nom; }).join(', ') || 'personne'; };
+        corps.appendChild(h('p', { html: r.actif ? '<b>Activé</b> : les textos et le courriel du jour partent.' : '<b>Pas activé</b> : rien ne part tant que la propriétaire ne l\'a pas activé. Voici ce qui partirait maintenant.' }));
+        corps.appendChild(h('ul.rpo-regles', [
+          h('li', { text: 'Concessions : ' + r.cies.map(nomCie).join(', ') + '.' }),
+          h('li', { text: 'Texto à ' + noms(r.texteDest) + ' pour chaque nouvelle hausse de plus de ' + argent(r.seuil) + ' (date de 14 jours ou moins), une fois par hausse ; plusieurs hausses du même passage dans un seul texto. Une hausse confirmée dans une demande d\'évaluation est déjà textée à ce moment-là : elle ne repart pas.' }),
+          h('li', { text: 'Courriel une fois par jour, au premier passage après 7 h, avec les hausses vues depuis le dernier courriel : au directeur général de chaque concession (' + r.cies.map(function (c) { return nomCie(c) + ' : ' + ((d.dgs && d.dgs[c] || []).join(', ') || 'personne'); }).join(' · ') + ') et à ' + noms(r.dest) + '. Rien s\'il n\'y a aucune nouvelle hausse.' })
+        ]));
+        if (d.etat && d.etat.dernierEnvoi) corps.appendChild(h('p.mini', { text: 'Dernier envoi : ' + new Date(d.etat.dernierEnvoi.le).toLocaleString('fr-CA') + ' — ' + d.etat.dernierEnvoi.textos + ' texto(s), ' + d.etat.dernierEnvoi.courriels + ' courriel(s)' + (d.etat.dernierEnvoi.arret ? ' · ' + d.etat.dernierEnvoi.arret : '') }));
+        corps.appendChild(h('p.rpo-sous', { text: 'Ce qui partirait maintenant (simulation, rien n\'est envoyé)' }));
+        corps.appendChild(h('p.mini', { text: sim.lues + ' hausse(s) dans les sources, dont ' + sim.nouvelles + ' pas encore vue(s) · lu en ' + Math.round((sim.duree || 0) / 1000) + ' s' + (sim.erreurs && sim.erreurs.length ? ' · sources illisibles : ' + sim.erreurs.join(' · ') : '') }));
+        if (!sim.textos.length) corps.appendChild(h('p.mini', { text: 'Aucun texto.' }));
+        sim.textos.forEach(function (t) { corps.appendChild(h('div.rpo-texto', [h('b', { text: 'Texto à ' + t.nom + ' — ' + t.n + ' hausse(s)' + (t.deja ? ' (+' + t.deja + ' déjà textée(s) par la demande)' : '') }), t.texte ? h('p', { text: '« ' + t.texte + ' »' }) : null])); });
+        if (!sim.courriels.length) corps.appendChild(h('p.mini', { text: 'Aucun courriel.' }));
+        else corps.appendChild(h('table.tableau', [h('thead', [h('tr', [h('th', 'Courriel à'), h('th', 'Comme'), h('th', 'Hausses')])]),
+          h('tbody', sim.courriels.map(function (p) { return h('tr', [h('td', { text: p.nom }), h('td', { text: p.dg.length ? 'DG ' + p.dg.map(nomCie).join(', ') : 'les trois concessions' }), h('td', { text: Object.keys(p.parCie).map(function (c) { return nomCie(c) + ' ' + p.parCie[c]; }).join(' · ') })]); }))]));
+        if (d.peutRegler) {
+          var btn = h('button.btn' + (r.actif ? '.fantome' : '.primaire'), { type: 'button', text: r.actif ? 'Désactiver les envois' : 'Activer le texto et le courriel du jour', onclick: function () {
             btn.disabled = true;
-            AMX.post({ action: 'rapportsOccasionReglages', actif: !r.actif, acheteurs: chk.checked }).then(function (x) { AMX.verifier(x, 'Refusé'); AMX.toast(x.reglages.actif ? 'Courriel du lundi activé' : 'Courriel du lundi désactivé', 'ok'); dessiner(); }, function (e) { btn.disabled = false; AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+            AMX.post({ action: 'haussesEchangeReglages', actif: !r.actif }).then(function (x) { AMX.verifier(x, 'Refusé'); AMX.toast(x.reglages.actif ? 'Envois des hausses activés' : 'Envois des hausses désactivés', 'ok'); dessiner(); }, function (e) { btn.disabled = false; AMX.toast(AMX.erreurTexte(e), 'erreur'); });
           } });
           corps.appendChild(h('div.rpo-envoi-actions', [btn]));
         }
@@ -500,7 +698,12 @@
       '.rpo-liste .vide { margin: 14px; }',
       '.rpo-envoi table { margin-top: 10px; } .rpo-envoi .mini { font-size: 12px; color: var(--encre-3); }',
       '.rpo-case { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; }',
-      '.rpo-envoi-actions { margin-top: 12px; }'
+      '.rpo-envoi-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }',
+      '.rpo-sous { margin: 16px 0 4px; font-weight: 600; font-size: 14px; }',
+      '.rpo-acheteurs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 14px; }',
+      '.rpo-acheteurs .rpo-case { margin-top: 6px; }',
+      '.rpo-regles { margin: 6px 0 4px 18px; padding: 0; font-size: 14px; } .rpo-regles li { margin: 3px 0; }',
+      '.rpo-texto { border: 1px solid var(--bordure); border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 14px; } .rpo-texto p { margin: 4px 0 0; color: var(--encre-2, inherit); }'
     ].join('\n');
     document.head.appendChild(h('style#css-rapports-occasion', { text: css }));
   }

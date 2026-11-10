@@ -1141,8 +1141,8 @@
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '', parent: 'occasion', icone: 'achat', couleur: 'ambre', desc: 'Inscrire un achat ou un échange : le véhicule entre au registre et suit partout.' },
       /* 10 nov. (Maxime : « un rapport par concession pour les échanges chaque semaine par conseiller des ventes, et un rapport pour
          les acheteurs ») : rapports-occasion.js, RapportsOccasion.gs ; le courriel du lundi se règle sur la page. */
-      { id: 'rapportsocc', titre: 'Rapports', de: 'rapportsocc', parent: 'occasion', icone: 'resultat', couleur: 'sarcelle', desc: 'Les échanges par conseiller des ventes et les achats par acheteur : ce qu\'ils sont devenus, chaque semaine.',
-        vues: [{ id: 'echanges', titre: 'Échanges' }, { id: 'achats', titre: 'Achats' }] },
+      { id: 'rapportsocc', titre: 'Rapports', de: 'rapportsocc', parent: 'occasion', icone: 'resultat', couleur: 'sarcelle', desc: 'Les échanges par conseiller des ventes, les achats par acheteur, et les échanges haussés après l\'évaluation.',
+        vues: [{ id: 'echanges', titre: 'Échanges' }, { id: 'achats', titre: 'Achats' }, { id: 'hausses', titre: 'Hausses d\'échange' }] },   /* 10 nov. : HaussesEchange.gs */
       { id: 'evaluations', titre: 'Évaluation', de: 'outils', parent: 'occasion', icone: 'outils', couleur: 'violet',
         desc: function () { return AMX.voitEvaluations() ? 'Évaluer un véhicule, les demandes des représentants, le registre et l\'archive Torque.' : 'Demander une évaluation et suivre vos demandes : le montant paraît une fois confirmé par la direction.'; },
         visible: function () { return AMX.voitEvaluations() || AMX.representantEval(); },

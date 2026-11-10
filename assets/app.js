@@ -1627,6 +1627,7 @@
         h('div.sep'),
         // Guide et aide (7 oct.) : la référence de toutes les fonctions, avec recherche par question (assets/aide.js).
         AMX.sections.aide ? h('button.aide-menu', { type: 'button', html: (ICONES.aide || '') + '<span>Guide et aide</span>', onclick: function () { usager.classList.remove('ouvert'); AMX.aller('aide', 'questions'); } }) : null,
+        AMX.ligneInstaller ? AMX.ligneInstaller(function () { usager.classList.remove('ouvert'); }) : null,   // 10 nov. : le site installé comme une application (pwa.js)
         h('button.ui-bascule', { type: 'button', text: AMX.ui2() ? 'Revenir à l\'ancienne interface' : 'Passer à la nouvelle interface', onclick: function () { AMX.basculerInterface(!AMX.ui2()); } }),
         h('button', { type: 'button', text: 'Déconnexion', onclick: function () { AMX.deconnecter(''); } })
       ])
@@ -1645,6 +1646,7 @@
       barre.appendChild(h('div.espace'));
       barre.appendChild(rech);
     }
+    if (AMX.scanNiv) AMX.scanNiv.dansRecherche(rech);   // 10 nov. : bouton caméra (téléphone) — le NIV lu est cherché (pwa.js)
     barre.appendChild(h('span#etat-sync.etat-sync', { title: 'Connecté au serveur' }));
     barre.appendChild(usager);
     dessinerCote();

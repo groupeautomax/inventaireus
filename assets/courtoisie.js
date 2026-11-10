@@ -38,7 +38,7 @@
     '.crt-puce.rouge { background: var(--rouge-bg); color: var(--rouge); } .crt-puce.ambre { background: var(--ambre-bg); color: var(--ambre); }',
     '.crt-puce.mauve { background: #EEE8FB; color: #5B3FB0; } .crt-puce.ok { background: var(--vert-clair); color: var(--vert-fonce); } .crt-puce.gris { background: var(--gris-bg); color: var(--encre-3); }',
     '.crt-cat { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--gris-bg); color: var(--encre-2); white-space: nowrap; }',
-    '.crt-cat.service { background: #E6F0FB; color: #1A64BF; } .crt-cat.carrosserie { background: #FDEBDC; color: #9A4A0B; } .crt-cat.vente { background: var(--vert-clair); color: var(--vert-fonce); } .crt-cat.pieces { background: #F2ECFB; color: #5B3FB0; }',
+    '.crt-cat.service { background: #E6F0FB; color: #1A64BF; } .crt-cat.carrosserie { background: #FDEBDC; color: #9A4A0B; } .crt-cat.vente { background: var(--vert-clair); color: var(--vert-fonce); } .crt-cat.pieces { background: #F2ECFB; color: #5B3FB0; } .crt-cat.demo { background: #FFF1D6; color: #8A5300; }',
     '.crt-jauge { height: 5px; border-radius: 3px; background: var(--gris-bg); overflow: hidden; margin-top: 4px; min-width: 70px; } .crt-jauge i { display: block; height: 100%; background: var(--vert); }',
     '.crt-jauge i.ambre { background: var(--ambre); } .crt-jauge i.rouge { background: var(--rouge); }',
     '.crt-actions { margin: 0 0 12px; } .crt-actions ul { list-style: none; margin: 0; padding: 0; }',
@@ -87,7 +87,7 @@
     return ROLES.indexOf(role) >= 0 || !!p.gererUtilisateurs;
   }
 
-  var CATEGORIES = [['service', 'Service'], ['vente', 'Vente'], ['carrosserie', 'Carrosserie'], ['pieces', 'Pièces'], ['autre', 'Autre']];
+  var CATEGORIES = [['service', 'Service'], ['vente', 'Vente'], ['demo', 'Démo'], ['carrosserie', 'Carrosserie'], ['pieces', 'Pièces'], ['autre', 'Autre']];
   var NOM_CAT = {}; CATEGORIES.forEach(function (c) { NOM_CAT[c[0]] = c[1]; });
   /* Écarts : [code, libellé court, couleur, quoi faire]. L'ordre = l'ordre d'affichage. */
   var ECARTS = [
@@ -314,15 +314,17 @@
       var jaugeKm = typeof v.km === 'number' ? Math.min(100, Math.round(v.km / P.kmMax * 100)) : null;
       var clsJ = jaugeKm === null ? '' : (jaugeKm >= 100 ? 'rouge' : (v.km >= (P.kmAvertir || P.kmMax * 0.85) ? 'ambre' : ''));
       var puces = v.alertes.map(function (a) { var e = ECART[a.code]; return h('span.crt-puce.' + a.niveau, { text: e ? e[1] : a.code, title: a.texte }); });
-      if (!puces.length) puces.push(h('span.crt-puce.' + (v.etat === 'sorti' ? 'gris' : 'ok'), { text: v.etat === 'sorti' ? 'Sorti · réglé' : (v.sansFichier ? 'Selon LMB' : 'Concorde') }));
+      if (!puces.length) puces.push(h('span.crt-puce.' + (v.etat === 'sorti' ? 'gris' : 'ok'), { text: v.etat === 'sorti' ? 'Sorti · réglé' : (v.demo ? (v.demo.origine === 'dms' ? 'Selon le DMS' : 'Selon le manufacturier') : (v.sansFichier ? 'Selon LMB' : 'Concorde')) }));
+      /* 10 nov. : une démo ou une courtoisie des neufs (concession sans fichier de courtoisie) — d'où elle vient, à la place de LMB */
       var lmb = v.lmb ? [h('span.mono', { text: v.lmb.stock }), h('span.s', { text: (v.lmb.type || 'floor plan vide') + (v.lmb.note ? ' · ' + v.lmb.note : '') })]
-        : (v.vendu ? [h('span.mono', { text: v.vendu.stock }), h('span.s', { text: 'vendu' })] : [h('span.s', { text: '—' })]);
+        : (v.vendu ? [h('span.mono', { text: v.vendu.stock }), h('span.s', { text: 'vendu' })]
+          : (v.demo ? [h('span', { text: 'Neuf · ' + (v.demo.origine === 'dms' ? 'DMS' : 'manufacturier') }), h('span.s', { text: v.demo.gl ? 'compte GL ' + v.demo.gl : (v.demo.pourquoi || 'statut DEMO') })] : [h('span.s', { text: '—' })]));
       var tr = h('tr' + (v.etat === 'sorti' ? '.sorti' : ''), { 'data-vin': v.cle }, [
         h('td', [h('span.crt-unite', { text: v.unite || '—' }), h('span.s', { text: nomCie(v.compagnie) })]),
         h('td', [h('b', { text: v.vehicule || v.vehiculeFichier || 'Véhicule' }), h('span.s.mono', { text: v.vin }), v.plaque ? h('span.s', { text: 'Plaque ' + v.plaque }) : null]),
         h('td', [h('span.crt-cat.' + v.categorie, { text: NOM_CAT[v.categorie] || v.categorie })]),
         h('td', [h('span', { text: v.chez || '—' }), v.bt ? h('span.s', { text: 'BT ' + v.bt }) : null]),
-        h('td', [h('span', { text: v.miseService ? dateCourte(v.miseService) : (v.miseTexte || '—') }), typeof v.mois === 'number' ? h('span.s', { text: (Math.round(v.mois * 10) / 10).toLocaleString('fr-CA') + ' mois' }) : null]),
+        h('td', { title: v.demo && v.miseTexte ? 'Mise en service : ' + v.miseTexte : '' }, [h('span', { text: v.miseService ? dateCourte(v.miseService) : (v.miseTexte || '—') }), typeof v.mois === 'number' ? h('span.s', { text: (Math.round(v.mois * 10) / 10).toLocaleString('fr-CA') + ' mois' }) : null]),
         h('td.num', [h('span', { text: typeof v.km === 'number' ? AMX.fmtNombre(v.km) : '—' }), v.kmSource === 'telematique' ? h('span.crt-auto', { text: 'auto', title: infoKm(v) }) : null,
           jaugeKm === null ? null : h('div.crt-jauge', [h('i' + (clsJ ? '.' + clsJ : ''), { style: { width: jaugeKm + '%' } })]), niveauTele(v) ? h('span.s', { text: niveauTele(v) }) : null]),
         h('td', lmb),
@@ -369,9 +371,16 @@
         ['Chez / activité', v.chez], ['Bon de travail', v.bt], ['Départ', v.depart ? dateCourte(v.depart) : v.departTexte], ['Mise en service', v.miseService ? dateCourte(v.miseService) + (typeof v.mois === 'number' ? ' (' + (Math.round(v.mois * 10) / 10).toLocaleString('fr-CA') + ' mois)' : '') : v.miseTexte],
         ['Km', kmFichier(v)], ['Stock', v.stock], ['Pneus', v.pneus], ['Raison', v.raison], ['Notes', v.notes],
         ['Lignes au fichier', v.fichierLignes > 1 ? v.fichierLignes : '']]));
+    } else if (v.demo) {
+      corps.appendChild(h('div.crt-h', { text: 'Aux neufs (' + (v.demo.origine === 'dms' ? 'DMS de la concession' : 'portail du manufacturier') + ')' }));
+      corps.appendChild(dl([['Stock', v.stock], ['Utilisation', (NOM_CAT[v.categorie] || v.categorie) + (v.demo.pourquoi ? ' — ' + v.demo.pourquoi : '')], ['Compte GL', v.demo.gl],
+        ['Mise en service', v.miseService ? dateCourte(v.miseService) + (typeof v.mois === 'number' ? ' (' + (Math.round(v.mois * 10) / 10).toLocaleString('fr-CA') + ' mois)' : '') + (v.miseTexte ? ' — ' + v.miseTexte : '') : ''],
+        ['Km', typeof v.km === 'number' ? AMX.fmtNombre(v.km) : 'pas inscrit au DMS'], ['Note du DMS', v.notes]]));
+      corps.appendChild(h('p.doux.petit', { text: 'Cette concession n\'a pas de fichier de courtoisie : ses neufs au statut démo s\'affichent ici d\'eux-mêmes et disparaissent quand le DMS les dit vendus. ' + (v.categorie === 'service' ? 'Une courtoisie service suit la règle de rotation (Réglages).' : 'Une démo de vente n\'a pas de règle de rotation.') }));
     } else corps.appendChild(h('p.doux', { text: 'Pas au fichier de courtoisie.' }));
-    corps.appendChild(h('div.crt-h', { text: 'Chez LMB' }));
-    if (v.lmb) corps.appendChild(dl([['No LOC', v.lmb.stock], ['Modèle', v.lmb.modele], ['Loué à', v.lmb.loueA], ['Floor plan', v.lmb.type || 'vide'], ['Note', v.lmb.note], ['Contrat', v.lmb.contrat ? dateCourte(v.lmb.contrat) : ''], ['Punch', v.lmb.punch ? dateCourte(v.lmb.punch) : ''], ['Ligne', 'LOCATIONS 2026 EN COURS, ligne ' + v.lmb.ligne]]));
+    if (!v.demo || v.lmb || v.vendu) corps.appendChild(h('div.crt-h', { text: 'Chez LMB' }));
+    if (v.demo && !v.lmb && !v.vendu) { /* rien chez LMB : une démo des neufs */ }
+    else if (v.lmb) corps.appendChild(dl([['No LOC', v.lmb.stock], ['Modèle', v.lmb.modele], ['Loué à', v.lmb.loueA], ['Floor plan', v.lmb.type || 'vide'], ['Note', v.lmb.note], ['Contrat', v.lmb.contrat ? dateCourte(v.lmb.contrat) : ''], ['Punch', v.lmb.punch ? dateCourte(v.lmb.punch) : ''], ['Ligne', 'LOCATIONS 2026 EN COURS, ligne ' + v.lmb.ligne]]));
     else if (v.vendu) corps.appendChild(dl([['No LOC', v.vendu.stock], ['État', 'Vendu (onglet Vendus 2026, ligne ' + v.vendu.ligne + ')'], ['Retour', v.vendu.retour ? dateCourte(v.vendu.retour) : ''], ['Km au retour', v.vendu.kmRetour ? AMX.fmtNombre(v.vendu.kmRetour) : '']]));
     else corps.appendChild(h('p.doux', { text: 'Pas chez LMB (ni en cours ni vendu).' }));
     if (v.tele) {
@@ -385,7 +394,7 @@
         ['Km au fichier', v.kmSource === 'telematique' && typeof v.kmFichier === 'number' ? AMX.fmtNombre(v.kmFichier) : '']]));
       if (v.kmSource !== 'telematique' && typeof t.km === 'number') corps.appendChild(h('p.doux.petit', { text: 'Km du boîtier trop ancien (plus de 45 jours) : la page garde celui du fichier.' }));
     }
-    if (v.neuf || v.registre) {
+    if ((v.neuf && !v.demo) || v.registre) {
       corps.appendChild(h('div.crt-h', { text: 'Ailleurs dans ScanAutomax' }));
       corps.appendChild(dl([['Neufs', v.neuf ? ((v.neuf.stock ? '#' + v.neuf.stock + ' · ' : '') + (v.neuf.statut || '') + (v.neuf.sorti ? ' · sorti' : '')) : ''], ['Registre', v.registre ? (v.registre.registre + (v.registre.stock ? ' #' + v.registre.stock : '') + ' · ' + v.registre.statut) : '']]));
     }
@@ -538,7 +547,7 @@
     var lignes = [['Concession', 'Unité', 'Véhicule', 'NIV', 'Plaque', 'Utilisation', 'État', 'Chez / activité', 'BT', 'Mise en service', 'Mois', 'Km', 'Source du km', 'No LOC (LMB)', 'Floor plan', 'Note LMB', 'Écarts', 'Onglet du fichier', 'Ligne']];
     liste.forEach(function (v) {
       lignes.push([nomCie(v.compagnie), v.unite, v.vehicule || v.vehiculeFichier, v.vin, v.plaque, NOM_CAT[v.categorie] || v.categorie, v.etat === 'sorti' ? 'Sorti' : 'En service', v.chez, v.bt, v.miseService || v.miseTexte,
-        typeof v.mois === 'number' ? Math.round(v.mois * 10) / 10 : '', typeof v.km === 'number' ? v.km : '', v.kmSource === 'telematique' ? 'Télématique' + (v.kmLe ? ' (' + String(v.kmLe).slice(0, 10) + ')' : '') : 'Fichier', v.lmb ? v.lmb.stock : (v.vendu ? v.vendu.stock + ' (vendu)' : ''), v.lmb ? (v.lmb.type || 'vide') : '', v.lmb ? v.lmb.note : '',
+        typeof v.mois === 'number' ? Math.round(v.mois * 10) / 10 : '', typeof v.km === 'number' ? v.km : '', v.kmSource === 'telematique' ? 'Télématique' + (v.kmLe ? ' (' + String(v.kmLe).slice(0, 10) + ')' : '') : (v.demo ? (v.demo.origine === 'dms' ? 'DMS' : 'Manufacturier') : 'Fichier'), v.lmb ? v.lmb.stock : (v.vendu ? v.vendu.stock + ' (vendu)' : (v.demo ? 'Neuf ' + (v.demo.origine === 'dms' ? 'DMS' : 'manufacturier') + (v.demo.gl ? ' · GL ' + v.demo.gl : '') : '')), v.lmb ? (v.lmb.type || 'vide') : '', v.lmb ? v.lmb.note : '',
         v.alertes.map(function (a) { return a.texte; }).join(' | '), v.fichier ? v.fichier.onglet : '', v.fichier ? v.fichier.ligne : '']);
     });
     var wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(lignes);

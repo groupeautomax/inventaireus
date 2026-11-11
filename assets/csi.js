@@ -30,8 +30,68 @@
      que pour le mois, 3 mois et 12 mois. L'année à date se calcule avec les sondages reçus depuis le 1er janvier (NPS = % de 9-10
      moins % de 0-6), seulement pour les concessions dont l'échelle est un NPS (Hyundai, BMW) ; marqué « calculé ». */
   var ECHELLES_NPS = { nps: 1, npsc: 1 };
+  /* 11 nov. 2026 (suggestion SBF8AA93523, Louis Prassinos, Hyundai : « les points clés en rapport par conseiller ») : le favori
+     lit maintenant la fiche de chaque sondage BoostCX ; le serveur renvoie, par sondage, une lettre par question (O = oui,
+     N = non, « . » = pas répondu) dans l'ordre de d.questions['HYUNDAI|ventes']. Ici on les remet en { question: true | false }. */
+  var LIB_Q = {
+    'appointment at dealership': 'Rendez-vous à la concession', 'sales consultant prepared': 'Conseiller préparé', 'address needs in timely manner': 'Besoins traités rapidement',
+    'present important vehicle features': 'Caractéristiques importantes présentées', 'offer demonstration drive': 'Essai routier offert', 'focused on customer needs': 'Attentif aux besoins du client',
+    'offer comparative payment options': 'Options de paiement comparées', 'clear explanation charges and fees': 'Frais expliqués clairement', 'respectful of customer s time': 'Respect du temps du client',
+    'review delivery checklist': 'Liste de livraison revue', 'vehicle clean and free of defects': 'Véhicule propre et sans défaut', 'customize vehicle settings': 'Réglages du véhicule personnalisés',
+    'show operation of bluelink feature': 'Bluelink montré', 'introduction to service department': 'Présenté au service', 'show how to schedule appointments online': 'Rendez-vous en ligne montré',
+    'follow up within 2 days': 'Suivi dans les 2 jours', 'likelihood to return for service': 'Reviendra pour le service',
+    'got appointment at desired time': 'Rendez-vous au moment voulu', 'greeted within 60 seconds': 'Accueilli en moins de 60 s', 'service advisor prepared': 'Conseiller technique préparé',
+    'knew vehicle service history': 'Connaissait l\'historique du véhicule', 'kept informed of vehicle status': 'Tenu informé de l\'état du véhicule', 'review walk around inspection': 'Inspection revue avec le client',
+    'provided helpful advice': 'Conseils utiles', 'vehicle ready when promised': 'Prêt à l\'heure promise', 'completed delivery within 5 minutes': 'Remise en moins de 5 minutes',
+    'vehicle settings returned the same': 'Réglages remis tels quels', 'vehicle returned cleaner': 'Rendu plus propre', 'work completed correctly the first time': 'Travail bien fait du premier coup'
+  };
+  function cleQ(t) { return String(t || '').toLowerCase().replace(/&#x27;|&#39;|'|’/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function libQ(t) { return LIB_Q[cleQ(t)] || String(t || ''); }
+  function decoderReponses(d) {
+    var qs = (d && d.questions) || {};
+    (d.sondages || []).forEach(function (s) {
+      if (s.rep || typeof s.q !== 'string') return;
+      var liste = qs[String(s.compagnie || '').toUpperCase() + '|' + s.type] || [], r = {}, n = 0;
+      for (var i = 0; i < liste.length && i < s.q.length; i++) { var c = s.q.charAt(i); if (c === 'O' || c === 'N') { r[liste[i]] = c === 'O'; n++; } }
+      if (n) s.rep = r;
+    });
+  }
+  /* Les questions clés d'une concession et d'un type : celles que le constructeur affiche (scores.kpis), avec leur cible. */
+  function questionsCles(d, cie, type) {
+    var vus = {}, out = [];
+    ['12M', '3M', 'MTD'].forEach(function (p) {
+      (d.scores || []).forEach(function (s) {
+        if (s.compagnie !== cie || s.type !== type || s.periode !== p) return;
+        (s.kpis || []).forEach(function (k) { var c = cleQ(k.titre); if (c && !vus[c]) { vus[c] = 1; out.push({ titre: k.titre, cle: c, cible: k.cible === null || k.cible === undefined ? null : Number(k.cible) }); } });
+      });
+    });
+    return out;
+  }
+  /* % de oui par question sur une liste de sondages : { cle: { oui, n, pct } } */
+  function tauxQuestions(sondages) {
+    var t = {};
+    sondages.forEach(function (s) { if (!s.rep) return; Object.keys(s.rep).forEach(function (q) { var c = cleQ(q), x = t[c] || (t[c] = { titre: q, oui: 0, n: 0 }); x.n++; if (s.rep[q]) x.oui++; }); });
+    Object.keys(t).forEach(function (c) { t[c].pct = t[c].n ? Math.round(1000 * t[c].oui / t[c].n) / 10 : null; });
+    return t;
+  }
+  function debutFenetreKpi(p) { var d = new Date(); if (p === 'MTD') return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-01'; if (p === 'AAD') return debutAnnee(); return isoJoursAvant(p === '3M' ? 91 : 365); }
+  /* Points clés calculés avec les réponses : pour l'année à date (que le constructeur ne donne pas) et quand le constructeur n'a pas
+     de valeur pour une question (lecture d'avant le 11 nov.) — marqués « calculé ». */
+  function kpisCalcules(d, cie, type, periode, existants) {
+    var cles = questionsCles(d, cie, type); if (!cles.length) return existants || [];
+    var debut = debutFenetreKpi(periode);
+    var t = tauxQuestions((d.sondages || []).filter(function (s) { return s.compagnie === cie && s.type === type && s.rep && String(s.completeLe || '').slice(0, 10) >= debut; }));
+    var parCle = {}; (existants || []).forEach(function (k) { parCle[cleQ(k.titre)] = k; });
+    return cles.map(function (q) {
+      var e = parCle[q.cle], x = t[q.cle];
+      if (e && e.valeur !== null && e.valeur !== undefined) return e;
+      if (!x || !x.n) return e || { titre: q.titre, valeur: null, cible: q.cible, n: null, changement: null };
+      return { titre: q.titre, valeur: x.pct, cible: e && e.cible !== null && e.cible !== undefined ? e.cible : q.cible, n: x.n, changement: null, calcule: true };
+    });
+  }
   function avecAad(d) {
     if (!d || !d.scores || !d.sondages) return d;
+    decoderReponses(d);
     var debut = debutAnnee(), echelle = {}, source = {};
     d.scores.forEach(function (s) { if (s.periode !== 'AAD' && !echelle[s.compagnie]) { echelle[s.compagnie] = s.echelle || 'nps'; source[s.compagnie] = s.source; } });
     var par = {};
@@ -48,9 +108,13 @@
       var a = par[k], pp = 100 * a.prom / a.n, pa = 100 * a.pass / a.n, pd = 100 * a.detr / a.n, nps = Math.round((pp - pd) * 10) / 10;
       return { compagnie: a.compagnie, source: source[a.compagnie] || '', periode: 'AAD', type: a.type, score: nps, nps: nps, sondages: a.n, promoteurs: Math.round(pp * 10) / 10,
         passifs: Math.round(pa * 10) / 10, detracteurs: Math.round(pd * 10) / 10, recommandation: Math.round(pp * 10) / 10, echelle: a.echelle, cibleEcart: null,
-        district: null, zone: null, national: null, rangDistrict: '', rangZone: '', rangNational: '', changement: null, tauxReponse: null, kpis: [], composites: null, calcule: true, depuis: debut };
+        district: null, zone: null, national: null, rangDistrict: '', rangZone: '', rangNational: '', changement: null, tauxReponse: null, kpis: a.type === 'combine' ? [] : kpisCalcules(d, a.compagnie, a.type, 'AAD', []), composites: null, calcule: true, depuis: debut };
     });
-    return Object.assign({}, d, { scores: d.scores.filter(function (s) { return s.periode !== 'AAD'; }).concat(aad) });
+    var autres = d.scores.filter(function (s) { return s.periode !== 'AAD'; }).map(function (s) {
+      if (s.type === 'combine' || !(s.kpis || []).some(function (k) { return k.valeur === null || k.valeur === undefined; })) return s;
+      return Object.assign({}, s, { kpis: kpisCalcules(d, s.compagnie, s.type, s.periode, s.kpis) });   /* 11 nov. : valeurs vides de la lecture d'avant */
+    });
+    return Object.assign({}, d, { scores: autres.concat(aad) });
   }
   // Site CSI de chaque constructeur (le favori « Automax ← Constructeur », dans Inventaire › Neufs, se clique là).
   var SITES_CSI = {
@@ -121,6 +185,7 @@
   function pct(x, dec) { return x === null || x === undefined || isNaN(x) ? '—' : Number(x).toLocaleString('fr-CA', { minimumFractionDigits: dec === undefined ? 1 : dec, maximumFractionDigits: dec === undefined ? 1 : dec }) + ' %'; }
   function nb(x, dec) { return x === null || x === undefined || isNaN(x) ? '—' : Number(x).toLocaleString('fr-CA', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }); }
   function signe(x, dec) { if (x === null || x === undefined || isNaN(x)) return '—'; var n = Number(x); return (n > 0 ? '+' : (n < 0 ? '−' : '')) + Math.abs(n).toLocaleString('fr-CA', { minimumFractionDigits: dec === undefined ? 1 : dec, maximumFractionDigits: dec === undefined ? 1 : dec }); }
+  function pluriel(n, mot) { return n + ' ' + mot + (n > 1 ? 's' : ''); }
   function isoJoursAvant(n) { var d = new Date(Date.now() - n * 86400000); return d.toISOString().slice(0, 10); }
   function classeNps(n) { if (n === null || n === undefined || isNaN(n)) return 'gris'; return n >= 9 ? 'vert' : (n >= 7 ? 'ambre' : 'rouge'); }
   function nomCourt(s) { return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase().replace(/(^|[\s-])([a-zà-ÿ])/g, function (m, a, b) { return a + b.toUpperCase(); }); }
@@ -164,6 +229,7 @@
       '.csi-page .badge.nps { min-width: 28px; justify-content: center; font-weight: 700; }',
       '.csi-commentaire { font-size: 12.5px; line-height: 1.45; color: var(--encre-2); max-width: 520px; }',
       '.csi-page .vide { border: none; background: transparent; padding: 28px 16px; }',
+      '.csi-pc th.csi-pc-q { min-width: 92px; max-width: 130px; white-space: normal; font-size: 12px; line-height: 1.25; vertical-align: bottom; } .csi-pc td.csi-pos b { color: var(--vert); } .csi-pc td.csi-neg b { color: var(--rouge); } .csi-pc td.csi-pc-vide { color: var(--encre-4); } .csi-pc tr.csi-pc-total td { border-top: 2px solid var(--ligne-forte); background: var(--gris-bg); }',
       '@media (max-width: 760px) { .csi-kpi { grid-template-columns: 1fr 80px 56px; } }'
     ].join('\n');
     document.head.appendChild(s);
@@ -199,7 +265,8 @@
     this.compagnie = AMX.compagnieChoisie('resultats') || '';
     this.periode = AMX.memo.lire('csi_periode', 'MTD'); if (!PERIODES.some(function (p) { return p[0] === self.periode; })) this.periode = 'MTD';
     this.type = AMX.memo.lire('csi_type', 'ventes'); if (!TYPES.some(function (t) { return t[0] === self.type; })) this.type = 'ventes';
-    var fen = String(AMX.memo.lire('csi_fenetre', '90')); this.fenetre = fen === 'aad' ? 'aad' : (parseInt(fen, 10) || 90);
+    var fen = String(AMX.memo.lire('csi_fenetre', 'aad')); this.fenetre = fen === 'aad' ? 'aad' : (parseInt(fen, 10) || 'aad');   /* 11 nov. : année à date par défaut (Louis Prassinos) */
+    this.toutesQuestions = AMX.memo.lire('csi_questions', 'cles') === 'toutes';
     this.recherche = '';
     this.construire();
     this.charger(false);
@@ -225,11 +292,12 @@
     this.elScores = h('div.csi-scores');
     this.elKpis = h('div.carte');
     this.elPersonnes = h('div.carte');
+    this.elPoints = h('div.carte.cache');   /* 11 nov. : points clés par conseiller */
     this.elSondages = h('div.carte');
     this.elVide = h('div');
     this.el = h('div.page.etroite.csi-page', [
       h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', ['CSI', h('span.csi-h1-sous', { text: 'Satisfaction client déclarée au constructeur — ventes et service, comparée au composite de la marque' })]), this.elEtat]), h('div.actions', AMX.actionsEntete([this.elSites, this.btnRafraichir, this.btnExport], [this.elSites]))]),
-      this.elChoix, this.elAlertes, this.elVide, this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elSondages
+      this.elChoix, this.elAlertes, this.elVide, this.elComparaison, this.elScores, this.elKpis, this.elPersonnes, this.elPoints, this.elSondages
     ]);
     this.conteneur.appendChild(this.el);
   };
@@ -295,6 +363,7 @@
     this.rendreKpis();
     var sansSondages = !nS;
     this.elPersonnes.classList.toggle('cache', sansSondages); this.elSondages.classList.toggle('cache', sansSondages);
+    if (sansSondages) { AMX.vider(this.elPoints); this.elPoints.classList.add('cache'); }
     if (!sansSondages) { this.rendrePersonnes(); this.rendreSondages(); }
   };
 
@@ -434,7 +503,7 @@
       return h('div', [h('h3', { text: c[1] }), kpis.length ? h('div', kpis.map(function (k) {
         var v = k.valeur, cible = k.cible, sous = v !== null && cible !== null && v < cible, dec = e.ref === 'cible' ? 0 : 1, f = e.sur5 ? 20 : 1;   /* 5-Star CEM : notes sur 5 */
         return h('div.csi-kpi', [
-          h('div', { text: k.titre + (k.n ? ' · n = ' + k.n : '') }),
+          h('div', { text: libQ(k.titre) + (k.n ? ' · n = ' + k.n : '') + (k.calcule ? ' · calculé' : ''), title: k.titre + (k.calcule ? ' — calculé avec les réponses des sondages lus (pas la valeur officielle du constructeur)' : '') }),
           h('div.csi-jauge', [h('i' + (sous ? '.sous' : ''), { style: { width: Math.max(0, Math.min(100, (v || 0) * f)) + '%' } }), cible !== null && cible !== undefined ? h('b', { style: { left: Math.max(0, Math.min(100, cible * f)) + '%' }, title: ref + ' ' + pct(cible, dec) }) : null]),
           h('div.num', [e.sur5 ? nb(v, 2) + ' / 5' : pct(v, 1), h('small', { text: (cible !== null && cible !== undefined ? ref.toLowerCase() + ' ' + pct(cible, dec) : '') + (k.changement !== null && k.changement !== undefined ? ' · ' + signe(k.changement, e.sur5 ? 2 : 1) : '') })])
         ]);
@@ -462,6 +531,7 @@
       h('div.csi-actions', [segType, segFen])
     ]));
     var corps = h('div.carte-corps');
+    this.rendrePoints(liste);
     if (!liste.length) { corps.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucun sondage'), h('div', { text: 'Aucun sondage ' + (service ? 'service' : 'ventes') + ' dans cette fenêtre.' })])); this.elPersonnes.appendChild(corps); return; }
     var table = function (titre, champ) {
       var lignes = parPersonne(liste, champ);
@@ -491,6 +561,51 @@
     this.elPersonnes.appendChild(corps);
   };
 
+  /* 11 nov. (SBF8AA93523) : « Points clés par conseiller » — % de oui à chaque question clé du constructeur, par conseiller
+     (ventes) ou aviseur (service), sur la fenêtre choisie (30 jours, 3 mois, année à date, 12 mois). Vert = au moins la cible
+     du constructeur, rouge = sous la cible. Seulement les sondages dont le favori a lu la fiche (Hyundai, BoostCX). */
+  Csi.prototype.pointsCles = function (liste) {
+    var d = this.donnees || {}, t = this.type, cies = {};
+    liste.forEach(function (s) { cies[s.compagnie] = 1; });
+    var cles = [], vus = {};
+    Object.keys(cies).forEach(function (c) { questionsCles(d, c, t).forEach(function (q) { if (!vus[q.cle]) { vus[q.cle] = 1; cles.push(q); } }); });
+    var toutes = [], vusT = {};
+    liste.forEach(function (s) { if (s.rep) Object.keys(s.rep).forEach(function (q) { var c = cleQ(q); if (!vusT[c]) { vusT[c] = 1; toutes.push({ titre: q, cle: c, cible: vus[c] ? cles.filter(function (x) { return x.cle === c; })[0].cible : null }); } }); });
+    var cols = this.toutesQuestions || !cles.length ? toutes : cles;
+    var avec = liste.filter(function (s) { return s.rep; });
+    var par = {}; avec.forEach(function (s) { var k = nomCourt(propre(s.conseiller)) || '(non indiqué)'; (par[k] = par[k] || []).push(s); });
+    var lignes = Object.keys(par).map(function (k) { return { nom: k, n: par[k].length, t: tauxQuestions(par[k]) }; }).sort(function (a, b) { return b.n - a.n || a.nom.localeCompare(b.nom); });
+    return { cols: cols, cles: cles, toutes: toutes, lignes: lignes, total: { nom: 'Concession', n: avec.length, t: tauxQuestions(avec) }, avec: avec.length, n: liste.length };
+  };
+  Csi.prototype.rendrePoints = function (liste) {
+    var self = this, el = this.elPoints;
+    AMX.vider(el);
+    var service = this.type === 'service', p = this.pointsCles(liste);
+    var avecReponses = ((this.donnees || {}).sondages || []).some(function (s) { return s.rep; });
+    var cieHyundai = !this.compagnie || this.compagnie === 'HYUNDAI';
+    if (!p.avec && !(avecReponses && liste.length) && !(cieHyundai && liste.some(function (s) { return s.compagnie === 'HYUNDAI'; }))) { el.classList.add('cache'); return; }
+    el.classList.remove('cache');
+    var basc = h('div.segment', { role: 'group', 'aria-label': 'Questions' }, [[false, 'Points clés' + (p.cles.length ? ' (' + p.cles.length + ')' : '')], [true, 'Toutes les questions' + (p.toutes.length ? ' (' + p.toutes.length + ')' : '')]].map(function (o) {
+      return h('button' + (!!self.toutesQuestions === o[0] ? '.actif' : ''), { type: 'button', text: o[1], onclick: function () { if (!!self.toutesQuestions === o[0]) return; self.toutesQuestions = o[0]; AMX.memo.ecrire('csi_questions', o[0] ? 'toutes' : 'cles'); self.rendrePoints(self.sondagesFenetre()); } });
+    }));
+    var fen = (FENETRES.filter(function (f) { return String(f[0]) === String(self.fenetre); })[0] || [, ''])[1].toLowerCase();
+    el.appendChild(h('div.carte-entete', [h('h2', ['Points clés par ' + (service ? 'aviseur' : 'conseiller'), h('span.sous', { text: (service ? 'service' : 'ventes') + ' · ' + fen + ' · % des clients qui répondent « oui » · ' + pluriel(p.avec, 'sondage') + ' avec les réponses' + (p.avec < p.n ? ' sur ' + p.n : '') })]), h('div.csi-actions', [basc])]));
+    var corps = h('div.carte-corps');
+    if (!p.avec) {
+      corps.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Réponses pas encore lues'), h('div', { text: 'Les réponses aux questions arrivent avec le favori « Automax ← Constructeur » cliqué sur BoostCX (tableau de bord Combined Performance) : il lit la fiche de chaque sondage pas encore lu. Recliquez-le une fois ; ensuite, seuls les nouveaux sondages sont lus.' })]));
+      el.appendChild(corps); return;
+    }
+    var cellule = function (x, q) {
+      if (!x || !x.n) return h('td.num.csi-pc-vide', { text: '·' });
+      var cls = q.cible === null || q.cible === undefined ? '' : (x.pct >= q.cible ? '.csi-pos' : '.csi-neg');
+      return h('td.num' + cls, { title: libQ(q.titre) + ' — ' + x.oui + ' oui sur ' + x.n + (q.cible !== null && q.cible !== undefined ? ' · cible ' + q.cible + ' %' : '') }, [h('b', { text: nb(x.pct, x.pct === 100 ? 0 : 1) + ' %' }), h('div.mini', { text: x.oui + ' / ' + x.n })]);
+    };
+    var tete = h('tr', [h('th', service ? 'Aviseur' : 'Conseiller'), h('th.num', 'Sondages')].concat(p.cols.map(function (q) { return h('th.num.csi-pc-q', { title: q.titre + (q.cible !== null && q.cible !== undefined ? ' — cible ' + q.cible + ' %' : '') }, [h('div', { text: libQ(q.titre) }), q.cible !== null && q.cible !== undefined ? h('div.mini', { text: 'cible ' + q.cible + ' %' }) : null]); })));
+    var ligne = function (l, cls) { return h('tr' + (cls || ''), [h('td', [h('b', { text: l.nom })]), h('td.num', { text: String(l.n) })].concat(p.cols.map(function (q) { return cellule(l.t[q.cle], q); }))); };
+    corps.appendChild(h('div.csi-defilant', [h('table.tableau.csi-pc', [h('thead', [tete]), h('tbody', p.lignes.map(function (l) { return ligne(l); }).concat([ligne(p.total, '.csi-pc-total')]))])]));
+    corps.appendChild(h('p.doux.petit', { style: { margin: '6px 0 0' }, text: 'Vert : au moins la cible du constructeur ; rouge : sous la cible. Les questions clés sont celles que ' + (service ? 'BoostCX affiche pour le service' : 'BoostCX affiche pour les ventes') + '. Peu de sondages = un résultat à prendre avec prudence.' }));
+    el.appendChild(corps);
+  };
   Csi.prototype.rendreSondages = function () {
     var self = this;
     AMX.vider(this.elSondages);
@@ -533,6 +648,12 @@
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(scores), 'Scores');
     if (rows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Sondages');
+    /* 11 nov. : points clés par conseiller (fenêtre et type affichés) */
+    var pc = this.pointsCles(this.sondagesFenetre());
+    if (pc.avec) {
+      var rangee = function (l) { var r = { 'Conseiller / aviseur': l.nom, 'Sondages': l.n }; pc.cols.forEach(function (q) { var x = l.t[q.cle]; r[libQ(q.titre) + (q.cible !== null && q.cible !== undefined ? ' (cible ' + q.cible + ' %)' : '')] = x && x.n ? x.pct : ''; }); return r; };
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pc.lignes.map(rangee).concat([rangee(pc.total)])), 'Points clés');
+    }
     XLSX.writeFile(wb, 'csi-' + (this.compagnie || 'groupe').toLowerCase() + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
     AMX.toast('Export Excel — ' + scores.length + ' scores' + (rows.length ? ', ' + rows.length + ' sondage' + (rows.length > 1 ? 's' : '') : ''), 'ok');
   };

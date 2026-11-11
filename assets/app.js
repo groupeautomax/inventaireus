@@ -1259,7 +1259,8 @@
     marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
     utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/rapportsocc', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*'],
     rh: ['vente/*', 'inventaire/*', 'relance/*', 'service/*', 'outils/*'],   /* 7 nov. : rôle « Ressources humaines » — la tuile Ressources humaines et l'Aide seulement */
-    evaluateur: ['vente/*', 'relance/*', 'service/*']   /* 9 nov. : rôle « Évaluateur » — inventaire, évaluations, analyse, outils */
+    evaluateur: ['vente/*', 'relance/*', 'service/*'],   /* 9 nov. : rôle « Évaluateur » — inventaire, évaluations, analyse, outils */
+    locationbmw: ['vente/*', 'relance/*', 'service/*', 'outils/*', 'rh/*', 'aide/suggestions', 'inventaire/neufs', 'inventaire/usage', 'inventaire/analyse', 'inventaire/achat', 'inventaire/rapportsocc', 'inventaire/evaluations', 'inventaire/transports', 'inventaire/listes', 'inventaire/soumissions']   /* 11 nov. : rôle « Location BMW seulement » (dirigeant de BMW) — Inventaire › Occasion › Location BMW et le guide de l'Aide ; même liste que Onglets.gs */
   };
   AMX.ONGLETS_CACHES_ROLE = ONGLETS_CACHES_ROLE;
   function cleDansListe(liste, cle) {

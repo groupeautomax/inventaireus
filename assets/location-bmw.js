@@ -996,7 +996,13 @@
     A.modale({ titre: 'Conditions du programme', corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer' }] });
   };
 
-  A.locationBmw = { calcul: Calcul, peutVoir: peutVoir, charger: charger, vider: function () { cache = { rep: null, le: 0, enCours: null }; } };
+  /* 11 nov. : le rôle « Location BMW seulement » (un dirigeant de BMW) — le calculateur est sa seule page (Onglets.gs, app.js,
+     LocationBmwSeul.gs) ; pas de bulle d'Einstein AI ni de recherche du haut. */
+  function seul() { return role() === 'locationbmw'; }
+  function marquerSeul() { try { document.documentElement.classList.toggle('role-locbmw-seul', seul()); } catch (e) {} }
+  if (!document.getElementById('css-locbmw-seul')) { var cs = document.createElement('style'); cs.id = 'css-locbmw-seul'; cs.textContent = 'html.role-locbmw-seul #maxai-bulle, html.role-locbmw-seul .maxai-flottant, html.role-locbmw-seul .recherche-globale, html.role-locbmw-seul .cie-globale { display: none !important; }'; document.head.appendChild(cs); }
+  marquerSeul(); document.addEventListener('amx:profil', marquerSeul); document.addEventListener('automax:connecte', marquerSeul);
+  A.locationBmw = { calcul: Calcul, peutVoir: peutVoir, charger: charger, seul: seul, vider: function () { cache = { rep: null, le: 0, enCours: null }; } };
   A.section('locbmw', {
     titre: 'Location BMW', icone: 'voiture', ordre: 26,
     visible: function () { return peutVoir(); },

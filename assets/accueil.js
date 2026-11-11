@@ -110,6 +110,8 @@
 
   /* ------------------------------ Départ ------------------------------- */
   function departLu() {
+    /* 11 nov. : le rôle « Location BMW seulement » s'ouvre toujours sur le calculateur (sa seule page). */
+    if (AMX.locationBmw && AMX.locationBmw.seul && AMX.locationBmw.seul()) return { section: 'inventaire', onglet: 'locbmw' };
     var d = AMX.memo.lire(CLE_DEPART, null);
     if (!d || typeof d !== 'object' || !d.section) return null;
     var t = AMX.traduire ? AMX.traduire(d.section, d.onglet) : null;   /* 21 oct. : ancienne section mémorisée (ex. Vente) → sa tuile */
@@ -605,6 +607,10 @@
 
   AMX.section('accueil', {
     titre: 'Accueil', icone: 'accueil', ordre: 1,
-    monter: function (conteneur, ctx) { return new Accueil(conteneur, ctx); }
+    monter: function (conteneur, ctx) {
+      /* 11 nov. : le rôle « Location BMW seulement » n'a pas d'Accueil : le logo et « Accueil » mènent au calculateur. */
+      if (AMX.locationBmw && AMX.locationBmw.seul && AMX.locationBmw.seul()) { setTimeout(function () { AMX.aller('inventaire', 'locbmw'); }, 0); return { demonter: function () {} }; }
+      return new Accueil(conteneur, ctx);
+    }
   });
 })();

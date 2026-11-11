@@ -531,6 +531,10 @@
     Promise.all([AMX.export.charger(), AMX.export.verdicts(force)]).then(function (r) { self.verdictsUs = r[1] || {}; if (self.donnees) self.rafraichirListeSeule(); }, function () {});
   };
   /* Le calcul retenu pour une annonce : la concession choisie, sinon la plus avantageuse (celle du serveur). */
+  /* 11 nov. : une BMW à vendre (BMW FS ou ailleurs) → le calculateur de location BMW (Inventaire › Occasion › Location BMW). */
+  function locBmw(o) {
+    return /^BMW$/i.test(String(o && o.marque || '').trim()) && !!(AMX.locationBmw && AMX.locationBmw.peutVoir && AMX.locationBmw.peutVoir()) && (!AMX.voitOnglet || AMX.voitOnglet('inventaire', 'locbmw'));
+  }
   Opportunites.prototype.calc = function (o) {
     if (this.compagnie) return (o.par && o.par[this.compagnie]) || null;
     return o.calc || null;
@@ -1062,6 +1066,7 @@
         { texte: 'Évaluer ce véhicule', action: function () { AMX.aller('outils', 'evaluation', { vin: o.vin, km: num(o.km) || '' }); } },
         { texte: 'Copier le NIV', action: function () { AMX.copier(o.vin, 'NIV copié'); } },
         mhm && AMX.manheim ? { texte: 'Photos et état (Manheim)', action: function () { AMX.manheim.ouvrir(o.vin); } } : null,
+        locBmw(o) ? { texte: 'Calculer la location BMW', action: function () { AMX.aller('locbmw', '', { vin: o.vin, km: num(o.km) || '' }); } } : null,
         { texte: 'Relire la prévision OpenLane', action: function () { self.relireOl(o); } },
         { texte: o.statut === 'suivie' ? 'Ne plus suivre' : 'Suivre', action: function () { self.statut(o, o.statut === 'suivie' ? '' : 'suivie'); } },
         { texte: 'Écarter', action: function () { self.statut(o, 'ecartee'); } },
@@ -1286,6 +1291,7 @@
     var boutons = [
       o.lien ? { texte: 'Annonce ↗', action: function () { window.open(o.lien, '_blank', 'noopener'); return false; } } : null,
       mhm && AMX.manheim ? { texte: 'Photos et état (Manheim)', action: function () { AMX.manheim.ouvrir(o.vin); return false; } } : null,
+      locBmw(o) ? { texte: 'Calculer la location BMW', action: function () { AMX.aller('locbmw', '', { vin: o.vin, km: num(o.km) || '' }); } } : null,
       { texte: 'Évaluer', action: function () { AMX.aller('outils', 'evaluation', { vin: o.vin, km: num(o.km) || '' }); } },
       { texte: o.statut === 'suivie' ? 'Ne plus suivre' : 'Suivre', action: function () { self.statut(o, o.statut === 'suivie' ? '' : 'suivie'); } },
       { texte: 'Fermer', classe: 'primaire' }

@@ -187,6 +187,12 @@
     return { ok: true, etat: 'ok', texte: 'Demande de crédit jusqu\'au ' + dateFr(b.demandesAu || prog.valideAu) + ', contrat au plus tard le ' + dateFr(b.contratAu || prog.valideAu) + '.' };
   }
   var MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juill.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  /* « 9 novembre 2026 à 12 h 55 », à l'heure d'ici. */
+  function quandFr(iso, sansHeure) {
+    var d = new Date(iso); if (!iso || isNaN(d.getTime())) return '';
+    var p2 = function (n) { return String(n).padStart(2, '0'); };
+    return dateFr(d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate())) + (sansHeure ? '' : ' à ' + d.getHours() + ' h ' + p2(d.getMinutes()));
+  }
   function dateFr(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? (Number(m[3]) === 1 ? '1er' : Number(m[3])) + ' ' + MOIS[Number(m[2]) - 1] + ' ' + m[1] : String(iso || ''); }
 
   /* -- Chercher un véhicule de nos registres par # stock ou NIV (complet, fin du NIV, ou un bout) : Maxime, 10 nov. -- */
@@ -241,7 +247,38 @@
     return { ok: true, raison: '' };
   }
 
-  var Calcul = { bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
+  /* -- BMW FS (Maxime, 11 nov. : « il faut pouvoir avoir accès au véhicule sur BMW FS pour faire les paiements de location ») --
+     Les véhicules à vendre sur la place de marché de BMW Financial Services (Manheim › Disponible), lus par le favori
+     « Automax ← Manheim » : les fiches `type: 'dispo'` de ?manheim=1. Une fiche est « à vendre » quand elle a été lue au
+     dernier passage du favori (au plus 6 h avant la plus récente) ; les plus vieilles restent, marquées « plus vue ». */
+  var FS_FENETRE_MS = 6 * 3600000;
+  function bmwfsDisponibles(fiches) {
+    var vus = {}, out = [], maxLu = 0;
+    (fiches || []).forEach(function (f) { if (f && f.type === 'dispo') { var t = Date.parse(f.luLe || '') || 0; if (t > maxLu) maxLu = t; } });
+    (fiches || []).forEach(function (f) {
+      if (!f || f.type !== 'dispo') return;
+      var vin = cleRech(f.vin);
+      if (vin.length !== 17 || vus[vin]) return;
+      vus[vin] = 1;
+      var t = Date.parse(f.luLe || '') || 0, txt = [f.modele, f.version].filter(Boolean).join(' ');
+      out.push({ f: f, vin: vin, annee: Number(f.annee) || anneeDe(txt), serie: serieDe(txt), bmw: /^BMW$/i.test(String(f.marque || '').trim()), actuel: !!maxLu && t >= maxLu - FS_FENETRE_MS });
+    });
+    return { liste: out, lu: maxLu ? new Date(maxLu).toISOString() : '' };
+  }
+  function admissibleFs(prog, x) {
+    if (!x.bmw) return { ok: false, raison: ((x.f && x.f.marque) || 'Cette marque') + ' : pas dans ce programme (BMW seulement)' };
+    return admissible(prog, x);
+  }
+  /* « 2023 BMW iX xDrive40 » : Manheim répète souvent le modèle dans la version (« iX » + « iX xDrive40 »). */
+  function texteFs(f) {
+    var mo = f.modele || '', v = f.version || '';
+    if (mo && v && (' ' + norm(v) + ' ').indexOf(' ' + norm(mo) + ' ') >= 0) mo = '';
+    return [f.annee, f.marque, mo, v].filter(Boolean).join(' ');
+  }
+  /* Une fiche de BMW FS sous la forme d'une ligne de registre : pour la recherche par la fin du NIV. */
+  function fsCommeInv(x) { return { vin: x.vin, stock: '', modele: texteFs(x.f), statut: '', _feuille: 'BMWFS', compagnie: '', _bmwfs: x.f }; }
+
+  var Calcul = { bmwfsDisponibles: bmwfsDisponibles, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
   /* ======================================================= La page */
@@ -272,6 +309,9 @@
     '.lbm-stock .lbm-stock-liste .rien { padding: 16px; text-align: center; font-size: 13.5px; color: var(--encre-3); }',
     '@media (max-width: 640px) { .lbm-page .lbm-niv { flex-wrap: wrap; } .lbm-page .lbm-niv .scan-env, .lbm-page .lbm-niv > input { flex: 1 1 100%; } .lbm-page .lbm-niv > .btn { flex: 1 1 0; justify-content: center; } .lbm-stock .lbm-stock-liste .etat { margin-left: 0; text-align: left; flex-basis: 100%; } }',
     '.lbm-page .lbm-vehicule { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }',
+    '.lbm-page .lbm-fs { border: 1px solid var(--bleu-bord); background: var(--bleu-bg); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; line-height: 1.45; display: flex; flex-direction: column; gap: 6px; }',
+    '.lbm-page .lbm-fs b { color: var(--bleu); } .lbm-page .lbm-fs-actions { display: flex; gap: 8px; flex-wrap: wrap; }',
+    '.lbm-page .lbm-sugg .st.fs, .lbm-stock .lbm-stock-liste .st.fs { color: var(--bleu); }',
     '.lbm-page .lbm-veh-titre { font-size: 17px; font-weight: 700; } .lbm-page .lbm-veh-sous { font-size: 13px; color: var(--encre-3); }',
     '.lbm-page .lbm-version { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .lbm-page .lbm-version select { flex: 1 1 320px; min-width: 0; max-width: 620px; }',
     '.lbm-page .lbm-avis { border-radius: 10px; padding: 10px 12px; font-size: 13.5px; line-height: 1.45; margin: 10px 0 0; }',
@@ -368,6 +408,7 @@
     this.inVin = h('input.saisie.niv#lbm-vin', { type: 'text', maxlength: '17', value: String(p.vin || p.stock || '').toUpperCase(), placeholder: 'NIV, 6 derniers du NIV ou # stock', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'NIV ou # stock' });
     this.btnTrouver = h('button.btn.primaire', { type: 'button', html: (A.icones.recherche || '') + '<span>Trouver</span>', onclick: function () { self.trouverSaisie(); } });
     this.btnStock = h('button.btn', { type: 'button', title: 'Parcourir nos BMW en stock (tous les registres)', html: (A.icones.voiture || A.icones.inventaire || '') + '<span>Nos BMW</span>', onclick: function () { self.ouvrirStock(); } });
+    this.btnFs = h('button.btn', { type: 'button', hidden: !A.manheim, title: 'Les BMW à vendre sur la place de marché de BMW Financial Services (Manheim), lues par le favori « Automax ← Manheim »', html: (A.icones.voiture || A.icones.inventaire || '') + '<span>BMW FS</span>', onclick: function () { self.ouvrirFs(); } });
     this.elSugg = h('div.lbm-sugg', { hidden: true, role: 'listbox', 'aria-label': 'Véhicules de notre inventaire' });
     this.inKm = h('input#lbm-km', { type: 'text', inputmode: 'numeric', value: this.o.km, placeholder: 'ex. 42 000', autocomplete: 'off' });
     this.elKmAide = h('div.aide', { text: 'Le km au compteur aujourd\'hui.' });
@@ -376,7 +417,7 @@
       h('div.carte-entete', [h('h2', '1. Le véhicule')]),
       h('div.carte-corps', [
         h('div.lbm-grille', [
-          h('div.champ', { style: { gridColumn: 'span 2' } }, [h('label', { for: 'lbm-vin', text: 'NIV ou # stock' }), h('div.lbm-niv', [this.inVin, this.btnTrouver, this.btnStock]), this.elSugg, h('div.aide', { text: 'Le NIV complet, ses 6 derniers caractères ou le # stock d\'un véhicule de nos registres — ou « Nos BMW » pour parcourir nos BMW en stock.' })]),
+          h('div.champ', { style: { gridColumn: 'span 2' } }, [h('label', { for: 'lbm-vin', text: 'NIV ou # stock' }), h('div.lbm-niv', [this.inVin, this.btnTrouver, this.btnStock, this.btnFs]), this.elSugg, h('div.aide', { text: 'Le NIV complet, ses 6 derniers caractères ou le # stock d\'un véhicule de nos registres — ou « Nos BMW » pour parcourir nos BMW en stock, « BMW FS » pour les BMW à vendre chez BMW Financial Services.' })]),
           h('div.champ', [h('label', { for: 'lbm-km', text: 'Km au compteur' }), this.inKm, this.elKmAide])
         ]),
         this.elVeh
@@ -444,6 +485,11 @@
     /* Nos registres (É.-U., Canada, Detail) : pour chercher par # stock ou par la fin du NIV. */
     this.invListe = null;
     this.invPret = (A.inventaire && A.inventaire.tout ? A.inventaire.tout() : Promise.resolve([])).then(function (l) { self.invListe = l || []; return self.invListe; }, function () { self.invListe = []; return []; });
+    /* BMW FS : les véhicules à vendre sur la place de marché de BMW Financial Services (fiches Manheim « Disponible »). */
+    this.fs = null; this.fsChoisi = null; this.fsVeh = null; this.fsMarche = null;
+    this.fsPret = (A.manheim && A.manheim.charger ? A.manheim.charger(false) : Promise.resolve(null)).then(function (d) {
+      self.fs = bmwfsDisponibles((d && d.fiches) || []); self.fsEtat = (d && d.etat && d.etat.dispos) || null; return self.fs;
+    }, function (e) { self.fs = { liste: [], lu: '' }; self.fsErreur = A.erreurTexte ? A.erreurTexte(e) : String(e && e.message || e); return self.fs; });
     this.inVin.addEventListener('change', function () { var v = self.inVin.value.trim().toUpperCase(); if (v.length === 17 && v !== self.vinCourant) self.lireVin(false); });
 
     charger(false).then(function (rep) {
@@ -460,8 +506,9 @@
   VueLocation.prototype.demonter = function () { this.detruit = true; };
   VueLocation.prototype.naviguer = function (ctx) {
     var p = (ctx && ctx.params) || {};
-    if (p.stock && !p.vin) { this.inVin.value = String(p.stock).toUpperCase(); if (p.km) this.inKm.value = p.km; if (p.prix) this.inPrix.value = p.prix; this.lireSaisies(); if (this.rep) this.trouverSaisie(); return; }
+    if (p.stock && !p.vin) { this.nouveauVehicule(''); this.inVin.value = String(p.stock).toUpperCase(); if (p.km) this.inKm.value = p.km; if (p.prix) this.inPrix.value = p.prix; this.lireSaisies(); if (this.rep) this.trouverSaisie(); return; }
     if (p.vin && String(p.vin).toUpperCase() !== this.vinCourant) {
+      this.nouveauVehicule(p.vin);
       this.inVin.value = String(p.vin).toUpperCase();
       if (p.km) this.inKm.value = p.km;
       if (p.prix) this.inPrix.value = p.prix;
@@ -517,7 +564,7 @@
   };
   VueLocation.prototype.effacer = function () {
     this.inVin.value = ''; this.inKm.value = ''; this.inPrix.value = ''; this.inComptant.value = '';
-    this.vinCourant = ''; this.invChoisi = null; this.cacherSugg(); this.dec = null; this.trouve = null; this.ligne = null; this.manuel = false; this.forcerManuel = false; this.choixManuel = false; this.caseIx.checked = false; this.o.ixNbv = false;
+    this.vinCourant = ''; this.invChoisi = null; this.fsChoisi = null; this.fsVeh = null; this.fsMarche = null; this.cacherSugg(); this.dec = null; this.trouve = null; this.ligne = null; this.manuel = false; this.forcerManuel = false; this.choixManuel = false; this.caseIx.checked = false; this.o.ixNbv = false;
     this.lireSaisies(); A.vider(this.elVeh); this.elKmAide.textContent = 'Le km au compteur aujourd\'hui.'; this.rendreResultat();
     try { this.inVin.focus(); } catch (e) {}
   };
@@ -525,8 +572,17 @@
   /* -- Chercher par # stock ou NIV dans nos registres -- */
   VueLocation.prototype.cacherSugg = function () { A.vider(this.elSugg); this.elSugg.hidden = true; this.entreeQ = ''; };
   VueLocation.prototype.ligneSugg = function (v) {
-    var self = this, st = A.statut ? A.statut(v.statut, v._feuille) : { libelle: v.statut || '' };
-    var vin = String(v.vin || '').toUpperCase();
+    var self = this, vin = String(v.vin || '').toUpperCase();
+    if (v._bmwfs) {
+      var ff = v._bmwfs;
+      return h('button', { type: 'button', role: 'option', title: vin, onclick: function () { self.choisirFs(ff); } }, [
+        h('span.st.fs', { text: 'BMW FS' }),
+        h('span.mod', { text: v.modele || '—' }),
+        h('span.vin', { text: '…' + vin.slice(-8) }),
+        h('span.etat', { text: [kmTxt(ff.km), ff.prix ? argent(ff.prix) : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
+      ]);
+    }
+    var st = A.statut ? A.statut(v.statut, v._feuille) : { libelle: v.statut || '' };
     return h('button', { type: 'button', role: 'option', title: vin, onclick: function () { self.choisirInv(v); } }, [
       h('span.st', { text: v.stock ? '# ' + v.stock : 'sans # stock' }),
       h('span.mod', { text: v.modele || '—' }),
@@ -538,16 +594,22 @@
   VueLocation.prototype.suggerer = function (entree) {
     var self = this, q = this.inVin.value.trim();
     if (q.length < 3 || q.length >= 17) { this.cacherSugg(); return; }
-    if (!this.invListe) { this.invPret.then(function () { if (!self.detruit && self.inVin.value.trim() === q) self.suggerer(entree); }); return; }
-    var l = chercherInventaire(this.invListe, q, 8);
+    if (!this.invListe || !this.fs) { Promise.all([this.invPret, this.fsPret]).then(function () { if (!self.detruit && self.inVin.value.trim() === q) self.suggerer(entree); }); return; }
+    var l = chercherInventaire(this.listeRech(), q, 8);
     if (entree && l.length === 1) { this.choisirInv(l[0]); return; }
     if (entree && l.length && cleRech(l[0].stock) === cleRech(q) && !(l[1] && cleRech(l[1].stock) === cleRech(q))) { this.choisirInv(l[0]); return; }
     if (entree) this.entreeQ = q;
     else if (this.entreeQ === q) return;   /* la liste (ou « aucun véhicule ») d'un Entrée reste : la frappe en attente ne l'efface pas */
     A.vider(this.elSugg);
-    if (!l.length) { if (entree) this.elSugg.appendChild(h('div.rien', { text: 'Aucun véhicule de nos registres avec « ' + q + ' ». Tapez le NIV complet (17 caractères).' })); else { this.cacherSugg(); return; } }
+    if (!l.length) { if (entree) this.elSugg.appendChild(h('div.rien', { text: 'Aucun véhicule de nos registres ni de BMW FS avec « ' + q + ' ». Tapez le NIV complet (17 caractères).' })); else { this.cacherSugg(); return; } }
     l.forEach(function (v) { self.elSugg.appendChild(self.ligneSugg(v)); });
     this.elSugg.hidden = false;
+  };
+  /* Nos registres, puis les véhicules à vendre sur BMW FS (une même BMW chez nous passe en premier). */
+  VueLocation.prototype.listeRech = function () {
+    var l = (this.invListe || []).slice();
+    ((this.fs && this.fs.liste) || []).forEach(function (x) { l.push(fsCommeInv(x)); });
+    return l;
   };
   VueLocation.prototype.trouverSaisie = function () {
     var v = this.inVin.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -556,30 +618,43 @@
     if (v.length < 3) { A.toast('Tapez le NIV, les 6 derniers du NIV ou le # stock.', 'attention'); return; }
     this.suggerer(true);
   };
-  /* -- « Nos BMW » : les BMW de nos registres, à parcourir et filtrer ; un clic les met dans le calculateur -- */
-  VueLocation.prototype.ouvrirStock = function () {
-    var self = this;
+  /* -- « Nos BMW » et « BMW FS » : une liste à parcourir et filtrer ; un clic met le véhicule dans le calculateur --
+     mode 'stock' = les BMW de nos registres (Detail, Canada, É.-U.) ; mode 'fs' = les véhicules à vendre sur la place de
+     marché de BMW Financial Services (Manheim › Disponible, lus par le favori « Automax ← Manheim »). */
+  VueLocation.prototype.ouvrirStock = function () { this.ouvrirListe('stock'); };
+  VueLocation.prototype.ouvrirFs = function () { this.ouvrirListe('fs'); };
+  VueLocation.prototype.ouvrirListe = function (mode) {
+    var self = this, fs = mode === 'fs';
     this.cacherSugg();
-    var f = { q: '', feuille: '', serie: '', seulsProgramme: true };
-    var inQ = h('input.saisie', { type: 'search', placeholder: 'Modèle, série, année, # stock ou 6 derniers du NIV', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Chercher dans nos BMW' });
-    var elFeuilles = h('div.lbm-stock-pastilles', { role: 'group', 'aria-label': 'Registre' });
+    var f = { q: '', feuille: '', serie: '', seulsProgramme: true, anciens: false };
+    var inQ = h('input.saisie', { type: 'search', placeholder: fs ? 'Modèle, série, année, ville ou 6 derniers du NIV' : 'Modèle, série, année, # stock ou 6 derniers du NIV', autocomplete: 'off', spellcheck: 'false', 'aria-label': fs ? 'Chercher dans les véhicules de BMW FS' : 'Chercher dans nos BMW' });
+    var elFeuilles = h('div.lbm-stock-pastilles', { role: 'group', 'aria-label': 'Registre', hidden: fs });
     var elSeries = h('div.lbm-stock-pastilles', { role: 'group', 'aria-label': 'Série' });
     var caseProg = h('input', { type: 'checkbox', checked: true });
+    var caseAnciens = h('input', { type: 'checkbox' });
+    var elAnciens = h('label.lbm-stock-case', { hidden: true }, [caseAnciens, h('span')]);
     var elCompte = h('span.lbm-stock-compte');
-    var elListe = h('div.lbm-stock-liste', { role: 'listbox', 'aria-label': 'Nos BMW en stock' });
+    var elInfo = h('div', { hidden: !fs });
+    var elListe = h('div.lbm-stock-liste', { role: 'listbox', 'aria-label': fs ? 'Véhicules à vendre sur BMW FS' : 'Nos BMW en stock' });
     var corps = h('div', [
-      h('div.lbm-stock-outils', [inQ, elFeuilles, elSeries, h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, [h('label.lbm-stock-case', [caseProg, h('span', { text: 'Seulement les années et séries du programme' })]), elCompte])]),
+      elInfo,
+      h('div.lbm-stock-outils', [inQ, elFeuilles, elSeries, h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, [h('label.lbm-stock-case', [caseProg, h('span', { text: 'Seulement les années et séries du programme' })]), elAnciens, elCompte])]),
       elListe
     ]);
-    var m = A.modale({ titre: 'Nos BMW en stock', corps: corps, large: true, classe: 'lbm-stock', proteger: false, boutons: [{ texte: 'Fermer' }] });
-    elListe.appendChild(A.chargeur('Lecture de nos registres', { compact: true }));
+    var m = A.modale({ titre: fs ? 'À vendre sur BMW FS' : 'Nos BMW en stock', corps: corps, large: true, classe: 'lbm-stock', proteger: false, boutons: [{ texte: 'Fermer' }] });
+    elListe.appendChild(A.chargeur(fs ? 'Lecture des véhicules de BMW FS' : 'Lecture de nos registres', { compact: true }));
     var tous = null;
     var nomF = function (fe) { return A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(fe) : fe; };
+    var champs = function (x) {
+      if (fs) return [texteFs(x.f), x.vin, x.f.ville, x.f.province, x.f.couleur, x.serie ? nomSerie(x.serie) : '', x.annee];
+      return [x.v.modele, x.v.stock, x.vin, x.v.compagnie, nomF(x.v._feuille), x.serie ? nomSerie(x.serie) : '', x.annee];
+    };
     var garde = function (x, sauf) {
-      if (sauf !== 'feuille' && f.feuille && x.v._feuille !== f.feuille) return false;
+      if (!fs && sauf !== 'feuille' && f.feuille && x.v._feuille !== f.feuille) return false;
+      if (fs && sauf !== 'anciens' && !f.anciens && !x.actuel) return false;
       if (sauf !== 'serie' && f.serie && (x.serie || '?') !== f.serie) return false;
       if (sauf !== 'prog' && f.seulsProgramme && !x.adm.ok) return false;
-      if (f.q && !(A.correspond ? A.correspond([x.v.modele, x.v.stock, x.vin, x.v.compagnie, nomF(x.v._feuille), x.serie ? nomSerie(x.serie) : '', x.annee], f.q) : (x.v.modele + ' ' + x.v.stock + ' ' + x.vin).toUpperCase().indexOf(f.q.toUpperCase()) >= 0)) return false;
+      if (f.q && !(A.correspond ? A.correspond(champs(x), f.q) : champs(x).join(' ').toUpperCase().indexOf(f.q.toUpperCase()) >= 0)) return false;
       return true;
     };
     var pastilles = function (el, cle, choix) {
@@ -591,6 +666,18 @@
       });
     };
     var ligne = function (x) {
+      if (fs) {
+        var ff = x.f, puces = [];
+        if (!x.adm.ok) puces.push(h('span.hors-puce', { text: 'Hors programme · ' + x.adm.raison }));
+        if (!x.actuel) puces.push(h('span.hors-puce', { text: 'Plus vu sur BMW FS depuis le ' + (quandFr(ff.luLe, true) || '?') }));
+        return h('button' + (x.adm.ok && x.actuel ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirFs(ff); } }, [
+          h('span.st.fs', { text: ff.prix ? argent(ff.prix) : 'BMW FS' }),
+          h('span.mod', { text: texteFs(ff) || '—' }),
+          h('span.vin', { text: '…' + x.vin.slice(-8) })
+        ].concat(puces, [
+          h('span.etat', { text: [kmTxt(ff.km), typeof ff.cote === 'number' ? 'CR ' + String(ff.cote.toFixed(1)).replace('.', ',') : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
+        ]));
+      }
       var v = x.v, st = A.statut ? A.statut(v.statut, v._feuille) : { libelle: v.statut || '' };
       var jours = A.joursDepuis && v.dateAjout ? A.joursDepuis(v.dateAjout) : null;
       return h('button' + (x.adm.ok ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirInv(v); } }, [
@@ -603,16 +690,20 @@
     };
     var dessiner = function () {
       if (!tous) return;
-      var feuilles = [{ val: '', lib: 'Tous les registres' }].concat(['DETAIL', 'CAN', 'US'].map(function (fe) { return { val: fe, lib: nomF(fe) }; }));
-      pastilles(elFeuilles, 'feuille', feuilles);
+      if (!fs) pastilles(elFeuilles, 'feuille', [{ val: '', lib: 'Tous les registres' }].concat(['DETAIL', 'CAN', 'US'].map(function (fe) { return { val: fe, lib: nomF(fe) }; })));
       var vues = {}; tous.forEach(function (x) { vues[x.serie || '?'] = 1; });
       var series = [{ val: '', lib: 'Toutes les séries' }].concat(Object.keys(vues).sort(function (a, b) { return (a === '?') - (b === '?') || nomSerie(a).localeCompare(nomSerie(b), 'fr', { numeric: true }); }).map(function (s) { return { val: s, lib: s === '?' ? 'Autre' : nomSerie(s) }; }));
       pastilles(elSeries, 'serie', series);
+      if (fs) {
+        var nAnciens = tous.filter(function (x) { return !x.actuel && garde(x, 'anciens'); }).length;
+        elAnciens.hidden = !nAnciens && !f.anciens;
+        elAnciens.lastChild.textContent = 'Montrer aussi ceux qui ne sont plus vus sur BMW FS (' + nAnciens + ')';
+      }
       var l = tous.filter(function (x) { return garde(x); });
       var hors = tous.filter(function (x) { return garde(x, 'prog') && !x.adm.ok; }).length;
-      elCompte.textContent = l.length + ' BMW' + (f.seulsProgramme && hors ? ' · ' + hors + ' hors programme cachée' + (hors > 1 ? 's' : '') : '');
+      elCompte.textContent = l.length + (fs ? ' véhicule' + (l.length > 1 ? 's' : '') : ' BMW') + (f.seulsProgramme && hors ? ' · ' + hors + ' hors programme caché' + (fs ? '' : 'e') + (hors > 1 ? 's' : '') : '');
       A.vider(elListe);
-      if (!l.length) { elListe.appendChild(h('div.rien', { text: tous.length ? 'Aucune BMW ne répond à ces filtres.' : 'Aucune BMW en stock dans nos registres.' })); return; }
+      if (!l.length) { elListe.appendChild(h('div.rien', { text: tous.length ? (fs ? 'Aucun véhicule ne répond à ces filtres.' : 'Aucune BMW ne répond à ces filtres.') : (fs ? 'Aucun véhicule de BMW FS : cliquez le favori « Automax ← Manheim » dans Manheim › Disponible (Outils › Opportunités d\'achat › Sources).' : 'Aucune BMW en stock dans nos registres.') })); return; }
       l.forEach(function (x) { elListe.appendChild(ligne(x)); });
     };
     inQ.addEventListener('input', A.debounce(function () { f.q = inQ.value.trim(); dessiner(); }, 150));
@@ -623,7 +714,23 @@
       else if (e.key === 'ArrowUp') { e.preventDefault(); if (i > 0) l[i - 1].focus(); else inQ.focus(); }
     });
     caseProg.addEventListener('change', function () { f.seulsProgramme = caseProg.checked; dessiner(); });
+    caseAnciens.addEventListener('change', function () { f.anciens = caseAnciens.checked; dessiner(); });
     var prog = this.prog();
+    if (fs) {
+      this.fsPret.then(function () {
+        var lu = self.fs && self.fs.lu, age = lu ? (Date.now() - Date.parse(lu)) / 86400000 : null;
+        A.vider(elInfo);
+        if (self.fsErreur) elInfo.appendChild(h('div.lbm-avis.rouge', { style: { marginTop: 0, marginBottom: '10px' }, text: 'Lecture des fiches Manheim impossible : ' + self.fsErreur }));
+        else if (!lu) elInfo.appendChild(h('div.lbm-avis.ambre', { style: { marginTop: 0, marginBottom: '10px' }, text: 'Les véhicules de BMW FS n\'ont pas encore été lus : dans Manheim (marketplace.manheim.ca › Disponible), cliquez le favori « Automax ← Manheim ».' }));
+        else elInfo.appendChild(h('div.lbm-avis.' + (age > 3 ? 'ambre' : 'bleu'), { style: { marginTop: 0, marginBottom: '10px' }, text: 'Lus sur BMW FS (Manheim › Disponible) le ' + quandFr(lu) + ' par le favori « Automax ← Manheim »' + (age > 3 ? ' : il y a ' + Math.floor(age) + ' jours — recliquez le favori dans Manheim pour la liste du jour.' : '.') + ' Le prix est le prix demandé par BMW FS (ce que la concession paierait), pas un prix de vente.' }));
+        tous = ((self.fs && self.fs.liste) || []).map(function (x) { x.adm = admissibleFs(prog, x); return x; });
+        tous.sort(function (a, b) { return (b.actuel - a.actuel) || (b.adm.ok - a.adm.ok) || (b.bmw - a.bmw) || texteFs(a.f).replace(/^\d+ /, '').localeCompare(texteFs(b.f).replace(/^\d+ /, ''), 'fr', { numeric: true }) || ((b.annee || 0) - (a.annee || 0)); });
+        if (!tous.some(function (x) { return x.adm.ok && x.actuel; })) { f.seulsProgramme = false; caseProg.checked = false; }
+        if (!tous.some(function (x) { return x.actuel; })) { f.anciens = true; caseAnciens.checked = true; }
+        dessiner();
+      });
+      return;
+    }
     this.invPret.then(function () {
       tous = bmwEnStock(self.invListe).map(function (x) { x.adm = admissible(prog, x); return x; });
       tous.sort(function (a, b) { return (b.adm.ok - a.adm.ok) || (RANG_FEUILLE[a.v._feuille] - RANG_FEUILLE[b.v._feuille]) || String(a.v.modele || '').localeCompare(String(b.v.modele || ''), 'fr', { numeric: true }) || ((b.annee || 0) - (a.annee || 0)); });
@@ -632,11 +739,30 @@
     });
   };
   VueLocation.prototype.choisirInv = function (v) {
+    if (v && v._bmwfs) { this.choisirFs(v._bmwfs); return; }
     this.cacherSugg();
+    this.nouveauVehicule(v.vin);
     this.inVin.value = String(v.vin || '').toUpperCase();
-    this.invChoisi = v;
+    this.invChoisi = v; this.fsChoisi = null;
     this.vinCourant = '';
     this.lireVin(false);
+  };
+  /* Un véhicule de BMW FS : son NIV et son km (lu sur BMW FS) ; le prix de vente reste à entrer. */
+  VueLocation.prototype.choisirFs = function (ff) {
+    this.cacherSugg();
+    this.nouveauVehicule(ff.vin);
+    this.inVin.value = String(ff.vin || '').toUpperCase();
+    this.fsChoisi = ff; this.invChoisi = null;
+    if (!this.inKm.value.trim() && typeof ff.km === 'number' && ff.km > 0) { this.inKm.value = A.fmtNombre(Math.round(ff.km)); this.elKmAide.textContent = 'Km lu sur BMW FS (Manheim) — vérifiez le compteur.'; }
+    this.vinCourant = '';
+    this.lireVin(false);
+  };
+  /* Un autre véhicule que celui à l'écran : le km et le prix de l'ancien ne le suivent pas. */
+  VueLocation.prototype.nouveauVehicule = function (vin) {
+    if (String(vin || '').toUpperCase() === this.vinCourant) return;
+    this.inKm.value = ''; this.inPrix.value = ''; this.prixSource = '';
+    this.elKmAide.textContent = 'Le km au compteur aujourd\'hui.';
+    this.lireSaisies();
   };
 
   /* -- Le NIV : décoder, retrouver la version, compléter le km et le prix si le véhicule est à notre inventaire -- */
@@ -651,9 +777,20 @@
     var cleOk = A.niv ? A.niv.cleValide(vin) : true;
     var inv = (this.invChoisi && String(this.invChoisi.vin || '').toUpperCase() === vin) ? this.invChoisi : (A.inventaire && A.inventaire.parVin ? A.inventaire.parVin(vin) : null);
     var fiche = A.ficheDe ? A.ficheDe(vin).catch(function () { return null; }) : Promise.resolve(null);
-    Promise.all([decoder(vin), fiche]).then(function (res) {
+    var fsVeh = (this.fsChoisi && String(this.fsChoisi.vin || '').toUpperCase() === vin) ? this.fsChoisi : null;
+    this.fsVeh = null; this.fsMarche = null;
+    Promise.all([decoder(vin), fiche, this.fsPret.catch(function () { return null; })]).then(function (res) {
       if (self.detruit || self.vinCourant !== vin) return;
       var dec = res[0], f = res[1] || {};
+      /* À vendre sur BMW FS ? (choisi dans la liste, ou un NIV tapé qui y est) */
+      if (!fsVeh && self.fs) self.fs.liste.forEach(function (x) { if (x.vin === vin) fsVeh = x.f; });
+      self.fsVeh = fsVeh;
+      if (fsVeh) {
+        if (!self.inKm.value.trim() && typeof fsVeh.km === 'number' && fsVeh.km > 0) { self.inKm.value = A.fmtNombre(Math.round(fsVeh.km)); self.elKmAide.textContent = 'Km lu sur BMW FS (Manheim) — vérifiez le compteur.'; }
+        /* Le décodeur muet : l'année, le modèle et la version de la fiche BMW FS. */
+        if (!dec && fsVeh.marque) dec = { annee: fsVeh.annee, marque: fsVeh.marque, modele: fsVeh.modele, version: fsVeh.version, source: 'BMW FS (Manheim)' };
+        self.chargerMarcheFs(vin);
+      }
       self.dec = dec; self.cleOk = cleOk; self.inv = inv;
       /* Le km de la fiche d'achat, et le prix affiché (D2C) quand on l'a déjà en mémoire. */
       var kmFiche = A.kmValide ? A.kmValide(f['f-km']) : null;
@@ -663,10 +800,39 @@
         if (mv && mv.notre && mv.notre.prix) { self.inPrix.value = A.fmtNombre(mv.notre.prix); self.prixSource = 'prix affiché sur le site de la concession'; }
       }
       self.lireSaisies();
-      self.trouve = dec ? trouver(self.prog(), dec) : null;
+      /* La version écrite par BMW FS (« iX xDrive40 », « X5 xDrive40i ») aide à trouver la bonne ligne de la grille. */
+      var decT = (dec && fsVeh && fsVeh.version && dec.source !== 'BMW FS (Manheim)') ? Object.assign({}, dec, { version: [dec.version, fsVeh.version].filter(Boolean).join(' ') }) : dec;
+      self.trouve = decT ? trouver(self.prog(), decT) : null;
       self.ligne = self.trouve && self.trouve.choix;
       self.rendreVehicule(); self.rendreResultat();
     });
+  };
+  /* Le marché au détail estimé de ce véhicule (Outils › Opportunités d'achat, calcul de BMW Sherbrooke), pour proposer un prix
+     de vente. Seulement pour qui voit les Opportunités (le serveur refuse les autres). */
+  VueLocation.prototype.chargerMarcheFs = function (vin) {
+    var self = this;
+    if (!A.opportunites || !(A.voitOnglet ? A.voitOnglet('outils', 'opportunites') : true)) return;
+    A.opportunites.charger().then(function (d) {
+      if (self.detruit || self.vinCourant !== vin || !d || !Array.isArray(d.occasions)) return;
+      var o = d.occasions.filter(function (x) { return String(x.vin || '').toUpperCase() === vin; })[0];
+      var k = o && ((o.par && (o.par.BMW || o.par[o.dest])) || o.calc);
+      if (!k || typeof k.refAjuste !== 'number' || !(k.refAjuste > 0)) return;
+      self.fsMarche = { ref: k.refAjuste, plafonne: !!k.plafonne, n: o.refN || null };
+      self.rendreVehicule();
+    }, function () {});
+  };
+  VueLocation.prototype.blocFs = function () {
+    var self = this, ff = this.fsVeh, vu = this.fs && this.fs.liste.filter(function (x) { return x.vin === String(ff.vin || '').toUpperCase(); })[0];
+    var plusVu = vu && !vu.actuel;
+    var infos = [ff.prix ? 'prix demandé ' + argent(ff.prix) : '', typeof ff.cote === 'number' ? 'CR ' + String(ff.cote.toFixed(1)).replace('.', ',') : '', kmTxt(ff.km), [ff.ville, ff.province].filter(Boolean).join(', '), ff.luLe ? 'lu le ' + quandFr(ff.luLe, true) : ''].filter(Boolean).join(' · ');
+    var actions = [];
+    if (A.manheim && A.manheim.ouvrir) actions.push(h('button.btn.petit', { type: 'button', text: 'Photos et état', onclick: function () { A.manheim.ouvrir(ff.vin); } }));
+    if (this.fsMarche) actions.push(h('button.btn.petit', { type: 'button', title: 'Prix médian du modèle-année au Canada, ajusté au km' + (this.fsMarche.plafonne ? ', plafonné au gros OpenLane + 15 %' : '') + ' (Outils › Opportunités d\'achat)', text: 'Marché au détail estimé ' + argent(this.fsMarche.ref) + ' — prendre ce prix', onclick: function () { self.inPrix.value = A.fmtNombre(Math.round(self.fsMarche.ref)); self.prixSource = 'marché au détail estimé'; self.lireSaisies(); self.rendreResultat(); } }));
+    return h('div.lbm-fs', [
+      h('div', [h('b', { text: 'À vendre sur BMW FS' }), document.createTextNode(' (Manheim) : ' + infos + '.')]),
+      h('div.lbm-veh-sous', { text: 'Le prix demandé est ce que la concession paierait à BMW FS, pas le prix de vente : entrez le prix de vente plus bas.' + (plusVu ? ' Plus vu sur BMW FS au dernier passage du favori : il est peut-être déjà vendu.' : '') }),
+      actions.length ? h('div.lbm-fs-actions', actions) : null
+    ]);
   };
   VueLocation.prototype.rendreVehicule = function () {
     var self = this, prog = this.prog(), dec = this.dec, t = this.trouve;
@@ -675,6 +841,7 @@
     if (!this.cleOk) lignes.push(h('div.lbm-avis.ambre', { text: 'Le chiffre de contrôle de ce NIV ne concorde pas : vérifiez-le (une lettre ou un chiffre mal lu).' }));
     if (!dec) lignes.push(h('div.lbm-avis.ambre', { text: 'Le NIV n\'a pas pu être décodé : choisissez l\'année et la version à la main.' }));
     else lignes.push(h('div', [h('div.lbm-veh-titre', { text: [dec.annee, dec.marque, dec.modele, dec.version].filter(Boolean).join(' ') }), h('div.lbm-veh-sous', { text: 'Décodé par ' + (dec.source || 'NHTSA vPIC') + (this.inv ? ' · à notre inventaire : # stock ' + (this.inv.stock || '—') + ' · ' + [A.statut ? A.statut(this.inv.statut, this.inv._feuille).libelle : this.inv.statut, A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(this.inv._feuille) : this.inv._feuille, this.inv.compagnie].filter(Boolean).join(' · ') : '') })]));
+    if (this.fsVeh) lignes.push(this.blocFs());
     if (t && t.raison && !t.candidats.length) lignes.push(h('div.lbm-avis.rouge', { text: t.raison }));
     /* La version de la grille : les candidats de la même série et de la même année, sinon toute la grille (à la main). */
     if (!t || !t.candidats.length) this.manuel = true;

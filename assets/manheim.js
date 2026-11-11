@@ -117,6 +117,8 @@
       if ((f.options || []).length) corps.appendChild(h('details.mh-options', [h('summary', { text: 'Équipement (' + f.options.length + ')' }), h('div.mini', { text: f.options.join(' · ') })]));
       corps.appendChild(h('div.mh-actions', [f.carfax ? h('a.btn.petit.primaire', { href: f.carfax, target: '_blank', rel: 'noopener', text: 'Rapport CARFAX ↗' }) : null,
         f.lien ? h('a.btn.petit', { href: f.lien, target: '_blank', rel: 'noopener', text: 'Manheim ↗' }) : null,
+        (/^BMW$/i.test(String(f.marque || '').trim()) && AMX.locationBmw && AMX.locationBmw.peutVoir && AMX.locationBmw.peutVoir() && (!AMX.voitOnglet || AMX.voitOnglet('inventaire', 'locbmw')))
+          ? h('a.btn.petit', { href: AMX.lien('locbmw', '', { vin: f.vin, km: nb(f.km) ? Math.round(f.km) : '' }), text: 'Calculer la location', title: 'Paiement de location BMW Services financiers (programme d\'occasion du mois)', onclick: function () { m.fermer(); } }) : null,
         h('span.mini.doux', { text: 'Lu le ' + (r.luLe ? AMX.fmtDate(r.luLe, true) : '?') + ' par le favori « Automax ← Manheim ».' })]));
     }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('div.vide', { text: String(e && e.message || e) })); });
     return m;

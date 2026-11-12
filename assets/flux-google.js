@@ -34,6 +34,11 @@
     '.fgv-etoile { border: 1px solid #6d28d9; color: #6d28d9; background: #fff; border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; } .fgv-etoile.on { background: #6d28d9; color: #fff; }',
     '.fgv-groupe { margin: 18px 0 8px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--encre-2); }',
     '.fgv-vide { padding: 30px; text-align: center; color: var(--encre-3); }',
+    '.fgv-feuille { border: 1px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; font-size: 14px; }',
+    '.fgv-feuille .tete { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; } .fgv-feuille .tete b { font-size: 15px; } .fgv-feuille .tete .m { color: var(--encre-3); flex: 1 1 260px; }',
+    '.fgv-feuille .partages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; } .fgv-feuille .puce-p { background: var(--fond); border: 1px solid var(--ligne); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }',
+    '.fgv-feuille .puce-p button { border: 0; background: none; cursor: pointer; font-size: 15px; line-height: 1; color: var(--encre-3); padding: 0 4px; } .fgv-feuille .ajout { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; } .fgv-feuille .ajout .saisie { flex: 1 1 240px; max-width: 340px; }',
+    '.fgv-feuille details { margin-top: 10px; } .fgv-feuille details summary { cursor: pointer; font-weight: 700; color: var(--encre-2); } .fgv-feuille ol { margin: 8px 0 0 18px; padding: 0; } .fgv-feuille li { margin: 4px 0; } .fgv-feuille .err { color: var(--ambre); margin-top: 6px; }',
     '@media (max-width: 640px) { .fgv-ligne { grid-template-columns: 72px 1fr; } .fgv-ligne img, .fgv-ligne .sans { width: 72px; height: 50px; } .fgv-ligne .d { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; } }'
   ].join('\n');
   function css() { if (!document.getElementById('css-flux-google')) { var s = document.createElement('style'); s.id = 'css-flux-google'; s.textContent = CSS; document.head.appendChild(s); } }
@@ -139,6 +144,50 @@
     AMX.toast(lignes.length + ' véhicules dans le fichier. Rien n\'est envoyé à Google.', 'ok', 6000);
   };
 
+  /* 12 nov. : la feuille Google que Merchant Center lit chaque jour (FluxGoogle.gs, FGV_feuille). */
+  VueFlux.prototype.feuille = function (corps, ok) {
+    var self = this;
+    corps.action = 'fluxGoogleFeuille'; corps.compagnie = this.cie || 'BMW';
+    return AMX.post(corps, { secours: false, delai: 120000 }).then(function (r) {
+      if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Refusé');
+      if (!r.message && r.vehicules) throw new Error(SCRIPT_PAS_A_JOUR);
+      AMX.toast(r.message || ok || 'Fait.', 'ok', 6000); return self.charger(true);
+    }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 9000); return false; });
+  };
+  VueFlux.prototype.carteFeuille = function (d) {
+    var self = this, f = d.feuille, el = h('div.fgv-feuille');
+    var etapes = h('details', [h('summary', { text: 'Dans Merchant Center (une seule fois)' }), h('ol', [
+      h('li', { text: 'Partagez la feuille avec le compte Google qui ouvre Merchant Center (ci-dessous).' }),
+      h('li', { text: 'Merchant Center › Produits › Sources de données › Ajouter une source › Google Sheets › « Feuille existante » : collez le lien de la feuille.' }),
+      h('li', { text: 'Pays : Canada, langue : français ; programme « Annonces de véhicules ».' }),
+      h('li', { text: 'Récupération : tous les jours, vers 7 h (ScanAutomax récrit la feuille après 5 h).' })])]);
+    if (!f) {
+      var bC = h('button.btn.primaire', { type: 'button', text: 'Créer la feuille', disabled: !!d.jamaisLu, onclick: function () { bC.disabled = true; bC.textContent = 'Création…'; self.feuille({ op: 'creer' }).then(function () { bC.disabled = false; bC.textContent = 'Créer la feuille'; }); } });
+      el.appendChild(h('div.tete', [h('b', 'Feuille Google pour Merchant Center'), h('span.m', { text: d.jamaisLu ? 'Lisez d\'abord le site, puis créez la feuille.' : 'Merchant Center lira chaque jour une feuille Google que ScanAutomax récrit tous les matins. Rien n\'est envoyé à Google : c\'est Merchant Center qui vient lire.' }), bC]));
+      return el;
+    }
+    var bE = h('button.btn', { type: 'button', text: 'Écrire la feuille maintenant', onclick: function () { bE.disabled = true; self.feuille({ op: 'ecrire' }).then(function () { bE.disabled = false; }); } });
+    el.appendChild(h('div.tete', [h('b', 'Feuille Google pour Merchant Center'),
+      h('span.m', { text: (f.n || 0) + ' véhicule' + ((f.n || 0) > 1 ? 's' : '') + ' · récrite ' + (f.le ? 'le ' + AMX.fmtDate(f.le, true) : 'jamais') + ' · mise à jour chaque matin' }),
+      h('a.btn', { href: f.url, target: '_blank', rel: 'noopener', text: 'Ouvrir la feuille' }), bE]));
+    if (f.erreur) el.appendChild(h('div.err', { text: f.erreur }));
+    var parts = h('div.partages', [h('span', { text: (f.partages || []).length ? 'Partagée avec :' : 'Pas encore partagée.' })].concat((f.partages || []).map(function (q) {
+      return h('span.puce-p', [h('span', { text: q.courriel + (q.role === 'writer' ? ' (éditeur)' : ' (lecture)') }),
+        d.peutPartager ? h('button', { type: 'button', title: 'Retirer l\'accès', 'aria-label': 'Retirer l\'accès de ' + q.courriel, text: '×', onclick: function () { AMX.confirmer ? AMX.confirmer('Retirer l\'accès de ' + q.courriel + ' à la feuille ?').then(function (oui) { if (oui) self.feuille({ op: 'retirer', courriel: q.courriel }); }) : self.feuille({ op: 'retirer', courriel: q.courriel }); } }) : null]);
+    })));
+    el.appendChild(parts);
+    if (d.peutPartager) {
+      var inp = h('input.saisie', { type: 'email', placeholder: 'Courriel du compte Google de Merchant Center' });
+      var ed = h('input', { type: 'checkbox' });
+      var bP = h('button.btn', { type: 'button', text: 'Partager', onclick: function () {
+        var c = inp.value.trim(); if (!c) { inp.focus(); return; }
+        bP.disabled = true; self.feuille({ op: 'partager', courriel: c, editeur: ed.checked }).then(function () { bP.disabled = false; });
+      } });
+      el.appendChild(h('div.ajout', [inp, h('label', { title: 'Seulement si Merchant Center refuse de lire la feuille en lecture seule' }, [ed, ' éditeur']), bP]));
+    } else el.appendChild(h('p.mini', { text: 'La propriétaire ou le directeur général partage la feuille avec le compte de Merchant Center.' }));
+    el.appendChild(etapes);
+    return el;
+  };
   VueFlux.prototype.filtrer = function () {
     var f = this.f, d = this.rep || {};
     return (d.lignes || []).filter(function (l) {
@@ -163,6 +212,7 @@
     }
     this.elCorps.appendChild(h('div.fgv-essai', { html: '<b>Essai.</b> Le flux est bâti à partir des fiches du site de la concession (prix affiché, photos, lien), vérifiées dans ScanAutomax. Rien n\'est envoyé à Google tant que le compte Merchant Center n\'est pas prêt.' }));
     (d.manque || []).forEach(function (m) { self.elCorps.appendChild(h('div.fgv-avis', [h('b', 'À faire : '), m + ' ', h('button.btn.petit', { type: 'button', text: 'Poser le code', onclick: function () { self.codeEtablissement(); } })])); });
+    this.elCorps.appendChild(this.carteFeuille(d));
     if (d.jamaisLu) { this.elCorps.appendChild(h('div.fgv-vide', [h('p', { text: 'Le site n\'a pas encore été lu.' }), h('button.btn.primaire', { type: 'button', text: 'Lire le site de ' + (d.nom || 'la concession'), onclick: function () { self.lireSite(); } })])); return; }
     var n = d.compte || {};
     var tuile = function (cle, val, lib, ton) {

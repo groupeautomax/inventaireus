@@ -9,6 +9,10 @@
      campagne Google peut favoriser. Le système PROPOSE (âge du stock, démos, assez de photos), une personne coche.
    - « Retirer du flux » (ex. réservé) ; « Télécharger le flux » = le fichier pour Merchant Center (TSV).
    Routes : GET ?fluxGoogle=1&compagnie= ; POST fluxGoogleLire, fluxGoogleChoix, fluxGoogleReglages.
+   12 nov. (soir, v340) — Maxime : « j'en ai choisi 21 mais comment je commence la publication, tu devrais mieux bâtir cette
+   feuille ». En tête de page, « Démarrer les annonces » : les 4 étapes dans l'ordre (choisir · feuille · Merchant Center ·
+   campagne Google Ads) avec leur état et le bon bouton. Après un choix, la feuille du flux se récrit d'elle-même 6 s plus
+   tard (plus de bouton à chercher). Le partage de la feuille (fait une fois) passe au bas de la page.
    ===================================================================================================== */
 (function () {
   'use strict';
@@ -39,6 +43,15 @@
     '.fgv-feuille .partages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; } .fgv-feuille .puce-p { background: var(--fond); border: 1px solid var(--ligne); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }',
     '.fgv-feuille .puce-p button { border: 0; background: none; cursor: pointer; font-size: 15px; line-height: 1; color: var(--encre-3); padding: 0 4px; } .fgv-feuille .ajout { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; } .fgv-feuille .ajout .saisie { flex: 1 1 240px; max-width: 340px; }',
     '.fgv-feuille details { margin-top: 10px; } .fgv-feuille details summary { cursor: pointer; font-weight: 700; color: var(--encre-2); } .fgv-feuille ol { margin: 8px 0 0 18px; padding: 0; } .fgv-feuille li { margin: 4px 0; } .fgv-feuille .err { color: var(--ambre); margin-top: 6px; }',
+    '.fgv-demarrer { border: 1px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 14px 16px 6px; margin: 0 0 14px; }',
+    '.fgv-demarrer h2 { font-size: 17px; margin: 0 0 4px; } .fgv-demarrer > p { font-size: 13px; color: var(--encre-3); margin: 0 0 6px; }',
+    '.fgv-pas { display: grid; grid-template-columns: 34px 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--ligne); }',
+    '.fgv-pas .num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px; background: var(--fond); color: var(--encre-2); border: 2px solid var(--ligne); }',
+    '.fgv-pas.ok .num { background: var(--vert); border-color: var(--vert); color: #fff; } .fgv-pas.alerte .num { border-color: var(--ambre); color: var(--ambre); } .fgv-pas.cours .num { border-color: var(--bleu); color: var(--bleu); }',
+    '.fgv-pas .txt b { font-size: 15px; } .fgv-pas .txt .exp { font-size: 13px; color: var(--encre-3); margin-top: 2px; } .fgv-pas.alerte .txt b { color: var(--ambre); }',
+    '.fgv-pas .act { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }',
+    '.fgv-reglages { margin: 18px 0 0; } .fgv-reglages > summary { cursor: pointer; font-weight: 700; color: var(--encre-2); margin: 0 0 10px; }',
+    '@media (max-width: 640px) { .fgv-pas { grid-template-columns: 34px 1fr; } .fgv-pas .act { grid-column: 2; justify-content: flex-start; } }',
     '@media (max-width: 640px) { .fgv-ligne { grid-template-columns: 72px 1fr; } .fgv-ligne img, .fgv-ligne .sans { width: 72px; height: 50px; } .fgv-ligne .d { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; } }'
   ].join('\n');
   function css() { if (!document.getElementById('css-flux-google')) { var s = document.createElement('style'); s.id = 'css-flux-google'; s.textContent = CSS; document.head.appendChild(s); } }
@@ -47,6 +60,11 @@
     var p = perms(), r = String(p.role || AMX.session.role || '');
     return r === 'proprietaire' || r === 'admin' || r === 'gestionnaire' || r === 'direction_ventes' || r === 'marketing' || !!(p.gererUtilisateurs || p.gererAdmins);
   }
+  /* Les comptes Google de chaque concession (identifiants seulement : il faut être connecté pour y entrer). */
+  var COMPTES_GOOGLE = {
+    BMW: { merchant: '5903667475', ocid: '8664050367', campagne: 'BMW Sherbrooke - Annonces de véhicules (choisis)' }
+  };
+  var VISER = { min: 20, max: 40 };   /* nombre de véhicules à mettre de l'avant conseillé pour une campagne d'environ 50 $ par jour */
   var GENRES = { neuf: 'Neuf', demo: 'Démo', occasion: 'Occasion' };
   var ETATS = { pret: 'Prêt pour Google', completer: 'À compléter', exclu: 'Exclu' };
 
@@ -86,7 +104,10 @@
     document.addEventListener('amx:compagnie', this.surCie);
     this.charger(false);
   }
-  VueFlux.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); };
+  VueFlux.prototype.demonter = function () {
+    this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie);
+    if (this.minuterieFeuille) this.ecrireFeuilleAuto();   /* des choix pas encore écrits : on les écrit avant de partir */
+  };
   VueFlux.prototype.charger = function (force) {
     var self = this, cie = this.cie || 'BMW';
     if (!cache[cie]) { AMX.vider(this.elCorps); this.elCorps.appendChild(AMX.chargeur('Annonces Google')); }
@@ -116,8 +137,72 @@
       if (!r.message && r.vehicules) throw new Error(SCRIPT_PAS_A_JOUR);
       AMX.toast(r.message, 'ok');
       if (choix === 'vedette' && self.f.quoi === 'suggestions') self.f.quoi = 'vedettes';   /* les proposés passent dans « mis de l'avant » : on les y suit */
+      if (self.rep && self.rep.feuille) self.planifierFeuille();
       return self.charger(true);
     }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 8000); });
+  };
+  /* v340 : après un choix, la feuille que Merchant Center lit se récrit d'elle-même. On attend 6 s sans nouveau choix
+     (on coche souvent plusieurs véhicules de suite), puis une seule écriture. Si la page est quittée avant, on écrit tout de suite. */
+  VueFlux.prototype.planifierFeuille = function () {
+    var self = this;
+    clearTimeout(this.minuterieFeuille);
+    this.cieFeuille = this.cie || 'BMW';
+    this.etatFeuille = 'attente'; this.rendreDemarrer();
+    this.minuterieFeuille = setTimeout(function () { self.ecrireFeuilleAuto(); }, 6000);
+  };
+  VueFlux.prototype.ecrireFeuilleAuto = function () {
+    var self = this;
+    clearTimeout(this.minuterieFeuille); this.minuterieFeuille = null;
+    if (this.etatFeuille === 'ecriture') { this.reecrire = true; return; }
+    this.etatFeuille = 'ecriture'; this.rendreDemarrer();
+    this.feuille({ op: 'ecrire', compagnie: this.cieFeuille || this.cie || 'BMW' }, 'Feuille Google à jour.').then(function () {
+      self.etatFeuille = ''; self.feuilleEcriteLe = Date.now();
+      if (self.reecrire) { self.reecrire = false; self.planifierFeuille(); return; }
+      self.rendreDemarrer();
+    });
+  };
+  /* Les 4 étapes pour que les véhicules choisis paraissent dans Google, avec leur état. */
+  VueFlux.prototype.rendreDemarrer = function () {
+    if (!this.elDemarrer) return;
+    var self = this, d = this.rep || {}, f = d.feuille, n = d.compte || {}, nV = n.vedettes || 0, nP = n.suggestions || 0;
+    var cg = COMPTES_GOOGLE[this.cie || 'BMW'] || null;
+    var pas = function (num, etat, titre, exp, actions) {
+      return h('div.fgv-pas.' + etat, [h('div.num', { text: etat === 'ok' ? '✓' : String(num) }), h('div.txt', [h('b', { text: titre }), h('div.exp', { text: exp })]), h('div.act', actions || [])]);
+    };
+    var voir = function (quoi) { self.f.quoi = quoi; self.f.etat = ''; self.rendre(); if (self.elListe) self.elListe.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    var lien = function (texte, url, primaire) { return h('a.btn' + (primaire ? '.primaire' : '') + '.petit', { href: url, target: '_blank', rel: 'noopener', text: texte }); };
+    AMX.vider(this.elDemarrer);
+    this.elDemarrer.appendChild(h('h2', 'Démarrer les annonces'));
+    this.elDemarrer.appendChild(h('p', { text: 'Seuls les véhicules mis de l\'avant sont annoncés. Les 4 étapes, dans l\'ordre :' }));
+    /* 1. Choisir */
+    var e1 = nV >= VISER.min ? 'ok' : nV > 0 ? 'alerte' : 'afaire';
+    var t1 = nV ? nV + ' véhicule' + (nV > 1 ? 's' : '') + ' mis de l\'avant' : 'Choisir les véhicules à annoncer';
+    var x1 = nV > VISER.max * 1.5 ? 'C\'est beaucoup : le budget se répartit sur trop de véhicules. Visez ' + VISER.min + ' à ' + VISER.max + '.'
+      : 'Visez ' + VISER.min + ' à ' + VISER.max + ' véhicules (environ 30 pour 50 $ par jour). Les proposés sont en stock depuis longtemps ou des démos, avec assez de photos.';
+    var a1 = [];
+    if (nP) a1.push(h('button.btn.petit' + (nV ? '' : '.primaire'), { type: 'button', text: 'Voir les proposés (' + nP + ')', onclick: function () { voir('suggestions'); } }));
+    if (nV) a1.push(h('button.btn.petit', { type: 'button', text: 'Voir les mis de l\'avant', onclick: function () { voir('vedettes'); } }));
+    this.elDemarrer.appendChild(pas(1, e1, t1, x1, a1));
+    /* 2. Feuille */
+    var e2, t2, x2, a2 = [];
+    if (!f) { e2 = 'afaire'; t2 = 'Créer la feuille Google du flux'; x2 = 'Une seule fois : « Créer la feuille » juste en dessous, puis la partager avec le compte de Merchant Center.'; }
+    else if (this.etatFeuille === 'attente') { e2 = 'cours'; t2 = 'Vos choix partent dans la feuille dans quelques secondes…'; x2 = 'Continuez de cocher : une seule écriture suivra.'; a2.push(h('button.btn.petit', { type: 'button', text: 'Écrire tout de suite', onclick: function () { self.ecrireFeuilleAuto(); } })); }
+    else if (this.etatFeuille === 'ecriture') { e2 = 'cours'; t2 = 'Écriture de la feuille Google…'; x2 = 'Environ 15 secondes.'; }
+    else {
+      e2 = 'ok'; t2 = 'Feuille Google à jour';
+      x2 = (f.n || 0) + ' véhicules · récrite ' + (f.le ? 'le ' + AMX.fmtDate(f.le, true) : '') + '. Elle se récrit d\'elle-même après chaque choix et chaque matin.';
+      if (f.url) a2.push(lien('Ouvrir la feuille', f.url));
+      a2.push(h('button.btn.petit', { type: 'button', text: 'Écrire maintenant', onclick: function () { self.ecrireFeuilleAuto(); } }));
+    }
+    this.elDemarrer.appendChild(pas(2, e2, t2, x2, a2));
+    /* 3. Merchant Center */
+    this.elDemarrer.appendChild(pas(3, 'info', 'Google relit la feuille chaque matin à 7 h',
+      'Pour que vos choix comptent aujourd\'hui : Merchant Center › Paramètres › Sources de données › « Mettre à jour » sur la feuille.',
+      cg ? [lien('Ouvrir Merchant Center', 'https://merchants.google.com/mc/products/sources?a=' + cg.merchant)] : []));
+    /* 4. Campagne */
+    this.elDemarrer.appendChild(pas(4, 'info', 'Publier la campagne dans Google Ads (une seule fois)',
+      (cg ? 'La campagne « ' + cg.campagne + ' » est prête : ' : '') + 'Google Ads › Campagnes › le brouillon › « Publier la campagne ». Elle dépense dès qu\'elle est publiée. Ensuite, rien à refaire : vos choix ici suffisent, Google suit la feuille.',
+      cg ? [lien('Ouvrir Google Ads', 'https://ads.google.com/aw/campaigns?ocid=' + cg.ocid, true)] : []));
   };
   VueFlux.prototype.codeEtablissement = function () {
     var self = this, d = this.rep || {}, cie = this.cie || 'BMW';
@@ -147,7 +232,7 @@
   /* 12 nov. : la feuille Google que Merchant Center lit chaque jour (FluxGoogle.gs, FGV_feuille). */
   VueFlux.prototype.feuille = function (corps, ok) {
     var self = this;
-    corps.action = 'fluxGoogleFeuille'; corps.compagnie = this.cie || 'BMW';
+    corps.action = 'fluxGoogleFeuille'; corps.compagnie = corps.compagnie || this.cie || 'BMW';
     return AMX.post(corps, { secours: false, delai: 120000 }).then(function (r) {
       if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Refusé');
       if (!r.message && r.vehicules) throw new Error(SCRIPT_PAS_A_JOUR);
@@ -205,14 +290,14 @@
     AMX.vider(this.elCorps);
     var est = d.prepare === false;
     this.btnLire.style.display = est ? 'none' : ''; this.btnFichier.style.display = est || !d.lignes || !d.lignes.length ? 'none' : '';
-    this.elSous.textContent = est ? 'Pas encore préparé pour cette concession.' : (d.nom || '') + (d.sitemapsLe ? ' · site lu le ' + AMX.fmtDate(d.sitemapsLe, true) : '') + ' · essai : rien n\'est envoyé à Google';
+    this.elSous.textContent = est ? 'Pas encore préparé pour cette concession.' : (d.nom || '') + (d.sitemapsLe ? ' · site lu le ' + AMX.fmtDate(d.sitemapsLe, true) : '') + ' · les véhicules mis de l\'avant sont annoncés sur Google';
     if (est) {
       this.elCorps.appendChild(h('div.fgv-vide', [h('p', { text: 'L\'essai commence avec BMW Sherbrooke.' }), h('button.btn.primaire', { type: 'button', text: 'Voir BMW Sherbrooke', onclick: function () { self.cie = 'BMW'; if (AMX.choisirCompagnie) AMX.choisirCompagnie('BMW'); self.charger(false); } })]));
       return;
     }
-    this.elCorps.appendChild(h('div.fgv-essai', { html: '<b>Essai.</b> Le flux est bâti à partir des fiches du site de la concession (prix affiché, photos, lien), vérifiées dans ScanAutomax. Rien n\'est envoyé à Google tant que le compte Merchant Center n\'est pas prêt.' }));
     (d.manque || []).forEach(function (m) { self.elCorps.appendChild(h('div.fgv-avis', [h('b', 'À faire : '), m + ' ', h('button.btn.petit', { type: 'button', text: 'Poser le code', onclick: function () { self.codeEtablissement(); } })])); });
-    this.elCorps.appendChild(this.carteFeuille(d));
+    this.elDemarrer = h('div.fgv-demarrer'); this.elCorps.appendChild(this.elDemarrer); this.rendreDemarrer();
+    if (!d.feuille) this.elCorps.appendChild(this.carteFeuille(d));
     if (d.jamaisLu) { this.elCorps.appendChild(h('div.fgv-vide', [h('p', { text: 'Le site n\'a pas encore été lu.' }), h('button.btn.primaire', { type: 'button', text: 'Lire le site de ' + (d.nom || 'la concession'), onclick: function () { self.lireSite(); } })])); return; }
     var n = d.compte || {};
     var tuile = function (cle, val, lib, ton) {
@@ -239,6 +324,8 @@
         return h('div.fgv-ligne', [h('div.sans', { text: a.quoi === 'neuf' ? 'Neuf' : 'Occasion' }), h('div.t', [h('b', { text: a.modele || 'Véhicule' }), h('div.m', { text: (a.stock ? '# ' + a.stock + ' · ' : '') + a.vin + (a.statut ? ' · ' + a.statut : '') })]), h('div.d')]);
       })));
     }
+    /* La feuille et son partage se règlent une fois : au bas de la page, repliés. */
+    if (d.feuille) this.elCorps.appendChild(h('details.fgv-reglages', [h('summary', { text: 'Feuille Google et partage (réglé une fois)' }), this.carteFeuille(d)]));
   };
   VueFlux.prototype.rendreListe = function () {
     var self = this, d = this.rep || {}, liste = this.filtrer();

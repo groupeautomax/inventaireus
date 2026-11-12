@@ -252,7 +252,7 @@
     this.conteneur = conteneur;
     this.onglet = ctx.onglet || 'apercu';
     this.params = ctx.params || {};
-    this.filtres = { recherche: '', concession: AMX.compagnieChoisie('inventaire') || AMX.maConcession(), etoiles: '', etat: '', personne: (ctx.params && ctx.params.personne) || '' };   /* 16 oct. : même concession que le reste du site */
+    this.filtres = { recherche: '', concession: AMX.compagnieChoisie('inventaire') || AMX.maConcession(), etoiles: '', etat: '', personne: (ctx.params && ctx.params.personne) || '', enLigne: '' };   /* 12 nov. : enLigne '' = en ligne seulement, 'retires', 'tous' */   /* 16 oct. : même concession que le reste du site */
     this.filtrePersonnes = '';   // Aperçu › tableau par personne : '', 'ventes', 'service', 'direction', 'autres'
     this.construire();
     this.charger();
@@ -314,7 +314,7 @@
       var b = e.currentTarget; b.disabled = true; b.textContent = 'Relevé en cours…';
       AMX.post({ action: 'avisRelever', mode: 'recent' }).then(function (r) {
         AMX.verifier(r, 'Relevé refusé');
-        AMX.toast((r.nouveaux ? r.nouveaux + ' nouvel' + (r.nouveaux > 1 ? 's' : '') + ' avis' : 'Aucun nouvel avis') + (r.modifies ? ', ' + r.modifies + ' mis à jour' : '') + (r.disparus ? ', ' + r.disparus + ' disparu' + (r.disparus > 1 ? 's' : '') : '') + (r.alertes ? ' · ' + r.alertes + ' alerte' + (r.alertes > 1 ? 's' : '') + ' envoyée' + (r.alertes > 1 ? 's' : '') : ''), 'ok');
+        AMX.toast((r.nouveaux ? r.nouveaux + ' nouvel' + (r.nouveaux > 1 ? 's' : '') + ' avis' : 'Aucun nouvel avis') + (r.modifies ? ', ' + r.modifies + ' mis à jour' : '') + (r.disparus ? ', ' + r.disparus + ' retiré' + (r.disparus > 1 ? 's' : '') + ' de Google' : '') + (r.verifies ? ' · ' + r.verifies + ' avis négatifs vérifiés' : '') + (r.alertes ? ' · ' + r.alertes + ' alerte' + (r.alertes > 1 ? 's' : '') + ' envoyée' + (r.alertes > 1 ? 's' : '') : ''), 'ok');
         return self.charger(true);
       }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); }).then(function () { b.disabled = false; b.textContent = 'Relever maintenant'; });
     } }, 'Relever maintenant') : null;
@@ -325,7 +325,7 @@
   Avis.prototype.rendreApercu = function (d) {
     var self = this, g = d.stats.groupe, ss = d.stats.sondages, rep = d.repere || {};
     var moiC = AMX.session.courriel;
-    var mesAvis = d.avis.filter(function (a) { return a.assigneA === moiC || a.employes.indexOf(moiC) >= 0; });
+    var mesAvis = d.avis.filter(function (a) { return a.enLigne && (a.assigneA === moiC || a.employes.indexOf(moiC) >= 0); });   /* 12 nov. : sans les avis retirés de Google */
     var mesATraiter = mesAvis.filter(function (a) { return A_TRAITER[a.etat]; }).length;
     var kpi = function (valeur, libelle, sous, classe, action) {
       return h('button.kpi' + (classe ? '.' + classe : '') + (action ? '' : '.neutre'), { type: 'button', onclick: action || null }, [
@@ -428,6 +428,7 @@
     // 16 oct. : la concession se choisit dans la rangée sous l'en-tête, comme partout (compte des avis par concession, mêmes autres filtres)
     var passe = function (a, sansCie) {
       if (!sansCie && f.concession && a.concession !== f.concession) return false;
+      if (!enLignePasse(a)) return false;
       if (f.personne) { var qui = f.personne === 'moi' ? moiC : f.personne; if (a.assigneA !== qui && a.employes.indexOf(qui) < 0) return false; }
       if (f.etoiles === 'neg' && !estNegatif(a)) return false;
       if (f.etoiles && f.etoiles !== 'neg' && a.etoiles !== Number(f.etoiles)) return false;
@@ -441,8 +442,13 @@
       compte: function (c) { return d.avis.filter(function (a) { return passe(a, true) && (!c || a.concession === c); }).length; },
       onchange: function (c) { f.concession = c; self.rendre(); } });
     this.elCorps.appendChild(elCies);
+    /* 12 nov. (suggestion S40E51E153F, Tommy, VW) : un avis retiré de Google n'est plus dans la liste ni dans les statistiques ;
+       « Retirés de Google » les montre. */
+    function enLignePasse(a) { return f.enLigne === 'tous' || (f.enLigne === 'retires' ? !a.enLigne : a.enLigne); }
+    var nRetires = d.avis.filter(function (a) { return !a.enLigne && (!f.concession || a.concession === f.concession); }).length;
     var liste = d.avis.filter(function (a) {
       if (f.concession && a.concession !== f.concession) return false;
+      if (!enLignePasse(a)) return false;
       if (f.personne) { var qui = f.personne === 'moi' ? moiC : f.personne; if (a.assigneA !== qui && a.employes.indexOf(qui) < 0) return false; }
       if (f.etoiles === 'neg' && !estNegatif(a)) return false;
       if (f.etoiles && f.etoiles !== 'neg' && a.etoiles !== Number(f.etoiles)) return false;
@@ -461,6 +467,10 @@
       h('select.saisie', { onchange: function (e) { f.etat = e.target.value; self.rendre(); } }, [h('option', { value: '', text: 'Tous les états', selected: !f.etat }), h('option', { value: 'traiter', text: 'À traiter', selected: f.etat === 'traiter' })].concat(Object.keys(ETATS).map(function (k) { return h('option', { value: k, text: ETATS[k].libelle, selected: f.etat === k }); }))),
       h('select.saisie', { title: 'Responsable ou crédité', onchange: function (e) { f.personne = e.target.value; self.rendre(); } }, [h('option', { value: '', text: 'Toutes les personnes', selected: !f.personne }), h('option', { value: 'moi', text: 'Mes avis', selected: f.personne === 'moi' })].concat(
         d.utilisateurs.filter(function (u) { return !f.concession || u.concession === '*' || (u.concessions || [u.concession]).indexOf(f.concession) >= 0; }).map(function (u) { return h('option', { value: u.courriel, text: u.nom + (u.departement ? ' (' + (DEP_NOMS[u.departement] || u.departement) + ')' : ''), selected: f.personne === u.courriel }); }))),
+      h('select.saisie', { title: 'Avis encore sur Google ou retirés de Google', onchange: function (e) { f.enLigne = e.target.value; self.rendre(); } }, [
+        h('option', { value: '', text: 'En ligne sur Google', selected: !f.enLigne }),
+        h('option', { value: 'retires', text: 'Retirés de Google (' + nRetires + ')', selected: f.enLigne === 'retires' }),
+        h('option', { value: 'tous', text: 'Tous, même retirés', selected: f.enLigne === 'tous' })]),
       h('span.doux.petit', liste.length + ' avis' + (liste.length !== d.avis.length ? ' sur ' + d.avis.length : ''))
     ]);
     this.elCorps.appendChild(filtres);
@@ -517,7 +527,7 @@
       h('div', [
         h('div.haut', [etoiles(a.etoiles, true), h('span.auteur', a.auteur || 'Anonyme'), badgeEtat(a.etat),
           h('span.meta', [a.fiche, date ? ' · ' + date : '', jours !== null && jours <= 30 ? ' · il y a ' + (jours === 0 ? 'moins d\'un jour' : jours + ' j') : '', a.source !== 'google' ? ' · ' + a.source : '']),
-          !a.enLigne ? h('span.badge.gris', 'Disparu de Google') : null,
+          !a.enLigne ? h('span.badge.gris', { title: 'Cet avis n\'est plus sur Google : il ne compte plus dans les statistiques' }, 'Retiré de Google' + (a.disparuLe ? ' le ' + AMX.fmtDate(a.disparuLe) : '')) : null,
           a.reponseEtat && a.reponseEtat !== 'APPROVED' ? h('span.badge.ambre', a.reponseEtat === 'PENDING' ? 'Réponse en modération' : 'Réponse refusée') : null,
           badgeRetrait(a)]),
         h('div.texte' + (a.texte ? '' : '.vide-texte'), a.texte || 'Note sans commentaire.'),
@@ -531,6 +541,9 @@
           moiCredite ? null : h('button.btn.petit', { type: 'button', title: 'M\'ajouter aux crédités', onclick: function () { self.ecrire({ action: 'avisEmployes', id: a.id, employes: a.employes.concat([moiC]) }, 'Avis crédité à vous'); } }, 'Me créditer'),
           a.assigneA === moiC ? null : h('button.btn.petit', { type: 'button', title: 'Devenir le responsable de cet avis', onclick: function () { self.ecrire({ action: 'avisAssigner', id: a.id, courriel: moiC }, 'Vous êtes responsable de cet avis'); } }, 'Je m\'en occupe'),
           a.lien ? h('a.btn.petit', { href: a.lien, target: '_blank', rel: 'noopener' }, [AMX.svg('externe'), ' Google']) : null,
+          /* 12 nov. : un avis qu'on a fait retirer disparaît tout de suite, sans attendre le relevé complet de la nuit */
+          peutRepondre(d) && a.repondable && d.api && d.api.approuve ? h('button.btn.petit', { type: 'button', title: 'Demander à Google si cet avis est toujours en ligne (un avis retiré quitte la liste et les statistiques)',
+            onclick: function (e) { var b = e.currentTarget; b.disabled = true; b.textContent = 'Vérification…'; self.ecrire({ action: 'avisVerifier', id: a.id }, function (r) { return r.message; }).then(function () { b.disabled = false; b.textContent = 'Vérifier sur Google'; }); } }, 'Vérifier sur Google') : null,
           peutRepondre(d) && a.source === 'google' ? h('button.btn.petit.avis-retrait' + (a.retrait && a.retrait.etat ? '.actif' : ''), { type: 'button', title: 'Demander à Google de retirer cet avis (faux avis, conflit d\'intérêts, harcèlement, diffamation…)', onclick: function () { self.modaleRetrait(a, d); } }, a.retrait && a.retrait.etat ? 'Retrait : ' + (RETRAIT_ETATS[a.retrait.etat] || a.retrait.etat) : 'Demander le retrait') : null
         ])
       ])
@@ -796,7 +809,7 @@
       }
       AMX.verifier(r, 'Écriture refusée');
       if (!r.avis && r.vehicules) throw new Error(SCRIPT_PAS_A_JOUR);   // v100 : action inconnue du script déployé → ancien traitement d'inventaire
-      AMX.toast(r.dejaPubliee ? 'Cette réponse était déjà publiée sur Google — rien en double.' : (message || 'Enregistré'), 'ok');
+      AMX.toast(r.dejaPubliee ? 'Cette réponse était déjà publiée sur Google — rien en double.' : ((typeof message === 'function' ? message(r) : message) || 'Enregistré'), 'ok');
       self.charger(true);
       return true;
     }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });   // 15 oct. : .catch (un refus du serveur, p. ex. « Google a refusé la réponse », était une erreur non attrapée)

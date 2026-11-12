@@ -398,7 +398,9 @@
       /* 2 nov. : le circuit du directeur */
       approuver: !portail && x.etat === 'approbation' && !!moi.diriger,
       confirmer: !portail && x.etat === 'aconfirmer' && !!moi.diriger,
-      voirEvaluation: !portail && !!x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer')
+      voirEvaluation: !portail && !!x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer'),
+      /* 12 nov. (suggestion S8DC45A94DF) : rouvrir sa demande pour la corriger (km, note, client, état, photos) */
+      modifier: x.etat !== 'annulee' && x.etat !== 'refusee' && (x.deMoi || !!moi.direction)
     };
   }
   function priseParAutre(x) { return !!x.prise && !x.pourMoi; }
@@ -427,6 +429,42 @@
         if (!choix) { AMX.toast('Choisissez une raison.', 'attention'); return false; }
         var raison = choix + (inAutre.value.trim() ? ' — ' + inAutre.value.trim() : '');
         return action(x.id, 'issue', { issue: 'perdue', raison: raison }).then(function (r) { AMX.toast(r.message, 'ok'); }).catch(function (e) { erreur(e); return false; });
+      } }] });
+  }
+  /* 12 nov. (suggestion S8DC45A94DF, Gabriel, BMW : « pouvoir réouvrir les évaluations une fois envoyées pour modifier ou corriger —
+     ajouter des photos, une mention, ajuster le kilométrage ») : la même fenêtre que la demande, remplie. Rien n'est envoyé :
+     le changement s'écrit dans le fil de la demande, que l'évaluateur voit ; les photos vont au NIV. */
+  function modifier(x) {
+    injecterCss();
+    var inKm = h('input.saisie', { type: 'text', inputmode: 'numeric', placeholder: 'Kilométrage', value: x.km || '' });
+    var inClient = h('input.saisie', { type: 'text', placeholder: 'Nom du client', value: x.client || '' });
+    var inTel = h('input.saisie', { type: 'tel', placeholder: 'Téléphone (facultatif)', value: x.telephone || '' });
+    var inNote = h('textarea.saisie', { rows: '3', placeholder: 'Note pour l\'évaluateur : options, dommages, ce que le client espère…' });
+    inNote.value = x.note || '';
+    var inPhotos = h('input', { type: 'file', accept: 'image/*', multiple: true, style: { display: 'none' } });
+    var elPhotos = h('span.mini', { text: x.photos ? x.photos + ' photo' + (x.photos > 1 ? 's' : '') + ' déjà jointe' + (x.photos > 1 ? 's' : '') : 'aucune photo' });
+    inPhotos.onchange = function () { var n = inPhotos.files.length; elPhotos.textContent = n ? n + ' photo' + (n > 1 ? 's' : '') + ' à ajouter' : (x.photos ? x.photos + ' déjà jointe(s)' : 'aucune photo'); };
+    var detail = formDetail(x.detail);
+    var valeurDonnee = x.etat === 'faite' || x.etat === 'aconfirmer';
+    AMX.modale({ titre: 'Modifier la demande — ' + (x.vehicule || x.vin), large: true, corps: h('div.de-demande', [
+      h('p.mini', { text: valeurDonnee ? 'La valeur est déjà donnée : ce que vous changez s\'ajoute à la demande, la valeur reste la même. Si le kilométrage ou l\'état change beaucoup, demandez plutôt une réévaluation.'
+        : 'Ce que vous changez s\'ajoute au fil de la demande : l\'évaluateur le voit. Rien n\'est envoyé par texto.' }),
+      h('div.de-grille', [
+        h('label.champ', [h('span', 'Kilométrage'), inKm]),
+        h('label.champ', [h('span', 'Client'), inClient]),
+        h('label.champ', [h('span', 'Téléphone du client'), inTel]),
+        detail ? detail.el : null,
+        h('div.champ.large', [h('span', 'Ajouter des photos'), h('div.actions-ligne', { style: { alignItems: 'center', gap: '10px' } }, [
+          h('button.btn.petit', { type: 'button', html: I.photo + '<span>Choisir des photos</span>', onclick: function () { inPhotos.click(); } }), elPhotos, inPhotos])]),
+        h('label.champ.large', [h('span', 'Note pour l\'évaluateur'), inNote])])]),
+      boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer les changements', classe: 'primaire', action: function () {
+        var fichiers = [].slice.call(inPhotos.files || []);
+        var corps = { km: inKm.value, client: inClient.value, telephone: inTel.value, note: inNote.value, photosAjoutees: fichiers.length };
+        if (detail) corps.detail = detail.get();
+        return action(x.id, 'modifier', corps).then(function (r) {
+          AMX.toast(r.message || 'Demande modifiée', r.kmApresValeur ? 'attention' : 'ok', r.kmApresValeur ? 9000 : 5000);
+          if (fichiers.length) envoyerPhotos(x.vin, fichiers);
+        }).catch(function (e) { erreur(e); return false; });
       } }] });
   }
   function reevaluer(x) {
@@ -984,6 +1022,7 @@
     if (!this.portail) boutons.push(h('button.btn.petit', { type: 'button', text: 'Fiche', title: 'Le résumé : photos, valeur, état, client', onclick: function () { ficheDemande(x); } }));
     if (dr.voirEvaluation) boutons.push(h('button.btn.petit', { type: 'button', text: 'Évaluation complète', onclick: function () { AMX.aller('outils', 'evaluation', x.etat === 'aconfirmer' ? { vin: x.vin, demande: x.id } : { vin: x.vin }); } }));
     if (x.issue === 'achetee') boutons.push(h('button.btn.petit', { type: 'button', text: 'Fiche d\'achat', onclick: function () { AMX.aller('achat', '', { vin: x.vin }); } }));
+    if (dr.modifier) boutons.push(h('button.btn.petit', { type: 'button', text: 'Modifier', title: 'Corriger la demande : kilométrage, note, client, état du véhicule, photos', onclick: function () { modifier(x); } }));
     if (dr.reevaluer) boutons.push(h('button.btn.petit', { type: 'button', text: 'Réévaluer', onclick: function () { reevaluer(x); } }));
     var nMsg = (x.messages || []).length, ouvert = !!this.filsOuverts[x.id] || (x.infoDemandee && x.deMoi);
     boutons.push(h('button.btn.petit' + (ouvert ? '.actif' : ''), { type: 'button', text: nMsg ? 'Messages (' + nMsg + ')' : 'Message', onclick: function () { self.filsOuverts[x.id] = !ouvert; self.rendre(); } }));

@@ -185,9 +185,11 @@
     var constats = puces('Constats', L.constats, 'rouge', pe.constats), garanties = puces('Garanties', L.garanties, 'bleu', pe.garanties), options = puces('Options', L.options, 'vert', pe.options);
     var majAccident = function () { c.accidentMontant.el.style.display = c.accident.input.value === 'oui' || c.accidentMontant.input.value ? '' : 'none'; };
     c.accident.input.addEventListener('change', majAccident); majAccident();
+    /* 12 nov. : repliés, ouverts seulement s'ils ont déjà quelque chose (Modifier) */
+    var aDu = function (o) { return Object.keys(o || {}).some(function (k) { var v = o[k]; return Array.isArray(v) ? v.length : (v !== '' && v !== null && v !== undefined); }); };
     var el = h('div.large.de-detail-form', [
-      h('details.de-detail-bloc', { open: true }, [h('summary', 'Le client'), h('div.de-grille', [c.courriel.el, c.typeClient.el, c.langue.el, c.origine.el, c.transaction.el, c.cherche.el])]),
-      h('details.de-detail-bloc', { open: true }, [h('summary', 'État du véhicule'), h('div.de-grille.trois', [c.general.el, c.cles.el, c.couleurExt.el, c.couleurInt.el, c.pneusEte.el, c.pneusHiver.el, c.pneusDim.el, c.pareBrise.el,
+      h('details.de-detail-bloc', { open: aDu(ps) }, [h('summary', 'Le client'), h('div.de-grille', [c.courriel.el, c.typeClient.el, c.langue.el, c.origine.el, c.transaction.el, c.cherche.el])]),
+      h('details.de-detail-bloc', { open: aDu(pe) }, [h('summary', 'État du véhicule'), h('div.de-grille.trois', [c.general.el, c.cles.el, c.couleurExt.el, c.couleurInt.el, c.pneusEte.el, c.pneusHiver.el, c.pneusDim.el, c.pareBrise.el,
         c.accident.el, c.accidentMontant.el, c.financement.el, c.soldePret.el, c.carrosserie.el, c.voyants.el]), constats.el, garanties.el, options.el])
     ]);
     return {
@@ -308,10 +310,15 @@
     inNote.value = prefill.note || '';
     var inPhotos = h('input', { type: 'file', accept: 'image/*', multiple: true, style: { display: 'none' } });
     var elPhotos = h('span.mini', { text: 'aucune photo' });
-    var btnPhotos = h('button.btn.petit', { type: 'button', html: I.photo + '<span>Ajouter des photos</span>', onclick: function () { inPhotos.click(); } });
+    var btnPhotos = h('button.btn.de-photos-btn', { type: 'button', html: I.photo + '<span>Prendre ou ajouter des photos</span>', onclick: function () { inPhotos.click(); } });
     var detail = formDetail(prefill.detail);
     inPhotos.onchange = function () { var n = inPhotos.files.length; elPhotos.textContent = n ? n + ' photo' + (n > 1 ? 's' : '') + ' prête' + (n > 1 ? 's' : '') : 'aucune photo'; };
-    var elEval = h('div.de-evaluateurs'), elAvis = h('div.mini.de-avis-eval');
+    var elEval = h('div.de-evaluateurs'), elAvis = h('div.mini.de-avis-eval'), elChoixRes = null;
+    var resumeChoix = function () {
+      if (!elChoixRes) return;
+      var v = picker ? picker.valeur() : ['disponible'], liste = d.evaluateurs[selCie.value] || [];
+      elChoixRes.textContent = v[0] === 'disponible' ? 'premier disponible' : liste.filter(function (e) { return v.indexOf(e.courriel) >= 0; }).map(function (e) { return e.nom; }).join(', ');
+    };
     var dessinerEvaluateurs = function () {
       AMX.vider(elEval); elAvis.textContent = ''; picker = null;
       if (sansChoix) return;
@@ -319,8 +326,9 @@
       if (!selCie.value) { elEval.appendChild(h('span.mini', 'Choisissez d\'abord la concession.')); return; }
       if (!liste.length) { elEval.appendChild(h('span.mini', { style: { color: 'var(--rouge)' }, text: 'Aucun évaluateur pour cette concession : la direction coche le droit « Évaluateur » dans Admin.' })); return; }
       /* 4 nov. : une ou plusieurs personnes — le premier qui la prend la fait */
-      picker = choixEvaluateurs(liste, memoChoix, { maxOuvertes: R.maxOuvertes });
+      picker = choixEvaluateurs(liste, memoChoix, { maxOuvertes: R.maxOuvertes, surChange: resumeChoix });
       elEval.appendChild(picker.el);
+      resumeChoix();
     };
     selCie.onchange = dessinerEvaluateurs;
     var decoder = function () {
@@ -331,42 +339,44 @@
     };
     inVin.addEventListener('input', function () { if (inVin.value.replace(/[^A-Za-z0-9]/g, '').length === 17) decoder(); else elVeh.textContent = ''; });
     if (prefill.vin) decoder();
-    corps.appendChild(h('div.de-grille', [
-      codes.length > 1 ? h('label.champ', [h('span', 'Concession'), selCie]) : null,
+    /* 12 nov. (Maxime : « le processus d'évaluation est compliqué… Torque est plus simple ; ça doit être facile de faire la
+       demande ») : quatre choses à l'écran — le NIV, le km, les photos, le client. Le reste (note, client en détail, état du
+       véhicule, options) est replié sous « Ajouter des détails » ; l'évaluateur est « Premier disponible » sauf si la
+       direction l'ouvre. Aucune phrase d'explication. */
+    var elDetails = h('details.de-plus', [h('summary', 'Ajouter des détails (facultatif)'), h('div.de-grille', [h('label.champ.large', [h('span', 'Note pour l\'évaluateur'), inNote]), detail ? detail.el : null])]);
+    if (prefill.note || (prefill.detail && resumeDetail(prefill.detail))) elDetails.open = true;
+    var elChoix = sansChoix ? null : h('details.de-plus', [h('summary', [h('span', 'Évaluateur : '), elChoixRes = h('b', { text: 'premier disponible' })]), h('div', [elEval, elAvis])]);
+    corps.appendChild(h('div.de-grille.de-court', [
+      codes.length > 1 && !cie ? h('label.champ.large', [h('span', 'Concession'), selCie]) : null,
       h('label.champ', [h('span', 'NIV'), inVin, elVeh]),
       h('label.champ', [h('span', 'Kilométrage'), inKm]),
+      h('div.champ.large', [h('span', 'Photos'), h('div.de-photos-ligne', [btnPhotos, elPhotos, inPhotos])]),
       h('label.champ', [h('span', 'Client'), inClient]),
-      h('label.champ', [h('span', 'Téléphone du client'), inTel]),
-      detail ? detail.el : null,
-      h('div.champ.large', [h('span', 'Photos du véhicule (tableau de bord, 4 côtés, intérieur, dommages)'), h('div.actions-ligne', { style: { alignItems: 'center', gap: '10px' } }, [btnPhotos, elPhotos, inPhotos])]),
-      h('label.champ.large', [h('span', 'Note pour l\'évaluateur'), inNote]),
-      sansChoix ? null : h('div.champ.large', [h('span', moiF.diriger ? 'Évaluateurs (un ou plusieurs)' : 'Évaluateur proposé'), elEval, elAvis]),
-      moiF.diriger ? null : h('p.mini.large.de-circuit', { text: 'Votre demande va d\'abord à la direction, qui l\'approuve et l\'envoie à l\'évaluateur. Le montant vous revient par texto une fois confirmé par la direction.' })
+      h('label.champ', [h('span', 'Téléphone'), inTel]),
+      h('div.large', [elDetails, elChoix])
     ]));
+    if (codes.length > 1 && cie) corps.insertBefore(h('p.de-cie-ligne', [h('span', { text: nomCie(cie) }), h('button.lien', { type: 'button', text: 'changer', onclick: function (e) { e.target.parentNode.replaceWith(h('label.champ', [h('span', 'Concession'), selCie])); } })]), corps.firstChild);
     dessinerEvaluateurs();
-    var btnEnvoyer = h('button.btn.primaire', { type: 'button', html: I.courriel + '<span>Envoyer la demande</span>' });
-    corps.appendChild(h('div.actions-ligne', { style: { justifyContent: 'flex-end', marginTop: '12px' } }, [btnEnvoyer]));
-    btnEnvoyer.onclick = function () {
+    var envoyer = function () {
       var vin = inVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-      if (!selCie.value) { AMX.toast('Choisissez la concession.', 'attention'); return; }
-      if (!vinValide(vin)) { AMX.toast('NIV invalide : 17 caractères (sans I, O ni Q).', 'attention'); inVin.focus(); return; }
-      if (!sansChoix && !(d.evaluateurs[selCie.value] || []).length) { AMX.toast('Aucun évaluateur pour cette concession.', 'erreur'); return; }
+      if (!selCie.value) { AMX.toast('Choisissez la concession.', 'attention'); return false; }
+      if (!vinValide(vin)) { AMX.toast('NIV invalide : 17 caractères (sans I, O ni Q).', 'attention'); inVin.focus(); return false; }
+      if (!sansChoix && !(d.evaluateurs[selCie.value] || []).length) { AMX.toast('Aucun évaluateur pour cette concession.', 'erreur'); return false; }
       var fichiers = [].slice.call(inPhotos.files || []);
-      btnEnvoyer.classList.add('occupe');
       var choisis = picker ? picker.valeur() : ['disponible'];
       if (!sansChoix) AMX.memo.ecrire('evalDemande_evaluateur', choisis.join(','));
-      AMX.post({ action: 'evalDemander', compagnie: selCie.value, vin: vin, km: inKm.value, client: inClient.value, telephone: inTel.value, note: inNote.value, photos: fichiers.length,
+      return AMX.post({ action: 'evalDemander', compagnie: selCie.value, vin: vin, km: inKm.value, client: inClient.value, telephone: inTel.value, note: inNote.value, photos: fichiers.length,
         annee: elVeh.dataset.annee || '', marque: elVeh.dataset.marque || '', modele: elVeh.dataset.modele || '', evaluateur: sansChoix ? 'disponible' : choisis.join(','), evaluateurs: sansChoix ? [] : choisis,
         detail: detail ? detail.get() : null }, { secours: false, delai: 60000 }).then(function (x) {
         if (!x || x.refuse || x.ok === false) throw new Error((x && x.erreur) || 'Refusé');
         if (!x.demande) throw new Error(SCRIPT_PAS_A_JOUR);
         poser(x.demande);
         AMX.toast(x.message || 'Demande envoyée', x.deja || /absent/.test(x.message || '') ? 'attention' : 'ok', 6000);
-        m.fermer();
         if (fichiers.length && !x.deja) envoyerPhotos(vin, fichiers);
         if (prefill.apres) prefill.apres(x.demande);
-      }).catch(erreur).then(function () { btnEnvoyer.classList.remove('occupe'); });
+      }).catch(function (e) { erreur(e); return false; });
     };
+    if (m.boutons) m.boutons([{ texte: 'Annuler' }, { texte: 'Envoyer la demande', classe: 'primaire', action: function () { return envoyer(); } }]);
     setTimeout(function () { (prefill.vin ? inKm : inVin).focus(); }, 50);
   }
   function envoyerPhotos(vin, fichiers) {
@@ -410,6 +420,31 @@
     if (x.prise) return (x.prisParNom || x.evaluateurNom || '—') + ' (l\'a prise)';
     if (dest.length > 1) return dest.map(function (e) { return e.nom; }).join(', ') + ' (le premier qui la prend)';
     return x.evaluateurNom || (dest[0] && dest[0].nom) || '—';
+  }
+  /* 12 nov. (Maxime : « ça doit être facile de faire la demande, la consulter, l'envoyer, la recevoir ») : chaque demande a
+     au plus UN geste pour la personne qui la regarde — le gros bouton de sa ligne et de sa fiche. Tout le reste est dans
+     « Actions ». null = rien à faire pour moi. */
+  function monAction(x, d, portail) {
+    var dr = droits(x, d, portail);
+    if (dr.approuver) return { texte: 'Approuver', faire: function () { approuver(x, d); } };
+    if (dr.confirmer) return { texte: 'Confirmer le montant', faire: function () { confirmerMontant(x); } };
+    if (dr.evaluer) return { texte: x.etat === 'afaire' ? 'Prendre et évaluer' : 'Évaluer', faire: function () { evaluer(x); } };
+    if (x.deMoi && x.infoDemandee) return { texte: 'Répondre', faire: function () { ficheDemande(x, { fil: true, portail: portail }); } };
+    if (dr.resultat && x.deMoi && !x.issue && !x.expiree) return { texte: 'Indiquer le résultat', faire: function () { ficheDemande(x, { portail: portail }); } };
+    return null;
+  }
+  /* La ligne d'avancement d'une demande (même dessin que le Suivi service) */
+  function pasDe(x) {
+    var circuit = x.circuit === 'directeur', evaluee = x.etat === 'faite' || x.etat === 'aconfirmer', ouverte = x.etat === 'afaire' || x.etat === 'encours';
+    var pas = [{ court: 'Demandée', titre: 'Demandée ' + quand(x.creeLe) + (x.demandeParNom ? ' par ' + x.demandeParNom : ''), etat: 'fait' }];
+    if (circuit) pas.push({ court: x.etat === 'refusee' ? 'Refusée' : 'Approuvée', titre: x.approuveLe ? 'Approuvée ' + quand(x.approuveLe) + (x.approuveParNom ? ' par ' + x.approuveParNom : '') : 'Approbation de la direction',
+      etat: x.etat === 'refusee' ? 'refuse' : (x.approuveLe || ouverte || evaluee ? 'fait' : (x.etat === 'approbation' ? 'encours' : 'afaire')) });
+    pas.push({ court: 'Évaluée', titre: x.faiteLe ? 'Évaluée ' + quand(x.faiteLe) + (x.faitePar ? ' par ' + x.faitePar : '') : 'Évaluation', etat: evaluee ? 'fait' : (ouverte ? 'encours' : 'afaire') });
+    if (circuit) pas.push({ court: 'Confirmée', titre: x.confirmeLe ? 'Montant confirmé ' + quand(x.confirmeLe) + (x.confirmeParNom ? ' par ' + x.confirmeParNom : '') : 'Confirmation du montant', etat: x.etat === 'faite' ? 'fait' : (x.etat === 'aconfirmer' ? 'encours' : 'afaire') });
+    pas.push({ court: x.issue ? ISSUES[x.issue] : 'Résultat', titre: x.issue ? ISSUES[x.issue] : 'Achetée ou perdue', etat: x.issue ? (x.issue === 'perdue' ? 'refuse' : 'fait') : (x.etat === 'faite' ? 'encours' : 'afaire') });
+    if (x.etat === 'annulee') pas.forEach(function (p) { if (p.etat !== 'fait') p.etat = 'saute'; });
+    var cour = pas.filter(function (p) { return p.etat === 'encours'; })[0]; if (cour) cour.courante = true;
+    return pas;
   }
   function evaluer(x) {
     var aller = function () { AMX.aller('outils', 'evaluation', { vin: x.vin, demande: x.id }); };
@@ -511,6 +546,7 @@
         if (!choisis.length) choisis = ['disponible'];
       }
       dessiner();
+      if (opts.surChange) opts.surChange();
     };
     var dessiner = function () {
       AMX.vider(grille);
@@ -663,28 +699,49 @@
   function ficheDemande(x, opts) {
     opts = opts || {};
     injecterCss();
-    var d = cache.rep || {}, dr = droits(x, d, false), R = reglages(d);
+    var portail = !!opts.portail || !!(AMX.representantEval && AMX.representantEval());
+    var d = cache.rep || {}, dr = droits(x, d, portail), R = reglages(d);
     var elPhotos = h('div.fe-photos');
-    var elValeur = h('div.fe-valeur'), elEtat = h('div.fe-bloc'), elClient = h('div.fe-bloc');
-    var etatLib = { approbation: ['À approuver', 'violet'], afaire: ['À évaluer', 'ambre'], encours: ['En évaluation', 'bleu'], aconfirmer: ['Montant à confirmer', 'bleu'], faite: ['Valeur confirmée', 'vert'], refusee: ['Refusée', 'gris'], annulee: ['Annulée', 'gris'] }[x.etat] || [x.etat, 'gris'];
+    var elValeur = h('div.fe-valeur'), elEtat = h('div.fe-bloc'), elClient = h('div.fe-bloc'), hEtat = null, hClient = null;
     var titreVeh = x.vehicule || [x.annee, x.marque, x.modele].filter(Boolean).join(' ') || 'Véhicule';
     var sousVeh = h('div.fe-sous', [x.km ? h('span', { text: AMX.fmtNombre(x.km) + ' km' }) : null, h('span.mono', { text: x.vin }), h('span', { text: (AMX.COMPAGNIES_TOUTES || {})[x.compagnie] || x.compagnie || '' }),
       AMX.cfxPastilles ? AMX.cfxPastilles.puce(x.vin) : null]);
-    var entete = h('div.fe-entete', [h('div', [h('div.fe-titre', { text: titreVeh }), sousVeh]), h('span.badge.' + etatLib[1], { text: etatLib[0] })]);
+    var fermerFiche = function () {};
+    var voit = !portail;
+    /* 12 nov. : les gestes secondaires dans « Actions » ; un seul gros bouton en bas (monAction) */
+    var autres = [];
+    if (dr.modifier) autres.push({ texte: 'Modifier la demande', action: function () { fermerFiche(); modifier(x); } });
+    autres.push({ texte: (x.messages || []).length ? 'Messages (' + x.messages.length + ')' : 'Écrire un message', action: function () { fermerFiche(); ouvrirFil(x.id); } });
+    if (dr.transferer) autres.push({ texte: x.etat === 'approbation' ? 'Changer les évaluateurs proposés' : 'Transférer à un autre évaluateur', action: function () { fermerFiche(); transferer(x, d); } });
+    if (dr.approuver) autres.push({ texte: 'Refuser la demande', action: function () { fermerFiche(); refuser(x); } });
+    if (dr.confirmer) autres.push({ texte: 'Renvoyer à l\'évaluateur', action: function () { fermerFiche(); renvoyer(x); } });
+    if (dr.piloter) {
+      autres.push({ texte: attendDirection(x) ? 'Relancer la direction (texto)' : 'Relancer l\'évaluateur', action: function () { action(x.id, 'relancer').then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); } });
+      autres.push({ texte: 'Annuler la demande', action: function () { AMX.confirmer('Annuler la demande ?', titreVeh + ' · ' + x.vin, { ok: 'Annuler la demande', danger: true }).then(function (ok) { if (ok) { fermerFiche(); action(x.id, 'annuler', { raison: '' }).then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); } }); } });
+    }
+    if (dr.reevaluer) autres.push({ texte: 'Réévaluer', action: function () { fermerFiche(); reevaluer(x); } });
+    if (voit && x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer' || x.etat === 'encours')) autres.push({ texte: 'Évaluation complète', action: function () { fermerFiche(); AMX.aller('outils', 'evaluation', x.etat === 'aconfirmer' ? { vin: x.vin, demande: x.id } : { vin: x.vin }); } });
+    if (x.issue === 'achetee') autres.push({ texte: 'Fiche d\'achat', action: function () { fermerFiche(); AMX.aller('achat', '', { vin: x.vin }); } });
+    var entete = h('div.fe-entete', [h('div', [h('div.fe-titre', { text: titreVeh }), sousVeh]), autres.length && AMX.menuActions ? AMX.menuActions(autres, { petit: true }) : null]);
     var qui = h('div.fe-qui', [
-      ficheChamp('Représentant', x.demandeParNom), ficheChamp('Évaluateur', x.faitePar || x.prisParNom || x.evaluateurNom),
+      ficheChamp('Représentant', x.demandeParNom), ficheChamp('Évaluateur', x.faitePar || x.prisParNom || (x.prise || x.etat === 'faite' ? x.evaluateurNom : '')),
       ficheChamp('Demandée le', AMX.fmtDate(x.creeLe, true)), x.faiteLe ? ficheChamp('Évaluée le', AMX.fmtDate(x.faiteLe, true)) : null
     ].filter(Boolean));
-    var corps = h('div.fe-fiche', [entete, elPhotos, elValeur, h('h3.fe-h', { text: 'État du véhicule' }), elEtat, h('h3.fe-h', { text: 'Client et demande' }), elClient, qui]);
+    var resultat = null;
+    if (dr.resultat) resultat = h('div.de-resultat', [h('b', 'Résultat :')].concat(['presentee', 'achetee', 'perdue'].map(function (k) {
+      return h('button.btn' + (x.issue === k ? '.actif.' + k : ''), { type: 'button', 'aria-pressed': String(x.issue === k), onclick: function () { fermerFiche(); choisirIssue(x, k); } }, [k === 'perdue' ? 'Perdue…' : ISSUES[k]]);
+    })));
+    var info = null;
+    if (x.infoDemandee) { var qq = (x.messages || []).filter(function (mm) { return mm.info; }).pop(); info = h('div.de-info', [h('b', { text: (qq ? qq.nom : 'L\'évaluateur') + ' demande : ' }), h('span', { text: '« ' + (qq ? qq.texte : '') + ' »' })]); }
+    var fil = opts.fil || (x.infoDemandee && x.deMoi) ? blocFil(x, d, {}) : null;
+    var corps = h('div.fe-fiche', [entete, AMX.ligneAvancement ? AMX.ligneAvancement(pasDe(x)) : null, info, fil, elValeur, resultat, elPhotos, hEtat = h('h3.fe-h', { text: 'État du véhicule' }), elEtat, hClient = h('h3.fe-h', { text: 'Client' }), elClient, qui]);
     fichePhotos(elPhotos, x);
 
-    var boutons = [];
-    if (dr.approuver) { boutons.push({ texte: 'Refuser…', action: function (fermer) { fermer(); refuser(x); } }); boutons.push({ texte: 'Approuver…', classe: 'primaire', action: function (fermer) { fermer(); approuver(x, d); } }); }
-    if (dr.confirmer) { boutons.push({ texte: 'Renvoyer à l\'évaluateur…', action: function (fermer) { fermer(); renvoyer(x); } }); boutons.push({ texte: 'Confirmer le montant…', classe: 'primaire', action: function (fermer) { fermer(); confirmerMontant(x); } }); }
-    var voit = !(AMX.representantEval && AMX.representantEval());
-    if (voit && x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer' || x.etat === 'encours')) boutons.unshift({ texte: 'Évaluation complète', classe: 'fantome', action: function (fermer) { fermer(); AMX.aller('outils', 'evaluation', x.etat === 'aconfirmer' ? { vin: x.vin, demande: x.id } : { vin: x.vin }); } });
-    boutons.unshift({ texte: 'Fermer', classe: 'fantome' });
-    AMX.modale({ titre: 'Évaluation — ' + titreVeh, corps: corps, large: true, classe: 'fe-voile', proteger: false, boutons: boutons });
+    var boutons = [{ texte: 'Fermer', classe: 'fantome' }];
+    var geste = monAction(x, d, portail);
+    if (geste && geste.texte !== 'Répondre' && geste.texte !== 'Indiquer le résultat') boutons.push({ texte: geste.texte, classe: 'primaire', action: function (fermer) { fermer(); geste.faire(); } });
+    var mf = AMX.modale({ titre: titreVeh, corps: corps, large: true, classe: 'fe-voile', proteger: false, boutons: boutons });
+    fermerFiche = mf.fermer;
 
     var dessinerValeur = function (ev) {
       AMX.vider(elValeur);
@@ -694,7 +751,7 @@
       } else if (valEv) {
         elValeur.appendChild(h('div.fe-montant', [h('span', { text: x.etat === 'aconfirmer' ? 'Valeur de l\'évaluateur — à confirmer' : 'Valeur de l\'évaluateur' }), h('b', { text: argent(valEv) })]));
       } else {
-        elValeur.appendChild(h('div.fe-montant.vide', [h('span', { text: x.etat === 'approbation' ? 'Pas encore évaluée — la demande attend votre approbation' : 'Pas encore évaluée' })]));
+        elValeur.appendChild(h('div.fe-montant.sans', [h('span', { text: x.etat === 'approbation' ? 'À approuver' : (x.etat === 'refusee' ? 'Refusée' : (x.etat === 'annulee' ? 'Annulée' : 'Pas encore évaluée')) })]));
       }
       if (!ev) return;
       var m = ev.marche || {}, pctM = Number(m.marchePct);
@@ -717,9 +774,9 @@
       if (x.note) elClient.appendChild(h('p.fe-note', [h('b', { text: 'Note du représentant : ' }), x.note]));
       if (x.renvoiRaison && x.etat !== 'faite') elClient.appendChild(h('p.fe-note', [h('b', { text: 'Renvoyée à l\'évaluateur : ' }), x.renvoiRaison]));
       if (x.refusRaison && x.etat === 'refusee') elClient.appendChild(h('p.fe-note', [h('b', { text: 'Refusée : ' }), x.refusRaison]));
-      if (!elClient.childNodes.length) elClient.appendChild(h('p.mini', { text: 'Aucun renseignement sur le client.' }));
     };
-    var tout = function (ev) { dessinerValeur(ev); AMX.vider(elEtat); elEtat.appendChild(ficheEtat(ev, x.detail)); dessinerClient(ev); };
+    /* 12 nov. : une section vide ne paraît pas (ni son titre) */
+    var tout = function (ev) { dessinerValeur(ev); AMX.vider(elEtat); var et = ficheEtat(ev, x.detail); if (et.tagName !== 'P') elEtat.appendChild(et); hEtat.style.display = elEtat.childNodes.length ? '' : 'none'; dessinerClient(ev); hClient.style.display = elClient.childNodes.length ? '' : 'none'; };
     tout(null);
     if (voit && x.vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(x.vin) && x.etat !== 'approbation') {
       AMX.get('evalVin=' + encodeURIComponent(x.vin), { discret: true }).then(function (r) { if (r && r.trouve && r.donnees) tout(r.donnees); }).catch(function () {});
@@ -766,31 +823,48 @@
     dessiner();
   }
 
-  /* ------------------------------ Page ------------------------------ */
+  /* ------------------------------ Page ------------------------------
+     12 nov. (Maxime : « les gens disent que le processus d'évaluation est compliqué, Torque est plus simple ; il y a plein
+     d'écrits partout ; ça doit être facile de faire la demande, la consulter, l'envoyer, la recevoir ; pas besoin de
+     toujours répéter les menus ») : un seul écran « Évaluations » pour tout le monde — un gros bouton « Nouvelle
+     évaluation », une recherche, En cours / Terminées, et une liste où ce qui attend MON geste vient en premier avec son
+     bouton. Plus de vues Direction / À évaluer / Mes demandes, plus de tuiles de chiffres ni de phrases d'explication :
+     le Tableau, les Statistiques, la disponibilité, le Registre, l'Archive Torque et l'évaluation sans demande sont dans
+     « Actions ». Le circuit (direction → évaluateur → direction → représentant) ne change pas. */
   AMX.section('demandesEval', {
-    titre: 'Demandes d\'évaluation', icone: 'outils', ordre: 23,
+    titre: 'Évaluations', icone: 'outils', ordre: 23,
     visible: function () { return (AMX.perm('consulter') || AMX.estAdmin()) && (!AMX.voitEvaluations || AMX.voitEvaluations()); },
-    onglets: [{ id: '', titre: 'Demandes', compteur: function () { var c = AMX.compagnieChoisie('evaluations'); var l = (aFairePourMoi(c) || []).length + aApprouver(c).length + aConfirmer(c).length; return l ? String(l) : ''; } }],
+    onglets: [{ id: '', titre: 'Évaluations', compteur: function () { var c = AMX.compagnieChoisie('evaluations'); var l = aFaireTout(c); return l ? String(l) : ''; } }],
     monter: function (conteneur, ctx) { return new Vue(conteneur, ctx); }
   });
-  /* 2 nov. : Vente › Évaluations demandées — le portail de celui qui demande (le représentant) : ses demandes, sans
-     l'analyse, le montant une fois confirmé par la direction. */
+  /* Le représentant (vendeur, BDC) : le même écran, ses demandes seulement, jamais l'analyse ; le montant une fois confirmé. */
   AMX.section('evalPortail', {
-    titre: 'Mes demandes d\'évaluation', icone: 'outils', ordre: 24,
+    titre: 'Évaluations', icone: 'outils', ordre: 24,
     visible: function () { return AMX.perm('consulter') || AMX.estAdmin(); },
-    onglets: [{ id: '', titre: 'Mes demandes', compteur: function () { var c = AMX.compagnieChoisie('evaluations'); var l = (pretesPourMoi(c) || []).length + (questionsPourMoi(c) || []).length; return l ? String(l) : ''; } }],
+    onglets: [{ id: '', titre: 'Évaluations', compteur: function () { var c = AMX.compagnieChoisie('evaluations'); var l = (pretesPourMoi(c) || []).length + (questionsPourMoi(c) || []).length; return l ? String(l) : ''; } }],
     monter: function (conteneur, ctx) { return new Vue(conteneur, ctx, { portail: true }); }
   });
+  /* Ce qui attend mon geste (compteur de l'onglet) */
+  function aFaireTout(cie) {
+    var d = cache.rep; if (!d) return 0;
+    return d.demandes.filter(function (x) { return (!cie || x.compagnie === cie) && !!monAction(x, d, false) && (x.etat !== 'faite'); }).length;
+  }
+  /* Une demande terminée pour la personne qui regarde : annulée, refusée, ou valeur donnée sans plus rien à faire pour elle */
+  function terminee(x, d, portail) {
+    if (x.etat === 'annulee' || x.etat === 'refusee') return true;
+    if (enCours(x)) return false;
+    return !monAction(x, d, portail);
+  }
 
   function Vue(conteneur, ctx, opts) {
     injecterCss();
     var self = this;
     this.el = conteneur; this.detruit = false;
     this.portail = !!(opts && opts.portail);
-    this.vue = this.portail ? 'deMoi' : AMX.memo.lire('evalDemandes_vue2', '');
-    this.etat = ''; this.etatChoisi = false;
+    this.vue = 'liste';                 /* liste | tableau | stats (les deux derniers par « Actions ») */
+    this.groupe = 'encours';            /* encours | terminees */
     this.periode = AMX.memo.lire('evalDemandes_periode', '30');
-    this.brouillons = {}; this.filsOuverts = {};
+    this.nTerminees = 60;
     this.construire();
     this.charger(false);
     this.surMaj = function () { if (!self.detruit) self.rendre(); };
@@ -799,7 +873,7 @@
     document.addEventListener('amx:compagnie', this.surCie);
     this.minuterie = setInterval(function () { if (!self.detruit && !document.hidden) self.charger(true, true); }, 60000);
     this.horloge = setInterval(function () { if (!self.detruit && !document.hidden && self.vue !== 'stats') self.rendre(); }, 30000);   /* chronomètres */
-    this.surPleinEcran = function () { if (self.btnPlein) self.btnPlein.querySelector('span').textContent = document.fullscreenElement === self.el.firstChild ? 'Quitter le plein écran' : 'Plein écran'; };
+    this.surPleinEcran = function () {};
     document.addEventListener('fullscreenchange', this.surPleinEcran);
     this.appliquerParams(ctx);
   }
@@ -808,306 +882,163 @@
   Vue.prototype.appliquerParams = function (ctx) {
     var p = (ctx && ctx.params) || {};
     if (p.nouvelle) setTimeout(function () { demander({ vin: p.vin || '' }); }, 100);
-    var voir = p.voir || p.vue;   /* 2 nov. : « vue » est pris par la tuile (Évaluations › Demandes) : les liens passent « voir » */
-    if (p.id) { this.filsOuverts[p.id] = true; this.cible = p.id; if (!this.portail && p.fiche !== '0') this.ficheDemandee = p.id; }
-    if (!this.portail && voir && ['direction', 'pourMoi', 'deMoi', 'tableau', 'stats'].indexOf(voir) >= 0) { this.vue = voir; this.etatChoisi = false; }
+    var voir = p.voir || '';   /* « vue » est pris par la tuile ; les anciens liens disaient voir=direction | pourMoi | deMoi */
+    if (voir === 'tableau' || voir === 'stats') this.vue = voir; else if (voir) this.vue = 'liste';
+    if (p.id) { this.cible = p.id; if (p.fiche !== '0') this.ficheDemandee = p.id; }
     if (cache.rep && (p.id || voir)) this.rendre();
   };
   Vue.prototype.construire = function () {
     var self = this;
-    this.btnDemander = h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Demander une évaluation</span>', onclick: function () { demander({ compagnie: AMX.compagnieChoisie('evaluations') }); } });
-    var titrePage = this.portail ? 'Mes demandes d\'évaluation' : 'Demandes d\'évaluation';   /* 3 nov. : dans Inventaire › Occasion › Évaluation */
-    this.btnRafraichir = h('button.btn', { type: 'button', html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
-    this.btnPlein = h('button.btn', { type: 'button', html: I.externe + '<span>Plein écran</span>', onclick: function () { self.pleinEcran(); } });
-    this.elSous = h('p.sous-titre');
-    var actions = AMX.actionsEntete ? AMX.actionsEntete([this.btnRafraichir, this.btnPlein, this.btnDemander], [this.btnDemander]) : [this.btnRafraichir, this.btnPlein, this.btnDemander];
-    this.elCies = h('div');
-    this.elEquipe = h('div.de-equipe');
-    this.segVue = h('div.segment.de-vues');
-    this.inputQ = h('input.saisie', { type: 'search', placeholder: 'NIV, véhicule, client, représentant, évaluateur', oninput: function () { self.rendre(); } });
-    this.elEtats = h('div.inv2-statuts.de-etats');
-    this.elPortee = h('div');
-    this.elTuiles = h('div.kpis.de-tuiles');
-    this.elListe = h('div.de-liste');
-    if (this.portail) { this.btnPlein.style.display = 'none'; this.segVue.style.display = 'none'; }
-    this.el.appendChild(h('div.de-page' + (this.portail ? '.de-portail' : ''), [h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('h1', titrePage), this.elSous]), h('div.actions', actions)]), this.elCies, this.elEquipe,
-      h('div.de-filtres', [this.segVue, h('div.recherche', [h('span', { html: I.recherche }), this.inputQ])]), this.elEtats, this.elPortee, this.elTuiles, this.elListe]));
+    this.btnDemander = h('button.btn.primaire.de-nouvelle', { type: 'button', html: I.plus + '<span>Nouvelle évaluation</span>', onclick: function () { demander({ compagnie: AMX.compagnieChoisie('evaluations') }); } });
+    this.elMenu = h('span');
+    this.elDispo = h('span');
+    this.el.appendChild(h('div.de-page' + (this.portail ? '.de-portail' : ''), [
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('div.de-titre', [h('h1', 'Évaluations'), this.elDispo])]), h('div.actions', [this.elMenu, this.btnDemander])]),
+      this.elRetour = h('div'),
+      this.elCies = h('div'),
+      this.elFiltres = h('div.de-filtres', [
+        this.segGroupe = h('div.segment.de-groupes'),
+        h('div.recherche', [h('span', { html: I.recherche }), this.inputQ = h('input.saisie', { type: 'search', placeholder: 'Chercher : NIV, véhicule, client, nom', oninput: function () { self.rendre(); } })])
+      ]),
+      this.elEtats = h('div.inv2-statuts.de-etats'),
+      this.elPortee = h('div'),
+      this.elTuiles = h('div.kpis.de-tuiles'),
+      this.elListe = h('div.de-liste')
+    ]));
   };
-  Vue.prototype.pleinEcran = function () {
-    var cible = this.el.firstChild;
-    try {
-      if (document.fullscreenElement) { document.exitFullscreen(); return; }
-      if (this.vue !== 'tableau' && cache.rep && (cache.rep.moi || {}).direction) { this.vue = 'tableau'; this.rendre(); }
-      if (cible.requestFullscreen) cible.requestFullscreen().catch(function () {});
-    } catch (e) {}
+  /* Le menu « Actions » : ce qui n'est pas la tâche du moment */
+  Vue.prototype.rendreMenu = function (d) {
+    var self = this, moi = d.moi || {}, items = [];
+    AMX.vider(this.elMenu);
+    var voitEval = !this.portail && AMX.voitEvaluations && AMX.voitEvaluations();
+    if (voitEval) {
+      items.push({ texte: 'Évaluer un véhicule (sans demande)', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation' }); } });
+      items.push({ texte: 'Registre des évaluations', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluations' }); } });
+      items.push({ texte: 'Archive Torque', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'torque' }); } });
+    }
+    if (!this.portail && (moi.evaluateur || moi.direction)) {
+      items.push({ texte: 'Tableau (écran du bureau)', action: function () { self.vue = 'tableau'; self.rendre(); } });
+      items.push({ texte: 'Statistiques', action: function () { self.vue = 'stats'; self.rendre(); } });
+    }
+    if (!this.portail && moi.evaluateur) items.push({ texte: 'Ma disponibilité…', action: function () { modalePresence({ nom: moi.nom || 'Moi', courriel: moi.courriel, presence: moi.presence, presenceJusqu: moi.presenceJusqu }); } });
+    if (!this.portail && moi.direction) items.push({ texte: 'Disponibilité des évaluateurs…', action: function () { self.modaleEquipe(d); } });
+    items.push({ texte: 'Rafraîchir', action: function () { self.charger(true); } });
+    if (AMX.menuActions) this.elMenu.appendChild(AMX.menuActions(items));
+    /* l'évaluateur voit d'un coup d'œil s'il est « occupé » ou « absent » (sinon rien) */
+    AMX.vider(this.elDispo);
+    if (!this.portail && moi.evaluateur && moi.presence && moi.presence !== 'disponible')
+      this.elDispo.appendChild(h('button.de-dispo.' + TON_PRESENCE[moi.presence], { type: 'button', title: 'Changer ma disponibilité', onclick: function () { modalePresence({ nom: moi.nom || 'Moi', courriel: moi.courriel, presence: moi.presence, presenceJusqu: moi.presenceJusqu }); } },
+        [h('i.de-point.' + TON_PRESENCE[moi.presence]), textePresence(moi)]));
+  };
+  Vue.prototype.modaleEquipe = function (d) {
+    var cie = AMX.compagnieChoisie('evaluations'), codes = cie ? [cie] : Object.keys(d.evaluateurs || {}), corps = h('div');
+    codes.forEach(function (c) {
+      var liste = (d.evaluateurs[c] || []).filter(function (e) { return !e.groupe; });
+      corps.appendChild(h('h3.fe-h', { text: nomCie(c) }));
+      corps.appendChild(liste.length ? h('div.de-evaluateurs', liste.map(function (e) {
+        return h('button.de-eval' + (e.presence === 'absent' ? '.attenue' : ''), { type: 'button', onclick: function () { m.fermer(); modalePresence(e); } },
+          [h('b', [h('i.de-point.' + TON_PRESENCE[e.presence || 'disponible']), e.nom]), h('span', { text: textePresence(e) + (e.ouvertes ? ' · ' + e.ouvertes + ' en cours' : '') })]);
+      })) : h('p.mini', { text: 'Aucun évaluateur : cochez le droit « Évaluateur » dans Admin.' }));
+    });
+    var m = AMX.modale({ titre: 'Disponibilité des évaluateurs', corps: corps, boutons: [{ texte: 'Fermer' }] });
   };
   Vue.prototype.charger = function (force, silencieux) {
     var self = this;
-    if (!cache.rep) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur ? AMX.chargeur('Demandes d\'évaluation') : h('p.doux', 'Lecture…')); }
+    if (!cache.rep) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur ? AMX.chargeur('Évaluations') : h('p.doux', 'Lecture…')); }
     charger(force).then(function () { if (!self.detruit) self.rendre(); }).catch(function (e) {
       if (self.detruit) return;
       if (!cache.rep) { AMX.vider(self.elListe); self.elListe.appendChild(h('div.carte', [h('div.carte-corps', [h('p', { style: { color: 'var(--rouge)' }, text: AMX.erreurTexte(e) })])])); }
       if (!silencieux) erreur(e);
     });
   };
-  Vue.prototype.vues = function (moi) {
-    var v = [];
-    if (this.portail) return [['deMoi', 'Mes demandes']];
-    if (moi.diriger) v.push(['direction', 'Direction']);   /* 2 nov. : à approuver, montants à confirmer */
-    if (moi.evaluateur || moi.direction) v.push(['pourMoi', 'À évaluer']);
-    v.push(['deMoi', 'Mes demandes']);
-    if (moi.evaluateur || moi.direction) { v.push(['tableau', 'Tableau']); v.push(['stats', 'Statistiques']); }
-    return v;
-  };
   Vue.prototype.rendre = function () {
     var self = this, d = cache.rep; if (!d) return;
-    /* Ne pas perdre ce qu'on tape dans un fil quand la liste se redessine (chronomètres, relecture) */
-    var actif = document.activeElement, focusId = actif && actif.dataset ? actif.dataset.brouillon : '', curseur = focusId ? actif.selectionStart : 0;
-    var moi = d.moi || {}, R = reglages(d);
     var cie = AMX.compagnieChoisie('evaluations');
     AMX.barreConcessions(this.elCies, { domaine: 'evaluations', valeur: cie, onchange: function (c) { AMX.choisirCompagnie(c); } });
+    this.rendreMenu(d);
     var base = d.demandes.filter(function (x) { return (!cie || x.compagnie === cie) && (!self.portail || x.deMoi); });
-    var vues = this.vues(moi);
-    /* Lien d'un texto (?id=) : la vue où se trouve la demande */
-    if (this.cible && !this.portail) { var vise = d.demandes.filter(function (x) { return x.id === self.cible; })[0]; if (vise) { var vv = attendDirection(vise) && moi.diriger ? 'direction' : (vise.pourMoi && estOuverte(vise) ? 'pourMoi' : (vise.deMoi ? 'deMoi' : 'tableau')); if (vues.some(function (v) { return v[0] === vv; })) { this.vue = vv; this.etatChoisi = false; } } }
-    if (!vues.some(function (v) { return v[0] === self.vue; })) this.vue = moi.diriger && base.some(attendDirection) ? 'direction' : (moi.evaluateur ? 'pourMoi' : (base.some(function (x) { return x.deMoi; }) || !moi.direction ? 'deMoi' : (moi.diriger ? 'direction' : 'tableau')));
-    this.btnPlein.style.display = !this.portail && (moi.evaluateur || moi.direction) ? '' : 'none';
-    AMX.vider(this.segVue);
-    vues.forEach(function (v) {
-      var n = v[0] === 'direction' ? base.filter(attendDirection).length : (v[0] === 'pourMoi' ? ouvertes(base.filter(function (x) { return x.pourMoi; })).length : (v[0] === 'deMoi' ? base.filter(function (x) { return x.deMoi && x.infoDemandee; }).length : 0));
-      self.segVue.appendChild(h('button' + (self.vue === v[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': String(self.vue === v[0]), onclick: function () { self.vue = v[0]; self.etatChoisi = false; AMX.memo.ecrire('evalDemandes_vue2', v[0]); self.rendre(); } }, [v[1], n ? h('span.compteur', { text: String(n) }) : null]));
-    });
-    if (this.portail) AMX.vider(this.elEquipe); else this.rendreEquipe(d, cie);
     var q = this.inputQ.value, mots = AMX.motsCherches(q);
-    var cherche = function (x) { return !mots.length || AMX.correspond([x.vin, x.vehicule, x.client, x.demandeParNom, x.evaluateurNom, x.id, x.note], mots); };
-    this.elSous.textContent = this.portail
-      ? 'Vos demandes : la direction les approuve, l\'évaluateur évalue, la direction confirme le montant · la valeur vaut ' + R.validite + ' jours'
-      : (moi.diriger ? 'Vous approuvez les demandes et confirmez les montants' : (moi.evaluateur ? 'Vous êtes évaluateur' : 'Vos demandes et leurs valeurs')) + ' · prise visée en ' + R.prise + ' min, valeur en ' + R.delai + ' min · la valeur vaut ' + R.validite + ' jours';
-    if (this.vue === 'tableau') this.rendreTableau(d, base.filter(cherche), cie, q);
-    else if (this.vue === 'stats') this.rendreStats(d, base.filter(cherche), cie, q);
-    else this.rendreListe(d, base.filter(cherche), cie, q);
-    if (focusId) { var ta = this.el.querySelector('textarea[data-brouillon="' + focusId + '"]'); if (ta) { ta.focus(); try { ta.setSelectionRange(curseur, curseur); } catch (e) {} } }
-    if (this.cible) { var c = this.el.querySelector('[data-id="' + this.cible + '"]'); if (c) { c.scrollIntoView({ block: 'center' }); c.classList.add('de-cible'); this.cible = ''; } }
-    /* 7 nov. : le lien d'un courriel ou d'un texto ouvre la fiche simple de la demande (une fois). */
-    if (this.ficheDemandee) { var vf = d.demandes.filter(function (x) { return x.id === self.ficheDemandee; })[0]; this.ficheDemandee = ''; if (vf) setTimeout(function () { if (!self.detruit) ficheDemande(vf); }, 60); }
-  };
-
-  /* Disponibilité : la mienne (évaluateur) et celle de l'équipe de la concession choisie */
-  Vue.prototype.rendreEquipe = function (d, cie) {
-    var self = this, moi = d.moi || {};
-    AMX.vider(this.elEquipe);
-    if (moi.evaluateur) {
-      var p = moi.presence || 'disponible';
-      var seg = h('div.segment', ['disponible', 'occupe', 'absent'].map(function (k) {
-        return h('button' + (p === k ? '.actif' : ''), { type: 'button', 'aria-pressed': String(p === k), title: k === 'occupe' ? 'Pendant 1 heure' : (k === 'absent' ? 'Jusqu\'à la fin de la journée' : ''), onclick: function () { if (k !== p) poserPresence(k).catch(erreur); } },
-          [h('i.de-point.' + TON_PRESENCE[k]), k === 'occupe' ? 'Occupé 1 h' : (k === 'absent' ? 'Absent aujourd\'hui' : PRESENCES[k])]);
-      }));
-      this.elEquipe.appendChild(h('div.de-ma-dispo', [h('span.mini', 'Ma disponibilité'), seg, p !== 'disponible' && moi.presenceJusqu ? h('span.mini', { text: 'jusqu\'à ' + quand(moi.presenceJusqu) + ', puis disponible tout seul' }) : null]));
-    }
-    var codes = cie ? [cie] : Object.keys(d.evaluateurs || {});
-    if (codes.length > 2) return;   /* toutes les concessions : la bande d'équipe serait trop longue */
-    codes.forEach(function (c) {
-      var liste = (d.evaluateurs[c] || []).filter(function (e) { return !e.groupe; });
-      if (!liste.length) { self.elEquipe.appendChild(h('div.de-bande', [h('span.mini', { text: 'Évaluateurs · ' + nomCie(c) + ' : aucun — cochez le droit « Évaluateur » dans Admin' })])); return; }
-      self.elEquipe.appendChild(h('div.de-bande', [h('span.mini', { text: 'Évaluateurs' + (codes.length > 1 || !cie ? ' · ' + nomCie(c) : '') })].concat(liste.map(function (e) {
-        var txt = e.nom + (e.ouvertes ? ' · ' + e.ouvertes + ' en cours' : '') + (e.presence && e.presence !== 'disponible' ? ' · ' + PRESENCES[e.presence].toLowerCase() : '');
-        var change = moi.direction && e.courriel !== moi.courriel;
-        var attrs = { type: 'button', title: textePresence(e) + (change ? ' — cliquez pour changer' : '') };
-        if (change) attrs.onclick = function () { modalePresence(e); }; else attrs.disabled = true;
-        return h('button.de-puce-eval' + (e.presence === 'absent' ? '.attenue' : ''), attrs, [h('i.de-point.' + TON_PRESENCE[e.presence || 'disponible']), txt]);
-      }))));
-    });
-  };
-
-  /* --- Vues À évaluer / Mes demandes --- */
-  Vue.prototype.rendreListe = function (d, base, cie, q) {
-    var self = this, moi = d.moi || {}, R = reglages(d);
-    var direction = this.vue === 'direction';
-    var parVue = base.filter(direction ? function () { return true; } : (this.vue === 'pourMoi' ? function (x) { return x.pourMoi; } : function (x) { return x.deMoi; }));
-    var etats = direction ? [
-      ['attente', 'À traiter', attendDirection, 'rouge'],
-      ['traction', 'Traction · valeur à donner', tractionATraiter, 'rouge'],
-      ['approbation', 'À approuver', function (x) { return x.etat === 'approbation'; }, 'violet'],
-      ['aconfirmer', 'Montants à confirmer', function (x) { return x.etat === 'aconfirmer'; }, 'bleu'],
-      ['ouvertes', 'Chez les évaluateurs', estOuverte, 'ambre'],
-      ['valeur', 'Valeur donnée', function (x) { return phase(x) === 'faite'; }, 'vert'],
-      ['refusee', 'Refusées', function (x) { return x.etat === 'refusee'; }, 'gris'],
-      ['toutes', 'Toutes', function () { return true; }, '']] : [
-      ['ouvertes', 'Ouvertes', this.vue === 'deMoi' ? enCours : estOuverte, 'rouge'],
-      ['traction', 'Traction · valeur à donner', tractionATraiter, 'rouge'],
-      ['info', 'Question en attente', function (x) { return x.infoDemandee; }, 'ambre'],
-      ['valeur', 'Valeur donnée', function (x) { return phase(x) === 'faite'; }, 'vert'],
-      ['conclues', 'Achetées / perdues', function (x) { return x.issue === 'achetee' || x.issue === 'perdue'; }, 'bleu'],
-      ['echues', 'Échues', function (x) { return phase(x) === 'echue'; }, 'gris'],
-      ['annulee', 'Annulées', function (x) { return x.etat === 'annulee'; }, 'gris'],
-      ['refusee', 'Refusées', function (x) { return x.etat === 'refusee'; }, 'gris'],
-      ['toutes', 'Toutes', function () { return true; }, '']];
-    var etatDefaut = direction ? 'attente' : (this.vue === 'pourMoi' ? 'ouvertes' : 'toutes');
-    if (!this.etatChoisi || !etats.some(function (e) { return e[0] === self.etat; })) this.etat = etatDefaut;
-    AMX.vider(this.elEtats); this.elEtats.style.display = '';
-    etats.forEach(function (e) {
-      var n = parVue.filter(e[2]).length;
-      if (!n && e[0] !== self.etat && (e[0] === 'info' || e[0] === 'echues' || e[0] === 'annulee' || e[0] === 'refusee' || e[0] === 'traction')) return;
-      self.elEtats.appendChild(h('button.inv2-pastille' + (self.etat === e[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': String(self.etat === e[0]), onclick: function () { self.etat = e[0]; self.etatChoisi = true; self.rendre(); } }, [e[3] ? h('i', { style: { background: 'var(--' + e[3] + ')' } }) : null, e[1], h('b', { text: String(n) })]));
-    });
-    var filtre = etats.filter(function (e) { return e[0] === self.etat; })[0][2];
-    var liste = parVue.filter(filtre);
-    var RANG = direction ? { approbation: 0, aconfirmer: 1, afaire: 2, encours: 3, faite: 4, echue: 5, achetee: 6, perdue: 7, refusee: 8, annulee: 9 }
-      : { approbation: 0, afaire: 1, encours: 2, aconfirmer: 3, faite: 4, echue: 5, achetee: 6, perdue: 7, refusee: 8, annulee: 9 };
-    /* question en attente d'abord, puis par étape ; les ouvertes de la plus vieille à la plus récente (la plus urgente en haut), les autres de la plus récente à la plus vieille */
-    liste = liste.slice().sort(function (a, b) {
-      var r = ((tractionATraiter(b) ? 1 : 0) - (tractionATraiter(a) ? 1 : 0)) || ((b.infoDemandee ? 1 : 0) - (a.infoDemandee ? 1 : 0)) || ((RANG[phase(a)] || 0) - (RANG[phase(b)] || 0));   /* 10 nov. : Traction pas encore évaluée en tête */
-      if (r) return r;
-      return enCours(a) ? String(a.creeLe || '').localeCompare(String(b.creeLe || '')) : String(b.creeLe || '').localeCompare(String(a.creeLe || ''));
-    });
-    AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['demande', 'demandes'], contexte: [cie ? nomCie(cie) : 'Toutes les concessions', direction ? 'Direction' : (this.vue === 'pourMoi' ? 'À évaluer' : 'Mes demandes')],
-      filtres: [self.etat !== etatDefaut ? etats.filter(function (e) { return e[0] === self.etat; })[0][1] : '', q ? '« ' + q + ' »' : ''], effacer: function () { self.etatChoisi = false; self.inputQ.value = ''; self.rendre(); } });
-    /* Chiffres sur la liste filtrée */
-    AMX.vider(this.elTuiles);
-    var tuile = function (t, v, sous, ton) { return h('div.kpi.neutre' + (ton ? '.' + ton : ''), [h('div.libelle', { text: t }), h('div.valeur', { text: v }), sous ? h('div.sous', { text: sous }) : null]); };
-    var faites = liste.filter(function (x) { return x.etat === 'faite' && x.minutesReponse !== null && x.minutesReponse !== undefined; });
-    var med = mediane(faites.map(function (x) { return x.minutesReponse; }));
-    var sous15 = faites.filter(function (x) { return x.minutesReponse <= R.delai; }).length;
-    if (direction) {
-      var nAp = liste.filter(function (x) { return x.etat === 'approbation'; }).length, nCo = liste.filter(function (x) { return x.etat === 'aconfirmer'; }).length;
-      var appr = liste.filter(function (x) { return x.minutesApprobation !== undefined && x.minutesApprobation !== null; });
-      var medA = mediane(appr.map(function (x) { return x.minutesApprobation; }));
-      var vieille = liste.filter(function (x) { return x.etat === 'approbation'; }).reduce(function (m, x) { return Math.max(m, depuis(x.creeLe)); }, 0);
-      this.elTuiles.appendChild(tuile('À approuver', String(nAp), nAp ? 'la plus vieille : ' + duree(vieille) : 'rien en attente', nAp ? 'alerte' : 'ok'));
-      this.elTuiles.appendChild(tuile('Montants à confirmer', String(nCo), nCo ? 'évaluées, à envoyer aux représentants' : 'rien en attente', nCo ? 'attention' : 'ok'));
-      this.elTuiles.appendChild(tuile('Chez les évaluateurs', String(liste.filter(estOuverte).length), '', ''));
-      this.elTuiles.appendChild(tuile('Délai d\'approbation', medA === null ? '—' : duree(medA), medA === null ? '' : 'médiane, ' + pluriel(appr.length, 'demande'), ''));
-    } else if (this.vue === 'pourMoi') {
-      var nAf = liste.filter(function (x) { return x.etat === 'afaire'; }).length, nEc = liste.filter(function (x) { return x.etat === 'encours'; }).length;
-      var nRet = liste.filter(function (x) { var c = chrono(x, R); return c && c.ton === 'rouge'; }).length;
-      this.elTuiles.appendChild(tuile('À prendre', String(nAf), nAf ? 'pas encore commencées' : 'rien en attente', nAf ? 'alerte' : 'ok'));
-      this.elTuiles.appendChild(tuile('En évaluation', String(nEc), '', nEc ? 'attention' : ''));
-      this.elTuiles.appendChild(tuile('En retard', String(nRet), 'plus de ' + R.delai + ' minutes', nRet ? 'alerte' : ''));
-      this.elTuiles.appendChild(tuile('Délai de réponse', med === null ? '—' : duree(med), med === null ? 'aucune valeur donnée ici' : 'médiane · ' + pct(sous15, faites.length) + ' sous ' + R.delai + ' min', med !== null && med <= R.delai ? 'ok' : ''));
+    var cherche = function (x) { return !mots.length || AMX.correspond([x.vin, x.vehicule, x.client, x.telephone, x.demandeParNom, x.evaluateurNom, x.prisParNom, x.id, x.note], mots); };
+    var liste = base.filter(cherche);
+    AMX.vider(this.elRetour);
+    if (this.vue === 'tableau' || this.vue === 'stats') {
+      this.elRetour.appendChild(AMX.retourSujets ? AMX.retourSujets('Retour à la liste', function () { self.vue = 'liste'; self.rendre(); }) : h('button.btn', { type: 'button', text: '‹ Retour à la liste', onclick: function () { self.vue = 'liste'; self.rendre(); } }));
+      this.segGroupe.style.display = 'none';
+      if (this.vue === 'tableau') this.rendreTableau(d, liste, cie, q); else this.rendreStats(d, liste, cie, q);
     } else {
-      var nOuv = liste.filter(enCours).length, nInfo = liste.filter(function (x) { return x.infoDemandee; }).length;
-      var donnees = liste.filter(function (x) { return x.etat === 'faite'; }), ach = donnees.filter(function (x) { return x.issue === 'achetee'; }).length;
-      var aPresenter = donnees.filter(function (x) { return !x.issue && !x.expiree; }).length;
-      var nDir = liste.filter(attendDirection).length;
-      this.elTuiles.appendChild(tuile('Ouvertes', String(nOuv), nOuv ? (nDir ? nDir + ' chez la direction, ' + (nOuv - nDir) + ' chez l\'évaluateur' : 'chez l\'évaluateur') : 'rien en attente', nOuv ? 'attention' : ''));
-      this.elTuiles.appendChild(tuile('Questions', String(nInfo), nInfo ? 'l\'évaluateur attend votre réponse' : 'aucune', nInfo ? 'alerte' : ''));
-      this.elTuiles.appendChild(tuile('Valeurs à présenter', String(aPresenter), 'valeur donnée, pas encore de résultat', aPresenter ? 'ok' : ''));
-      this.elTuiles.appendChild(tuile('Taux d\'achat', donnees.length ? pct(ach, donnees.length) : '—', pluriel(ach, 'achetée') + ' sur ' + pluriel(donnees.length, 'valeur') + ' données', ''));
-      this.elTuiles.appendChild(tuile('Délai de réponse', med === null ? '—' : duree(med), med === null ? '' : 'médiane, ' + pluriel(faites.length, 'demande'), med !== null && med <= R.delai ? 'ok' : ''));
+      this.segGroupe.style.display = '';
+      AMX.vider(this.elEtats); AMX.vider(this.elPortee); AMX.vider(this.elTuiles);
+      this.rendreListe(d, liste, cie);
     }
+    if (this.cible) { var c = this.el.querySelector('[data-id="' + this.cible + '"]'); if (c) { c.scrollIntoView({ block: 'center' }); c.classList.add('de-cible'); this.cible = ''; } }
+    /* le lien d'un courriel ou d'un texto ouvre la fiche de la demande (une fois) */
+    if (this.ficheDemandee) { var vf = d.demandes.filter(function (x) { return x.id === self.ficheDemandee; })[0]; this.ficheDemandee = ''; if (vf) setTimeout(function () { if (!self.detruit) ficheDemande(vf, { portail: self.portail }); }, 60); }
+  };
+
+  /* La liste : En cours (ce qui attend mon geste d'abord) ou Terminées */
+  Vue.prototype.rendreListe = function (d, liste, cie) {
+    var self = this, portail = this.portail;
+    var enCoursL = liste.filter(function (x) { return !terminee(x, d, portail); });
+    var finies = liste.filter(function (x) { return terminee(x, d, portail); });
+    AMX.vider(this.segGroupe);
+    [['encours', 'En cours', enCoursL.length], ['terminees', 'Terminées', finies.length]].forEach(function (g) {
+      self.segGroupe.appendChild(h('button' + (self.groupe === g[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': String(self.groupe === g[0]), onclick: function () { self.groupe = g[0]; self.rendre(); } }, [g[1], h('span.n', { text: String(g[2]) })]));
+    });
     AMX.vider(this.elListe);
-    if (!liste.length) {
-      this.elListe.appendChild(h('div.carte', [h('div.carte-corps', [h('p.doux', { text: direction && self.etat === 'attente' ? 'Rien n\'attend la direction. 🎉' : (self.vue === 'pourMoi' && self.etat === 'ouvertes' ? 'Rien à évaluer pour vous. 🎉' : 'Aucune demande ici.') }), h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Demander une évaluation</span>', onclick: function () { demander({ compagnie: cie }); } })])]));
+    if (this.groupe === 'terminees') {
+      var tri = finies.slice().sort(function (a, b) { return String(b.issueLe || b.confirmeLe || b.faiteLe || b.creeLe || '').localeCompare(String(a.issueLe || a.confirmeLe || a.faiteLe || a.creeLe || '')); });
+      if (!tri.length) { this.elListe.appendChild(h('p.de-vide', { text: 'Aucune évaluation terminée.' })); return; }
+      tri.slice(0, this.nTerminees).forEach(function (x) { self.elListe.appendChild(self.ligne(x, d)); });
+      if (tri.length > this.nTerminees) this.elListe.appendChild(h('button.btn.de-plus-btn', { type: 'button', text: 'Voir ' + Math.min(60, tri.length - this.nTerminees) + ' de plus', onclick: function () { self.nTerminees += 60; self.rendre(); } }));
       return;
     }
-    liste.forEach(function (x) { self.elListe.appendChild(self.carte(x, d)); });
+    var aMoi = [], autres = [];
+    enCoursL.forEach(function (x) { (monAction(x, d, portail) ? aMoi : autres).push(x); });
+    var RANG = { approbation: 0, aconfirmer: 1, afaire: 2, encours: 3, faite: 4 };
+    var urgence = function (a, b) {
+      return ((tractionATraiter(b) ? 1 : 0) - (tractionATraiter(a) ? 1 : 0)) || ((b.infoDemandee && b.deMoi ? 1 : 0) - (a.infoDemandee && a.deMoi ? 1 : 0)) || ((RANG[a.etat] || 0) - (RANG[b.etat] || 0)) || String(a.creeLe || '').localeCompare(String(b.creeLe || ''));
+    };
+    aMoi.sort(urgence); autres.sort(urgence);
+    if (!aMoi.length && !autres.length) {
+      this.elListe.appendChild(h('div.de-vide-grand', [h('p', { text: 'Rien en cours.' }), h('button.btn.primaire', { type: 'button', html: I.plus + '<span>Nouvelle évaluation</span>', onclick: function () { demander({ compagnie: cie }); } })]));
+      return;
+    }
+    if (aMoi.length) {
+      this.elListe.appendChild(h('h2.de-groupe', [h('span', 'À vous'), h('b', { text: String(aMoi.length) })]));
+      aMoi.forEach(function (x) { self.elListe.appendChild(self.ligne(x, d)); });
+    }
+    if (autres.length) {
+      this.elListe.appendChild(h('h2.de-groupe.doux', [h('span', aMoi.length ? 'Les autres en cours' : 'En cours'), h('b', { text: String(autres.length) })]));
+      autres.forEach(function (x) { self.elListe.appendChild(self.ligne(x, d)); });
+    }
   };
 
-  /* Une carte complète */
-  Vue.prototype.carte = function (x, d) {
-    var self = this, R = reglages(d), dr = droits(x, d, this.portail), ph = phase(x), c = chrono(x, R);
-    var circuit = x.circuit === 'directeur';
-    var boutons = [];
-    /* 2 nov. : circuit du directeur */
-    if (dr.approuver) {
-      boutons.push(h('button.btn.primaire.petit', { type: 'button', html: I.ok + '<span>Approuver…</span>', onclick: function () { approuver(x, d); } }));
-      boutons.push(h('button.btn.petit', { type: 'button', text: 'Refuser…', onclick: function () { refuser(x); } }));
-    }
-    if (dr.confirmer) {
-      boutons.push(h('button.btn.primaire.petit', { type: 'button', html: I.ok + '<span>Confirmer le montant…</span>', onclick: function () { confirmerMontant(x); } }));
-      boutons.push(h('button.btn.petit', { type: 'button', text: 'Renvoyer à l\'évaluateur…', onclick: function () { renvoyer(x); } }));
-    }
-    if (dr.evaluer) boutons.push(h('button.btn.primaire.petit', { type: 'button', html: I.ok + '<span>' + (x.etat === 'afaire' ? 'Prendre et évaluer' : 'Évaluer') + '</span>', onclick: function () { evaluer(x); } }));
-    if (dr.prendre && !dr.evaluer) boutons.push(h('button.btn.petit', { type: 'button', text: 'Je la prends', onclick: function () { action(x.id, 'prendre').then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); } }));
-    if (!this.portail) boutons.push(h('button.btn.petit', { type: 'button', text: 'Fiche', title: 'Le résumé : photos, valeur, état, client', onclick: function () { ficheDemande(x); } }));
-    if (dr.voirEvaluation) boutons.push(h('button.btn.petit', { type: 'button', text: 'Évaluation complète', onclick: function () { AMX.aller('outils', 'evaluation', x.etat === 'aconfirmer' ? { vin: x.vin, demande: x.id } : { vin: x.vin }); } }));
-    if (x.issue === 'achetee') boutons.push(h('button.btn.petit', { type: 'button', text: 'Fiche d\'achat', onclick: function () { AMX.aller('achat', '', { vin: x.vin }); } }));
-    if (dr.modifier) boutons.push(h('button.btn.petit', { type: 'button', text: 'Modifier', title: 'Corriger la demande : kilométrage, note, client, état du véhicule, photos', onclick: function () { modifier(x); } }));
-    if (dr.reevaluer) boutons.push(h('button.btn.petit', { type: 'button', text: 'Réévaluer', onclick: function () { reevaluer(x); } }));
-    var nMsg = (x.messages || []).length, ouvert = !!this.filsOuverts[x.id] || (x.infoDemandee && x.deMoi);
-    boutons.push(h('button.btn.petit' + (ouvert ? '.actif' : ''), { type: 'button', text: nMsg ? 'Messages (' + nMsg + ')' : 'Message', onclick: function () { self.filsOuverts[x.id] = !ouvert; self.rendre(); } }));
-    var menu = [];
-    if (dr.piloter) {
-      menu.push({ texte: attendDirection(x) ? 'Relancer la direction (texto)' : 'Relancer l\'évaluateur (courriel + texto)', action: function () { action(x.id, 'relancer').then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); } });
-      menu.push({ texte: 'Annuler la demande', action: function () { AMX.confirmer('Annuler la demande ?', (x.vehicule || 'Véhicule') + ' · ' + x.vin, { ok: 'Annuler la demande', danger: true }).then(function (ok) { if (ok) action(x.id, 'annuler', { raison: '' }).then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); }); } });
-    }
-    if (dr.transferer) menu.push({ texte: x.etat === 'approbation' ? 'Changer les évaluateurs proposés…' : 'Transférer…', action: function () { transferer(x, d); } });
-    if (menu.length && AMX.menuActions) boutons.push(AMX.menuActions(menu, { petit: true }));
-
-    var tete = h('div.de-tete', [
-      h('span.badge.sans-point.' + PHASES[ph][1], { text: libellePhase(x, self.portail) }),
-      h('b.de-veh', { text: x.vehicule || 'Véhicule' }), h('span.mono.mini', { text: x.vin }), x.km ? h('span.mini', { text: AMX.fmtNombre(Number(x.km)) + ' km' }) : null,
-      c ? h('span.de-chrono.' + c.ton, { text: '⏱ ' + c.texte }) : h('span.mini.de-quand', { text: quand(x.creeLe) })
-    ]);
-    var evaluee = x.etat === 'faite' || x.etat === 'aconfirmer';
-    var etapes = circuit ? h('div.de-etapes.circuit', [
-      etape('Demandée', true, quand(x.creeLe)),
-      etape(x.etat === 'refusee' ? 'Refusée' : 'Approuvée', !!x.approuveLe || x.etat === 'refusee', x.approuveLe ? quand(x.approuveLe) + (x.approuveParNom ? ' · ' + x.approuveParNom : '') : (x.refusLe ? quand(x.refusLe) : '')),
-      etape('Prise', !!x.prisLe || evaluee, x.prisLe ? quand(x.prisLe) : ''),
-      etape('Évaluée', evaluee, evaluee && x.faiteLe ? quand(x.faiteLe) : ''),
-      etape('Confirmée', x.etat === 'faite', x.confirmeLe ? quand(x.confirmeLe) + (x.confirmeParNom ? ' · ' + x.confirmeParNom : '') : ''),
-      etape('Résultat', !!x.issue, x.issue ? ISSUES[x.issue] : '')
-    ]) : h('div.de-etapes', [
-      etape('Envoyée', true, quand(x.creeLe)),
-      etape('Prise', !!x.prisLe || x.etat === 'faite', x.prisLe ? quand(x.prisLe) + (x.minutesPrise !== undefined ? ' · en ' + duree(x.minutesPrise) : '') : ''),
-      etape('Valeur', x.etat === 'faite', x.etat === 'faite' && x.faiteLe ? quand(x.faiteLe) + (x.minutesReponse !== null && x.minutesReponse !== undefined ? ' · en ' + duree(x.minutesReponse) : '') : ''),
-      etape('Résultat', !!x.issue, x.issue ? ISSUES[x.issue] : '')
-    ]);
-    function etape(t, fait, sous) { return h('div.de-etape' + (fait ? '.fait' : ''), [h('i'), h('b', { text: t }), sous ? h('span', { text: sous }) : null]); }
-    var gauche = h('div', [
-      x.client ? h('div', [h('span.mini', 'Client : '), h('b', { text: x.client }), x.telephone ? h('span.mini', { text: ' · ' + x.telephone }) : null]) : null,
-      h('div.mini', { text: 'De ' + (x.demandeParNom || '—') + ' → ' + texteEvaluateurs(x) + (x.mode === 'disponible' && !x.prise ? ' (premier disponible)' : '') + ' · ' + nomCie(x.compagnie) + ' · ' + x.id + (x.photos ? ' · ' + pluriel(x.photos, 'photo') : '') }),
-      priseParAutre(x) && !self.portail && estOuverte(x) ? h('div.mini.de-prise', { text: 'Prise par ' + (x.prisParNom || x.evaluateurNom || '—') + (x.prisLe ? ' · ' + quand(x.prisLe) : '') }) : null,
-      x.transfereParNom && estOuverte(x) && !self.portail ? h('div.mini', { text: 'Transférée par ' + x.transfereParNom + (x.transfereLe ? ' · ' + quand(x.transfereLe) : '') }) : null,
-      x.reprendDe ? h('div.mini', { text: 'Réévaluation de ' + x.reprendDe }) : null,
-      x.remplaceePar ? h('div.mini', { text: 'Réévaluée : voir ' + x.remplaceePar }) : null,
-      /* 1er nov. : demande venue du CRM Traction — la valeur y retourne d'elle-même (Traction.gs) */
-      x.source === 'traction' && x.crm ? h('div.mini.de-traction', [tractionATraiter(x) ? h('span.badge.rouge.sans-point', { text: 'Traction · valeur à donner' }) : h('span.badge.bleu.sans-point', { text: 'Traction' }),
-        x.crm.url ? h('a', { href: x.crm.url, target: '_blank', rel: 'noopener', text: ' Opportunité ' + (x.crm.opportuniteId || '') + ' ↗' }) : h('span', { text: ' Opportunité ' + (x.crm.opportuniteId || '—') }),
-        h('span', { text: x.crm.echec ? ' · renvoi à Traction en échec : ' + x.crm.echec : (x.crm.envoye ? ' · valeur renvoyée dans la cotation' : (x.etat === 'faite' ? ' · valeur en route vers Traction' : '')) }),
-        (x.crm.photos || []).length ? h('span', [h('span', { text: ' · photos : ' })].concat(x.crm.photos.map(function (u, i) { return h('a', { href: u, target: '_blank', rel: 'noopener', text: (i ? ', ' : '') + (i + 1) }); }))) : null,
-        (x.crm.alerte || []).length && !self.portail ? h('span', { text: ' · alerte envoyée à ' + x.crm.alerte.join(', ') }) : null]) : null,
-      x.note ? h('div.de-note', { text: x.note }) : null,
-      x.detail && resumeDetail(x.detail) ? h('div.mini.de-detail', [h('b', 'Détail inscrit : '), h('span', { text: resumeDetail(x.detail) })]) : null,
-      x.etat === 'annulee' && x.annuleRaison ? h('div.mini', { text: 'Annulée : ' + x.annuleRaison }) : null,
-      x.etat === 'refusee' ? h('div.de-refus', { text: 'Refusée par ' + (x.refusParNom || 'la direction') + (x.refusRaison ? ' : ' + x.refusRaison : '') }) : null,
-      x.renvoiRaison && enCours(x) ? h('div.de-refus.renvoi', { text: 'Renvoyée par la direction : ' + x.renvoiRaison }) : null,
-      x.etat === 'approbation' && !self.portail ? h('div.mini', { text: ((x.destinataires || []).length > 1 ? 'Évaluateurs proposés : ' : 'Évaluateur proposé : ') + (texteEvaluateurs(x) === '—' ? 'premier disponible' : texteEvaluateurs(x)) }) : null
-    ]);
+  /* Une ligne : le véhicule, où elle en est, la valeur, et mon bouton s'il y en a un. Un clic ouvre la fiche. */
+  Vue.prototype.ligne = function (x, d) {
+    var self = this, R = reglages(d), ph = phase(x), c = chrono(x, R), geste = monAction(x, d, this.portail);
+    var titre = x.vehicule || [x.annee, x.marque, x.modele].filter(Boolean).join(' ') || x.vin;
+    var qui = this.portail ? (x.evaluateurNom && x.prise ? 'évaluée par ' + x.evaluateurNom : '') : (x.demandeParNom || '');
+    var sous = [x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : '', x.client || '', qui].filter(Boolean).join(' · ');
     var valeur = null;
-    if (x.etat === 'faite') {
-      var vj = x.valideJusqu ? (x.expiree ? 'échue depuis le ' + jour(x.valideJusqu) : 'vaut jusqu\'au ' + jour(x.valideJusqu)) : '';
-      var ecartEv = circuit && x.valeurEvaluateur && x.valeur && Number(x.valeurEvaluateur) !== Number(x.valeur) ? 'évaluateur : ' + argent(x.valeurEvaluateur) : '';
-      valeur = h('div.de-valeur', [h('span.mini', circuit ? 'Valeur confirmée' : 'Valeur'), h('b', { text: x.valeur ? argent(x.valeur) : (self.portail ? '—' : 'voir l\'évaluation') }),
-        h('span.mini', { text: circuit ? 'par ' + (x.confirmeParNom || 'la direction') : 'par ' + (x.faitePar || x.evaluateurNom || '—') }), ecartEv ? h('span.mini', { text: ecartEv }) : null, vj ? h('span.mini' + (x.expiree ? '.rouge' : ''), { text: vj }) : null]);
-    } else if (x.etat === 'aconfirmer') {
-      valeur = self.portail || !x.valeurEvaluateur ? h('div.de-valeur.attente', [h('span.mini', 'Évaluation faite'), h('b.attente', { text: 'à confirmer' }), h('span.mini', { text: 'par la direction' })])
-        : h('div.de-valeur.attente', [h('span.mini', 'Valeur de l\'évaluateur'), h('b', { text: argent(x.valeurEvaluateur) }), h('span.mini', { text: 'par ' + (x.faitePar || x.evaluateurNom || '—') + ' · à confirmer' })]);
-    }
-    var noteDir = x.etat === 'faite' && x.noteDirecteur ? h('div.de-note.direction', { text: 'Note de ' + (x.confirmeParNom || 'la direction') + ' : ' + x.noteDirecteur }) : null;
-    var info = null;
-    if (x.infoDemandee) {
-      var q = (x.messages || []).filter(function (m) { return m.info; }).pop();
-      info = h('div.de-info', [h('b', { text: (q ? q.nom : 'L\'évaluateur') + ' demande : ' }), h('span', { text: '« ' + (q ? q.texte : '') + ' »' })]);
-    }
-    var resultat = null;
-    if (dr.resultat) {
-      resultat = h('div.de-resultat', [h('span.mini', 'Résultat :')].concat(['presentee', 'achetee', 'perdue'].map(function (k) {
-        return h('button.btn.petit' + (x.issue === k ? '.actif.' + k : ''), { type: 'button', 'aria-pressed': String(x.issue === k), onclick: function () { choisirIssue(x, k); } }, [k === 'perdue' ? 'Perdue…' : ISSUES[k]]);
-      })).concat([x.issue === 'perdue' && x.issueRaison ? h('span.mini', { text: x.issueRaison }) : null, x.issueSource === 'suivi' ? h('span.mini', { text: 'd\'après le suivi de l\'évaluation' }) : null]));
-    } else if (x.issue) resultat = h('div.de-resultat', [h('span.mini', { text: 'Résultat : ' + ISSUES[x.issue] + (x.issueRaison ? ' — ' + x.issueRaison : '') })]);
-    var carte = h('div.de-carte.' + ph + (c ? '.t-' + c.ton : '') + (tractionATraiter(x) ? '.trx-rouge' : ''), { 'data-id': x.id }, [
-      tete,
-      c ? h('div.de-progres', [h('i.' + c.ton, { style: { width: Math.round(c.part * 100) + '%' } })]) : null,
-      etapes,
-      info,
-      h('div.de-corps', [gauche, valeur]),
-      noteDir,
-      resultat,
-      ouvert ? blocFil(x, d, this.brouillons) : null,
-      h('div.de-actions', boutons)
+    if (x.etat === 'faite' && x.valeur) valeur = h('div.de-l-valeur', [h('b', { text: argent(x.valeur) }), x.expiree ? h('span.rouge', { text: 'échue' }) : (x.issue ? h('span', { text: ISSUES[x.issue] }) : null)]);
+    else if (x.etat === 'aconfirmer' && x.valeurEvaluateur && !this.portail) valeur = h('div.de-l-valeur.attente', [h('b', { text: argent(x.valeurEvaluateur) }), h('span', { text: 'à confirmer' })]);
+    var badges = [];
+    if (x.source === 'traction') badges.push(h('span.badge.sans-point.' + (tractionATraiter(x) ? 'rouge' : 'bleu'), { text: 'Traction' }));
+    if (x.infoDemandee) badges.push(h('span.badge.sans-point.ambre', { text: 'Question' }));
+    if (priseParAutre(x) && !this.portail && estOuverte(x)) badges.push(h('span.badge.sans-point.gris', { text: 'Prise par ' + (x.prisParNom || x.evaluateurNom || '—') }));
+    var btn = geste ? h('button.btn.primaire.de-l-btn', { type: 'button', text: geste.texte, onclick: function (e) { e.stopPropagation(); geste.faire(); } }) : null;
+    var ligne = h('div.de-l.' + ph + (geste ? '.a-moi' : '') + (c && c.ton === 'rouge' ? '.retard' : '') + (tractionATraiter(x) ? '.trx-rouge' : ''), { 'data-id': x.id, role: 'button', tabindex: '0',
+      onclick: function () { ficheDemande(x, { portail: self.portail }); }, onkeydown: function (e) { if (e.key === 'Enter') ficheDemande(x, { portail: self.portail }); } }, [
+      h('div.de-l-haut', [
+        h('span.badge.sans-point.' + PHASES[ph][1], { text: libellePhase(x, this.portail) }),
+        h('b.de-l-titre', { text: titre }),
+        badges.length ? h('span.de-l-badges', badges) : null,
+        c ? h('span.de-chrono.' + c.ton, { text: duree(c.min) }) : h('span.de-l-quand', { text: quand(x.confirmeLe || x.faiteLe || x.creeLe) })
+      ]),
+      h('div.de-l-bas', [h('span.de-l-sous', { text: sous }), AMX.ligneAvancement ? AMX.ligneAvancement(pasDe(x), { compact: true }) : null]),
+      valeur, btn
     ]);
-    return carte;
+    return ligne;
   };
 
   /* --- Tableau (colonnes) --- */
@@ -1162,15 +1093,7 @@
       bas
     ]);
   };
-  Vue.prototype.ouvrirDetail = function (id) {
-    var self = this, corps = h('div');
-    var dessiner = function () { var x = AMX.evalDemandes.une(id); AMX.vider(corps); if (x) corps.appendChild(self.carte(x, cache.rep)); };
-    var surMaj = function () { var ta = corps.querySelector('textarea'); if (ta && document.activeElement === ta) return; dessiner(); };
-    document.addEventListener('amx:evalDemandes', surMaj);
-    this.filsOuverts[id] = true;
-    AMX.modale({ titre: id, corps: corps, large: true, proteger: false, onFermer: function () { document.removeEventListener('amx:evalDemandes', surMaj); } });
-    dessiner();
-  };
+  Vue.prototype.ouvrirDetail = function (id) { var x = AMX.evalDemandes.une(id); if (x) ficheDemande(x, { portail: this.portail }); };
 
   /* --- Statistiques --- */
   Vue.prototype.rendreStats = function (d, base, cie, q) {
@@ -1251,6 +1174,38 @@
     var s = document.createElement('style'); s.id = 'css-demandes-eval';
     s.textContent = [
       '.de-page .mini, .de-demande .mini { font-size: 12px; color: var(--encre-3); } .de-page .mini.rouge { color: var(--rouge); font-weight: 600; }',
+      /* 12 nov. : un seul écran, une ligne par demande */
+      '.de-titre { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }',
+      '.de-dispo { display: inline-flex; align-items: center; border: 1px solid var(--ligne); background: var(--carte); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 13px; color: var(--encre-2); cursor: pointer; }',
+      '.de-nouvelle { min-height: 44px; font-size: 15px; padding: 0 18px; }',
+      '.de-groupes button { display: inline-flex; align-items: center; gap: 6px; } .de-groupes .n { font-weight: 700; opacity: .7; }',
+      '.de-liste { gap: 8px; } .de-groupe { display: flex; gap: 8px; align-items: center; margin: 14px 0 2px; font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-2); }',
+      '.de-groupe b { background: var(--rouge); color: #fff; border-radius: 9px; padding: 0 8px; font-size: 12px; } .de-groupe.doux b { background: var(--gris-bg, #EEF1F4); color: var(--encre-2); }',
+      '.de-l { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "haut valeur btn" "bas valeur btn"; gap: 6px 16px; align-items: center; padding: 12px 14px;',
+      '  border: 1px solid var(--ligne, #E3E7EB); border-left: 6px solid #9AA5AE; border-radius: 12px; background: var(--carte, #fff); cursor: pointer; }',
+      '.de-l:hover { border-color: var(--encre-4); } .de-l:focus-visible { outline: 3px solid var(--vert); outline-offset: 2px; }',
+      '.de-l.approbation { border-left-color: var(--violet, #6D4FC7); } .de-l.afaire { border-left-color: #D64545; } .de-l.encours { border-left-color: #C98A1A; } .de-l.aconfirmer { border-left-color: var(--bleu, #1A64BF); }',
+      '.de-l.faite, .de-l.achetee { border-left-color: #1E8E4A; }',
+      '.de-l.a-moi.approbation { background: var(--violet-bg, #F1EDFC); } .de-l.a-moi.afaire { background: #FDECEC; } .de-l.a-moi.encours { background: #FFF4DE; } .de-l.a-moi.aconfirmer { background: #E8F0FB; } .de-l.a-moi.faite { background: #E8F6EC; }',
+      '.de-l.retard { box-shadow: 0 0 0 2px #D64545 inset; } .de-l.trx-rouge { background: #FDECEC; border-left-color: #B42318; }',
+      '.de-l-haut { grid-area: haut; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-width: 0; }',
+      '.de-l-titre { font-size: 16px; color: var(--encre); } .de-l-badges { display: inline-flex; gap: 6px; flex-wrap: wrap; }',
+      '.de-l-quand { font-size: 13px; color: var(--encre-3); }',
+      '.de-l-bas { grid-area: bas; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; min-width: 0; }',
+      '.de-l-sous { font-size: 14px; color: var(--encre-2); } .de-l-bas .amx-avancement { width: 150px; flex: none; }',
+      '.de-l-valeur { grid-area: valeur; text-align: right; display: grid; } .de-l-valeur b { font-size: 20px; color: #1E6B3A; font-variant-numeric: tabular-nums; } .de-l-valeur span { font-size: 13px; color: var(--encre-3); }',
+      '.de-l-valeur.attente b { color: var(--bleu, #1A64BF); } .de-l-valeur .rouge { color: var(--rouge); font-weight: 600; }',
+      '.de-l-btn { grid-area: btn; min-height: 40px; }',
+      '.de-vide { color: var(--encre-3); padding: 18px 2px; font-size: 15px; } .de-vide-grand { text-align: center; padding: 40px 0; } .de-vide-grand p { font-size: 18px; color: var(--encre-2); margin: 0 0 14px; }',
+      '.de-plus-btn { margin: 10px auto 0; display: block; }',
+      '@media (max-width: 640px) { .de-l { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "haut haut" "bas bas" "valeur btn"; } .de-l-valeur { text-align: left; } .de-l-bas .amx-avancement { width: 100%; } }',
+      /* le formulaire court */
+      '.de-court input.saisie, .de-court select { min-height: 42px; font-size: 16px; } .de-court .champ > span { font-size: 13px; font-weight: 600; color: var(--encre-2); }',
+      '.de-photos-ligne { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; } .de-photos-btn { min-height: 48px; font-size: 15px; }',
+      '.de-plus { border: 1px solid var(--ligne, #E3E7EB); border-radius: 10px; padding: 8px 12px; margin-top: 8px; } .de-plus > summary { cursor: pointer; font-weight: 600; color: var(--encre-2); padding: 2px 0; }',
+      '.de-plus[open] > summary { margin-bottom: 8px; } .de-cie-ligne { margin: 0 0 12px; font-weight: 700; display: flex; gap: 10px; align-items: baseline; }',
+      'button.lien { background: none; border: 0; padding: 0; color: var(--vert-fonce, #0E5E31); text-decoration: underline; cursor: pointer; font: inherit; font-weight: 500; }',
+      '.fe-fiche .amx-avancement { margin: 2px 0 4px; } .fe-fiche .de-resultat { padding: 10px 12px; border-radius: 10px; background: var(--fond); }',
       '.de-page { background: var(--fond); } .de-page:fullscreen { padding: 18px 22px; overflow: auto; }',
       /* 7 nov. : fiche simple (façon Torque) */
       '.fe-fiche { display: grid; gap: 12px; } .fe-entete { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }',
@@ -1262,7 +1217,7 @@
       '.fe-sans-photo { padding: 18px; text-align: center; border: 1px dashed var(--ligne); border-radius: 10px; color: var(--encre-3); font-size: 13px; }',
       '.fe-valeur { display: grid; gap: 8px; } .fe-montant { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 14px; border-radius: 10px; background: var(--vert-clair, #E8F5EE); }',
       '.fe-montant span { font-size: 13px; color: var(--vert-fonce, #0E5E31); font-weight: 600; } .fe-montant b { font-size: 26px; color: var(--vert-fonce, #0E5E31); } .fe-montant small { font-size: 12px; color: var(--encre-3); }',
-      '.fe-montant.vide { background: var(--fond); } .fe-montant.vide span { color: var(--encre-3); }',
+      '.fe-montant.sans { background: var(--fond); } .fe-montant.sans span { color: var(--encre-3); }',
       '.fe-reperes, .fe-champs, .fe-qui { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; }',
       '.fe-champ { display: grid; gap: 1px; } .fe-champ span { font-size: 12px; color: var(--encre-3); } .fe-champ b { font-size: 14px; font-weight: 600; color: var(--encre); }',
       '.fe-champ.rouge b { color: var(--rouge); } .fe-qui { padding-top: 8px; border-top: 1px solid var(--ligne); }',
@@ -1340,6 +1295,7 @@
       '.eval-demande.encours { border-left-color: #C98A1A; background: #FFF4DE; } .eval-demande.faite { border-left-color: #1E8E4A; background: #E8F6EC; }',
       '.eval-demande.approbation { border-left-color: var(--violet, #6D4FC7); background: var(--violet-bg, #F1EDFC); } .eval-demande.aconfirmer { border-left-color: var(--bleu, #1A64BF); background: #E8F0FB; } .eval-demande.refusee, .eval-demande.annulee { border-left-color: #9AA5AE; background: var(--fond-2, #F3F5F7); }',
       '.eval-demande .eval-demande-boutons { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }',
+      '.eval-demande-txt { font-weight: 600; color: var(--encre); } .eval-demande-note { font-style: italic; color: var(--encre-2); } .eval-demande .eval-demande-boutons { align-items: center; }',
       '@media (max-width: 900px) { .de-kanban { grid-template-columns: repeat(4, 240px); } .de-kanban.large { grid-template-columns: repeat(6, 230px); } .de-etapes.circuit { grid-template-columns: repeat(3, 1fr); } }',
       '@media (max-width: 640px) { .de-grille { grid-template-columns: 1fr; } .de-corps { display: block; } .de-valeur { text-align: left; margin-top: 6px; } .de-etapes, .de-etapes.circuit { grid-template-columns: 1fr 1fr; } .de-tete .de-chrono { margin-left: 0; } }'
     ].join('\n');

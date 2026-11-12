@@ -581,48 +581,38 @@
       if (!x || self.demandeId !== id) return;
       self.demande = x;
       var dessiner = function (x) {
-        /* 2 nov. : circuit du directeur — approbation, évaluateur, montant à confirmer, puis le représentant. */
+        /* 12 nov. (Maxime : « plein d'écrits partout… ») : une ligne — où en est la demande, qui l'a faite, le client, le km —
+           et un seul gros bouton, celui de mon étape. Le reste (transférer, messages, refuser, renvoyer) dans « Actions ». */
         AMX.vider(el);
         var moi = (AMX.evalDemandes.enCache() || {}).moi || {};
-        var rep = x.demandeParNom || 'le représentant';
-        var jour = function (iso) { return iso ? new Date(iso).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' }) : ''; };
-        var duree = (x.etat === 'faite' || x.etat === 'aconfirmer') ? 'faite' + (x.minutesReponse !== null && x.minutesReponse !== undefined ? ' en ' + x.minutesReponse + ' min' : '')
-          : (x.etat === 'refusee' || x.etat === 'annulee') ? '' : 'envoyée il y a ' + x.minutes + ' min' + (x.enRetard ? ' — en retard' : '');
-        var etatTexte, boutons = [];
-        if (x.etat === 'approbation') {
-          etatTexte = h('span.badge.violet.sans-point', { text: 'En attente de l\'approbation de la direction' });
-          if (moi.diriger && AMX.evalDemandes.approuver) {
-            boutons.push(h('button.btn.primaire.petit', { type: 'button', text: 'Approuver…', onclick: function () { AMX.evalDemandes.approuver(x.id); } }));
-            if (AMX.evalDemandes.refuser) boutons.push(h('button.btn.petit', { type: 'button', text: 'Refuser…', onclick: function () { AMX.evalDemandes.refuser(x.id); } }));
-          }
-        } else if (x.etat === 'aconfirmer') {
-          etatTexte = h('span.badge.bleu.sans-point', { text: 'Évaluation faite' + (x.valeurEvaluateur ? ' — ' + AMX.fmtArgent(x.valeurEvaluateur) : '') + ', à confirmer par la direction' });
-          if (moi.diriger) {
-            if (AMX.evalDemandes.confirmer) boutons.push(h('button.btn.primaire.petit', { type: 'button', text: 'Confirmer le montant…', onclick: function () { AMX.evalDemandes.confirmer(x.id); } }));
-            if (AMX.evalDemandes.renvoyer) boutons.push(h('button.btn.petit', { type: 'button', text: 'Renvoyer à l\'évaluateur…', onclick: function () { AMX.evalDemandes.renvoyer(x.id); } }));
-          }
-        } else if (x.etat === 'faite') {
-          etatTexte = h('span.badge.vert.sans-point', { text: (x.circuit ? 'Valeur confirmée' : 'Faite') + (x.valeur ? ' — ' + AMX.fmtArgent(x.valeur) : '') + (x.circuit && x.confirmeParNom ? ' par ' + x.confirmeParNom : '') + ' · ' + rep + ' est prévenu' + (x.valideJusqu ? ' · vaut jusqu\'au ' + jour(x.valideJusqu) : '') });
-        } else if (x.etat === 'refusee') {
-          etatTexte = h('span.badge.gris.sans-point', { text: 'Refusée par la direction' + (x.refusParNom ? ' (' + x.refusParNom + ')' : '') + (x.refusRaison ? ' : ' + x.refusRaison : '') });
-        } else if (x.etat === 'annulee') {
-          etatTexte = h('span.badge.gris.sans-point', { text: 'Demande annulée' + (x.annuleRaison ? ' : ' + x.annuleRaison : '') });
-        } else if (x.prise && !x.pourMoi) {
-          /* 4 nov. : envoyée à plusieurs, quelqu'un d'autre l'a prise le premier */
-          etatTexte = h('span.badge.ambre.sans-point', { text: 'Prise par ' + (x.prisParNom || x.evaluateurNom || 'un autre évaluateur') + ' : c\'est lui ou elle qui l\'évalue' });
-        } else {
-          etatTexte = h('span.mini', { text: x.circuit ? 'Enregistrez l\'évaluation : la direction confirme le montant, puis ' + rep + ' le reçoit.' : 'Enregistrez l\'évaluation : ' + rep + ' reçoit la valeur par courriel.' });
+        var argentD = function (v) { return v ? AMX.fmtArgent(v) : ''; };
+        var priseAutre = x.prise && !x.pourMoi;
+        var ouverte = x.etat === 'afaire' || x.etat === 'encours';
+        var etiquette = x.etat === 'approbation' ? ['À approuver', 'violet'] : x.etat === 'aconfirmer' ? ['Montant à confirmer' + (x.valeurEvaluateur ? ' · ' + argentD(x.valeurEvaluateur) : ''), 'bleu']
+          : x.etat === 'faite' ? [(x.circuit ? 'Valeur confirmée' : 'Valeur donnée') + (x.valeur ? ' · ' + argentD(x.valeur) : ''), 'vert'] : x.etat === 'refusee' ? ['Refusée', 'gris']
+          : x.etat === 'annulee' ? ['Annulée', 'gris'] : priseAutre ? ['Prise par ' + (x.prisParNom || x.evaluateurNom || 'un autre évaluateur'), 'ambre'] : ['À évaluer', 'rouge'];
+        var principal = null, autres = [];
+        if (x.etat === 'approbation' && moi.diriger) {
+          principal = h('button.btn.primaire', { type: 'button', text: 'Approuver', onclick: function () { AMX.evalDemandes.approuver(x.id); } });
+          if (AMX.evalDemandes.refuser) autres.push({ texte: 'Refuser la demande', action: function () { AMX.evalDemandes.refuser(x.id); } });
+        } else if (x.etat === 'aconfirmer' && moi.diriger) {
+          principal = h('button.btn.primaire', { type: 'button', text: 'Confirmer le montant', onclick: function () { AMX.evalDemandes.confirmer(x.id); } });
+          if (AMX.evalDemandes.renvoyer) autres.push({ texte: 'Renvoyer à l\'évaluateur', action: function () { AMX.evalDemandes.renvoyer(x.id); } });
+        } else if (ouverte && !priseAutre && (x.pourMoi || moi.evaluateur)) {
+          principal = h('button.btn.primaire', { type: 'button', text: 'Envoyer la valeur', title: 'Enregistre l\'évaluation et envoie la valeur' + (x.circuit ? ' à la direction pour confirmation' : ''), onclick: function () { self.enregistrer(); } });
         }
-        if ((x.etat === 'afaire' || x.etat === 'encours') && AMX.evalDemandes.transferer && (moi.direction || moi.evaluateur || x.pourMoi))
-          boutons.push(h('button.btn.petit', { type: 'button', text: 'Transférer…', onclick: function () { AMX.evalDemandes.transferer(x.id); } }));
-        if (AMX.evalDemandes.ouvrirFil && x.etat !== 'refusee' && x.etat !== 'annulee') boutons.push(h('button.btn.petit', { type: 'button', text: (x.messages && x.messages.length ? 'Messages (' + x.messages.length + ')' : 'Question au représentant'), onclick: function () { AMX.evalDemandes.ouvrirFil(x.id); } }));
+        /* le bouton du bandeau remplace « Enregistrer l'évaluation » de l'en-tête (un seul bouton à l'écran) */
+        if (self.btnEnregistrer) self.btnEnregistrer.style.display = principal && ouverte ? 'none' : '';
+        if (ouverte && AMX.evalDemandes.transferer && (moi.direction || moi.evaluateur || x.pourMoi)) autres.push({ texte: 'Transférer à un autre évaluateur', action: function () { AMX.evalDemandes.transferer(x.id); } });
+        if (AMX.evalDemandes.ouvrirFil && x.etat !== 'refusee' && x.etat !== 'annulee') autres.push({ texte: x.messages && x.messages.length ? 'Messages (' + x.messages.length + ')' : 'Question au représentant', action: function () { AMX.evalDemandes.ouvrirFil(x.id); } });
+        if (AMX.evalDemandes.fiche) autres.push({ texte: 'Fiche de la demande', action: function () { AMX.evalDemandes.fiche(x.id); } });
         el.appendChild(h('div.eval-demande.' + x.etat, [
-          h('b', { text: 'Demande ' + x.id + ' de ' + (x.demandeParNom || '—') }),
-          h('span', { text: [x.client ? 'client ' + x.client : '', x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : '', x.note ? '« ' + x.note + ' »' : '', duree].filter(Boolean).join(' · ') }),
-          etatTexte,
-          x.renvoiRaison && (x.etat === 'afaire' || x.etat === 'encours') ? h('span.badge.ambre.sans-point', { text: 'Renvoyée par la direction : ' + x.renvoiRaison }) : null,
-          x.infoDemandee ? h('span.badge.ambre.sans-point', { text: 'Question en attente de réponse' }) : null,
-          boutons.length ? h('div.eval-demande-boutons', boutons) : null
+          h('span.badge.sans-point.' + etiquette[1], { text: etiquette[0], title: x.refusRaison || x.annuleRaison || '' }),
+          h('span.eval-demande-txt', { text: ['Demande de ' + (x.demandeParNom || '—'), x.client || '', x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : ''].filter(Boolean).join(' · ') }),
+          x.note ? h('span.eval-demande-note', { text: '« ' + x.note + ' »' }) : null,
+          x.renvoiRaison && ouverte ? h('span.badge.ambre.sans-point', { text: 'Renvoyée : ' + x.renvoiRaison }) : null,
+          x.infoDemandee ? h('span.badge.ambre.sans-point', { text: 'Question en attente' }) : null,
+          h('div.eval-demande-boutons', [autres.length && AMX.menuActions ? AMX.menuActions(autres, { petit: true }) : null, principal])
         ]));
       };
       dessiner(x);
@@ -649,6 +639,11 @@
     if (!x || !this.elClient || (this.demandeId && x.id !== this.demandeId)) return;
     var vin = String(this.vinCourant || (this.elNiv && this.elNiv.value) || '').trim().toUpperCase();
     if (vin && x.vin !== vin) return;
+    /* 12 nov. : la concession de l'évaluation est celle de la demande (avant : la concession choisie en haut) */
+    var idCie = x.compagnie && AMX.COMPAGNIE_CONCESSION ? AMX.COMPAGNIE_CONCESSION[x.compagnie] : '';
+    if (idCie && this.elConcession && this.elConcession.value !== idCie && Array.prototype.some.call(this.elConcession.options, function (o) { return o.value === idCie; }) && !this.sauvegarde) {
+      this.elConcession.value = idCie; this.rendreCie();
+    }
     var vide = function (el) { return el && !String(el.value || '').trim(); };
     var texte = function (el, v) { if (v && vide(el)) el.value = String(v); };
     var choix = function (el, v) { if (v && vide(el)) poserChoix(el, v); };
@@ -675,7 +670,7 @@
   Evaluation.prototype.construire = function () {
     var self = this;
 
-    this.elEtat = h('p#eval-statut', { text: 'Entrez le NIV : le véhicule se décode et le marché s\'analyse tout seul.' });
+    this.elEtat = h('p#eval-statut');   /* 12 nov. : plus de phrase d'explication — seulement l'état du moment, court */
     this.btnDecoder = h('button.btn#decode-btn', { type: 'button', html: I.scan + '<span>Décoder</span>', title: 'Décoder le NIV (année, marque, modèle, version)', onclick: function () { self.decoderDepuisChamp(); } });
     this.btnAnalyser = h('button.btn.primaire#analyser-btn', { type: 'button', html: I.recherche + '<span>Analyser le marché</span>', onclick: function () { self.analyser(self.pays, true); } });
     this.btnEnregistrer = h('button.btn#save-eval-btn', { type: 'button', html: I.ok + '<span>Enregistrer l\'évaluation</span>', onclick: function () { self.enregistrer(); } });
@@ -686,8 +681,9 @@
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('div.eval-titre', [h('h1', 'Évaluation'), this.elCieBadge = h('span.badge.sans-point.eval-cie#eval-concession-badge', { title: 'Concession de cette évaluation (registre, marché local) — se change dans la carte Véhicule' })]), this.elEtat, this.elSauvegarde]),
       h('div.actions', (AMX.ui2 && AMX.ui2())
-        /* v134 (nouvelle interface) : une action principale (Analyser le marché) ; la feuille d'offre dans « … ». */
-        ? [AMX.menuActions([{ texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }]), this.btnEffacer, this.btnEnregistrer, this.btnAnalyser]
+        /* v134 (nouvelle interface) ; 12 nov. (« plein d'écrits partout ») : un seul bouton, Enregistrer — l'analyse part
+           toute seule ; la relancer, la feuille d'offre et Effacer vont dans « Actions » (les boutons gardent leur code). */
+        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer]
         : [this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer])
     ]);
     this.rendreSauvegarde();
@@ -1398,9 +1394,7 @@
           c.rang ? h('div', [h('div.l', { text: 'Rang' }), h('div.rang.num', { text: c.rang + ' sur ' + c.rangSur })]) : null,
           h('div.expl', { text: lecture })
         ]));
-      } else if (!c) this.elDetailResume.appendChild(h('p.eval-note', { text: 'L\'analyse de marché situera ce prix.' }));
-    } else if (paye === null && achat === null) {
-      this.elDetailResume.appendChild(h('p.eval-note', { text: 'Achat, frais et recon viennent de la fiche d\'achat quand elle existe.' }));
+      }
     }
     if (this.ficheSource) this.elDetailResume.appendChild(h('p.eval-note', [h('span', { text: 'Repris de la fiche d\'achat (' + this.ficheSource + '). ' }), h('a.petit', { href: AMX.lien('achat', '', { vin: this.vinCourant }), text: 'Corriger' })]));
     this.elCibles.appendChild(h('div.eval-cibles-titre', { text: c && c.standard ? 'Prix du marché (à votre km)' : 'Prix du marché' }));
@@ -1448,15 +1442,7 @@
     if (us && us.alerteMmr) this.elSommaire.appendChild(item('É.-U. vs MMR', (us.marcheUSPct >= 0 ? '+' : '') + us.marcheUSPct + ' %', 'neg'));
     var st = this.suiviStatut ? statutSuivi(this.suiviStatut) : null;
     if (st) this.elSommaire.appendChild(item('Suivi', st[1], 'suivi.s-' + st[2]));
-    // 1er nov. : Véhicule et Prix défilent ; les autres ouvrent le panneau de leur tuile.
-    var self = this;
-    this.elSommaire.appendChild(h('nav.sauts', [['sec-vehicule', 'Véhicule'], ['sec-prix', 'Prix'], ['t:marche', 'Marché'], ['t:export', 'CA / É.-U.'], ['t:suivi', 'Client'], ['t:etat', 'État']].map(function (x) {
-      return h('a', { href: '#', text: x[1], onclick: function (e) {
-        e.preventDefault();
-        if (x[0].indexOf('t:') === 0) { var id = x[0].slice(2); self.ouvrirTuile(id === 'marche' ? self.pays : id, { forcer: true, defiler: true }); return; }
-        var el = document.getElementById(x[0]); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } });
-    })));
+    // 12 nov. : plus de boutons de saut (« pas besoin de toujours répéter les menus ») — les tuiles sous le prix suffisent.
     this.rendreEcartClient && this.rendreEcartClient();
     this.majTuiles();
   };
@@ -2006,7 +1992,7 @@
       self.rendreMarche();
       self.rendreExport();
       if (self.analyses[pays].ok) {
-        self.etat('Analyse ' + (pays === 'us' ? 'du marché américain' : 'du marché canadien') + ' reçue : ' + ((self.analyses[pays].actifs || {}).n || 0) + ' annonces actives, ' + ((self.analyses[pays].vendus || {}).n90 || 0) + ' ventes déduites sur 90 jours.');
+        self.etat('Marché ' + (pays === 'us' ? 'É.-U.' : 'Canada') + ' : ' + ((self.analyses[pays].actifs || {}).n || 0) + ' annonces, ' + ((self.analyses[pays].vendus || {}).n90 || 0) + ' ventes en 90 jours.');
         // Chaque analyse est conservée d'office dans le registre (évaluateur + concession).
         self.sauvegarderAuto();
       }
@@ -2350,17 +2336,17 @@
     this.rendreContexte(); this.rendreLiens();
     if (!AMX.inventaire.parVin(vin)) AMX.inventaire.tout().then(function () { self.rendreContexte(); self.preremplirDepuisInventaire(); }, function () {});
     else this.preremplirDepuisInventaire();
-    this.etat('Recherche d\'une évaluation existante…');
+    this.etat('Recherche…');
     return AMX.get('evalVin=' + encodeURIComponent(vin)).then(function (d) {
       if (gen !== self.generation) return;
       if (d && d.refuse) throw new Error(d.erreur || d.message || 'Accès refusé');
       if (d && d.trouve) {
         self.remplir(d.donnees || {});
-        self.etat('Évaluation existante chargée — NIV ' + vin + (d.dateMaj ? ', mise à jour le ' + AMX.fmtDate(d.dateMaj, true) : '') + '. Relancez l\'analyse pour des chiffres du jour.');
+        self.etat(d.dateMaj ? 'Évaluation du ' + AMX.fmtDate(d.dateMaj, true) : 'Évaluation chargée');
         if (!self.parametresPrets() || !self.elVersion.value.trim()) self.decoder(vin).then(function () { if (gen === self.generation && self.parametresPrets() && !d.donnees.marche) self.analyser(self.pays, false); });
       } else {
-        self.etat('Aucune évaluation pour ce NIV — décodage du véhicule…');
-        self.decoder(vin).then(function () { if (gen === self.generation && self.parametresPrets()) { self.etat('Véhicule décodé. Lancez l\'analyse de marché.'); self.analyser(self.pays, false); } });
+        self.etat('Décodage…');
+        self.decoder(vin).then(function () { if (gen === self.generation && self.parametresPrets()) { self.etat(''); self.analyser(self.pays, false); } });
       }
       history.replaceState(null, '', AMX.lien('outils', 'evaluation', self.paramsAdresse(vin)));
     }).catch(function (e) {
@@ -2397,7 +2383,7 @@
     var self = this, btn = this.btnDecoder;
     vin = String(vin || '').trim().toUpperCase();
     btn.classList.add('occupe');
-    this.etat('Décodage du véhicule…');
+    this.etat('Décodage…');
     var serveur = AMX.get({ decoder: vin }).then(function (d) {
       if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, carrosserie: d.carrosserie, portes: d.portes, motricite: d.motricite, source: 'serveur' };
       return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; });
@@ -2568,14 +2554,13 @@
     AMX.vider(el);
     var sv = this.sauvegarde;
     if (this.btnEffacer) this.btnEffacer.style.display = (sv && (AMX.perm('supprimer') || AMX.estAdmin())) ? '' : 'none';
-    if (!sv) { el.appendChild(h('span.puce', { text: 'Non conservée — l\'analyse sera gardée automatiquement dès qu\'un NIV complet est analysé' })); this.btnEnregistrer.classList.remove('ok'); return; }
+    if (!sv) { this.btnEnregistrer.classList.remove('ok'); return; }   /* 12 nov. : rien à dire tant qu'il n'y a pas de NIV */
     if (sv.statut === 'enregistree') {
       el.appendChild(h('span.puce.ok', { text: 'Enregistrée' + (sv.enregistreLe ? ' le ' + AMX.fmtDate(sv.enregistreLe, true) : '') + (sv.enregistrePar ? ' par ' + sv.enregistrePar.split('@')[0] : '') }));
       if (sv.dateMaj && sv.enregistreLe && sv.dateMaj > sv.enregistreLe) el.appendChild(h('span.mini.doux', { text: 'modifiée depuis (' + AMX.fmtDate(sv.dateMaj, true) + ')' }));
       this.btnEnregistrer.classList.add('ok');
     } else {
-      el.appendChild(h('span.puce.gris', { text: 'Analyse conservée automatiquement' + (sv.dateMaj ? ' · ' + AMX.fmtDate(sv.dateMaj, true) : '') }));
-      el.appendChild(h('span.mini.doux', { text: 'Cliquez « Enregistrer l\'évaluation » pour la confirmer (verte dans le registre).' }));
+      el.appendChild(h('span.puce.gris', { text: 'Brouillon gardé' + (sv.dateMaj ? ' · ' + AMX.fmtDate(sv.dateMaj, true) : ''), title: 'Gardée automatiquement ; « Enregistrer » la confirme (verte dans le registre)' }));
       this.btnEnregistrer.classList.remove('ok');
     }
   };
@@ -2607,13 +2592,13 @@
     var self = this, btn = this.btnEnregistrer;
     var vin = this.elNiv.value.trim().toUpperCase();
     if (!vin) {
-      this.etat('Entrez un NIV dans le champ NIV pour pouvoir enregistrer.');
+      this.etat('Entrez le NIV.');
       AMX.toast('Entrez un NIV pour enregistrer l\'évaluation.', 'attention');
       this.elNiv.focus();
       return;
     }
     btn.classList.add('occupe');
-    this.etat('Enregistrement en cours…');
+    this.etat('Enregistrement…');
     var data = this.collecter();
     AMX.post({ action: 'saveEvaluation', vin: vin, data: data }).then(function (d) {
       AMX.verifier(d, 'Enregistrement refusé par le serveur');
@@ -2623,7 +2608,7 @@
       if (data.us) AMX.export.oublierVerdicts();
       self.sauvegarde = { statut: 'enregistree', dateMaj: d.dateMaj || new Date().toISOString(), enregistreLe: d.enregistreLe || d.dateMaj || new Date().toISOString(), enregistrePar: d.enregistrePar || (AMX.session && AMX.session.courriel) || '' };
       self.rendreSauvegarde();
-      self.etat('Évaluation enregistrée pour ce NIV (' + quand + ')' + (data.marche ? ' — prix standard ' + fmt(data.marche.standard) + '.' : '.'));
+      self.etat('Enregistrée (' + quand + ')');
       AMX.toast('Évaluation enregistrée (NIV ' + vin + ')', 'ok');
       // Alerte aux directeurs (Notif.gs, 6 oct.) : ce NIV a été évalué dans une autre concession il y a moins de 30 jours.
       if (d.alerte && d.alerte.ok) {

@@ -12,6 +12,9 @@
      Véhicules    — une carte par véhicule (photo, âge, prix, impressions, clics, dépense), filtres et tri.
      Ventes       — chaque vente avec la publicité reçue avant la vente (« NIV influencé »).
      Branchement  — la feuille des résultats Google Ads et le script à coller (avant : une grosse boîte en tête de page).
+                    Un onglet seulement tant que Google Ads n'envoie pas de résultats ; une fois branché (Maxime, 12 nov. :
+                    « on n'a pas besoin de faire un gros onglet avec ça »), il passe dans Actions et une ligne d'état reste
+                    au bas du Résumé, avec les tableaux par campagne et par réseau repliés.
    Texte jamais sous 15 px. Rien n'est envoyé à Einstein sans un clic ; il ne reçoit aucun client.
    Routes : GET ?annoncesAnalyse=1&compagnie=&du=&au= ; POST annoncesResultats { op: creer | partager | lire | einstein } ;
    et ?fluxGoogle=1 (FluxGoogle.gs) pour le flux.
@@ -31,6 +34,15 @@
     '.ana-onglets button { font: inherit; font-size: 17px; font-weight: 700; color: var(--encre-3); background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 12px 16px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }',
     '.ana-onglets button:hover { color: var(--encre); } .ana-onglets button.actif { color: var(--vert-fonce); border-bottom-color: var(--vert); }',
     '.ana-onglets .pt { width: 9px; height: 9px; border-radius: 50%; background: var(--ambre); display: inline-block; }',
+    /* une fois branché : une ligne d'état au bas du Résumé, le branchement dans Actions */
+    '.ana-etat { border-top: 1px solid var(--ligne); padding-top: 16px; }',
+    '.ana-etat .ligne-etat { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 16px; color: var(--encre-2); }',
+    '.ana-etat .ligne-etat .ok { color: var(--vert-fonce); font-weight: 700; }',
+    '.ana-etat .ana-lien { font: inherit; font-size: 16px; color: var(--vert-fonce); background: none; border: 0; padding: 8px 2px; min-height: 40px; cursor: pointer; text-decoration: underline; }',
+    '.ana-etat details { margin-top: 14px; } .ana-etat summary { font-size: 17px; font-weight: 700; cursor: pointer; padding: 6px 0; }',
+    '.ana-etat details .ana-deux { margin-top: 10px; }',
+    '.entete-page .btn[hidden] { display: none; }',   /* ancienne interface : .btn met display: inline-flex */
+    '.ana-retour { font: inherit; font-size: 16px; font-weight: 700; color: var(--vert-fonce); background: none; border: 0; padding: 6px 0; margin: 0 0 12px; cursor: pointer; }',
     /* titres de zone */
     '.ana-zone { margin: 0 0 30px; } .ana-zone > h2 { font-size: 22px; margin: 0 0 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }',
     '.ana-zone > h2 .seg { margin-left: auto; font-size: 15px; font-weight: 400; }',
@@ -216,16 +228,19 @@
     this.genre = AMX.memo.lire('ann_genre', '') || '';
     this.onglet = (ctx && ctx.params && ctx.params.voir) || AMX.memo.lire('ann_onglet', '') || 'resume';   // ?voir= (le paramètre « vue » est réservé par la tuile)
     if (!ONGLETS.some(function (o) { return o[0] === self.onglet; })) this.onglet = 'resume';
+    this.ongletDemande = !!(ctx && ctx.params && ctx.params.voir === 'branchement');   // le mémo seul ne rouvre pas le branchement
     this.graphe = AMX.memo.lire('ann_graphe', '') || 'cout';
     this.tri = 'cout'; this.filtreV = ''; this.q = ''; this.nV = 60;
     AMX.vider(conteneur);
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnRelire = h('button.btn', { type: 'button', text: 'Relire les résultats Google Ads', onclick: function () { self.resultats({ op: 'lire' }); } });
     this.btnExporter = h('button.btn', { type: 'button', text: 'Exporter Excel', onclick: function () { self.exporter(); } });
+    this.btnBranchement = h('button.btn', { type: 'button', text: 'Branchement Google Ads', onclick: function () { self.ouvrirBranchement(); } });
+    this.btnBranchement.hidden = true;   // montré une fois Google Ads branché (l'onglet disparaît alors)
     this.elSous = h('p');
     conteneur.appendChild(h('div.entete-page', [
       h('div', [h('h1', 'Analyse des annonces'), this.elSous]),
-      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnRelire, this.btnExporter], [this.btnRafraichir]))
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnRelire, this.btnBranchement, this.btnExporter], [this.btnRafraichir]))
     ]));
     this.elCies = h('div.barre-cies'); conteneur.appendChild(this.elCies);
     this.elCorps = h('div.ana-page'); conteneur.appendChild(this.elCorps);
@@ -266,15 +281,21 @@
   Vue.prototype.donneesAds = function () { var a = (this.rep || {}).ads || {}, p = (this.rep || {}).periode || {}; return !!(a.joursAvecDonnees && a.dernierJour >= p.du); };
   Vue.prototype.aller = function (onglet, opts) {
     this.onglet = onglet; AMX.memo.ecrire('ann_onglet', onglet);
+    if (onglet !== 'branchement') this.ongletDemande = false;
     if (opts) { if (opts.filtre !== undefined) this.filtreV = opts.filtre; if (opts.q !== undefined) this.q = opts.q; this.nV = 60; }
     this.rendre();
     try { this.elOnglets.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
   };
 
+  Vue.prototype.ouvrirBranchement = function () { this.ongletDemande = true; this.aller('branchement'); };
+
   Vue.prototype.rendre = function () {
     var self = this, d = this.rep || {}, a = d.ads || {}, p = d.periode || {};
     this.elSous.textContent = (d.nom || this.cie) + ' · du ' + fmtJour(p.du) + ' au ' + fmtJour(p.au) + (a.luLe ? ' · Google Ads lu ' + AMX.fmtDate(a.luLe, true) : '');
     this.btnRelire.hidden = !a.branche;
+    var avecDonnees = this.donneesAds();
+    this.btnBranchement.hidden = !avecDonnees;
+    if (this.onglet === 'branchement' && avecDonnees && !this.ongletDemande) this.onglet = 'resume';
     if (AMX.barreConcessions) AMX.barreConcessions(this.elCies, { domaine: 'inventaire', valeur: this.cie, onchange: function (c) { if (AMX.choisirCompagnie) AMX.choisirCompagnie(c); self.cie = c || 'BMW'; self.rep = null; self.charger(false); } });
     AMX.vider(this.elCorps);
     var selP = h('select.saisie', { 'aria-label': 'Période', onchange: function () { self.periode = selP.value; AMX.memo.ecrire('ann_periode', self.periode); self.rep = null; self.charger(false); } },
@@ -283,14 +304,17 @@
       return h('button' + (self.genre === x[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': self.genre === x[0] ? 'true' : 'false', text: x[1], onclick: function () { self.genre = x[0]; AMX.memo.ecrire('ann_genre', x[0]); self.rendre(); } });
     }));
     this.elCorps.appendChild(h('div.ana-filtres', [selP, seg]));
-    this.elOnglets = h('div.ana-onglets', { role: 'tablist' }, ONGLETS.map(function (o) {
+    this.elOnglets = h('div.ana-onglets', { role: 'tablist' }, ONGLETS.filter(function (o) { return !(o[0] === 'branchement' && avecDonnees); }).map(function (o) {
       var point = o[0] === 'branchement' && !self.donneesAds() ? h('i.pt', { title: 'Pas encore de résultats Google Ads' }) : null;
       return h('button' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', onclick: function () { self.aller(o[0]); } }, [document.createTextNode(o[1]), point]);
     }));
     this.elCorps.appendChild(this.elOnglets);
     if (this.onglet === 'vehicules') this.ongletVehicules();
     else if (this.onglet === 'ventes') this.ongletVentes();
-    else if (this.onglet === 'branchement') this.ongletBranchement();
+    else if (this.onglet === 'branchement') {
+      if (avecDonnees) this.elCorps.appendChild(h('button.ana-retour', { type: 'button', text: '‹ Retour au Résumé', onclick: function () { self.aller('resume'); } }));
+      this.ongletBranchement();
+    }
     else this.ongletResume();
   };
 
@@ -307,6 +331,7 @@
     c.appendChild(this.zoneSemaines());
     c.appendChild(this.zoneAge());
     c.appendChild(this.zoneSurveiller());
+    var etat = this.zoneEtatAds(); if (etat) c.appendChild(etat);
   };
 
   /* ---- Einstein ---- */
@@ -610,16 +635,30 @@
       if (fe.erreur) el.appendChild(h('p', { text: 'Dernière lecture : ' + fe.erreur }));
     }
     z.appendChild(el);
-    /* réseaux et campagnes : le détail technique vit ici */
-    if (this.donneesAds() && !this.genre) {
-      var tab = function (titre, liste, nom) {
-        if (!liste || !liste.length) return null;
-        liste = liste.slice().sort(function (x, y) { return y.cout - x.cout; });
-        return h('div', [h('h3', { style: { fontSize: '19px', margin: '6px 0 10px' }, text: titre }), h('div.ana-defile', [h('table.ana-table', [h('thead', [h('tr', [h('th', titre === 'Par réseau' ? 'Réseau' : 'Campagne'), h('th.n', 'Vus'), h('th.n', 'Clics'), h('th.n', 'Dépense'), h('th.n', 'Conv.')])]),
-          h('tbody', liste.map(function (r) { return h('tr', [h('td', { text: nom(r.nom) }), h('td.n', { text: nbCourt(r.impressions) }), h('td.n', { text: nb(r.clics) }), h('td.n', { text: argentCourt(r.cout) }), h('td.n', { text: String(Math.round(r.conversions * 10) / 10).replace('.', ',') })]); }))])])]);
-      };
-      z.appendChild(h('div.ana-deux', [tab('Par réseau', d.reseaux, function (n) { return RESEAUX[n] || n; }), tab('Par campagne', d.campagnes, function (n) { return n; })]));
-    }
+  };
+  /* Une fois branché : une ligne d'état au bas du Résumé, et les tableaux par campagne et par réseau repliés. */
+  Vue.prototype.zoneEtatAds = function () {
+    if (!this.donneesAds()) return null;
+    var self = this, d = this.rep || {}, a = d.ads || {}, fe = a.feuille, z = h('section.ana-zone.ana-etat');
+    var txt = 'résultats du ' + fmtJour(a.premierJour) + ' au ' + fmtJour(a.dernierJour) + (a.luLe ? ' · lus le ' + quand(a.luLe) : '');
+    z.appendChild(h('div.ligne-etat', [h('span.ok', { text: '✓ Google Ads branché' }), h('span', { text: txt }),
+      fe && fe.url ? h('a.ana-lien', { href: fe.url, target: '_blank', rel: 'noopener', text: 'Ouvrir la feuille' }) : null,
+      h('button.ana-lien', { type: 'button', text: 'Relire', onclick: function () { self.resultats({ op: 'lire' }); } }),
+      h('button.ana-lien', { type: 'button', text: 'Branchement', onclick: function () { self.ouvrirBranchement(); } })]));
+    var t = this.genre ? null : this.tablesCampagnes();
+    if (t) z.appendChild(h('details', [h('summary', { text: 'Par campagne et par réseau' }), t]));
+    return z;
+  };
+  Vue.prototype.tablesCampagnes = function () {
+    var d = this.rep || {};
+    var tab = function (titre, liste, nom) {
+      if (!liste || !liste.length) return null;
+      liste = liste.slice().sort(function (x, y) { return y.cout - x.cout; });
+      return h('div', [h('h3', { style: { fontSize: '19px', margin: '6px 0 10px' }, text: titre }), h('div.ana-defile', [h('table.ana-table', [h('thead', [h('tr', [h('th', titre === 'Par réseau' ? 'Réseau' : 'Campagne'), h('th.n', 'Vus'), h('th.n', 'Clics'), h('th.n', 'Dépense'), h('th.n', 'Conv.')])]),
+        h('tbody', liste.map(function (r) { return h('tr', [h('td', { text: nom(r.nom) }), h('td.n', { text: nbCourt(r.impressions) }), h('td.n', { text: nb(r.clics) }), h('td.n', { text: argentCourt(r.cout) }), h('td.n', { text: String(Math.round(r.conversions * 10) / 10).replace('.', ',') })]); }))])])]);
+    };
+    var r = tab('Par réseau', d.reseaux, function (n) { return RESEAUX[n] || n; }), c = tab('Par campagne', d.campagnes, function (n) { return n; });
+    return r || c ? h('div.ana-deux', [r, c]) : null;
   };
   Vue.prototype.brancher = function () {
     var self = this, d = this.rep || {}, a = d.ads || {};

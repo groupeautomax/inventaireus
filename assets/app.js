@@ -1144,17 +1144,20 @@
          les acheteurs ») : rapports-occasion.js, RapportsOccasion.gs ; le courriel du lundi se règle sur la page. */
       { id: 'rapportsocc', titre: 'Rapports', de: 'rapportsocc', parent: 'occasion', icone: 'resultat', couleur: 'sarcelle', desc: 'Les échanges par conseiller des ventes, les achats par acheteur, et les échanges haussés après l\'évaluation.',
         vues: [{ id: 'echanges', titre: 'Échanges' }, { id: 'achats', titre: 'Achats' }, { id: 'hausses', titre: 'Hausses d\'échange' }] },   /* 10 nov. : HaussesEchange.gs */
-      { id: 'evaluations', titre: 'Évaluation', de: 'outils', parent: 'occasion', icone: 'outils', couleur: 'violet',
-        desc: function () { return AMX.voitEvaluations() ? 'Évaluer un véhicule, les demandes des représentants, le registre et l\'archive Torque.' : 'Demander une évaluation et suivre vos demandes : le montant paraît une fois confirmé par la direction.'; },
+      { id: 'evaluations', titre: 'Évaluations', de: 'outils', parent: 'occasion', icone: 'outils', couleur: 'violet',
+        desc: function () { return AMX.voitEvaluations() ? 'Demander, évaluer, approuver et confirmer les évaluations.' : 'Demander une évaluation et recevoir la valeur.'; },
         visible: function () { return AMX.voitEvaluations() || AMX.representantEval(); },
         /* 3 nov. : un seul endroit pour les évaluations. Le représentant (vendeur, BDC) n'y voit que « Mes demandes » (son
            portail, demandes-eval.js), jamais l'analyse ; les autres ont le module complet. */
+        /* 12 nov. (Maxime : « pas besoin de toujours répéter les menus ») : une seule page visible, « Évaluations » (la liste).
+           L'évaluation sans demande, le Registre et l'Archive Torque restent ouvrables par leur adresse et par le menu
+           « Actions » de la page (cachee : pas de barre de vues). */
         vues: [
-          { id: 'portail', titre: 'Mes demandes', de: 'evalPortail', onglet: '', visible: function () { return AMX.representantEval(); } },
-          { id: 'demandes', titre: 'Demandes', de: 'demandesEval', onglet: '' },
-          { id: 'evaluation', titre: 'Nouvelle', visible: function () { return AMX.voitEvaluations(); } },
-          { id: 'evaluations', titre: 'Registre', visible: function () { return AMX.voitEvaluations(); } },
-          { id: 'torque', titre: 'Archive Torque', visible: function () { return AMX.voitEvaluations(); } }
+          { id: 'portail', titre: 'Évaluations', de: 'evalPortail', onglet: '', visible: function () { return AMX.representantEval(); } },
+          { id: 'demandes', titre: 'Évaluations', de: 'demandesEval', onglet: '' },
+          { id: 'evaluation', titre: 'Évaluer un véhicule', cachee: true, visible: function () { return AMX.voitEvaluations(); } },
+          { id: 'evaluations', titre: 'Registre', cachee: true, visible: function () { return AMX.voitEvaluations(); } },
+          { id: 'torque', titre: 'Archive Torque', cachee: true, visible: function () { return AMX.voitEvaluations(); } }
         ] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
       /* 10 nov. (Maxime : « un outil dans le site avec un NIV et un km pour calculer les locations uniquement pour BMW ; ce
          programme est bon nov et déc ») : le programme de location de BMW Services financiers pour les BMW d'occasion

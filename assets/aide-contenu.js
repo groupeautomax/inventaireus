@@ -511,6 +511,15 @@
         ] },
 
       /* ------------------------------------------------------------------ */
+      { id: 'marketing', titre: 'Marketing : annonces Google', intro: 'Le flux des annonces de véhicules de Google, bâti à partir du site de la concession, et les véhicules qu\'on met de l\'avant.',
+        articles: [
+          { id: 'mkt-google', q: 'Comment fonctionne Marketing › Annonces Google ?', mots: 'marketing annonces google vehicle ads merchant center flux inventaire mettre de l avant vedette performance max publicité site d2c',
+            r: '<p>La page bâtit le <b>flux des annonces de véhicules de Google</b> (Merchant Center) à partir des fiches du <b>site de la concession</b> : le prix affiché, les photos et le lien de chaque véhicule sont ceux du site, vérifiés dans ScanAutomax (un véhicule vendu chez nous mais encore sur le site est exclu).</p>'
+             + '<ul><li><b>Prêts pour Google</b> : tout ce qu\'il faut (NIV, prix, photos, marque, modèle).</li><li><b>À compléter</b> : il manque une information que Google demande (année, couleur, km d\'une occasion).</li><li><b>Exclus</b> : sans prix, sans photo, vendu, ou retiré du flux par la direction.</li></ul>'
+             + '<p><b>Mettre de l\'avant</b> : tous les véhicules prêts vont dans le flux ; « ☆ Mettre de l\'avant » ajoute l\'étiquette « vedette » que la campagne Google peut favoriser. Le système <b>propose</b> les véhicules en stock depuis longtemps et les démos qui ont assez de photos ; une personne décide. « Retirer du flux » garde un véhicule hors de Google (ex. réservé).</p>'
+             + '<p><b>Essai</b> : rien n\'est envoyé à Google pour l\'instant. « Télécharger le flux » donne le fichier que Merchant Center lira quand le compte sera prêt. Seule BMW Sherbrooke est préparée.</p>',
+            liens: [{ t: 'Ouvrir Annonces Google', s: 'marketing', o: 'google' }] }
+        ] },
       { id: 'relance', titre: 'Relance : Équité BMW', intro: 'Les clients BMW Financial Services qui pourraient changer de véhicule pour une mensualité semblable, et l\'import du portefeuille InfoBahn.',
         articles: [
           { id: 'rel-portefeuille', q: 'Qu\'est-ce que Relance › Portefeuille clients ?', mots: 'portefeuille clients drive ai segments relance valeur reprise fourchette équité dette km projeté consentement lcap loi 25 service seulement fin de location dms import fichier clients bons de travail rendez-vous',
@@ -730,6 +739,7 @@
     ],
 
     nouveautes: [
+      { date: '12 novembre 2026', titre: 'Nouveau menu Marketing : les annonces Google', texte: 'Marketing › Annonces Google (BMW Sherbrooke pour commencer) : le flux des annonces de véhicules de Google, bâti à partir du site de la concession. On voit ce qui est prêt, ce qui manque, et on choisit les véhicules à mettre de l\'avant ; le système en propose. Essai : rien n\'est encore envoyé à Google.', liens: [{ t: 'Comment faire', s: 'aide', o: 'guide', p: { a: 'mkt-google' } }] },
       { date: '12 novembre 2026', titre: 'Évaluations : modifier une demande envoyée, et qui approuve', texte: 'Une demande d\'évaluation déjà envoyée se corrige : bouton « Modifier » (kilométrage, note, client, état du véhicule, photos) ; l\'évaluateur le voit dans les messages de la demande. L\'évaluateur qui rouvre son évaluation avant la confirmation fait passer la nouvelle valeur. Nouveau droit dans Admin : « Évaluations — approuver les demandes et confirmer les montants », à cocher pour une autre personne que le directeur général ou la direction des ventes.', liens: [{ t: 'Comment faire', s: 'aide', o: 'guide', p: { a: 'eval-demander' } }] },
       { date: '12 novembre 2026', titre: 'Avis Google : un avis retiré disparaît', texte: 'Un avis que Google a retiré quitte la liste et les statistiques au relevé de la nuit (chaque nuit, plutôt qu\'une fois par semaine), ou tout de suite avec « Vérifier sur Google » sur l\'avis. Filtre « Retirés de Google » pour les revoir. Au passage, 1 548 vieux avis marqués « disparus » à tort redeviennent en ligne.', liens: [{ t: 'Comment faire', s: 'aide', o: 'guide', p: { a: 'avis-retrait' } }] },
       { date: '12 novembre 2026', titre: 'Rappel du matin : un client déjà traité n\'est plus rappelé', texte: 'Un client d\'Équité attitré la veille et déjà traité (suivi inscrit dans Équité) ne revient plus dans « Clients qu\'on vient de vous attitrer » du courriel du matin.' },

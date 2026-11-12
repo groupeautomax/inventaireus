@@ -149,6 +149,7 @@
 
   var ICONES = AMX.icones = {
     accueil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5L12 4l9 7.5"/><path d="M5.5 10v9.5h5v-5.5h3v5.5h5V10"/></svg>',
+    marketing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5v3a1 1 0 0 0 1 1h2l5 4V5.5l-5 4H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>',   /* 12 nov. : tuile Marketing (porte-voix) */
     suggestions: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V17h5v-1.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>',
     inventaire: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l1.5-5A2 2 0 0 1 6.4 4.5h11.2a2 2 0 0 1 1.9 1.5L21 11"/><rect x="3" y="11" width="18" height="7" rx="1.5"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></svg>',
     neufs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l1.5-5A2 2 0 0 1 6.4 5.5h7.1"/><rect x="3" y="12" width="18" height="6.5" rx="1.5"/><circle cx="7.5" cy="18.5" r="1.8"/><circle cx="16.5" cy="18.5" r="1.8"/><path d="M18 2.5l1 2.2 2.4.3-1.8 1.6.5 2.4L18 7.8l-2.1 1.2.5-2.4-1.8-1.6 2.4-.3z"/></svg>',
@@ -1170,6 +1171,12 @@
       { id: 'avis', titre: 'Avis Google', de: 'avis', icone: 'ok', couleur: 'ambre', desc: 'Les avis Google de chaque concession : répondre, suivre, sondages aux clients.', vues: [{ id: 'apercu', titre: 'Aperçu' }, { id: 'avis', titre: 'Avis' }, { id: 'sondages', titre: 'Sondages' }] },
       { id: 'csi', titre: 'CSI', de: 'csi', onglet: '', icone: 'resultat', couleur: 'sarcelle', desc: 'Les scores CSI des constructeurs, ventes et service, par concession, et les alertes.' }
     ] },
+    /* 12 nov. (Maxime : « un menu Marketing dans l'app et le site ; choisir les unités qu'on veut mettre de l'avant dans Google ») :
+       Annonces Google = le flux des annonces de véhicules (flux-google.js, FluxGoogle.gs), en essai : rien n'est envoyé à Google. */
+    { id: 'marketing', titre: 'Marketing', icone: 'marketing', ordre: 35, onglets: [
+      { id: 'menu', titre: 'Marketing', hub: true, racine: true, icone: 'marketing', desc: 'Faire connaître nos véhicules : les annonces Google, et ce qu\'on met de l\'avant.' },
+      { id: 'google', titre: 'Annonces Google', de: 'fluxgoogle', onglet: '', icone: 'marketing', couleur: 'violet', ouvrir: 'Choisir les véhicules à mettre de l\'avant', desc: 'Le flux des annonces de véhicules de Google, bâti à partir du site de la concession : prêts, à compléter, mis de l\'avant.', visible: function () { return !!(AMX.fluxGoogle && AMX.fluxGoogle.peutVoir()); }, compteur: function () { return AMX.fluxGoogle ? AMX.fluxGoogle.compteur() : ''; } }
+    ] },
     { id: 'service', titre: 'Service après-vente', court: 'Service', icone: 'service', ordre: 40, onglets: [
       { id: 'menu', titre: 'Service après-vente', hub: true, racine: true, icone: 'service', desc: 'Le suivi des véhicules au détail, les rendez-vous, les textos aux clients et les courtoisies.' },
       { id: 'suivi', titre: 'Suivi service', de: 'service', icone: 'service', couleur: 'vert', desc: 'Le reconditionnement des véhicules au détail, étape par étape, jusqu\'à prêt à vendre.', vues: [{ id: 'encours', titre: 'En cours' }, { id: 'autoriser', titre: 'Direction' }, { id: 'termines', titre: 'Terminés' }] },
@@ -1253,14 +1260,14 @@
      ci-dessous ne sert que si le serveur n'est pas encore à jour. « tuile/* » = tous les onglets de la tuile. Les autres
      rôles (direction, gestionnaire, admin, propriétaire) n'ont rien de caché par le rôle : leurs droits décident. */
   var ONGLETS_CACHES_ROLE = {
-    vendeur: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
-    bdc: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'service/suivi', 'service/texto', 'outils/*'],
-    service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'outils/*'],
+    vendeur: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'marketing/*', 'outils/*'],
+    bdc: ['vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'service/suivi', 'service/texto', 'marketing/*', 'outils/*'],
+    service: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/neufs', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'marketing/*', 'outils/*'],
     marketing: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/achat', 'inventaire/evaluations', 'inventaire/listes', 'inventaire/rapportsocc', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'service/rendezvous', 'service/texto', 'outils/*'],
-    utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/rapportsocc', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'outils/*'],
-    rh: ['vente/*', 'inventaire/*', 'relance/*', 'service/*', 'outils/*'],   /* 7 nov. : rôle « Ressources humaines » — la tuile Ressources humaines et l'Aide seulement */
-    evaluateur: ['vente/*', 'relance/*', 'service/*'],   /* 9 nov. : rôle « Évaluateur » — inventaire, évaluations, analyse, outils */
-    locationbmw: ['vente/*', 'relance/*', 'service/*', 'outils/*', 'rh/*', 'aide/suggestions', 'inventaire/neufs', 'inventaire/usage', 'inventaire/analyse', 'inventaire/achat', 'inventaire/rapportsocc', 'inventaire/evaluations', 'inventaire/transports', 'inventaire/listes', 'inventaire/soumissions']   /* 11 nov. : rôle « Location BMW seulement » (dirigeant de BMW) — Inventaire › Occasion › Location BMW et le guide de l'Aide ; même liste que Onglets.gs */
+    utilisateur: ['vente/ventes', 'vente/offres', 'vente/envente', 'vente/acheteurs', 'vente/echanges', 'inventaire/analyse', 'inventaire/rapportsocc', 'inventaire/evaluations', 'inventaire/transports', 'relance/equite', 'relance/portefeuille', 'relance/leads', 'relance/avis', 'service/rendezvous', 'service/texto', 'marketing/*', 'outils/*'],
+    rh: ['vente/*', 'inventaire/*', 'relance/*', 'marketing/*', 'service/*', 'outils/*'],   /* 7 nov. : rôle « Ressources humaines » — la tuile Ressources humaines et l'Aide seulement */
+    evaluateur: ['vente/*', 'relance/*', 'marketing/*', 'service/*'],   /* 9 nov. : rôle « Évaluateur » — inventaire, évaluations, analyse, outils */
+    locationbmw: ['vente/*', 'relance/*', 'marketing/*', 'service/*', 'outils/*', 'rh/*', 'aide/suggestions', 'inventaire/neufs', 'inventaire/usage', 'inventaire/analyse', 'inventaire/achat', 'inventaire/rapportsocc', 'inventaire/evaluations', 'inventaire/transports', 'inventaire/listes', 'inventaire/soumissions']   /* 11 nov. : rôle « Location BMW seulement » (dirigeant de BMW) — Inventaire › Occasion › Location BMW et le guide de l'Aide ; même liste que Onglets.gs */
   };
   AMX.ONGLETS_CACHES_ROLE = ONGLETS_CACHES_ROLE;
   function cleDansListe(liste, cle) {

@@ -66,6 +66,7 @@
     '.fgv-feuille .tete { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; } .fgv-feuille .tete b { font-size: 15px; } .fgv-feuille .tete .m { color: var(--encre-3); flex: 1 1 260px; }',
     '.fgv-feuille .partages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; } .fgv-feuille .puce-p { background: var(--fond); border: 1px solid var(--ligne); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }',
     '.fgv-feuille .puce-p button { border: 0; background: none; cursor: pointer; font-size: 15px; line-height: 1; color: var(--encre-3); padding: 0 4px; } .fgv-feuille .ajout { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; } .fgv-feuille .ajout .saisie { flex: 1 1 240px; max-width: 340px; }',
+    '.fgv-feuille .mini { font-size: 13px; color: var(--encre-3); margin-top: 6px; } .fgv-merchant .tete .m { flex-basis: 100%; }',
     '.fgv-feuille details { margin-top: 10px; } .fgv-feuille details summary { cursor: pointer; font-weight: 700; color: var(--encre-2); } .fgv-feuille ol { margin: 8px 0 0 18px; padding: 0; } .fgv-feuille li { margin: 4px 0; } .fgv-feuille .err { color: var(--ambre); margin-top: 6px; }',
     '@media (max-width: 640px) { .fgv-ligne { grid-template-columns: 38px 72px 1fr; } .fgv-ligne img, .fgv-ligne .sans { width: 72px; height: 50px; } .fgv-ligne .d { grid-column: 2 / -1; flex-direction: row; justify-content: space-between; align-items: center; }',
     '  .fgv-publier { top: calc(var(--barre-h) + var(--sous-h)); padding: 10px 12px; } .fgv-publier .boutons { width: 100%; } .fgv-publier .boutons .btn { flex: 1 1 auto; } }'
@@ -174,12 +175,15 @@
       });
     };
     return envoyer(aj, 'vedette').then(function () { return envoyer(re, ''); }).then(function () {
-      return AMX.post({ action: 'fluxGoogleFeuille', compagnie: cie, op: 'ecrire' }, { secours: false, delai: 120000 });
+      return AMX.post({ action: 'fluxGoogleFeuille', compagnie: cie, op: 'ecrire', relire: true }, { secours: false, delai: 120000 });
     }).then(function (r) {
       if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'La feuille n\'a pas pu être écrite.');
+      var nPublies = self.nbChoisis();   // compté avec les choix, avant de vider le brouillon (la liste n'est pas encore relue)
       self._br = {}; self.garderBrouillon();
       self.publieLe = Date.now(); self.aRepublier = false;
-      AMX.toast('Publié : ' + self.nbChoisis() + ' véhicules annoncés. Google affiche les changements demain matin.', 'ok', 8000);
+      var m = r.merchant || {}, suite = m.ok && m.maintenant ? 'Google relit la feuille maintenant : les annonces changent d\'ici une heure environ.'
+        : (m.message || 'Google affiche les changements demain matin.');
+      AMX.toast('Publié : ' + nPublies + ' véhicule' + (nPublies > 1 ? 's' : '') + ' annoncé' + (nPublies > 1 ? 's' : '') + '. ' + suite, m.ok === false && m.branche ? 'attention' : 'ok', 10000);
       return self.charger(true);
     }).catch(function (e) {
       AMX.toast('Publication pas terminée : ' + AMX.erreurTexte(e) + ' Vos choix sont gardés : réessayez.', 'erreur', 10000);
@@ -315,6 +319,67 @@
     return el;
   };
 
+  /* 12 nov. : Merchant Center relit la feuille dès « Publier » (MerchantCenter.gs). Branché une fois par la propriétaire ou le DG :
+     activer « Merchant API » dans la console Google Cloud, puis « Brancher Merchant Center » (lien ouvert connecté comme mallard@). */
+  VueFlux.prototype.merchant = function (op) {
+    var self = this, cie = this.cie || 'BMW', fen = null;
+    if (op === 'lien') { try { fen = window.open('', '_blank'); } catch (e) { fen = null; } }   // ouverte dans le clic, sinon le navigateur la bloque
+    return AMX.post({ action: 'fluxGoogleReglages', compagnie: cie, merchant: op }, { secours: false, delai: 120000 }).then(function (r) {
+      if (!r || r.refuse || r.ok === false) {
+        if (fen) try { fen.close(); } catch (e2) {}
+        if (r && r.merchant && self.rep) self.rep.merchant = r.merchant;
+        throw new Error((r && (r.erreur || r.message)) || 'Refusé');
+      }
+      if (!r.message && !r.url && r.vehicules) throw new Error(SCRIPT_PAS_A_JOUR);
+      if (op === 'lien') {
+        if (fen) fen.location = r.url; else window.open(r.url, '_blank');
+        AMX.toast(r.message || 'Autorisez l\'accès dans la page qui vient de s\'ouvrir.', 'ok', 12000);
+        return null;
+      }
+      AMX.toast(r.message || 'Fait.', r.plusTard ? 'attention' : 'ok', 9000);
+      return self.charger(true);
+    }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 10000); if (self.rep) self.rendre(); return false; });
+  };
+  VueFlux.prototype.carteMerchant = function (d) {
+    var self = this, m = d.merchant, el = h('div.fgv-feuille.fgv-merchant');
+    if (!m) return h('span');
+    var etat, detail = [];
+    if (m.branche) {
+      etat = 'Branché : Google relit la feuille dès « Publier sur Google ».';
+      detail.push('Compte Merchant Center ' + m.compte + (m.sourceNom ? ' · source « ' + m.sourceNom + ' »' : '') + (m.autorisePar ? ' · accès de ' + m.autorisePar : ''));
+      detail.push(m.derniere ? 'Dernière relecture : ' + AMX.fmtDate(m.derniere, true) + ' (' + m.nJour + ' aujourd\'hui sur ' + m.maxJour + ')' : 'Pas encore de relecture demandée.');
+      if (m.aRelire) detail.push('Prochaine relecture : ' + AMX.fmtDate(m.aRelire, true) + ' (au plus une par ' + m.delaiMin + ' minutes).');
+    } else if (m.autorise) {
+      etat = 'Accès autorisé, mais la source de Merchant Center n\'est pas encore trouvée : « Vérifier le branchement ».';
+    } else etat = 'Pas branché : Merchant Center lit la feuille une fois par jour (7 h), donc les changements paraissent le lendemain.';
+    var tete = [h('b', 'Relecture tout de suite par Google (Merchant Center)'), h('span.m', { text: etat })];
+    el.appendChild(h('div.tete', tete));
+    detail.forEach(function (t) { el.appendChild(h('div.mini', { text: t })); });
+    if (m.erreur) el.appendChild(h('div.err', { text: m.erreur + (m.erreurLe ? ' (' + AMX.fmtDate(m.erreurLe, true) + ')' : '') }));
+    var bt = [];
+    if (m.branche) {
+      var bR = h('button.btn', { type: 'button', text: 'Faire relire maintenant', onclick: function () { bR.disabled = true; self.merchant('relire').then(function () { bR.disabled = false; }); } });
+      bt.push(bR);
+    }
+    if (m.peutBrancher) {
+      bt.push(h('button.btn' + (m.autorise ? '' : '.primaire'), { type: 'button', text: m.autorise ? 'Rebrancher (nouvel accès)' : 'Brancher Merchant Center', onclick: function () { self.merchant('lien'); } }));
+      if (m.autorise) {
+        var bV = h('button.btn', { type: 'button', text: 'Vérifier le branchement', onclick: function () { bV.disabled = true; bV.textContent = 'Vérification…'; self.merchant('verifier').then(function () { bV.disabled = false; bV.textContent = 'Vérifier le branchement'; }); } });
+        bt.push(bV);
+        bt.push(h('button.btn.fantome', { type: 'button', text: 'Oublier l\'accès', onclick: function () {
+          var go = function () { self.merchant('oublier'); };
+          if (AMX.confirmer) AMX.confirmer('Oublier l\'accès à Merchant Center ? Google relira alors la feuille seulement chaque matin.').then(function (oui) { if (oui) go(); }); else go();
+        } }));
+      }
+    } else if (!m.autorise) el.appendChild(h('p.mini', { text: 'La propriétaire ou le directeur général branche Merchant Center (une fois).' }));
+    if (bt.length) el.appendChild(h('div.ajout', bt));
+    if (m.peutBrancher && !m.branche) el.appendChild(h('details', [h('summary', { text: 'Comment brancher (une seule fois)' }), h('ol', [
+      h('li', { text: 'Console Google Cloud, projet « My Project Reviews » › API et services › Bibliothèque › « Merchant API » › Activer.' }),
+      h('li', { text: '« Brancher Merchant Center » : dans la page qui s\'ouvre, choisissez le compte mallard@groupeautomax.com (administrateur de Merchant Center), cochez tout, Autoriser.' }),
+      h('li', { text: 'ScanAutomax inscrit son projet auprès de Merchant Center et trouve la source qui lit la feuille. Si la page dit d\'attendre 5 minutes : « Vérifier le branchement » ensuite.' })])]));
+    return el;
+  };
+
   /* ---- La page ---- */
   VueFlux.prototype.vueParDefaut = function () {
     var d = this.rep || {}, n = d.compte || {};
@@ -362,7 +427,7 @@
     this.rendreVues();
     this.elListe = h('div'); this.elCorps.appendChild(this.elListe);
     this.rendreListe();
-    if (d.feuille) this.elCorps.appendChild(h('details.fgv-reglages', [h('summary', { text: 'Réglages : feuille Google, partage et code d\'établissement (faits une fois)' }), this.carteFeuille(d),
+    if (d.feuille) this.elCorps.appendChild(h('details.fgv-reglages', [h('summary', { text: 'Réglages : feuille Google, Merchant Center, partage et code d\'établissement (faits une fois)' }), this.carteMerchant(d), this.carteFeuille(d),
       h('button.btn', { type: 'button', text: 'Code d\'établissement Google…', onclick: function () { self.codeEtablissement(); } })]));
   };
   VueFlux.prototype.rendrePublier = function () {
@@ -373,7 +438,7 @@
     if (nX) etat = h('span.attente', { text: nX + ' changement' + (nX > 1 ? 's' : '') + ' pas encore publié' + (nX > 1 ? 's' : '') });
     else if (this.aRepublier) etat = h('span.attente', { text: 'À republier' });
     else etat = h('span.ajour', { text: 'Tout est publié' + (f.le ? ' (' + AMX.fmtDate(f.le, true) + ')' : '') });
-    var conseil = nC < VISER.min ? 'Visez ' + VISER.min + ' à ' + VISER.max + ' véhicules.' : nC > VISER.max * 1.5 ? 'C\'est beaucoup pour le budget : visez ' + VISER.min + ' à ' + VISER.max + '.' : 'Google affiche les changements le lendemain matin.';
+    var conseil = nC < VISER.min ? 'Visez ' + VISER.min + ' à ' + VISER.max + ' véhicules.' : nC > VISER.max * 1.5 ? 'C\'est beaucoup pour le budget : visez ' + VISER.min + ' à ' + VISER.max + '.' : ((d.merchant && d.merchant.branche) ? 'Google relit la feuille dès que vous publiez (une heure environ).' : 'Google affiche les changements le lendemain matin.');
     this.elPublier.appendChild(h('div.compte', [h('div', [h('b', { text: nC + ' véhicule' + (nC > 1 ? 's' : '') + ' annoncé' + (nC > 1 ? 's' : '') }), document.createTextNode(' · '), etat]), h('div.exp', { text: conseil })]));
     var choisis = (d.lignes || []).filter(function (l) { return l.etat !== 'exclu' && self.choisi(l); });
     this.btnPublier = h('button.btn.primaire.gros', { type: 'button', text: nX ? 'Publier sur Google (' + nX + ')' : 'Publier sur Google', disabled: !d.feuille, title: d.feuille ? '' : 'Créez d\'abord la feuille Google', onclick: function () { self.publier(); } });

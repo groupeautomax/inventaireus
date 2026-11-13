@@ -538,12 +538,13 @@
     this.elOpenlane = this.construireOpenlane();
     this.elExport = this.construireExport();
     this.elDemandes = this.construireDemandes();
+    this.elEvalRegl = this.construireEvalReglages();   /* 13 nov. : approbation avant l'envoi des demandes d'évaluation */
     this.elIa = this.construireIa();
     this.elCf = (AMX.transport && AMX.transport.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : AMX.estAdmin())) ? AMX.transport.carteAdmin() : null;   /* 23 oct. : jetons Central Fleet (transport.js) */
     this.elRevue = (AMX.estProprietaire ? AMX.estProprietaire() : false) ? this.construireRevue() : null;
     this.elCfx2 = (AMX.carfaxApi && AMX.carfaxApi.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : false)) ? AMX.carfaxApi.carteAdmin() : null;
     this.elTrx = (AMX.traction && AMX.traction.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : false)) ? AMX.traction.carteAdmin() : null;   /* 1er nov. : CRM Traction — évaluations (traction.js, Traction.gs) */   /* 27 oct. : clés de l'API CARFAX (carfax-api.js) */   /* 26 oct. : compte de révision pour l'App Store (RevueApple.gs) */
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elCf, this.elCfx2, this.elTrx, this.elRevue, this.elIa, this.elParametres]), this.elPanneau]);
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elEvalRegl, this.elCf, this.elCfx2, this.elTrx, this.elRevue, this.elIa, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -860,6 +861,45 @@
       if (seuls !== undefined && seuls.length && a && !Array.isArray(a.seuls)) { AMX.toast('Courriels enregistrés, mais « Envoyer seulement à » demande le nouveau script (Demande.gs) : redéployez-le.', 'erreur', 9000); return; }
       AMX.toast('Destinataires des demandes enregistrés — ' + (AMX.COMPAGNIES_TOUTES[code] || code) + (a && a.seuls && a.seuls.length ? ' : seulement ' + a.destinataires.map(function (x) { return x.nom || x.courriel; }).join(', ') : '') + '.', 'ok');
     }).catch(function (e) { btn.classList.remove('occupe'); AMX.toast('Enregistrement impossible — ' + AMX.erreurTexte(e), 'erreur'); });
+  };
+
+  /* 13 nov. (SF3C57BFC1E, John Ward, BMW : « trop d'étapes » ; choix de Maxime : réglage par concession) : la demande
+     d'évaluation d'un représentant attend-elle l'approbation de la direction avant de partir à l'évaluateur ? Non = elle
+     part tout de suite (premier disponible ou l'évaluateur choisi) ; la direction confirme quand même le montant après.
+     GET ?evalDemandes=1&reglages=1 ; POST evalDemandeAction { op: 'reglages', compagnie, approbationAvant }. Le DG de la
+     concession (ou le propriétaire) le change. */
+  VueAdmin.prototype.construireEvalReglages = function () {
+    this.elEvalReglListe = h('div', { text: 'Chargement…' });
+    return h('div.carte.admin-parametres.admin-eval-regl', [h('div.carte-entete', [h('h2', 'Demandes d\'évaluation des représentants')]), h('div.carte-corps', [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Cochée : la demande d\'un représentant attend l\'approbation de la direction avant de partir à l\'évaluateur. Décochée : elle part tout de suite à l\'évaluateur ; la direction confirme seulement le montant avant qu\'il soit envoyé au représentant.' }),
+      this.elEvalReglListe
+    ])]);
+  };
+  VueAdmin.prototype.chargerEvalReglages = function () {
+    var self = this;
+    return AMX.get({ evalDemandes: 1, reglages: 1 }, { discret: true }).then(function (d) { if (!self.detruit) self.rendreEvalReglages(d && d.ok && d.reglages ? d : null); }).catch(function () { if (!self.detruit) self.rendreEvalReglages(null); });
+  };
+  VueAdmin.prototype.rendreEvalReglages = function (d) {
+    var self = this;
+    AMX.vider(this.elEvalReglListe);
+    if (!d) { this.elEvalReglListe.appendChild(h('span.badge.ambre.sans-point', { text: 'Réglage illisible — script pas à jour (DemandesEval.gs) : redéployez-le.' })); return; }
+    var codes = Object.keys(d.reglages);
+    if (!codes.length) { this.elEvalReglListe.appendChild(h('p.doux.petit', { text: 'Aucune concession visible.' })); return; }
+    if (this.elEvalRegl) this.elEvalRegl.style.display = codes.some(function (c) { return d.peutRegler && d.peutRegler[c]; }) ? '' : 'none';
+    codes.forEach(function (c) {
+      var r = d.reglages[c] || {}, peut = !!(d.peutRegler && d.peutRegler[c]);
+      var cb = h('input', { type: 'checkbox', id: 'adm-eval-approbation-' + c, checked: r.approbationAvant !== false ? 'checked' : undefined });
+      cb.disabled = !peut;
+      cb.addEventListener('change', function () {
+        cb.disabled = true;
+        AMX.post({ action: 'evalDemandeAction', op: 'reglages', compagnie: c, approbationAvant: cb.checked }).then(function (x) {
+          if (x && x.vehicules && !x.reglages) throw new Error('le script n\'est pas à jour (DemandesEval.gs)');
+          if (!x || x.ok === false || x.refuse) throw new Error((x && x.erreur) || 'refusé');
+          self.rendreEvalReglages(x); AMX.toast(x.message || 'Réglage enregistré.', 'ok');
+        }).catch(function (e) { cb.checked = !cb.checked; cb.disabled = !peut; AMX.toast('Réglage impossible — ' + AMX.erreurTexte(e), 'erreur'); });
+      });
+      self.elEvalReglListe.appendChild(h('label.case.admin-eval-ligne', { title: peut ? '' : 'Seul le directeur général de la concession (ou le propriétaire) change ce réglage.' }, [cb, h('span', [h('b', { text: AMX.COMPAGNIES_TOUTES[c] || c }), h('span.doux', { text: r.approbationAvant !== false ? ' — approbation de la direction avant l\'envoi' : ' — envoi direct à l\'évaluateur, montant confirmé par la direction' })])]));
+    });
   };
 
   VueAdmin.prototype.chargerOpenlane = function () {
@@ -1298,6 +1338,7 @@
     this.chargerOpenlane();
     this.chargerExport();
     this.chargerDemandes();
+    this.chargerEvalReglages();
     this.chargerIa();
     if (this.elRevue) this.chargerRevue();
     this.chargerOnglets();

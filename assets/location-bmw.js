@@ -90,6 +90,22 @@
     if ((m = / M([2-8]) /.exec(t))) return m[1] + ' SERIES';
     return '';
   }
+  /* 13 nov. : le niveau d'une BMW — 'M' (M2 à M8, X3 M à X6 M, XM), 'MP' (M Performance : M340i, M440i, M550i, X3 M50,
+     X5 M60i, i4 M50, iX M60…) ou 'base' (« M Sport Edition » comprise). Le neuf comparé à une occasion doit être du même
+     niveau : une 330e ne se compare pas à une M3 (l'économie serait gonflée). */
+  function niveauBmw(txt) {
+    var t = ' ' + norm(txt) + ' ';
+    if (/ XM /.test(t) || / M[2-8] /.test(t) || / M[2-8] ?(CS|CSL|COMPETITION) /.test(t) || / X[3-7] ?M (?!SPORT)/.test(t) || / M COMPETITION /.test(t)) return 'M';
+    if (/ M[2-8]\d\d[A-Z]* /.test(t) || / M\d\d[A-Z]{0,2} /.test(t)) return 'MP';   /* M340i, M440i, M550i… ; M35i, M40i, M50, M60i, M70 */
+    return 'base';
+  }
+  var NOM_NIVEAU = { M: 'une M', MP: 'une M Performance', base: 'une BMW ordinaire' };
+  /* La carrosserie compte aussi quand les deux la disent : une Gran Coupé ne se compare pas à un cabriolet (berline et Gran Coupé : oui). */
+  function memeCorps(a, b) {
+    var ca = corpsDe(a), cb = corpsDe(b);
+    if (!ca || !cb || ca === cb) return true;
+    return (ca === 'berline' && cb === 'gran') || (ca === 'gran' && cb === 'berline');
+  }
   function pointage(dec, ligne) {
     var dj = jetons(dec.texte), cj = jetons(ligne[2]), s = 0, communs = 0;
     cj.forEach(function (t) {
@@ -364,11 +380,13 @@
   }
   /** Les neufs du plus près au plus loin d'une occasion (ligne de la grille, sinon son texte) : [{ n, meme, com }]. */
   function procheNeuf(cands, ligne, txt) {
-    var serie = ligne ? ligne[1] : serieDe(txt);
+    var serie = ligne ? ligne[1] : serieDe(txt), niv = niveauBmw(ligne ? ligne[2] : txt);
     var tj = jetons(ligne ? ligne[2] : txt).filter(function (t) { return !GENERIQUES[t] && t !== serie && !/^\d{4}$/.test(t); });
     return (cands || []).map(function (n) {
-      var cj = jetons(n.txt), com = tj.filter(function (t) { return cj.indexOf(t) >= 0; }).length, meme = !!serie && n.serie === serie;
-      return { n: n, meme: meme, com: com, s: (meme ? 0 : 1000) - com * 10 + (RANG_NEUF[n.etat] || 0) * 3 };
+      var cj = jetons(n.txt), com = tj.filter(function (t) { return cj.indexOf(t) >= 0; }).length, memeSerie = !!serie && n.serie === serie, nivN = niveauBmw(n.txt);
+      /* « même » = même série ET même niveau : le seul neuf proposé d'office ; une autre série ou un autre niveau se choisit à la main */
+      var meme = memeSerie && nivN === niv && memeCorps(ligne ? ligne[2] : txt, n.txt);
+      return { n: n, meme: meme, memeSerie: memeSerie, niveau: nivN, com: com, s: (meme ? 0 : memeSerie ? 500 : 1000) - com * 10 + (RANG_NEUF[n.etat] || 0) * 3 };
     }).sort(function (a, b) { return (a.s - b.s) || ((b.n.annee || 0) - (a.n.annee || 0)) || (a.n.prix - b.n.prix); });
   }
   function jetonsProgBmw(t) { return jetons(String(t || '').replace(/convertible/ig, 'cabriolet')).filter(function (x) { return x !== 'SERIES' && x !== 'SERIE' && x !== 'BMW'; }); }
@@ -460,7 +478,7 @@
     });
     return best;
   }
-  var Calcul = { modelesManuf: modelesManuf, meilleurTerme: meilleurTerme, neufsBmw: neufsBmw, procheNeuf: procheNeuf, progLocationNeuf: progLocationNeuf, grilleLoc: grilleLoc, locationNeuf: locationNeuf, progsDuJour: progsDuJour,
+  var Calcul = { niveauBmw: niveauBmw, memeCorps: memeCorps, modelesManuf: modelesManuf, meilleurTerme: meilleurTerme, neufsBmw: neufsBmw, procheNeuf: procheNeuf, progLocationNeuf: progLocationNeuf, grilleLoc: grilleLoc, locationNeuf: locationNeuf, progsDuJour: progsDuJour,
     photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
@@ -1623,12 +1641,21 @@
   /** L'offre pour le site : 0 $ comptant, la durée de la plus grosse économie (avant taxes). { offre, best } ou { erreur }. */
   VueLocation.prototype.offreCalculee = function () {
     var self = this, prog = this.prog(), d = this.neufData, n = this.neufChoisi().n, l = this.ligne;
-    if (!prog || !l || !d || !n) return { erreur: 'Choisissez la version et le neuf à comparer.' };
+    if (!prog || !l || !d) return { erreur: 'Choisissez la version et le neuf à comparer.' };
+    var nivU = niveauBmw(l[2]);
+    if (!n) {
+      var liste0 = this.neufChoisi().liste || [];
+      return { erreur: liste0.some(function (x) { return x.meme; }) ? 'Choisissez le neuf à comparer.'
+        : 'Aucun BMW neuf comparable (' + nomSerie(l[1]) + ', ' + NOM_NIVEAU[nivU] + ') dans nos neufs ni au programme du mois de BMW : pas d\'offre pour ce véhicule.' };
+    }
+    if (niveauBmw(n.txt) !== nivU || (n.serie && n.serie !== l[1])) return { erreur: 'Le neuf comparé doit être comparable : même série et même niveau (' + NOM_NIVEAU[nivU] + '). Une M ou une M Performance ne se compare pas à une BMW ordinaire.' };
+    if (!memeCorps(l[2], n.txt)) return { erreur: 'Le neuf comparé doit avoir la même carrosserie (' + corpsDe(l[2]).replace('gran', 'Gran Coupé') + ' ici, ' + corpsDe(n.txt).replace('gran', 'Gran Coupé') + ' pour le neuf).' };
     var n2 = this.neufCalcul(n); if (!n2) return { erreur: 'Entrez le PDSF du neuf du manufacturier.' };
     if (nombre(this.o.prix) === null) return { erreur: 'Entrez le prix de vente.' };
     var o0 = Object.assign({}, this.o, { comptant: 0 }), oN = this.neufSaisie(n, 0), tx = taxePct(prog), ajd0 = (this.rep && this.rep.aujourdhui) || ajd();
     var lignes = prog.termes.map(function (t) { var u = calculerTerme(prog, l, t, o0); return { u: u, n: u.offert ? locationNeuf(d.progs, n2, t, self.o.kmAn, oN, tx, ajd0) : { offert: false } }; });
     var best = meilleurTerme(lignes);
+    if (!lignes.some(function (x) { return x.n && x.n.offert; })) return { erreur: 'Le programme de location du mois de BMW ne couvre pas le neuf comparable (' + [n2.annee, n2.modele, n2.version].filter(Boolean).join(' ') + ') : pas d\'offre pour ce véhicule tant que BMW n\'a pas de programme pour ce modèle.' };
     if (!best || best.ec < 1) return { erreur: 'Le neuf n\'est pas plus cher que l\'occasion : rien à mettre en valeur sur le site.' };
     var u = best.x.u, nn = best.x.n, prg = nn.prog || {};
     var ver = joli(l[2]); if (ver.toUpperCase().indexOf(String(l[1]).toUpperCase() + ' ') === 0) ver = ver.slice(String(l[1]).length + 1);

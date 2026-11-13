@@ -278,7 +278,52 @@
   /* Une fiche de BMW FS sous la forme d'une ligne de registre : pour la recherche par la fin du NIV. */
   function fsCommeInv(x) { return { vin: x.vin, stock: '', modele: texteFs(x.f), statut: '', _feuille: 'BMWFS', compagnie: '', _bmwfs: x.f }; }
 
-  var Calcul = { bmwfsDisponibles: bmwfsDisponibles, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
+  /* -- 13 nov. (Maxime : « des aperçus des modèles que l'on calcule et le calcul du coûtant, estimé si BMW FS avec le transport
+     et les frais d'encan ») -- */
+  /* Une photo représentative : même série, l'année la plus proche, puis le plus de mots de la version en commun.
+     cands = [{ url, serie, annee, txt, vin }]. */
+  function photoRep(cands, serie, annee, txt, exclure) {
+    if (!serie) return null;
+    var tj = jetons(txt || '').filter(function (t) { return !GENERIQUES[t] && !/^\d{4}$/.test(t); }), best = null;
+    (cands || []).forEach(function (c) {
+      if (!c || !c.url || c.serie !== serie || (exclure && c.vin === exclure)) return;
+      var dy = (annee && c.annee) ? Math.abs(c.annee - annee) : 4, com = 0;
+      if (tj.length) { var cj = jetons(c.txt || ''); tj.forEach(function (t) { if (cj.indexOf(t) >= 0) com++; }); }
+      var s = dy * 10 - Math.min(com, 9);
+      if (!best || s < best.s) best = { s: s, c: c };
+    });
+    return best ? best.c : null;
+  }
+  /* Les réglages de transport et de frais des Opportunités d'achat (OCC_PARAMS), quand la page n'a pas pu les lire. */
+  var PARAMS_OCC_DEFAUT = { frais: 400, transportBase: 250, transportKm: 0.5, facteurRoute: 1.2 };
+  /* Le coûtant estimé d'un véhicule de BMW FS : prix demandé + frais d'encan + transport jusqu'à Sherbrooke — le transport et la
+     distance sont ceux que les Opportunités d'achat ont calculés pour BMW Sherbrooke (occ.par.BMW), sinon inconnus. */
+  function coutFs(ff, occ, params) {
+    var p = Object.assign({}, PARAMS_OCC_DEFAUT, params || {});
+    var prix = (ff && typeof ff.prix === 'number' && ff.prix > 0) ? ff.prix : null;
+    if (prix === null && occ) { var po = nombre(occ.prix); if (po && po > 0) prix = po; }
+    var k = (occ && occ.par && occ.par.BMW) || null;
+    var transport = (k && typeof k.transport === 'number' && k.transport >= 0) ? Math.round(k.transport) : null;
+    var frais = nombre(p.frais); if (frais === null || frais < 0) frais = PARAMS_OCC_DEFAUT.frais;
+    return {
+      prix: prix, frais: frais, transport: transport, distance: (k && typeof k.distance === 'number') ? k.distance : null,
+      approx: !!(k && k.approx), destNom: (k && k.destNom) || 'Sherbrooke, QC', base: nombre(p.transportBase), parKm: nombre(p.transportKm),
+      facteur: nombre(p.facteurRoute), total: prix === null ? null : Math.round(prix + frais + (transport || 0)), complet: prix !== null && transport !== null,
+      source: k ? 'opportunites' : 'defaut'
+    };
+  }
+  /* Le coût d'une BMW de nos registres (un coût illisible — une cellule devenue date — ou absurde est ignoré). */
+  function coutRegistre(v) {
+    var c = v ? (typeof A.montant === 'function' ? A.montant(v.cout) : nombre(v.cout)) : null;
+    return (typeof c === 'number' && isFinite(c) && c > 500 && c < 1000000) ? Math.round(c) : null;
+  }
+  /* La marge au prix de vente : prix − coûtant, et en % du prix. */
+  function marge(prix, cout) {
+    if (prix === null || prix === undefined || !(prix > 0) || cout === null || cout === undefined) return null;
+    return { montant: Math.round(prix - cout), pct: (prix - cout) / prix * 100 };
+  }
+
+  var Calcul = { photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge,bmwfsDisponibles: bmwfsDisponibles, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
   /* ======================================================= La page */
@@ -338,6 +383,31 @@
     '.lbm-detail tr.total td { font-weight: 800; border-top: 2px solid var(--encre-4); } .lbm-detail tr.sec td { padding-top: 14px; font-weight: 700; color: var(--encre-3); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; border-bottom: none; }',
     '.lbm-detail p { font-size: 13px; color: var(--encre-3); margin: 10px 0 0; line-height: 1.45; }',
     '.lbm-page .lbm-tableau td:first-child b, .lbm-page .lbm-matrice td { white-space: nowrap; }',
+    /* 13 nov. : aperçu du véhicule, photos des listes, coûtant */
+    '.lbm-page .lbm-veh-tete { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); gap: 14px; align-items: start; }',
+    '.lbm-page .lbm-veh-txt { display: flex; flex-direction: column; gap: 8px; min-width: 0; }',
+    '.lbm-page .lbm-photo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }',
+    '.lbm-page .lbm-photo-cadre { position: relative; aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; background: var(--carte-2); border: 1px solid var(--ligne); display: flex; align-items: center; justify-content: center; color: var(--encre-3); }',
+    '.lbm-page .lbm-photo-cadre img { width: 100%; height: 100%; object-fit: cover; display: block; } .lbm-page .lbm-photo-cadre.cliquable { cursor: zoom-in; }',
+    '.lbm-page .lbm-photo-cadre svg { width: 56px; height: 56px; opacity: .35; } .lbm-page .lbm-photo-cadre .sans { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 12px; }',
+    '.lbm-page .lbm-photo-note { font-size: 12px; color: var(--encre-3); line-height: 1.35; }',
+    '.lbm-page .lbm-photo-vign { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px; } .lbm-page .lbm-photo-vign img { width: 58px; height: 44px; object-fit: cover; border-radius: 5px; cursor: pointer; border: 2px solid transparent; flex: none; } .lbm-page .lbm-photo-vign img.actif { border-color: var(--vert); }',
+    '.lbm-mini { position: relative; width: 72px; height: 54px; border-radius: 6px; overflow: hidden; background: var(--carte-2); flex: none; display: flex; align-items: center; justify-content: center; color: var(--encre-3); }',
+    '.lbm-mini img { width: 100%; height: 100%; object-fit: cover; display: block; } .lbm-mini svg { width: 30px; height: 30px; opacity: .35; }',
+    '.lbm-mini .tag { position: absolute; right: 3px; bottom: 3px; font-size: 11px; line-height: 1; background: rgba(20,26,31,.75); color: #fff; border-radius: 4px; padding: 2px 4px; }',
+    '.lbm-page .lbm-sugg .lbm-mini { width: 56px; height: 42px; }',
+    '.lbm-stock .lbm-stock-liste button.avec-photo, .lbm-page .lbm-sugg button.avec-photo { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; align-items: center; }',
+    '.lbm-page .lbm-sugg button.avec-photo { grid-template-columns: 56px minmax(0, 1fr); }',
+    '.lbm-txt { display: flex; gap: 4px 12px; align-items: baseline; flex-wrap: wrap; min-width: 0; }',
+    '.lbm-stock .lbm-stock-liste .cout, .lbm-page .lbm-sugg .cout { font-size: 12.5px; color: var(--encre-2); font-variant-numeric: tabular-nums; }',
+    '.lbm-page .lbm-cout { margin-top: 12px; border: 1px solid var(--ligne); border-radius: 10px; padding: 10px 12px 6px; }',
+    '.lbm-page .lbm-cout-titre { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 700; font-size: 14.5px; margin-bottom: 4px; }',
+    '.lbm-page .lbm-cout-t { width: 100%; max-width: 640px; border-collapse: collapse; font-size: 14px; } .lbm-page .lbm-cout-t td { padding: 6px 4px; border-bottom: 1px solid var(--ligne); vertical-align: top; }',
+    '.lbm-page .lbm-cout-t td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; } .lbm-page .lbm-cout-t .doux { display: block; font-size: 12px; color: var(--encre-3); }',
+    '.lbm-page .lbm-cout-t tr.total td { font-weight: 800; border-top: 2px solid var(--encre-4); } .lbm-page .lbm-cout-t tr:last-child td { border-bottom: none; }',
+    '.lbm-page .lbm-cout-t tr.marge td.num { font-weight: 800; } .lbm-page .lbm-cout-t tr.marge.plus td.num { color: var(--vert-fonce); } .lbm-page .lbm-cout-t tr.marge.moins td.num { color: var(--rouge); }',
+    '.lbm-page .lbm-cout-note { font-size: 12.5px; color: var(--encre-3); margin: 6px 0 4px; line-height: 1.45; }',
+    '@media (max-width: 640px) { .lbm-page .lbm-veh-tete { grid-template-columns: 1fr; } .lbm-page .lbm-photo { max-width: 380px; } .lbm-stock .lbm-stock-liste button.avec-photo { grid-template-columns: 60px minmax(0, 1fr); gap: 10px; } .lbm-stock .lbm-stock-liste .lbm-mini { width: 60px; height: 45px; } }',
     '@media (max-width: 640px) { .lbm-page .lbm-grille { grid-template-columns: 1fr 1fr; } .lbm-page .lbm-tableau .col-taxes, .lbm-page .lbm-tableau .col-avant, .lbm-page .lbm-tableau .col-total { display: none; } .lbm-page .lbm-tableau td, .lbm-page .lbm-tableau th { padding: 8px 7px; } .lbm-page .lbm-tableau .gros { font-size: 16px; } .lbm-page .lbm-matrice { min-width: 0; } .lbm-page .lbm-matrice td, .lbm-page .lbm-matrice th { padding: 7px 6px; font-size: 12.5px; } }'
   ].join('\n');
   function css() { if (document.getElementById('css-location-bmw')) return; var s = document.createElement('style'); s.id = 'css-location-bmw'; s.textContent = CSS; document.head.appendChild(s); }
@@ -413,6 +483,7 @@
     this.inKm = h('input#lbm-km', { type: 'text', inputmode: 'numeric', value: this.o.km, placeholder: 'ex. 42 000', autocomplete: 'off' });
     this.elKmAide = h('div.aide', { text: 'Le km au compteur aujourd\'hui.' });
     this.elVeh = h('div.lbm-vehicule');
+    this.elCout = h('div.lbm-cout', { hidden: true });
     this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [
       h('div.carte-entete', [h('h2', '1. Le véhicule')]),
       h('div.carte-corps', [
@@ -420,7 +491,8 @@
           h('div.champ', { style: { gridColumn: 'span 2' } }, [h('label', { for: 'lbm-vin', text: 'NIV ou # stock' }), h('div.lbm-niv', [this.inVin, this.btnTrouver, this.btnStock, this.btnFs]), this.elSugg, h('div.aide', { text: 'Le NIV complet, ses 6 derniers caractères ou le # stock d\'un véhicule de nos registres — ou « Nos BMW » pour parcourir nos BMW en stock, « BMW FS » pour les BMW à vendre chez BMW Financial Services.' })]),
           h('div.champ', [h('label', { for: 'lbm-km', text: 'Km au compteur' }), this.inKm, this.elKmAide])
         ]),
-        this.elVeh
+        this.elVeh,
+        this.elCout
       ])
     ]));
 
@@ -488,8 +560,16 @@
     /* BMW FS : les véhicules à vendre sur la place de marché de BMW Financial Services (fiches Manheim « Disponible »). */
     this.fs = null; this.fsChoisi = null; this.fsVeh = null; this.fsMarche = null;
     this.fsPret = (A.manheim && A.manheim.charger ? A.manheim.charger(false) : Promise.resolve(null)).then(function (d) {
-      self.fs = bmwfsDisponibles((d && d.fiches) || []); self.fsEtat = (d && d.etat && d.etat.dispos) || null; return self.fs;
+      self.mhFiches = (d && d.fiches) || [];
+      self.fs = bmwfsDisponibles(self.mhFiches); self.fsEtat = (d && d.etat && d.etat.dispos) || null; return self.fs;
     }, function (e) { self.fs = { liste: [], lu: '' }; self.fsErreur = A.erreurTexte ? A.erreurTexte(e) : String(e && e.message || e); return self.fs; });
+    /* 13 nov. : les photos du site de chaque concession (D2C) — aperçu du véhicule et photos représentatives. Arrivées après le
+       véhicule : l'aperçu se refait. */
+    this.vehPret = '';
+    this.photosPret = (A.photosD2c && A.photosD2c.charger ? A.photosD2c.charger(false) : Promise.resolve(null)).then(function () {
+      if (!self.detruit && self.vehPret && self.vehPret === self.vinCourant) self.rendreVehicule();
+      return true;
+    }, function () { return false; });
     this.inVin.addEventListener('change', function () { var v = self.inVin.value.trim().toUpperCase(); if (v.length === 17 && v !== self.vinCourant) self.lireVin(false); });
 
     charger(false).then(function (rep) {
@@ -564,7 +644,7 @@
   };
   VueLocation.prototype.effacer = function () {
     this.inVin.value = ''; this.inKm.value = ''; this.inPrix.value = ''; this.inComptant.value = '';
-    this.vinCourant = ''; this.invChoisi = null; this.fsChoisi = null; this.fsVeh = null; this.fsMarche = null; this.cacherSugg(); this.dec = null; this.trouve = null; this.ligne = null; this.manuel = false; this.forcerManuel = false; this.choixManuel = false; this.caseIx.checked = false; this.o.ixNbv = false;
+    this.vinCourant = ''; this.invChoisi = null; this.fsChoisi = null; this.fsVeh = null; this.fsMarche = null; this.fsOcc = null; this.vehPret = ''; this.cacherSugg(); this.dec = null; this.trouve = null; this.ligne = null; this.manuel = false; this.forcerManuel = false; this.choixManuel = false; this.caseIx.checked = false; this.o.ixNbv = false;
     this.lireSaisies(); A.vider(this.elVeh); this.elKmAide.textContent = 'Le km au compteur aujourd\'hui.'; this.rendreResultat();
     try { this.inVin.focus(); } catch (e) {}
   };
@@ -575,19 +655,25 @@
     var self = this, vin = String(v.vin || '').toUpperCase();
     if (v._bmwfs) {
       var ff = v._bmwfs;
-      return h('button', { type: 'button', role: 'option', title: vin, onclick: function () { self.choisirFs(ff); } }, [
-        h('span.st.fs', { text: 'BMW FS' }),
-        h('span.mod', { text: v.modele || '—' }),
-        h('span.vin', { text: '…' + vin.slice(-8) }),
-        h('span.etat', { text: [kmTxt(ff.km), ff.prix ? argent(ff.prix) : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
+      return h('button.avec-photo', { type: 'button', role: 'option', title: vin, onclick: function () { self.choisirFs(ff); } }, [
+        self.mini(vin, ff, serieDe(v.modele), anneeDe(v.modele), v.modele),
+        h('span.lbm-txt', [
+          h('span.st.fs', { text: 'BMW FS' }),
+          h('span.mod', { text: v.modele || '—' }),
+          h('span.vin', { text: '…' + vin.slice(-8) }),
+          h('span.etat', { text: [kmTxt(ff.km), ff.prix ? argent(ff.prix) : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
+        ])
       ]);
     }
     var st = A.statut ? A.statut(v.statut, v._feuille) : { libelle: v.statut || '' };
-    return h('button', { type: 'button', role: 'option', title: vin, onclick: function () { self.choisirInv(v); } }, [
-      h('span.st', { text: v.stock ? '# ' + v.stock : 'sans # stock' }),
-      h('span.mod', { text: v.modele || '—' }),
-      h('span.vin', { text: '…' + vin.slice(-8) }),
-      h('span.etat', { text: [st.libelle, A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(v._feuille) : v._feuille, v.compagnie].filter(Boolean).join(' · ') })
+    return h('button.avec-photo', { type: 'button', role: 'option', title: vin, onclick: function () { self.choisirInv(v); } }, [
+      self.mini(vin, null, serieDe(v.modele), anneeDe(v.modele), v.modele),
+      h('span.lbm-txt', [
+        h('span.st', { text: v.stock ? '# ' + v.stock : 'sans # stock' }),
+        h('span.mod', { text: v.modele || '—' }),
+        h('span.vin', { text: '…' + vin.slice(-8) }),
+        h('span.etat', { text: [st.libelle, A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(v._feuille) : v._feuille, v.compagnie].filter(Boolean).join(' · ') })
+      ])
     ]);
   };
   /** Montre les véhicules qui répondent (dès 3 caractères). entree = l'employé a fait Entrée ou « Trouver ». */
@@ -624,7 +710,7 @@
   VueLocation.prototype.ouvrirStock = function () { this.ouvrirListe('stock'); };
   VueLocation.prototype.ouvrirFs = function () { this.ouvrirListe('fs'); };
   VueLocation.prototype.ouvrirListe = function (mode) {
-    var self = this, fs = mode === 'fs';
+    var self = this, fs = mode === 'fs', montants = !!(this.rep && this.rep.montants);
     this.cacherSugg();
     var f = { q: '', feuille: '', serie: '', seulsProgramme: true, anciens: false };
     var inQ = h('input.saisie', { type: 'search', placeholder: fs ? 'Modèle, série, année, ville ou 6 derniers du NIV' : 'Modèle, série, année, # stock ou 6 derniers du NIV', autocomplete: 'off', spellcheck: 'false', 'aria-label': fs ? 'Chercher dans les véhicules de BMW FS' : 'Chercher dans nos BMW' });
@@ -670,22 +756,32 @@
         var ff = x.f, puces = [];
         if (!x.adm.ok) puces.push(h('span.hors-puce', { text: 'Hors programme · ' + x.adm.raison }));
         if (!x.actuel) puces.push(h('span.hors-puce', { text: 'Plus vu sur BMW FS depuis le ' + (quandFr(ff.luLe, true) || '?') }));
-        return h('button' + (x.adm.ok && x.actuel ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirFs(ff); } }, [
-          h('span.st.fs', { text: ff.prix ? argent(ff.prix) : 'BMW FS' }),
-          h('span.mod', { text: texteFs(ff) || '—' }),
-          h('span.vin', { text: '…' + x.vin.slice(-8) })
-        ].concat(puces, [
-          h('span.etat', { text: [kmTxt(ff.km), typeof ff.cote === 'number' ? 'CR ' + String(ff.cote.toFixed(1)).replace('.', ',') : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
-        ]));
+        var cf = null;
+        if (montants && self.opp) { var c0 = coutFs(ff, self.opp.parVin[x.vin], self.opp.params); if (c0.total !== null) cf = h('span.cout', { title: 'Prix demandé + frais d\'encan + transport jusqu\'à Sherbrooke (estimés)', text: 'coûtant ≈ ' + argent(c0.total) + (c0.complet ? '' : ' sans transport') }); }
+        return h('button.avec-photo' + (x.adm.ok && x.actuel ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirFs(ff); } }, [
+          self.mini(x.vin, ff, x.serie, x.annee, texteFs(ff)),
+          h('span.lbm-txt', [
+            h('span.st.fs', { text: ff.prix ? argent(ff.prix) : 'BMW FS' }),
+            h('span.mod', { text: texteFs(ff) || '—' }),
+            h('span.vin', { text: '…' + x.vin.slice(-8) })
+          ].concat(puces, [cf,
+            h('span.etat', { text: [kmTxt(ff.km), typeof ff.cote === 'number' ? 'CR ' + String(ff.cote.toFixed(1)).replace('.', ',') : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
+          ]))
+        ]);
       }
       var v = x.v, st = A.statut ? A.statut(v.statut, v._feuille) : { libelle: v.statut || '' };
       var jours = A.joursDepuis && v.dateAjout ? A.joursDepuis(v.dateAjout) : null;
-      return h('button' + (x.adm.ok ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirInv(v); } }, [
-        h('span.st', { text: v.stock ? '# ' + v.stock : 'sans # stock' }),
-        h('span.mod', { text: v.modele || '—' }),
-        h('span.vin', { text: '…' + x.vin.slice(-8) }),
-        x.adm.ok ? null : h('span.hors-puce', { text: 'Hors programme · ' + x.adm.raison }),
-        h('span.etat', { text: [st.libelle, nomF(v._feuille), v.compagnie, (jours !== null && !isNaN(jours)) ? jours + ' j' : ''].filter(Boolean).join(' · ') })
+      var cr = montants ? coutRegistre(v) : null;
+      return h('button.avec-photo' + (x.adm.ok ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirInv(v); } }, [
+        self.mini(x.vin, null, x.serie, x.annee, v.modele),
+        h('span.lbm-txt', [
+          h('span.st', { text: v.stock ? '# ' + v.stock : 'sans # stock' }),
+          h('span.mod', { text: v.modele || '—' }),
+          h('span.vin', { text: '…' + x.vin.slice(-8) }),
+          x.adm.ok ? null : h('span.hors-puce', { text: 'Hors programme · ' + x.adm.raison }),
+          cr !== null ? h('span.cout', { title: 'Coût au registre', text: 'coût ' + argent(cr) }) : null,
+          h('span.etat', { text: [st.libelle, nomF(v._feuille), v.compagnie, (jours !== null && !isNaN(jours)) ? jours + ' j' : ''].filter(Boolean).join(' · ') })
+        ])
       ]);
     };
     var dessiner = function () {
@@ -714,6 +810,11 @@
       else if (e.key === 'ArrowUp') { e.preventDefault(); if (i > 0) l[i - 1].focus(); else inQ.focus(); }
     });
     caseProg.addEventListener('change', function () { f.seulsProgramme = caseProg.checked; dessiner(); });
+    /* Les photos (D2C) et, pour qui voit les coûts, le coûtant estimé (Opportunités d'achat) arrivent après : la liste se refait
+       une fois, sans perdre la recherche. */
+    var redessiner = function () { if (tous && document.body.contains(elListe)) { var foc = document.activeElement === inQ; dessiner(); if (foc) inQ.focus(); } };
+    this.photosPret.then(redessiner);
+    if (fs && montants) this.chargerOpp().then(redessiner);
     caseAnciens.addEventListener('change', function () { f.anciens = caseAnciens.checked; dessiner(); });
     var prog = this.prog();
     if (fs) {
@@ -778,7 +879,7 @@
     var inv = (this.invChoisi && String(this.invChoisi.vin || '').toUpperCase() === vin) ? this.invChoisi : (A.inventaire && A.inventaire.parVin ? A.inventaire.parVin(vin) : null);
     var fiche = A.ficheDe ? A.ficheDe(vin).catch(function () { return null; }) : Promise.resolve(null);
     var fsVeh = (this.fsChoisi && String(this.fsChoisi.vin || '').toUpperCase() === vin) ? this.fsChoisi : null;
-    this.fsVeh = null; this.fsMarche = null;
+    this.fsVeh = null; this.fsMarche = null; this.fsOcc = null; this.vehPret = '';
     Promise.all([decoder(vin), fiche, this.fsPret.catch(function () { return null; })]).then(function (res) {
       if (self.detruit || self.vinCourant !== vin) return;
       var dec = res[0], f = res[1] || {};
@@ -804,22 +905,38 @@
       var decT = (dec && fsVeh && fsVeh.version && dec.source !== 'BMW FS (Manheim)') ? Object.assign({}, dec, { version: [dec.version, fsVeh.version].filter(Boolean).join(' ') }) : dec;
       self.trouve = decT ? trouver(self.prog(), decT) : null;
       self.ligne = self.trouve && self.trouve.choix;
+      self.vehPret = vin;
       self.rendreVehicule(); self.rendreResultat();
     });
   };
-  /* Le marché au détail estimé de ce véhicule (Outils › Opportunités d'achat, calcul de BMW Sherbrooke), pour proposer un prix
-     de vente. Seulement pour qui voit les Opportunités (le serveur refuse les autres). */
+  /* Les Opportunités d'achat (Outils) : le calcul de BMW Sherbrooke pour chaque annonce (transport, frais, marché au détail).
+     Seulement pour qui voit la page (le serveur refuse les autres) ; une seule lecture par page. */
+  VueLocation.prototype.chargerOpp = function () {
+    var self = this;
+    if (this.oppPret) return this.oppPret;
+    if (!A.opportunites || !A.opportunites.charger || !(A.voitOnglet ? A.voitOnglet('outils', 'opportunites') : true)) { this.oppEtat = 'non'; this.oppPret = Promise.resolve(null); return this.oppPret; }
+    this.oppEtat = 'lecture';
+    this.oppPret = A.opportunites.charger().then(function (d) {
+      if (!d || !Array.isArray(d.occasions)) { self.oppEtat = 'non'; return null; }
+      self.oppEtat = 'ok';
+      var par = {};
+      d.occasions.forEach(function (o) { var v = String(o.vin || '').toUpperCase(); if (v.length === 17) par[v] = o; });
+      self.opp = { parVin: par, params: d.params || null };
+      return self.opp;
+    }, function () { self.oppEtat = 'erreur'; return null; });
+    return this.oppPret;
+  };
+  /* Le marché au détail estimé de ce véhicule (pour proposer un prix de vente) et son calcul de transport (coûtant estimé). */
   VueLocation.prototype.chargerMarcheFs = function (vin) {
     var self = this;
-    if (!A.opportunites || !(A.voitOnglet ? A.voitOnglet('outils', 'opportunites') : true)) return;
-    A.opportunites.charger().then(function (d) {
-      if (self.detruit || self.vinCourant !== vin || !d || !Array.isArray(d.occasions)) return;
-      var o = d.occasions.filter(function (x) { return String(x.vin || '').toUpperCase() === vin; })[0];
+    this.chargerOpp().then(function (op) {
+      if (self.detruit || self.vinCourant !== vin || !op) return;
+      var o = op.parVin[vin] || null;
+      self.fsOcc = o;
       var k = o && ((o.par && (o.par.BMW || o.par[o.dest])) || o.calc);
-      if (!k || typeof k.refAjuste !== 'number' || !(k.refAjuste > 0)) return;
-      self.fsMarche = { ref: k.refAjuste, plafonne: !!k.plafonne, n: o.refN || null };
-      self.rendreVehicule();
-    }, function () {});
+      if (k && typeof k.refAjuste === 'number' && k.refAjuste > 0) self.fsMarche = { ref: k.refAjuste, plafonne: !!k.plafonne, n: o.refN || null };
+      if (self.vehPret === vin) { self.rendreVehicule(); self.rendreResultat(); }
+    });
   };
   VueLocation.prototype.blocFs = function () {
     var self = this, ff = this.fsVeh, vu = this.fs && this.fs.liste.filter(function (x) { return x.vin === String(ff.vin || '').toUpperCase(); })[0];
@@ -834,14 +951,178 @@
       actions.length ? h('div.lbm-fs-actions', actions) : null
     ]);
   };
+  /* -- 13 nov. : les photos (Maxime : « des aperçus des modèles que l'on calcule ») --
+     Le véhicule lui-même d'abord : la fiche BMW FS (Manheim), la photo du site de la concession (D2C), la fiche Manheim d'un
+     achat ; sinon les photos prises dans l'app ; sinon une photo représentative (même série, l'année la plus proche) tirée des
+     sites des concessions et des fiches Manheim — dite « représentative ». */
+  var ICONE_AUTO = function () { return (A.icones && (A.icones.voiture || A.icones.inventaire)) || ''; };
+  VueLocation.prototype.candidatsPhotos = function () {
+    var im = (A.photosD2c && A.photosD2c.images) ? A.photosD2c.images() : {}, base = (A.photosD2c && A.photosD2c.base) ? A.photosD2c.base() : '';
+    var fiches = this.mhFiches || [], cles = Object.keys(im), cle = cles.length + '|' + fiches.length;
+    if (this.candCle === cle && this.cand) return this.cand;
+    var out = [];
+    cles.forEach(function (vin) {
+      var x = im[vin] || [];
+      if (!/^BMW$/i.test(String(x[1] || '').trim())) return;
+      var txt = [x[1], x[2]].filter(Boolean).join(' '), se = serieDe(txt);
+      if (se && x[0]) out.push({ url: base + x[0], serie: se, annee: Number(x[3]) || anneeDe(txt), txt: txt, vin: vin, src: 'site' });
+    });
+    fiches.forEach(function (f) {
+      if (!f || !f.photo || !/^BMW$/i.test(String(f.marque || '').trim())) return;
+      var txt = [f.modele, f.version].filter(Boolean).join(' '), se = serieDe(txt);
+      if (se) out.push({ url: f.photo, serie: se, annee: Number(f.annee) || anneeDe(txt), txt: txt, vin: cleRech(f.vin), src: 'manheim' });
+    });
+    this.candCle = cle; this.cand = out;
+    return out;
+  };
+  VueLocation.prototype.photoExacte = function (vin, ff) {
+    if (ff && ff.photo) return { url: ff.photo, src: 'bmwfs' };
+    var d = (A.photosD2c && A.photosD2c.image) ? A.photosD2c.image(vin) : null;
+    if (d && d.url) return { url: d.url, src: 'site' };
+    var mh = (A.manheim && A.manheim.parVin) ? A.manheim.parVin(vin) : null;
+    if (mh && mh.photo) return { url: mh.photo, src: mh.type === 'dispo' ? 'bmwfs' : 'manheim' };
+    return null;
+  };
+  /* Petite photo d'une ligne de liste (aucune lecture au serveur : ce qui est déjà en mémoire). */
+  VueLocation.prototype.mini = function (vin, ff, serie, annee, txt) {
+    var p = this.photoExacte(vin, ff), rep = null;
+    if (!p) rep = photoRep(this.candidatsPhotos(), serie, annee, txt, vin);
+    var url = p ? p.url : (rep ? rep.url : '');
+    var cadre = h('span.lbm-mini', { 'aria-hidden': 'true', title: rep ? 'Photo représentative' + (rep.annee ? ' (' + rep.annee + ')' : '') + ' — pas ce véhicule' : '' });
+    var vide = function () { A.vider(cadre); cadre.innerHTML = ICONE_AUTO(); };
+    if (!url) { vide(); return cadre; }
+    var img = h('img', { src: url, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' });
+    img.addEventListener('error', vide);
+    cadre.appendChild(img);
+    if (rep) cadre.appendChild(h('span.tag', { text: '≈' }));
+    return cadre;
+  };
+  /* L'aperçu du véhicule calculé : la grande photo, les vignettes, d'où vient la photo. Gardé tant que le véhicule, la version
+     et les photos connues ne changent pas (pas de clignement à chaque saisie). */
+  VueLocation.prototype.blocPhoto = function () {
+    var self = this, vin = this.vinCourant, ff = this.fsVeh, l = this.ligne, dec = this.dec || {};
+    var txtDec = [dec.modele, dec.version].filter(Boolean).join(' '), sDec = serieDe(txtDec);
+    /* Le décodeur muet ou trompé : le modèle inscrit au registre, sinon celui de BMW FS (comme dans les listes). */
+    var txtAlt = this.inv ? String(this.inv.modele || '') : (ff ? texteFs(ff) : '');
+    var serie = l ? l[1] : (sDec || serieDe(txtAlt)), annee = l ? l[0] : ((sDec ? Number(dec.annee) : anneeDe(txtAlt)) || Number(dec.annee) || null), txt = l ? l[2] : (sDec ? txtDec : txtAlt);
+    var nIm = (A.photosD2c && A.photosD2c.images) ? Object.keys(A.photosD2c.images()).length : 0;
+    var cle = [vin, serie, annee, txt, ff ? 'fs' : '', nIm, (this.mhFiches || []).length].join('|');
+    if (this.photoCle === cle && this.elPhoto) return this.elPhoto;
+    this.photoCle = cle;
+    var cadre = h('div.lbm-photo-cadre'), vign = h('div.lbm-photo-vign', { hidden: true }), note = h('div.lbm-photo-note');
+    var bloc = h('div.lbm-photo', [cadre, vign, note]);
+    this.elPhoto = bloc;
+    var sans = function () { A.vider(cadre); cadre.classList.remove('cliquable'); cadre.onclick = null; cadre.innerHTML = ICONE_AUTO(); cadre.appendChild(h('span.sans', { text: 'Pas de photo' })); };
+    var montrer = function (url, clic) {
+      A.vider(cadre);
+      var img = h('img', { src: url, alt: 'Photo du véhicule', decoding: 'async', referrerpolicy: 'no-referrer' });
+      img.addEventListener('error', sans);
+      cadre.appendChild(img);
+      cadre.classList.toggle('cliquable', !!clic); cadre.onclick = clic || null;
+      cadre.title = clic ? 'Voir toutes les photos et l\'état' : '';
+    };
+    var poser = function (urls, texte, clic) {
+      if (self.photoCle !== cle || !urls.length) return;
+      montrer(urls[0], clic); note.textContent = texte;
+      A.vider(vign); vign.hidden = urls.length < 2;
+      if (urls.length > 1) urls.slice(0, 8).forEach(function (u, i) {
+        var im = h('img' + (i === 0 ? '.actif' : ''), { src: u, alt: 'Photo ' + (i + 1), loading: 'lazy', referrerpolicy: 'no-referrer' });
+        im.addEventListener('click', function () { [].forEach.call(vign.querySelectorAll('img'), function (x) { x.classList.remove('actif'); }); im.classList.add('actif'); montrer(u, clic); });
+        im.addEventListener('error', function () { im.remove(); });
+        vign.appendChild(im);
+      });
+    };
+    var ouvrirMh = (A.manheim && A.manheim.ouvrir) ? function () { A.manheim.ouvrir(vin); } : null;
+    var ex = vin ? this.photoExacte(vin, ff) : null;
+    if (ex) {
+      poser([ex.url], ex.src === 'bmwfs' ? 'Photo BMW FS (Manheim)' : (ex.src === 'manheim' ? 'Photo de la fiche Manheim (achat)' : 'Photo du site de la concession'), ex.src === 'site' ? null : ouvrirMh);
+      if (ex.src !== 'site' && A.manheim && A.manheim.fiche) A.manheim.fiche(vin).then(function (d) {
+        var ph = ((d && d.fiche && d.fiche.photos) || []).map(function (p) { return p.u; }).filter(Boolean);
+        if (ph.length > 1) poser(ph, (ex.src === 'bmwfs' ? 'Photos BMW FS (Manheim)' : 'Photos de la fiche Manheim') + ' — touchez la photo pour l\'état et les dommages', ouvrirMh);
+      }).catch(function () {});
+      return bloc;
+    }
+    var rep = photoRep(this.candidatsPhotos(), serie, annee, txt, vin);
+    if (rep) poser([rep.url], 'Photo représentative — ' + nomSerie(serie) + (rep.annee ? ' ' + rep.annee : '') + ', pas ce véhicule', null);
+    else sans();
+    /* Les photos prises dans l'app (Drive) l'emportent sur la représentative (pas pour le rôle « Location BMW seulement » : refusé). */
+    if (vin && A.photosDe && !seul()) A.photosDe(vin).then(function (ph) {
+      var u = (ph || []).map(function (p) { return A.vignetteDrive ? A.vignetteDrive(p.url, 900) : p.url; }).filter(Boolean);
+      if (u.length) poser(u, 'Photos prises par l\'équipe', null);
+    }).catch(function () {});
+    return bloc;
+  };
+
+  /* -- 13 nov. : le coûtant (seulement pour qui voit les coûts, comme les commissions) --
+     Nos BMW : le coût au registre (sinon le prix payé sur Manheim). BMW FS : estimé = prix demandé + frais d'encan + transport
+     jusqu'à Sherbrooke, avec les réglages et la distance des Opportunités d'achat. Puis la marge au prix de vente. */
+  VueLocation.prototype.coutActuel = function () {
+    if (!(this.rep && this.rep.montants) || !this.vinCourant || this.vehPret !== this.vinCourant) return null;
+    if (this.fsVeh) {
+      var c = coutFs(this.fsVeh, this.fsOcc, this.opp && this.opp.params);
+      return { genre: 'fs', c: c, total: c.total, complet: c.complet };
+    }
+    if (this.inv) {
+      var cr = coutRegistre(this.inv);
+      if (cr !== null) return { genre: 'registre', total: cr, complet: true };
+      var mh = (A.manheim && A.manheim.parVin) ? A.manheim.parVin(this.vinCourant) : null;
+      if (mh && mh.type === 'achat' && typeof mh.prix === 'number' && mh.prix > 0) return { genre: 'manheim', total: Math.round(mh.prix), complet: true, mh: mh };
+      return { genre: 'aucun', total: null, complet: false };
+    }
+    return null;
+  };
+  VueLocation.prototype.rendreCout = function () {
+    var self = this, el = this.elCout, x = this.coutActuel();
+    A.vider(el); el.hidden = !x;
+    if (!x) return;
+    var prix = nombre(this.o.prix), frais = nombre(this.o.frais) || 0;
+    var ligne = function (lib, val, doux, cls) { return h('tr' + (cls || ''), [h('td', [document.createTextNode(lib), doux ? h('span.doux', { text: doux }) : null]), h('td.num', { text: val })]); };
+    var rangs = [], titre = '', note = '';
+    if (x.genre === 'fs') {
+      var c = x.c, et = this.oppEtat || '';
+      titre = 'Coûtant estimé — achat sur BMW FS';
+      rangs.push(ligne('Prix demandé par BMW FS', argent(c.prix), 'achat immédiat, sinon la mise de départ'));
+      rangs.push(ligne('Frais d\'encan', argent(c.frais), 'estimé — réglage des Opportunités d\'achat'));
+      var dt = c.transport === null
+        ? (et === 'ok' ? 'distance inconnue : ce véhicule n\'est plus dans les Opportunités d\'achat' : (et === 'lecture' ? 'lecture des Opportunités d\'achat…' : (et === 'erreur' ? 'Opportunités d\'achat illisibles pour le moment' : 'la distance vient d\'Outils › Opportunités d\'achat, pas ouvert à votre compte')))
+        : (c.approx ? '≈ ' : '') + A.fmtNombre(c.distance) + ' km de route × ' + argent(c.parKm, 2) + ' + ' + argent(c.base) + (c.approx ? ' — ville inconnue : grande ville de la province' : '') + (this.fsVeh.ville ? ' (depuis ' + [this.fsVeh.ville, this.fsVeh.province].filter(Boolean).join(', ') + ')' : '');
+      rangs.push(ligne('Transport jusqu\'à ' + c.destNom, c.transport === null ? 'inconnu' : argent(c.transport), dt));
+      rangs.push(ligne('Coûtant estimé', c.total === null ? '—' : (c.complet ? '' : 'au moins ') + argent(c.total), c.complet ? '' : 'sans le transport', '.total'));
+      note = 'Estimation : le prix final, les frais réels de Manheim et la facture du transporteur peuvent différer. Reconditionnement non compris.';
+    } else if (x.genre === 'registre') {
+      titre = 'Coûtant — notre inventaire';
+      rangs.push(ligne('Coût au registre', argent(x.total), [this.inv.stock ? '# stock ' + this.inv.stock : '', A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(this.inv._feuille) : this.inv._feuille, this.inv.compagnie].filter(Boolean).join(' · '), '.total'));
+    } else if (x.genre === 'manheim') {
+      titre = 'Coûtant — notre inventaire';
+      rangs.push(ligne('Prix payé sur Manheim', argent(x.total), 'pas de coût au registre — frais et transport non compris', '.total'));
+    } else {
+      titre = 'Coûtant — notre inventaire';
+      note = 'Pas de coût inscrit au registre pour ce véhicule' + (this.inv && this.inv.stock ? ' (# stock ' + this.inv.stock + ')' : '') + '.';
+    }
+    if (x.total !== null) {
+      if (prix === null) rangs.push(ligne('Marge au prix de vente', '—', 'entrez le prix de vente (section 2)'));
+      else {
+        var m = marge(prix, x.total);
+        rangs.push(ligne('Prix de vente (location)', argent(prix)));
+        rangs.push(ligne('Marge au prix de vente', (x.complet ? '' : '≤ ') + argent(m.montant), pct(m.pct, 1) + ' du prix · avant reconditionnement' + (frais > 0 ? ' · plus ' + argent(frais) + ' de frais d\'administration' : ''), '.marge.' + (m.montant >= 0 ? 'plus' : 'moins')));
+      }
+    }
+    el.appendChild(h('div.lbm-cout-titre', [document.createTextNode(titre), h('span.badge.gris', { text: 'coûts' })]));
+    if (rangs.length) el.appendChild(h('table.lbm-cout-t', [h('tbody', rangs)]));
+    if (note) el.appendChild(h('p.lbm-cout-note', { text: note }));
+    /* Le calcul de transport arrive des Opportunités d'achat : demandé ici s'il ne l'a pas été. */
+    if (x.genre === 'fs' && !this.oppPret && this.vinCourant) this.chargerMarcheFs(this.vinCourant);
+  };
   VueLocation.prototype.rendreVehicule = function () {
     var self = this, prog = this.prog(), dec = this.dec, t = this.trouve;
     A.vider(this.elVeh);
-    var lignes = [];
-    if (!this.cleOk) lignes.push(h('div.lbm-avis.ambre', { text: 'Le chiffre de contrôle de ce NIV ne concorde pas : vérifiez-le (une lettre ou un chiffre mal lu).' }));
-    if (!dec) lignes.push(h('div.lbm-avis.ambre', { text: 'Le NIV n\'a pas pu être décodé : choisissez l\'année et la version à la main.' }));
-    else lignes.push(h('div', [h('div.lbm-veh-titre', { text: [dec.annee, dec.marque, dec.modele, dec.version].filter(Boolean).join(' ') }), h('div.lbm-veh-sous', { text: 'Décodé par ' + (dec.source || 'NHTSA vPIC') + (this.inv ? ' · à notre inventaire : # stock ' + (this.inv.stock || '—') + ' · ' + [A.statut ? A.statut(this.inv.statut, this.inv._feuille).libelle : this.inv.statut, A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(this.inv._feuille) : this.inv._feuille, this.inv.compagnie].filter(Boolean).join(' · ') : '') })]));
-    if (this.fsVeh) lignes.push(this.blocFs());
+    var lignes = [], texte = [];
+    if (!this.cleOk) texte.push(h('div.lbm-avis.ambre', { style: { marginTop: 0 }, text: 'Le chiffre de contrôle de ce NIV ne concorde pas : vérifiez-le (une lettre ou un chiffre mal lu).' }));
+    if (!dec) texte.push(h('div.lbm-avis.ambre', { style: { marginTop: 0 }, text: 'Le NIV n\'a pas pu être décodé : choisissez l\'année et la version à la main.' }));
+    else texte.push(h('div', [h('div.lbm-veh-titre', { text: [dec.annee, dec.marque, dec.modele, dec.version].filter(Boolean).join(' ') }), h('div.lbm-veh-sous', { text: 'Décodé par ' + (dec.source || 'NHTSA vPIC') + (this.inv ? ' · à notre inventaire : # stock ' + (this.inv.stock || '—') + ' · ' + [A.statut ? A.statut(this.inv.statut, this.inv._feuille).libelle : this.inv.statut, A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(this.inv._feuille) : this.inv._feuille, this.inv.compagnie].filter(Boolean).join(' · ') : '') })]));
+    if (this.fsVeh) texte.push(this.blocFs());
+    /* 13 nov. : l'aperçu du véhicule à côté de son nom. */
+    lignes.push(h('div.lbm-veh-tete', [this.blocPhoto(), h('div.lbm-veh-txt', texte)]));
     if (t && t.raison && !t.candidats.length) lignes.push(h('div.lbm-avis.rouge', { text: t.raison }));
     /* La version de la grille : les candidats de la même série et de la même année, sinon toute la grille (à la main). */
     if (!t || !t.candidats.length) this.manuel = true;
@@ -879,6 +1160,7 @@
   };
   VueLocation.prototype.rendreResultat = function () {
     var self = this, prog = this.prog();
+    this.rendreCout();
     A.vider(this.elResultat); this.elKpis.hidden = true;
     if (!prog) return;
     if (!this.ligne && this.trouve && this.trouve.horsProgramme) { this.elResultat.appendChild(h('div.carte', [h('div.lbm-vide', { text: 'Pas admissible : ' + this.trouve.raison })])); return; }
@@ -909,6 +1191,12 @@
       this.elKpis.appendChild(kpi('Taux — ' + r0.terme + ' mois', pct(r0.taux), r0.regle.libelle));
       this.elKpis.appendChild(kpi('Coût capitalisé', r0.capNet === null || r0.capNet === undefined ? '—' : argent(r0.capNet), 'prix + frais − comptant'));
       this.elKpis.appendChild(kpi('Km par année', A.fmtNombre(this.o.kmAn), this.o.kmAn === 24000 ? 'standard' : (this.o.kmAn < 24000 ? 'bas : résiduel plus haut' : 'élevé : résiduel plus bas')));
+      /* 13 nov. : la marge au prix de vente (seulement pour qui voit les coûts). */
+      var xc = this.coutActuel(), pv = nombre(this.o.prix);
+      if (xc && xc.total !== null && pv !== null) {
+        var mg = marge(pv, xc.total);
+        this.elKpis.appendChild(kpi('Marge au prix de vente', (xc.complet ? '' : '≤ ') + argent(mg.montant), pct(mg.pct, 1) + ' du prix · coûtant ' + (xc.genre === 'fs' ? 'estimé ' : '') + argent(xc.total), mg.montant < 0 ? '.alerte' : ''));
+      }
     }
 
     /* Le tableau par durée */

@@ -349,6 +349,7 @@
           h('button.btn', { html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
           h('button.btn', { html: I.scan + '<span>Actions en lot</span>', onclick: function () { self.modaleLot('ajout'); } }),
           h('button.btn', { html: (I.corbeille) + '<span>Occasions effacées</span>', onclick: function () { AMX.inventaire.effaces(); } }),
+          AMX.historique ? h('button.btn', { html: (I.recherche || I.filtre || '') + '<span>Historique d\'un # stock</span>', onclick: function () { AMX.historique.demander(); } }) : null,
           (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) ? h('button.btn', { html: (I.courriel) + '<span>Contrats d\'achat reçus</span>', onclick: function () { self.ouvrirContrats(); } }) : null,
           AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null
         ])
@@ -433,6 +434,7 @@
       { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } },
       { texte: 'Actions en lot', icone: I.scan, action: function () { self.modaleLot('ajout'); } },
       { texte: 'Occasions effacées', icone: I.corbeille, action: function () { AMX.inventaire.effaces(); } },
+      AMX.historique ? { texte: 'Historique d\'un # stock…', icone: I.recherche || I.filtre, action: function () { AMX.historique.demander(); } } : null,
       (AMX.achatsAuto && AMX.achatsAuto.peutLire()) ? { texte: 'Lire les achats OPENLANE', icone: I.rafraichir, action: function () { AMX.achatsAuto.lireOpenlane(AMX.compagnieChoisie('inventaire') || '').then(function () { self.charger(true); }).catch(function () {}); } } : null,
       (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) ? { texte: 'Contrats d\'achat reçus (courriel)', icone: I.courriel, action: function () { self.ouvrirContrats(); } } : null
     ].filter(Boolean));
@@ -1177,6 +1179,8 @@
           AMX.demandes.retouche(v);
         } }) : null,
         (AMX.sections.offres && voitOng('vente', 'envente')) ? h('a.btn', { href: AMX.lien('offres', 'vente', { vin: v.vin }), html: I.offres + '<span>Mettre en vente</span>' }) : null,
+        // 13 nov. (SB1EA533CD3) : d'où vient ce véhicule, ses # stock, ses changements de statut et qui les a faits.
+        AMX.historique ? h('button.btn', { type: 'button', title: 'Registres, journal, Livre des ventes, neufs : tout ce qui est arrivé à ce véhicule', html: I.recherche + '<span>Historique</span>', onclick: function () { AMX.historique.ouvrir(v.vin || v.stock, { repli: v.stock }); } }) : null,
         // 10 nov. : le paiement de location BMW Services financiers d'une BMW d'occasion (location-bmw.js) — le km vient de la fiche d'achat.
         (cfg.feuille === 'DETAIL' && String(v.compagnie || '').toUpperCase() === 'BMW' && /BMW/i.test(String(v.modele || 'BMW')) && ['arrive', 'comptabilise'].indexOf(v.statut) < 0 && AMX.locationBmw && AMX.locationBmw.peutVoir() && voitOng('inventaire', 'locbmw')) ? h('a.btn', { href: AMX.lien('locbmw', '', { vin: v.vin }), title: 'Calculer le paiement de location BMW Services financiers (programme d\'occasion du mois)', html: (I.voiture || '') + '<span>Calculer la location</span>' }) : null,
         voitOng('inventaire', 'achat') ? h('a.btn', { href: AMX.lien('achat', '', { vin: v.vin }), html: I.achat + '<span>' + (v.ficheExiste ? 'Fiche d\'achat' : 'Créer la fiche d\'achat') + '</span>' }) : null

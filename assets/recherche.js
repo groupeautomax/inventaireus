@@ -338,6 +338,13 @@
         boite.appendChild(h('button.rech-ailleurs', { type: 'button', onmousedown: function (e) { e.preventDefault(); }, onclick: function (e) { e.stopPropagation(); AMX.choisirCompagnie(''); input.focus(); dessiner(); } },
           [h('b', { text: r.ailleurs + ' résultat' + (r.ailleurs > 1 ? 's' : '') }), ' dans d\'autres concessions — chercher dans tout le groupe']));
       }
+      // 13 nov. (SB1EA533CD3) : l'historique d'un # stock ou d'un NIV, même s'il n'est plus à l'inventaire (historique.js).
+      var cleQ = q.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (AMX.historique && cleQ.length >= 3 && cleQ.length <= 17 && /\d/.test(cleQ) && !/\s/.test(q.trim())) {
+        var hist = h('a.rech-autre.rech-historique', { href: '#', 'data-historique': q.trim(), text: 'Historique de « ' + q.trim() + ' » — où il est, d\'où il vient, pourquoi il est parti ›' });
+        hist.addEventListener('click', function (e) { e.preventDefault(); var x = q.trim(); fermer(); input.blur(); AMX.historique.ouvrir(x); });
+        boite.appendChild(hist);
+      }
       if (r.enLecture.length) boite.appendChild(h('div.rech-lecture', { text: 'Encore en lecture : ' + r.enLecture.join(', ') + '…' }));
       liens().forEach(function (a) { a.setAttribute('role', 'option'); a.setAttribute('tabindex', '-1'); });
       if (!nouvelle) boite.scrollTop = defile;
@@ -357,6 +364,7 @@
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && boite) { e.preventDefault(); deplacer(e.key === 'ArrowDown' ? 1 : -1); return; }
       if (e.key === 'Enter' && boite) {
         var a = boite.querySelector('a.rech-sel') || boite.querySelector('.rech-tete, .rech-autre');
+        if (a && a.getAttribute('data-historique')) { e.preventDefault(); var xh = a.getAttribute('data-historique'); fermer(); input.blur(); AMX.historique.ouvrir(xh); return; }
         if (a) { e.preventDefault(); location.hash = a.getAttribute('href').replace(/^.*#/, '#'); fermer(); input.blur(); }
       }
     });

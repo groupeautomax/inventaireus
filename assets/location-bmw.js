@@ -478,7 +478,21 @@
     });
     return best;
   }
-  var Calcul = { niveauBmw: niveauBmw, memeCorps: memeCorps, modelesManuf: modelesManuf, meilleurTerme: meilleurTerme, neufsBmw: neufsBmw, procheNeuf: procheNeuf, progLocationNeuf: progLocationNeuf, grilleLoc: grilleLoc, locationNeuf: locationNeuf, progsDuJour: progsDuJour,
+  /** La durée du plus petit paiement de l'occasion (avant taxes), quand ce n'est pas la durée choisie : Maxime, 13 nov. « on
+      montre la plus grosse différence de paiement, mais il faut montrer le plus petit paiement aussi ». Seulement une durée où
+      le neuf comparable a aussi un programme (la comparaison est dite dans les mentions). null = la durée choisie est déjà la
+      moins chère. */
+  function plusBasTerme(lignes, termeChoisi) {
+    var bas = null, choisi = null;
+    (lignes || []).forEach(function (x) {
+      if (!x || !x.u || !x.n || !x.u.offert || x.u.avantTaxes === undefined || !x.n.offert) return;
+      if (x.u.terme === termeChoisi) choisi = x;
+      if (!bas || x.u.avantTaxes < bas.u.avantTaxes - 1e-9) bas = x;
+    });
+    if (!bas || !choisi || bas.u.terme === termeChoisi || !(choisi.u.avantTaxes - bas.u.avantTaxes >= 0.5)) return null;
+    return bas;
+  }
+  var Calcul = { niveauBmw: niveauBmw, memeCorps: memeCorps, modelesManuf: modelesManuf, meilleurTerme: meilleurTerme, plusBasTerme: plusBasTerme, neufsBmw: neufsBmw, procheNeuf: procheNeuf, progLocationNeuf: progLocationNeuf, grilleLoc: grilleLoc, locationNeuf: locationNeuf, progsDuJour: progsDuJour,
     photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
@@ -1670,6 +1684,15 @@
         avantTaxes: r2(nn.avantTaxes), taxes: r2(nn.taxes), mensualite: r2(nn.mensualite), programme: [prg.modele, prg.version].filter(Boolean).join(' ') + (prg.par ? ' (' + String(prg.par).replace(/\s*\(automatique\)\s*$/, '') + ')' : ''), progFin: progFin, interpole: !!nn.interpole },
       termes: lignes.filter(function (x) { return x.u.offert && x.u.avantTaxes !== undefined && x.n.offert; }).map(function (x) { return { terme: x.u.terme, u: r2(x.u.avantTaxes), n: r2(x.n.avantTaxes) }; })
     };
+    /* Le plus petit paiement (une autre durée), avec tout ce qu'il faut pour ses mentions. */
+    var bas = plusBasTerme(lignes, u.terme);
+    if (bas) {
+      var bu = bas.u, bn = bas.n;
+      offre.plusBas = { terme: bu.terme, taux: bu.taux, regle: (bu.regle && (bu.regle.libelle || bu.regle.code)) || '', residuel: r2(bu.residuel),
+        avantTaxes: r2(bu.avantTaxes), taxes: r2(bu.taxes), mensualite: r2(bu.mensualite),
+        neuf: { prix: oN.prix === null ? null : bn.prix, rabais: bn.rabais || 0, taux: bn.taux, residuelPct: bn.residuelPct, residuel: r2(bn.residuel), kmAn: bn.kmAn,
+          avantTaxes: r2(bn.avantTaxes), taxes: r2(bn.taxes), mensualite: r2(bn.mensualite), interpole: !!bn.interpole } };
+    }
     return { offre: offre, best: best };
   };
   VueLocation.prototype.ajouterOffre = function () {
@@ -1681,6 +1704,8 @@
       h('div.lbm-veh-titre', { text: x.titre }),
       h('div.lbm-veh-sous', { text: [kmTxt(x.km), x.stock ? '# stock ' + x.stock : '', x.cpo ? 'certifié' : 'non certifié', x.terme + ' mois · ' + A.fmtNombre(x.kmAn) + ' km par année'].filter(Boolean).join(' · ') }),
       h('div.lbm-ofl-gros-ligne', [gros('0 $', 'comptant'), gros(argent(x.avantTaxes, 2), 'par mois, avant taxes'), gros(argent(eco, 0), 'd\'économie par mois')]),
+      x.plusBas ? h('p', [h('b', { text: 'Plus petit paiement : ' + argent(x.plusBas.avantTaxes, 2) + ' par mois sur ' + x.plusBas.terme + ' mois' }),
+        ' (taux ' + pct(x.plusBas.taux) + ' ; neuf comparé : ' + argent(x.plusBas.neuf.avantTaxes, 2) + ' par mois). Montré sur la page sous le paiement, avec ses mentions.']) : null,
       h('p', { text: 'Neuf comparé : ' + nf.titre + (nf.source === 'manufacturier' ? ' (manufacturier, pas en stock)' : '') + ' — ' + argent(nf.avantTaxes, 2) + ' par mois avant taxes, 0 $ comptant, ' + x.terme + ' mois (taux ' + pct(nf.taux) + ', résiduel ' + pct(nf.residuelPct, 0) + ' du PDSF).' }),
       (this.trouve && !this.trouve.sur && !this.choixManuel) ? h('div.lbm-avis.ambre', { text: 'Version devinée d\'après le NIV : ' + x.titre + '. Vérifiez-la dans « Version dans la grille de BMW FS » (section 1) avant d\'ajouter l\'offre.' }) : null,
       (nombre(this.o.comptant) || 0) ? h('div.lbm-avis.ambre', { text: 'La page du site est toujours à 0 $ comptant : l\'offre est calculée sans le comptant de la section 2.' }) : null,
@@ -1779,6 +1804,8 @@
           h('div.lbm-veh-titre', { text: (i + 1) + '. ' + (x.titre || o.vin) }),
           h('div.lbm-ofl-chiffres', [h('b', { text: '0 $ comptant' }), h('b', { text: argent(x.avantTaxes, 2) + ' par mois avant taxes' }), h('b.eco', { text: argent(eco, 0) + ' de moins par mois que le neuf' })]),
           h('div.lbm-veh-sous', { text: [x.terme + ' mois', A.fmtNombre(x.kmAn) + ' km/an', 'taux ' + pct(x.taux), 'neuf : ' + (nf.titre || '') + (nf.source === 'manufacturier' ? ' (manufacturier)' : '') + ' ' + argent(nf.avantTaxes, 2), 'valide au ' + dateFr(x.valideAu), x.stock ? '# stock ' + x.stock : ''].filter(Boolean).join(' · ') }),
+          x.plusBas ? h('div.lbm-veh-sous', { text: 'Plus petit paiement : ' + argent(x.plusBas.avantTaxes, 2) + ' par mois sur ' + x.plusBas.terme + ' mois' })
+            : ((x.termes || []).some(function (t) { return t.terme !== x.terme && t.u < (x.avantTaxes || 0) - 0.5; }) ? h('div.lbm-ofl-pb', { text: 'Le plus petit paiement (une autre durée) n\'est pas encore sur la page : « Recalculer » puis « Mettre à jour l\'offre du site ».' }) : null),
           o.ok ? null : h('div.lbm-ofl-pb', { text: 'Pas sur la page : ' + o.problemes.join(' ; ') + '.' })
         ]), actions]));
       });

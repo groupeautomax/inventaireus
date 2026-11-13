@@ -323,7 +323,116 @@
     return { montant: Math.round(prix - cout), pct: (prix - cout) / prix * 100 };
   }
 
-  var Calcul = { photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge,bmwfsDisponibles: bmwfsDisponibles, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
+  /* -- 13 nov. (Maxime : « une comparaison avec un véhicule neuf, le modèle le plus près, avec accès à nos stocks de neufs ») --
+     Nos BMW neufs (Inventaire › Neufs : ligne du manufacturier — version et PDSF — et ligne du DMS — # stock, en stock) ; le plus
+     près = même série, le plus de mots de la version en commun, en stock avant démo avant en route. Location du neuf : le
+     programme du mois du manufacturier (Programmes du mois, lu sur bmwsherbrooke.com), au même terme et au km le plus près ;
+     jamais un taux ni un résiduel « par défaut ». */
+  var RANG_NEUF = { stock: 0, demo: 1, transit: 2 };
+  var ETATS_NEUF = { stock: 'en stock', demo: 'démo', transit: 'en route' };
+  function etatNeuf(v) {
+    var s = norm(v && v.statut);
+    if (/DEMO/.test(s)) return 'demo';
+    if (/TRANSIT|COMMANDE|ATTENTE|PRODUCTION/.test(s)) return 'transit';
+    return 'stock';
+  }
+  /** Nos BMW neufs à offrir : un par NIV, avec un PDSF, ni sortis, ni vendus, ni marqués indisponibles ; la MINI n'y est pas. */
+  function neufsBmw(vehicules, cie) {
+    var par = {}, ordre = [];
+    (vehicules || []).forEach(function (v) {
+      if (!v || v.sortiLe || (cie && v.compagnie !== cie)) return;
+      if (!/^BMW$/i.test(String(v.marque || '').trim())) return;
+      var vin = cleRech(v.vin); if (vin.length !== 17) return;
+      if (!par[vin]) { par[vin] = []; ordre.push(vin); }
+      par[vin].push(v);
+    });
+    var out = [];
+    ordre.forEach(function (vin) {
+      var l = par[vin];
+      if (l.some(function (o) { return o.disponible === false || /VENDU|LIVRE/.test(norm(o.statut)); })) return;
+      var c = l.filter(function (o) { return o.origine === 'constructeur'; })[0], d = l.filter(function (o) { return o.origine !== 'constructeur'; })[0];
+      var prixDe = function (o) { if (!o) return null; var p = nombre(o.prix); if (!(p > 0) && o.extra) p = nombre(o.extra.pdsfTotal) || nombre(o.extra.pdsf); return p > 0 ? p : null; };
+      var src = (c && (c.version || prixDe(c))) ? c : (d || c), prix = prixDe(c) || prixDe(d);
+      if (!(prix >= 5000)) return;
+      var txt = [src.modele, src.version].filter(Boolean).join(' '), se = serieDe(txt);
+      out.push({ vin: vin, annee: Number(src.annee) || anneeDe(txt), modele: src.modele || '', version: src.version || '', txt: txt, serie: se, prix: Math.round(prix),
+        etat: d ? etatNeuf(d) : etatNeuf(c), stock: (d && d.stock) || '', couleur: (c && c.couleur) || (d && d.couleur) || '', etape: (c && c.extra && c.extra.etape) || '', auDms: !!d });
+    });
+    return out;
+  }
+  /** Les neufs du plus près au plus loin d'une occasion (ligne de la grille, sinon son texte) : [{ n, meme, com }]. */
+  function procheNeuf(cands, ligne, txt) {
+    var serie = ligne ? ligne[1] : serieDe(txt);
+    var tj = jetons(ligne ? ligne[2] : txt).filter(function (t) { return !GENERIQUES[t] && t !== serie && !/^\d{4}$/.test(t); });
+    return (cands || []).map(function (n) {
+      var cj = jetons(n.txt), com = tj.filter(function (t) { return cj.indexOf(t) >= 0; }).length, meme = !!serie && n.serie === serie;
+      return { n: n, meme: meme, com: com, s: (meme ? 0 : 1000) - com * 10 + (RANG_NEUF[n.etat] || 0) * 3 };
+    }).sort(function (a, b) { return (a.s - b.s) || ((b.n.annee || 0) - (a.n.annee || 0)) || (a.n.prix - b.n.prix); });
+  }
+  function jetonsProgBmw(t) { return jetons(String(t || '').replace(/convertible/ig, 'cabriolet')).filter(function (x) { return x !== 'SERIES' && x !== 'SERIE' && x !== 'BMW'; }); }
+  /** Programmes valables aujourd'hui (mois courant, ou un mois d'avant dont la fin n'est pas passée) — comme Équité. */
+  function progsDuJour(progs, ajd) {
+    var mois = String(ajd || '').slice(0, 7);
+    return (progs || []).filter(function (p) { return p && (p.mois === mois || (p.fin && p.fin >= ajd && p.mois <= mois)) && (!p.fin || p.fin >= ajd); });
+  }
+  /** Le programme de location du manufacturier pour ce neuf : même série, tous les mots du modèle et de la version du programme
+      dans le nom du neuf, l'année dans ses bornes ; le plus précis (le plus de mots) l'emporte. */
+  function progLocationNeuf(progs, n, ajd) {
+    var nj = jetons(String(n.txt || '').replace(/convertible/ig, 'cabriolet')), an = n.annee;
+    var ok = progsDuJour(progs, ajd).filter(function (p) {
+      if (p.type !== 'location' || (p.etat && p.etat !== 'neuf') || (p.marque && !/^BMW$/i.test(String(p.marque).trim()))) return false;
+      var pt = [p.modele, p.version].filter(Boolean).join(' '), ps = serieDe(pt);
+      if (!ps || ps !== n.serie) return false;
+      if (!jetonsProgBmw(pt).every(function (t) { return nj.indexOf(t) >= 0; })) return false;
+      if (nombre(p.anneeMin) && (!an || an < nombre(p.anneeMin))) return false;
+      if (nombre(p.anneeMax) && (!an || an > nombre(p.anneeMax))) return false;
+      return true;
+    });
+    ok.sort(function (a, b) { return jetonsProgBmw(b.modele + ' ' + b.version).length - jetonsProgBmw(a.modele + ' ' + a.version).length; });
+    return ok[0] || null;
+  }
+  /** Dans la grille du programme (colonne `grille` des Programmes du mois) : au terme voulu — ou entre deux termes offerts
+      (résiduel interpolé, le plus haut des deux taux) — et au km le plus près (le plus haut à égalité). null sinon. */
+  function grilleLoc(p, terme, kmAn) {
+    var g = p && p.grille; if (typeof g === 'string') { try { g = g ? JSON.parse(g) : null; } catch (e) { g = null; } }
+    if (g && g.l) {
+      var kms = Object.keys(g.l).map(Number).filter(function (k) { return !isNaN(k); });
+      if (!kms.length) return null;
+      var k = kms.length === 1 ? kms[0] : (kms.indexOf(kmAn) >= 0 ? kmAn : kms.slice().sort(function (a, b) { return Math.abs(a - kmAn) - Math.abs(b - kmAn) || b - a; })[0]);
+      var gt = g.l[String(k)] || {}, ts = Object.keys(gt).map(Number).filter(function (t) { return t > 0; }).sort(function (a, b) { return a - b; }), a = null;
+      if (ts.indexOf(terme) >= 0) a = [terme, terme];
+      else { var bas = null, haut = null; ts.forEach(function (t) { if (t < terme) bas = t; else if (haut === null && t > terme) haut = t; }); if (bas !== null && haut !== null) a = [bas, haut]; }
+      if (!a) return null;
+      var x1 = gt[String(a[0])] || [], x2 = gt[String(a[1])] || [], r1 = nombre(x1[1]), r2 = nombre(x2[1]);
+      if (r1 === null || r2 === null) return null;
+      return { taux: Math.max(nombre(x1[0]) || 0, nombre(x2[0]) || 0), residuelPct: a[0] === a[1] ? r1 : Math.round((r1 + (r2 - r1) * (terme - a[0]) / (a[1] - a[0])) * 100) / 100,
+        kmAn: k || null, kmExact: !k || k === kmAn, interpole: a[0] === a[1] ? null : a, rabais: Math.min(nombre(x1[2]) || 0, nombre(x2[2]) || 0) };
+    }
+    if (p && nombre(p.terme) === terme && nombre(p.residuelPct) > 0 && nombre(p.taux) !== null) return { taux: nombre(p.taux), residuelPct: nombre(p.residuelPct), kmAn: nombre(p.kmAn) || null, kmExact: !nombre(p.kmAn) || nombre(p.kmAn) === kmAn, interpole: null, rabais: 0 };
+    return null;
+  }
+  /** La location du neuf à une durée : o = { prix (vide = PDSF), frais, comptant, rabais }, tx = taxes en %. Même formule que
+      l'occasion ; le résiduel est un % du PDSF. */
+  function locationNeuf(progs, n, terme, kmAn, o, tx, ajd) {
+    var r = { terme: terme, offert: false, raison: '' };
+    if (!n) { r.raison = 'Aucun neuf choisi.'; return r; }
+    var p = progLocationNeuf(progs, n, ajd);
+    if (!p) { r.raison = 'Aucun programme de location du manufacturier pour ce modèle ce mois-ci.'; return r; }
+    r.prog = p;
+    var g = grilleLoc(p, terme, kmAn);
+    if (!g) { r.raison = 'Le programme du manufacturier n\'offre pas ' + terme + ' mois.'; return r; }
+    var prix = nombre(o && o.prix); if (prix === null) prix = n.prix;
+    var rabais = (nombre(o && o.rabais) || 0) + (g.rabais || 0);
+    var capNet = prix + (nombre(o && o.frais) || 0) - rabais - (nombre(o && o.comptant) || 0), res = n.prix * g.residuelPct / 100;
+    var m = mensualite(capNet, res, g.taux, terme, tx);
+    r.offert = true; r.taux = g.taux; r.residuelPct = g.residuelPct; r.residuel = res; r.kmAn = g.kmAn; r.kmExact = g.kmExact; r.interpole = g.interpole;
+    r.prix = prix; r.pdsf = n.prix; r.rabais = rabais; r.rabaisProg = g.rabais || 0; r.capNet = capNet;
+    Object.keys(m).forEach(function (k) { r[k] = m[k]; });
+    return r;
+  }
+
+  var Calcul = { neufsBmw: neufsBmw, procheNeuf: procheNeuf, progLocationNeuf: progLocationNeuf, grilleLoc: grilleLoc, locationNeuf: locationNeuf, progsDuJour: progsDuJour,
+    photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
   /* ======================================================= La page */
@@ -407,6 +516,12 @@
     '.lbm-page .lbm-cout-t tr.total td { font-weight: 800; border-top: 2px solid var(--encre-4); } .lbm-page .lbm-cout-t tr:last-child td { border-bottom: none; }',
     '.lbm-page .lbm-cout-t tr.marge td.num { font-weight: 800; } .lbm-page .lbm-cout-t tr.marge.plus td.num { color: var(--vert-fonce); } .lbm-page .lbm-cout-t tr.marge.moins td.num { color: var(--rouge); }',
     '.lbm-page .lbm-cout-note { font-size: 12.5px; color: var(--encre-3); margin: 6px 0 4px; line-height: 1.45; }',
+    '.lbm-page .lbm-neuf-choix-ligne select { width: 100%; max-width: 720px; }',
+    '.lbm-page .lbm-neuf-veh { display: flex; gap: 12px; align-items: center; margin-top: 12px; } .lbm-page .lbm-neuf-veh .lbm-mini { width: 96px; height: 72px; }',
+    '.lbm-page .lbm-lien { font-size: 13px; color: var(--vert-fonce); text-decoration: none; font-weight: 600; } .lbm-page .lbm-lien:hover { text-decoration: underline; }',
+    '.lbm-page .lbm-comp td.plus-cher span:first-child { color: var(--ambre); font-weight: 700; } .lbm-page .lbm-comp td.moins-cher span:first-child { color: var(--vert-fonce); font-weight: 700; }',
+    '.lbm-page .lbm-comp .ecart-tel { display: none; } .lbm-page .lbm-comp .ecart-tel.plus-cher { color: var(--ambre); font-weight: 700; } .lbm-page .lbm-comp .ecart-tel.moins-cher { color: var(--vert-fonce); font-weight: 700; }',
+    '@media (max-width: 640px) { .lbm-page .lbm-comp td, .lbm-page .lbm-comp th { padding: 8px 6px; } .lbm-page .lbm-comp .gros { font-size: 15px; } .lbm-page .lbm-comp .col-ecart { display: none; } .lbm-page .lbm-comp .ecart-tel { display: block; } .lbm-page .lbm-neuf-veh .lbm-mini { width: 80px; height: 60px; } }',
     '@media (max-width: 640px) { .lbm-page .lbm-veh-tete { grid-template-columns: 1fr; } .lbm-page .lbm-photo { max-width: 380px; } .lbm-stock .lbm-stock-liste button.avec-photo { grid-template-columns: 60px minmax(0, 1fr); gap: 10px; } .lbm-stock .lbm-stock-liste .lbm-mini { width: 60px; height: 45px; } }',
     '@media (max-width: 640px) { .lbm-page .lbm-grille { grid-template-columns: 1fr 1fr; } .lbm-page .lbm-tableau .col-taxes, .lbm-page .lbm-tableau .col-avant, .lbm-page .lbm-tableau .col-total { display: none; } .lbm-page .lbm-tableau td, .lbm-page .lbm-tableau th { padding: 8px 7px; } .lbm-page .lbm-tableau .gros { font-size: 16px; } .lbm-page .lbm-matrice { min-width: 0; } .lbm-page .lbm-matrice td, .lbm-page .lbm-matrice th { padding: 7px 6px; font-size: 12.5px; } }'
   ].join('\n');
@@ -484,6 +599,11 @@
     this.elKmAide = h('div.aide', { text: 'Le km au compteur aujourd\'hui.' });
     this.elVeh = h('div.lbm-vehicule');
     this.elCout = h('div.lbm-cout', { hidden: true });
+    /* 13 nov. : la comparaison avec un BMW neuf (nos neufs + programmes du mois du manufacturier). */
+    this.neufVin = ''; this.neufData = null; this.neufPret = null; this.neufErreur = '';
+    this.inPrixNeuf = h('input#lbm-prix-neuf', { type: 'text', inputmode: 'decimal', value: '', placeholder: 'PDSF', autocomplete: 'off', 'aria-label': 'Prix de vente du neuf' });
+    this.elNeufTable = h('div');
+    this.inPrixNeuf.addEventListener('input', A.debounce(function () { self.majNeufTable(); }, 180));
     this.el.appendChild(h('div.carte', { style: { marginBottom: '14px' } }, [
       h('div.carte-entete', [h('h2', '1. Le véhicule')]),
       h('div.carte-corps', [
@@ -862,6 +982,7 @@
   VueLocation.prototype.nouveauVehicule = function (vin) {
     if (String(vin || '').toUpperCase() === this.vinCourant) return;
     this.inKm.value = ''; this.inPrix.value = ''; this.prixSource = '';
+    this.neufVin = ''; if (this.inPrixNeuf) this.inPrixNeuf.value = '';
     this.elKmAide.textContent = 'Le km au compteur aujourd\'hui.';
     this.lireSaisies();
   };
@@ -1226,6 +1347,9 @@
       h('div.carte-corps', { style: { paddingTop: '8px', paddingBottom: '10px', fontSize: '12.5px', color: 'var(--encre-3)' } }, 'Touchez une durée pour le détail du calcul. Taxes : TPS 5 % et TVQ 9,975 % sur chaque paiement' + ((nombre(this.o.comptant) || 0) > 0 ? ' ; le comptant est aussi taxé à la signature (' + argent((nombre(this.o.comptant) || 0) * taxePct(prog) / 100, 2) + ').' : '.'))
     ]));
 
+    /* 13 nov. : comparer avec un BMW neuf (le plus près, nos neufs) */
+    if (this.peutNeufs()) this.elResultat.appendChild(this.carteNeuf(res));
+
     /* Selon le km par année */
     if (offerts.length && nombre(this.o.prix) !== null) {
       var kms = [18000, 24000, 30000];
@@ -1240,6 +1364,111 @@
         h('div.carte-corps.lbm-defile', [h('table.tableau.lbm-matrice', [h('thead', [h('tr', [h('th', 'Km par année')].concat(prog.termes.map(function (t) { return h('th', { text: t + ' mois' }); })))]), tb])])
       ]));
     }
+  };
+
+  /* -- 13 nov. : comparer avec un BMW neuf -- */
+  VueLocation.prototype.peutNeufs = function () {
+    if (seul() || !A.neufs || !A.neufs.charger) return false;
+    return A.voitOnglet ? A.voitOnglet('inventaire', 'neufs') : true;
+  };
+  /** Nos neufs (Inventaire › Neufs) et les programmes du mois de BMW Sherbrooke : lus une fois par page, puis le résultat se refait. */
+  VueLocation.prototype.chargerNeufs = function () {
+    var self = this;
+    if (this.neufPret) return this.neufPret;
+    var progs = A.get({ programmesMois: 1, compagnie: 'BMW' }, { discret: true, secours: false, delai: 60000 }).then(function (d) {
+      if (d && Array.isArray(d.programmes)) return { liste: d.programmes, taxePct: nombre(d.taxePct) };
+      return { liste: [], erreur: (d && (d.erreur || d.message)) || 'Programmes du mois illisibles.' };
+    }, function (e) { return { liste: [], erreur: A.erreurTexte ? A.erreurTexte(e) : String(e && e.message || e) }; });
+    var neufs = A.neufs.charger().then(function (d) { return d; }, function (e) { self.neufErreur = A.erreurTexte ? A.erreurTexte(e) : String(e && e.message || e); return null; });
+    this.neufPret = Promise.all([neufs, progs]).then(function (r) {
+      self.neufData = { cands: neufsBmw((r[0] && r[0].vehicules) || [], 'BMW'), progs: r[1].liste, progErreur: r[1].erreur || '', taxePct: r[1].taxePct };
+      if (!self.detruit && self.vehPret) self.rendreResultat();
+      return self.neufData;
+    });
+    return this.neufPret;
+  };
+  VueLocation.prototype.neufChoisi = function () {
+    var d = this.neufData; if (!d || !this.ligne) return { liste: [], n: null };
+    var liste = procheNeuf(d.cands, this.ligne), n = null, vinC = this.neufVin;
+    if (vinC && vinC !== '__aucun') liste.forEach(function (x) { if (x.n.vin === vinC) n = x.n; });
+    if (!n && !vinC && liste.length && liste[0].meme) n = liste[0].n;   /* le plus près, tant que l'employé n'en a pas choisi un autre */
+    return { liste: liste, n: n };
+  };
+  VueLocation.prototype.carteNeuf = function (res) {
+    var self = this, carte = h('div.carte.lbm-neuf', { style: { marginBottom: '14px' } });
+    var entete = h('div.carte-entete', [h('h2', 'Comparer avec un BMW neuf')]), corps = h('div.carte-corps');
+    carte.appendChild(entete); carte.appendChild(corps);
+    if (!this.neufData) {
+      this.chargerNeufs();
+      corps.appendChild(A.chargeur('Lecture de nos neufs et des programmes du mois', { compact: true }));
+      return carte;
+    }
+    var d = this.neufData, ch = this.neufChoisi(), n = ch.n;
+    if (!d.cands.length) { corps.appendChild(h('div.lbm-vide', { text: this.neufErreur ? 'Nos neufs sont illisibles pour le moment : ' + this.neufErreur : 'Aucun BMW neuf avec un PDSF dans Inventaire › Neufs.' })); return carte; }
+    /* Le choix du neuf : même série d'abord (le plus près en tête), puis les autres. */
+    var sel = h('select.saisie.lbm-neuf-choix', { 'aria-label': 'BMW neuf à comparer', onchange: function () { self.neufVin = sel.value || '__aucun'; self.inPrixNeuf.value = ''; self.rendreResultat(); } });
+    var memes = ch.liste.filter(function (x) { return x.meme; }), autres = ch.liste.filter(function (x) { return !x.meme; });
+    var opt = function (x) { var m = x.n; return h('option', { value: m.vin, selected: n && n.vin === m.vin, text: [m.annee, m.modele, m.version].filter(Boolean).join(' ') + ' · ' + argent(m.prix) + ' · ' + ETATS_NEUF[m.etat] + (m.stock ? ' · # ' + m.stock : '') }); };
+    sel.appendChild(h('option', { value: '', text: n ? '— Choisir un autre neuf —' : '— Choisir un BMW neuf —' }));
+    if (memes.length) sel.appendChild(h('optgroup', { label: nomSerie(this.ligne[1]) + ' (' + memes.length + ')' }, memes.map(opt)));
+    if (autres.length) sel.appendChild(h('optgroup', { label: 'Autres BMW neufs (' + autres.length + ')' }, autres.map(opt)));
+    corps.appendChild(h('div.lbm-neuf-choix-ligne', [sel]));
+    if (!n) {
+      corps.appendChild(h('div.lbm-avis.ambre', { style: { marginTop: '10px' }, text: memes.length ? 'Choisissez le neuf à comparer.' : 'Aucun ' + nomSerie(this.ligne[1]) + ' neuf dans nos stocks : choisissez un autre BMW neuf.' }));
+      return carte;
+    }
+    var tete = h('div.lbm-neuf-veh', [
+      this.mini(n.vin, null, n.serie, n.annee, n.txt),
+      h('div', [
+        h('div.lbm-veh-titre', { text: [n.annee, 'BMW', n.modele, n.version].filter(Boolean).join(' ') }),
+        h('div.lbm-veh-sous', { text: ['PDSF ' + argent(n.prix), ETATS_NEUF[n.etat] + (n.etat === 'transit' && n.etape ? ' (' + n.etape + ')' : ''), n.stock ? '# stock ' + n.stock : '', n.couleur, '…' + n.vin.slice(-8)].filter(Boolean).join(' · ') }),
+        h('a.lbm-lien', { href: '#/inventaire/neufs?vin=' + n.vin, text: 'Voir dans Inventaire › Neufs ›' })
+      ])
+    ]);
+    corps.appendChild(tete);
+    corps.appendChild(h('div.lbm-grille', { style: { marginTop: '12px' } }, [
+      h('div.champ', [h('label', { for: 'lbm-prix-neuf', text: 'Prix de vente du neuf' }), this.inPrixNeuf, h('div.aide', { text: 'Avant taxes. Vide = le PDSF. Frais d\'administration et comptant : ceux de la section 2.' })])
+    ]));
+    this.inPrixNeuf.placeholder = A.fmtNombre(n.prix);
+    this.neufRes = res;
+    corps.appendChild(this.elNeufTable);
+    this.majNeufTable();
+    return carte;
+  };
+  /** Le tableau occasion / neuf par durée — refait seul quand on tape le prix du neuf (le champ garde le curseur). */
+  VueLocation.prototype.majNeufTable = function () {
+    var self = this, el = this.elNeufTable, d = this.neufData, n = this.neufChoisi().n, prog = this.prog(), res = this.neufRes || [];
+    A.vider(el);
+    if (!d || !n || !prog) return;
+    var tx = taxePct(prog), o = { prix: this.inPrixNeuf.value.trim() === '' ? null : this.inPrixNeuf.value, frais: this.o.frais, comptant: this.o.comptant };
+    var ajd0 = (this.rep && this.rep.aujourdhui) || ajd();
+    var lignes = res.map(function (r) { return { u: r, n: locationNeuf(d.progs, n, r.terme, self.o.kmAn, o, tx, ajd0) }; });
+    var prg = lignes.map(function (x) { return x.n.prog; }).filter(Boolean)[0] || null;
+    var tb = h('tbody');
+    lignes.forEach(function (x) {
+      var u = x.u, nn = x.n, um = (u.offert && u.mensualite !== undefined) ? u.mensualite : null, nm = nn.offert ? nn.mensualite : null;
+      var ec = (um !== null && nm !== null) ? nm - um : null;
+      tb.appendChild(h('tr', [
+        h('td', [h('b', { text: u.terme + ' mois' })]),
+        h('td.num', [h('span.gros', { text: um === null ? '—' : argent(um, 2) }), h('span.doux', { text: u.offert ? pct(u.taux) + (u.residuelPct !== null && u.residuelPct !== undefined ? ' · résiduel ' + pct(u.residuelPct, 0) : '') : 'pas offert' })]),
+        h('td.num', [h('span.gros', { text: nm === null ? '—' : argent(nm, 2) }), h('span.doux', { text: nn.offert ? pct(nn.taux) + ' · résiduel ' + pct(nn.residuelPct, 0) + ' du PDSF' + (nn.interpole ? ' (entre ' + nn.interpole[0] + ' et ' + nn.interpole[1] + ' mois)' : '') : nn.raison }),
+          ec === null ? null : h('span.doux.ecart-tel' + (ec > 0 ? '.plus-cher' : '.moins-cher'), { text: (ec > 0 ? '+' : '') + argent(ec, 2) + ' par mois' })]),
+        h('td.num.col-ecart' + (ec === null ? '' : (ec > 0 ? '.plus-cher' : '.moins-cher')), [h('span', { text: ec === null ? '—' : (ec > 0 ? '+' : '') + argent(ec, 2) }), h('span.doux.ecart-txt', { text: ec === null ? '' : (ec > 0 ? 'de plus pour le neuf' : 'de moins pour le neuf') })])
+      ]));
+    });
+    el.appendChild(h('div.lbm-defile', [h('table.tableau.lbm-tableau.lbm-comp', [
+      h('thead', [h('tr', [h('th', 'Durée'), h('th.num', 'Occasion'), h('th.num', 'Neuf'), h('th.num.col-ecart', 'Écart par mois')])]),
+      tb
+    ])]));
+    var notes = [];
+    if (nombre(this.o.prix) === null) notes.push('Entrez le prix de vente de l\'occasion (section 2) pour son paiement.');
+    if (prg) notes.push('Neuf : programme de location du mois de BMW (' + [prg.modele, prg.version].filter(Boolean).join(' ') + (prg.par ? ', ' + String(prg.par).replace(/\s*\(automatique\)\s*$/, '') : '') + '), paiements par mois taxes incluses, même formule que l\'occasion.');
+    var nk = lignes.filter(function (x) { return x.n.offert && !x.n.kmExact; })[0];
+    if (nk) notes.push('Km par année : le programme du neuf n\'offre pas ' + A.fmtNombre(this.o.kmAn) + ' km — calculé à ' + A.fmtNombre(nk.n.kmAn) + ' km.');
+    var rb = lignes.filter(function (x) { return x.n.offert && x.n.rabaisProg > 0; })[0];
+    if (rb) notes.push('Rabais du programme déduit : ' + argent(rb.n.rabaisProg) + '.');
+    if (!prg && d.progErreur) notes.push('Programmes du mois : ' + d.progErreur);
+    if (notes.length) el.appendChild(h('p.lbm-cout-note', { style: { marginTop: '8px' }, text: notes.join(' ') }));
   };
 
   VueLocation.prototype.ouvrirDetail = function (r) {

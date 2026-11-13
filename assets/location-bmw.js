@@ -561,6 +561,7 @@
     '.lbm-ofl-liste { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 6px; } .lbm-ofl-ligne { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 12px; align-items: center; border: 1px solid var(--trait, #e5e5e5); border-radius: 10px; padding: 10px; }',
     '.lbm-ofl-ligne.pb { border-color: var(--ambre); background: var(--ambre-clair, #fff7e6); } .lbm-ofl-photo { width: 112px; height: 80px; border-radius: 8px; overflow: hidden; background: var(--fond, #f4f5f7); display: flex; align-items: center; justify-content: center; } .lbm-ofl-photo img { width: 100%; height: 100%; object-fit: cover; }',
     '.lbm-ofl-chiffres { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 14px; } .lbm-ofl-chiffres .eco { color: #1c69d4; } .lbm-ofl-pb { margin-top: 4px; font-size: 13px; color: var(--ambre); font-weight: 600; }',
+    '.lbm-ofl-cands { max-height: 460px; overflow: auto; padding-right: 4px; } .lbm-ofl-section > input.saisie { width: 100%; max-width: 420px; }',
     '.lbm-ofl-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; } .lbm-ofl-section { margin-top: 18px; border-top: 1px solid var(--trait, #e5e5e5); padding-top: 12px; } .lbm-ofl-section h3 { margin: 0 0 8px; font-size: 16px; }',
     '.lbm-ofl-etapes { margin: 0; padding-left: 20px; line-height: 1.55; } .lbm-ofl-etapes li { margin-bottom: 10px; } .lbm-ofl-url { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; } .lbm-ofl-url input { max-width: 340px; }',
     '.lbm-ofl-boutons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; } .lbm-ofl-copie { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--trait, #eee); font-size: 13.5px; }',
@@ -1027,6 +1028,23 @@
     this.vinCourant = '';
     this.lireVin(false);
   };
+  /* 13 nov. : « Préparer l'offre » (fenêtre Offres du site) — un véhicule de nos BMW sur le site, avec le km et le prix du site ;
+     l'aperçu de l'offre s'ouvre tout seul quand tout est calculé (blocOffre). */
+  VueLocation.prototype.preparerOffre = function (c) {
+    this.cacherSugg();
+    this.vinCourant = '';
+    this.nouveauVehicule(c.vin);
+    this.inVin.value = String(c.vin || '').toUpperCase();
+    if (c.km > 0) { this.inKm.value = A.fmtNombre(Math.round(c.km)); this.elKmAide.textContent = 'Km affiché sur bmwsherbrooke.com — vérifiez le compteur.'; }
+    if (c.prix > 0) { this.inPrix.value = A.fmtNombre(Math.round(c.prix)); this.prixSource = 'prix affiché sur bmwsherbrooke.com'; }
+    var inv = A.inventaire && A.inventaire.parVin ? A.inventaire.parVin(c.vin) : null;
+    this.invChoisi = (inv && String(inv.vin || '').toUpperCase() === String(c.vin).toUpperCase()) ? inv : { vin: c.vin, stock: c.stock, compagnie: 'BMW', statut: c.statut, _feuille: c.feuille, modele: c.nom };
+    this.fsChoisi = null;
+    this.offreAuto = String(c.vin || '').toUpperCase();
+    this.lireSaisies();
+    this.lireVin(false);
+    try { this.el.scrollIntoView({ block: 'start' }); } catch (e) {}
+  };
   /* Un autre véhicule que celui à l'écran : le km et le prix de l'ancien ne le suivent pas. */
   VueLocation.prototype.nouveauVehicule = function (vin) {
     if (String(vin || '').toUpperCase() === this.vinCourant) return;
@@ -1066,6 +1084,10 @@
       /* Le km de la fiche d'achat, et le prix affiché (D2C) quand on l'a déjà en mémoire. */
       var kmFiche = A.kmValide ? A.kmValide(f['f-km']) : null;
       if (!self.inKm.value.trim() && kmFiche) { self.inKm.value = A.fmtNombre(kmFiche); self.elKmAide.textContent = 'Km de la fiche d\'achat — vérifiez le compteur.'; }
+      /* 13 nov. : le km et le prix affichés sur bmwsherbrooke.com (ceux que l'offre du site doit reprendre). */
+      var cnd = ((self.offres && self.offres.candidats) || []).filter(function (x) { return x.vin === vin; })[0];
+      if (cnd && !self.inKm.value.trim() && cnd.km > 0) { self.inKm.value = A.fmtNombre(Math.round(cnd.km)); self.elKmAide.textContent = 'Km affiché sur bmwsherbrooke.com — vérifiez le compteur.'; }
+      if (cnd && !self.inPrix.value.trim() && cnd.prix > 0) { self.inPrix.value = A.fmtNombre(Math.round(cnd.prix)); self.prixSource = 'prix affiché sur bmwsherbrooke.com'; }
       if (!self.inPrix.value.trim()) {
         var m = A.occMarche && A.occMarche.enCache && A.occMarche.enCache(), mv = m && (m.vehicules || []).filter(function (x) { return String(x.vin || '').toUpperCase() === vin; })[0];
         if (mv && mv.notre && mv.notre.prix) { self.inPrix.value = A.fmtNombre(mv.notre.prix); self.prixSource = 'prix affiché sur le site de la concession'; }
@@ -1582,6 +1604,17 @@
     var raison = this.raisonPasOffre(), deja = (off.offres || []).filter(function (o) { return o.vin === self.vinCourant; })[0];
     var c = raison ? null : this.offreCalculee();
     if (!raison && c && c.erreur) raison = c.erreur;
+    /* « Préparer l'offre » (fenêtre Offres du site) : une fois le véhicule, sa version et le neuf prêts, l'aperçu s'ouvre tout seul ;
+       s'il manque quelque chose (PDSF d'un neuf du manufacturier…), la page descend au bouton et le dit. */
+    if (this.offreAuto && this.offreAuto === this.vinCourant && this.ligne && this.neufData) {
+      this.offreAuto = '';
+      var selfA = this, raisonA = raison;
+      setTimeout(function () {
+        if (selfA.detruit) return;
+        if (!raisonA) selfA.ajouterOffre();
+        else { try { box.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} A.toast(raisonA, 'attention'); }
+      }, 400);
+    }
     var btn = h('button.btn' + (raison ? '' : '.primaire'), { type: 'button', disabled: !!raison, html: (A.icones.ajouter || '') + '<span>' + (deja ? 'Mettre à jour l\'offre du site' : 'Ajouter aux offres du site') + '</span>', onclick: function () { self.ajouterOffre(); } });
     var txt = raison || ('Page des offres de bmwsherbrooke.com : ' + c.offre.terme + ' mois (plus grosse économie : ' + argent(Math.floor(c.best.ec), 0) + ' par mois), 0 $ comptant.');
     box.appendChild(h('div.lbm-offre-ligne', [btn, h('span.doux', { text: txt })]));
@@ -1622,6 +1655,7 @@
       h('div.lbm-veh-sous', { text: [kmTxt(x.km), x.stock ? '# stock ' + x.stock : '', x.cpo ? 'certifié' : 'non certifié', x.terme + ' mois · ' + A.fmtNombre(x.kmAn) + ' km par année'].filter(Boolean).join(' · ') }),
       h('div.lbm-ofl-gros-ligne', [gros('0 $', 'comptant'), gros(argent(x.avantTaxes, 2), 'par mois, avant taxes'), gros(argent(eco, 0), 'd\'économie par mois')]),
       h('p', { text: 'Neuf comparé : ' + nf.titre + (nf.source === 'manufacturier' ? ' (manufacturier, pas en stock)' : '') + ' — ' + argent(nf.avantTaxes, 2) + ' par mois avant taxes, 0 $ comptant, ' + x.terme + ' mois (taux ' + pct(nf.taux) + ', résiduel ' + pct(nf.residuelPct, 0) + ' du PDSF).' }),
+      (this.trouve && !this.trouve.sur && !this.choixManuel) ? h('div.lbm-avis.ambre', { text: 'Version devinée d\'après le NIV : ' + x.titre + '. Vérifiez-la dans « Version dans la grille de BMW FS » (section 1) avant d\'ajouter l\'offre.' }) : null,
       (nombre(this.o.comptant) || 0) ? h('div.lbm-avis.ambre', { text: 'La page du site est toujours à 0 $ comptant : l\'offre est calculée sans le comptant de la section 2.' }) : null,
       nf.kmAn && nf.kmAn !== x.kmAn ? h('div.lbm-avis.ambre', { text: 'Le programme du neuf n\'offre pas ' + A.fmtNombre(x.kmAn) + ' km par année : le neuf est comparé à ' + A.fmtNombre(nf.kmAn) + ' km (dit dans les mentions de la page).' }) : null,
       c.offre.termes.length > 1 ? h('p.doux', { text: 'Durée choisie : la plus grosse économie (' + c.offre.termes.map(function (t) { return t.terme + ' mois : ' + argent(Math.max(0, Math.floor(t.n - t.u)), 0); }).join(' · ') + ').' }) : null,
@@ -1648,6 +1682,39 @@
     if (!w) A.toast('La fenêtre d\'aperçu a été bloquée par le navigateur.', 'attention');
     setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) {} }, 60000);
   }
+  VueLocation.prototype.sectionCandidats = function (d, m) {
+    var self = this, sec = h('div.lbm-ofl-section', [h('h3', 'Choisir les véhicules à offrir')]), cands = d.candidats;
+    if (!Array.isArray(cands)) {
+      sec.appendChild(h('div.lbm-avis.ambre', { text: 'La liste de nos BMW sur le site demande la nouvelle version du script : redéployez-le. En attendant, choisissez un véhicule avec « Nos BMW », entrez son km et son prix, puis « Ajouter aux offres du site » sous la comparaison avec le neuf.' }));
+      sec.appendChild(h('button.btn.petit', { type: 'button', text: 'Nos BMW', onclick: function () { m.fermer(); self.ouvrirListe('stock'); } }));
+      return sec;
+    }
+    if (!cands.length) { sec.appendChild(h('p.lbm-vide', { text: 'Aucune BMW d\'occasion de notre stock n\'est sur bmwsherbrooke.com avec un prix et une photo (le site est relu chaque matin).' })); return sec; }
+    sec.appendChild(h('p.doux', { text: 'Nos BMW d\'occasion en stock et sur bmwsherbrooke.com, les plus vieilles en stock d\'abord. « Préparer l\'offre » calcule la location à 0 $ comptant avec le km et le prix du site, la compare au neuf le plus proche, prend la durée de la plus grosse économie et ouvre l\'aperçu : vous confirmez.' }));
+    var rech = h('input.saisie', { type: 'search', placeholder: 'Modèle, année, # stock ou fin du NIV', 'aria-label': 'Chercher un véhicule' });
+    var lst = h('div.lbm-ofl-liste.lbm-ofl-cands');
+    var dessiner = function () {
+      A.vider(lst);
+      var q = rech.value.trim(), n = 0;
+      cands.forEach(function (c) {
+        if (q && !(A.correspond ? A.correspond([String(c.nom || ''), String(c.stock || ''), String(c.vin || ''), String(c.annee || ''), String(c.modele || ''), String(c.version || '')], q) : (c.nom + ' ' + c.stock + ' ' + c.vin).toLowerCase().indexOf(q.toLowerCase()) >= 0)) return;
+        n++;
+        var ph = h('div.lbm-ofl-photo'); if (c.photo) ph.appendChild(h('img', { src: c.photo, alt: '', loading: 'lazy' })); else ph.innerHTML = ICONE_AUTO();
+        lst.appendChild(h('div.lbm-ofl-ligne', [ph, h('div.lbm-ofl-txt', [
+          h('div.lbm-veh-titre', { text: c.nom || c.vin }),
+          h('div.lbm-veh-sous', { text: [c.stock ? '# stock ' + c.stock : '', kmTxt(c.km), argent(c.prix, 0) + ' sur le site', (c.jours !== null && c.jours !== undefined) ? c.jours + ' j en stock' : ''].filter(Boolean).join(' · ') }),
+          c.offre ? h('div.lbm-veh-sous', [h('b', { text: 'Déjà sur la page des offres' })]) : null
+        ]), h('div.lbm-ofl-actions', [
+          h('button.btn.petit' + (c.offre ? '' : '.primaire'), { type: 'button', text: c.offre ? 'Recalculer l\'offre' : 'Préparer l\'offre', onclick: function () { m.fermer(); self.preparerOffre(c); } }),
+          c.lien ? h('a.btn.petit.fantome', { href: c.lien, target: '_blank', rel: 'noopener', text: 'Fiche du site' }) : null
+        ])]));
+      });
+      if (!n) lst.appendChild(h('p.lbm-vide', { text: 'Aucun véhicule ne répond à « ' + q + ' ».' }));
+    };
+    rech.addEventListener('input', dessiner);
+    sec.appendChild(rech); sec.appendChild(lst); dessiner();
+    return sec;
+  };
   VueLocation.prototype.ouvrirOffres = function () {
     var self = this, corps = h('div.lbm-ofl');
     var m = A.modale({ titre: 'Offres de location sur bmwsherbrooke.com', corps: corps, large: true, classe: 'lbm-ofl-voile', proteger: false, boutons: [{ texte: 'Fermer' }] });
@@ -1669,7 +1736,7 @@
         h('button.btn.petit', { type: 'button', text: 'Vérifier la page en ligne', onclick: function (e) { var b = e.currentTarget; b.disabled = true; A.post({ action: 'offresLocationVerifier', compagnie: 'BMW' }, { delai: 60000 }).then(function (r) { A.verifier(r); self.offres = r; self.majBoutonOffres(); dessiner(); }).catch(function (er) { b.disabled = false; A.toast(A.erreurTexte(er), 'erreur'); }); } })]));
       /* Les offres */
       var offres = d.offres || [];
-      if (!offres.length) corps.appendChild(h('p.lbm-vide', { text: 'Aucune offre. Calculez un véhicule de nos BMW, comparez-le avec un neuf, puis « Ajouter aux offres du site ».' }));
+      if (!offres.length) corps.appendChild(h('p.lbm-vide', { text: ecrit ? 'Aucune offre pour l\'instant : choisissez les véhicules plus bas (« Préparer l\'offre »).' : 'Aucune offre pour l\'instant.' }));
       var liste = h('div.lbm-ofl-liste');
       offres.forEach(function (o, i) {
         var x = o.d || {}, nf = x.neuf || {}, eco = Math.floor((nf.avantTaxes || 0) - (x.avantTaxes || 0));
@@ -1689,6 +1756,8 @@
         ]), actions]));
       });
       corps.appendChild(liste);
+      /* 13 nov. : choisir les véhicules — nos BMW d'occasion en stock et sur le site (OFL_candidats_). */
+      if (ecrit) corps.appendChild(self.sectionCandidats(d, m));
       /* Publier */
       var etapes = h('div.lbm-ofl-section', [h('h3', 'Publier sur bmwsherbrooke.com')]);
       var inUrl = h('input.saisie', { type: 'text', value: site.page || '', placeholder: '/location-bmw-occasion.html', 'aria-label': 'Adresse de la page sur le site' });

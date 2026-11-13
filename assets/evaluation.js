@@ -598,6 +598,9 @@
         } else if (x.etat === 'aconfirmer' && moi.diriger) {
           principal = h('button.btn.primaire', { type: 'button', text: 'Confirmer le montant', onclick: function () { AMX.evalDemandes.confirmer(x.id); } });
           if (AMX.evalDemandes.renvoyer) autres.push({ texte: 'Renvoyer à l\'évaluateur', action: function () { AMX.evalDemandes.renvoyer(x.id); } });
+        } else if (x.etat === 'faite' && AMX.evalDemandes.modifierMontant && (moi.diriger || (x.circuit !== 'directeur' && (x.pourMoi || moi.evaluateur)))) {
+          /* 12 nov. (Maxime) : le montant donné se corrige d'un clic */
+          autres.push({ texte: 'Modifier le montant', action: function () { AMX.evalDemandes.modifierMontant(x.id); } });
         } else if (ouverte && !priseAutre && (x.pourMoi || moi.evaluateur)) {
           principal = h('button.btn.primaire', { type: 'button', text: 'Envoyer la valeur', title: 'Enregistre l\'évaluation et envoie la valeur' + (x.circuit ? ' à la direction pour confirmation' : ''), onclick: function () { self.enregistrer(); } });
         }
@@ -655,7 +658,10 @@
     choix(this.elEtatGeneral, e.general); choix(this.elCles, e.cles); texte(this.elCouleurExt, e.couleurExt); texte(this.elCouleurInt, e.couleurInt);
     choix(this.elPneusEte, e.pneusEte); choix(this.elPneusHiver, e.pneusHiver); texte(this.elPneusDim, e.pneusDim); choix(this.elPareBrise, e.pareBrise);
     choix(this.elAccident, e.accident); texte(this.elAccidentMontant, e.accidentMontant); choix(this.elFinancement, e.financement); texte(this.elSoldePret, e.soldePret);
-    texte(this.elCarrosserie, e.carrosserie); texte(this.elVoyants, e.voyants); texte(this.elEtatNotes, e.notes);
+    texte(this.elCarrosserie, e.carrosserie); texte(this.elVoyants, e.voyants);
+    /* 12 nov. (Maxime : « les notes sur un véhicule doivent suivre partout ») : la note de la demande va dans les notes du
+       véhicule de l'évaluation, qui suivent dans l'inventaire et la fiche d'achat */
+    texte(this.elEtatNotes, [e.notes, x.note].filter(function (n, i, l) { return n && l.indexOf(n) === i; }).join(' — '));
     [['chipsConstats', 'constats'], ['chipsGaranties', 'garanties'], ['chipsOptions', 'options']].forEach(function (p) {
       var c = self[p[0]], l = e[p[1]];
       if (c && Array.isArray(l) && l.length && !c.get().length) c.set(l);

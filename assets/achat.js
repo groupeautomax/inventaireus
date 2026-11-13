@@ -543,7 +543,9 @@
     this.elEval.appendChild(h('span', { html: I.info }));
     this.elEval.appendChild(h('div.texte', { style: { flex: '1 1 260px' } }, [
       h('b', { text: 'Une évaluation existe pour ce NIV' + (ev.importee ? ' — importée dans la fiche' : '') }),
-      h('span', { text: resumeEvaluation(d) + (quand ? ' · évaluée le ' + AMX.fmtDate(quand, true) : '') + (qui ? ' par ' + String(qui).split('@')[0] : '') + (ev.importee ? '.' : (manquants ? '. ' + manquants + ' case(s) de la fiche peuvent être remplies à partir d\'elle.' : '. Toutes les cases correspondantes sont déjà remplies.')) })
+      h('span', { text: resumeEvaluation(d) + (quand ? ' · évaluée le ' + AMX.fmtDate(quand, true) : '') + (qui ? ' par ' + String(qui).split('@')[0] : '') + (ev.importee ? '.' : (manquants ? '. ' + manquants + ' case(s) de la fiche peuvent être remplies à partir d\'elle.' : '. Toutes les cases correspondantes sont déjà remplies.')) }),
+      /* 12 nov. (Maxime : « les notes sur un véhicule doivent suivre partout ») */
+      (function () { var n = [(d.etatVehicule && d.etatVehicule.notes) || '', d.prixNote || ''].filter(Boolean).join(' — '); return n ? h('span', { style: { display: 'block', marginTop: '4px', fontWeight: '600' }, text: 'Notes : ' + n }) : null; })()
     ]));
     var actions = h('div.actions-ligne');
     if (!ev.importee && manquants) actions.appendChild(h('button.btn.primaire.petit', { type: 'button', html: I.ok + '<span>Importer dans la fiche</span>', onclick: function () { self.importerEvaluation(false); } }));

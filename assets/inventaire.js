@@ -1114,8 +1114,9 @@
         marge !== null ? h('span.puce' + (marge < 0 ? '.alerte' : ''), { text: 'marge ' + AMX.fmtArgent(marge, 0) }) : null,
         e.etat ? h('span.puce', { text: 'état : ' + e.etat }) : null, e.pneus ? h('span.puce', { text: 'pneus : ' + e.pneus }) : null, e.pareBrise ? h('span.puce', { text: 'pare-brise : ' + e.pareBrise }) : null, e.accident ? h('span.puce.alerte', { text: 'accident : ' + e.accident }) : null
       ]));
-      var note = e.notes || e.note;
-      if (note) zoneEval.appendChild(h('div.doux.petit', { style: { marginTop: '6px' }, text: String(note).slice(0, 240) }));
+      /* 12 nov. (Maxime : « les notes sur un véhicule doivent suivre partout ») : notes du véhicule et de l'évaluateur */
+      var ev2 = e.etatVehicule || {}, notesV = [ev2.notes || e.notes || e.note, e.prixNote].filter(function (n, i, l) { return n && l.indexOf(n) === i; });
+      notesV.forEach(function (n) { zoneEval.appendChild(h('div.petit', { style: { marginTop: '6px', padding: '6px 8px', borderRadius: '6px', background: 'var(--fond)' }, text: String(n).slice(0, 400) })); });
       zoneEval.appendChild(h('div.doux.petit', { style: { marginTop: '6px' }, text: 'Évaluée' + (quand ? ' le ' + AMX.fmtDate(quand, true) : '') + (qui ? ' par ' + qui : '') + (e.concession ? ' · ' + (AMX.CONCESSIONS_TOUTES && AMX.CONCESSIONS_TOUTES[e.concession] ? AMX.CONCESSIONS_TOUTES[e.concession] : e.concession) : '') }));
     }).catch(function (err) { if (!zoneEval.isConnected) return; zoneEval.textContent = 'Évaluation indisponible : ' + AMX.erreurTexte(err); });
 

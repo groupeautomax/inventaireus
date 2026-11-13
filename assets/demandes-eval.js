@@ -410,7 +410,10 @@
       confirmer: !portail && x.etat === 'aconfirmer' && !!moi.diriger,
       voirEvaluation: !portail && !!x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer'),
       /* 12 nov. (suggestion S8DC45A94DF) : rouvrir sa demande pour la corriger (km, note, client, état, photos) */
-      modifier: x.etat !== 'annulee' && x.etat !== 'refusee' && (x.deMoi || !!moi.direction)
+      modifier: x.etat !== 'annulee' && x.etat !== 'refusee' && (x.deMoi || !!moi.direction),
+      /* 12 nov. (Maxime) : corriger le montant déjà donné en cliquant sur l'évaluation — la direction ; l'évaluateur quand la
+         demande n'a pas de circuit */
+      modifierValeur: !portail && x.etat === 'faite' && (!!moi.diriger || (x.circuit !== 'directeur' && (x.pourMoi || !!moi.evaluateur)))
     };
   }
   function priseParAutre(x) { return !!x.prise && !x.pourMoi; }
@@ -616,7 +619,44 @@
       boutons: [{ texte: 'Annuler' }, { texte: 'Confirmer et envoyer', classe: 'primaire', action: function () {
         var v = Math.round(parseFloat(String(inVal.value).replace(/[^\d.,]/g, '').replace(',', '.')) || 0);
         if (!v) { AMX.toast('Indiquez le montant.', 'attention'); inVal.focus(); return false; }
-        return action(x.id, 'confirmer', { valeur: v, note: inNote.value }).then(function (r) { AMX.toast(r.message || 'Montant confirmé', 'ok', 6000); }).catch(function (e) { erreur(e); return false; });
+        return montantPlausible(v, valEv).then(function (oui) {
+          if (!oui) { inVal.focus(); inVal.select(); return false; }
+          return action(x.id, 'confirmer', { valeur: v, note: inNote.value }).then(function (r) { AMX.toast(r.message || 'Montant confirmé', 'ok', 6000); }).catch(function (e) { erreur(e); return false; });
+        });
+      } }] });
+    setTimeout(function () { inVal.focus(); inVal.select(); }, 60);
+  }
+  /* 12 nov. (DE-117 : 1 $ confirmé pour une évaluation de 33 000 $) : sous 100 $, refusé ; sous la moitié de la valeur de
+     l'évaluateur, on demande de confirmer le montant tapé. Renvoie une promesse : vrai = on envoie. */
+  var MONTANT_MIN = 100;
+  function montantPlausible(v, valEv) {
+    if (v < MONTANT_MIN) { AMX.toast('Montant trop bas (' + argent(v) + ') : vérifiez le montant.', 'erreur', 6000); return Promise.resolve(false); }
+    if (valEv && v < valEv / 2 && AMX.confirmer) return AMX.confirmer('Montant beaucoup plus bas', 'Vous inscrivez ' + argent(v) + ' alors que l\'évaluation est à ' + argent(valEv) + '. C\'est bien le montant voulu ?', { ok: 'Oui, ' + argent(v) });
+    return Promise.resolve(true);
+  }
+  /* 12 nov. (Maxime) : « on doit pouvoir modifier le prix donné quand on clique directement sur l'évaluation » */
+  function modifierMontant(x) {
+    var actuel = Number(x.valeur) || 0, valEv = Number(x.valeurEvaluateur) || 0, circuit = x.circuit === 'directeur';
+    var inVal = h('input.saisie', { type: 'text', inputmode: 'numeric', value: actuel ? String(actuel) : '', placeholder: 'Montant ($)' });
+    var inNote = h('input.saisie', { type: 'text', maxlength: '300', placeholder: 'Pourquoi (facultatif) : le représentant le voit' });
+    var caseAviser = h('input', { type: 'checkbox', checked: true });
+    var lignes = [
+      h('div.large', [h('b', { text: x.vehicule || x.vin }), h('span.mini', { text: (x.vehicule ? ' · ' + x.vin : '') + (x.client ? ' · ' + x.client : '') })]),
+      h('p.mini.large', { text: 'Montant donné : ' + (actuel ? argent(actuel) : '—') + (valEv && valEv !== actuel ? ' · évaluateur : ' + argent(valEv) : '') + '.' }),
+      h('label.champ', [h('span', 'Nouveau montant'), inVal]),
+      h('label.champ.large', [h('span', 'Note'), inNote])
+    ];
+    if (circuit && x.demandeParNom) lignes.push(h('label.case.large', [caseAviser, h('span', { text: 'Envoyer le nouveau montant à ' + x.demandeParNom + ' (texto, sinon courriel)' })]));
+    AMX.modale({ titre: 'Modifier le montant', corps: h('div.de-grille', lignes),
+      boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer le montant', classe: 'primaire', action: function () {
+        var v = Math.round(parseFloat(String(inVal.value).replace(/[^\d.,]/g, '').replace(',', '.')) || 0);
+        if (!v) { AMX.toast('Indiquez le nouveau montant.', 'attention'); inVal.focus(); return false; }
+        return montantPlausible(v, valEv || actuel).then(function (oui) {
+          if (!oui) { inVal.focus(); inVal.select(); return false; }
+          return action(x.id, 'valeur', { valeur: v, note: inNote.value, aviser: !!(circuit && caseAviser.checked) })
+            .then(function (r) { AMX.toast(r.message || 'Montant modifié', 'ok', 7000); })
+            .catch(function (e) { erreur(e); return false; });
+        });
       } }] });
     setTimeout(function () { inVal.focus(); inVal.select(); }, 60);
   }
@@ -710,6 +750,7 @@
     var voit = !portail;
     /* 12 nov. : les gestes secondaires dans « Actions » ; un seul gros bouton en bas (monAction) */
     var autres = [];
+    if (dr.modifierValeur) autres.push({ texte: 'Modifier le montant', action: function () { fermerFiche(); modifierMontant(x); } });
     if (dr.modifier) autres.push({ texte: 'Modifier la demande', action: function () { fermerFiche(); modifier(x); } });
     autres.push({ texte: (x.messages || []).length ? 'Messages (' + x.messages.length + ')' : 'Écrire un message', action: function () { fermerFiche(); ouvrirFil(x.id); } });
     if (dr.transferer) autres.push({ texte: x.etat === 'approbation' ? 'Changer les évaluateurs proposés' : 'Transférer à un autre évaluateur', action: function () { fermerFiche(); transferer(x, d); } });
@@ -747,7 +788,12 @@
       AMX.vider(elValeur);
       var valEv = Number(x.valeurEvaluateur || x.valeur) || Number(ev && ev.suivi && ev.suivi.valeurClient) || Number(ev && ev.prixAchat) || 0;
       if (x.etat === 'faite' && x.valeur) {
-        elValeur.appendChild(h('div.fe-montant', [h('span', { text: 'Valeur confirmée' }), h('b', { text: argent(x.valeur) }), x.valideJusqu ? h('small', { text: 'valide jusqu\'au ' + AMX.fmtDate(x.valideJusqu) }) : null]));
+        var modif = dr.modifierValeur ? function () { fermerFiche(); modifierMontant(x); } : null;
+        elValeur.appendChild(h('div.fe-montant' + (modif ? '.cliquable' : ''), modif ? { role: 'button', tabindex: '0', title: 'Modifier le montant', onclick: modif, onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); modif(); } } } : {}, [
+          h('span', { text: x.circuit === 'directeur' ? 'Valeur confirmée' : 'Valeur donnée' }), h('b', { text: argent(x.valeur) }), x.valideJusqu ? h('small', { text: 'valide jusqu\'au ' + AMX.fmtDate(x.valideJusqu) }) : null,
+          modif ? h('span.fe-modifier', { text: 'Modifier' }) : null]));
+        if (x.valeurEvaluateur && Number(x.valeurEvaluateur) !== Number(x.valeur) && !portail) elValeur.appendChild(h('p.mini', { text: 'Évaluateur : ' + argent(x.valeurEvaluateur) + (x.faitePar ? ' (' + x.faitePar + ')' : '') }));
+        if (x.noteDirecteur) elValeur.appendChild(h('p.fe-note', [h('b', { text: 'Note de la direction : ' }), x.noteDirecteur]));
       } else if (valEv) {
         elValeur.appendChild(h('div.fe-montant', [h('span', { text: x.etat === 'aconfirmer' ? 'Valeur de l\'évaluateur — à confirmer' : 'Valeur de l\'évaluateur' }), h('b', { text: argent(valEv) })]));
       } else {
@@ -762,6 +808,8 @@
       ].filter(Boolean);
       if (repere.length) elValeur.appendChild(h('div.fe-reperes', repere));
       if (ev.prixNote) elValeur.appendChild(h('p.fe-note', [h('b', { text: 'Note de l\'évaluateur : ' }), ev.prixNote]));
+      var nv = ev.etatVehicule && ev.etatVehicule.notes;
+      if (nv && nv !== x.note) elValeur.appendChild(h('p.fe-note', [h('b', { text: 'Notes sur le véhicule : ' }), nv]));
     };
     var dessinerClient = function (ev) {
       AMX.vider(elClient);
@@ -1156,6 +1204,7 @@
     tractionsATraiter: tractionsATraiter, tractionATraiter: tractionATraiter,
     /* 2 nov. : la page d'évaluation propose « Confirmer le montant » au directeur, juste après l'enregistrement. */
     confirmer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); confirmerMontant(x); } },
+    modifierMontant: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); modifierMontant(x); } },
     approuver: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); approuver(x, cache.rep); } },
     refuser: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); refuser(x); } },
     renvoyer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); renvoyer(x); } },
@@ -1218,6 +1267,7 @@
       '.fe-valeur { display: grid; gap: 8px; } .fe-montant { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 14px; border-radius: 10px; background: var(--vert-clair, #E8F5EE); }',
       '.fe-montant span { font-size: 13px; color: var(--vert-fonce, #0E5E31); font-weight: 600; } .fe-montant b { font-size: 26px; color: var(--vert-fonce, #0E5E31); } .fe-montant small { font-size: 12px; color: var(--encre-3); }',
       '.fe-montant.sans { background: var(--fond); } .fe-montant.sans span { color: var(--encre-3); }',
+      '.fe-montant.cliquable { cursor: pointer; } .fe-montant.cliquable:hover, .fe-montant.cliquable:focus-visible { box-shadow: 0 0 0 2px var(--vert, #008840) inset; } .fe-modifier { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--vert-fonce, #0E5E31); text-decoration: underline; }',
       '.fe-reperes, .fe-champs, .fe-qui { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; }',
       '.fe-champ { display: grid; gap: 1px; } .fe-champ span { font-size: 12px; color: var(--encre-3); } .fe-champ b { font-size: 14px; font-weight: 600; color: var(--encre); }',
       '.fe-champ.rouge b { color: var(--rouge); } .fe-qui { padding-top: 8px; border-top: 1px solid var(--ligne); }',

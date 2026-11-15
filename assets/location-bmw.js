@@ -550,7 +550,7 @@
     return bas;
   }
   var Calcul = { niveauBmw: niveauBmw, memeCorps: memeCorps, modelesManuf: modelesManuf, meilleurTerme: meilleurTerme, plusBasTerme: plusBasTerme, neufsBmw: neufsBmw, procheNeuf: procheNeuf, progLocationNeuf: progLocationNeuf, grilleLoc: grilleLoc, locationNeuf: locationNeuf, progsDuJour: progsDuJour,
-    photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, evolPrix: evolPrix, indexVentes: indexVentes, venteDe: venteDe, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
+    photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, evolPrix: evolPrix, pointsPrix: pointsPrix, indexVentes: indexVentes, venteDe: venteDe, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
   /* ======================================================= La page */
@@ -585,7 +585,22 @@
     '.lbm-page .lbm-fs b { color: var(--bleu); } .lbm-page .lbm-fs-actions { display: flex; gap: 8px; flex-wrap: wrap; }',
     '.lbm-page .lbm-sugg .st.fs, .lbm-stock .lbm-stock-liste .st.fs { color: var(--bleu); }',
     '.lbm-evol { font-size: 12.5px; font-weight: 700; border-radius: 999px; padding: 1px 8px; white-space: nowrap; } .lbm-evol.baisse { color: var(--vert-fonce); background: var(--vert-clair); } .lbm-evol.hausse { color: var(--ambre); background: var(--ambre-bg); }',
-    '.lbm-page .lbm-evol-ligne { font-size: 13px; line-height: 1.5; } .lbm-page .lbm-evol-histo { font-size: 12.5px; color: var(--encre-3); margin-top: 2px; }',
+    '.lbm-page .lbm-evol-histo { font-size: 12.5px; color: var(--encre-3); margin-top: 2px; }',
+    /* 15 nov. : le graphique de l'évolution du prix (une seule série, bleu du site ; grille et axes discrets) */
+    '.lbm-page .lbm-pg { background: var(--carte); border: 1px solid var(--bleu-bord); border-radius: 10px; padding: 10px 12px 8px; display: flex; flex-direction: column; gap: 8px; }',
+    '.lbm-page .lbm-pg-tete { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .lbm-page .lbm-pg-titre { font-size: 14px; font-weight: 700; color: var(--encre); } .lbm-page .lbm-pg-plat { font-size: 12.5px; color: var(--encre-3); }',
+    '.lbm-page .lbm-pg-graphe { display: flex; gap: 8px; } .lbm-page .lbm-pg-axe-y { position: relative; width: 74px; flex: 0 0 74px; height: 120px; } .lbm-page .lbm-pg-axe-y span { position: absolute; right: 0; transform: translateY(-50%); font-size: 12px; color: var(--encre-3); white-space: nowrap; font-variant-numeric: tabular-nums; }',
+    '.lbm-page .lbm-pg-cadre { flex: 1 1 auto; min-width: 0; } .lbm-page .lbm-pg-plot { position: relative; height: 120px; margin: 0 8px; touch-action: pan-y; }',
+    '.lbm-page .lbm-pg-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; } .lbm-page .lbm-pg-svg .grille { stroke: var(--ligne); stroke-width: 1; vector-effect: non-scaling-stroke; } .lbm-page .lbm-pg-svg .trace { fill: none; stroke: var(--bleu); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }',
+    '.lbm-page .lbm-pg-zone { position: absolute; inset: 0; } .lbm-page .lbm-pg-pt { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; padding: 0; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 50%; }',
+    '.lbm-page .lbm-pg-pt span { width: 10px; height: 10px; border-radius: 50%; background: var(--bleu); box-shadow: 0 0 0 2px var(--carte); } .lbm-page .lbm-pg-pt.bout span { width: 12px; height: 12px; } .lbm-page .lbm-pg-pt.actif span, .lbm-page .lbm-pg-pt:focus-visible span { box-shadow: 0 0 0 2px var(--carte), 0 0 0 4px var(--bleu-bord); } .lbm-page .lbm-pg-pt:focus-visible { outline: none; }',
+    '.lbm-page .lbm-pg-croix { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ligne-forte); pointer-events: none; }',
+    '.lbm-page .lbm-pg-bulle { position: absolute; transform: translate(10px, -100%); background: var(--carte); border: 1px solid var(--ligne-forte); border-radius: 8px; padding: 5px 8px; box-shadow: var(--ombre); pointer-events: none; display: flex; flex-direction: column; white-space: nowrap; z-index: 2; } .lbm-page .lbm-pg-bulle.a-gauche { transform: translate(calc(-100% - 10px), -100%); }',
+    '.lbm-page .lbm-pg-bulle b { font-size: 14px; color: var(--encre); font-variant-numeric: tabular-nums; } .lbm-page .lbm-pg-bulle span { font-size: 12px; color: var(--encre-3); }',
+    '.lbm-page .lbm-pg-axe-x { display: flex; justify-content: space-between; font-size: 12px; color: var(--encre-3); margin-top: 4px; }',
+    '.lbm-page .lbm-pg-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; border-top: 1px solid var(--ligne); padding-top: 8px; } .lbm-page .lbm-pg-stat { display: flex; flex-direction: column; min-width: 92px; } .lbm-page .lbm-pg-stat .l { font-size: 12px; color: var(--encre-3); } .lbm-page .lbm-pg-stat .v { font-size: 16px; font-weight: 700; color: var(--encre); font-variant-numeric: tabular-nums; } .lbm-page .lbm-pg-stat .s { font-size: 12px; color: var(--encre-3); }',
+    '.lbm-page .lbm-pg-stat.baisse .v { color: var(--vert-fonce); } .lbm-page .lbm-pg-stat.hausse .v { color: var(--ambre); }',
+    '@media (max-width: 640px) { .lbm-page .lbm-pg-axe-y { width: 62px; flex-basis: 62px; } .lbm-page .lbm-pg-stat { min-width: 0; flex: 1 1 40%; } }',
     '.lbm-page .lbm-veh-titre { font-size: 17px; font-weight: 700; } .lbm-page .lbm-veh-sous { font-size: 13px; color: var(--encre-3); }',
     '.lbm-page .lbm-version { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .lbm-page .lbm-version select { flex: 1 1 320px; min-width: 0; max-width: 620px; }',
     '.lbm-page .lbm-avis, .lbm-ofl .lbm-avis, .lbm-ofl-apercu .lbm-avis { border-radius: 10px; padding: 10px 12px; font-size: 13.5px; line-height: 1.45; margin: 10px 0 0; }',
@@ -1260,24 +1275,110 @@
     if (this.fsMarche) actions.push(h('button.btn.petit', { type: 'button', title: 'Prix médian du modèle-année au Canada, ajusté au km' + (this.fsMarche.plafonne ? ', plafonné au gros OpenLane + 15 %' : '') + ' (Outils › Opportunités d\'achat)', text: 'Marché au détail estimé ' + argent(this.fsMarche.ref) + ' — prendre ce prix', onclick: function () { self.inPrix.value = A.fmtNombre(Math.round(self.fsMarche.ref)); self.prixSource = 'marché au détail estimé'; self.lireSaisies(); self.rendreResultat(); } }));
     return h('div.lbm-fs', [
       h('div', [h('b', { text: 'À vendre sur BMW FS' }), document.createTextNode(' (Manheim) : ' + infos + '.')]),
-      this.ligneEvol(ev),
+      this.graphePrix(ff, ev),
       h('div.lbm-veh-sous', { text: 'Le prix demandé est ce que la concession paierait à BMW FS, pas le prix de vente : entrez le prix de vente plus bas.' + (plusVu ? ' Plus vu sur BMW FS au dernier passage du favori : il est peut-être déjà vendu.' : '') }),
       actions.length ? h('div.lbm-fs-actions', actions) : null
     ]);
   };
-  /* 15 nov. : l'évolution du prix demandé (premier prix vu, changements, jours en vente). */
-  VueLocation.prototype.ligneEvol = function (ev) {
+  /* 15 nov. (Maxime : « je vois où l'évolution du prix ? on devrait le voir clairement quand on choisit un véhicule ? petit
+     graphique ? ») — le prix demandé dans le temps, en escalier, du premier prix vu à la dernière lecture du favori ; un point à
+     chaque changement, info-bulle au survol (et au clavier) ; sous le graphique : premier prix vu, prix actuel, écart,
+     changements, jours en vente ; l'historique en texte reste dessous (l'équivalent du graphique sans la souris). */
+  function jourLocal(d) { var p2 = function (n) { return String(n).padStart(2, '0'); }; return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
+  function jourMs(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN; }
+  /* Les points du graphique : { le, prix, x (0-100), y (0-100), quoi } — x selon la date, y selon le prix (haut = cher). */
+  function pointsPrix(ev, luLe, aujourdhui) {
     if (!ev || ev.prix === null) return null;
-    var morceaux = [];
-    if (ev.ecartTotal !== null && ev.premier) morceaux.push(h('span.lbm-evol.' + (ev.ecartTotal < 0 ? 'baisse' : 'hausse'), { text: (ev.ecartTotal < 0 ? '↓ ' : '↑ ') + argent(Math.abs(ev.ecartTotal)) + ' depuis le ' + jourCourt(ev.premier.le) }));
-    var txt = [];
-    if (ev.premier && ev.ecartTotal !== null) txt.push('premier prix vu ' + argent(ev.premier.prix) + ' le ' + jourCourt(ev.premier.le));
-    if (ev.avant && ev.changeLe && (!ev.premier || ev.avant.le !== ev.premier.le || ev.histo.length > 2)) txt.push('dernier changement le ' + jourCourt(ev.changeLe) + ' (avant : ' + argent(ev.avant.prix) + ')');
-    if (ev.premier && ev.ecartTotal === null) txt.push('même prix depuis le ' + jourCourt(ev.premier.le));
-    if (ev.jours !== null) txt.push('vu en vente depuis ' + ev.jours + ' jour' + (ev.jours > 1 ? 's' : '') + (ev.depuis ? ' (' + jourCourt(ev.depuis) + ')' : ''));
-    if (!morceaux.length && !txt.length) return null;
-    var hist = ev.histo.length > 1 ? h('div.lbm-evol-histo', { text: 'Historique du prix : ' + ev.histo.map(function (p) { return jourCourt(p.le) + ' ' + argent(p.prix); }).join(' → ') }) : null;
-    return h('div.lbm-evol-ligne', [h('div', morceaux.concat(txt.length ? [document.createTextNode((morceaux.length ? ' · ' : '') + txt.join(' · '))] : [])), hist]);
+    var pts = ev.histo.map(function (p) { return { le: p.le, prix: p.prix }; });
+    if (!pts.length) pts = [{ le: ev.depuis || aujourdhui, prix: ev.prix }];
+    if (pts[pts.length - 1].prix !== ev.prix) pts.push({ le: aujourdhui, prix: ev.prix });
+    var luJ = luLe ? jourLocal(new Date(luLe)) : '';
+    var fin = [pts[pts.length - 1].le, luJ].filter(function (x) { return /^\d{4}-\d{2}-\d{2}$/.test(x); }).sort().pop();
+    var t0 = jourMs(pts[0].le), t1 = Math.max(jourMs(fin), t0);
+    var prix = pts.map(function (p) { return p.prix; }), lo = Math.min.apply(null, prix), hi = Math.max.apply(null, prix);
+    var marge = hi > lo ? (hi - lo) * 0.3 : Math.max(hi * 0.02, 500), dMin = lo - marge, dMax = hi + marge;
+    var xDe = function (le, i) { return t1 > t0 ? (jourMs(le) - t0) / (t1 - t0) * 100 : (i ? 100 : 0); };
+    var yDe = function (v) { return (dMax - v) / (dMax - dMin) * 100; };
+    var out = pts.map(function (p, i) {
+      var avant = i ? pts[i - 1].prix : null;
+      return { le: p.le, prix: p.prix, x: xDe(p.le, i), y: yDe(p.prix), ecart: avant === null ? null : p.prix - avant, quoi: i === 0 ? 'premier' : 'changement' };
+    });
+    var dernier = out[out.length - 1];
+    /* Le dernier segment va jusqu'à la dernière lecture ; un point « actuel » au bout quand la lecture est après le dernier changement. */
+    var bout = { le: fin, prix: ev.prix, x: 100, y: yDe(ev.prix), ecart: null, quoi: 'actuel' };
+    if (fin !== dernier.le || out.length === 1) out.push(bout); else dernier.quoi = dernier.quoi === 'premier' ? 'premier' : 'actuelChange';
+    return { pts: out, lo: lo, hi: hi, yLo: yDe(lo), yHi: yDe(hi), fin: fin, finAujourdhui: fin === aujourdhui, unSeul: ev.histo.length <= 1 };
+  }
+  VueLocation.prototype.graphePrix = function (ff, ev) {
+    var g = pointsPrix(ev, ff && ff.luLe, jourLocal(new Date()));
+    if (!g) return null;
+    var tendance = ev.ecartTotal === null ? '' : (ev.ecartTotal < 0 ? 'baisse' : 'hausse');
+    var nChang = Math.max(0, ev.histo.length - 1);
+    var libFin = g.finAujourdhui ? 'aujourd\'hui' : jourCourt(g.fin) + ' (dernière lecture)';
+    /* L'escalier : du premier point au bout, horizontal puis vertical à chaque changement. */
+    var d = 'M ' + (g.pts[0].x * 10).toFixed(1) + ' ' + g.pts[0].y.toFixed(2);
+    for (var i = 1; i < g.pts.length; i++) d += ' H ' + (g.pts[i].x * 10).toFixed(1) + ' V ' + g.pts[i].y.toFixed(2);
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 1000 100'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', 'lbm-pg-svg');
+    var ligneH = function (y, cls) { var l = document.createElementNS(NS, 'line'); l.setAttribute('x1', 0); l.setAttribute('x2', 1000); l.setAttribute('y1', y); l.setAttribute('y2', y); l.setAttribute('class', cls); svg.appendChild(l); };
+    ligneH(g.yHi, 'grille'); if (g.hi !== g.lo) ligneH(g.yLo, 'grille');
+    var chemin = document.createElementNS(NS, 'path'); chemin.setAttribute('d', d); chemin.setAttribute('class', 'trace'); svg.appendChild(chemin);
+    var zone = h('div.lbm-pg-zone'), plot = h('div.lbm-pg-plot', [svg, zone]);
+    var croix = h('div.lbm-pg-croix', { hidden: true }), bulle = h('div.lbm-pg-bulle', { hidden: true, role: 'status' });
+    plot.appendChild(croix); plot.appendChild(bulle);
+    var texteQuoi = function (p) {
+      if (p.quoi === 'premier') return jourCourt(p.le) + ' · premier prix vu';
+      if (p.quoi === 'actuel') return libFin + ' · prix actuel';
+      var e = p.ecart || 0, t = jourCourt(p.le) + ' · ' + (e < 0 ? 'baisse de ' : 'hausse de ') + A.fmtArgent(Math.abs(e));
+      return p.quoi === 'actuelChange' ? t + ' (prix actuel)' : t;
+    };
+    var montrer = function (p) {
+      croix.style.left = p.x + '%'; croix.hidden = false;
+      A.vider(bulle);
+      bulle.appendChild(h('b', { text: A.fmtArgent(p.prix) }));
+      bulle.appendChild(h('span', { text: texteQuoi(p) }));
+      bulle.hidden = false;
+      bulle.style.top = Math.max(0, p.y - 6) + '%';
+      bulle.classList.toggle('a-gauche', p.x > 60);
+      bulle.style.left = p.x + '%';
+      zone.querySelectorAll('.lbm-pg-pt').forEach(function (b) { b.classList.toggle('actif', b._p === p); });
+    };
+    var cacher = function () { croix.hidden = true; bulle.hidden = true; zone.querySelectorAll('.lbm-pg-pt.actif').forEach(function (b) { b.classList.remove('actif'); }); };
+    g.pts.forEach(function (p) {
+      var b = h('button.lbm-pg-pt' + (p.quoi === 'actuel' || p.quoi === 'actuelChange' ? '.bout' : ''), { type: 'button', 'aria-label': A.fmtArgent(p.prix) + ', ' + texteQuoi(p), style: { left: p.x + '%', top: p.y + '%' } }, [h('span')]);
+      b._p = p;
+      b.addEventListener('focus', function () { montrer(p); });
+      b.addEventListener('blur', cacher);
+      zone.appendChild(b);
+    });
+    /* La croix trouve la date : le point le plus près du pointeur (en x), pas besoin de viser le trait. */
+    plot.addEventListener('pointermove', function (e) {
+      var r = plot.getBoundingClientRect(); if (!r.width) return;
+      var x = (e.clientX - r.left) / r.width * 100, best = null;
+      g.pts.forEach(function (p) { if (!best || Math.abs(p.x - x) < Math.abs(best.x - x)) best = p; });
+      if (best) montrer(best);
+    });
+    plot.addEventListener('pointerleave', cacher);
+    var axeY = h('div.lbm-pg-axe-y', [h('span', { text: A.fmtArgent(g.hi), style: { top: g.yHi + '%' } })].concat(g.hi !== g.lo ? [h('span', { text: A.fmtArgent(g.lo), style: { top: g.yLo + '%' } })] : []));
+    var axeX = h('div.lbm-pg-axe-x', [h('span', { text: jourCourt(g.pts[0].le) }), h('span', { text: libFin })]);
+    var resumeAria = 'Prix demandé sur BMW FS : ' + ev.histo.map(function (p) { return A.fmtArgent(p.prix) + ' le ' + dateFr(p.le); }).join(', ') + (ev.histo.length ? '' : A.fmtArgent(ev.prix)) + '.';
+    var titre = h('div.lbm-pg-tete', [
+      h('span.lbm-pg-titre', { text: 'Évolution du prix demandé' }),
+      tendance ? h('span.lbm-evol.' + tendance, { text: (tendance === 'baisse' ? '↓ ' : '↑ ') + A.fmtArgent(Math.abs(ev.ecartTotal)) + ' depuis le ' + jourCourt(ev.premier.le) })
+        : h('span.lbm-pg-plat', { text: ev.premier ? 'Même prix depuis le ' + jourCourt(ev.premier.le) : 'Premier prix vu à la dernière lecture' })
+    ]);
+    var stat = function (lib, val, sous, cls) { return h('div.lbm-pg-stat' + (cls ? '.' + cls : ''), [h('span.l', { text: lib }), h('span.v', { text: val }), sous ? h('span.s', { text: sous }) : null]); };
+    var pct = ev.ecartTotal !== null && ev.premier && ev.premier.prix ? (ev.ecartTotal / ev.premier.prix * 100) : null;
+    var stats = h('div.lbm-pg-stats', [
+      ev.premier && nChang ? stat('Premier prix vu', A.fmtArgent(ev.premier.prix), 'le ' + jourCourt(ev.premier.le)) : null,
+      stat('Prix actuel', A.fmtArgent(ev.prix), g.finAujourdhui ? 'lu aujourd\'hui' : 'lu le ' + jourCourt(g.fin)),
+      !nChang ? null : stat('Écart', ev.ecartTotal === null ? 'aucun' : (ev.ecartTotal < 0 ? '−' : '+') + A.fmtArgent(Math.abs(ev.ecartTotal)), pct !== null ? (pct < 0 ? '−' : '+') + String(Math.abs(pct).toFixed(1)).replace('.', ',') + ' %' : 'même prix', tendance),
+      stat('Changements', String(nChang), nChang ? (ev.changeLe ? 'dernier le ' + jourCourt(ev.changeLe) : '') : 'aucun'),
+      ev.jours !== null ? stat('En vente depuis', ev.jours + ' j', ev.depuis ? 'vu le ' + jourCourt(ev.depuis) : '') : null
+    ]);
+    var hist = ev.histo.length > 1 ? h('div.lbm-evol-histo', { text: 'Historique du prix : ' + ev.histo.map(function (p) { return jourCourt(p.le) + ' ' + A.fmtArgent(p.prix); }).join(' → ') }) : null;
+    return h('div.lbm-pg', [titre, h('div.lbm-pg-graphe', { role: 'img', 'aria-label': resumeAria }, [axeY, h('div.lbm-pg-cadre', [plot, axeX])]), stats, hist]);
   };
   /* Un NIV de BMW FS qui n'est plus à vendre : la raison, sans prix ni coûtant. */
   VueLocation.prototype.blocFsAncien = function () {

@@ -490,6 +490,12 @@
   }
   /** La location du neuf à une durée : o = { prix (vide = PDSF), frais, comptant, rabais }, tx = taxes en %. Même formule que
       l'occasion ; le résiduel est un % du PDSF. */
+  /* 15 nov. (Maxime : « est-ce que tu tiens compte de la taxe de luxe dans le calcul pour location ? ») — la taxe fédérale sur
+     les véhicules de luxe (Loi sur la taxe sur certains biens de luxe, 1er sept. 2022) : un véhicule NEUF de plus de 100 000 $
+     avant taxes (prix + frais), la moins élevée de 10 % du prix et de 20 % de la partie au-dessus de 100 000 $. Elle s'ajoute au
+     coût capitalisé du neuf (la TPS et la TVQ s'appliquent ensuite sur chaque paiement). Jamais pour une occasion. */
+  var LUXE_SEUIL = 100000;
+  function taxeLuxe(base) { base = Number(base) || 0; if (!(base > LUXE_SEUIL)) return 0; return Math.round(Math.min(base * 0.10, (base - LUXE_SEUIL) * 0.20) * 100) / 100; }
   function locationNeuf(progs, n, terme, kmAn, o, tx, ajd) {
     var r = { terme: terme, offert: false, raison: '' };
     if (!n) { r.raison = 'Aucun neuf choisi.'; return r; }
@@ -500,10 +506,11 @@
     if (!g) { r.raison = 'Le programme du manufacturier n\'offre pas ' + terme + ' mois.'; return r; }
     var prix = nombre(o && o.prix); if (prix === null) prix = n.prix;
     var rabais = (nombre(o && o.rabais) || 0) + (g.rabais || 0);
-    var capNet = prix + (nombre(o && o.frais) || 0) - rabais - (nombre(o && o.comptant) || 0), res = n.prix * g.residuelPct / 100;
+    var fraisN = nombre(o && o.frais) || 0, luxe = taxeLuxe(prix + fraisN);
+    var capNet = prix + fraisN - rabais - (nombre(o && o.comptant) || 0) + luxe, res = n.prix * g.residuelPct / 100;
     var m = mensualite(capNet, res, g.taux, terme, tx);
     r.offert = true; r.taux = g.taux; r.residuelPct = g.residuelPct; r.residuel = res; r.kmAn = g.kmAn; r.kmExact = g.kmExact; r.interpole = g.interpole;
-    r.prix = prix; r.pdsf = n.prix; r.rabais = rabais; r.rabaisProg = g.rabais || 0; r.capNet = capNet;
+    r.prix = prix; r.pdsf = n.prix; r.rabais = rabais; r.rabaisProg = g.rabais || 0; r.capNet = capNet; r.luxe = luxe; r.luxeBase = prix + fraisN;
     Object.keys(m).forEach(function (k) { r[k] = m[k]; });
     return r;
   }
@@ -550,7 +557,7 @@
     return bas;
   }
   var Calcul = { niveauBmw: niveauBmw, memeCorps: memeCorps, modelesManuf: modelesManuf, meilleurTerme: meilleurTerme, plusBasTerme: plusBasTerme, neufsBmw: neufsBmw, procheNeuf: procheNeuf, progLocationNeuf: progLocationNeuf, grilleLoc: grilleLoc, locationNeuf: locationNeuf, progsDuJour: progsDuJour,
-    photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, evolPrix: evolPrix, pointsPrix: pointsPrix, indexVentes: indexVentes, venteDe: venteDe, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
+    photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, evolPrix: evolPrix, pointsPrix: pointsPrix, taxeLuxe: taxeLuxe, locationNeuf: locationNeuf, indexVentes: indexVentes, venteDe: venteDe, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
   /* ======================================================= La page */
@@ -1797,6 +1804,8 @@
     if (nk) notes.push('Km par année : le programme du neuf n\'offre pas ' + A.fmtNombre(this.o.kmAn) + ' km — calculé à ' + A.fmtNombre(nk.n.kmAn) + ' km.');
     var rb = lignes.filter(function (x) { return x.n.offert && x.n.rabaisProg > 0; })[0];
     if (rb) notes.push('Rabais du programme déduit : ' + argent(rb.n.rabaisProg) + '.');
+    var lx = lignes.filter(function (x) { return x.n.offert && x.n.luxe > 0; })[0];
+    if (lx) notes.push('Taxe de luxe fédérale du neuf (plus de 100 000 $ avant taxes) : ' + argent(lx.n.luxe, 2) + ' sur ' + argent(lx.n.luxeBase) + ', ajoutée au coût capitalisé du neuf (pas sur l\'occasion).');
     if (!prg && d.progErreur) notes.push('Programmes du mois : ' + d.progErreur);
     if (notes.length) el.appendChild(h('p.lbm-cout-note', { style: { marginTop: '8px' }, text: notes.join(' ') }));
     el.appendChild(this.blocOffre());
@@ -1898,7 +1907,7 @@
       terme: u.terme, kmAn: this.o.kmAn, taux: u.taux, regle: (u.regle && (u.regle.libelle || u.regle.code)) || '', residuel: r2(u.residuel), tx: tx,
       avantTaxes: r2(u.avantTaxes), taxes: r2(u.taxes), mensualite: r2(u.mensualite), valideAuProg: (prog.valideAu || ''),
       neuf: { source: n.manuf ? 'manufacturier' : 'stock', vin: n.vin || '', stock: n.stock || '', titre: [n2.annee, 'BMW', n2.modele, n2.version].filter(Boolean).join(' '), annee: n2.annee, modele: n2.modele, version: n2.version,
-        pdsf: n2.prix, prix: oN.prix === null ? null : nn.prix, frais: nombre(this.o.frais) || 0, rabais: nn.rabais || 0, taux: nn.taux, residuelPct: nn.residuelPct, residuel: r2(nn.residuel), kmAn: nn.kmAn,
+        pdsf: n2.prix, prix: oN.prix === null ? null : nn.prix, frais: nombre(this.o.frais) || 0, rabais: nn.rabais || 0, luxe: r2(nn.luxe || 0), taux: nn.taux, residuelPct: nn.residuelPct, residuel: r2(nn.residuel), kmAn: nn.kmAn,
         avantTaxes: r2(nn.avantTaxes), taxes: r2(nn.taxes), mensualite: r2(nn.mensualite), programme: [prg.modele, prg.version].filter(Boolean).join(' ') + (prg.par ? ' (' + String(prg.par).replace(/\s*\(automatique\)\s*$/, '') + ')' : ''), progFin: progFin, interpole: !!nn.interpole },
       termes: lignes.filter(function (x) { return x.u.offert && x.u.avantTaxes !== undefined && x.n.offert; }).map(function (x) { return { terme: x.u.terme, u: r2(x.u.avantTaxes), n: r2(x.n.avantTaxes) }; })
     };

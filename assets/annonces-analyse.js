@@ -58,6 +58,13 @@
     '.ana-k .var { display: inline-block; font-size: 15px; font-weight: 700; border-radius: 999px; padding: 2px 10px; margin-top: 8px; background: var(--gris-bg); color: var(--encre-2); }',
     '.ana-k .var.hausse { background: var(--vert-clair); color: var(--vert-fonce); } .ana-k .var.baisse { background: var(--rouge-bg); color: var(--rouge); }',
     '.ana-k.zero b { color: var(--encre-3); }',
+    /* 15 nov. : la ligne « Marché : … » d'une tuile (repère externe, source dans l'infobulle) */
+    '.ana-k .marche, .ana-tuile .marche { display: block; font-size: 15px; color: var(--encre-2); margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--ligne); line-height: 1.4; font-weight: 400; cursor: help; }',
+    '.ana-k .marche .ec, .ana-tuile .marche .ec { display: inline-block; font-weight: 700; border-radius: 999px; padding: 0 8px; margin-left: 6px; background: var(--gris-bg); color: var(--encre-2); white-space: nowrap; }',
+    '.marche .ec.mieux { background: var(--vert-clair) !important; color: var(--vert-fonce) !important; } .marche .ec.moins { background: var(--rouge-bg) !important; color: var(--rouge) !important; }',
+    '.ana-reperes .ana-carte.bleu { line-height: 1.5; } .ana-sous-titre { font-size: 19px; margin: 22px 0 6px; }',
+    '.ana-table.rep td { vertical-align: top; } .ana-table.rep td b { font-weight: 700; } .ana-table.rep a { color: var(--vert-fonce); font-weight: 600; }',
+    '.ana-autres .rangee { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; } .ana-autres .rangee .ana-note { margin: 0; }',
     '.ana-k.vert b { color: var(--vert-fonce); } .ana-k.rouge b { color: var(--rouge); } .ana-k.ambre b { color: var(--ambre); }',
     /* onglets */
     '.ana-onglets { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 2px solid var(--ligne); margin: 0 0 18px; }',
@@ -168,6 +175,115 @@
     prix: { texte: 'Voir l\'analyse occasion (prix du marché)', href: '#/inventaire/analyse' },
     budget: { texte: 'Ouvrir Google Ads', href: URL_ADS, dehors: true }
   };
+
+  /* ---- Repères du marché (15 nov.) — À UN SEUL ENDROIT : pour les mettre à jour, changer seulement ce tableau.
+     Google ne publie AUCUN repère officiel pour les annonces de véhicules : ce sont des garde-fous, jamais des cibles.
+     D'où viennent les chiffres : reports/Analyse des annonces de véhicules Google.md (section « Peu de repères fiables »).
+       valeur : un chiffre · min / max : une fourchette · neuf / occasion : un chiffre par genre (une démo compte comme un neuf)
+       etendue : fourchette montrée à titre d'information (la comparaison se fait sur la valeur)
+       devise : 'CAD' | 'USD' (un montant US reste en $ US, avec « ≈ $ CA » au taux du jour de la Banque du Canada)
+       sens : 1 = plus haut, c'est mieux · -1 = plus bas, c'est mieux · 0 = mesure différente de la nôtre, pas de jugement */
+  var REPERES = [
+    { cle: 'ctr', titre: 'Taux de clic', valeur: 0.85, unite: '%', dec: 2, sens: 1,
+      portee: 'annonces de véhicules Google, concessions canadiennes qui dépensaient environ 500 $ par mois',
+      source: 'DealerRefresh (forum de concessionnaires)', date: 'mai 2022',
+      lien: 'https://forum.dealerrefresh.com/threads/how-are-google-vehicle-listing-ads-doing-for-you.7865/post-64355',
+      note: 'Ne jamais le comparer au 6 à 9 % de la recherche texte : le carrousel montre beaucoup d\'annonces à la fois.' },
+    { cle: 'cpc', titre: 'Coût par clic', valeur: 1.25, etendue: [0.45, 3.69], devise: 'CAD', dec: 2, sens: -1,
+      portee: 'annonces de véhicules Google, concessions canadiennes (moyenne)',
+      source: 'DealerRefresh (forum de concessionnaires)', date: 'mai 2022',
+      lien: 'https://forum.dealerrefresh.com/threads/how-are-google-vehicle-listing-ads-doing-for-you.7865/post-64355' },
+    { cle: 'conv', titre: 'Taux de conversion', valeur: 0.76, unite: '%', dec: 2, sens: 1, suffixe: ' des clics',
+      portee: 'conversions ÷ clics, annonces de véhicules Google, concessions canadiennes',
+      source: 'DealerRefresh (forum de concessionnaires)', date: 'mai 2022',
+      lien: 'https://forum.dealerrefresh.com/threads/how-are-google-vehicle-listing-ads-doing-for-you.7865/post-64355' },
+    { cle: 'cpl', titre: 'Coût par lead', neuf: 35.87, occasion: 59.74, devise: 'USD', dec: 2, sens: -1,
+      portee: 'recherche Google (annonces texte) en automobile, États-Unis, médianes de 1 983 campagnes — pas les annonces de véhicules',
+      source: 'LocaliQ / WordStream', date: 'avril 2025 à juin 2026',
+      lien: 'https://localiq.com/blog/automotive-search-advertising-benchmarks/' },
+    { cle: 'cpv', titre: 'Coût par vente', min: 250, max: 500, devise: 'USD', dec: 0, sens: -1,
+      portee: 'recherche Google, concessions américaines (estimation d\'un fournisseur)',
+      source: 'LocalShift', date: 'date non publiée (lu en 2026)',
+      lien: 'https://www.localshift.io/blog/dealership-cost-per-vdp' },
+    { cle: 'pubNeuf', titre: 'Publicité par neuf vendu', valeur: 739, devise: 'USD', dec: 0, sens: -1,
+      portee: 'toute la publicité d\'une concession franchisée moyenne, les trois quarts en numérique, États-Unis (791 $ US au premier semestre 2026)',
+      source: 'NADA (cité par Ritner Digital)', date: '2025',
+      lien: 'https://www.ritnerdigital.com/blog/why-are-dealer-advertising-costs-per-vehicle-sold-rising-in-2026and-what-can-dealerships-do-about-it' },
+    { cle: 'jours', titre: 'Jours à la vente', neuf: 78, occasion: 71, unite: 'j', dec: 0, sens: -1,
+      portee: 'médianes, États-Unis',
+      source: 'Fullpath, Auto Intelligence Index', date: '2e trimestre 2026',
+      lien: 'https://www.fullpath.com/wp-content/uploads/2026/07/FULLPATH-AUTO-INTELLIGENCE-INDEX-·-Q2-2026-1.pdf' },
+    { cle: 'sansVue', titre: 'Véhicules sans vue de fiche', neuf: 53, occasion: 44, unite: '%', dec: 0, sens: 0,
+      portee: 'part des véhicules sans aucune vue de fiche un jour moyen, États-Unis — sur une période, la part sans clic est forcément plus basse',
+      source: 'Lotlinx (VINcensus)', date: '2e trimestre 2026',
+      lien: 'https://www.autosuccessonline.com/lotlinx-q2-2026-vincensus/' }
+  ];
+  var REP = {}; REPERES.forEach(function (r) { REP[r.cle] = r; });
+
+  /* Le taux du jour $ US → $ CA (Banque du Canada, ?tauxUsd=1 d'Export.gs), gardé 6 h dans la page. */
+  var tauxJour = { t: null, le: 0, p: null };
+  function chargerTaux() {
+    if (tauxJour.t && Date.now() - tauxJour.le < 6 * 3600000) return Promise.resolve(tauxJour.t);
+    if (tauxJour.p) return tauxJour.p;
+    tauxJour.p = AMX.get({ tauxUsd: '1' }, { discret: true, secours: false }).then(function (d) {
+      tauxJour.p = null;
+      if (d && d.ok && d.taux > 0) { tauxJour.t = d; tauxJour.le = Date.now(); }
+      return tauxJour.t;
+    }, function () { tauxJour.p = null; return tauxJour.t; });
+    return tauxJour.p;
+  }
+  function taux() {
+    if (tauxJour.t) return tauxJour.t;
+    var t = AMX.export && AMX.export.taux ? AMX.export.taux() : null;
+    return t && t.ok && t.taux > 0 ? t : null;
+  }
+  function nombreRep(n, dec) { return Number(n).toLocaleString('fr-CA', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }); }
+  function suffixeRep(rep) { return rep.unite === '%' ? ' %' : (rep.unite === 'j' ? ' j' : (rep.devise === 'USD' ? ' $ US' : ' $')); }
+  function fmtRep(n, rep) { return nombreRep(n, rep.dec) + suffixeRep(rep); }
+  /* La valeur du repère pour un genre : { lo, hi, texte } dans la devise du repère. */
+  function valeurRep(rep, genre) {
+    if (rep.neuf !== undefined) {
+      if (genre === 'occasion') return { lo: rep.occasion, hi: rep.occasion, texte: fmtRep(rep.occasion, rep) + ' (occasion)' };
+      if (genre === 'neuf' || genre === 'demo') return { lo: rep.neuf, hi: rep.neuf, texte: fmtRep(rep.neuf, rep) + ' (neuf)' };
+      return { lo: Math.min(rep.neuf, rep.occasion), hi: Math.max(rep.neuf, rep.occasion), texte: fmtRep(rep.neuf, rep) + ' neuf · ' + fmtRep(rep.occasion, rep) + ' occasion' };
+    }
+    if (rep.valeur !== undefined) return { lo: rep.valeur, hi: rep.valeur, texte: fmtRep(rep.valeur, rep) };
+    return { lo: rep.min, hi: rep.max, texte: nombreRep(rep.min, rep.dec) + ' à ' + fmtRep(rep.max, rep) };
+  }
+  function enCad(n, rep) { if (rep.devise !== 'USD') return n; var t = taux(); return t ? n * t.taux : null; }
+  function approxCad(rep, v) {
+    if (rep.devise !== 'USD') return '';
+    var t = taux(); if (!t) return '';
+    var a = Math.round(v.lo * t.taux), b = Math.round(v.hi * t.taux);
+    return ' (≈ ' + (a === b ? nombreRep(a) : nombreRep(a) + ' à ' + nombreRep(b)) + ' $ CA)';
+  }
+  /* Comparaison d'un de nos chiffres à un repère : { lib, ecart, cls, pct }. */
+  function comparer(rep, notre, genre) {
+    var v = valeurRep(rep, genre), lo = enCad(v.lo, rep), hi = enCad(v.hi, rep);
+    var res = { lib: v.texte + (rep.suffixe || '') + approxCad(rep, v), ecart: '', cls: '', pct: null };
+    if (notre === null || notre === undefined || !isFinite(notre) || !rep.sens || lo === null || !(lo > 0)) return res;
+    var tol = 0.05;
+    if (notre < lo * (1 - tol)) res.ecart = rep.sens < 0 ? 'mieux' : 'moins bien';
+    else if (notre > hi * (1 + tol)) res.ecart = rep.sens > 0 ? 'mieux' : 'moins bien';
+    else res.ecart = lo === hi ? 'comme le marché' : 'dans la fourchette';
+    res.cls = res.ecart === 'mieux' ? 'mieux' : (res.ecart === 'moins bien' ? 'moins' : 'egal');
+    if (lo === hi && res.cls !== 'egal') res.pct = Math.round(100 * (notre - lo) / lo);
+    return res;
+  }
+  function titreRep(rep, extra) {
+    var t = taux(), dev = rep.devise === 'USD' ? ' Montant en dollars américains' + (t ? ', converti au taux du jour de la Banque du Canada (1 $ US = ' + nombreRep(t.taux, 4) + ' $ CA' + (t.date ? ', ' + t.date : '') + ') pour la comparaison' : ' (taux du jour pas encore lu : pas de comparaison)') + '.' : (rep.devise === 'CAD' ? ' Montant en dollars canadiens.' : '');
+    return rep.titre + ' — ' + rep.portee + '. Source : ' + rep.source + ', ' + rep.date + '.' + dev
+      + (rep.etendue ? ' Fourchette observée : ' + nombreRep(rep.etendue[0], rep.dec) + ' à ' + fmtRep(rep.etendue[1], rep) + '.' : '')
+      + (rep.note ? ' ' + rep.note : '') + (extra ? ' ' + extra : '') + ' Google ne publie aucun repère officiel pour les annonces de véhicules.';
+  }
+  /* La ligne « Marché : … » d'une tuile. nous : notre valeur en texte, quand elle n'est pas déjà le chiffre de la tuile. */
+  function ligneMarche(rep, notre, genre, o) {
+    o = o || {};
+    var c = comparer(rep, notre, genre);
+    var ec = c.ecart ? h('span.ec.' + c.cls, { text: c.ecart + (c.pct !== null ? ' (' + (c.pct > 0 ? '+' : '−') + Math.abs(c.pct) + ' %)' : '') }) : null;
+    return h('span.marche', { title: titreRep(rep, o.extra) }, [
+      document.createTextNode('Marché : ' + c.lib + (o.nous ? ' · nous : ' + o.nous : '')), ec]);
+  }
 
   function iso(d) { var p = function (n) { return String(n).padStart(2, '0'); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
   /* Les périodes vont jusqu'à aujourd'hui : le script Google Ads écrit aussi la journée en cours. */
@@ -353,6 +469,8 @@
 
   Vue.prototype.rendre = function () {
     var self = this, d = this.rep || {}, a = d.ads || {}, p = d.periode || {};
+    /* 15 nov. : le taux du jour $ US → $ CA pour les repères du marché, lu une fois ; la page se redessine quand il arrive. */
+    if (!taux() && !this.tauxDemande) { this.tauxDemande = true; chargerTaux().then(function (tx) { if (tx && !self.detruit && self.rep) self.rendre(); }); }
     this.elSous.textContent = (d.nom || this.cie) + ' · ' + (p.du === p.au ? fmtJour(p.du) : 'du ' + fmtJour(p.du) + ' au ' + fmtJour(p.au));
     this.btnBranchement.hidden = !a.branche;
     this.btnFeuille.hidden = !(a.feuille && a.feuille.url);
@@ -420,7 +538,7 @@
     var cls = (o.zero ? '.zero' : '') + (o.classe ? '.' + o.classe : '');
     var bas = o.v ? h('span.var' + (o.v.c ? '.' + o.v.c : ''), { text: o.v.t }) : (o.note ? h('span.note', { text: o.note }) : null);
     return h((o.onclick ? 'button' : 'div') + '.ana-k' + cls, o.onclick ? { type: 'button', onclick: o.onclick, title: o.title || '' } : { title: o.title || '' },
-      [h('span.lib', { text: libelle }), h('b', { text: valeur }), bas]);
+      [h('span.lib', { text: libelle }), h('b', { text: valeur }), bas, o.marche || null]);
   }
   Vue.prototype.zoneKpis = function () {
     var self = this, d = this.rep || {}, x = this.totauxGenre(), t = x.t, pr = x.pr, z = h('section.ana-kpi-zone');
@@ -432,11 +550,12 @@
       h('div.ana-kpis', [
         kpi(nb(t.impressions), 'Impressions', { zero: !t.impressions, v: v('impressions', 1), note: 'fois qu\'une annonce a été vue', title: 'Nombre de fois qu\'une annonce a été montrée' }),
         kpi(nb(t.clics), 'Clics', { zero: !t.clics, v: v('clics', 1), note: 'vers la fiche du véhicule' }),
-        kpi(r.ctr === null ? '—' : pctVal(r.ctr, 2), 'Taux de clic', { zero: r.ctr === null, v: vr('ctr', 1), note: 'clics ÷ impressions' }),
+        kpi(r.ctr === null ? '—' : pctVal(r.ctr, 2), 'Taux de clic', { zero: r.ctr === null, v: vr('ctr', 1), note: 'clics ÷ impressions', marche: ligneMarche(REP.ctr, r.ctr, this.genre) }),
         kpi(argentFin(t.cout), 'Dépense', { zero: !t.cout, v: v('cout', 0), note: 'facturée par Google' }),
-        kpi(r.cpc === null ? '—' : argent(r.cpc, 2), 'Coût par clic', { zero: r.cpc === null, v: vr('cpc', -1), note: 'dépense ÷ clics' }),
-        kpi(dec1(t.conversions), 'Conversions', { zero: !t.conversions, v: v('conversions', 1), note: 'appels, formulaires, itinéraires' }),
-        kpi(r.cpa === null ? '—' : argentFin(r.cpa), 'Coût par conversion', { zero: r.cpa === null, v: vr('cpa', -1), note: 'dépense ÷ conversions' }),
+        kpi(r.cpc === null ? '—' : argent(r.cpc, 2), 'Coût par clic', { zero: r.cpc === null, v: vr('cpc', -1), note: 'dépense ÷ clics', marche: ligneMarche(REP.cpc, r.cpc, this.genre) }),
+        kpi(dec1(t.conversions), 'Conversions', { zero: !t.conversions, v: v('conversions', 1), note: 'appels, formulaires, itinéraires',
+          marche: ligneMarche(REP.conv, t.clics ? 100 * t.conversions / t.clics : null, this.genre, { nous: t.clics ? pctVal(100 * t.conversions / t.clics, 2) : '' }) }),
+        kpi(r.cpa === null ? '—' : argentFin(r.cpa), 'Coût par conversion', { zero: r.cpa === null, v: vr('cpa', -1), note: 'dépense ÷ conversions', marche: ligneMarche(REP.cpl, r.cpa, this.genre) }),
         kpi(t.valeur ? argentFin(t.valeur) : '—', 'Valeur des conversions', { zero: !t.valeur, v: t.valeur ? v('valeur', 1) : null, note: 'valeur inscrite dans Google Ads' })
       ])]));
     if (this.genre && this.donneesAds()) z.appendChild(h('p.ana-note', { text: 'Somme des véhicules ' + (NOM_GENRE[this.genre] || '').toLowerCase() + 's seulement : la dépense rattachée à aucun véhicule n\'est pas comptée.' }));
@@ -449,10 +568,12 @@
     var tiles = [
       kpi(nb(s.L.length), 'Ventes de la période', { zero: !s.L.length, note: s.L.length ? nb(s.neufs) + ' neuf' + (s.neufs > 1 ? 's' : '') + ' · ' + nb(s.occasions) + ' occasion' + (s.occasions > 1 ? 's' : '') : 'au Livre des ventes', onclick: allerV }),
       kpi(nb(s.inf.length), 'Vendues après un clic', { zero: !s.inf.length, classe: s.inf.length ? 'vert' : '', note: s.L.length - s.sansNiv.length ? pct(s.inf.length, s.L.length - s.sansNiv.length) + ' des ventes avec un NIV' : 'clic payé avant la date de vente', onclick: allerV }),
-      kpi(s.inf.length && s.depense ? argentFin(s.depense / s.inf.length) : '—', 'Dépense par vente', { zero: !(s.inf.length && s.depense), note: 'dépense ÷ ventes après un clic', onclick: allerV })
+      kpi(s.inf.length && s.depense ? argentFin(s.depense / s.inf.length) : '—', 'Dépense par vente', { zero: !(s.inf.length && s.depense), note: 'dépense ÷ ventes après un clic', onclick: allerV,
+        marche: ligneMarche(REP.cpv, s.inf.length && s.depense ? s.depense / s.inf.length : null, this.genre, { extra: 'Autre repère : ' + REP.pubNeuf.titre.toLowerCase() + ', ' + fmtRep(REP.pubNeuf.valeur, REP.pubNeuf) + ' (' + REP.pubNeuf.portee + ' ; ' + REP.pubNeuf.source + ', ' + REP.pubNeuf.date + ').' }) })
     ];
     if (d.montants) tiles.push(kpi(s.depense > 0 && s.nProfit ? dec1(s.profitInf / s.depense) + ' ×' : '—', 'Profit ÷ dépense', { zero: !(s.depense > 0 && s.nProfit), classe: s.depense > 0 && s.nProfit ? (s.profitInf / s.depense >= 1 ? 'vert' : 'rouge') : '', note: s.nProfit ? argentCourt(s.profitInf) + ' de profit brut sur ces ventes' : 'profit brut des ventes après un clic', onclick: allerV }));
-    else tiles.push(kpi(s.jA !== null ? Math.round(s.jA) + ' j' : (s.jT !== null ? Math.round(s.jT) + ' j' : '—'), 'Jours à la vente', { zero: s.jA === null && s.jT === null, note: s.jA !== null ? 'médiane, vendues après un clic' : 'médiane de la période', onclick: allerV }));
+    else tiles.push(kpi(s.jA !== null ? Math.round(s.jA) + ' j' : (s.jT !== null ? Math.round(s.jT) + ' j' : '—'), 'Jours à la vente', { zero: s.jA === null && s.jT === null, note: s.jA !== null ? 'médiane, vendues après un clic' : 'médiane de la période', onclick: allerV,
+      marche: ligneMarche(REP.jours, s.jA !== null ? s.jA : s.jT, this.genre) }));
     z.appendChild(h('div.ana-kgroupe', [h('h2', [document.createTextNode('Ventes et publicité'), h('small', { text: ads ? 'les ventes du Livre des ventes et la publicité reçue avant la vente' : 'les ventes du Livre des ventes ; la publicité s\'ajoutera avec les premiers clics' })]), h('div.ana-kpis', tiles)]));
     return z;
   };
@@ -468,21 +589,133 @@
       jA: mediane(inf.map(function (v) { return v.joursVente; })), jN: mediane(sansClic.map(function (v) { return v.joursVente; })), jT: mediane(L.map(function (v) { return v.joursVente; })) };
   };
 
-  function tuile(valeur, libelle, classe, note, onclick) {
+  function tuile(valeur, libelle, classe, note, onclick, marche) {
     return h((onclick ? 'button' : 'div') + '.ana-tuile' + (classe ? '.' + classe : ''), onclick ? { type: 'button', onclick: onclick } : {}, [
-      h('b', { text: typeof valeur === 'number' ? nb(valeur) : String(valeur) }), h('span', { text: libelle }), note ? h('em', { text: note }) : null]);
+      h('b', { text: typeof valeur === 'number' ? nb(valeur) : String(valeur) }), h('span', { text: libelle }), note ? h('em', { text: note }) : null, marche || null]);
   }
 
   /* =============================== Résumé =============================== */
   Vue.prototype.ongletResume = function () {
     var c = this.elCorps;
     c.appendChild(this.carteEinstein());
+    c.appendChild(this.zoneReperes());
     c.appendChild(this.zoneSemaines());
     c.appendChild(this.zoneFlux());
     c.appendChild(this.zoneAge());
     c.appendChild(this.zoneSurveiller());
     var t = this.genre ? null : this.tablesCampagnes();
     if (t) c.appendChild(h('section.ana-zone', [h('details', [h('summary', { text: 'Par campagne et par réseau' }), t])]));
+  };
+
+  /* ---- Repères du marché (15 nov.) : les repères externes, puis nous-mêmes (quatre dernières semaines, par genre) ---- */
+  function ligneGenre(nom, t, note) {
+    var r = ratios(t), conv = t.clics ? 100 * t.conversions / t.clics : null;
+    return h('tr', [h('td', [h('b', { text: nom }), note ? h('span.sous', { text: note }) : null]),
+      h('td.n' + (t.impressions ? '' : '.zero'), { text: nb(t.impressions) }), h('td.n' + (t.clics ? '' : '.zero'), { text: nb(t.clics) }),
+      h('td.n' + (r.ctr === null ? '.zero' : ''), { text: r.ctr === null ? '—' : pctVal(r.ctr, 2) }),
+      h('td.n' + (r.cpc === null ? '.zero' : ''), { text: r.cpc === null ? '—' : argent(r.cpc, 2) }),
+      h('td.n' + (conv === null ? '.zero' : ''), { text: conv === null ? '—' : pctVal(conv, 2) }),
+      h('td.n' + (r.cpa === null ? '.zero' : ''), { text: r.cpa === null ? '—' : argentFin(r.cpa) })]);
+  }
+  function teteGenres(premier) {
+    return h('thead', h('tr', [h('th', { text: premier }), h('th.n', { text: 'Impressions' }), h('th.n', { text: 'Clics' }), h('th.n', { text: 'Taux de clic' }),
+      h('th.n', { text: 'Coût par clic' }), h('th.n', { text: 'Conversion' }), h('th.n', { text: 'Coût par conv.' })]));
+  }
+  function quatreSemaines() { var au = new Date(), du = new Date(au.getTime() - 27 * 86400000); return { du: iso(du), au: iso(au) }; }
+  Vue.prototype.zoneReperes = function () {
+    var self = this, z = h('section.ana-zone.ana-reperes'), x = this.totauxGenre(), t = x.t, r = ratios(t), s = this.statsVentes(), g = this.genre;
+    z.appendChild(h('h2', 'Repères du marché'));
+    z.appendChild(h('div.ana-carte.bleu', [h('b', { text: 'Google ne publie aucun repère officiel pour les annonces de véhicules. ' }),
+      document.createTextNode('Ces chiffres viennent d\'études et de forums, souvent américains ou anciens : ce sont des garde-fous, jamais des cibles. '
+        + 'Les montants américains restent en $ US' + (taux() ? ', avec leur équivalent en $ CA au taux du jour (1 $ US = ' + nombreRep(taux().taux, 4) + ' $ CA).' : '.')
+        + ' Le meilleur repère, c\'est nous-mêmes : nos quatre dernières semaines, plus bas, neuf, occasion et démo séparés.')]));
+    var conv = t.clics ? 100 * t.conversions / t.clics : null, dpv = s.inf.length && s.depense ? s.depense / s.inf.length : null;
+    var L = this.lignesVehicules(), base15 = L.filter(function (v) { return v.surSite && v.vedette && v.etat !== 'exclu' && (v.jours || 0) >= 15; }), sans15 = base15.filter(function (v) { return !v.s.clics; });
+    var lignes = [
+      [REP.ctr, r.ctr, r.ctr === null ? '' : pctVal(r.ctr, 2)],
+      [REP.cpc, r.cpc, r.cpc === null ? '' : argent(r.cpc, 2)],
+      [REP.conv, conv, conv === null ? '' : pctVal(conv, 2)],
+      [REP.cpl, r.cpa, r.cpa === null ? '' : argentFin(r.cpa) + ' par conversion'],
+      [REP.cpv, dpv, dpv === null ? '' : argentFin(dpv) + ' par vente après un clic'],
+      [REP.pubNeuf, null, 'pas mesuré : il faudrait toute la publicité de la concession'],
+      [REP.jours, s.jA !== null ? s.jA : s.jT, s.jA !== null ? Math.round(s.jA) + ' j (après un clic)' : (s.jT !== null ? Math.round(s.jT) + ' j' : '')],
+      [REP.sansVue, null, this.donneesAds() && base15.length ? pct(sans15.length, base15.length) + ' sans clic sur la période (annoncés, 15 j et +)' : '']
+    ];
+    var tb = h('tbody');
+    lignes.forEach(function (l) {
+      var rep = l[0], c = comparer(rep, l[1], g);
+      tb.appendChild(h('tr', { title: titreRep(rep) }, [
+        h('td', [h('b', { text: rep.titre }), h('span.sous', { text: rep.portee.charAt(0).toUpperCase() + rep.portee.slice(1) })]),
+        h('td', [h('b', { text: c.lib }), rep.etendue ? h('span.sous', { text: 'fourchette ' + nombreRep(rep.etendue[0], rep.dec) + ' à ' + fmtRep(rep.etendue[1], rep) }) : null]),
+        h('td' + (l[2] ? '' : '.zero'), { text: l[2] || '—' }),
+        h('td', c.ecart ? h('span.ana-pastille.' + (c.cls === 'mieux' ? 'vert' : (c.cls === 'moins' ? 'rouge' : 'gris')), { text: c.ecart + (c.pct !== null ? ' (' + (c.pct > 0 ? '+' : '−') + Math.abs(c.pct) + ' %)' : '') }) : h('span.sous', { text: rep.sens ? '—' : 'pas comparable' })),
+        h('td', [h('a', { href: rep.lien, target: '_blank', rel: 'noopener', text: rep.source }), h('span.sous', { text: rep.date + (rep.devise === 'USD' ? ' · $ US' : (rep.devise === 'CAD' ? ' · $ CA' : '')) })])
+      ]));
+    });
+    z.appendChild(h('div.ana-defile', h('table.ana-table.rep', [h('thead', h('tr', [h('th', { text: 'Indicateur' }), h('th', { text: 'Marché' }),
+      h('th', { text: 'Nous (' + (nomPeriode(this.periode) || '').toLowerCase() + ')' }), h('th', { text: 'Écart' }), h('th', { text: 'Source' })])), tb])));
+    /* nous-mêmes : les quatre dernières semaines, par genre */
+    var q = quatreSemaines(), cie = this.cie || 'BMW', cle = cie + '|' + q.du + '|' + q.au;
+    var bloc = h('div.ana-interne');
+    z.appendChild(h('h3.ana-sous-titre', 'Nous-mêmes : les quatre dernières semaines'));
+    z.appendChild(h('p.ana-note', { text: 'Du ' + fmtJour(q.du) + ' au ' + fmtJour(q.au) + ' (aujourd\'hui compris), chez ' + (AMX.COMPAGNIES_TOUTES[cie] || cie) + '. La dépense qui ne va à aucun véhicule n\'est comptée que dans la ligne « Toute la campagne ».' }));
+    z.appendChild(bloc);
+    if (this.interne && this.interne.cle === cle && this.interne.rep) this.rendreInterne(bloc, this.interne.rep);
+    else {
+      bloc.appendChild(h('p.ana-note', { text: this.interne && this.interne.cle === cle && this.interne.erreur ? 'Lecture impossible : ' + this.interne.erreur : 'Lecture des quatre dernières semaines…' }));
+      if (!(this.interne && this.interne.cle === cle && (this.interne.erreur || this.interne.enCours))) {
+        this.interne = { cle: cle, enCours: true };
+        charger(cie, q.du, q.au, false).then(function (d) { self.interne = { cle: cle, rep: d }; }, function (e) { self.interne = { cle: cle, erreur: AMX.erreurTexte(e) }; })
+          .then(function () { if (!self.detruit && self.onglet === 'resume') self.rendre(); });
+      }
+    }
+    /* les autres concessions, sur demande (chaque lecture relit aussi le Livre des ventes) */
+    var autres = Object.keys(AMX.compagniesPour ? AMX.compagniesPour('inventaire') : {}).filter(function (c) { return c !== cie; });
+    if (autres.length) {
+      var ba = h('div.ana-autres');
+      z.appendChild(h('h3.ana-sous-titre', 'Les autres concessions du groupe'));
+      z.appendChild(ba);
+      if (this.autres && this.autres.cle === q.du + '|' + cie) this.rendreAutres(ba, autres, q);
+      else ba.appendChild(h('div.rangee', [h('button.btn', { type: 'button', text: 'Comparer avec les autres concessions', onclick: function () { self.chargerAutres(autres, q, cie); } }),
+        h('span.ana-note', { text: 'Seule une concession qui a des annonces Google a des chiffres.' })]));
+    }
+    return z;
+  };
+  Vue.prototype.rendreInterne = function (bloc, d) {
+    var self = this, g = this.genres();
+    (d.ventes || []).forEach(function (v) { if (v.vin && !g[v.vin]) g[v.vin] = genreVente(v); });
+    var par = { neuf: vide(), occasion: vide(), demo: vide(), '': vide() }, nVeh = { neuf: 0, occasion: 0, demo: 0, '': 0 };
+    Object.keys(d.vehicules || {}).forEach(function (vin) { var k = g[vin] || ''; if (!par[k]) k = ''; ajoute(par[k], d.vehicules[vin]); nVeh[k]++; });
+    var a = d.ads || {};
+    if (!a.joursAvecDonnees || !(a.dernierJour >= d.periode.du)) { bloc.appendChild(h('div.ana-vide', { text: 'Pas encore de résultats de Google Ads dans ces quatre semaines : ce repère se remplira avec les premières impressions.' })); return; }
+    var tb = h('tbody');
+    [['neuf', 'Neufs'], ['occasion', 'Occasions'], ['demo', 'Démos'], ['', 'Autres (genre inconnu)']].forEach(function (x) {
+      if (!x[0] && !par[''].impressions) return;
+      tb.appendChild(ligneGenre(x[1], par[x[0]], nVeh[x[0]] ? nVeh[x[0]] + ' véhicule' + (nVeh[x[0]] > 1 ? 's' : '') + ' avec des impressions' : 'aucune impression'));
+    });
+    tb.appendChild(ligneGenre('Toute la campagne', d.totaux || vide(), d.sourceTotaux === 'campagnes' ? 'avec la dépense hors véhicules' : ''));
+    bloc.appendChild(h('div.ana-defile', h('table.ana-table', [teteGenres('Genre'), tb])));
+  };
+  Vue.prototype.chargerAutres = function (autres, q, cie) {
+    var self = this, cle = q.du + '|' + cie;
+    this.autres = { cle: cle, enCours: true, rep: {} };
+    this.rendre();
+    Promise.all(autres.map(function (c) {
+      return charger(c, q.du, q.au, false).then(function (d) { self.autres.rep[c] = d; }, function (e) { self.autres.rep[c] = { erreur: AMX.erreurTexte(e) }; });
+    })).then(function () { self.autres.enCours = false; if (!self.detruit && self.onglet === 'resume') self.rendre(); });
+  };
+  Vue.prototype.rendreAutres = function (ba, autres, q) {
+    var A = this.autres || {};
+    if (A.enCours) { ba.appendChild(h('p.ana-note', { text: 'Lecture des autres concessions…' })); return; }
+    var tb = h('tbody'), sans = [];
+    autres.forEach(function (c) {
+      var d = A.rep[c] || {}, a = d.ads || {}, nom = AMX.COMPAGNIES_TOUTES[c] || c;
+      if (d.erreur) { sans.push(nom + ' (lecture impossible)'); return; }
+      if (!a.joursAvecDonnees || !(a.dernierJour >= q.du)) { sans.push(nom); return; }
+      tb.appendChild(ligneGenre(nom, d.totaux || vide(), 'toute la campagne'));
+    });
+    if (tb.children.length) ba.appendChild(h('div.ana-defile', h('table.ana-table', [teteGenres('Concession'), tb])));
+    if (sans.length) ba.appendChild(h('p.ana-note', { text: 'Pas encore d\'annonces Google : ' + sans.join(', ') + '.' }));
   };
 
   /* ---- Einstein ---- */
@@ -601,7 +834,9 @@
     FILTRES_V.forEach(function (fv) { cpt[fv[0]] = L.filter(function (x) { return self.passe(x, fv[0]); }).length; });
     var t = [];
     if (ads) {
-      t.push(tuile(cpt.sous, 'Sous-exposés', cpt.sous ? 'ambre' : 'vert', 'annoncés, 15 j et +, aucun clic', function () { self.aller('vehicules', { filtre: 'sous', q: '' }); }));
+      var base15 = L.filter(function (x) { return x.surSite && x.vedette && x.etat !== 'exclu' && (x.jours || 0) >= 15; }).length;
+      t.push(tuile(cpt.sous, 'Sous-exposés', cpt.sous ? 'ambre' : 'vert', 'annoncés, 15 j et +, aucun clic', function () { self.aller('vehicules', { filtre: 'sous', q: '' }); },
+        ligneMarche(REP.sansVue, null, this.genre, { nous: base15 ? pct(cpt.sous, base15) + ' sans clic' : '' })));
       t.push(tuile(cpt.sansConv, 'Dépense sans conversion', cpt.sansConv ? 'rouge' : 'vert', 'dans la période', function () { self.aller('vehicules', { filtre: 'sansConv', q: '' }); }));
     }
     t.push(tuile(cpt.propose, 'Proposés à mettre de l\'avant', cpt.propose ? 'violet' : '', 'vieux stock, démos, assez de photos', function () { self.aller('vehicules', { filtre: 'propose', q: '' }); }));
@@ -746,7 +981,7 @@
     if (d.ventesErreur) { z.appendChild(h('div.ana-vide', { text: d.ventesErreur })); return; }
     var s = this.statsVentes(), L = s.L;
     if (!L.length) { z.appendChild(h('div.ana-vide', { text: 'Aucune vente dans la période' + (this.genre ? ' pour ce genre' : '') + '.' })); return; }
-    var tu = [tuile(s.jT !== null ? Math.round(s.jT) + ' j' : '—', 'Jours à la vente', '', 'médiane de toutes les ventes')];
+    var tu = [tuile(s.jT !== null ? Math.round(s.jT) + ' j' : '—', 'Jours à la vente', '', 'médiane de toutes les ventes', null, ligneMarche(REP.jours, s.jT, this.genre))];
     if (ads) {
       tu.push(tuile(s.jA !== null ? Math.round(s.jA) + ' j' : '—', 'Vendues après un clic', 'vert', 'jours à la vente, médiane'));
       tu.push(tuile(s.jN !== null ? Math.round(s.jN) + ' j' : '—', 'Vendues sans clic', '', 'jours à la vente, médiane'));
@@ -839,8 +1074,11 @@
     var veh = this.lignesVehicules().map(function (v) { var rv = ratios(v.s); return { 'NIV': v.vin, '# stock': v.stock || '', 'Véhicule': v.vehicule || '', 'Genre': NOM_GENRE[v.genre] || '', 'Âge (jours)': v.jours === null || v.jours === undefined ? '' : v.jours, 'Prix': v.prix || '', 'Photos': v.nbPhotos || '', 'Mis de l\'avant': v.vedette ? 'oui' : 'non', 'Impressions': v.s.impressions, 'Clics': v.s.clics, 'Taux de clic (%)': rv.ctr === null ? '' : Math.round(rv.ctr * 100) / 100, 'Dépense': Math.round(v.s.cout * 100) / 100, 'Coût par clic': rv.cpc === null ? '' : Math.round(rv.cpc * 100) / 100, 'Conversions': v.s.conversions, 'Coût par conversion': rv.cpa === null ? '' : Math.round(rv.cpa * 100) / 100, 'Sur le site': v.surSite ? 'oui' : 'non', 'Vendu le': v.vente ? v.vente.dateVente : '' }; });
     var ven = (d.ventes || []).map(function (v) { var o = { 'Vendue le': v.dateVente, 'NIV': v.vin, '# stock': v.stock, 'Véhicule': v.vehicule, 'Type': v.type === 'usage' ? 'Occasion' : 'Neuf', 'Jours en stock': v.joursVente === undefined ? '' : v.joursVente, 'Impressions avant la vente': v.pub ? v.pub.impressions : 0, 'Clics avant la vente': v.pub ? v.pub.clics : 0, 'Dépense avant la vente': v.pub ? v.pub.cout : 0, 'Après un clic': v.influence ? 'oui' : 'non' }; if (d.montants) o['Profit brut'] = typeof v.profit === 'number' ? v.profit : ''; return o; });
     var sem = (d.semaines || []).map(function (w) { return { 'Semaine du': w.du, 'Au': w.au, 'Impressions': w.impressions, 'Clics': w.clics, 'Dépense': w.cout, 'Conversions': w.conversions }; });
+    var g = this.genre, rep = REPERES.map(function (rp) { var v = valeurRep(rp, g); return { 'Indicateur': rp.titre, 'Repère': v.texte + (rp.suffixe || ''), 'Équivalent $ CA': approxCad(rp, v).replace(/^ \(≈ |\)$/g, ''), 'Portée': rp.portee, 'Source': rp.source, 'Date': rp.date, 'Lien': rp.lien }; });
+    rep.push({ 'Indicateur': 'Note', 'Repère': 'Google ne publie aucun repère officiel pour les annonces de véhicules : ce sont des garde-fous, pas des cibles.' });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(res), 'Chiffres');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rep), 'Repères du marché');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(veh.length ? veh : [{ '': 'aucun véhicule' }]), 'Véhicules');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ven.length ? ven : [{ '': 'aucune vente' }]), 'Ventes');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sem), 'Semaines');

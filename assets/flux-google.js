@@ -34,6 +34,14 @@
     '.fgv-filtres { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; } .fgv-filtres .saisie.recherche { flex: 1 1 240px; max-width: 380px; }',
     '.fgv-vues { display: flex; flex-wrap: wrap; gap: 6px; } .fgv-vues button { border: 1px solid var(--ligne); background: var(--carte); color: var(--encre-2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }',
     '.fgv-vues button.actif { background: var(--encre); border-color: var(--encre); color: #fff; } .fgv-vues button .n { opacity: .75; margin-left: 4px; }',
+    /* 15 nov. : véhicules en offre de location et textes d'annonce pour la page des offres */
+    '.fgv-ligne span.loc { display: inline-block; margin: 4px 6px 0 0; font-size: 12px; font-weight: 700; color: #0b5cad; background: #e7f0fb; border: 1px solid #b9d3f2; border-radius: 999px; padding: 1px 8px; }',
+    '.fgv-bloc-loc { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 14px; border: 1px solid #b9d3f2; background: #f1f6fd; border-radius: 10px; padding: 8px 12px; margin: 0 0 10px; } .fgv-bloc-loc span { flex: 1 1 320px; }',
+    '.fgv-textes { border: 1px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; font-size: 14px; }',
+    '.fgv-textes > summary { cursor: pointer; font-weight: 700; font-size: 15px; } .fgv-textes .avis { margin: 10px 0; padding: 8px 10px; border-radius: 8px; background: var(--ambre-bg, #fff6e5); border: 1px solid #f0c36d; font-size: 13px; }',
+    '.fgv-textes h4 { margin: 14px 0 6px; font-size: 14px; } .fgv-textes ol { margin: 6px 0 0 18px; padding: 0; } .fgv-textes li { margin: 4px 0; }',
+    '.fgv-texte { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid var(--ligne); } .fgv-texte .n { font-size: 12px; color: var(--encre-3); white-space: nowrap; } .fgv-texte .n.trop { color: var(--rouge); font-weight: 700; }',
+    '.fgv-texte .t { word-break: break-word; } .fgv-textes .url { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; } .fgv-textes .url code { background: var(--fond); padding: 3px 6px; border-radius: 6px; font-size: 13px; word-break: break-all; }',
     '.fgv-bloc-prop { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 14px; border: 1px solid #c9b6f5; background: #f6f1ff; border-radius: 10px; padding: 8px 12px; margin: 0 0 10px; }',
     /* lignes */
     '.fgv-liste { display: flex; flex-direction: column; gap: 8px; }',
@@ -84,7 +92,47 @@
   var VISER = { min: 20, max: 40 };   /* nombre de véhicules conseillé pour une campagne d'environ 50 $ par jour */
   var GENRES = { neuf: 'Neuf', demo: 'Démo', occasion: 'Occasion' };
   var ETATS = { pret: 'Prêt pour Google', completer: 'À compléter', exclu: 'Exclu' };
-  var VUES = [['choisis', 'Annoncés'], ['proposes', 'Proposés'], ['prets', 'Tous les véhicules'], ['exclus', 'Exclus']];
+  var VUES = [['choisis', 'Annoncés'], ['proposes', 'Proposés'], ['location', 'En location'], ['prets', 'Tous les véhicules'], ['exclus', 'Exclus']];
+
+  /* 15 nov. (Maxime : promouvoir les unités en location dans Google) : textes d'annonce pour la page des offres de location
+     du site, à copier dans Google Ads. AUCUN chiffre de paiement, de comptant ou de taux : au Québec, une publicité qui montre
+     un paiement doit faire ressortir le prix total plus que le paiement (LPC, art. 224) et une offre de location a ses mentions
+     obligatoires — toutes écrites sur la page des offres, où mène l'annonce. Limites de Google Ads : titre 30 caractères, titre
+     long 90, description 90, description courte 60, lien annexe 25 et ses deux lignes 35. */
+  var LIMITES = { titre: 30, long: 90, description: 90, courte: 60, lien: 25, ligne: 35 };
+  function textesLocation(pg) {
+    var M = (pg && pg.marque) || 'BMW', nom = (pg && pg.nom) || '', fin = (pg && pg.financier) || '', finEn = (pg && pg.financierEn) || fin;
+    var fr = {
+      titres: ['Location ' + M + ' d\'occasion', M + ' d\'occasion en location', 'Paiement plus bas que le neuf', 'Comparez avec un ' + M + ' neuf', 'Offres de location du mois', 'Comparez avec le neuf', nom],
+      longs: ['Louez un ' + M + ' d\'occasion chez ' + nom + ' : un paiement plus bas que le neuf'],
+      descriptions: [['Louez un ' + M + ' d\'occasion et payez moins par mois qu\'un ' + M + ' neuf comparable.', 'Louez d\'occasion et payez moins par mois qu\'un neuf comparable.'],
+        [fin ? 'Offres calculées avec le programme de location du mois de ' + fin + '.' : '', 'Offres calculées avec le programme de location du mois.'],
+        ['Voyez nos véhicules en stock et toutes les conditions, puis demandez votre offre.']],
+      courtes: [['Location ' + M + ' d\'occasion : comparez avec le neuf.', 'Location d\'occasion : comparez avec le neuf.']],
+      lien: { texte: ['Location ' + M + ' d\'occasion', 'Location d\'occasion'], l1: ['Comparez avec un ' + M + ' neuf', 'Comparez avec le neuf'], l2: ['Toutes les conditions en ligne'] }
+    };
+    var en = {
+      titres: [M + ' Pre-Owned Lease', 'Pre-Owned ' + M + ' for Lease', 'Lower Payment Than New', 'Compare With a New ' + M, 'This Month\'s Lease Offers', 'Compare With New', nom],
+      longs: ['Lease a pre-owned ' + M + ' at ' + nom + ' with a lower payment than new'],
+      descriptions: [['Lease a pre-owned ' + M + ' and compare your payment with a comparable new ' + M + '.', 'Lease pre-owned and compare your payment with a comparable new vehicle.'],
+        [finEn ? 'Every offer uses this month\'s ' + finEn + ' pre-owned lease program.' : '', 'Every offer uses this month\'s pre-owned lease program.'],
+        ['See the vehicles in stock, every offer detail, and request yours online.']],
+      courtes: [[M + ' pre-owned lease: compare with new.', 'Pre-owned lease: compare with new.']],
+      lien: { texte: ['Pre-Owned ' + M + ' Lease', 'Pre-Owned Lease Offers'], l1: ['Compare With a New ' + M, 'Compare With New'], l2: ['Every Offer Detail Online'] }
+    };
+    /* Un nom de marque, de concession ou de financier trop long : le titre sort de la liste, et une description ou un lien
+       prend sa version de repli (la première qui tient dans la limite de Google). */
+    function premier(choix, max) { return choix.filter(function (x) { return x && x.length <= max; })[0] || ''; }
+    function nettoyer(t) {
+      t.titres = t.titres.filter(function (x, i, a) { return x && x.length <= LIMITES.titre && a.indexOf(x) === i; });
+      t.longs = t.longs.filter(function (x) { return x && x.length <= LIMITES.long; });
+      t.descriptions = t.descriptions.map(function (c) { return premier(c, LIMITES.description); }).filter(Boolean);
+      t.courtes = t.courtes.map(function (c) { return premier(c, LIMITES.courte); }).filter(Boolean);
+      t.lien = { texte: premier(t.lien.texte, LIMITES.lien), l1: premier(t.lien.l1, LIMITES.ligne), l2: premier(t.lien.l2, LIMITES.ligne) };
+      return t;
+    }
+    return { fr: nettoyer(fr), en: nettoyer(en) };
+  }
 
   var cache = {};   // par concession : { rep, le }
   function charger(cie, force) {
@@ -390,6 +438,7 @@
     if (l.etat === 'exclu') return false;
     if (vue === 'choisis') return this.choisi(l) || this.change(l);   /* un véhicule décoché reste visible jusqu'à « Publier » */
     if (vue === 'proposes') return !!l.suggestion;
+    if (vue === 'location') return !!l.location;
     return true;
   };
   VueFlux.prototype.filtrer = function () {
@@ -460,7 +509,7 @@
     AMX.vider(this.elVues);
     VUES.forEach(function (v) {
       var n = (d.lignes || []).filter(function (l) { return self.dansVue(l, v[0]) && (!f.genre || l.genre === f.genre); }).length;
-      if (v[0] === 'exclus' && !n) return;
+      if ((v[0] === 'exclus' || v[0] === 'location') && !n) return;
       self.elVues.appendChild(h('button' + (f.vue === v[0] ? '.actif' : ''), { type: 'button', onclick: function () { f.vue = v[0]; self.rendreVues(); self.rendreListe(); } }, [document.createTextNode(v[1]), h('span.n', { text: String(n) })]));
     });
   };
@@ -471,6 +520,12 @@
       var aCocher = liste.filter(function (l) { return !self.choisi(l); });
       this.elListe.appendChild(h('div.fgv-bloc-prop', [h('span', { text: 'Proposés : ' + (d.regles ? 'occasions en stock depuis ' + d.regles.joursOccasion + ' jours et plus, neufs depuis ' + d.regles.joursNeuf + ' jours et plus, et démos' : 'en stock depuis longtemps, et démos') + ', avec assez de photos.' }),
         aCocher.length ? h('button.btn.petit', { type: 'button', text: 'Cocher les ' + aCocher.length, onclick: function () { self.basculer(aCocher, true); } }) : null]));
+    }
+    if (this.f.vue === 'location') {
+      var aCocherL = liste.filter(function (l) { return !self.choisi(l); });
+      this.elListe.appendChild(h('div.fgv-bloc-loc', [h('span', { text: 'Les véhicules de la page des offres de location du site. Dans le flux, ils portent l\'étiquette « location » (étiquette personnalisée 3) : un groupe d\'annonces peut les viser à part. L\'annonce montre le prix comptant et mène à la fiche du véhicule.' }),
+        aCocherL.length ? h('button.btn.petit', { type: 'button', text: 'Cocher les ' + aCocherL.length, onclick: function () { self.basculer(aCocherL, true); } }) : null]));
+      if (d.offresLocation && d.offresLocation.page) this.elListe.appendChild(this.carteTextesLocation(d.offresLocation.page));
     }
     if (!liste.length) { this.elListe.appendChild(h('div.fgv-vide', { text: this.f.vue === 'choisis' ? 'Aucun véhicule annoncé : cochez-en dans « Proposés » ou « Tous les véhicules ».' : 'Aucun véhicule ici.' })); return; }
     this.elListe.appendChild(h('div.fgv-liste', liste.slice(0, 300).map(function (l) { return self.ligne(l); })));
@@ -490,6 +545,7 @@
     var textes = [h('b', { text: l.vehicule || ('Fiche ' + l.id) }), h('div.m', { text: meta })];
     if ((l.problemes || []).length) textes.push(h('div.pb.' + l.etat, { text: l.problemes.join(' · ') }));
     if (l.suggestion && !on) textes.push(h('span.prop', { text: 'Proposé : ' + l.suggestion }));
+    if (l.location) textes.push(h('span.loc', { text: 'Offre de location' + (l.location.terme ? ' · ' + l.location.terme + ' mois' : '') }));
     if (chg) textes.push(h('span.chg', { text: on ? 'sera annoncé à la publication' : 'sera retiré à la publication' }));
     var coche = h('button.fgv-coche' + (on ? '.on' : ''), { type: 'button', disabled: exclu, 'aria-pressed': on ? 'true' : 'false', 'aria-label': (on ? 'Ne plus annoncer ' : 'Annoncer ') + (l.vehicule || ''), title: exclu ? 'Ne peut pas être annoncé' : (on ? 'Décocher : ne plus annoncer' : 'Cocher : annoncer sur Google'), text: on ? '✓' : '',
       onclick: function (e) { e.stopPropagation(); self.basculer([l]); } });
@@ -507,7 +563,35 @@
     return el;
   };
 
-  AMX.fluxGoogle = { charger: charger, peutVoir: peutVoir, compteur: compteur, vider: function () { cache = {}; } };
+  /* Les textes d'annonce de la page des offres de location, à copier dans Google Ads (aucun chiffre). */
+  VueFlux.prototype.carteTextesLocation = function (pg) {
+    var T = textesLocation(pg);
+    function ligne(txt, max) {
+      return h('div.fgv-texte', [h('div.t', { text: txt }), h('span.n' + (txt.length > max ? '.trop' : ''), { text: txt.length + ' / ' + max }),
+        h('button.btn.petit.fantome', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(txt, 'Texte copié'); } })]);
+    }
+    function bloc(t, langue) {
+      var tout = t.titres.concat(t.longs, t.descriptions, t.courtes).join('\n');
+      return h('div', [h('h4', { text: langue }),
+        h('div.mini', { text: 'Titres (30 caractères au plus)' })].concat(t.titres.map(function (x) { return ligne(x, LIMITES.titre); }),
+        [h('div.mini', { text: 'Titre long (90)' })], t.longs.map(function (x) { return ligne(x, LIMITES.long); }),
+        [h('div.mini', { text: 'Descriptions (90)' })], t.descriptions.map(function (x) { return ligne(x, LIMITES.description); }),
+        [h('div.mini', { text: 'Description courte (60)' })], t.courtes.map(function (x) { return ligne(x, LIMITES.courte); }),
+        [h('div.mini', { text: 'Lien annexe : texte (25) et deux lignes (35)' }), ligne(t.lien.texte, LIMITES.lien), ligne(t.lien.l1, LIMITES.ligne), ligne(t.lien.l2, LIMITES.ligne),
+          h('button.btn.petit', { type: 'button', text: 'Tout copier (' + langue.toLowerCase() + ')', style: { marginTop: '8px' }, onclick: function () { AMX.copier(tout + '\n' + t.lien.texte + '\n' + t.lien.l1 + '\n' + t.lien.l2, 'Textes copiés'); } })]));
+    }
+    var url = function (u, lib) { return u ? h('div.url', [h('span', { text: lib }), h('code', { text: u }), h('button.btn.petit.fantome', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(u, 'Adresse copiée'); } }), h('a.btn.petit.fantome', { href: u, target: '_blank', rel: 'noopener', text: 'Ouvrir' })]) : null; };
+    return h('details.fgv-textes', [h('summary', { text: 'Annonce texte pour la page des offres de location (à copier dans Google Ads)' }),
+      h('div.avis', { text: 'Aucun paiement, comptant ou taux dans l\'annonce : au Québec, une publicité qui montre un paiement doit faire ressortir le prix total plus que le paiement, et une offre de location a ses mentions obligatoires. Elles sont toutes sur la page des offres, où mène l\'annonce. Avant d\'ajouter un chiffre, faites valider le texte par l\'avocat.' }),
+      h('h4', { text: 'Où mène l\'annonce' }), url(pg.url, 'Français :'), url(pg.urlEn, 'Anglais :'),
+      h('h4', { text: 'Dans Google Ads' }),
+      h('ol', [h('li', { text: 'Le plus simple — un lien annexe : campagne des annonces de véhicules › Composants › Liens annexes › + Lien annexe. Texte et lignes ci-dessous, URL finale = la page des offres (français).' }),
+        h('li', { text: 'Pour viser les véhicules en location à part — un groupe de composants « Location ' + ((pg && pg.marque) || '') + ' d\'occasion » dans la même campagne : Groupe de fiches = Étiquette personnalisée 3 = location ; URL finale = la page des offres ; titres et descriptions ci-dessous ; extension d\'URL finale désactivée.' }),
+        h('li', { text: 'Dans ScanAutomax, rien d\'autre : l\'étiquette « location » suit les offres de la page à chaque « Publier sur Google » (et chaque matin).' })]),
+      bloc(T.fr, 'Français'), bloc(T.en, 'English')]);
+  };
+
+  AMX.fluxGoogle = { charger: charger, peutVoir: peutVoir, compteur: compteur, textesLocation: textesLocation, LIMITES: LIMITES, vider: function () { cache = {}; } };
   AMX.section('fluxgoogle', {
     titre: 'Annonces Google', icone: 'voiture', ordre: 36,
     visible: function () { return peutVoir(); },

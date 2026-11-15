@@ -211,6 +211,13 @@
     var p2 = function (n) { return String(n).padStart(2, '0'); };
     return dateFr(d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate())) + (sansHeure ? '' : ' à ' + d.getHours() + ' h ' + p2(d.getMinutes()));
   }
+  /* « 9 nov. » (l'année seulement si ce n'est pas l'année en cours). */
+  function jourCourt(iso) { var t = dateFr(iso), an = String(new Date().getFullYear()); return t.slice(-5) === ' ' + an ? t.slice(0, -5) : t; }
+  /* La puce d'une liste : ↓ 1 500 $ (baisse, vert) ou ↑ 1 000 $ (hausse, ambre) depuis le premier prix vu. */
+  function puceEvol(ev) {
+    if (!h || !ev || ev.ecartTotal === null || !ev.premier) return null;
+    return h('span.lbm-evol.' + (ev.ecartTotal < 0 ? 'baisse' : 'hausse'), { title: 'Premier prix vu ' + A.fmtArgent(ev.premier.prix) + ' le ' + dateFr(ev.premier.le) + (ev.histo.length > 2 ? ' · ' + (ev.histo.length - 1) + ' changements' : ''), text: (ev.ecartTotal < 0 ? '↓ ' : '↑ ') + A.fmtArgent(Math.abs(ev.ecartTotal)) + ' depuis le ' + jourCourt(ev.premier.le) });
+  }
   function dateFr(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? (Number(m[3]) === 1 ? '1er' : Number(m[3])) + ' ' + MOIS[Number(m[2]) - 1] + ' ' + m[1] : String(iso || ''); }
 
   /* -- Chercher un véhicule de nos registres par # stock ou NIV (complet, fin du NIV, ou un bout) : Maxime, 10 nov. -- */
@@ -242,18 +249,47 @@
   var STATUTS_PARTIS = ['arrive', 'comptabilise', 'transit', 'manheimpa'];
   var RANG_FEUILLE = { DETAIL: 0, CAN: 1, US: 2 };
   function anneeDe(txt) { var m = /\b(19[89]\d|20\d\d)\b/.exec(String(txt || '')); return m ? Number(m[1]) : null; }
-  function bmwEnStock(liste) {
+  function bmwEnStock(liste, vendus) {
     var vus = {}, out = [];
     (liste || []).slice().sort(function (a, b) { return (RANG_FEUILLE[a._feuille] === undefined ? 9 : RANG_FEUILLE[a._feuille]) - (RANG_FEUILLE[b._feuille] === undefined ? 9 : RANG_FEUILLE[b._feuille]); }).forEach(function (v) {
       var vin = cleRech(v.vin);
       if (vin.length !== 17 || vus[vin]) return;
       if (!/\bBMW\b/i.test(String(v.modele || ''))) return;
       if (STATUTS_PARTIS.indexOf(v.statut) >= 0) return;
+      if (vendus && venteDe(vendus, v)) return;   /* 15 nov. : vendue au Livre des ventes, pas encore livrée — plus à vendre */
       vus[vin] = 1;
       out.push({ v: v, vin: vin, annee: anneeDe(v.modele), serie: serieDe(v.modele) });
     });
     return out;
   }
+  /* 15 nov. (Maxime : « il ne faut suggérer que ceux qui sont disponibles à vendre ») — les ventes du Livre des ventes (version
+     légère) par NIV et par # stock : une occasion vendue mais pas encore livrée reste « en stock » au registre jusqu'à la
+     livraison. Une vente plus vieille que l'entrée du véhicule au registre (repris, revendu plus tard) ne compte pas. */
+  function indexVentes(ventes) {
+    var idx = { vin: {}, stock: {}, n: 0 };
+    (ventes || []).forEach(function (x) {
+      if (!x || String(x.statut || '') === 'annulee') return;
+      var vin = cleRech(x.vin), st = cleRech(x.stock), cie = String(x.compagnie || '').toUpperCase();
+      if (vin.length === 17) (idx.vin[vin] = idx.vin[vin] || []).push(x);
+      else if (st.length >= 3) (idx.stock[cie + '|' + st] = idx.stock[cie + '|' + st] || []).push(x);
+      idx.n++;
+    });
+    return idx;
+  }
+  function venteDe(idx, v) {
+    if (!idx || !v) return null;
+    var vin = cleRech(v.vin), st = cleRech(v.stock), cie = String(v.compagnie || '').toUpperCase();
+    var l = (vin.length === 17 && idx.vin[vin]) || (st.length >= 3 && idx.stock[cie + '|' + st]) || [];
+    var entre = Date.parse(String(v.dateAjout || '').slice(0, 10)) || 0;
+    var bonne = null;
+    l.forEach(function (x) {
+      var dv = Date.parse(String(x.dateVente || '').slice(0, 10)) || 0;
+      if (entre && dv && dv < entre - 3 * 86400000) return;
+      if (!bonne || String(x.dateVente || '') > String(bonne.dateVente || '')) bonne = x;
+    });
+    return bonne;
+  }
+
   /* Dans la grille ? { ok, raison } — l'année, puis la série pour cette année (une série inconnue : on laisse choisir). */
   function admissible(prog, x) {
     var annees = {}, series = {};
@@ -267,21 +303,42 @@
 
   /* -- BMW FS (Maxime, 11 nov. : « il faut pouvoir avoir accès au véhicule sur BMW FS pour faire les paiements de location ») --
      Les véhicules à vendre sur la place de marché de BMW Financial Services (Manheim › Disponible), lus par le favori
-     « Automax ← Manheim » : les fiches `type: 'dispo'` de ?manheim=1. Une fiche est « à vendre » quand elle a été lue au
-     dernier passage du favori (au plus 6 h avant la plus récente) ; les plus vieilles restent, marquées « plus vue ». */
+     « Automax ← Manheim » : les fiches `type: 'dispo'` de ?manheim=1.
+     15 nov. (Maxime : « il ne faut suggérer que ceux qui sont disponibles à vendre ») : `liste` = seulement les véhicules
+     encore à vendre — le serveur le dit (aVendre : revu au dernier passage complet du favori, vente pas finie, pas acheté) ;
+     un script d'avant : lu au plus 6 h avant la lecture la plus récente. `tous` garde les autres, pour dire pourquoi un NIV
+     tapé n'est plus proposé. */
   var FS_FENETRE_MS = 6 * 3600000;
   function bmwfsDisponibles(fiches) {
-    var vus = {}, out = [], maxLu = 0;
-    (fiches || []).forEach(function (f) { if (f && f.type === 'dispo') { var t = Date.parse(f.luLe || '') || 0; if (t > maxLu) maxLu = t; } });
+    var vus = {}, out = [], maxLu = 0, serveur = false;
+    (fiches || []).forEach(function (f) { if (f && f.type === 'dispo') { var t = Date.parse(f.luLe || '') || 0; if (t > maxLu) maxLu = t; if (f.aVendre !== undefined) serveur = true; } });
     (fiches || []).forEach(function (f) {
       if (!f || f.type !== 'dispo') return;
       var vin = cleRech(f.vin);
       if (vin.length !== 17 || vus[vin]) return;
       vus[vin] = 1;
       var t = Date.parse(f.luLe || '') || 0, txt = [f.modele, f.version].filter(Boolean).join(' ');
-      out.push({ f: f, vin: vin, annee: Number(f.annee) || anneeDe(txt), serie: serieDe(txt), bmw: /^BMW$/i.test(String(f.marque || '').trim()), actuel: !!maxLu && t >= maxLu - FS_FENETRE_MS });
+      var actuel = serveur ? f.aVendre === true : (!!maxLu && t >= maxLu - FS_FENETRE_MS);
+      out.push({ f: f, vin: vin, annee: Number(f.annee) || anneeDe(txt), serie: serieDe(txt), bmw: /^BMW$/i.test(String(f.marque || '').trim()), actuel: actuel,
+        hors: actuel ? '' : (serveur ? (f.horsVente || 'plusVu') : 'plusVu') });
     });
-    return { liste: out, lu: maxLu ? new Date(maxLu).toISOString() : '' };
+    var hors = { plusVu: 0, achete: 0, venteFinie: 0 };
+    out.forEach(function (x) { if (!x.actuel && hors[x.hors] !== undefined) hors[x.hors]++; });
+    return { liste: out.filter(function (x) { return x.actuel; }), tous: out, hors: hors, serveur: serveur, lu: maxLu ? new Date(maxLu).toISOString() : '' };
+  }
+  /* 15 nov. (« il faut suivre l'évolution du prix ») — le prix demandé du jour, le premier prix vu, le dernier changement.
+     L'historique vient du serveur (prixHisto : [[AAAA-MM-JJ, prix], …], un point à chaque changement). */
+  function evolPrix(f) {
+    var hst = (f && Array.isArray(f.prixHisto) ? f.prixHisto : []).filter(function (x) { return Array.isArray(x) && /^\d{4}-\d{2}-\d{2}$/.test(String(x[0])) && Number(x[1]) > 0; })
+      .map(function (x) { return { le: String(x[0]), prix: Number(x[1]) }; });
+    var prix = (f && typeof f.prix === 'number' && f.prix > 0) ? f.prix : (hst.length ? hst[hst.length - 1].prix : null);
+    var r = { prix: prix, histo: hst, premier: hst.length ? hst[0] : null, avant: null, changeLe: '', ecart: null, ecartTotal: null,
+      jours: (f && typeof f.jours === 'number') ? f.jours : null, depuis: (f && f.premiereVue) ? String(f.premiereVue).slice(0, 10) : '' };
+    if (prix === null || !hst.length) return r;
+    for (var i = hst.length - 1; i >= 0; i--) { if (hst[i].prix !== prix) { r.avant = hst[i]; r.changeLe = hst[i + 1] ? hst[i + 1].le : ''; break; } }
+    if (r.avant) r.ecart = prix - r.avant.prix;
+    if (r.premier.prix !== prix) r.ecartTotal = prix - r.premier.prix;
+    return r;
   }
   function admissibleFs(prog, x) {
     if (!x.bmw) return { ok: false, raison: ((x.f && x.f.marque) || 'Cette marque') + ' : pas dans ce programme (BMW seulement)' };
@@ -493,7 +550,7 @@
     return bas;
   }
   var Calcul = { niveauBmw: niveauBmw, memeCorps: memeCorps, modelesManuf: modelesManuf, meilleurTerme: meilleurTerme, plusBasTerme: plusBasTerme, neufsBmw: neufsBmw, procheNeuf: procheNeuf, progLocationNeuf: progLocationNeuf, grilleLoc: grilleLoc, locationNeuf: locationNeuf, progsDuJour: progsDuJour,
-    photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
+    photoRep: photoRep, coutFs: coutFs, coutRegistre: coutRegistre, marge: marge, bmwfsDisponibles:bmwfsDisponibles, evolPrix: evolPrix, indexVentes: indexVentes, venteDe: venteDe, admissibleFs: admissibleFs, fsCommeInv: fsCommeInv, texteFs: texteFs, bmwEnStock: bmwEnStock, admissible: admissible, anneeDe: anneeDe, chercherInventaire: chercherInventaire, norm: norm, jetons: jetons, serieDe: serieDe, trouver: trouver, regleTaux: regleTaux, calculerTerme: calculerTerme, mensualite: mensualite, validite: validite, estBev: estBev, dureeMax: dureeMax, taxePct: taxePct, joli: joli, libelleLigne: libelleLigne };
   if (!h) { A.locationBmw = { calcul: Calcul }; return; }   /* tests sans page */
 
   /* ======================================================= La page */
@@ -527,6 +584,8 @@
     '.lbm-page .lbm-fs { border: 1px solid var(--bleu-bord); background: var(--bleu-bg); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; line-height: 1.45; display: flex; flex-direction: column; gap: 6px; }',
     '.lbm-page .lbm-fs b { color: var(--bleu); } .lbm-page .lbm-fs-actions { display: flex; gap: 8px; flex-wrap: wrap; }',
     '.lbm-page .lbm-sugg .st.fs, .lbm-stock .lbm-stock-liste .st.fs { color: var(--bleu); }',
+    '.lbm-evol { font-size: 12.5px; font-weight: 700; border-radius: 999px; padding: 1px 8px; white-space: nowrap; } .lbm-evol.baisse { color: var(--vert-fonce); background: var(--vert-clair); } .lbm-evol.hausse { color: var(--ambre); background: var(--ambre-bg); }',
+    '.lbm-page .lbm-evol-ligne { font-size: 13px; line-height: 1.5; } .lbm-page .lbm-evol-histo { font-size: 12.5px; color: var(--encre-3); margin-top: 2px; }',
     '.lbm-page .lbm-veh-titre { font-size: 17px; font-weight: 700; } .lbm-page .lbm-veh-sous { font-size: 13px; color: var(--encre-3); }',
     '.lbm-page .lbm-version { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .lbm-page .lbm-version select { flex: 1 1 320px; min-width: 0; max-width: 620px; }',
     '.lbm-page .lbm-avis, .lbm-ofl .lbm-avis, .lbm-ofl-apercu .lbm-avis { border-radius: 10px; padding: 10px 12px; font-size: 13.5px; line-height: 1.45; margin: 10px 0 0; }',
@@ -764,7 +823,10 @@
     this.fsPret = (A.manheim && A.manheim.charger ? A.manheim.charger(false) : Promise.resolve(null)).then(function (d) {
       self.mhFiches = (d && d.fiches) || [];
       self.fs = bmwfsDisponibles(self.mhFiches); self.fsEtat = (d && d.etat && d.etat.dispos) || null; return self.fs;
-    }, function (e) { self.fs = { liste: [], lu: '' }; self.fsErreur = A.erreurTexte ? A.erreurTexte(e) : String(e && e.message || e); return self.fs; });
+    }, function (e) { self.fs = { liste: [], tous: [], hors: {}, lu: '' }; self.fsErreur = A.erreurTexte ? A.erreurTexte(e) : String(e && e.message || e); return self.fs; });
+    /* 15 nov. : le Livre des ventes (version légère) — une occasion vendue mais pas encore livrée n'est plus proposée. */
+    this.vendus = null;
+    this.vendusPret = this.chargerVendus();
     /* 13 nov. : les photos du site de chaque concession (D2C) — aperçu du véhicule et photos représentatives. Arrivées après le
        véhicule : l'aperçu se refait. */
     this.vehPret = '';
@@ -846,7 +908,7 @@
   };
   VueLocation.prototype.effacer = function () {
     this.inVin.value = ''; this.inKm.value = ''; this.inPrix.value = ''; this.inComptant.value = '';
-    this.vinCourant = ''; this.invChoisi = null; this.fsChoisi = null; this.fsVeh = null; this.fsMarche = null; this.fsOcc = null; this.vehPret = ''; this.cacherSugg(); this.dec = null; this.trouve = null; this.ligne = null; this.manuel = false; this.forcerManuel = false; this.choixManuel = false; this.caseIx.checked = false; this.o.ixNbv = false;
+    this.vinCourant = ''; this.invChoisi = null; this.fsChoisi = null; this.fsVeh = null; this.fsAncien = null; this.fsMarche = null; this.fsOcc = null; this.vehPret = ''; this.cacherSugg(); this.dec = null; this.trouve = null; this.ligne = null; this.manuel = false; this.forcerManuel = false; this.choixManuel = false; this.caseIx.checked = false; this.o.ixNbv = false;
     this.lireSaisies(); A.vider(this.elVeh); this.elKmAide.textContent = 'Le km au compteur aujourd\'hui.'; this.rendreResultat();
     try { this.inVin.focus(); } catch (e) {}
   };
@@ -863,6 +925,7 @@
           h('span.st.fs', { text: 'BMW FS' }),
           h('span.mod', { text: v.modele || '—' }),
           h('span.vin', { text: '…' + vin.slice(-8) }),
+          puceEvol(evolPrix(ff)),
           h('span.etat', { text: [kmTxt(ff.km), ff.prix ? argent(ff.prix) : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
         ])
       ]);
@@ -893,11 +956,30 @@
     l.forEach(function (v) { self.elSugg.appendChild(self.ligneSugg(v)); });
     this.elSugg.hidden = false;
   };
-  /* Nos registres, puis les véhicules à vendre sur BMW FS (une même BMW chez nous passe en premier). */
+  /* Nos registres encore à vendre (pas partis, pas vendus au Livre des ventes), puis les véhicules encore à vendre sur BMW FS
+     (une même BMW chez nous passe en premier). 15 nov. : seulement ce qui est disponible à vendre. */
   VueLocation.prototype.listeRech = function () {
-    var l = (this.invListe || []).slice();
+    var vd = this.vendus;
+    var l = (this.invListe || []).filter(function (v) { return STATUTS_PARTIS.indexOf(v.statut) < 0 && !(vd && venteDe(vd, v)); });
     ((this.fs && this.fs.liste) || []).forEach(function (x) { l.push(fsCommeInv(x)); });
     return l;
+  };
+  /* Le Livre des ventes, version légère (NIV, # stock, dates) : une lecture par page, partagée. Pas pour un compte qui ne voit
+     pas les ventes (ni le rôle « Location BMW seulement »). */
+  var VENTES_LEGER = null;
+  VueLocation.prototype.chargerVendus = function () {
+    var self = this;
+    if (seul() || (A.voitOnglet && !A.voitOnglet('vente', 'ventes'))) { this.vendus = indexVentes([]); this.vendusSans = true; return Promise.resolve(this.vendus); }
+    if (!VENTES_LEGER) VENTES_LEGER = A.get({ ventes: 1, mois: 'tout', leger: 1 }, { gz: true, secours: false, discret: true, delai: 90000 }).then(function (d) {
+      if (!d || !Array.isArray(d.ventes)) throw new Error('ventes illisibles');
+      return d.ventes;
+    }).catch(function () { VENTES_LEGER = null; return null; });
+    return VENTES_LEGER.then(function (l) {
+      if (l === null) { self.vendus = indexVentes([]); self.vendusErreur = true; return self.vendus; }
+      self.vendus = indexVentes(l);
+      if (!self.detruit && self.inv && self.vehPret === self.vinCourant) self.rendreVehicule();
+      return self.vendus;
+    });
   };
   VueLocation.prototype.trouverSaisie = function () {
     var v = this.inVin.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -914,19 +996,17 @@
   VueLocation.prototype.ouvrirListe = function (mode) {
     var self = this, fs = mode === 'fs', montants = !!(this.rep && this.rep.montants);
     this.cacherSugg();
-    var f = { q: '', feuille: '', serie: '', seulsProgramme: true, anciens: false };
+    var f = { q: '', feuille: '', serie: '', seulsProgramme: true };
     var inQ = h('input.saisie', { type: 'search', placeholder: fs ? 'Modèle, série, année, ville ou 6 derniers du NIV' : 'Modèle, série, année, # stock ou 6 derniers du NIV', autocomplete: 'off', spellcheck: 'false', 'aria-label': fs ? 'Chercher dans les véhicules de BMW FS' : 'Chercher dans nos BMW' });
     var elFeuilles = h('div.lbm-stock-pastilles', { role: 'group', 'aria-label': 'Registre', hidden: fs });
     var elSeries = h('div.lbm-stock-pastilles', { role: 'group', 'aria-label': 'Série' });
     var caseProg = h('input', { type: 'checkbox', checked: true });
-    var caseAnciens = h('input', { type: 'checkbox' });
-    var elAnciens = h('label.lbm-stock-case', { hidden: true }, [caseAnciens, h('span')]);
     var elCompte = h('span.lbm-stock-compte');
     var elInfo = h('div', { hidden: !fs });
     var elListe = h('div.lbm-stock-liste', { role: 'listbox', 'aria-label': fs ? 'Véhicules à vendre sur BMW FS' : 'Nos BMW en stock' });
     var corps = h('div', [
       elInfo,
-      h('div.lbm-stock-outils', [inQ, elFeuilles, elSeries, h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, [h('label.lbm-stock-case', [caseProg, h('span', { text: 'Seulement les années et séries du programme' })]), elAnciens, elCompte])]),
+      h('div.lbm-stock-outils', [inQ, elFeuilles, elSeries, h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, [h('label.lbm-stock-case', [caseProg, h('span', { text: 'Seulement les années et séries du programme' })]), elCompte])]),
       elListe
     ]);
     var m = A.modale({ titre: fs ? 'À vendre sur BMW FS' : 'Nos BMW en stock', corps: corps, large: true, classe: 'lbm-stock', proteger: false, boutons: [{ texte: 'Fermer' }] });
@@ -939,7 +1019,6 @@
     };
     var garde = function (x, sauf) {
       if (!fs && sauf !== 'feuille' && f.feuille && x.v._feuille !== f.feuille) return false;
-      if (fs && sauf !== 'anciens' && !f.anciens && !x.actuel) return false;
       if (sauf !== 'serie' && f.serie && (x.serie || '?') !== f.serie) return false;
       if (sauf !== 'prog' && f.seulsProgramme && !x.adm.ok) return false;
       if (f.q && !(A.correspond ? A.correspond(champs(x), f.q) : champs(x).join(' ').toUpperCase().indexOf(f.q.toUpperCase()) >= 0)) return false;
@@ -957,17 +1036,18 @@
       if (fs) {
         var ff = x.f, puces = [];
         if (!x.adm.ok) puces.push(h('span.hors-puce', { text: 'Hors programme · ' + x.adm.raison }));
-        if (!x.actuel) puces.push(h('span.hors-puce', { text: 'Plus vu sur BMW FS depuis le ' + (quandFr(ff.luLe, true) || '?') }));
+        var ev = evolPrix(ff), pe = puceEvol(ev);
+        if (pe) puces.push(pe);
         var cf = null;
         if (montants && self.opp) { var c0 = coutFs(ff, self.opp.parVin[x.vin], self.opp.params); if (c0.total !== null) cf = h('span.cout', { title: 'Prix demandé + frais d\'encan + transport jusqu\'à Sherbrooke (estimés)', text: 'coûtant ≈ ' + argent(c0.total) + (c0.complet ? '' : ' sans transport') }); }
-        return h('button.avec-photo' + (x.adm.ok && x.actuel ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirFs(ff); } }, [
+        return h('button.avec-photo' + (x.adm.ok ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirFs(ff); } }, [
           self.mini(x.vin, ff, x.serie, x.annee, texteFs(ff)),
           h('span.lbm-txt', [
             h('span.st.fs', { text: ff.prix ? argent(ff.prix) : 'BMW FS' }),
             h('span.mod', { text: texteFs(ff) || '—' }),
             h('span.vin', { text: '…' + x.vin.slice(-8) })
           ].concat(puces, [cf,
-            h('span.etat', { text: [kmTxt(ff.km), typeof ff.cote === 'number' ? 'CR ' + String(ff.cote.toFixed(1)).replace('.', ',') : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
+            h('span.etat', { text: [kmTxt(ff.km), typeof ff.cote === 'number' ? 'CR ' + String(ff.cote.toFixed(1)).replace('.', ',') : '', [ff.ville, ff.province].filter(Boolean).join(', '), ev.jours !== null ? 'vu en vente depuis ' + ev.jours + ' j' : ''].filter(Boolean).join(' · ') })
           ]))
         ]);
       }
@@ -992,11 +1072,6 @@
       var vues = {}; tous.forEach(function (x) { vues[x.serie || '?'] = 1; });
       var series = [{ val: '', lib: 'Toutes les séries' }].concat(Object.keys(vues).sort(function (a, b) { return (a === '?') - (b === '?') || nomSerie(a).localeCompare(nomSerie(b), 'fr', { numeric: true }); }).map(function (s) { return { val: s, lib: s === '?' ? 'Autre' : nomSerie(s) }; }));
       pastilles(elSeries, 'serie', series);
-      if (fs) {
-        var nAnciens = tous.filter(function (x) { return !x.actuel && garde(x, 'anciens'); }).length;
-        elAnciens.hidden = !nAnciens && !f.anciens;
-        elAnciens.lastChild.textContent = 'Montrer aussi ceux qui ne sont plus vus sur BMW FS (' + nAnciens + ')';
-      }
       var l = tous.filter(function (x) { return garde(x); });
       var hors = tous.filter(function (x) { return garde(x, 'prog') && !x.adm.ok; }).length;
       elCompte.textContent = l.length + (fs ? ' véhicule' + (l.length > 1 ? 's' : '') : ' BMW') + (f.seulsProgramme && hors ? ' · ' + hors + ' hors programme caché' + (fs ? '' : 'e') + (hors > 1 ? 's' : '') : '');
@@ -1017,7 +1092,6 @@
     var redessiner = function () { if (tous && document.body.contains(elListe)) { var foc = document.activeElement === inQ; dessiner(); if (foc) inQ.focus(); } };
     this.photosPret.then(redessiner);
     if (fs && montants) this.chargerOpp().then(redessiner);
-    caseAnciens.addEventListener('change', function () { f.anciens = caseAnciens.checked; dessiner(); });
     var prog = this.prog();
     if (fs) {
       this.fsPret.then(function () {
@@ -1026,19 +1100,31 @@
         if (self.fsErreur) elInfo.appendChild(h('div.lbm-avis.rouge', { style: { marginTop: 0, marginBottom: '10px' }, text: 'Lecture des fiches Manheim impossible : ' + self.fsErreur }));
         else if (!lu) elInfo.appendChild(h('div.lbm-avis.ambre', { style: { marginTop: 0, marginBottom: '10px' }, text: 'Les véhicules de BMW FS n\'ont pas encore été lus : dans Manheim (marketplace.manheim.ca › Disponible), cliquez le favori « Automax ← Manheim ».' }));
         else elInfo.appendChild(h('div.lbm-avis.' + (age > 3 ? 'ambre' : 'bleu'), { style: { marginTop: 0, marginBottom: '10px' }, text: 'Lus sur BMW FS (Manheim › Disponible) le ' + quandFr(lu) + ' par le favori « Automax ← Manheim »' + (age > 3 ? ' : il y a ' + Math.floor(age) + ' jours — recliquez le favori dans Manheim pour la liste du jour.' : '.') + ' Le prix est le prix demandé par BMW FS (ce que la concession paierait), pas un prix de vente.' }));
+        /* 15 nov. : seulement ce qui est encore à vendre ; les autres sont comptés, pas proposés. */
+        var hs = (self.fs && self.fs.hors) || {}, nHors = (hs.plusVu || 0) + (hs.achete || 0) + (hs.venteFinie || 0);
+        if (lu && nHors) elInfo.appendChild(h('div.lbm-veh-sous', { style: { margin: '-4px 0 10px' }, text: nHors + ' véhicule' + (nHors > 1 ? 's' : '') + ' de BMW FS ne ' + (nHors > 1 ? 'sont' : 'est') + ' plus à vendre et n\'' + (nHors > 1 ? 'apparaissent' : 'apparaît') + ' plus ici : ' + [hs.plusVu ? hs.plusVu + ' plus vu' + (hs.plusVu > 1 ? 's' : '') + ' au dernier passage complet du favori (vendu' + (hs.plusVu > 1 ? 's' : '') + ' ou retiré' + (hs.plusVu > 1 ? 's' : '') + ')' : '', hs.achete ? hs.achete + ' acheté' + (hs.achete > 1 ? 's' : '') + ' par nous' : '', hs.venteFinie ? hs.venteFinie + ' vente' + (hs.venteFinie > 1 ? 's' : '') + ' terminée' + (hs.venteFinie > 1 ? 's' : '') : ''].filter(Boolean).join(', ') + '.' }));
         tous = ((self.fs && self.fs.liste) || []).map(function (x) { x.adm = admissibleFs(prog, x); return x; });
-        tous.sort(function (a, b) { return (b.actuel - a.actuel) || (b.adm.ok - a.adm.ok) || (b.bmw - a.bmw) || texteFs(a.f).replace(/^\d+ /, '').localeCompare(texteFs(b.f).replace(/^\d+ /, ''), 'fr', { numeric: true }) || ((b.annee || 0) - (a.annee || 0)); });
-        if (!tous.some(function (x) { return x.adm.ok && x.actuel; })) { f.seulsProgramme = false; caseProg.checked = false; }
-        if (!tous.some(function (x) { return x.actuel; })) { f.anciens = true; caseAnciens.checked = true; }
+        tous.sort(function (a, b) { return (b.adm.ok - a.adm.ok) || (b.bmw - a.bmw) || texteFs(a.f).replace(/^\d+ /, '').localeCompare(texteFs(b.f).replace(/^\d+ /, ''), 'fr', { numeric: true }) || ((b.annee || 0) - (a.annee || 0)); });
+        if (!tous.some(function (x) { return x.adm.ok; })) { f.seulsProgramme = false; caseProg.checked = false; }
         dessiner();
       });
       return;
     }
-    this.invPret.then(function () {
-      tous = bmwEnStock(self.invListe).map(function (x) { x.adm = admissible(prog, x); return x; });
+    /* 15 nov. : seulement nos BMW encore à vendre — pas parties, pas vendues au Livre des ventes (la vérification arrive après). */
+    var construireStock = function () {
+      var sans = bmwEnStock(self.invListe), avec = bmwEnStock(self.invListe, self.vendus), nV = sans.length - avec.length;
+      tous = avec.map(function (x) { x.adm = admissible(prog, x); return x; });
       tous.sort(function (a, b) { return (b.adm.ok - a.adm.ok) || (RANG_FEUILLE[a.v._feuille] - RANG_FEUILLE[b.v._feuille]) || String(a.v.modele || '').localeCompare(String(b.v.modele || ''), 'fr', { numeric: true }) || ((b.annee || 0) - (a.annee || 0)); });
       if (!tous.some(function (x) { return x.adm.ok; })) { f.seulsProgramme = false; caseProg.checked = false; }
+      A.vider(elInfo);
+      if (!self.vendus) elInfo.appendChild(h('div.lbm-veh-sous', { style: { marginBottom: '10px' }, text: 'Vérification des ventes du Livre des ventes…' }));
+      else if (nV) elInfo.appendChild(h('div.lbm-veh-sous', { style: { marginBottom: '10px' }, text: nV + ' BMW vendue' + (nV > 1 ? 's' : '') + ' au Livre des ventes (pas encore livrée' + (nV > 1 ? 's' : '') + ') ne ' + (nV > 1 ? 'sont' : 'est') + ' plus proposée' + (nV > 1 ? 's' : '') + '.' }));
+      elInfo.hidden = !elInfo.firstChild;
       dessiner();
+    };
+    this.invPret.then(function () {
+      construireStock();
+      if (!self.vendus) self.vendusPret.then(function () { if (document.body.contains(elListe)) { var foc = document.activeElement === inQ; construireStock(); if (foc) inQ.focus(); } });
     });
   };
   VueLocation.prototype.choisirInv = function (v) {
@@ -1099,12 +1185,16 @@
     var inv = (this.invChoisi && String(this.invChoisi.vin || '').toUpperCase() === vin) ? this.invChoisi : (A.inventaire && A.inventaire.parVin ? A.inventaire.parVin(vin) : null);
     var fiche = A.ficheDe ? A.ficheDe(vin).catch(function () { return null; }) : Promise.resolve(null);
     var fsVeh = (this.fsChoisi && String(this.fsChoisi.vin || '').toUpperCase() === vin) ? this.fsChoisi : null;
-    this.fsVeh = null; this.fsMarche = null; this.fsOcc = null; this.vehPret = '';
+    this.fsVeh = null; this.fsAncien = null; this.fsMarche = null; this.fsOcc = null; this.vehPret = '';
     Promise.all([decoder(vin), fiche, this.fsPret.catch(function () { return null; })]).then(function (res) {
       if (self.detruit || self.vinCourant !== vin) return;
       var dec = res[0], f = res[1] || {};
       /* À vendre sur BMW FS ? (choisi dans la liste, ou un NIV tapé qui y est) */
       if (!fsVeh && self.fs) self.fs.liste.forEach(function (x) { if (x.vin === vin) fsVeh = x.f; });
+      /* 15 nov. : plus à vendre sur BMW FS — on le dit, sans prix ni coûtant. */
+      if (fsVeh && self.fs && !self.fs.liste.some(function (x) { return x.vin === vin; }) && (self.fs.tous || []).some(function (x) { return x.vin === vin; })) fsVeh = null;
+      self.fsAncien = null;
+      if (!fsVeh && self.fs) (self.fs.tous || []).forEach(function (x) { if (x.vin === vin && !x.actuel) self.fsAncien = x; });
       self.fsVeh = fsVeh;
       if (fsVeh) {
         if (!self.inKm.value.trim() && typeof fsVeh.km === 'number' && fsVeh.km > 0) { self.inKm.value = A.fmtNombre(Math.round(fsVeh.km)); self.elKmAide.textContent = 'Km lu sur BMW FS (Manheim) — vérifiez le compteur.'; }
@@ -1163,17 +1253,37 @@
     });
   };
   VueLocation.prototype.blocFs = function () {
-    var self = this, ff = this.fsVeh, vu = this.fs && this.fs.liste.filter(function (x) { return x.vin === String(ff.vin || '').toUpperCase(); })[0];
-    var plusVu = vu && !vu.actuel;
+    var self = this, ff = this.fsVeh, plusVu = false, ev = evolPrix(ff);
     var infos = [ff.prix ? 'prix demandé ' + argent(ff.prix) : '', typeof ff.cote === 'number' ? 'CR ' + String(ff.cote.toFixed(1)).replace('.', ',') : '', kmTxt(ff.km), [ff.ville, ff.province].filter(Boolean).join(', '), ff.luLe ? 'lu le ' + quandFr(ff.luLe, true) : ''].filter(Boolean).join(' · ');
     var actions = [];
     if (A.manheim && A.manheim.ouvrir) actions.push(h('button.btn.petit', { type: 'button', text: 'Photos et état', onclick: function () { A.manheim.ouvrir(ff.vin); } }));
     if (this.fsMarche) actions.push(h('button.btn.petit', { type: 'button', title: 'Prix médian du modèle-année au Canada, ajusté au km' + (this.fsMarche.plafonne ? ', plafonné au gros OpenLane + 15 %' : '') + ' (Outils › Opportunités d\'achat)', text: 'Marché au détail estimé ' + argent(this.fsMarche.ref) + ' — prendre ce prix', onclick: function () { self.inPrix.value = A.fmtNombre(Math.round(self.fsMarche.ref)); self.prixSource = 'marché au détail estimé'; self.lireSaisies(); self.rendreResultat(); } }));
     return h('div.lbm-fs', [
       h('div', [h('b', { text: 'À vendre sur BMW FS' }), document.createTextNode(' (Manheim) : ' + infos + '.')]),
+      this.ligneEvol(ev),
       h('div.lbm-veh-sous', { text: 'Le prix demandé est ce que la concession paierait à BMW FS, pas le prix de vente : entrez le prix de vente plus bas.' + (plusVu ? ' Plus vu sur BMW FS au dernier passage du favori : il est peut-être déjà vendu.' : '') }),
       actions.length ? h('div.lbm-fs-actions', actions) : null
     ]);
+  };
+  /* 15 nov. : l'évolution du prix demandé (premier prix vu, changements, jours en vente). */
+  VueLocation.prototype.ligneEvol = function (ev) {
+    if (!ev || ev.prix === null) return null;
+    var morceaux = [];
+    if (ev.ecartTotal !== null && ev.premier) morceaux.push(h('span.lbm-evol.' + (ev.ecartTotal < 0 ? 'baisse' : 'hausse'), { text: (ev.ecartTotal < 0 ? '↓ ' : '↑ ') + argent(Math.abs(ev.ecartTotal)) + ' depuis le ' + jourCourt(ev.premier.le) }));
+    var txt = [];
+    if (ev.premier && ev.ecartTotal !== null) txt.push('premier prix vu ' + argent(ev.premier.prix) + ' le ' + jourCourt(ev.premier.le));
+    if (ev.avant && ev.changeLe && (!ev.premier || ev.avant.le !== ev.premier.le || ev.histo.length > 2)) txt.push('dernier changement le ' + jourCourt(ev.changeLe) + ' (avant : ' + argent(ev.avant.prix) + ')');
+    if (ev.premier && ev.ecartTotal === null) txt.push('même prix depuis le ' + jourCourt(ev.premier.le));
+    if (ev.jours !== null) txt.push('vu en vente depuis ' + ev.jours + ' jour' + (ev.jours > 1 ? 's' : '') + (ev.depuis ? ' (' + jourCourt(ev.depuis) + ')' : ''));
+    if (!morceaux.length && !txt.length) return null;
+    var hist = ev.histo.length > 1 ? h('div.lbm-evol-histo', { text: 'Historique du prix : ' + ev.histo.map(function (p) { return jourCourt(p.le) + ' ' + argent(p.prix); }).join(' → ') }) : null;
+    return h('div.lbm-evol-ligne', [h('div', morceaux.concat(txt.length ? [document.createTextNode((morceaux.length ? ' · ' : '') + txt.join(' · '))] : [])), hist]);
+  };
+  /* Un NIV de BMW FS qui n'est plus à vendre : la raison, sans prix ni coûtant. */
+  VueLocation.prototype.blocFsAncien = function () {
+    var x = this.fsAncien, ff = x.f;
+    var pourquoi = x.hors === 'achete' ? 'acheté par nous (il est dans nos registres)' : (x.hors === 'venteFinie' ? 'la vente est terminée' : 'pas revu au dernier passage complet du favori « Automax ← Manheim » (vendu ou retiré)');
+    return h('div.lbm-avis.ambre', { style: { marginTop: 0 }, text: 'Plus à vendre sur BMW FS : ' + pourquoi + (ff.luLe ? ' — vu pour la dernière fois le ' + quandFr(ff.luLe, true) : '') + (ff.prix ? ', à ' + argent(ff.prix) : '') + '.' });
   };
   /* -- 13 nov. : les photos (Maxime : « des aperçus des modèles que l'on calcule ») --
      Le véhicule lui-même d'abord : la fiche BMW FS (Manheim), la photo du site de la concession (D2C), la fiche Manheim d'un
@@ -1345,6 +1455,13 @@
     if (!dec) texte.push(h('div.lbm-avis.ambre', { style: { marginTop: 0 }, text: 'Le NIV n\'a pas pu être décodé : choisissez l\'année et la version à la main.' }));
     else texte.push(h('div', [h('div.lbm-veh-titre', { text: [dec.annee, dec.marque, dec.modele, dec.version].filter(Boolean).join(' ') }), h('div.lbm-veh-sous', { text: 'Décodé par ' + (dec.source || 'NHTSA vPIC') + (this.inv ? ' · à notre inventaire : # stock ' + (this.inv.stock || '—') + ' · ' + [A.statut ? A.statut(this.inv.statut, this.inv._feuille).libelle : this.inv.statut, A.inventaire && A.inventaire.nomFeuille ? A.inventaire.nomFeuille(this.inv._feuille) : this.inv._feuille, this.inv.compagnie].filter(Boolean).join(' · ') : '') })]));
     if (this.fsVeh) texte.push(this.blocFs());
+    else if (this.fsAncien) texte.push(this.blocFsAncien());
+    /* 15 nov. : un véhicule de nos registres qui n'est plus à vendre (parti, ou vendu au Livre des ventes). */
+    if (this.inv) {
+      var vdu = this.vendus ? venteDe(this.vendus, this.inv) : null;
+      if (STATUTS_PARTIS.indexOf(this.inv.statut) >= 0) texte.push(h('div.lbm-avis.ambre', { style: { marginTop: 0 }, text: 'Plus à vendre : ' + ((A.statut ? A.statut(this.inv.statut, this.inv._feuille).libelle : this.inv.statut) || 'sorti de l\'inventaire') + ' au registre.' }));
+      else if (vdu) texte.push(h('div.lbm-avis.ambre', { style: { marginTop: 0 }, text: 'Plus à vendre : vendu au Livre des ventes' + (vdu.dateVente ? ' le ' + dateFr(vdu.dateVente) : '') + (vdu.id ? ' (' + vdu.id + ')' : '') + (vdu.dateLivraison ? ', livraison le ' + dateFr(vdu.dateLivraison) : ', pas encore livré') + '.' }));
+    }
     /* 13 nov. : l'aperçu du véhicule à côté de son nom. */
     lignes.push(h('div.lbm-veh-tete', [this.blocPhoto(), h('div.lbm-veh-txt', texte)]));
     if (t && t.raison && !t.candidats.length) lignes.push(h('div.lbm-avis.rouge', { text: t.raison }));

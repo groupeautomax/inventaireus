@@ -560,8 +560,17 @@
       ])]));
     if (this.genre && this.donneesAds()) z.appendChild(h('p.ana-note', { text: 'Somme des véhicules ' + (NOM_GENRE[this.genre] || '').toLowerCase() + 's seulement : la dépense rattachée à aucun véhicule n\'est pas comptée.' }));
     else if (!this.genre && d.sourceTotaux === 'campagnes' && d.totauxVehicules && t.cout > 0) {
-      var hors = Math.max(0, t.cout - d.totauxVehicules.cout);
-      if (hors > 0.5 && hors / t.cout > 0.15) z.appendChild(h('div.ana-carte.ambre', { text: argent(hors) + ' (' + pct(hors, t.cout) + ' de la dépense) ne va à aucun véhicule : annonces de Performance Max hors du flux (YouTube, Display, texte). À surveiller.' }));
+      /* Dépense qui ne va à aucun véhicule = annonces texte de Performance Max. Jusqu'à hier seulement :
+         Google rattache la dépense du jour aux véhicules avec quelques heures de retard (horsFlux du serveur). */
+      var ajdHf = new Date().toLocaleDateString('en-CA'), hf = d.horsFlux || null;
+      if (!hf && d.periode && d.periode.au < ajdHf) hf = { du: d.periode.du, au: d.periode.au, cout: Math.max(0, t.cout - d.totauxVehicules.cout), total: t.cout };
+      if (hf && hf.cout >= 1 && hf.total > 0) {
+        var partHf = hf.cout / hf.total;
+        z.appendChild(h('p.ana-note', { text: 'Annonces de véhicules : ' + argent(hf.total - hf.cout) + ' · annonces texte de Google (titres et descriptions de la campagne, sans véhicule précis) : ' +
+          argent(hf.cout) + ' (' + pct(hf.cout, hf.total) + ')' + (hf.au < (d.periode || {}).au ? ', jusqu\'à hier' : '') + '.' +
+          (hf.aujourdhui || (d.periode && d.periode.au >= ajdHf) ? ' La dépense d\'aujourd\'hui est rattachée aux véhicules plus tard dans la journée.' : '') }));
+        if (partHf > 0.25) z.appendChild(h('div.ana-carte.ambre', { text: pct(hf.cout, hf.total) + ' de la dépense va aux annonces texte plutôt qu\'aux véhicules : la campagne s\'éloigne du flux. Revoir les titres et descriptions du groupe de composants dans Google Ads.' }));
+      }
     }
     /* ventes et publicité */
     var s = this.statsVentes(), ads = this.donneesAds(), allerV = function () { self.aller('ventes'); };

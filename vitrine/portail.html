@@ -285,10 +285,12 @@ let apercuErreur = "";
 const TA = {
   fr: { bandeau: "<b>Aperçu de l'équipe</b> — c'est exactement ce que voit un concessionnaire acheteur : aucun prix, toutes les photos et les dommages. Les offres sont désactivées ici.",
     compte: "Aperçu de l'équipe", offre: "Faire une offre (désactivé dans l'aperçu)", sansSession: "Ouvrez cette page depuis ScanAutomax (Outils › Opportunités d'achat) dans un navigateur où vous êtes connecté au site.",
-    ouvrirSite: "Ouvrir ScanAutomax", desactive: "Les offres sont désactivées dans l'aperçu de l'équipe." },
+    ouvrirSite: "Ouvrir ScanAutomax", desactive: "Les offres sont désactivées dans l'aperçu de l'équipe.",
+    pasAJour: "Le script n'est pas à jour : déployez une nouvelle version du script (Déployer › Gérer les déploiements › Nouvelle version), puis rechargez cette page." },
   en: { bandeau: "<b>Team preview</b> — this is exactly what a buyer dealership sees: no prices, every photo and all the damage. Offers are disabled here.",
     compte: "Team preview", offre: "Make an offer (disabled in preview)", sansSession: "Open this page from ScanAutomax (Outils › Opportunités d'achat) in a browser where you are signed in to the site.",
-    ouvrirSite: "Open ScanAutomax", desactive: "Offers are disabled in the team preview." }
+    ouvrirSite: "Open ScanAutomax", desactive: "Offers are disabled in the team preview.",
+    pasAJour: "The script is not up to date: deploy a new version of the script, then reload this page." }
 };
 function ta() { return TA[langue] || TA.fr; }
 if (APERCU) { session = EQUIPE ? { apercu: true, cle: "", nom: "", courriel: EQUIPE.utilisateur } : null; onglet = "gmf"; }
@@ -333,6 +335,8 @@ async function appelerApercu(corps) {
   const r = await fetch(SCRIPT_URL + "?" + q + "&jeton=" + encodeURIComponent(EQUIPE.jeton) + "&utilisateur=" + encodeURIComponent(EQUIPE.utilisateur) + "&_=" + Date.now(), { cache: "no-store" });
   const j = await r.json();
   if (j && j.refuse) return { ok: false, erreur: j.erreur || ta().sansSession };
+  // Un script déployé d'avant l'aperçu ne connaît pas gmfApercu et renvoie autre chose (un registre) : ne jamais l'afficher.
+  if (j && j.ok !== false && j.apercu !== true) return { ok: false, erreur: ta().pasAJour };
   return j;
 }
 

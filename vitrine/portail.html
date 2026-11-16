@@ -104,6 +104,23 @@
   .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 700px) { .duo { grid-template-columns: 1fr; } }
   footer { text-align: center; color: var(--doux); font-size: 13px; padding: 28px 16px 40px; }
+  /* Véhicules GM (16 nov.) */
+  .filtres.gmf { grid-template-columns: 2fr 1fr 1fr 1fr 1fr; }
+  @media (max-width: 760px) { .filtres.gmf { grid-template-columns: 1fr 1fr; } }
+  .hero .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 999px; border: 0; background: rgba(0,0,0,.45); color: #fff; font-size: 26px; cursor: pointer; }
+  .hero .nav.prec { left: 10px; } .hero .nav.suiv { right: 10px; }
+  h3.region { font-size: 15px; margin: 14px 0 8px; color: var(--doux); font-weight: 650; }
+  h3.region .n { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 999px; background: var(--fond); font-size: 12px; text-align: center; }
+  .dommages { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .dommage { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; padding: 6px; border: 1px solid var(--trait); border-radius: 10px; background: var(--carte); }
+  .dommage .t { font-weight: 650; font-size: 14px; }
+  .dommage .d { color: var(--doux); font-size: 13px; }
+  .vignette { width: 72px; height: 54px; border-radius: 8px; overflow: hidden; border: 0; padding: 0; background: var(--fond); cursor: zoom-in; display: block; }
+  .vignette img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .vignette.vide { cursor: default; background: linear-gradient(135deg, #1f2328, #5f6978); }
+  .agrandi { position: fixed; inset: 0; z-index: 60; background: rgba(10,12,15,.88); display: flex; align-items: center; justify-content: center; padding: 20px; cursor: zoom-out; }
+  .agrandi img { max-width: 100%; max-height: 100%; border-radius: 10px; }
+  .agrandi .fermer { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 999px; border: 0; background: rgba(255,255,255,.18); color: #fff; font-size: 24px; cursor: pointer; }
 
   @media (prefers-color-scheme: dark) {
     :root { --texte: #f2f3f5; --doux: #9aa1ab; --trait: #2a2d33; --fond: #121316; --carte: #1b1d21; --vert-pale: #12331f; --ambre-pale: #3a2415; --rouge-pale: #3a1714; }
@@ -166,6 +183,24 @@ const T = {
     deja: "Vous avez déjà une offre sur ce véhicule.", ouvrir: "Ouvrir", fermer: "Fermer", chargement: "Chargement…",
     offrePrix: p => "Votre offre : " + p, contrePrix: p => "Contre-offre : " + p, prixFinal: p => "Prix convenu : " + p,
     plusOffert: "Plus offert dans le portail", RESEAU: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+    gmf: {
+      onglet: "Véhicules GM", intro: "Véhicules GM de fin de location que nous pouvons acheter pour vous. Les prix ne sont pas affichés : voyez toutes les photos et les dommages, puis faites votre offre en dollars canadiens — nous vous répondons rapidement, avant la fin de la vente.",
+      aucun: "Aucun véhicule GM offert en ce moment.", recherche: "Modèle, version, NIV, ville…", tousModeles: "Tous les modèles",
+      tri: { fin: "Fin de vente la plus proche", annee: "Année (récent d'abord)", km: "Kilométrage (bas d'abord)" },
+      n: n => n + " véhicule" + (n > 1 ? "s" : "") + " GM",
+      nPhotos: n => n + " photo" + (n > 1 ? "s" : ""), nDommages: n => n + " dommage" + (n > 1 ? "s" : "") + " noté" + (n > 1 ? "s" : ""), aucunDommage: "aucun dommage noté",
+      cote: c => "Cote " + String(c).replace(".", ",") + " / 5", coteTitre: "Cote d'état (AutoGrade)",
+      fin: d => "Vente se termine le " + d, finTitre: "Fin de la vente", lieu: "Lieu du véhicule",
+      votreOffre: p => "Votre offre : " + p, modifierOffre: "Modifier mon offre",
+      sansPrix: "Prix sur demande : faites votre offre, nous vous répondons rapidement.",
+      interieur: c => "intérieur " + c, cles: "Clés", typeInv: "Provenance", pneus: "Pneus", hiver: "pneu d'hiver",
+      dommagesTitre: n => "Dommages" + (n ? " (" + n + ")" : ""), aucunDommageLong: "Aucun dommage noté au rapport d'inspection.",
+      ficheAVenir: "Le rapport d'inspection (photos détaillées et dommages) n'est pas encore lu pour ce véhicule.", annonces: "Annonces",
+      offreTexte: d => "Votre prix en dollars canadiens, avant taxes et frais. Si votre offre est retenue, nous achetons le véhicule pour vous" + (d ? " (la vente se termine le " + d + ")" : "") + ", puis le contrat suit comme pour les autres véhicules.",
+      merciModif: "Offre modifiée", merciTexte: d => "Nous la recevons tout de suite et vous répondons rapidement" + (d ? ", avant la fin de la vente le " + d : "") + ". Vous la suivez dans « Mes offres ».",
+      mesOffres: "Véhicules GM — vos offres",
+      statuts: { nouvelle: "Envoyée", refusee: "Non retenue", expiree: "Vente terminée", contrat: "Retenue — contrat", annulee: "Annulée" }
+    },
     pied: "Portail réservé aux concessionnaires acheteurs approuvés."
   },
   en: {
@@ -199,6 +234,24 @@ const T = {
     deja: "You already have an offer on this vehicle.", ouvrir: "Open", fermer: "Close", chargement: "Loading…",
     offrePrix: p => "Your offer: " + p, contrePrix: p => "Counter-offer: " + p, prixFinal: p => "Agreed price: " + p,
     plusOffert: "No longer offered in the portal", RESEAU: "Could not reach the server. Check your connection and try again.",
+    gmf: {
+      onglet: "GM vehicles", intro: "GM lease-return vehicles we can buy for you. Prices are not shown: see every photo and all the damage, then make your offer in Canadian dollars — we answer quickly, before the sale ends.",
+      aucun: "No GM vehicle is offered right now.", recherche: "Model, trim, VIN, city…", tousModeles: "All models",
+      tri: { fin: "Sale ending soonest", annee: "Year (newest first)", km: "Mileage (lowest first)" },
+      n: n => n + " GM vehicle" + (n > 1 ? "s" : ""),
+      nPhotos: n => n + " photo" + (n > 1 ? "s" : ""), nDommages: n => n + " damage item" + (n > 1 ? "s" : ""), aucunDommage: "no damage noted",
+      cote: c => "Grade " + c + " / 5", coteTitre: "Condition grade (AutoGrade)",
+      fin: d => "Sale ends " + d, finTitre: "Sale ends", lieu: "Vehicle location",
+      votreOffre: p => "Your offer: " + p, modifierOffre: "Change my offer",
+      sansPrix: "Price on request: make your offer, we answer quickly.",
+      interieur: c => "interior " + c, cles: "Keys", typeInv: "Origin", pneus: "Tires", hiver: "winter tire",
+      dommagesTitre: n => "Damage" + (n ? " (" + n + ")" : ""), aucunDommageLong: "No damage noted in the inspection report.",
+      ficheAVenir: "The inspection report (detailed photos and damage) has not been read for this vehicle yet.", annonces: "Announcements",
+      offreTexte: d => "Your price in Canadian dollars, before taxes and fees. If your offer is accepted, we buy the vehicle for you" + (d ? " (the sale ends " + d + ")" : "") + ", then the contract follows as for our other vehicles.",
+      merciModif: "Offer updated", merciTexte: d => "We receive it right away and answer you quickly" + (d ? ", before the sale ends " + d : "") + ". Follow it in “My offers”.",
+      mesOffres: "GM vehicles — your offers",
+      statuts: { nouvelle: "Sent", refusee: "Not accepted", expiree: "Sale ended", contrat: "Accepted — contract", annulee: "Cancelled" }
+    },
     pied: "Portal reserved for approved buyer dealerships."
   }
 };
@@ -219,7 +272,10 @@ let donnees = null;                   // réponse de acheteurPortail
 let onglet = "stock";
 let filtres = { q: "", marque: "", annee: "", tri: "recents" };
 let connexion = { etape: "courriel", courriel: (session && session.courriel) || "", canal: "", destination: "", textoPossible: true, message: "", erreur: "" };
-let fiche = null;                     // { vin, vehicule, etat, photo }
+let fiche = null;                     // { vin, vehicule, etat, photo } — { gmf: true, … } pour un véhicule GM
+let gmf = null;                       // réponse de acheteurGmf (véhicules GM, sans prix) — null si le serveur ne l'a pas
+let filtresGmf = { q: "", marque: "", modele: "", annee: "", tri: "fin" };
+let redessinerApres = false;              // une liste arrivée pendant qu'une fiche était ouverte : redessiner à la fermeture
 
 function t() { return T[langue]; }
 function echappe(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
@@ -280,14 +336,18 @@ function dessiner() {
   const main = document.getElementById("main");
   if (!session) { main.innerHTML = vueConnexion(); brancherConnexion(); return; }
   if (!donnees) { main.innerHTML = '<div class="message"><strong>' + echappe(t().chargement) + "</strong></div>"; return; }
-  const nOffres = (donnees.offres || []).length;
+  const nOffres = (donnees.offres || []).length + ((gmf && gmf.offres) || []).length;
+  if (onglet === "gmf" && !gmf) onglet = "stock";
   let h = '<div class="onglets" role="tablist">' +
     '<button type="button" role="tab" data-onglet="stock" aria-selected="' + (onglet === "stock") + '">' + echappe(t().stock) + '<span class="n">' + donnees.vehicules.length + "</span></button>" +
+    (gmf ? '<button type="button" role="tab" data-onglet="gmf" aria-selected="' + (onglet === "gmf") + '">' + echappe(t().gmf.onglet) + '<span class="n">' + gmf.vehicules.length + "</span></button>" : "") +
     '<button type="button" role="tab" data-onglet="offres" aria-selected="' + (onglet === "offres") + '">' + echappe(t().mesOffres) + '<span class="n">' + nOffres + "</span></button></div>";
-  h += onglet === "stock" ? vueStock() : vueOffres();
+  h += onglet === "stock" ? vueStock() : (onglet === "gmf" ? vueGmf() : vueOffres());
   main.innerHTML = h;
   main.querySelectorAll("[data-onglet]").forEach(b => b.onclick = () => { onglet = b.dataset.onglet; dessiner(); });
   if (onglet === "stock") brancherStock();
+  if (onglet === "gmf") brancherGmf();
+  main.querySelectorAll("[data-gmf-offre]").forEach(b => b.onclick = () => ouvrirFicheGmf(b.dataset.gmfOffre));
 }
 
 function vueConnexion() {
@@ -424,8 +484,8 @@ function brancherStock() {
 }
 
 function vueOffres() {
-  const l = donnees.offres || [];
-  if (!l.length) return '<div class="message"><strong>' + echappe(t().aucuneOffre) + "</strong></div>";
+  const l = donnees.offres || [], g = offresGmfHtml();
+  if (!l.length) return g || '<div class="message"><strong>' + echappe(t().aucuneOffre) + "</strong></div>";
   return '<div class="offres">' + l.map(o => {
     const st = t().statutsCourts[o.statut] || o.statut;
     const ton = o.statut === "contre" ? "ambre" : (o.statut === "acceptee" || o.statut === "contrat" ? "vert" : (o.statut === "refusee" || o.statut === "annulee" ? "rouge" : ""));
@@ -438,7 +498,7 @@ function vueOffres() {
       '<div class="d">' + echappe(montants.join(" · ")) + "</div>" +
       '<div class="d">' + echappe([date, o.toujoursOffert ? "" : t().plusOffert].filter(Boolean).join(" · ")) + "</div></div>" +
       '<a class="btn' + (o.statut === "contre" ? " principal" : "") + '" href="' + echappe(o.lien) + '" target="_blank" rel="noopener">' + echappe(t().ouvrir) + "</a></div>";
-  }).join("") + "</div>";
+  }).join("") + "</div>" + g;
 }
 
 /* -------------------------------- Fiche --------------------------------- */
@@ -456,7 +516,7 @@ async function ouvrirFiche(vin) {
     dessinerFiche();
   } catch (e) { if (!e.session && fiche) { fiche.erreur = t().RESEAU; dessinerFiche(); } }
 }
-function fermerFiche() { fiche = null; const v = document.getElementById("voile"); if (v) v.remove(); document.body.style.overflow = ""; }
+function fermerFiche() { fiche = null; const v = document.getElementById("voile"); if (v) v.remove(); document.body.style.overflow = ""; if (redessinerApres) { redessinerApres = false; if (donnees) dessiner(); } }
 
 function dessinerFiche() {
   let voile = document.getElementById("voile");
@@ -466,6 +526,7 @@ function dessinerFiche() {
     voile.addEventListener("click", e => { if (e.target === voile) fermerFiche(); });
     document.body.appendChild(voile); document.body.style.overflow = "hidden";
   }
+  if (fiche.gmf) { dessinerFicheGmf(voile); return; }
   const v = fiche.vehicule, x = titres(v), photos = (v.photos && v.photos.length ? v.photos : (v.photo ? [v.photo] : []));
   if (fiche.photo >= photos.length) fiche.photo = 0;
   const prix = nombre(v.price), conv = convLigne(prix), e = fiche.etat || {};
@@ -543,9 +604,231 @@ function confirmer(auPrix) {
   };
 }
 
+
+/* ------------------------- Véhicules GM (16 nov.) ------------------------- */
+/* Véhicules de fin de location GM que la concession peut acheter pour l'acheteur (GM Financial DealerSource, PortailGmf.gs).
+   AUCUN PRIX : l'acheteur voit toutes les photos, les dommages, les pneus, la cote, et fait une offre en $ CA. */
+function karImg(u, taille) {
+  const s = String(u || "");
+  if (!/kar-media\.com|autc\.com/.test(s)) return s;
+  const base = s.replace(/_(th|dt)(\.jpg)/i, "$2");
+  return taille ? base.replace(/(\.jpg)(?!.*\.jpg)/i, "_" + taille + "$1") : base;
+}
+function casse(s) {
+  s = String(s || "").trim();
+  if (!s || s !== s.toUpperCase()) return s;
+  return s.split(/(\s+|-|\/)/).map(m => (!/^[A-ZÀ-Ü]+$/.test(m) || m.length <= 3) ? m : m.charAt(0) + m.slice(1).toLowerCase()).join("");
+}
+function descDommage(d) { return String(d || "").replace(/(\d+)\s*X\s*(\d+(?:\.\d+)?)"?/gi, (m, n, l) => n + " × " + String(Math.round(parseFloat(l) * 10) / 10).replace(".", langue === "en" ? "." : ",") + (langue === "en" ? " in" : " po")).trim(); }
+function dateFin(iso) {
+  if (!iso) return "";
+  const d = new Date(iso); if (isNaN(d)) return "";
+  return d.toLocaleString(langue === "en" ? "en-CA" : "fr-CA", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+}
+function finProche(iso) { const t = new Date(iso).getTime(); return isFinite(t) && t - Date.now() < 24 * 3600000; }
+function gmfTitres(v) { return { annee: v.annee ? String(v.annee) : "", haut: [v.marque, v.modele].filter(Boolean).join(" "), bas: v.version || "" }; }
+function gmfNom(v) { const x = gmfTitres(v); return [x.annee, x.haut, x.bas].filter(Boolean).join(" "); }
+function sansAccent(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+
+function filtrerGmf() {
+  const f = filtresGmf, q = sansAccent(f.q.trim());
+  let l = (gmf.vehicules || []).filter(v => {
+    if (f.marque && v.marque !== f.marque) return false;
+    if (f.modele && v.modele !== f.modele) return false;
+    if (f.annee && String(v.annee) !== f.annee) return false;
+    if (!q) return true;
+    const texte = sansAccent([v.annee, v.marque, v.modele, v.version, v.vin, v.couleur, v.carrosserie, v.motricite, v.ville, v.province].join(" "));
+    return q.split(/\s+/).every(m => texte.indexOf(m) >= 0);
+  });
+  if (f.tri === "annee") l.sort((a, b) => Number(b.annee || 0) - Number(a.annee || 0));
+  else if (f.tri === "km") l.sort((a, b) => (Number(a.km) || 9e9) - (Number(b.km) || 9e9));
+  else l.sort((a, b) => (new Date(a.finVente).getTime() || 9e15) - (new Date(b.finVente).getTime() || 9e15));
+  return l;
+}
+
+function vueGmf() {
+  const g = t().gmf, tous = gmf.vehicules || [];
+  let h = '<p class="aide" style="margin:0 0 12px">' + echappe(g.intro) + "</p>";
+  if (!tous.length) return h + '<div class="message"><strong>' + echappe(g.aucun) + "</strong></div>";
+  const f = filtresGmf;
+  const marques = Array.from(new Set(tous.map(v => v.marque).filter(Boolean))).sort();
+  const modeles = Array.from(new Set(tous.filter(v => !f.marque || v.marque === f.marque).map(v => v.modele).filter(Boolean))).sort();
+  const annees = Array.from(new Set(tous.map(v => String(v.annee || "")).filter(Boolean))).sort().reverse();
+  h += '<div class="filtres gmf">' +
+    '<input id="qGmf" type="search" placeholder="' + echappe(g.recherche) + '" value="' + echappe(f.q) + '" aria-label="' + echappe(g.recherche) + '">' +
+    '<select id="gMarque" aria-label="' + echappe(t().marque) + '"><option value="">' + echappe(t().toutesMarques) + "</option>" + marques.map(m => '<option' + (m === f.marque ? " selected" : "") + ">" + echappe(m) + "</option>").join("") + "</select>" +
+    '<select id="gModele" aria-label="' + echappe(t().modele) + '"><option value="">' + echappe(g.tousModeles) + "</option>" + modeles.map(m => '<option' + (m === f.modele ? " selected" : "") + ">" + echappe(m) + "</option>").join("") + "</select>" +
+    '<select id="gAnnee" aria-label="' + echappe(t().annee) + '"><option value="">' + echappe(t().toutesAnnees) + "</option>" + annees.map(a => '<option' + (a === f.annee ? " selected" : "") + ">" + echappe(a) + "</option>").join("") + "</select>" +
+    '<select id="gTri" aria-label="Tri">' + Object.keys(g.tri).map(k => '<option value="' + k + '"' + (k === f.tri ? " selected" : "") + ">" + echappe(g.tri[k]) + "</option>").join("") + "</select></div>";
+  return h + '<div id="resultatsGmf"></div>';
+}
+
+function dessinerResultatsGmf() {
+  const g = t().gmf, l = filtrerGmf(), zone = document.getElementById("resultatsGmf");
+  if (!zone) return;
+  let h = '<p class="compteLigne">' + echappe(g.n(l.length)) + "</p>";
+  if (!l.length) { zone.innerHTML = h + '<div class="message"><strong>' + echappe(t().aucunFiltre) + "</strong></div>"; return; }
+  h += '<div class="grille">' + l.map(v => {
+    const x = gmfTitres(v), proche = finProche(v.finVente);
+    const etat = v.votreOffre ? '<span class="puce vert">' + echappe(g.votreOffre(argent(v.votreOffre.prix))) + "</span>" : "";
+    const infos = [v.nbPhotos ? g.nPhotos(v.nbPhotos) : "", v.nbDommages ? g.nDommages(v.nbDommages) : (v.ficheLue ? g.aucunDommage : "")].filter(Boolean).join(" · ");
+    return '<button type="button" class="carte" data-gmf="' + echappe(v.vin) + '">' +
+      '<div class="photo">' + (v.photo ? '<img loading="lazy" alt="" src="' + echappe(karImg(v.photo, "dt")) + '">' : "") + '<div class="etat">' + etat + "</div></div>" +
+      '<div class="corps"><div class="titre">' + (x.annee ? '<span class="annee">' + echappe(x.annee) + "</span> " : "") + echappe(x.haut) + "</div>" +
+      '<div class="sous">' + echappe([x.bas, kmLisible(v.km)].filter(Boolean).join(" · ")) + "</div>" +
+      (infos ? '<div class="sous">' + echappe(infos) + "</div>" : "") +
+      '<div class="bas"><div>' + (v.cote ? '<span class="puce" style="white-space:nowrap">' + echappe(g.cote(v.cote)) + "</span>" : "") + "</div>" +
+      '<div class="lieu">' + echappe([v.ville, v.province].filter(Boolean).join(", ")) + (v.finVente ? '<br><span style="' + (proche ? "color:var(--ambre);font-weight:600" : "") + '">' + echappe(g.fin(dateFin(v.finVente))) + "</span>" : "") + "</div></div></div></button>";
+  }).join("") + "</div>";
+  zone.innerHTML = h;
+  zone.querySelectorAll("[data-gmf]").forEach(b => b.onclick = () => ouvrirFicheGmf(b.dataset.gmf));
+}
+
+function brancherGmf() {
+  const q = document.getElementById("qGmf");
+  if (!q) return;
+  q.addEventListener("input", () => { filtresGmf.q = q.value; dessinerResultatsGmf(); });
+  document.getElementById("gMarque").onchange = e => { filtresGmf.marque = e.target.value; filtresGmf.modele = ""; dessiner(); };
+  document.getElementById("gModele").onchange = e => { filtresGmf.modele = e.target.value; dessinerResultatsGmf(); };
+  document.getElementById("gAnnee").onchange = e => { filtresGmf.annee = e.target.value; dessinerResultatsGmf(); };
+  document.getElementById("gTri").onchange = e => { filtresGmf.tri = e.target.value; dessinerResultatsGmf(); };
+  dessinerResultatsGmf();
+}
+
+function offresGmfHtml() {
+  const g = t().gmf, l = (gmf && gmf.offres) || [];
+  if (!l.length) return "";
+  return '<h2 style="margin:18px 0 10px">' + echappe(g.mesOffres) + '</h2><div class="offres">' + l.map(o => {
+    const ton = o.statut === "contrat" ? "vert" : (o.statut === "refusee" || o.statut === "expiree" ? "rouge" : "ambre");
+    const date = (o.maj || o.creeLe) ? new Date(o.maj || o.creeLe).toLocaleDateString(langue === "en" ? "en-CA" : "fr-CA", { day: "numeric", month: "short", year: "numeric" }) : "";
+    const v = (gmf.vehicules || []).find(x => x.vin === o.vin);
+    const bouton = o.lien ? '<a class="btn principal" href="' + echappe(o.lien) + '" target="_blank" rel="noopener">' + echappe(t().ouvrir) + "</a>"
+      : (v ? '<button type="button" class="btn" data-gmf-offre="' + echappe(o.vin) + '">' + echappe(t().ouvrir) + "</button>" : "");
+    return '<div class="offre">' + (v && v.photo ? '<img alt="" loading="lazy" src="' + echappe(karImg(v.photo, "th")) + '">' : '<span class="vide"></span>') +
+      '<div><div class="t">' + echappe(o.titre || o.vin) + ' <span class="puce ' + ton + '">' + echappe(g.statuts[o.statut] || o.statut) + "</span></div>" +
+      '<div class="d">' + echappe(t().offrePrix(argent(nombre(o.prix)))) + "</div>" +
+      '<div class="d">' + echappe(date) + "</div></div>" + bouton + "</div>";
+  }).join("") + "</div>";
+}
+
+async function ouvrirFicheGmf(vin) {
+  const base = ((gmf && gmf.vehicules) || []).find(v => v.vin === vin) || { vin: vin };
+  fiche = { gmf: true, vin: vin, vehicule: base, photo: 0, chargee: false };
+  dessinerFiche();
+  try {
+    const j = await appeler({ action: "acheteurVehiculeGmf", cleAcheteur: session.cle, vin: vin });
+    if (!fiche || fiche.vin !== vin) return;
+    if (!j.ok) { fiche.erreur = j.erreur || t().RESEAU; dessinerFiche(); return; }
+    fiche.vehicule = Object.assign({}, base, j.vehicule || {});
+    fiche.votreOffre = j.votreOffre || null;
+    fiche.chargee = true;
+    dessinerFiche();
+  } catch (e) { if (!e.session && fiche) { fiche.erreur = t().RESEAU; dessinerFiche(); } }
+}
+
+function dessinerFicheGmf(voile) {
+  const g = t().gmf, v = fiche.vehicule, photos = (v.photos && v.photos.length ? v.photos : (v.photo ? [v.photo] : []));
+  if (fiche.photo >= photos.length) fiche.photo = 0;
+  let h = '<div class="fenetre" role="dialog" aria-modal="true" aria-label="' + echappe(gmfNom(v)) + '"><button type="button" class="fermer" id="fermer" aria-label="' + echappe(t().fermer) + '">×</button>';
+  h += '<div class="hero">' + (photos.length ? '<img alt="" src="' + echappe(karImg(photos[fiche.photo])) + '">' : "") + (photos.length > 1 ? '<div class="compteur">' + (fiche.photo + 1) + " / " + photos.length + "</div>" : "") +
+    (photos.length > 1 ? '<button type="button" class="nav prec" id="photoPrec" aria-label="‹">‹</button><button type="button" class="nav suiv" id="photoSuiv" aria-label="›">›</button>' : "") + "</div>";
+  if (photos.length > 1) h += '<div class="bande">' + photos.map((p, i) => '<img alt="" loading="lazy" data-i="' + i + '" src="' + echappe(karImg(p, "th")) + '"' + (i === fiche.photo ? ' aria-current="true"' : "") + ">").join("") + "</div>";
+  h += '<div class="bloc" style="margin-top:12px"><h1>' + echappe(gmfNom(v)) + "</h1>";
+  h += '<p class="aide" style="margin:0 0 6px">' + echappe(g.sansPrix) + "</p>";
+  if (fiche.votreOffre) h += '<div><span class="puce vert">' + echappe(g.votreOffre(argent(fiche.votreOffre.prix))) + "</span></div>";
+  const lignes = [[t().km, kmLisible(v.km) || t().kmInconnu], [g.coteTitre, v.cote ? g.cote(v.cote) : ""], [t().couleur, [v.couleur, v.couleurInt ? g.interieur(v.couleurInt) : ""].filter(Boolean).join(" · ")],
+    [g.lieu, [v.ville, v.province].filter(Boolean).join(", ")], [g.finTitre, dateFin(v.finVente)], [t().vin, v.vin]].filter(l => l[1]);
+  h += lignes.map(l => '<div class="ligne"><span class="k">' + echappe(l[0]) + '</span><span class="v"' + (l[0] === t().vin ? ' style="font-family:ui-monospace,Menlo,monospace"' : "") + ">" + echappe(l[1]) + "</span></div>").join("") + "</div>";
+  const det = [[t().version, v.version], [t().carrosserie, casse(v.carrosserie)], [t().moteur, casse(v.moteur)], [t().carburant, casse(v.carburant)], [t().transmission, casse(v.transmission)], [t().motricite, casse(v.motricite)], [t().portes, v.portes], [g.cles, v.cles], [g.typeInv, v.typeInv]].filter(l => l[1]);
+  const pneus = v.pneus || [];
+  if (det.length || pneus.length) {
+    h += '<div class="duo">';
+    if (det.length) h += '<div class="bloc"><h2>' + echappe(t().details) + "</h2>" + det.map(l => '<div class="ligne"><span class="k">' + echappe(l[0]) + '</span><span class="v">' + echappe(l[1]) + "</span></div>").join("") + "</div>";
+    if (pneus.length) h += '<div class="bloc"><h2>' + echappe(g.pneus) + "</h2>" + pneus.map(p => '<div class="ligne"><span class="k">' + echappe(casse(p.n)) + '</span><span class="v">' + echappe([p.p, casse(p.e), p.t, p.h ? g.hiver : ""].filter(Boolean).join(" · ")) + "</span></div>").join("") + "</div>";
+    h += "</div>";
+  }
+  const dommages = v.dommages || [];
+  h += '<div class="bloc"><h2>' + echappe(g.dommagesTitre(dommages.length)) + "</h2>";
+  if (!fiche.chargee) h += '<p class="aide">' + echappe(t().chargement) + "</p>";
+  else if (!dommages.length) h += '<p class="aide">' + echappe(v.ficheLue === false ? g.ficheAVenir : g.aucunDommageLong) + "</p>";
+  else {
+    const regions = {};
+    dommages.forEach(d => { (regions[d.r || "—"] = regions[d.r || "—"] || []).push(d); });
+    Object.keys(regions).forEach(r => {
+      h += '<h3 class="region">' + echappe(r) + ' <span class="n">' + regions[r].length + "</span></h3>";
+      h += '<div class="dommages">' + regions[r].map(d => '<div class="dommage">' +
+        (d.i ? '<button type="button" class="vignette" data-photo="' + echappe(karImg(d.i)) + '"><img alt="" loading="lazy" src="' + echappe(karImg(d.i, "th")) + '"></button>' : '<span class="vignette vide"></span>') +
+        '<div><div class="t">' + echappe(casse(d.p)) + "</div><div class=\"d\">" + echappe([casse(d.t), descDommage(d.d)].filter(Boolean).join(" — ")) + "</div></div></div>").join("") + "</div>";
+    });
+  }
+  h += "</div>";
+  if ((v.annonces || []).length) h += '<div class="bloc"><h2>' + echappe(g.annonces) + "</h2>" + v.annonces.map(a => '<div class="ligne"><span class="k">' + echappe(a) + "</span></div>").join("") + "</div>";
+  if (fiche.erreur) h += '<div class="alerte mauvais" role="alert">' + echappe(fiche.erreur) + "</div>";
+  h += '<div class="actionsFiche"><button type="button" class="btn principal plein" id="offrirGmf"' + (fiche.chargee ? "" : " disabled") + ">" + echappe(fiche.votreOffre ? g.modifierOffre : t().faireOffre) + "</button></div></div>";
+  voile.innerHTML = h;
+  document.getElementById("fermer").onclick = fermerFiche;
+  voile.querySelectorAll(".bande img").forEach(img => img.onclick = () => { fiche.photo = Number(img.dataset.i); dessinerFiche(); });
+  const pp = document.getElementById("photoPrec"), ps = document.getElementById("photoSuiv");
+  if (pp) pp.onclick = () => { fiche.photo = (fiche.photo - 1 + photos.length) % photos.length; dessinerFiche(); };
+  if (ps) ps.onclick = () => { fiche.photo = (fiche.photo + 1) % photos.length; dessinerFiche(); };
+  voile.querySelectorAll("[data-photo]").forEach(b => b.onclick = () => agrandir(b.dataset.photo));
+  const o = document.getElementById("offrirGmf"); if (o) o.onclick = offreGmf;
+}
+
+function agrandir(url) {
+  const z = document.createElement("div");
+  z.className = "agrandi"; z.innerHTML = '<img alt="" src="' + echappe(url) + '"><button type="button" class="fermer" aria-label="' + echappe(t().fermer) + '">×</button>';
+  z.onclick = () => z.remove();
+  document.body.appendChild(z);
+}
+
+function offreGmf() {
+  const g = t().gmf, v = fiche.vehicule;
+  const fen = document.querySelector("#voile .fenetre");
+  const zone = document.createElement("div");
+  zone.className = "bloc";
+  zone.innerHTML = "<h2>" + echappe(t().offreTitre) + '</h2><p class="aide">' + echappe(g.offreTexte(dateFin(v.finVente))) + "</p>" +
+    '<label for="prixOffre">' + echappe(t().votrePrix) + '</label><input id="prixOffre" type="text" inputmode="numeric" autocomplete="off" value="' + (fiche.votreOffre ? echappe(fiche.votreOffre.prix) : "") + '">' +
+    '<label for="noteOffre">' + echappe(t().note) + '</label><textarea id="noteOffre" maxlength="500" placeholder="' + echappe(t().notePlaceholder) + '">' + echappe((fiche.votreOffre && fiche.votreOffre.note) || "") + "</textarea>" +
+    '<div id="erreurOffre"></div><div class="boutons"><button type="button" class="btn principal plein" id="envoyer">' + echappe(t().envoyerOffre) + '</button><button type="button" class="btn" id="annulerOffre">' + echappe(t().annuler) + "</button></div>";
+  fen.querySelector(".actionsFiche").replaceWith(zone);
+  zone.scrollIntoView({ behavior: "smooth", block: "center" });
+  const champ = document.getElementById("prixOffre"); champ.focus();
+  document.getElementById("annulerOffre").onclick = dessinerFiche;
+  document.getElementById("envoyer").onclick = async () => {
+    const err = document.getElementById("erreurOffre"); err.innerHTML = "";
+    const p = nombre(champ.value);
+    if (!(p >= 500)) { champ.focus(); champ.style.borderColor = "var(--rouge)"; return; }
+    const b = document.getElementById("envoyer"); b.disabled = true; b.textContent = t().envoi;
+    try {
+      const j = await appeler({ action: "acheteurOffreGmf", cleAcheteur: session.cle, vin: v.vin, prix: Math.round(p), note: document.getElementById("noteOffre").value.trim() });
+      if (!j.ok) { b.disabled = false; b.textContent = t().envoyerOffre; err.innerHTML = '<div class="alerte mauvais" role="alert">' + echappe(j.erreur || t().RESEAU) + "</div>"; return; }
+      fiche.votreOffre = { id: j.id, prix: j.prix, note: document.getElementById("noteOffre").value.trim() };
+      zone.innerHTML = "<h2>" + echappe(j.maj ? g.merciModif : t().merciOffre) + '</h2><p class="aide">' + echappe(g.merciTexte(dateFin(j.finVente || v.finVente))) + '</p><div class="boutons"><button type="button" class="btn principal plein" id="finFiche">' + echappe(t().fermer) + "</button></div>";
+      document.getElementById("finFiche").onclick = fermerFiche;
+      chargerGmf();
+    } catch (e) { if (!e.session) { b.disabled = false; b.textContent = t().envoyerOffre; err.innerHTML = '<div class="alerte mauvais">' + echappe(t().RESEAU) + "</div>"; } }
+  };
+}
+
+async function chargerGmf() {
+  if (!session) return;
+  try {
+    const j = await appeler({ action: "acheteurGmf", cleAcheteur: session.cle });
+    gmf = (j && j.ok && Array.isArray(j.vehicules)) ? j : null;
+  } catch (e) { if (!e.session) gmf = gmf || null; }
+  if (fiche) { redessinerApres = true; return; }
+  if (donnees) {
+    const q = document.getElementById("qGmf"), garde = q && document.activeElement === q;
+    dessiner();
+    if (garde) { const n = document.getElementById("qGmf"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }
+  }
+}
+
 /* ------------------------------- Données -------------------------------- */
 async function charger() {
   if (!session) { dessiner(); return; }
+  chargerGmf();
   try {
     const j = await appeler({ action: "acheteurPortail", cleAcheteur: session.cle });
     if (!j.ok) { if (!donnees) document.getElementById("main").innerHTML = '<div class="message"><strong>' + echappe(j.erreur || t().RESEAU) + "</strong></div>"; return; }
@@ -559,7 +842,7 @@ async function charger() {
 
 async function deconnecter() {
   const cle = session && session.cle;
-  ecrireSession(null); donnees = null; fermerFiche(); connexion.etape = "courriel"; connexion.erreur = ""; dessiner();
+  ecrireSession(null); donnees = null; gmf = null; fermerFiche(); connexion.etape = "courriel"; connexion.erreur = ""; dessiner();
   if (cle) { try { await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "acheteurDeconnexion", cleAcheteur: cle }) }); } catch (e) {} }
 }
 
@@ -567,7 +850,7 @@ document.querySelectorAll(".langues button").forEach(b => b.addEventListener("cl
   langue = b.dataset.langue; try { localStorage.setItem("automaxLangue", langue); } catch (e) {}
   dessiner(); if (fiche) dessinerFiche();
 }));
-document.addEventListener("keydown", e => { if (e.key === "Escape" && fiche) fermerFiche(); });
+document.addEventListener("keydown", e => { if (e.key !== "Escape") return; const a = document.querySelector(".agrandi"); if (a) { a.remove(); return; } if (fiche) fermerFiche(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && session && donnees && !fiche) charger(); });
 dessiner();
 charger();

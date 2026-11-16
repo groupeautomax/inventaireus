@@ -143,7 +143,7 @@
 
   /* ------------------------------- La vue -------------------------------- */
   var EVENEMENTS = ['amx:profil', 'amx:accueil-depart', 'amx:eblock', 'amx:openlane', 'amx:demandes', 'amx:suggestions', 'amx:service', 'amx:inventaire',
-    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto', 'amx:contrats', 'amx:evalDemandes'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
+    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto', 'amx:contrats', 'amx:evalDemandes', 'amx:offresGmf'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
   function Accueil(conteneur, ctx) {
     injecterCss();
     var self = this;
@@ -331,6 +331,7 @@
     if (voit('avis') && AMX.avis) (AMX.avis.resume ? AMX.avis.resume() : AMX.avis.charger()).then(relancer, rien);   /* 9 nov. (vitesse) : les deux nombres seulement, pas les 4,1 Mo d'avis */
     if (voit('csi') && AMX.csiAlertes) AMX.csiAlertes.charger().then(relancer, rien);   /* 7 nov. : sondages CSI à 8 ou moins */
     if (ongletVoit('offres', 'recues')) chargerOffres().then(relancer, rien);
+    if (ongletVoit('outils', 'opportunites') && AMX.offresGmf) AMX.offresGmf.charger().then(relancer, rien);   /* 16 nov. : offres d'acheteurs sur les véhicules GM Financial */
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);   /* 2 nov. : jamais pour un représentant */
     if ((voit('demandesEval') || voit('evalPortail')) && AMX.evalDemandes) AMX.evalDemandes.charger().then(relancer, rien);   /* 27 oct. : demandes d'évaluation ; 2 nov. : portail du représentant */
     if (voitImports()) chargerImports().then(relancer, rien);
@@ -445,6 +446,11 @@
     if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.contrats.enCache()) {
       var cv = AMX.achatsAuto.contrats.aVerifier(cie);
       if (cv.length) out.push({ ton: 'ambre', n: cv.length, titre: 'Contrats d\'achat reçus par courriel, à vérifier', detail: cv.slice(0, 2).map(function (c) { return c.raison || c.fichier; }).join(' · ') + (cv.length > 2 ? '…' : ''), href: AMX.inventaire.lien('detail', { contrats: 1 }), ic: 'inventaire' });
+    }
+    // 16 nov. : offres des acheteurs du portail sur les véhicules GM Financial (PortailGmf.gs), à traiter — ambre
+    if (ongletVoit('outils', 'opportunites') && AMX.offresGmf && AMX.offresGmf.enCache()) {
+      var og = AMX.offresGmf.aTraiterPour(cie);
+      if (og.length) out.push({ ton: 'ambre', n: og.length, titre: 'Offres d\'acheteurs sur des véhicules GM Financial', detail: og.slice(0, 3).map(function (o) { return (o.nomLegal || o.courriel) + ' : ' + AMX.fmtArgent(o.prix) + ' — ' + (o.titre || o.vin); }).join(' · ') + (og.length > 3 ? '…' : ''), href: AMX.lien('outils', 'opportunites', { onglet: 'offres' }), ic: 'outils' });
     }
     // 26 oct. : clients d'évaluation dont la date de relance est passée (registre des évaluations, concession choisie)
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations && AMX.evaluations.enCache()) {

@@ -108,7 +108,8 @@
      les opportunités de marché, on les a déjà ») : la page n'a plus que « À acheter ». Le prix du marché de nos occasions est dans
      Inventaire › Analyse occasion (et le bloc du panneau Occasion) ; la lecture du marché du lundi continue pour eux. */
   // 26 oct. (suite, Maxime : « cache les sources et mets-les sous un onglet à droite ») : l'onglet « Sources », à droite.
-  var ONGLETS = [['acheter', 'À acheter'], ['sources', 'Sources']];
+  // 16 nov. (portail des acheteurs, véhicules GM Financial) : « Offres d'acheteurs » = leurs offres (assets/offres-gmf.js).
+  var ONGLETS = [['acheter', 'À acheter'], ['offres', 'Offres d\'acheteurs'], ['sources', 'Sources']];
   /* Âge lisible d'une date : « il y a 12 min », « il y a 3 h », sinon la date. */
   function ilYa(iso) {
     if (!iso) return '';
@@ -152,10 +153,12 @@
     this.montrer(this.onglet);
     this.charger(false);
     var self = this;
+    if (AMX.offresGmf) AMX.offresGmf.charger(false).then(function () { self.rendreOnglets(); }, function () {});
     this.surCie = function () {
       self.compagnie = AMX.compagnieChoisie('inventaire') || ''; self.rendre();
       if (self.vueMarche) self.vueMarche.rafraichir();
       if (self.vueConc) { self.vueConc._cle = null; self.vueConc.rafraichir(); }
+      if (self.vueOffres) self.vueOffres.rendre();
       self.rendreOnglets();
     };
     document.addEventListener('amx:compagnie', this.surCie);
@@ -244,7 +247,8 @@
     this.elPanConc = h('div.occ-pan#occ-pan-concurrents', { role: 'tabpanel', hidden: true });
     this.corpsSourcesOnglet = h('div.occ-src-modale.occ-src-onglet');
     this.elPanSources = h('div.occ-pan#occ-pan-sources', { role: 'tabpanel', hidden: true }, [this.corpsSourcesOnglet]);
-    this.el = h('div.page.occ-page', [entete, this.elSrc, this.elCies, this.elOnglets, this.elPanAcheter, this.elPanMarche, this.elPanConc, this.elPanSources]);
+    this.elPanOffres = h('div.occ-pan#occ-pan-offres', { role: 'tabpanel', hidden: true });
+    this.el = h('div.page.occ-page', [entete, this.elSrc, this.elCies, this.elOnglets, this.elPanAcheter, this.elPanOffres, this.elPanMarche, this.elPanConc, this.elPanSources]);
     this.conteneur = null;
   };
 
@@ -254,6 +258,12 @@
     this.onglet = onglet; if (onglet !== 'sources') AMX.memo.ecrire('occ_onglet', onglet);
     this.elPanAcheter.hidden = onglet !== 'acheter'; this.elPanMarche.hidden = onglet !== 'marche'; this.elPanConc.hidden = onglet !== 'concurrents';
     this.elPanSources.hidden = onglet !== 'sources';
+    this.elPanOffres.hidden = onglet !== 'offres';
+    if (onglet === 'offres') {
+      if (!AMX.offresGmf) { AMX.vider(this.elPanOffres); this.elPanOffres.appendChild(h('div.vide', [h('h3', 'Page à mettre à jour'), h('div', 'Rechargez la page (assets/offres-gmf.js manquant).')])); }
+      else if (!this.vueOffres) { this.vueOffres = new AMX.offresGmf.Vue(this); this.elPanOffres.appendChild(this.vueOffres.el); }
+      else this.vueOffres.charger(false);
+    }
     this.rendreOnglets();
     if (onglet === 'sources') this.remplirSources(this.corpsSourcesOnglet, this.sourceFocus || '');
     if (onglet === 'marche' || onglet === 'concurrents') this.chargerMarche(false);
@@ -263,9 +273,10 @@
     var compte = {
       acheter: d && d.occasions ? d.occasions.filter(function (o) { return !o.autre && self.estOpp(o) && o.statut !== 'ecartee' && o.statut !== 'achetee'; }).length : null,
       marche: dm && dm.vehicules ? (AMX.occMarche.vehiculesActuels ? AMX.occMarche.vehiculesActuels(dm) : dm.vehicules).filter(function (v) { return v.verdict === 'cher' && (!cie || v.compagnie === cie); }).length : null,
-      concurrents: this.vueConc && this.vueConc.d && this.vueConc.pret ? this.vueConc.filtrer().length : null
+      concurrents: this.vueConc && this.vueConc.d && this.vueConc.pret ? this.vueConc.filtrer().length : null,
+      offres: AMX.offresGmf && AMX.offresGmf.enCache() ? AMX.offresGmf.aTraiterPour(cie).length : null
     };
-    var sous = { acheter: 'bons achats', marche: 'trop chers', concurrents: 'voisins' };
+    var sous = { acheter: 'bons achats', marche: 'trop chers', concurrents: 'voisins', offres: 'à traiter' };
     var rangEtat = { rouge: 4, ambre: 3, bleu: 2, vert: 1, gris: 0 }, pire = 'gris', nbProb = 0;
     if (d) this.sourcesEtat().forEach(function (x) { if (rangEtat[x.etat] > rangEtat[pire]) pire = x.etat; if (x.etat === 'rouge' || x.etat === 'ambre') nbProb++; });
     AMX.vider(this.elOnglets);

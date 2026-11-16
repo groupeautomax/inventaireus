@@ -43,6 +43,8 @@
   .btn.principal { border: 0; background: var(--vert); color: #fff; }
   .btn.plein { flex: 1 1 auto; }
   .btn:disabled { opacity: .55; cursor: default; }
+  .apercu-bandeau { margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; background: var(--ambre-pale); color: var(--ambre); border: 1px solid #f0d2a4; font-size: 15px; line-height: 1.45; }
+  .apercu-bandeau b { color: #6b440b; }
   .alerte { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
   .alerte.mauvais { background: var(--ambre-pale); color: #7a4a0e; }
   .alerte.bon { background: var(--vert-pale); color: #0a6136; }
@@ -274,6 +276,22 @@ let filtres = { q: "", marque: "", annee: "", tri: "recents" };
 let connexion = { etape: "courriel", courriel: (session && session.courriel) || "", canal: "", destination: "", textoPossible: true, message: "", erreur: "" };
 let fiche = null;                     // { vin, vehicule, etat, photo } — { gmf: true, … } pour un véhicule GM
 let gmf = null;                       // réponse de acheteurGmf (véhicules GM, sans prix) — null si le serveur ne l'a pas
+/* 16 nov. (Maxime : « je veux voir ce que l'acheteur voit sur GMF ») : aperçu de l'équipe, ?apercu=gm[&vin=NIV]. Un compte
+   ScanAutomax connecté au site (même adresse : groupeautomax.github.io) voit exactement la page de l'acheteur — onglet Véhicules
+   GM, sans aucun prix, photos et dommages — mais ne peut pas faire d'offre. Le script répond par ?gmfApercu=1 (PortailGmf.gs). */
+const APERCU = params.get("apercu") === "gm";
+const EQUIPE = APERCU ? (function () { try { const j = localStorage.getItem("pg_jeton_v1") || "", u = localStorage.getItem("pg_utilisateur_v1") || ""; return j && u ? { jeton: j, utilisateur: u } : null; } catch (e) { return null; } })() : null;
+let apercuErreur = "";
+const TA = {
+  fr: { bandeau: "<b>Aperçu de l'équipe</b> — c'est exactement ce que voit un concessionnaire acheteur : aucun prix, toutes les photos et les dommages. Les offres sont désactivées ici.",
+    compte: "Aperçu de l'équipe", offre: "Faire une offre (désactivé dans l'aperçu)", sansSession: "Ouvrez cette page depuis ScanAutomax (Outils › Opportunités d'achat) dans un navigateur où vous êtes connecté au site.",
+    ouvrirSite: "Ouvrir ScanAutomax", desactive: "Les offres sont désactivées dans l'aperçu de l'équipe." },
+  en: { bandeau: "<b>Team preview</b> — this is exactly what a buyer dealership sees: no prices, every photo and all the damage. Offers are disabled here.",
+    compte: "Team preview", offre: "Make an offer (disabled in preview)", sansSession: "Open this page from ScanAutomax (Outils › Opportunités d'achat) in a browser where you are signed in to the site.",
+    ouvrirSite: "Open ScanAutomax", desactive: "Offers are disabled in the team preview." }
+};
+function ta() { return TA[langue] || TA.fr; }
+if (APERCU) { session = EQUIPE ? { apercu: true, cle: "", nom: "", courriel: EQUIPE.utilisateur } : null; onglet = "gmf"; }
 let filtresGmf = { q: "", marque: "", modele: "", annee: "", tri: "fin" };
 let redessinerApres = false;              // une liste arrivée pendant qu'une fiche était ouverte : redessiner à la fermeture
 
@@ -306,7 +324,20 @@ function convLigne(prix) {
   return "";
 }
 
+async function appelerApercu(corps) {
+  let q = "";
+  if (corps.action === "acheteurGmf") q = "gmfApercu=1";
+  else if (corps.action === "acheteurVehiculeGmf") q = "gmfApercu=1&vin=" + encodeURIComponent(corps.vin || "");
+  else return { ok: false, erreur: ta().desactive };
+  if (!EQUIPE) return { ok: false, erreur: ta().sansSession };
+  const r = await fetch(SCRIPT_URL + "?" + q + "&jeton=" + encodeURIComponent(EQUIPE.jeton) + "&utilisateur=" + encodeURIComponent(EQUIPE.utilisateur) + "&_=" + Date.now(), { cache: "no-store" });
+  const j = await r.json();
+  if (j && j.refuse) return { ok: false, erreur: j.erreur || ta().sansSession };
+  return j;
+}
+
 async function appeler(corps) {
+  if (APERCU) return appelerApercu(corps);
   const r = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ langue: langue }, corps)) });
   const j = await r.json();
   if (j && j.ok === false && (j.code === "SESSION" || j.code === "SUSPENDU" || j.code === "EN_ATTENTE" || j.code === "NON_INSCRIT")) {
@@ -323,7 +354,8 @@ function dessinerEntete() {
   document.title = t().titre;
   document.querySelectorAll(".langues button").forEach(b => b.setAttribute("aria-pressed", b.dataset.langue === langue ? "true" : "false"));
   const compte = document.getElementById("compte");
-  if (session) {
+  if (APERCU) { compte.hidden = !session; compte.innerHTML = "<b>" + echappe(ta().compte) + "</b>"; }
+  else if (session) {
     compte.hidden = false;
     compte.innerHTML = "<b>" + echappe(session.nom || session.courriel) + "</b>" + '<button type="button" class="lien" id="sortir">' + echappe(t().deconnexion) + "</button>";
     document.getElementById("sortir").onclick = deconnecter;
@@ -334,6 +366,17 @@ function dessinerEntete() {
 function dessiner() {
   dessinerEntete();
   const main = document.getElementById("main");
+  if (APERCU) {
+    if (!session) { main.innerHTML = '<div class="bloc etroit"><p class="aide">' + echappe(ta().sansSession) + '</p><div class="boutons"><a class="btn principal plein" href="../#/outils/opportunites">' + echappe(ta().ouvrirSite) + "</a></div></div>"; return; }
+    let ha = '<div class="apercu-bandeau" role="note">' + ta().bandeau + "</div>";
+    if (gmf) ha += vueGmf();
+    else if (apercuErreur) ha += '<div class="message"><strong>' + echappe(apercuErreur) + "</strong></div>";
+    else ha += '<div class="message"><strong>' + echappe(t().chargement) + "</strong></div>";
+    main.innerHTML = ha;
+    if (gmf) brancherGmf();
+    main.querySelectorAll("[data-gmf-offre]").forEach(b => b.onclick = () => ouvrirFicheGmf(b.dataset.gmfOffre));
+    return;
+  }
   if (!session) { main.innerHTML = vueConnexion(); brancherConnexion(); return; }
   if (!donnees) { main.innerHTML = '<div class="message"><strong>' + echappe(t().chargement) + "</strong></div>"; return; }
   const nOffres = (donnees.offres || []).length + ((gmf && gmf.offres) || []).length;
@@ -516,7 +559,7 @@ async function ouvrirFiche(vin) {
     dessinerFiche();
   } catch (e) { if (!e.session && fiche) { fiche.erreur = t().RESEAU; dessinerFiche(); } }
 }
-function fermerFiche() { fiche = null; const v = document.getElementById("voile"); if (v) v.remove(); document.body.style.overflow = ""; if (redessinerApres) { redessinerApres = false; if (donnees) dessiner(); } }
+function fermerFiche() { fiche = null; const v = document.getElementById("voile"); if (v) v.remove(); document.body.style.overflow = ""; if (redessinerApres) { redessinerApres = false; if (donnees || APERCU) dessiner(); } }
 
 function dessinerFiche() {
   let voile = document.getElementById("voile");
@@ -764,7 +807,8 @@ function dessinerFicheGmf(voile) {
   h += "</div>";
   if ((v.annonces || []).length) h += '<div class="bloc"><h2>' + echappe(g.annonces) + "</h2>" + v.annonces.map(a => '<div class="ligne"><span class="k">' + echappe(a) + "</span></div>").join("") + "</div>";
   if (fiche.erreur) h += '<div class="alerte mauvais" role="alert">' + echappe(fiche.erreur) + "</div>";
-  h += '<div class="actionsFiche"><button type="button" class="btn principal plein" id="offrirGmf"' + (fiche.chargee ? "" : " disabled") + ">" + echappe(fiche.votreOffre ? g.modifierOffre : t().faireOffre) + "</button></div></div>";
+  h += APERCU ? '<div class="actionsFiche"><button type="button" class="btn plein" disabled>' + echappe(ta().offre) + "</button></div></div>"
+    : '<div class="actionsFiche"><button type="button" class="btn principal plein" id="offrirGmf"' + (fiche.chargee ? "" : " disabled") + ">" + echappe(fiche.votreOffre ? g.modifierOffre : t().faireOffre) + "</button></div></div>";
   voile.innerHTML = h;
   document.getElementById("fermer").onclick = fermerFiche;
   voile.querySelectorAll(".bande img").forEach(img => img.onclick = () => { fiche.photo = Number(img.dataset.i); dessinerFiche(); });
@@ -816,9 +860,10 @@ async function chargerGmf() {
   try {
     const j = await appeler({ action: "acheteurGmf", cleAcheteur: session.cle });
     gmf = (j && j.ok && Array.isArray(j.vehicules)) ? j : null;
-  } catch (e) { if (!e.session) gmf = gmf || null; }
+    apercuErreur = gmf ? "" : ((j && j.erreur) || t().RESEAU);
+  } catch (e) { if (!e.session) { gmf = gmf || null; apercuErreur = gmf ? "" : t().RESEAU; } }
   if (fiche) { redessinerApres = true; return; }
-  if (donnees) {
+  if (donnees || APERCU) {
     const q = document.getElementById("qGmf"), garde = q && document.activeElement === q;
     dessiner();
     if (garde) { const n = document.getElementById("qGmf"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }
@@ -827,6 +872,14 @@ async function chargerGmf() {
 
 /* ------------------------------- Données -------------------------------- */
 async function charger() {
+  if (APERCU) {
+    dessiner();
+    if (!session) return;
+    await chargerGmf();
+    const vinA = (params.get("vin") || "").trim().toUpperCase();
+    if (vinA && !charger.vinOuvert) { charger.vinOuvert = true; ouvrirFicheGmf(vinA); }
+    return;
+  }
   if (!session) { dessiner(); return; }
   chargerGmf();
   try {

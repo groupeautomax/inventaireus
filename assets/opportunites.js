@@ -1077,6 +1077,7 @@
         { texte: 'Évaluer ce véhicule', action: function () { AMX.aller('outils', 'evaluation', { vin: o.vin, km: num(o.km) || '' }); } },
         { texte: 'Copier le NIV', action: function () { AMX.copier(o.vin, 'NIV copié'); } },
         mhm && AMX.manheim ? { texte: 'Photos et état (Manheim)', action: function () { AMX.manheim.ouvrir(o.vin); } } : null,
+        o.source === 'gmf' && AMX.offresGmf && AMX.offresGmf.voirCommeAcheteur ? { texte: 'Voir comme l\'acheteur (portail)', action: function () { AMX.offresGmf.voirCommeAcheteur(o.vin); } } : null,
         locBmw(o) ? { texte: 'Calculer la location BMW', action: function () { AMX.aller('locbmw', '', { vin: o.vin, km: num(o.km) || '' }); } } : null,
         { texte: 'Relire la prévision OpenLane', action: function () { self.relireOl(o); } },
         { texte: o.statut === 'suivie' ? 'Ne plus suivre' : 'Suivre', action: function () { self.statut(o, o.statut === 'suivie' ? '' : 'suivie'); } },
@@ -1302,6 +1303,7 @@
     var boutons = [
       o.lien ? { texte: 'Annonce ↗', action: function () { window.open(o.lien, '_blank', 'noopener'); return false; } } : null,
       mhm && AMX.manheim ? { texte: 'Photos et état (Manheim)', action: function () { AMX.manheim.ouvrir(o.vin); return false; } } : null,
+      o.source === 'gmf' && AMX.offresGmf && AMX.offresGmf.voirCommeAcheteur ? { texte: 'Voir comme l\'acheteur', action: function () { AMX.offresGmf.voirCommeAcheteur(o.vin); return false; } } : null,
       locBmw(o) ? { texte: 'Calculer la location BMW', action: function () { AMX.aller('locbmw', '', { vin: o.vin, km: num(o.km) || '' }); } } : null,
       { texte: 'Évaluer', action: function () { AMX.aller('outils', 'evaluation', { vin: o.vin, km: num(o.km) || '' }); } },
       { texte: o.statut === 'suivie' ? 'Ne plus suivre' : 'Suivre', action: function () { self.statut(o, o.statut === 'suivie' ? '' : 'suivie'); } },

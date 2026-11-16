@@ -57,6 +57,11 @@
     });
   }
 
+  /* 16 nov. (Maxime : « je veux voir ce que l'acheteur voit sur GMF ») : le portail des acheteurs en aperçu de l'équipe —
+     la même page, sans prix, offres désactivées (vitrine/portail.html?apercu=gm, script ?gmfApercu=1). */
+  function apercuUrl(vin) { return 'vitrine/portail.html?apercu=gm' + (vin ? '&vin=' + encodeURIComponent(vin) : ''); }
+  function voirCommeAcheteur(vin) { window.open(apercuUrl(vin), '_blank', 'noopener'); }
+
   /* ------------------------------ La vue ------------------------------ */
   function Vue(parent) {
     injecterCss();
@@ -72,6 +77,7 @@
     this.el = h('div.ogm', [
       h('div.carte.ogm-intro', [h('div.carte-corps', [
         h('p', { html: 'Les concessionnaires acheteurs approuvés voient les véhicules de <b>GM Financial (DealerSource)</b> dans leur portail, <b>sans aucun prix</b>, avec les photos et les dommages, et font une offre. Achetez le véhicule sur DealerSource si la marge y est, puis <b>Passer au contrat</b> : l\'offre entre dans Offres reçues et la suite est la même.' }),
+        h('div', { style: { marginTop: '10px' } }, [h('a.btn.primaire', { href: apercuUrl(''), target: '_blank', rel: 'noopener', html: (I.vitrine || I.voir || '') + '<span>Voir ce que voit l\'acheteur</span>' })]),
         this.elEtat
       ])]),
       h('div.carte.ogm-filtres', [h('div.carte-corps', [h('div.occ-ligne', [h('div.recherche', [h('span', { html: I.recherche || '' }), this.elQ])]), h('div.occ-ligne', [this.elStatuts])])]),
@@ -160,6 +166,7 @@
     ]);
     var boutons = h('div.ogm-actions');
     if (g.lien) boutons.appendChild(h('a.btn.petit', { href: g.lien, target: '_blank', rel: 'noopener', text: 'Ouvrir sur DealerSource' }));
+    if (o.aVendre) boutons.appendChild(h('a.btn.petit', { href: apercuUrl(o.vin), target: '_blank', rel: 'noopener', text: 'Comme l\'acheteur le voit' }));
     if (o.statut === 'nouvelle') {
       if (d.peutContrat) boutons.appendChild(h('button.btn.petit.primaire', { type: 'button', text: 'Passer au contrat', disabled: !o.achete,
         title: o.achete ? '' : 'Achetez d\'abord le véhicule sur DealerSource : il doit être entré dans nos registres.', onclick: function () { self.contrat(o); } }));
@@ -232,6 +239,6 @@
     document.head.appendChild(s);
   }
 
-  AMX.offresGmf = { charger: charger, enCache: function () { return cache.rep; }, aTraiterPour: aTraiterPour, Vue: Vue,
+  AMX.offresGmf = { charger: charger, enCache: function () { return cache.rep; }, aTraiterPour: aTraiterPour, Vue: Vue, apercuUrl: apercuUrl, voirCommeAcheteur: voirCommeAcheteur,
     vider: function () { cache.rep = null; cache.quand = 0; cache.qui = ''; } };
 })();

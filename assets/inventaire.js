@@ -42,12 +42,8 @@
   function enRetardAchat(v) { return !estEchange(v) && (v.statut === 'achete' || v.statut === 'transitqc') && AMX.joursDepuis(v.dateAjout) >= 7; }
   function textesRecherche(v) { return [v.vin, v.modele, v.stock, v.origine, estEchange(v) ? 'échange' : 'achat']; }
   function filtreProvenance(v, voulu) { return voulu === 'Échange' ? estEchange(v) : !estEchange(v); }
-  function stickerUrl(v) {
-    var m = marque(v);
-    if (['CHEVROLET', 'GMC', 'BUICK', 'CADILLAC'].indexOf(m) >= 0) return 'https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=' + encodeURIComponent(v.vin);
-    if (m === 'FORD' || m === 'LINCOLN') return 'https://www.windowsticker.ford.com/vin/' + encodeURIComponent(v.vin);
-    return '';
-  }
+  // 16 nov. : GM, Stellantis (Chrysler, Dodge, Jeep, RAM…) et Ford — AMX.sticker (app.js), par le NIV puis la marque.
+  function stickerUrl(v) { return AMX.stickerUrl ? AMX.stickerUrl(v.vin, v.modele) : ''; }
   /* 1 161 135 → « 1,16 M$ », 345 200 → « 345 k$ » (pastilles des registres, v138). */
   function montantCourt(n) { n = Number(n) || 0; if (Math.abs(n) >= 1e6) return (Math.round(n / 1e4) / 100).toLocaleString('fr-CA') + ' M$'; if (Math.abs(n) >= 1e3) return Math.round(n / 1e3).toLocaleString('fr-CA') + ' k$'; return Math.round(n) + ' $'; }
   function trier(liste, cle) {
@@ -119,19 +115,53 @@
   /* 27 oct. (Maxime : « prends ton data de photo de D2C ») : le nombre de photos de chaque occasion sur le site de la concession,
      lu par l'import D2C du matin (GET ?photosD2c=1). nb(vin) = null quand D2C ne connaît pas le véhicule (on retombe sur les photos
      prises dans l'app). */
-  var photosSite = { d: null, le: 0, promesse: null };
+  var photosSite = { d: null, le: 0, promesse: null, frais: null, copieLue: false };
+  /* 16 nov. : le nombre de photos lu par le favori D2C avant le 16 nov. était doublé (les chiffres de la cellule collés deux fois :
+     « 1919 » = 19). À partir de 100, deux moitiés pareilles = la moitié. Plus bas (« 11 ») on garde le nombre : une photo de
+     trop est retirée à l'affichage (D2C renvoie une image de 1 × 1 au-delà de la dernière). */
+  function nbD2c(n) {
+    if (n === null || n === undefined || n === '') return null;
+    var x = Number(n); if (!isFinite(x) || x < 0) return null;
+    var s = String(Math.round(x));
+    if (x >= 100 && s.length % 2 === 0 && s.slice(0, s.length / 2) === s.slice(s.length / 2)) s = s.slice(0, s.length / 2);
+    return Number(s);
+  }
+  AMX.nbPhotosD2c = nbD2c;
+  /* 16 nov. (Maxime : « le window sticker est là et le CARFAX, mais c'est long à loader ») : ?photosD2c=1 prend 6 s. La dernière
+     réponse est gardée dans le navigateur (IndexedDB, effacée à la déconnexion) : elle s'affiche tout de suite, la réponse du
+     serveur la remplace en arrière-plan. */
+  function photosD2cRelire() {
+    if (photosSite.frais) return photosSite.frais;
+    photosSite.frais = AMX.get({ photosD2c: 1 }, { secours: false, delai: 30000, discret: true, copie: 'photos_d2c' }).then(function (d) {
+      photosSite.frais = null; photosSite.d = (d && d.parVin) ? d : (photosSite.d || { parVin: {}, le: {} }); photosSite.le = Date.now();
+      try { document.dispatchEvent(new CustomEvent('amx:photosD2c')); } catch (e) {}
+      return photosSite.d;
+    }, function (e) { photosSite.frais = null; if (photosSite.d) return photosSite.d; throw e; });
+    return photosSite.frais;
+  }
   AMX.photosD2c = {
     charger: function (force) {
-      if (!force && photosSite.d && Date.now() - photosSite.le < 600000) return Promise.resolve(photosSite.d);
+      if (force) return photosD2cRelire();
+      if (photosSite.d && Date.now() - photosSite.le < 600000) return Promise.resolve(photosSite.d);
       if (photosSite.promesse) return photosSite.promesse;
-      photosSite.promesse = AMX.get({ photosD2c: 1 }, { secours: false, delai: 30000 }).then(function (d) {
-        photosSite.promesse = null; photosSite.d = (d && d.parVin) ? d : { parVin: {}, le: {} }; photosSite.le = Date.now();
-        try { document.dispatchEvent(new CustomEvent('amx:photosD2c')); } catch (e) {}
-        return photosSite.d;
-      }, function (e) { photosSite.promesse = null; throw e; });
+      var frais = photosD2cRelire();
+      if (photosSite.d) { frais.catch(function () {}); return Promise.resolve(photosSite.d); }   // ce qu'on a tout de suite ; la relecture suit
+      if (photosSite.copieLue || !AMX.cacheLocal || !AMX.cacheLocal.lireGz) return frais;
+      photosSite.copieLue = true;
+      photosSite.promesse = AMX.cacheLocal.lireGz('photos_d2c', 7 * 864e5).then(function (o) {
+        photosSite.promesse = null;
+        var d = o && o.donnees;
+        if (d && d.parVin && !photosSite.d) {
+          photosSite.d = d; photosSite.le = 0;   // copie : la réponse du serveur la remplacera
+          frais.catch(function () {});
+          try { document.dispatchEvent(new CustomEvent('amx:photosD2c')); } catch (e) {}
+          return d;
+        }
+        return frais;
+      }, function () { photosSite.promesse = null; return frais; });
       return photosSite.promesse;
     },
-    nb: function (vin) { var p = photosSite.d && photosSite.d.parVin; if (!p) return null; var n = p[String(vin || '').toUpperCase()]; return (n === undefined || n === null) ? null : Number(n); },
+    nb: function (vin) { var p = photosSite.d && photosSite.d.parVin; if (!p) return null; var n = p[String(vin || '').toUpperCase()]; return nbD2c(n); },
     leDe: function (cie) { return (photosSite.d && photosSite.d.le && photosSite.d.le[cie]) || ''; },
     /* 6 nov. (Portefeuille clients) : la 1re photo de chaque véhicule (neufs et occasions) sur le site de la concession —
        { url, marque, modele, annee, neuf, cie } ou null. Ce sont nos propres photos, servies publiquement par admin.d2cmedia.ca. */
@@ -142,6 +172,134 @@
   };
   // Après un ajout (Évaluation, 21 oct.) : relire les photos du NIV au prochain appel.
   AMX.photosOublier = function (vin) { vin = String(vin || '').toUpperCase(); delete cachePhotos[vin]; try { sessionStorage.removeItem('amx_photos_' + vin); } catch (e) {} };
+
+  /* 16 nov. (Maxime : « quand on fait une recherche pour un véhicule en inventaire, en stock au détail ou ailleurs, il faut
+     absolument que les photos suivent, comme 1G1YC3D41P5111218 ») : les photos d'un véhicule = celles du site de la concession
+     (D2C, publiques : admin.d2cmedia.ca/dealer/<concession>/<id>/1.jpg … n.jpg), puis celles prises dans l'app (Drive).
+     Au-delà de la dernière, D2C renvoie une image de 1 × 1 : elle n'est jamais montrée (naturalWidth ≤ 1). Quand le nombre
+     n'est pas connu (neufs), les photos sont essayées 6 à la fois jusqu'à la première absente (40 au plus).
+     AMX.photosSite(vin) → Promise [{ url, vignette, angle, source: 'site' }] ; AMX.photosVehicule(vin) = site + app ;
+     AMX.blocPhotosVehicule(vin, opts) = la grille (clic = galerie) ; AMX.vignetteVehicule(vin, opts) = une petite photo. */
+  var PHOTOS_SITE_MAX = 40, cacheSite = {};
+  function imageExiste(url) { return new Promise(function (ok) { var i = new Image(); i.onload = function () { ok(i.naturalWidth > 1); }; i.onerror = function () { ok(false); }; i.src = url; }); }
+  function urlsSite(vin) {
+    var im = AMX.photosD2c.image(vin); if (!im || !im.url) return null;
+    var m = /^(.*\/)\d+\.(jpe?g|png|webp)$/i.exec(im.url);
+    if (!m) return { liste: [im.url], n: 1 };
+    var n = AMX.photosD2c.nb(vin);
+    return { base: m[1], ext: m[2], n: n && n > 0 ? Math.min(n, PHOTOS_SITE_MAX) : null };
+  }
+  function photosSiteDe(vin) {
+    vin = String(vin || '').trim().toUpperCase();
+    if (cacheSite[vin]) return cacheSite[vin];
+    var p = AMX.photosD2c.charger().catch(function () { return null; }).then(function () {
+      var u = urlsSite(vin); if (!u) return [];
+      if (u.liste) return u.liste;
+      var url = function (k) { return u.base + k + '.' + u.ext; }, out = [], k;
+      if (u.n) { for (k = 1; k <= u.n; k++) out.push(url(k)); return out; }
+      var lot = function (debut) {
+        var fin = Math.min(debut + 5, PHOTOS_SITE_MAX), essais = [];
+        for (var i = debut; i <= fin; i++) essais.push(imageExiste(url(i)));
+        return Promise.all(essais).then(function (r) {
+          for (var j = 0; j < r.length; j++) { if (!r[j]) return out; out.push(url(debut + j)); }
+          return fin >= PHOTOS_SITE_MAX ? out : lot(fin + 1);
+        });
+      };
+      return lot(1);
+    }).then(function (l) { return l.map(function (x, i) { return { url: x, vignette: x, angle: '', source: 'site', rang: i + 1 }; }); });
+    p.then(function (l) { if (!l.length) delete cacheSite[vin]; });   // le site peut avoir ses photos plus tard (prochain import)
+    cacheSite[vin] = p;
+    return p;
+  }
+  function photosAppDe(vin) {
+    return photosDe(vin).then(function (p) {
+      return (p || []).map(function (x) {
+        var u = typeof x === 'string' ? x : (x.url || ''); if (!u) return null;
+        return { url: AMX.vignetteDrive(u, 1600), vignette: AMX.vignetteDrive(u, 400), angle: (x && (x.angle || x.description)) || '', source: 'app', original: u };
+      }).filter(Boolean);
+    }, function () { return []; });
+  }
+  AMX.photosSite = photosSiteDe;
+  AMX.photosVehicule = function (vin) {
+    vin = String(vin || '').trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return Promise.resolve([]);
+    return Promise.all([photosSiteDe(vin), photosAppDe(vin)]).then(function (r) { return r[0].concat(r[1]); });
+  };
+  function cssPhotos() {
+    if (document.getElementById('css-photos-veh')) return;
+    document.head.appendChild(h('style#css-photos-veh', { text: [
+      '.pv-bloc .vignettes { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }',
+      '.pv-bloc .vignettes img { cursor: zoom-in; }',
+      '.pv-bloc .pv-etat { margin-top: 6px; }',
+      '.pv-bloc .pv-etat:empty { display: none; }',
+      '.pv-mini { position: relative; flex: 0 0 auto; width: 84px; height: 63px; border-radius: 8px; overflow: hidden; border: 1px solid var(--ligne); background: #fff; padding: 0; cursor: zoom-in; display: grid; place-items: center; }',
+      '.pv-mini img.pv-photo { width: 100%; height: 100%; object-fit: cover; display: block; }',
+      '.pv-mini .pv-nb { position: absolute; right: 3px; bottom: 3px; background: rgba(20, 26, 31, .78); color: #fff; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 6px; line-height: 16px; }',
+      '.pv-mini.sans { cursor: default; background: var(--gris-bg); }',
+      '.pv-mini .logo-marque { width: 100%; height: 100%; }'
+    ].join('\n') }));
+  }
+  /* La grille des photos d'un véhicule. opts : { vide: 'texte si aucune photo', app: false (sans les photos de l'app) }. */
+  AMX.blocPhotosVehicule = function (vin, opts) {
+    opts = opts || {}; cssPhotos();
+    vin = String(vin || '').trim().toUpperCase();
+    var grille = h('div.vignettes'), etat = h('div.doux.petit.pv-etat', { text: 'Chargement des photos…' });
+    var el = h('div.pv-bloc', [grille, etat]), vus = {}, fini = { site: false, app: opts.app === false };
+    var images = function () { return Array.prototype.slice.call(grille.querySelectorAll('img')).filter(function (i) { return !(i.complete && i.naturalWidth <= 1); }); };
+    var maj = function () {
+      var l = images(), nS = l.filter(function (i) { return i.dataset.source === 'site'; }).length, nA = l.length - nS, enCours = !(fini.site && fini.app);
+      if (!l.length) { etat.textContent = enCours ? 'Chargement des photos…' : (opts.vide || 'Aucune photo pour ce véhicule (ni sur le site de la concession, ni dans l\'app).'); return; }
+      var t = [];
+      if (nS) t.push(nS + ' photo' + (nS > 1 ? 's' : '') + ' du site de la concession');
+      if (nA) t.push(nA + ' prise' + (nA > 1 ? 's' : '') + ' dans l\'app');
+      etat.textContent = t.join(' · ') + (enCours ? ' · chargement…' : '');
+    };
+    var ajouter = function (ph) {
+      if (vus[ph.url]) return; vus[ph.url] = 1;
+      var img = h('img', { src: ph.vignette || ph.url, alt: ph.angle || 'Photo du véhicule', title: ph.angle || (ph.source === 'site' ? 'Photo du site de la concession' : 'Photo prise dans l\'app'), loading: 'lazy', dataset: { grand: ph.url, source: ph.source } });
+      img.addEventListener('load', function () { if (img.naturalWidth <= 1) img.remove(); maj(); });
+      img.addEventListener('error', function () { img.remove(); maj(); });
+      img.addEventListener('click', function () { var l = images(); AMX.galerie(l.map(function (i) { return { url: i.dataset.grand, angle: i.title || '' }; }), Math.max(0, l.indexOf(img))); });
+      // Les photos du site d'abord, puis celles de l'app.
+      var premiereApp = ph.source === 'site' ? grille.querySelector('img[data-source="app"]') : null;
+      if (premiereApp) grille.insertBefore(img, premiereApp); else grille.appendChild(img);
+    };
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { etat.textContent = opts.vide || 'Aucune photo.'; return el; }
+    photosSiteDe(vin).then(function (l) { l.forEach(ajouter); }, function () {}).then(function () { fini.site = true; maj(); });
+    if (opts.app !== false) photosAppDe(vin).then(function (l) { l.forEach(ajouter); }).then(function () { fini.app = true; maj(); });
+    return el;
+  };
+  /* Une petite photo (recherche, listes) : la 1re du site, sinon la 1re de l'app (seulement si opts.app). Un clic ouvre la
+     galerie de toutes les photos. Sans photo : le logo de la marque (opts.marque) ou rien. */
+  AMX.vignetteVehicule = function (vin, opts) {
+    opts = opts || {}; cssPhotos();
+    vin = String(vin || '').trim().toUpperCase();
+    var logo = function () { return opts.marque && AMX.logoMarque ? AMX.logoMarque(opts.marque, 'petit') : h('span'); };
+    var el = h('button.pv-mini.sans', { type: 'button', title: 'Photos du véhicule', 'aria-label': 'Voir les photos du véhicule' }, [logo()]);
+    var poser = function (url, n) {
+      var img = h('img.pv-photo', { src: url, alt: '', loading: 'lazy' });
+      img.addEventListener('load', function () { if (img.naturalWidth <= 1) { AMX.vider(el).appendChild(logo()); el.classList.add('sans'); } });
+      img.addEventListener('error', function () { AMX.vider(el).appendChild(logo()); el.classList.add('sans'); });
+      AMX.vider(el).appendChild(img); el.classList.remove('sans');
+      if (n > 1) el.appendChild(h('span.pv-nb', { text: String(n) }));
+    };
+    el.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (el.classList.contains('sans')) return;
+      AMX.photosVehicule(vin).then(function (l) { if (l.length) AMX.galerie(l.map(function (x) { return { url: x.url, angle: x.angle }; }), 0); else AMX.toast('Aucune photo pour ce véhicule.', 'info'); });
+    });
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return el;
+    var im = AMX.photosD2c.image(vin);
+    if (im && im.url) poser(im.url, AMX.photosD2c.nb(vin));
+    else {
+      AMX.photosD2c.charger().then(function () {
+        var im2 = AMX.photosD2c.image(vin);
+        if (im2 && im2.url) return poser(im2.url, AMX.photosD2c.nb(vin));
+        if (opts.app) photosAppDe(vin).then(function (l) { if (l.length) poser(l[0].vignette, l.length); });
+      }, function () { if (opts.app) photosAppDe(vin).then(function (l) { if (l.length) poser(l[0].vignette, l.length); }); });
+    }
+    return el;
+  };
 
   /* ------------------------------ Section ------------------------------ */
   // Pour revenir d'un autre onglet (Neufs) au registre sans recharger la section.
@@ -807,13 +965,17 @@
           if (!en.isIntersecting) return;
           self.observateur.unobserve(en.target);
           var vin = en.target.dataset.vin;
-          photosDe(vin).then(function (p) {
-            if (!(p && p.length)) return;
+          var poser = function (url) {
             var repli = Array.prototype.slice.call(en.target.childNodes);
-            var img = h('img', { src: AMX.vignetteDrive(p[0].url, 200), alt: '', loading: 'lazy' });
-            img.addEventListener('error', function () { AMX.vider(en.target); repli.forEach(function (n) { en.target.appendChild(n); }); });   // miniature Drive indisponible : on garde le logo
+            var remettre = function () { AMX.vider(en.target); repli.forEach(function (n) { en.target.appendChild(n); }); };
+            var img = h('img', { src: url, alt: '', loading: 'lazy' });
+            img.addEventListener('error', remettre);   // miniature indisponible : on garde le logo
+            img.addEventListener('load', function () { if (img.naturalWidth <= 1) remettre(); });
             AMX.vider(en.target).appendChild(img);
-          });
+          };
+          var imSite = AMX.photosD2c ? AMX.photosD2c.image(vin) : null;
+          if (imSite && imSite.url) { poser(imSite.url); return; }
+          photosDe(vin).then(function (p) { if (p && p.length) poser(AMX.vignetteDrive(p[0].url, 200)); });
         });
       }, { rootMargin: '200px' });
       this.elListe.querySelectorAll('.vignette[data-vin]').forEach(function (el) { self.observateur.observe(el); });
@@ -837,7 +999,9 @@
     var sansPhoto = v.statut === 'stock' && (v._feuille || cfg.feuille) === 'DETAIL' && (nSite !== null ? nSite === 0 : !v.hasPhotos);
     var joursTxt = (jours === null || jours === undefined || isNaN(jours)) ? '?' : String(jours);
     var pucePhoto = sansPhoto ? h('span.puce-sans-photo', { html: I.photo + '<b>' + joursTxt + ' j</b>', title: 'En stock sans photo, ' + joursTxt + ' jour' + (jours > 1 ? 's' : '') + ' depuis l\'achat' + (nSite !== null ? ' — aucune photo sur le site de la concession (D2C)' : ' — aucune photo dans ScanAutomax'), 'aria-label': 'Sans photo, ' + joursTxt + ' jours' }) : null;
-    var vignette = v.hasPhotos ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })]) : h('div.vignette', { title: 'Aucune photo' }, [AMX.logoMarque(marque(v))]);
+    // 16 nov. : la 1re photo du site de la concession (D2C) quand elle existe, sinon celle de l'app.
+    var imSite = AMX.photosD2c ? AMX.photosD2c.image(v.vin) : null;
+    var vignette = (v.hasPhotos || imSite) ? h('div.vignette', { dataset: { vin: v.vin }, title: 'Photos disponibles' }, [AMX.logoMarque(marque(v)), h('span.cam', { html: I.photo })]) : h('div.vignette', { title: 'Aucune photo' }, [AMX.logoMarque(marque(v))]);
     // Rappels (8 oct., soir — Maxime) : rouge ou vert, pas le détail ; un clic sur la puce rouge ouvre le détail.
     var puceRappel = v.rappel === 'oui'
       ? h('span.puce.alerte.rappel-puce', { text: 'Rappel', title: 'Rappel ouvert — cliquez pour le détail', onclick: function (e) { e.stopPropagation(); self.rappelsOuverts = true; self.selectionner(v.vin); } })
@@ -1124,15 +1288,8 @@
 
     // Photos
     var blocPhotos = h('div.bloc', [h('h3', ['Photos', h('a.btn.petit', { href: 'scan.html', target: '_blank', rel: 'noopener', html: I.photo + '<span>Ajouter (scan)</span>' })])]);
-    var zonePhotos = h('div.chargement', [h('span.spin'), 'Chargement des photos…']);
-    blocPhotos.appendChild(zonePhotos);
-    photosDe(v.vin).then(function (p) {
-      AMX.vider(zonePhotos); zonePhotos.className = '';
-      if (!p.length) { zonePhotos.appendChild(h('div.doux.petit', 'Aucune photo pour ce véhicule.')); return; }
-      var grille = h('div.vignettes');
-      p.forEach(function (ph, i) { var img = h('img', { src: AMX.vignetteDrive(ph.url, 300), alt: ph.angle || '', title: ph.angle || '', loading: 'lazy' }); img.addEventListener('click', function () { AMX.galerie(p.map(function (x) { return { url: AMX.vignetteDrive(x.url, 1600), angle: x.angle }; }), i); }); grille.appendChild(img); });
-      zonePhotos.appendChild(grille);
-    });
+    // 16 nov. : les photos du site de la concession (D2C) d'abord, puis celles prises dans l'app — AMX.blocPhotosVehicule.
+    blocPhotos.appendChild(AMX.blocPhotosVehicule(v.vin));
 
     // Rapport CARFAX : le lien public du compte concessionnaire, par VIN.
     var lienCfx = AMX.carfax.lien(v.vin);
@@ -1227,7 +1384,7 @@
           // 27 oct. : API officielle de CARFAX (carfax-api.js) — Lookup d'abord, puis commande facturée confirmée. Plus de lien vers le portail.
           : (AMX.carfaxApi ? AMX.carfaxApi.bouton(v.vin, { compagnie: v.compagnie, reference: v.stock, vehicule: v.modele, source: 'occasion' })
             : null),
-        sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', html: I.externe + '<span>Window sticker</span>' }) : null
+        sticker ? h('a.btn', { href: sticker, target: '_blank', rel: 'noopener', title: 'Étiquette d\'origine du constructeur (' + ((AMX.sticker(v.vin, v.modele) || {}).source || '') + '), en PDF', html: I.externe + '<span>Window sticker</span>' }) : null
       ]),
       zoneCfx
     ]);

@@ -253,6 +253,37 @@
     var id = AMX.idDrive(u);
     return id ? 'https://drive.google.com/thumbnail?id=' + id + '&sz=w' + (largeur || 400) : String(u || '');
   };
+  /* 16 nov. (Maxime : « le window sticker doit être automatique pour tous les produits GM et Chrysler / RAM ») : l'étiquette
+     d'origine du constructeur, par NIV, sans compte — GM (cws.gm.com) et Stellantis (chrysler.com) vérifiées le 16 nov. sur un
+     NIV canadien ; Ford comme avant. Le préfixe du NIV (constructeur) passe avant la marque écrite (texte = modèle, marque…).
+     AMX.sticker(vin, texte) → { url, source } ou null ; AMX.stickerUrl(vin, texte) → l'adresse ou ''. */
+  var STICKER_PREFIXES = [
+    { source: 'GM', p: ['1G', '2G', '3G', '2CN', '2CK', 'KL', '5GA', 'LRB', 'W04'] },   // 2CN / 2CK = CAMI (Ingersoll) : avant les 2C de Stellantis
+    { source: 'Stellantis', p: ['1C', '2C', '3C', '1J', '1D', '2D', '3D', '1A4', '1A8', '2A4', '2A8', 'ZAC', 'ZFA', 'ZFB', 'ZAR', 'ZAS'] },
+    { source: 'Ford', p: ['1FA', '1FB', '1FC', '1FD', '1FM', '1FT', '2FM', '2FT', '3FA', '3FM', '3FT', '5LM', '1LN', 'NM0'] }
+  ];
+  var STICKER_MARQUES = {
+    GM: ['CHEVROLET', 'CHEVY', 'GMC', 'BUICK', 'CADILLAC', 'PONTIAC', 'HUMMER', 'SATURN', 'OLDSMOBILE'],
+    Stellantis: ['CHRYSLER', 'DODGE', 'JEEP', 'RAM', 'FIAT', 'ALFA', 'PLYMOUTH'],
+    Ford: ['FORD', 'LINCOLN']
+  };
+  var STICKER_URL = {
+    GM: 'https://cws.gm.com/vs-cws/vehshop/v2/vehicle/windowsticker?vin=',
+    Stellantis: 'https://www.chrysler.com/hostd/windowsticker/getWindowStickerPdf.do?vin=',
+    Ford: 'https://www.windowsticker.ford.com/vin/'
+  };
+  AMX.sticker = function (vin, texte) {
+    vin = String(vin || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return null;
+    var source = '';
+    STICKER_PREFIXES.some(function (g) { if (g.p.some(function (p) { return vin.indexOf(p) === 0; })) { source = g.source; return true; } return false; });
+    if (!source) {
+      var mots = ' ' + String(texte || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]+/g, ' ') + ' ';
+      Object.keys(STICKER_MARQUES).some(function (s) { if (STICKER_MARQUES[s].some(function (m) { return mots.indexOf(' ' + m + ' ') >= 0; })) { source = s; return true; } return false; });
+    }
+    return source ? { url: STICKER_URL[source] + encodeURIComponent(vin), source: source } : null;
+  };
+  AMX.stickerUrl = function (vin, texte) { var s = AMX.sticker(vin, texte); return s ? s.url : ''; };
 
   /* ------------------------------ Toasts ------------------------------- */
   /* annuler (2 nov., facultatif) = { texte: 'Annuler', action: function () {} } : un bouton dans le toast, qui le ferme et
@@ -2596,17 +2627,34 @@
   /* ------------------------------ CARFAX --------------------------------- */
   // Liens publics des rapports CARFAX Canada (vhr.carfax.ca/?id=…), par VIN,
   // tirés du compte concessionnaire. Cache partagé par les sections.
-  var carfaxCache = null, carfaxPromesse = null;
+  var carfaxCache = null, carfaxPromesse = null, carfaxFrais = null, carfaxCopieLue = false;
+  /* 16 nov. (Maxime : « le CARFAX est là mais c'est long à loader ») : ?carfaxLiens=1 prend 8 à 9 s (367 Ko). La dernière
+     réponse est gardée dans le navigateur (IndexedDB, AMX.cacheLocal, effacée à la déconnexion) : les liens s'affichent tout de
+     suite à l'ouverture suivante, et la réponse du serveur les remplace en arrière-plan (événement amx:carfax). */
+  function carfaxRelire() {
+    if (carfaxFrais) return carfaxFrais;
+    carfaxFrais = AMX.get({ carfaxLiens: 1 }, { copie: 'carfax_liens', discret: true }).then(function (d) {
+      carfaxFrais = null; carfaxCache = (d && d.liens) || carfaxCache || {};
+      document.dispatchEvent(new CustomEvent('amx:carfax'));
+      return carfaxCache;
+    }, function (e) { carfaxFrais = null; if (!carfaxCache) carfaxCache = {}; throw e; });
+    return carfaxFrais;
+  }
   AMX.carfax = {
     valide: function (lien) { var l = String(lien || '').trim(); return /^https:\/\/vhr\.carfax\.ca\/(?:[a-z]{2}\/)?(?:main)?\?id=[^\s&]+/i.test(l) ? l : ''; },
     charger: function (force) {
-      if (!force && carfaxCache) return Promise.resolve(carfaxCache);
+      if (force) return carfaxRelire();
+      if (carfaxCache) return Promise.resolve(carfaxCache);
       if (carfaxPromesse) return carfaxPromesse;
-      carfaxPromesse = AMX.get({ carfaxLiens: 1 }).then(function (d) {
-        carfaxCache = (d && d.liens) || {}; carfaxPromesse = null;
-        document.dispatchEvent(new CustomEvent('amx:carfax'));
-        return carfaxCache;
-      }, function (e) { carfaxPromesse = null; if (!carfaxCache) carfaxCache = {}; throw e; });
+      var frais = carfaxRelire();
+      if (carfaxCopieLue || !AMX.cacheLocal || !AMX.cacheLocal.lireGz) return frais;
+      carfaxCopieLue = true;
+      carfaxPromesse = AMX.cacheLocal.lireGz('carfax_liens', 7 * 864e5).then(function (o) {
+        carfaxPromesse = null;
+        var l = o && o.donnees && o.donnees.liens;
+        if (l && !carfaxCache) { carfaxCache = l; frais.catch(function () {}); document.dispatchEvent(new CustomEvent('amx:carfax')); return carfaxCache; }
+        return frais;
+      }, function () { carfaxPromesse = null; return frais; });
       return carfaxPromesse;
     },
     lien: function (vin) { return (carfaxCache && carfaxCache[String(vin || '').toUpperCase()]) || ''; },
@@ -2620,6 +2668,7 @@
           var l = liens.filter(function (x) { return String(x.vin).toUpperCase() === vin; })[0];
           if (l && l.lien) carfaxCache[vin] = String(l.lien).trim(); else delete carfaxCache[vin];
         });
+        if (AMX.cacheLocal && AMX.cacheLocal.ecrireGz && AMX.session && AMX.session.courriel) AMX.cacheLocal.ecrireGz('carfax_liens', { ok: true, liens: carfaxCache });   // 16 nov. : la copie suit
         document.dispatchEvent(new CustomEvent('amx:carfax'));
         return d;
       });

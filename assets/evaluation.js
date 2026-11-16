@@ -1754,16 +1754,29 @@
     if (!force) this.nbPhotos = null;
     if (force && typeof AMX.photosOublier === 'function') AMX.photosOublier(vin);
     AMX.vider(el); el.appendChild(h('span.mini.doux', { text: 'Chargement des photos…' }));
-    var lire = typeof AMX.photosDe === 'function' ? AMX.photosDe(vin) : Promise.resolve([]);
+    // 16 nov. (Maxime : « les photos doivent suivre ») : celles du site de la concession (D2C) d'abord, puis celles de l'app.
+    var lire = typeof AMX.photosVehicule === 'function' ? AMX.photosVehicule(vin) : (typeof AMX.photosDe === 'function' ? AMX.photosDe(vin) : Promise.resolve([]));
     lire.then(function (p) {
       if (self.photosVin !== vin) return;
       AMX.vider(el);
       self.nbPhotos = (p && p.length) || 0; self.majTuiles();
       if (!p || !p.length) { el.appendChild(h('span.mini.doux', { text: 'Aucune photo pour ce NIV.' })); return; }
+      var liens = [];
       p.forEach(function (x) {
         var u = typeof x === 'string' ? x : (x.url || '');
         if (!u) return;
-        el.appendChild(h('a.eval-photo', { href: u, target: '_blank', rel: 'noopener', title: (x && x.description) || '' }, [h('img', { src: AMX.vignetteDrive(u, 320), alt: (x && x.description) || 'Photo', loading: 'lazy' })]));
+        var vig = (x && x.vignette) || AMX.vignetteDrive(u, 320), titre = (x && (x.description || x.angle)) || (x && x.source === 'site' ? 'Photo du site de la concession' : '');
+        var img = h('img', { src: vig, alt: titre || 'Photo', loading: 'lazy' });
+        var a = h('a.eval-photo', { href: u, target: '_blank', rel: 'noopener', title: titre }, [img]);
+        img.addEventListener('load', function () { if (img.naturalWidth <= 1) { a.remove(); self.nbPhotos = Math.max(0, (self.nbPhotos || 1) - 1); self.majTuiles(); } });   // D2C : 1 × 1 au-delà de la dernière
+        a.addEventListener('click', function (e) {
+          if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+          e.preventDefault();
+          var l = liens.filter(function (z) { return z.a.isConnected; });
+          AMX.galerie(l.map(function (z) { return { url: z.u, angle: z.t }; }), Math.max(0, l.map(function (z) { return z.a; }).indexOf(a)));
+        });
+        liens.push({ a: a, u: u, t: titre });
+        el.appendChild(a);
       });
     });
   };
@@ -1852,6 +1865,9 @@
     else if (vinOk && AMX.carfaxApi) this.elLiens.appendChild(AMX.carfaxApi.bouton(vin, { classe: '.petit', source: 'evaluation',
       compagnie: function () { return AMX.CONCESSION_COMPAGNIE[self.elConcession ? self.elConcession.value : ''] || ''; },
       vehicule: function () { return [self.elAnnee.value, self.elMarque.value, self.elModele.value].filter(Boolean).join(' '); } }));
+    // 16 nov. (Maxime : « le window sticker doit être automatique pour tous les produits GM et Chrysler / RAM ») — AMX.sticker (app.js).
+    var stk = (vinOk && AMX.sticker) ? AMX.sticker(vin, [this.elMarque.value, this.elModele.value].join(' ')) : null;
+    if (stk) this.elLiens.appendChild(h('a.btn.petit', { href: stk.url, target: '_blank', rel: 'noopener', title: 'Étiquette d\'origine du constructeur (' + stk.source + '), en PDF', html: I.externe + '<span>Window sticker</span>' }));
     this.elLiens.appendChild(h('a.btn.petit' + (vinOk ? '' : '.desactive'), { href: vinOk ? lienMarketGuide(vin) : '#', target: '_blank', rel: 'noopener', title: 'Valeurs d\'encan eBlock (vendus 90 jours) pour ce NIV', html: I.externe + '<span>eBlock Market Guide</span>' }));
     this.elLiens.appendChild(h('a.btn.petit', { href: URL_TORQUE, target: '_blank', rel: 'noopener', title: 'Évaluations Torque (Hawkesbury)', html: I.externe + '<span>Torque</span>' }));
     this.elLiens.appendChild(h('span.sep', { text: vinOk ? 'NIV ' + vin : 'Entrez un NIV complet pour les liens par véhicule' }));

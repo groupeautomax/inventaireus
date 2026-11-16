@@ -1954,7 +1954,13 @@
     var d = this.donnees || {}, t = tranche(v.jours), s = statutDms(v), x = v.extra || {};
     var dl = function (paires) { return h('dl', paires.filter(function (p) { return p[1] !== '' && p[1] !== null && p[1] !== undefined; }).map(function (p) { return [h('dt', { text: p[0] }), h('dd', { text: String(p[1]) })]; })); };
     var mouv = (d.mouvements || []).filter(function (m) { return m.vin === v.vin; }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+    /* 16 nov. (Maxime : « les photos doivent suivre » ; « le window sticker doit être automatique pour tous les produits GM et
+       Chrysler / RAM ») : les photos du site de la concession (D2C) et de l'app, et l'étiquette d'origine du constructeur. */
+    var stk = AMX.sticker ? AMX.sticker(v.vin, [v.marque, v.modele, nomVehicule(v)].join(' ')) : null;
     var gauche = h('div', [
+      AMX.blocPhotosVehicule ? h('h4', 'Photos') : null,
+      AMX.blocPhotosVehicule ? AMX.blocPhotosVehicule(v.vin, { vide: 'Aucune photo de ce véhicule sur le site de la concession.' }) : null,
+      stk ? h('div', { style: { margin: '8px 0 4px' } }, [h('a.btn.petit', { href: stk.url, target: '_blank', rel: 'noopener', title: 'Étiquette d\'origine du constructeur (' + stk.source + '), en PDF', text: 'Window sticker ↗' })]) : null,
       h('h4', 'Véhicule'),
       dl([['NIV', v.vin], ['# Stock', v.stock], ['Moteur', moteurDe(v)], ['Km', AMX.fmtNombre(kmDe(v).km) + ' km (' + KM_SOURCES[kmDe(v).source] + ')'], ['Code modèle', v.modelNum], ['Type', typeUnite(v) === 'flotte' ? 'Flotte (' + (x.typeCommande || '') + ')' : (x.typeCommande ? 'Détail (' + x.typeCommande + ')' : '')], ['FAN / NCP (compte parc)', x.ncp ? x.ncp + (x.ncpNom ? ' — ' + x.ncpNom : '') : ''], ['FAN utilisateur final', x.ncpFinal], ['Commande', x.commande], ['Évolution (code GM)', x.code ? x.code + (x.etape ? ' — ' + x.etape : '') : ''], ['Livraison prévue (ETA)', x.eta ? AMX.fmtDate(x.eta) : ''], ['Série', x.serie], ['Carrosserie', v.carrosserie === 'T' ? 'Camion / VUS' : (v.carrosserie === 'C' ? 'Auto' : '')], ['Groupe', x.groupe], ['Couleur', v.couleur + (v.couleurCode ? ' (' + v.couleurCode + ')' : '')], ['Intérieur', v.couleurInt], ['Cylindres', x.cylindres], ['Transmission', x.transmission], ['Carburant', x.carburant]]),
       h('h4', { text: origineDe(v) === 'constructeur' ? 'Au portail du constructeur' : 'Au DMS / fichier' }),

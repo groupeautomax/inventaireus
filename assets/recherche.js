@@ -109,6 +109,14 @@
     if (cf) out.push(h('a.puce.rech-puce.vert', { href: cf, target: '_blank', rel: 'noopener', title: 'Rapport CARFAX partagé', text: 'CARFAX' }));
     return out;
   }
+  /* 16 nov. (Maxime : « le window sticker doit être automatique pour tous les produits GM et Chrysler / RAM ») : l'étiquette
+     d'origine du constructeur, d'un clic (AMX.sticker, app.js : par le NIV, puis la marque). */
+  function puceSticker(vin, texte) {
+    var s = AMX.sticker ? AMX.sticker(vin, texte) : null;
+    return s ? h('a.puce.rech-puce.gris', { href: s.url, target: '_blank', rel: 'noopener', title: 'Window sticker (' + s.source + ') — étiquette d\'origine du constructeur, en PDF', text: 'Window sticker' }) : null;
+  }
+  // Une marque pour le logo quand il n'y a pas de photo : le premier mot du titre qui n'est pas une année.
+  function marqueTitre(t) { var m = String(t || '').split(/\s+/).filter(function (w) { return w && !/^\d{4}$/.test(w); })[0]; return m || ''; }
 
   /* ------------------------------ Chargement ------------------------------ */
   var etat = {};   // id → { liste, quand, promesse, erreur }
@@ -127,6 +135,7 @@
   function prechauffer(apres) {
     sourcesActives().forEach(function (s) { charger(s, apres); });
     if (AMX.carfax) AMX.carfax.charger().then(apres, function () {});
+    if (AMX.photosD2c) AMX.photosD2c.charger().then(apres, function () {});   // 16 nov. : photos du site de la concession
     if (AMX.eblock && visible('outils')) AMX.eblock.charger().then(apres, function () {});
     if (AMX.openlane && visible('outils')) AMX.openlane.charger().then(apres, function () {});
   }
@@ -217,14 +226,19 @@
       puces.push(puceDe(it));
     });
     puces = puces.concat(extrasNiv(g.vin));
+    var st = puceSticker(g.vin, titre); if (st) puces.push(st);
     var cie = g.cie;
-    var carte = h('div.rech-vehicule', [
+    /* 16 nov. (Maxime : « les photos doivent suivre ») : la 1re photo du site de la concession (D2C), sinon celle de l'app ;
+       un clic ouvre toutes les photos (AMX.vignetteVehicule, inventaire.js). */
+    var avecApp = g.items.some(function (it) { return it.x && it.x.hasPhotos; });
+    var mini = AMX.vignetteVehicule ? AMX.vignetteVehicule(g.vin, { app: avecApp, marque: marqueTitre(titre) }) : null;
+    var carte = h('div.rech-vehicule', [h('div.rech-haut', [mini, h('div.rech-corps', [
       h('a.rech-tete', { href: principal || '#' }, [
         h('div.rech-titre', [h('span', { text: titre || 'Véhicule ' + g.vin }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(g.vin) : null]),
         h('div.rech-sous', [h('span.mono', { text: g.vin }), stock ? h('span.mono', { text: '# ' + stock }) : null, cie ? h('span.rech-cie.' + ((AMX.COULEUR_COMPAGNIE || {})[cie] || 'gris'), [h('i'), nomCie(cie)]) : null])
       ]),
       h('div.rech-liens', puces)
-    ]);
+    ])])]);
     carte.addEventListener('click', function (e) { var a = e.target.closest('a, button'); if (a && (a.getAttribute('href') || '').charAt(0) === '#') setTimeout(fermer, 0); else if (a && a.tagName === 'BUTTON') setTimeout(fermer, 0); });
     return carte;
   }
@@ -396,6 +410,8 @@
     '.rech-choix.vert i { background: var(--vert); } .rech-choix.bleu i { background: var(--bleu); } .rech-choix.violet i { background: var(--violet); } .rech-choix.sombre i { background: var(--noir); } .rech-choix.ambre i { background: var(--ambre); } .rech-choix.toutes i { background: linear-gradient(135deg, var(--vert), var(--bleu)); }',
     '.rech-choix.actif { background: var(--noir); border-color: var(--noir); color: #fff; font-weight: 600; } .rech-choix.actif i { box-shadow: 0 0 0 2px #fff; }',
     '.rech-vehicule { padding: 10px 12px; border-bottom: 1px solid var(--ligne); }',
+    '.rech-haut { display: flex; gap: 10px; align-items: flex-start; } .rech-corps { flex: 1 1 auto; min-width: 0; }',
+    '@media (max-width: 640px) { .rech-haut .pv-mini { width: 64px; height: 48px; } }',
     '.rech-tete { display: block; color: inherit; text-decoration: none; border-radius: 6px; } .rech-tete:hover .rech-titre { color: var(--vert); }',
     '.rech-boite a.rech-sel { outline: 2px solid var(--vert); outline-offset: 1px; } .rech-boite a.rech-tete.rech-sel, .rech-boite a.rech-autre.rech-sel { background: var(--vert-clair); outline-offset: -2px; }',
     '.rech-titre { font-weight: 600; font-size: 14px; }',

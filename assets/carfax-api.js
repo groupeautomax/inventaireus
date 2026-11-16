@@ -354,17 +354,34 @@
     return age >= 1;
   }
   function fusion(v) { Object.keys(v || {}).forEach(function (k) { S.v[k] = v[k]; }); }
-  function charger(force) {
-    if (!force && S.charge && Date.now() - S.quand < MEMOIRE_MS) return Promise.resolve(S.v);
-    if (S.promesse) return S.promesse;
-    S.promesse = AMX.get({ carfaxPastilles: 1 }, { discret: true, secours: false, delai: 60000 }).then(function (d) {
-      S.promesse = null;
+  /* 16 nov. (Maxime : « le CARFAX est là mais c'est long à loader ») : ?carfaxPastilles=1 prend 8 s (723 Ko). La dernière
+     réponse est gardée dans le navigateur (IndexedDB, AMX.cacheLocal, effacée à la déconnexion) : les pastilles s'affichent tout
+     de suite, la réponse du serveur les met à jour en arrière-plan. */
+  var copieLue = false;
+  function relire() {
+    if (S.frais) return S.frais;
+    S.frais = AMX.get({ carfaxPastilles: 1 }, { discret: true, secours: false, delai: 60000, copie: 'carfax_pastilles' }).then(function (d) {
+      S.frais = null;
       if (!d || d.refuse) { S.arret = 'refus'; S.charge = true; return S.v; }
       if (!d.v) { S.arret = 'script'; S.charge = true; return S.v; }
       fusion(d.v); S.charge = true; S.quand = Date.now();
       rafraichir();
       return S.v;
-    }, function () { S.promesse = null; S.charge = true; S.quand = Date.now() - MEMOIRE_MS + 60000; return S.v; });
+    }, function () { S.frais = null; S.charge = true; S.quand = Date.now() - MEMOIRE_MS + 60000; return S.v; });
+    return S.frais;
+  }
+  function charger(force) {
+    if (!force && S.charge && Date.now() - S.quand < MEMOIRE_MS) return Promise.resolve(S.v);
+    if (S.promesse) return S.promesse;
+    var frais = relire();
+    if (force || S.charge || copieLue || !AMX.cacheLocal || !AMX.cacheLocal.lireGz) return frais;
+    copieLue = true;
+    S.promesse = AMX.cacheLocal.lireGz('carfax_pastilles', 7 * 864e5).then(function (o) {
+      S.promesse = null;
+      var v = o && o.donnees && o.donnees.v;
+      if (v && !S.charge) { fusion(v); S.charge = true; S.quand = 0; rafraichir(); return S.v; }   // copie : la relecture suit
+      return frais;
+    }, function () { S.promesse = null; return frais; });
     return S.promesse;
   }
   function demander(vins) {

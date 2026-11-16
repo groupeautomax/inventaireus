@@ -4,8 +4,8 @@
      1. « Nouvelle page » : le sujet (un modèle en stock, un guide du service, un secteur desservi, un sujet libre) et les
         faits de l'équipe ; Einstein écrit la page française à partir du stock réel du site, puis la traduit.
      2. Une personne de la concession relit, corrige au besoin, et la direction approuve (« J'ai relu »).
-     3. Dans D2C, on crée la page (nom et adresse donnés ici), on ouvre son crayon et on clique le favori
-        « Automax → D2C (pages) » : il place le texte et enregistre. ScanAutomax relit la page en ligne.
+     3. Dans D2C › Custom Pages du site, un clic sur le favori « Automax → D2C (pages) » : il crée la page, met le
+        texte et le titre pour Google, et ScanAutomax relit la page en ligne (16 nov. : un seul clic).
    Les garde-fous (même texte sur deux sites, rythme, montants, secteurs) sont refaits par le serveur.
    Rien ne se garde dans le navigateur, rien ne se publie tout seul. */
 (function () {
@@ -54,6 +54,7 @@
     '.ctn-sec { border: 1px solid var(--ligne); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; } .ctn-sec .haut { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; color: var(--encre-3); }',
     '.ctn-pub ol { margin: 6px 0 0 18px; padding: 0; } .ctn-pub li { margin: 8px 0; line-height: 1.45; } .ctn-pub .copie { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; } .ctn-pub code { background: var(--fond); padding: 3px 6px; border-radius: 6px; font-size: 13px; word-break: break-word; }',
     '.ctn-lien { margin-top: 12px; border: 1px solid var(--bordure); border-radius: 8px; padding: 8px 12px; } .ctn-lien summary { cursor: pointer; font-weight: 600; } .ctn-lien .aide { margin: 6px 0; color: var(--encre-3); font-size: 14px; } .ctn-lien label { margin-top: 8px; }' +
+    '.ctn-un-clic { font-size: 15px; line-height: 1.5; margin: 4px 0 8px; } .ctn-main { margin-top: 12px; border: 1px solid var(--bordure); border-radius: 8px; padding: 8px 12px; } .ctn-main summary { cursor: pointer; font-weight: 600; } ' +
     '.ctn-pub .fav { margin: 8px 0; } .ctn-relu { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; margin-top: 8px; } .ctn-relu input { width: 20px; height: 20px; margin-top: 1px; }',
     '@media (max-width: 640px) { .ctn-ligne { grid-template-columns: 1fr; } .ctn-ligne .d { justify-content: flex-start; } .ctn-apercu { height: 480px; } }'
   ].join('\n');
@@ -181,7 +182,7 @@
       h('li', { text: '« Nouvelle page » : choisissez le sujet et donnez les faits. Einstein écrit la page française à partir du stock réel du site, puis la version anglaise. Il n\'invente ni chiffre, ni prix, ni promotion.' }),
       h('li', { text: 'Relisez. Corrigez au besoin dans « Texte français » et « Texte anglais ». Chaque affirmation de la liste « à confirmer » doit être vraie.' }),
       h('li', { text: 'La direction approuve (« J\'ai relu la page et vérifié chaque fait »). Une page par semaine par site suffit ; jamais le même texte sur deux sites.' }),
-      h('li', { text: 'Publier : dans D2C, créez la page avec le nom et l\'adresse donnés, ouvrez son crayon, cliquez le favori « Automax → D2C (pages) », puis « Mettre ici et enregistrer ». Ajoutez le titre et la description pour Google (bouton « i » de la page).' }),
+      h('li', { text: 'Publier : dans D2C, ouvrez Custom Pages du site et cliquez le favori « Automax → D2C (pages) ». C\'est tout : il crée la page, met le texte et le titre pour Google, et vérifie qu\'elle est en ligne.' }),
       h('li', { text: 'ScanAutomax relit la page en ligne. Un véhicule vendu disparaît de la page à la prochaine publication : la page passe « à republier ».' })])]));
     var pages = d.pages.filter(function (p) { return p.site === s.cle; });
     if (!pages.length) { this.elCorps.appendChild(h('div.ctn-vide', { text: 'Aucune page pour ce site. « Nouvelle page » : Einstein prépare un brouillon à partir de nos données.' })); return; }
@@ -224,7 +225,7 @@
   VueContenu.prototype.aideFavori = function () {
     A.modale({ titre: 'Le favori « Automax → D2C (pages) »', corps: h('div.ctn-pub', [
       h('p', { text: 'Une fois : glissez ce bouton dans la barre de favoris de Chrome.' }), h('div.fav', [favori()]),
-      h('p', { text: 'Ensuite, pour chaque page approuvée : D2C › My Sites › le site › Configurator › Custom Pages › le crayon de la page créée pour ce texte › cliquez le favori › « Mettre ici et enregistrer ». Le favori refuse une page qui contient autre chose (la page des offres de location, une page tapée à la main).' })
+      h('p', { text: 'Ensuite, quand une page est approuvée : D2C › My Sites › le site › Configurator › Custom Pages › cliquez le favori. Il crée la page, met le texte français et anglais et le titre pour Google, puis vérifie qu\'elle est en ligne — pour toutes les pages approuvées de ce site. Il ne touche jamais une adresse déjà prise par un autre texte (la page des offres de location, une page tapée à la main).' })
     ]), boutons: [{ texte: 'Fermer' }] });
   };
 
@@ -396,15 +397,13 @@
       var el = p.enLigne || {};
       return h('div.ctn-pub', [
         pret ? null : h('div.ctn-boite.ambre', { text: 'La page doit d\'abord être approuvée par la direction (bouton « Approuver » en bas).' }),
-        h('ol', [
-          h('li', [h('b', { text: 'Créer la page dans D2C' }), document.createTextNode(' — admin.d2cmedia.ca › My Sites › ' + (site.base || '').replace(/^https:\/\/(www\.)?/, '') + ' › Configurator › Custom Pages › la ligne vide au bas du tableau :'),
-            copie('Nom (français) :', x.nomFr), copie('Nom (anglais) :', x.nomEn), copie('Adresse (français) :', x.urlFr), copie('Adresse (anglais) :', x.urlEn),
-            h('div', { text: 'Tab : None · Type : HTML · « Add », puis « Save » au bas de la page.' })]),
-          h('li', [h('b', { text: 'Mettre le texte' }), document.createTextNode(' — le crayon de la nouvelle page, puis le favori, puis « Mettre ici et enregistrer » :'), h('div.fav', [favori()])]),
-          h('li', [h('b', { text: 'Titre et description pour Google' }), document.createTextNode(' — bouton « i » de la page :'),
-            copie('Titre (français) :', x.metaTitre), copie('Titre (anglais) :', x.metaTitreEn), copie('Description (français) :', x.metaDescription), copie('Description (anglais) :', x.metaDescriptionEn)]),
-          h('li', [h('b', { text: 'Relier la page' }), document.createTextNode(' — une page que rien ne relie, Google la trouve mal : ajoutez un lien depuis le menu ou une page voisine (Configurator › General › Main Menu).')])
-        ]),
+        /* 16 nov. : un seul clic — le favori crée la page, met le texte et le titre pour Google, puis vérifie qu'elle est en ligne */
+        h('p.ctn-un-clic', [h('b', { text: 'Un clic : ' }), document.createTextNode('dans D2C, ouvrez My Sites › ' + (site.base || '').replace(/^https?:\/\/(www\.)?/, '') + ' › Configurator › Custom Pages, puis cliquez le favori. Il crée la page ' + (x.urlFr || '') + ', met le texte français et anglais et le titre pour Google, puis vérifie qu\'elle est en ligne. Google la trouve par le plan du site de D2C.')]),
+        h('div.fav', [favori()]),
+        h('details.ctn-main', [h('summary', { text: 'Le faire à la main (sans le favori)' }),
+          copie('Nom (français) :', x.nomFr), copie('Nom (anglais) :', x.nomEn), copie('Adresse (français) :', x.urlFr), copie('Adresse (anglais) :', x.urlEn),
+          h('div', { text: 'Custom Pages › ligne vide au bas du tableau · Tab : None · Type : HTML · « Add », puis « Save ». Le texte : crayon de la page. Le titre pour Google : bouton « i ».' }),
+          copie('Titre (français) :', x.metaTitre), copie('Titre (anglais) :', x.metaTitreEn), copie('Description (français) :', x.metaDescription), copie('Description (anglais) :', x.metaDescriptionEn)]),
         h('div.ctn-boite.' + (el.aJour ? 'bleu' : 'ambre'), { text: el.le ? (el.aJour ? 'En ligne et à jour (vérifié le ' + dateCourte(el.le) + ') : ' + el.url : (el.code === 404 ? 'La page n\'existe pas encore à ' + el.url + ' (vérifié le ' + dateCourte(el.le) + ').' : (el.trouve ? 'La page en ligne porte une ancienne version (vérifié le ' + dateCourte(el.le) + ') : republiez avec le favori.' : 'La page en ligne ne porte pas ce texte (vérifié le ' + dateCourte(el.le) + ').'))) : 'Pas encore vérifiée en ligne.' })
       ]);
     }
@@ -436,7 +435,7 @@
           { texte: 'Approuver', classe: 'primaire', action: function (f, b) {
             if (!cb.checked) { A.toast('Cochez « J\'ai relu la page et vérifié chaque fait ».', 'attention'); return false; }
             b.disabled = true;
-            poster({ action: 'contenuEtat', id: p.id, etat: 'approuvee', relu: true }).then(function (r) { f(); A.toast(p.id + ' approuvée : publiez-la dans D2C (onglet « Publier dans D2C »).', 'ok', 8000); onglet = 'publier'; apres(r); res(); }).catch(function (e) { b.disabled = false; A.toast(A.erreurTexte(e), 'erreur', 10000); });
+            poster({ action: 'contenuEtat', id: p.id, etat: 'approuvee', relu: true }).then(function (r) { f(); A.toast(p.id + ' approuvée. Pour la mettre en ligne : D2C › Custom Pages du site › un clic sur le favori « Automax → D2C (pages) ».', 'ok', 9000); onglet = 'publier'; apres(r); res(); }).catch(function (e) { b.disabled = false; A.toast(A.erreurTexte(e), 'erreur', 10000); });
             return false;
           } }], onFermer: function () { res(); } });
       });

@@ -107,6 +107,180 @@
     return AMX.post({ action: 'vitrineListe' }).then(function (d) { AMX.verifier(d, 'Impossible de lire la vitrine'); cache.vente = d.vehicules || []; cache.cle = d.cle || cache.cle; return cache.vente; });
   }
 
+  /* ---------------- Plusieurs véhicules d'un coup (16 nov.) ----------------
+     Maxime : « il faut une boîte qu'on peut mettre un crochet pour enlever ou ajouter plusieurs unités ».
+     - AMX.offres.mettreEnVenteLot(vins) : une case par véhicule (cochée pour ceux qu'on a sélectionnés dans Occasion ;
+       sinon toute l'inventaire disponible, rien de coché), le prix de chacun, les pays du portail ; puis un
+       publierVehicule par véhicule, l'un après l'autre (même geste que « Mettre en vente »).
+     - AMX.offres.retirerLot(liste) / changerPaysLot(liste) : depuis En vente › Sélectionner. */
+  AMX.offres = AMX.offres || {};
+  var STATUTS_PARTIS_VENTE = ['arrive', 'comptabilise', 'transit', 'manheimpa'];
+  function lireVitrine() {
+    if (cache.vente) return Promise.resolve(cache.vente);
+    return AMX.post({ action: 'vitrineListe' }).then(function (d) { d = AMX.verifier(d, 'Impossible de lire la vitrine'); cache.vente = d.vehicules || []; cache.cle = d.cle || cache.cle; return cache.vente; }).catch(function () { return []; });
+  }
+  /* Envoie les publications une à une ; `progres(i, n)` à chaque fin ; résout { faits, erreurs: [{ vin, erreur }] }. */
+  function publierSuite(corpsListe, progres) {
+    var faits = 0, erreurs = [], i = 0;
+    function suivant() {
+      if (i >= corpsListe.length) return Promise.resolve({ faits: faits, erreurs: erreurs });
+      var c = corpsListe[i++];
+      return AMX.post(Object.assign({ action: 'publierVehicule' }, c), { delai: 60000 }).then(function (d) {
+        AMX.verifier(d, 'Publication impossible'); if (d.cle) cache.cle = d.cle; faits++;
+      }).catch(function (e) { erreurs.push({ vin: c.vin, erreur: AMX.erreurTexte(e) }); }).then(function () { if (progres) progres(i, corpsListe.length); return suivant(); });
+    }
+    return suivant();
+  }
+  function casesPays(depart) {
+    var cases = {};
+    var el = h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px 18px' } }, MARCHES.map(function (m) {
+      var c = h('input', { type: 'checkbox', checked: (depart || ['CA']).indexOf(m[0]) >= 0 });
+      cases[m[0]] = c;
+      return h('label.case', [c, h('span', { text: m[0] === 'US' ? 'États-Unis' : m[1] })]);
+    }));
+    return { el: el, valeur: function () { return MARCHES.map(function (m) { return m[0]; }).filter(function (k) { return cases[k].checked; }); } };
+  }
+  function bilanLot(res, verbe) {
+    if (!res.erreurs.length) { AMX.toast(res.faits + ' véhicule' + (res.faits > 1 ? 's' : '') + ' ' + verbe, 'ok'); return; }
+    AMX.modale({ titre: res.faits + ' fait' + (res.faits > 1 ? 's' : '') + ', ' + res.erreurs.length + ' en erreur', corps: h('div', res.erreurs.map(function (e) {
+      var v = vehiculeDe(e.vin); return h('p', { style: { margin: '0 0 6px' } }, [h('b', { text: (v.modele || e.vin) + (v.stock ? ' · ' + v.stock : '') }), ' — ' + e.erreur]);
+    })), boutons: [{ texte: 'Fermer', classe: 'primaire' }] });
+  }
+  function injecterCssLot() {
+    if (document.getElementById('css-vente-lot')) return;
+    var st = document.createElement('style'); st.id = 'css-vente-lot';
+    st.textContent = '.vente-lot-voile .modale.large { width: min(980px, 96vw); }\n' +
+      '.vente-lot-outils { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }\n' +
+      '.vente-lot-outils .saisie { flex: 1 1 220px; }\n' +
+      '.vente-lot-liste { max-height: min(52vh, 560px); overflow: auto; border: 1px solid var(--ligne); border-radius: 10px; }\n' +
+      '.vente-lot-ligne { display: grid; grid-template-columns: 28px minmax(0, 1fr) 140px; gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--ligne); cursor: pointer; }\n' +
+      '.vente-lot-ligne:last-child { border-bottom: 0; }\n' +
+      '.vente-lot-ligne.cochee { background: var(--vert-clair); }\n' +
+      '.vente-lot-ligne.deja { opacity: .6; cursor: default; }\n' +
+      '.vente-lot-ligne input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--vert); }\n' +
+      '.vente-lot-ligne .t { font-weight: 600; }\n' +
+      '.vente-lot-ligne .s { font-size: 13px; color: var(--encre-3); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }\n' +
+      '.vente-lot-ligne .saisie { height: 34px; }\n' +
+      '.vente-lot-progres { margin-top: 10px; font-weight: 600; color: var(--vert-fonce); }\n' +
+      '@media (max-width: 640px) { .vente-lot-ligne { grid-template-columns: 28px minmax(0, 1fr); } .vente-lot-ligne .prix { grid-column: 2; } }';
+    document.head.appendChild(st);
+  }
+  AMX.offres.mettreEnVenteLot = function (vinsDepart, o) {
+    o = o || {};
+    if (!AMX.perm('changerStatut')) { AMX.toast('Mettre en vente : réservé aux comptes qui peuvent changer les statuts.', 'attention'); return Promise.resolve(false); }
+    injecterCssLot();
+    var depart = (vinsDepart || []).map(function (v) { return String(v || '').trim().toUpperCase(); }).filter(Boolean);
+    return Promise.all([AMX.inventaire.tout().catch(function () { return []; }), lireVitrine()]).then(function (r) {
+      var tout = r[0] || [], enVente = {};
+      (r[1] || []).forEach(function (p) { enVente[String(p.vin || '').toUpperCase()] = p; });
+      var vus = {}, cands = [];
+      tout.forEach(function (v) {
+        var vin = String(v.vin || '').toUpperCase();
+        if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin) || vus[vin]) return;
+        if (depart.length ? depart.indexOf(vin) < 0 : STATUTS_PARTIS_VENTE.indexOf(v.statut) >= 0) return;
+        vus[vin] = 1; cands.push(v);
+      });
+      depart.forEach(function (vin) { if (!vus[vin] && /^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { vus[vin] = 1; cands.push({ vin: vin }); } });
+      var cie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
+      var etat = {}; cands.forEach(function (v) { var vin = String(v.vin).toUpperCase(); etat[vin] = { coche: depart.length > 0 && !enVente[vin], prix: '' }; });
+      var filtre = { q: '', registre: depart.length ? '' : 'DETAIL' };
+      var elListe = h('div.vente-lot-liste'), elCompte = h('span.doux'), progres = h('div.vente-lot-progres');
+      var rech = h('input.saisie', { type: 'search', placeholder: 'Modèle, NIV, # stock', oninput: AMX.debounce(function (e) { filtre.q = e.target.value; dessiner(); }, 120) });
+      var selReg = h('select.saisie', { style: { flex: '0 0 auto', width: 'auto' }, onchange: function (e) { filtre.registre = e.target.value; dessiner(); } }, [['', 'Tous les registres'], ['DETAIL', 'Detail'], ['CAN', 'Canada'], ['US', 'É.-U.']].map(function (x) { return h('option', { value: x[0], text: x[1], selected: x[0] === filtre.registre }); }));
+      function visibles() {
+        return cands.filter(function (v) {
+          if (!depart.length && cie && String(v.compagnie || '').toUpperCase() !== cie) return false;
+          if (filtre.registre && v._feuille && v._feuille !== filtre.registre) return false;
+          return !filtre.q || AMX.correspond([v.vin, v.modele, v.stock, v.compagnie], filtre.q);
+        });
+      }
+      function nbCoches() { return Object.keys(etat).filter(function (k) { return etat[k].coche; }).length; }
+      function majCompte() { var n = nbCoches(); elCompte.textContent = n + ' coché' + (n > 1 ? 's' : ''); var b = document.querySelector('.vente-lot-voile .modale-pied .primaire'); if (b) b.textContent = 'Mettre en vente' + (n ? ' (' + n + ')' : ''); }
+      var btnTout = h('button.btn.petit', { type: 'button', text: 'Tout cocher', onclick: function () {
+        var l = visibles().filter(function (v) { return !enVente[String(v.vin).toUpperCase()]; });
+        var tous = l.length && l.every(function (v) { return etat[String(v.vin).toUpperCase()].coche; });
+        l.forEach(function (v) { etat[String(v.vin).toUpperCase()].coche = !tous; }); dessiner();
+      } });
+      function dessiner() {
+        AMX.vider(elListe);
+        var l = visibles();
+        if (!l.length) { elListe.appendChild(h('div.vide', { style: { padding: '24px' } }, [h('div', 'Aucun véhicule ne correspond.')])); majCompte(); return; }
+        l.slice(0, 300).forEach(function (v) {
+          var vin = String(v.vin).toUpperCase(), e = etat[vin], deja = enVente[vin];
+          var c = h('input', { type: 'checkbox', checked: !!e.coche, disabled: !!deja, 'aria-label': 'Choisir ' + (v.modele || vin) });
+          var prix = h('input.saisie.prix', { type: 'number', step: '100', min: '0', placeholder: 'Prix (vide = sur demande)', value: e.prix, disabled: !!deja,
+            oninput: function () { e.prix = prix.value; if (prix.value && !e.coche) { e.coche = true; c.checked = true; ligne.classList.add('cochee'); majCompte(); } },
+            onclick: function (ev) { ev.stopPropagation(); } });
+          var st = v.statut ? AMX.statut(v.statut, v._feuille) : null;
+          var ligne = h('label.vente-lot-ligne' + (e.coche ? '.cochee' : '') + (deja ? '.deja' : ''), [c,
+            h('div', { style: { minWidth: 0 } }, [h('div.t', { text: v.modele || vin }), h('div.s', [h('span.vin', { text: vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, v._feuille ? h('span.puce', { text: AMX.inventaire.nomFeuille(v._feuille) }) : null, v.compagnie ? h('span.puce', { text: v.compagnie }) : null, st ? h('span.badge.' + st.couleur, { text: st.libelle }) : null, deja ? h('span.puce.ok', { text: 'Déjà en vente' }) : null])]),
+            deja ? h('div.doux', { text: AMX.montant(deja.prix) > 0 ? AMX.fmtArgent(deja.prix) : 'Sur demande' }) : prix]);
+          c.addEventListener('change', function () { e.coche = c.checked; ligne.classList.toggle('cochee', c.checked); majCompte(); });
+          elListe.appendChild(ligne);
+        });
+        if (l.length > 300) elListe.appendChild(h('div.doux', { style: { padding: '8px 12px' }, text: (l.length - 300) + ' autres : précisez la recherche.' }));
+        majCompte();
+      }
+      var pays = casesPays(['CA']);
+      var corps = h('div', [
+        h('p.doux', { style: { margin: '0 0 10px' }, text: depart.length ? 'Les véhicules sélectionnés sont cochés. Décochez ceux à laisser de côté et inscrivez le prix demandé de chacun.' : 'Cochez les véhicules à mettre en vente et inscrivez le prix demandé de chacun (vide = prix sur demande).' }),
+        h('div.vente-lot-outils', [rech, depart.length ? null : selReg, btnTout, elCompte]),
+        elListe,
+        h('div.champ', { style: { marginTop: '12px' } }, [h('label', 'Portail des acheteurs — pays qui voient ces véhicules'), pays.el]),
+        progres
+      ]);
+      var enCours = false;
+      AMX.modale({ titre: 'Mettre plusieurs véhicules en vente', large: true, classe: 'vente-lot-voile', corps: corps, proteger: false, boutons: [
+        { texte: 'Annuler' },
+        { texte: 'Mettre en vente', classe: 'primaire', action: function (fermer) {
+          if (enCours) return false;
+          var marches = pays.valeur();
+          if (!marches.length) { AMX.toast('Cochez au moins un pays.', 'attention'); return false; }
+          var liste = Object.keys(etat).filter(function (k) { return etat[k].coche && !enVente[k]; }).map(function (k) { return { vin: k, publie: true, prix: String(etat[k].prix || '').trim(), description: '', marches: marches }; });
+          if (!liste.length) { AMX.toast('Cochez au moins un véhicule.', 'attention'); return false; }
+          enCours = true;
+          var pied = document.querySelectorAll('.vente-lot-voile .modale-pied button'); pied.forEach(function (b) { b.disabled = true; });
+          progres.textContent = 'Mise en vente… 0 / ' + liste.length;
+          publierSuite(liste, function (i, n) { progres.textContent = 'Mise en vente… ' + i + ' / ' + n; }).then(function (res) {
+            cache.vente = null; fermer(); bilanLot(res, 'mis en vente');
+            if (o.apres) o.apres(res);
+          });
+          return false;
+        } }
+      ] });
+      dessiner();
+      return true;
+    });
+  };
+  AMX.offres.retirerLot = function (liste, o) {
+    o = o || {};
+    if (!liste.length) return Promise.resolve(false);
+    var un = liste.length === 1;
+    return AMX.confirmer('Retirer ' + liste.length + ' véhicule' + (un ? '' : 's') + ' de la vente', (un ? 'Il ne sera plus visible' : 'Ils ne seront plus visibles') + ' sur la vitrine ni dans le portail des acheteurs ; les liens déjà envoyés afficheront « véhicule retiré ».', { danger: true, ok: 'Retirer' }).then(function (ok) {
+      if (!ok) return false;
+      AMX.toast('Retrait de ' + liste.length + ' véhicule' + (liste.length > 1 ? 's' : '') + '…', 'info');
+      return publierSuite(liste.map(function (p) { return { vin: p.vin, publie: false, prix: p.prix, description: p.description }; })).then(function (res) { cache.vente = null; bilanLot(res, 'retiré' + (res.faits > 1 ? 's' : '') + ' de la vente'); if (o.apres) o.apres(res); return true; });
+    });
+  };
+  AMX.offres.changerPaysLot = function (liste, o) {
+    o = o || {};
+    if (!liste.length) return Promise.resolve(false);
+    var pays = casesPays(marchesDe(liste[0]).map(function (x) { return x[0]; }));
+    var enCours = false;
+    AMX.modale({ titre: 'Pays du portail pour ' + liste.length + ' véhicule' + (liste.length > 1 ? 's' : ''), corps: h('div', [h('p.doux', { style: { margin: '0 0 10px' }, text: 'Les acheteurs approuvés de ces pays les voient dans leur portail. Le prix et la description ne changent pas.' }), pays.el]), boutons: [
+      { texte: 'Annuler' },
+      { texte: 'Enregistrer', classe: 'primaire', action: function (fermer) {
+        if (enCours) return false;
+        var marches = pays.valeur(); if (!marches.length) { AMX.toast('Cochez au moins un pays.', 'attention'); return false; }
+        enCours = true; fermer();
+        AMX.toast('Mise à jour de ' + liste.length + ' véhicule' + (liste.length > 1 ? 's' : '') + '…', 'info');
+        publierSuite(liste.map(function (p) { return { vin: p.vin, publie: true, prix: p.prix, description: p.description, marches: marches }; })).then(function (res) { cache.vente = null; bilanLot(res, 'mis à jour'); if (o.apres) o.apres(res); });
+        return false;
+      } }
+    ] });
+    return Promise.resolve(true);
+  };
+
   /* ---------------- Envoyer un véhicule à des acheteurs inscrits (14 oct.) ----------------
      Depuis le panneau d'inventaire, « En vente » ou la fiche d'un acheteur. Le serveur
      (acheteurEnvoyerVehicule) publie le véhicule dans la vitrine s'il ne l'est pas (prix demandé),
@@ -615,11 +789,24 @@
           h('button.btn', { html: I.rafraichir + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } }),
           h('button.btn', { html: I.copier + '<span>Lien de la vitrine</span>', title: 'Copier le lien de la liste complète', onclick: function () { if (!cache.cle) return AMX.toast('Clé non chargée', 'attention'); AMX.copier(AMX.SITE + 'vitrine/index.html?k=' + encodeURIComponent(cache.cle), 'Lien de la vitrine copié'); } }),
           AMX.estAdmin() ? h('button.btn.fantome', { text: 'Régénérer la clé', onclick: function () { self.regenerer(); } }) : null,
-          AMX.perm('changerStatut') ? h('button.btn.primaire', { html: I.plus + '<span>Mettre en vente</span>', onclick: function () { self.modalePublier(''); } }) : null
+          AMX.perm('changerStatut') ? h('button.btn.primaire', { html: I.plus + '<span>Mettre en vente</span>', onclick: function () { self.modalePublier(''); } }) : null,
+          AMX.perm('changerStatut') ? h('button.btn', { html: I.plus + '<span>Mettre plusieurs en vente</span>', title: 'Cocher plusieurs véhicules de l\'inventaire et les mettre en vente d\'un coup', onclick: function () { AMX.offres.mettreEnVenteLot([], { apres: function () { self.charger(true); } }); } }) : null
         ]))
       ]),
       this.elKpis, h('div.colonne-liste', [this.elOutils, this.elListe])
     ]));
+    this.creerSelection();
+  };
+  /* 16 nov. : cocher plusieurs véhicules en vente pour les retirer ou changer leurs pays d'un coup. */
+  EnVente.prototype.creerSelection = function () {
+    var self = this;
+    if (this.sel) this.sel.quitter();
+    if (!AMX.perm('changerStatut')) { this.sel = null; return; }
+    var choisis = function (vins) { return self.liste.filter(function (p) { return vins.indexOf(String(p.vin).toUpperCase()) >= 0 || vins.indexOf(p.vin) >= 0; }); };
+    this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.ligne-vente', actions: [
+      { texte: 'Pays du portail', icone: I.info || '', action: function (vins, vider) { AMX.offres.changerPaysLot(choisis(vins), { apres: function () { vider(); self.charger(true); } }); } },
+      { texte: 'Retirer de la vente', icone: I.corbeille || '', danger: true, action: function (vins, vider) { AMX.offres.retirerLot(choisis(vins), { apres: function () { vider(); self.charger(true); } }); } }
+    ] });
   };
   EnVente.prototype.charger = function (force) {
     var self = this, etat = document.getElementById('vente-etat');
@@ -628,6 +815,11 @@
       var d = AMX.verifier(r[0], 'Impossible de lire la vitrine');
       cache.vente = d.vehicules || []; cache.cle = d.cle || cache.cle;
       self.liste = cache.vente;
+      // 16 nov. : le serveur retire de la vente les véhicules vendus au Livre des ventes (ou partis au registre).
+      if (d.retiresVendus && d.retiresVendus.length) {
+        var nR = d.retiresVendus.length;
+        AMX.toast(nR + ' véhicule' + (nR > 1 ? 's vendus retirés' : ' vendu retiré') + ' de la vente : ' + d.retiresVendus.map(function (x) { var v = vehiculeDe(x.vin); return (v.modele || x.vin) + (v.stock ? ' (' + v.stock + ')' : ''); }).join(', '), 'info', 9000);
+      }
       if (etat) etat.textContent = self.liste.length + ' véhicule' + (self.liste.length > 1 ? 's' : '') + ' en vente · synchronisé à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
       self.rendre(); AMX.rafraichirSousBarre();
       if (self.vinInitial) { var vin = self.vinInitial; self.vinInitial = ''; self.modalePublier(vin); }
@@ -645,6 +837,7 @@
     if (vendus) this.elKpis.appendChild(h('div.kpi.neutre.alerte', [h('div.valeur', { text: vendus }), h('div.libelle', 'Déjà vendus (à retirer)')]));
     AMX.vider(this.elOutils);
     var rech = h('div.recherche', { style: { width: '280px' } }, [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'Modèle, VIN, # stock', value: this.recherche, oninput: AMX.debounce(function (e) { self.recherche = e.target.value; self.rendreListe(); }, 120) })]);
+    if (this.sel) this.elOutils.appendChild(this.sel.bouton);
     this.elOutils.appendChild(rech);
     this.rendreListe();
   };
@@ -659,7 +852,7 @@
       var lien = cache.cle ? lienPublic(cache.cle, p.vin) : '';
       // 16 nov. (Maxime : « on doit pouvoir cliquer sur le véhicule et voir les détails que le client voit ») : un clic sur la
       // ligne (hors boutons et liens) ouvre la page publique du véhicule, telle que l'acheteur la voit.
-      var el = h('div.ligne.ligne-vente', { role: 'button', tabindex: '0', title: 'Voir la page telle que le client la voit',
+      var el = h('div.ligne.ligne-vente', { role: 'button', tabindex: '0', title: 'Voir la page telle que le client la voit', 'data-vin': String(p.vin || '').toUpperCase(),
         onclick: function (e) { if (e.target.closest && e.target.closest('button, a, input, select')) return; self.apercuClient(p, v); },
         onkeydown: function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); self.apercuClient(p, v); } } }, [   /* v136 : huit colonnes (le bouton « Envoyer » chevauchait le prix) */
         vignetteVin(p.vin, v.hasPhotos, marque(v.modele)),

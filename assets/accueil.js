@@ -143,7 +143,7 @@
 
   /* ------------------------------- La vue -------------------------------- */
   var EVENEMENTS = ['amx:profil', 'amx:accueil-depart', 'amx:eblock', 'amx:openlane', 'amx:demandes', 'amx:suggestions', 'amx:service', 'amx:inventaire',
-    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto', 'amx:contrats', 'amx:evalDemandes', 'amx:offresGmf'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
+    'amx:ventes', 'amx:rdv', 'amx:texto', 'amx:avis', 'amx:neufs', 'amx:compagnie', 'amx:achatsAuto', 'amx:contrats', 'amx:evalDemandes', 'amx:offresGmf', 'amx:recherchesVehicule'];   /* v131 : l'Accueil « À faire » suit aussi ces listes */
   function Accueil(conteneur, ctx) {
     injecterCss();
     var self = this;
@@ -335,6 +335,7 @@
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);   /* 2 nov. : jamais pour un représentant */
     if ((voit('demandesEval') || voit('evalPortail')) && AMX.evalDemandes) AMX.evalDemandes.charger().then(relancer, rien);   /* 27 oct. : demandes d'évaluation ; 2 nov. : portail du représentant */
     if (voitImports()) chargerImports().then(relancer, rien);
+    if (voit('rechercheVehicule') && AMX.rechercheVehicule) AMX.rechercheVehicule.charger().then(relancer, rien);   /* 16 nov. : nouveaux véhicules des recherches avec Einstein */
     if (voit('portefeuille') && AMX.portefeuille && AMX.portefeuille.pages) (cie ? [cie] : (AMX.codesPour ? AMX.codesPour('inventaire') : [])).forEach(function (c) { AMX.portefeuille.pages(c).then(relancer, rien); });   /* 5 nov. : réponses aux pages d'offre (toutes les concessions visibles sur « Tout le groupe ») */
   };
 
@@ -456,6 +457,11 @@
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations && AMX.evaluations.enCache()) {
       var aRel = AMX.evaluations.aRelancerPour(AMX.compagnieChoisie('evaluations'));
       if (aRel.length) out.push({ ton: 'ambre', n: aRel.length, titre: 'Clients d\'évaluation à relancer', detail: aRel.slice(0, 3).map(function (r) { return (r.suivi && r.suivi.client) || [r.annee, r.marque, r.modele].filter(Boolean).join(' '); }).join(' · ') + (aRel.length > 3 ? '…' : ''), href: AMX.lien('outils', 'evaluations', { suivi: 'relancer' }), ic: 'outils' });
+    }
+    // 16 nov. : nouveaux véhicules trouvés par mes recherches (Vente › Recherche de véhicule) — vert
+    if (voit('rechercheVehicule') && AMX.rechercheVehicule && AMX.rechercheVehicule.enCache()) {
+      var nvR = AMX.rechercheVehicule.nouveautes();
+      if (nvR.n) out.push({ ton: 'vert', n: nvR.n, titre: 'Nouveaux véhicules trouvés par vos recherches', detail: nvR.recherches.slice(0, 3).map(function (r) { return r.resume + ' : ' + r.nbNouveaux; }).join(' · ') + (nvR.recherches.length > 3 ? '…' : ''), href: nvR.recherches.length === 1 ? AMX.lien('rechercheVehicule', '', { id: nvR.recherches[0].id }) : AMX.lien('rechercheVehicule', '', {}), ic: 'recherche' });
     }
     // 5 nov. (nuit) : clients qui ont répondu à leur page d'offre (Relance › Portefeuille clients, PageOffre.gs) — vert
     if (voit('portefeuille') && AMX.portefeuille && AMX.portefeuille.reponsesATraiter) {

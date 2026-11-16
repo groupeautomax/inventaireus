@@ -1066,6 +1066,10 @@
     var self = this;
     if (this.sel) this.sel.quitter();
     this.sel = AMX.modeSelection({ liste: this.elListe, selecteur: '.ligne', actions: [
+      // 16 nov. : mettre plusieurs véhicules en vente d'un coup (fenêtre de Vente › Offre au marché, cases cochées).
+      (AMX.perm('changerStatut') && AMX.offres && AMX.offres.mettreEnVenteLot && (!AMX.voitOnglet || AMX.voitOnglet('vente', 'envente'))) ? { texte: 'Mettre en vente', icone: I.plus || '', action: function (vins, vider) {
+        AMX.offres.mettreEnVenteLot(vins, { apres: function () { vider(); } });
+      } } : null,
       AMX.perm('supprimer') ? { texte: 'Supprimer', icone: I.corbeille, danger: true, action: function (vins, vider) {
         AMX.inventaire.supprimer(vins, { feuille: self.cfg.feuille }).then(function (faits) {
           if (!faits) return;

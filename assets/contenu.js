@@ -6,6 +6,9 @@
      2. Une personne de la concession relit, corrige au besoin, et la direction approuve (« J'ai relu »).
      3. Dans D2C › Custom Pages du site, un clic sur le favori « Automax → D2C (pages) » : il crée la page, met le
         texte et le titre pour Google, et ScanAutomax relit la page en ligne (16 nov. : un seul clic).
+   16 nov. : onglet « Demander à Einstein » dans la fiche (idées d'amélioration, modifier le texte à la demande, revenir à
+   la version d'avant ; l'anglais est refait tout de suite après) et onglet « Comparaisons » de la liste (notre modèle contre
+   celui d'une autre marque, jamais deux marques du groupe).
    Les garde-fous (même texte sur deux sites, rythme, montants, secteurs) sont refaits par le serveur.
    Rien ne se garde dans le navigateur, rien ne se publie tout seul. */
 (function () {
@@ -56,6 +59,18 @@
     '.ctn-lien { margin-top: 12px; border: 1px solid var(--bordure); border-radius: 8px; padding: 8px 12px; } .ctn-lien summary { cursor: pointer; font-weight: 600; } .ctn-lien .aide { margin: 6px 0; color: var(--encre-3); font-size: 14px; } .ctn-lien label { margin-top: 8px; }' +
     '.ctn-un-clic { font-size: 15px; line-height: 1.5; margin: 4px 0 8px; } .ctn-main { margin-top: 12px; border: 1px solid var(--bordure); border-radius: 8px; padding: 8px 12px; } .ctn-main summary { cursor: pointer; font-weight: 600; } ' +
     '.ctn-pub .fav { margin: 8px 0; } .ctn-relu { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; margin-top: 8px; } .ctn-relu input { width: 20px; height: 20px; margin-top: 1px; }',
+    /* 16 nov. : onglets de la liste, Einstein dans la fiche, comparaisons */
+    '.ctn-vues { display: flex; gap: 6px; margin: 4px 0 12px; border-bottom: 1px solid var(--ligne); }',
+    '.ctn-vues button { border: 0; background: none; padding: 10px 14px; font: inherit; font-size: 15px; font-weight: 700; color: var(--encre-3); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; }',
+    '.ctn-vues button.actif { color: var(--encre); border-bottom-color: var(--vert); } .ctn-vues button .n { font-weight: 600; opacity: .7; margin-left: 6px; }',
+    '.ctn-intro-cmp { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; border: 1px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 14px 16px; margin: 0 0 12px; }',
+    '.ctn-intro-cmp .t { flex: 1 1 320px; font-size: 14px; line-height: 1.5; color: var(--encre-2); } .ctn-intro-cmp .t b { display: block; font-size: 16px; color: var(--encre); margin-bottom: 2px; }',
+    '.ctn-deux { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } @media (max-width: 640px) { .ctn-deux { grid-template-columns: 1fr; } }',
+    '.ctn-ein { display: flex; flex-direction: column; gap: 12px; } .ctn-ein textarea { min-height: 84px; }',
+    '.ctn-puces { display: flex; flex-wrap: wrap; gap: 6px; } .ctn-puces button { border: 1px solid var(--ligne); background: var(--carte); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; } .ctn-puces button:hover { border-color: var(--encre-3); }',
+    '.ctn-idees { display: flex; flex-direction: column; gap: 8px; } .ctn-idee { border: 1px solid var(--ligne); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--carte); }',
+    '.ctn-idee b { font-size: 15px; } .ctn-idee .p { font-size: 13px; color: var(--encre-3); } .ctn-idee .bas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .ctn-idee .bas input { flex: 1 1 240px; }',
+    '.ctn-ein h3 { font-size: 15px; margin: 6px 0 0; }',
     '@media (max-width: 640px) { .ctn-ligne { grid-template-columns: 1fr; } .ctn-ligne .d { justify-content: flex-start; } .ctn-apercu { height: 480px; } }'
   ].join('\n');
   function css() { if (!document.getElementById('css-contenu')) { var s = document.createElement('style'); s.id = 'css-contenu'; s.textContent = CSS; document.head.appendChild(s); } }
@@ -68,8 +83,28 @@
     ['modele', 'Un modèle en stock', 'Les véhicules d\'un modèle vraiment en vente sur le site, avec leurs fiches. Le plus utile pour Google.'],
     ['service', 'Guide du service', 'Un sujet d\'atelier (pneus d\'hiver, entretien…) avec ce que votre atelier offre vraiment.'],
     ['secteur', 'Secteur desservi', 'Pourquoi les clients d\'une ville voisine viennent chez vous. Cinq au plus par site, avec des faits locaux.'],
-    ['libre', 'Sujet libre', 'Un événement, une nouveauté, une question fréquente : avec vos faits.']
+    ['libre', 'Sujet libre', 'Un événement, une nouveauté, une question fréquente : avec vos faits.'],
+    ['comparaison', 'Comparaison avec une autre marque', 'Notre modèle contre celui d\'une autre marque (ex. BMW X3 contre Mercedes-Benz GLC). Jamais deux marques du groupe.']
   ];
+  /* Concurrents proposés selon notre marque (une suggestion : on peut taper toute autre marque hors du groupe) */
+  var CONCURRENTS = {
+    BMW: ['Mercedes-Benz', 'Audi', 'Lexus', 'Volvo', 'Genesis', 'Acura', 'Porsche', 'Tesla', 'Land Rover', 'Infiniti', 'Lincoln'],
+    Cadillac: ['Lincoln', 'Mercedes-Benz', 'Audi', 'Lexus', 'Genesis', 'Volvo', 'Acura', 'Tesla'],
+    Chevrolet: ['Ford', 'Ram', 'Toyota', 'Honda', 'Nissan', 'Jeep', 'Kia', 'Mazda', 'Subaru', 'Tesla'],
+    GMC: ['Ford', 'Ram', 'Toyota', 'Nissan', 'Jeep'],
+    Buick: ['Kia', 'Mazda', 'Toyota', 'Honda', 'Nissan', 'Subaru', 'Ford'],
+    Volkswagen: ['Toyota', 'Honda', 'Mazda', 'Subaru', 'Kia', 'Nissan', 'Ford', 'Mitsubishi', 'Jeep', 'Tesla'],
+    Hyundai: ['Toyota', 'Honda', 'Kia', 'Mazda', 'Nissan', 'Subaru', 'Mitsubishi', 'Ford', 'Tesla']
+  };
+  var MARQUES_GROUPE = ['BMW', 'MINI', 'Chevrolet', 'GMC', 'Buick', 'Cadillac', 'Volkswagen', 'Hyundai'];
+  var ALIAS_GROUPE = { vw: 'Volkswagen', chevy: 'Chevrolet' };
+  function sansAccent(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+  /** La marque du groupe que nomme ce texte, sinon '' (même règle que le serveur, CTN_marqueGroupe_). */
+  function marqueGroupe(m, liste) {
+    var n = sansAccent(m); if (!n) return '';
+    if (ALIAS_GROUPE[n]) return ALIAS_GROUPE[n];
+    return (liste || MARQUES_GROUPE).filter(function (x) { return sansAccent(x) === n; })[0] || '';
+  }
   var LIM = { metaTitre: 60, metaDescription: 155, titre: 70 };
 
   /* ---- Données ---- */
@@ -129,7 +164,7 @@
     var self = this;
     this.conteneur = conteneur; this.detruit = false;
     A.vider(conteneur);
-    this.btnNouvelle = h('button.btn.primaire', { type: 'button', text: 'Nouvelle page', onclick: function () { self.nouvelle(); } });
+    this.btnNouvelle = h('button.btn.primaire', { type: 'button', text: 'Nouvelle page', onclick: function () { self.nouvelle(self.vue === 'comparaisons' ? 'comparaison' : ''); } });
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnFavori = h('button.btn', { type: 'button', text: 'Le favori D2C', onclick: function () { self.aideFavori(); } });
     conteneur.appendChild(h('div.entete-page', [
@@ -139,6 +174,7 @@
     this.elSites = h('div.ctn-sites'); conteneur.appendChild(this.elSites);
     this.elCorps = h('div.ctn-page'); conteneur.appendChild(this.elCorps);
     this.site = (A.memo && A.memo.lire('ctn_site', '')) || '';
+    this.vue = (A.memo && A.memo.lire('ctn_vue', '')) === 'comparaisons' ? 'comparaisons' : 'pages';
     this.surCie = function (e) { var c = e.detail && e.detail.compagnie; if (c && self.rep) { var s = self.rep.sites.filter(function (x) { return x.cie === c; })[0]; if (s) { self.choisirSite(s.cle); } } };
     document.addEventListener('amx:compagnie', this.surCie);
     this.charger(false);
@@ -184,8 +220,21 @@
       h('li', { text: 'La direction approuve (« J\'ai relu la page et vérifié chaque fait »). Une page par semaine par site suffit ; jamais le même texte sur deux sites.' }),
       h('li', { text: 'Publier : dans D2C, ouvrez Custom Pages du site et cliquez le favori « Automax → D2C (pages) ». C\'est tout : il crée la page, met le texte et le titre pour Google, et vérifie qu\'elle est en ligne.' }),
       h('li', { text: 'ScanAutomax relit la page en ligne. Un véhicule vendu disparaît de la page à la prochaine publication : la page passe « à republier ».' })])]));
-    var pages = d.pages.filter(function (p) { return p.site === s.cle; });
-    if (!pages.length) { this.elCorps.appendChild(h('div.ctn-vide', { text: 'Aucune page pour ce site. « Nouvelle page » : Einstein prépare un brouillon à partir de nos données.' })); return; }
+    var toutes = d.pages.filter(function (p) { return p.site === s.cle; });
+    var nCmp = toutes.filter(function (p) { return p.type === 'comparaison' && p.etat !== 'retiree'; }).length, nPg = toutes.filter(function (p) { return p.type !== 'comparaison' && p.etat !== 'retiree'; }).length;
+    var vues = [['pages', 'Pages', nPg], ['comparaisons', 'Comparaisons', nCmp]];
+    this.elCorps.appendChild(h('div.ctn-vues', { role: 'tablist' }, vues.map(function (v) {
+      return h('button' + (v[0] === self.vue ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': v[0] === self.vue ? 'true' : 'false', onclick: function () { self.vue = v[0]; if (A.memo) A.memo.ecrire('ctn_vue', v[0]); self.btnNouvelle.textContent = v[0] === 'comparaisons' ? 'Nouvelle comparaison' : 'Nouvelle page'; self.rendre(); } },
+        [document.createTextNode(v[1]), v[2] ? h('span.n', { text: String(v[2]) }) : null]);
+    })));
+    this.btnNouvelle.textContent = this.vue === 'comparaisons' ? 'Nouvelle comparaison' : 'Nouvelle page';
+    var cmp = this.vue === 'comparaisons';
+    if (cmp) this.elCorps.appendChild(h('div.ctn-intro-cmp', [
+      h('div.t', [h('b', { text: 'Notre modèle contre celui d\'une autre marque' }),
+        document.createTextNode('Ex. ' + (s.marques && s.marques[0] === 'BMW' ? 'BMW X3 contre Mercedes-Benz GLC ou Audi Q5' : (s.marques || [''])[0] + ' contre un concurrent d\'une autre marque') + '. Jamais deux marques du groupe entre elles. Einstein met en avant les vrais avantages de notre modèle, à partir des chiffres que vous donnez (fiche du constructeur, même année) : une comparaison fausse ou trompeuse est interdite, et une page honnête convainc mieux.')]),
+      h('button.btn.primaire', { type: 'button', text: 'Nouvelle comparaison', onclick: function () { self.nouvelle('comparaison'); } })]));
+    var pages = toutes.filter(function (p) { return cmp ? p.type === 'comparaison' : p.type !== 'comparaison'; });
+    if (!pages.length) { this.elCorps.appendChild(h('div.ctn-vide', { text: cmp ? 'Aucune comparaison pour ce site. « Nouvelle comparaison » : choisissez notre modèle et celui d\'une autre marque.' : 'Aucune page pour ce site. « Nouvelle page » : Einstein prépare un brouillon à partir de nos données.' })); return; }
     var groupes = [
       ['À relire et approuver', pages.filter(function (p) { return p.etat === 'brouillon'; })],
       ['Approuvées — à publier dans D2C', pages.filter(function (p) { return p.etat === 'approuvee' || (p.etat === 'publiee' && !p.enLigne.aJour); })],
@@ -206,7 +255,8 @@
     if (p.etat === 'publiee' && !p.enLigne.aJour) puces.push(h('span.ctn-p.ambre', { text: 'À republier' }));
     var bl = p.avertissements.filter(function (a) { return a.bloquant && a.code !== 'anglais'; });
     if (bl.length) puces.push(h('span.ctn-p.rouge', { text: 'Bloquée' }));
-    var sous = [p.id, p.typeNom, p.type === 'modele' ? p.nbVehicules + ' véhicule' + (p.nbVehicules > 1 ? 's' : '') : '', 'modifiée le ' + dateCourte(p.maj || p.creeLe) + (p.majPar ? ' par ' + p.majPar : '')].filter(Boolean).join(' · ');
+    var pr = p.params || {};
+    var sous = [p.id, p.type === 'comparaison' ? pr.marque + ' ' + pr.modele + ' contre ' + pr.concurrentMarque + ' ' + pr.concurrentModele : p.typeNom, p.type === 'modele' ? p.nbVehicules + ' véhicule' + (p.nbVehicules > 1 ? 's' : '') : '', 'modifiée le ' + dateCourte(p.maj || p.creeLe) + (p.majPar ? ' par ' + p.majPar : '')].filter(Boolean).join(' · ');
     return h('button.ctn-ligne', { type: 'button', onclick: function () { self.fiche(p.id); } }, [h('div', [h('b', { text: p.titre || '(sans titre)' }), h('div.m', { text: sous })]), h('div.d', puces)]);
   };
   VueContenu.prototype.lireSite = function (s) {
@@ -230,15 +280,17 @@
   };
 
   /* ------------------------------ Nouvelle page ------------------------------ */
-  VueContenu.prototype.nouvelle = function () {
+  VueContenu.prototype.nouvelle = function (typeDepart) {
     var self = this, d = this.rep; if (!d) return;
     var s = this.siteCourant(); if (!s) return;
-    var type = 'modele', genre = 'occasion';
+    var type = typeDepart === 'comparaison' ? 'comparaison' : 'modele', genre = 'occasion';
+    var groupe = d.marquesGroupe || MARQUES_GROUPE, marquesSite = s.marques || [];
     var champs = h('div.ctn-champs'), etat = h('div.ctn-etat', { hidden: true });
     var types = h('div.ctn-types', TYPES.map(function (t) {
       return h('button.ctn-type' + (t[0] === type ? '.actif' : ''), { type: 'button', 'data-type': t[0], onclick: function () { type = t[0]; [].forEach.call(types.children, function (b) { b.classList.toggle('actif', b.getAttribute('data-type') === type); }); dessiner(); } }, [h('b', { text: t[1] }), h('span', { text: t[2] })]);
     }));
     var inModele, inSujet, inVille, inFaits, inAngle, inLien, inLienEn, inLienTexte, inLienTexteEn;
+    var inNotreMarque, inNotreModele, inAnnee, inConcMarque, inConcModele, autreModele;
     function champ(lib, aide, el) { return h('label', [h('span', { text: lib }), aide ? h('span.aide', { text: aide }) : null, el]); }
     function dessiner() {
       A.vider(champs);
@@ -253,6 +305,36 @@
         champs.appendChild(champ('Le modèle', 'Seulement des modèles vraiment en vente sur le site.', inModele));
         champs.appendChild(champ('Lesquels', '', seg));
         champs.appendChild(champ('Ce que l\'équipe veut dire (facultatif)', 'Des faits vrais : essai routier sur rendez-vous, préparation, garantie… Einstein n\'ajoute rien d\'autre.', inFaits));
+      } else if (type === 'comparaison') {
+        genre = 'tous';
+        var dansSite = s.modeles.filter(function (m) { return marquesSite.some(function (x) { return sansAccent(x) === sansAccent(m.marque); }); });
+        inModele = h('select.saisie', dansSite.map(function (m, i) { return h('option', { value: String(i), text: m.marque + ' ' + m.modele + ' — ' + m.n + ' sur le site' }); }).concat([h('option', { value: 'autre', text: 'Un autre modèle de la gamme (à taper)' })]));
+        inNotreMarque = h('select.saisie', marquesSite.map(function (x) { return h('option', { value: x, text: x }); }));
+        inNotreModele = h('input.saisie', { type: 'text', maxlength: '60', placeholder: 'ex. X5' });
+        autreModele = h('div.ctn-deux', [champ('Notre marque', '', inNotreMarque), champ('Notre modèle', '', inNotreModele)]);
+        var majAutre = function () { autreModele.hidden = inModele.value !== 'autre'; majListe(); };
+        inModele.addEventListener('change', majAutre);
+        inAnnee = h('input.saisie', { type: 'number', min: '2000', max: '2100', placeholder: 'ex. ' + new Date().getFullYear() });
+        var dl = h('datalist', { id: 'ctn-concurrents' });
+        inConcMarque = h('input.saisie', { type: 'text', maxlength: '40', placeholder: 'ex. Mercedes-Benz', list: 'ctn-concurrents' });
+        inConcModele = h('input.saisie', { type: 'text', maxlength: '60', placeholder: 'ex. GLC' });
+        var avisMarque = h('div.ctn-etat.err', { hidden: true });
+        var majListe = function () {
+          var mq = notreMarque(); A.vider(dl);
+          (CONCURRENTS[mq] || []).forEach(function (c) { dl.appendChild(h('option', { value: c })); });
+        };
+        inConcMarque.addEventListener('input', function () {
+          var g = marqueGroupe(inConcMarque.value, groupe);
+          avisMarque.hidden = !g; avisMarque.textContent = g ? g + ' est une marque du groupe : on compare notre modèle à une AUTRE marque (ex. ' + (CONCURRENTS[notreMarque()] || ['Toyota']).slice(0, 3).join(', ') + ').' : '';
+        });
+        champs.appendChild(champ('Notre modèle', 'Un modèle en vente sur le site, ou un autre modèle de la gamme.', inModele));
+        champs.appendChild(autreModele);
+        champs.appendChild(h('div.ctn-deux', [champ('Le concurrent : la marque', 'Une autre marque que les nôtres (' + groupe.join(', ') + ').', inConcMarque), champ('Le concurrent : le modèle', '', inConcModele)]));
+        champs.appendChild(dl); champs.appendChild(avisMarque);
+        champs.appendChild(champ('Année-modèle (facultatif)', 'La même pour les deux.', inAnnee));
+        champs.appendChild(champ('Les faits de la comparaison (80 caractères au moins)', 'Les chiffres des deux modèles avec leur source (fiche du constructeur, même année) : puissance, autonomie, espace, garantie, équipement de série. Einstein n\'utilise que ceux-là et met en avant les vrais avantages de notre modèle.', inFaits));
+        inFaits.placeholder = 'ex. X3 30 xDrive 2026 : 255 ch, xDrive de série, coffre 850 L (bmw.ca). GLC 300 2026 : 255 ch, coffre 620 L (mercedes-benz.ca).';
+        majAutre();
       } else if (type === 'secteur') {
         inVille = h('input.saisie', { type: 'text', maxlength: '60', placeholder: 'ex. Magog' });
         champs.appendChild(champ('La ville voisine', (s.secteurs || 0) + ' page' + ((s.secteurs || 0) > 1 ? 's' : '') + ' de secteur sur ce site (5 au plus).', inVille));
@@ -273,13 +355,30 @@
         champ('Adresse de la page (français)', '', inLien), champ('Adresse anglaise', 'Vide = la même.', inLienEn),
         champ('Texte du bouton', 'Sans montant ni paiement.', inLienTexte), champ('Texte du bouton (anglais)', 'Vide = « Learn more ».', inLienTexteEn)]));
     }
+    function notreMarque() {
+      if (!inModele) return marquesSite[0] || '';
+      if (inModele.value === 'autre') return inNotreMarque ? inNotreMarque.value : (marquesSite[0] || '');
+      var dansSite = s.modeles.filter(function (m) { return marquesSite.some(function (x) { return sansAccent(x) === sansAccent(m.marque); }); });
+      var mo = dansSite[Number(inModele.value)]; return mo ? (marquesSite.filter(function (x) { return sansAccent(x) === sansAccent(mo.marque); })[0] || mo.marque) : (marquesSite[0] || '');
+    }
     dessiner();
     var corps = h('div', [h('p', { style: { margin: '0 0 10px', color: 'var(--encre-2)' }, text: 'Pour ' + s.nom + '. Einstein prépare un brouillon ; rien n\'est publié avant votre approbation.' }), types, champs, etat]);
-    var m = A.modale({ titre: 'Nouvelle page', corps: corps, large: true, boutons: [
+    var m = A.modale({ titre: type === 'comparaison' ? 'Nouvelle comparaison' : 'Nouvelle page', corps: corps, large: true, boutons: [
       { texte: 'Annuler' },
       { texte: 'Préparer avec Einstein', classe: 'primaire', action: function (fermer, btn) {
         var b = { action: 'contenuGenerer', site: s.cle, type: type, genre: genre, angle: inAngle ? inAngle.value : '', faits: inFaits ? inFaits.value.trim() : '' };
         if (type === 'modele') { var mo = s.modeles[Number(inModele && inModele.value)]; if (!mo) return false; b.marque = mo.marque; b.modele = mo.modele; }
+        if (type === 'comparaison') {
+          b.marque = notreMarque();
+          if (inModele.value === 'autre') b.modele = inNotreModele.value.trim();
+          else { var ds = s.modeles.filter(function (x) { return marquesSite.some(function (y) { return sansAccent(y) === sansAccent(x.marque); }); })[Number(inModele.value)]; b.modele = ds ? ds.modele : ''; }
+          b.concurrentMarque = inConcMarque.value.trim(); b.concurrentModele = inConcModele.value.trim(); b.annee = inAnnee.value.trim();
+          if (!b.modele) { montrer('Choisissez ou tapez notre modèle.', true); return false; }
+          if (!b.concurrentMarque || !b.concurrentModele) { montrer('Donnez la marque et le modèle du concurrent.', true); return false; }
+          var g = marqueGroupe(b.concurrentMarque, groupe);
+          if (g) { montrer(g + ' est une marque du groupe : choisissez une autre marque.', true); return false; }
+          if (b.faits.length < 80) { montrer('Donnez les faits de la comparaison avec leur source (80 caractères au moins).', true); return false; }
+        }
         if (inLien && inLien.value.trim()) { b.lien = inLien.value.trim(); b.lienEn = inLienEn.value.trim(); b.lienTexte = inLienTexte.value.trim(); b.lienTexteEn = inLienTexteEn.value.trim(); }
         if (type === 'secteur') { b.ville = inVille.value.trim(); if (b.faits.length < 80 || b.ville.length < 2) { montrer('Donnez la ville et des faits vraiment locaux (80 caractères au moins).', true); return false; } }
         if (type === 'service' || type === 'libre') { b.sujet = inSujet.value.trim(); if (b.sujet.length < 4 || b.faits.length < 40) { montrer('Donnez le sujet et les faits (40 caractères au moins).', true); return false; } }
@@ -304,7 +403,7 @@
     var self = this;
     var corps = h('div.ctn-fiche', [A.chargeur('Page ' + id, { compact: true })]);
     var m = A.modale({ titre: 'Page ' + id, corps: corps, large: true, boutons: [{ texte: 'Fermer' }] });
-    var onglet = 'apercu', langue = 'fr', p = null, peutApprouver = false;
+    var onglet = 'apercu', langue = 'fr', p = null, peutApprouver = false, ideesDemandees = false, enCours = '', dernierFait = '';
     function charger() { return lirePage(id).then(function (d) { p = d.page; peutApprouver = !!d.peutApprouver; dessiner(); }).catch(function (e) { A.vider(corps); corps.appendChild(h('div.ctn-vide', { text: A.erreurTexte(e) })); }); }
     function apres(r) { if (r && r.page) { p = r.page; dessiner(); } self.charger(true); }
     function dessiner() {
@@ -321,16 +420,74 @@
       var av = p.avertissements.filter(function (a) { return a.code !== 'verifier'; });
       if (av.length) corps.appendChild(h('div.ctn-boite.ambre', [h('ul', av.map(function (a) { return h('li', { text: (a.bloquant ? 'Bloquant — ' : '') + a.texte }); }))]));
       if ((p.aVerifier || []).length) corps.appendChild(h('div.ctn-boite.bleu', [h('b', { text: 'À confirmer avant d\'approuver (Einstein n\'a fait que reprendre vos faits)' }), h('ul', p.aVerifier.map(function (t) { return h('li', { text: t }); }))]));
-      var ong = h('div.ctn-onglets', [['apercu', 'Aperçu'], ['fr', 'Texte français'], ['en', 'Texte anglais'], ['publier', 'Publier dans D2C']].map(function (o) {
+      var ong = h('div.ctn-onglets', [['apercu', 'Aperçu'], ['einstein', 'Demander à Einstein'], ['fr', 'Texte français'], ['en', 'Texte anglais'], ['publier', 'Publier dans D2C']].map(function (o) {
         return h('button' + (o[0] === onglet ? '.actif' : ''), { type: 'button', onclick: function () { onglet = o[0]; dessiner(); } }, [document.createTextNode(o[1])]);
       }));
       corps.appendChild(ong);
       if (onglet === 'apercu') corps.appendChild(apercu());
+      else if (onglet === 'einstein') corps.appendChild(einstein());
       else if (onglet === 'fr' || onglet === 'en') corps.appendChild(editeur(onglet));
       else corps.appendChild(publication());
       m.boutons(boutons());
     }
-    function libProbleme(c) { return ({ montant: 'Un montant ou un pourcentage (les prix ne vont que sous les véhicules)', paiement: 'Un paiement, un taux ou un rabais', superlatif: 'Une affirmation invérifiable', titre: 'Titre manquant', vide: 'Aucune section' })[c] || c; }
+    function libProbleme(c) { return ({ montant: 'Un montant ou un pourcentage (les prix ne vont que sous les véhicules)', paiement: 'Un paiement, un taux ou un rabais', superlatif: 'Une affirmation invérifiable', titre: 'Titre manquant', vide: 'Aucune section', marqueGroupe: 'Une autre marque du groupe dans une comparaison (on ne compare pas nos marques entre elles)' })[c] || c; }
+    /* 16 nov. : Einstein sur la page déjà écrite — idées, modification à la demande, version d'avant */
+    function einstein() {
+      var box = h('div.ctn-ein');
+      if (p.etat === 'retiree') { box.appendChild(h('div.ctn-vide', { text: 'Page retirée : remettez-la en brouillon d\'abord.' })); return box; }
+      if (enCours) box.appendChild(h('div.ctn-etat', { text: enCours }));
+      if (dernierFait) box.appendChild(h('div.ctn-boite.bleu', [h('b', { text: 'Fait : ' }), document.createTextNode(dernierFait + ' '), h('button.btn.petit', { type: 'button', text: 'Voir l\'aperçu', onclick: function () { onglet = 'apercu'; dessiner(); } })]));
+      if (p.avant) box.appendChild(h('div.ctn-boite.ambre', [h('b', { text: 'Dernière modification par Einstein' + (p.avant.le ? ' (' + dateCourte(p.avant.le) + (p.avant.par ? ', ' + p.avant.par : '') + ')' : '') + ' : ' }),
+        document.createTextNode('« ' + p.avant.demande + ' »' + (p.avant.changements ? ' — ' + p.avant.changements : '') + ' '),
+        h('button.btn.petit', { type: 'button', text: 'Revenir à la version d\'avant', disabled: !!enCours, onclick: function () { annuler(); } })]));
+      var dem = h('textarea.saisie', { maxlength: '1500', placeholder: 'ex. Raccourcis l\'introduction. Ajoute une question sur l\'essai routier. Mets l\'accent sur la conduite l\'hiver.' });
+      var puces = h('div.ctn-puces', ['Plus court', 'Ton plus chaleureux', 'Un titre plus accrocheur', 'Ajoute une question fréquente utile', 'Plus de détails pour les familles', 'Mets l\'accent sur l\'hiver au Québec'].map(function (t) {
+        return h('button', { type: 'button', text: t, onclick: function () { dem.value = dem.value ? dem.value.replace(/\s*$/, '') + '\n' + t + '.' : t + '.'; dem.focus(); } });
+      }));
+      box.appendChild(h('label', { style: { display: 'flex', flexDirection: 'column', gap: '6px', fontWeight: '700', fontSize: '14px' } }, [h('span', { text: 'Que voulez-vous changer ?' }),
+        h('span', { style: { fontWeight: '400', fontSize: '13px', color: 'var(--encre-3)' }, text: 'Einstein modifie le texte français en gardant les règles (aucun prix, aucun chiffre inventé) ; la version anglaise est refaite tout de suite après. Un fait nouveau que vous donnez ici ira dans « à confirmer ».' }), puces, dem]));
+      box.appendChild(h('div', [h('button.btn.primaire', { type: 'button', text: 'Modifier le texte avec Einstein', disabled: !!enCours, onclick: function () { reviser(dem.value.trim(), -1); } })]));
+      box.appendChild(h('h3', { text: 'Idées d\'Einstein pour améliorer la page' }));
+      var idees = p.idees || [];
+      if (!idees.length && !ideesDemandees && !enCours) { ideesDemandees = true; setTimeout(proposerIdees, 0); }
+      if (!idees.length) box.appendChild(h('div.ctn-vide', { text: enCours ? 'Einstein travaille…' : (ideesDemandees ? 'Einstein relit la page…' : 'Aucune idée pour le moment.') }));
+      else box.appendChild(h('div.ctn-idees', idees.map(function (x, i) {
+        var inFait = x.aCompleter ? h('input.saisie', { type: 'text', maxlength: '300', placeholder: x.aCompleter }) : null;
+        return h('div.ctn-idee', [h('b', { text: x.titre }), h('div.p', { text: x.pourquoi }), x.aCompleter ? h('div.p', { text: 'Il faut un fait : ' + x.aCompleter }) : null,
+          h('div.bas', [inFait, h('button.btn.petit.primaire', { type: 'button', text: 'Appliquer', disabled: !!enCours, onclick: function () {
+            var t = x.demande;
+            if (inFait) { if (!inFait.value.trim()) { A.toast('Répondez d\'abord : ' + x.aCompleter, 'attention'); inFait.focus(); return; } t += '\nFait donné par l\'équipe : ' + inFait.value.trim(); }
+            reviser(t, i);
+          } })])]);
+      })));
+      if (idees.length) box.appendChild(h('div', [h('button.btn.petit', { type: 'button', text: 'D\'autres idées', disabled: !!enCours, onclick: function () { proposerIdees(); } })]));
+      return box;
+    }
+    function proposerIdees() {
+      if (enCours) return;
+      enCours = 'Einstein relit la page et prépare des idées… (15 à 40 secondes)'; if (onglet === 'einstein') dessiner();
+      poster({ action: 'contenuEinstein', id: p.id, mode: 'idees' }, 120000).then(function (r) { enCours = ''; if (r.page) p = r.page; dessiner(); })
+        .catch(function (e) { enCours = ''; dessiner(); A.toast(A.erreurTexte(e), 'erreur', 9000); });
+    }
+    function reviser(demande, idee) {
+      if (demande.length < 5) { A.toast('Écrivez ce qu\'Einstein doit changer.', 'attention'); return; }
+      if (enCours) return;
+      dernierFait = ''; enCours = 'Einstein modifie le texte français… (30 à 60 secondes)'; dessiner();
+      poster({ action: 'contenuEinstein', id: p.id, mode: 'reviser', demande: demande, idee: idee }, 150000).then(function (r) {
+        if (r.page) p = r.page; dernierFait = r.changements || 'Texte modifié.';
+        enCours = 'Traduction anglaise… (30 à 60 secondes)'; dessiner();
+        return poster({ action: 'contenuTraduire', id: p.id }, 150000).then(function (t) { if (t.page) p = t.page; }, function (e) { A.toast('Texte français modifié ; la traduction a échoué : ' + A.erreurTexte(e) + ' (« Traduire en anglais » en bas).', 'attention', 9000); });
+      }).then(function () { enCours = ''; dessiner(); self.charger(true); })
+        .catch(function (e) { enCours = ''; dessiner(); A.toast(A.erreurTexte(e), 'erreur', 9000); });
+    }
+    function annuler() {
+      A.confirmer('Revenir à la version d\'avant ?', 'Le texte d\'avant la dernière modification par Einstein revient (français et anglais).', { ok: 'Revenir' }).then(function (oui) {
+        if (!oui) return;
+        enCours = 'Retour à la version d\'avant…'; dessiner();
+        poster({ action: 'contenuEinstein', id: p.id, mode: 'annuler' }).then(function (r) { enCours = ''; dernierFait = 'Version d\'avant remise.'; if (r.page) p = r.page; dessiner(); self.charger(true); })
+          .catch(function (e) { enCours = ''; dessiner(); A.toast(A.erreurTexte(e), 'erreur', 9000); });
+      });
+    }
     function apercu() {
       var seg = h('div.ctn-seg', { style: { margin: '0 0 8px' } }, [['fr', 'Français'], ['en', 'English']].map(function (l) {
         return h('button' + (l[0] === langue ? '.actif' : ''), { type: 'button', onclick: function () { langue = l[0]; dessiner(); } }, [document.createTextNode(l[1])]);
@@ -427,6 +584,7 @@
         var bl = p.avertissements.filter(function (a) { return a.bloquant; });
         var corpsA = h('div', [
           h('p', { style: { margin: '0 0 8px' }, text: 'En approuvant, vous confirmez que chaque fait de la page est vrai pour ' + ((p.siteInfo || {}).nom || 'la concession') + ', en français et en anglais.' }),
+          p.type === 'comparaison' ? h('div.ctn-boite.ambre', { text: 'Comparaison : chaque chiffre sur le ' + ((p.params || {}).concurrentMarque || 'concurrent') + ' ' + ((p.params || {}).concurrentModele || '') + ' vient de sa fiche officielle, même année, et rien n\'est faux ni trompeur (Loi sur la concurrence, Loi sur la protection du consommateur).' }) : null,
           (p.aVerifier || []).length ? h('div.ctn-boite.bleu', [h('b', { text: 'À confirmer' }), h('ul', p.aVerifier.map(function (t) { return h('li', { text: t }); }))]) : null,
           bl.length || p.problemes.length ? h('div.ctn-boite.rouge', { text: 'Le serveur refusera : ' + (p.problemes.length ? p.problemes.length + ' problème(s) à corriger. ' : '') + bl.map(function (a) { return a.texte; }).join(' ') }) : null,
           h('label.ctn-relu', [cb, h('span', { text: 'J\'ai relu la page et vérifié chaque fait.' })])

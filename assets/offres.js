@@ -657,7 +657,11 @@
     l.forEach(function (p) {
       var v = vehiculeDe(p.vin); var st = v.statut ? AMX.statut(v.statut, v._feuille) : null;
       var lien = cache.cle ? lienPublic(cache.cle, p.vin) : '';
-      var el = h('div.ligne.ligne-vente', { style: { cursor: 'default' } }, [   /* v136 : huit colonnes (le bouton « Envoyer » chevauchait le prix) */
+      // 16 nov. (Maxime : « on doit pouvoir cliquer sur le véhicule et voir les détails que le client voit ») : un clic sur la
+      // ligne (hors boutons et liens) ouvre la page publique du véhicule, telle que l'acheteur la voit.
+      var el = h('div.ligne.ligne-vente', { role: 'button', tabindex: '0', title: 'Voir la page telle que le client la voit',
+        onclick: function (e) { if (e.target.closest && e.target.closest('button, a, input, select')) return; self.apercuClient(p, v); },
+        onkeydown: function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); self.apercuClient(p, v); } } }, [   /* v136 : huit colonnes (le bouton « Envoyer » chevauchait le prix) */
         vignetteVin(p.vin, v.hasPhotos, marque(v.modele)),
         h('div', { style: { minWidth: 0 } }, [h('div.titre', { text: v.modele || p.vin }), h('div.sous', [h('span.vin', { text: p.vin }), v.stock ? h('span.puce.mono', { text: v.stock }) : null, v.compagnie ? h('span.puce', { text: v.compagnie }) : null, st ? h('span.badge.' + st.couleur, { text: st.libelle }) : null, h('span.puce.info', { text: libelleMarches(p), title: 'Pays du portail des acheteurs qui voient ce véhicule' })])]),
         h('div.cell', [h('span.l', 'Description'), h('span.v', { text: p.description || '— aucune —', title: p.description || '' })]),
@@ -670,6 +674,28 @@
       ul.appendChild(el);
     });
     this.elListe.appendChild(ul);
+  };
+  /* 16 nov. : la page publique du véhicule (vitrine/vehicle.html) dans une grande fenêtre — exactement ce que voit le client. */
+  EnVente.prototype.apercuClient = function (p, v) {
+    var self = this;
+    if (!cache.cle) { AMX.toast('Clé de la vitrine pas encore chargée : rafraîchissez la page.', 'attention'); return; }
+    var lien = lienPublic(cache.cle, p.vin);
+    var cadre = h('iframe.apercu-client', { src: lien, title: 'Page du véhicule vue par le client', loading: 'eager' });
+    var corps = h('div.apercu-client-corps', [
+      h('p.doux', { style: { margin: '0 0 10px' }, text: 'Voici la page que reçoit l\'acheteur quand vous lui envoyez ce véhicule (le prix, les photos, la description, le rapport CARFAX et le formulaire d\'offre).' }),
+      cadre
+    ]);
+    AMX.modale({ titre: (v && v.modele) || p.vin, large: true, classe: 'apercu-client-voile', corps: corps, proteger: false, boutons: [
+      { texte: 'Fermer' },
+      { texte: 'Copier le lien', action: function () { AMX.copier(lien, 'Lien de la page copié'); return false; } },
+      { texte: 'Ouvrir dans un onglet', action: function () { window.open(lien, '_blank', 'noopener'); return false; } },
+      { texte: 'Envoyer à un acheteur', classe: 'primaire', action: function (fermer) { fermer(); AMX.offres.envoyerAcheteurs(p.vin, { concession: compagnieVersConcession(v && v.compagnie) }); return false; } }
+    ] });
+    if (!document.getElementById('css-apercu-client')) {
+      var st = document.createElement('style'); st.id = 'css-apercu-client';
+      st.textContent = '.apercu-client-voile .modale.large { width: min(1100px, 96vw); }\n.apercu-client { width: 100%; height: min(72vh, 900px); border: 1px solid var(--ligne); border-radius: 12px; background: #fff; display: block; }\n.ligne-vente[role=button] { cursor: pointer; }\n.ligne-vente[role=button]:focus-visible { outline: 2px solid var(--vert); outline-offset: 2px; }';
+      document.head.appendChild(st);
+    }
   };
   EnVente.prototype.modalePublier = function (vin, existant) {
     var self = this;
@@ -929,10 +955,13 @@
     var entreprise = h('input.saisie', { type: 'text', placeholder: 'Nom de la concession acheteuse', value: existant ? existant.nomLegal : '' });
     var concession = h('select.saisie');
     (cache.concessions || Object.keys(AMX.CONCESSIONS).map(function (k) { return { id: k, nom: AMX.CONCESSIONS[k] }; })).forEach(function (c) { concession.appendChild(h('option', { value: c.id, text: c.nom })); });
+    concession.appendChild(h('option', { value: 'groupe', text: 'Groupe Automax' }));   // 16 nov. : invitation au nom du groupe (réponses à l'adresse du groupe)
     concession.value = (existant && existant.concession) || AMX.memo.lire('ach_concession', '') || concession.value;
     var langue = 'fr'; if (existant && existant.langue === 'en') langue = 'en';
     var pays = h('select.saisie', [h('option', { value: '', text: 'L\'acheteur choisira' })].concat(Object.keys(PAYS).map(function (c) { return h('option', { value: c, text: PAYS[c] }); })));
     pays.value = (existant && paysDe(existant)) || AMX.memo.lire('ach_pays', '') || '';
+    // 16 nov. : l'accès au portail des acheteurs ouvert dès l'inscription (l'acheteur ne voit rien avant d'avoir rempli sa fiche).
+    var avance = h('input', { type: 'checkbox', checked: existant ? existant.portail === 'approuve' : AMX.memo.lire('ach_avance', '1') !== '0', disabled: !!(existant && existant.portail === 'suspendu') });
     var segLangue = h('div.segment');
     var majLangue = function () { AMX.vider(segLangue); [['fr', 'Français'], ['en', 'English']].forEach(function (l) { segLangue.appendChild(h('button' + (langue === l[0] ? '.actif' : ''), { type: 'button', text: l[1], onclick: function () { langue = l[0]; majLangue(); } })); }); };
     majLangue();
@@ -941,13 +970,14 @@
       h('div.champ', [h('label', 'Courriel'), courriel]),
       h('div.grille.c2', [h('div.champ', [h('label', 'Nom du contact'), nom]), h('div.champ', [h('label', 'Entreprise'), entreprise])]),
       h('div.grille.c2', [h('div.champ', [h('label', 'Invitation au nom de'), concession]), h('div.champ', [h('label', 'Langue du courriel'), segLangue])]),
-      h('div.grille.c2', [h('div.champ', [h('label', 'Pays de l\'acheteur'), pays]), h('div.doux.petit', { style: { alignSelf: 'end', paddingBottom: '8px' }, text: 'Sa fiche demandera les numéros de son pays : Canada (permis, NEQ, TPS/TVQ), États-Unis (EIN, licence), France (SIRET, TVA intra, APE 4511Z, EORI, RCS, RNE).' })])
+      h('div.grille.c2', [h('div.champ', [h('label', 'Pays de l\'acheteur'), pays]), h('div.doux.petit', { style: { alignSelf: 'end', paddingBottom: '8px' }, text: 'Sa fiche demandera les numéros de son pays : Canada (permis, NEQ, TPS/TVQ), États-Unis (EIN, licence), France (SIRET, TVA intra, APE 4511Z, EORI, RCS, RNE).' })]),
+      h('label.case', { style: { display: 'flex', gap: '8px', alignItems: 'flex-start' } }, [avance, h('span', { text: 'Ouvrir son accès au portail des acheteurs dès son inscription (sinon, vous l\'approuvez ensuite). Le courriel explique toute la marche à suivre : inscription, connexion par code, offres et contrat.' })])
     ]);
     AMX.modale({ titre: existant ? 'Renvoyer l\'invitation' : 'Inviter un acheteur', corps: corps, boutons: [{ texte: 'Annuler' }, { texte: existant ? 'Renvoyer' : 'Envoyer l\'invitation', classe: 'primaire', action: function (fermer) {
       var c = courriel.value.trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c)) { courriel.style.borderColor = 'var(--rouge)'; courriel.focus(); return false; }
-      AMX.memo.ecrire('ach_concession', concession.value); AMX.memo.ecrire('ach_pays', pays.value);
-      return AMX.post({ action: 'acheteurExterneInviter', courriel: c, nom: nom.value.trim(), entreprise: entreprise.value.trim(), concession: concession.value, langue: langue, paysCode: pays.value, renvoyer: !!existant }).then(function (d) {
+      AMX.memo.ecrire('ach_concession', concession.value); AMX.memo.ecrire('ach_pays', pays.value); AMX.memo.ecrire('ach_avance', avance.checked ? '1' : '0');
+      return AMX.post({ action: 'acheteurExterneInviter', courriel: c, nom: nom.value.trim(), entreprise: entreprise.value.trim(), concession: concession.value, langue: langue, paysCode: pays.value, renvoyer: !!existant, portailAvance: avance.checked }).then(function (d) {
         AMX.verifier(d, 'Invitation impossible');
         if (d.deja && !existant) AMX.toast('Cet acheteur est déjà inscrit.', 'attention');
         else if (d.courrielEnvoye === false) AMX.toast('Fiche créée, mais le courriel n\'est pas parti : ' + (d.courrielErreur || 'raison inconnue'), 'attention', 9000);

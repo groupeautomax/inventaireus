@@ -962,6 +962,7 @@
     { id: 'ca', titre: 'Marché Canada', ico: '<b>CA</b>', panneau: 'marche' },
     { id: 'us', titre: 'Marché É.-U.', ico: '<b>US</b>', panneau: 'marche' },
     { id: 'export', titre: 'Canada ou É.-U. ?', ico: ICO_ECHANGE, panneau: 'export' },
+    { id: 'region', titre: 'Par concession', ico: I.resultat, panneau: 'region', visible: function () { return !!(AMX.marcheRegion && AMX.voitOnglet && AMX.voitOnglet('inventaire', 'marcheregion')); } },   /* 17 nov. : S83B4F8D1F5 (marche-region.js) */
     { id: 'openlane', titre: 'OpenLane', ico: I.resultat, panneau: 'openlane' },
     { id: 'suivi', titre: 'Client et suivi', ico: I.relance, panneau: 'suivi' },
     { id: 'etat', titre: 'État et photos', ico: I.photo, panneau: 'etat' },
@@ -976,6 +977,7 @@
     this.tuiles = {};
     this.elTuiles = h('div.eval-tuiles#eval-tuiles', { role: 'tablist', 'aria-label': 'Sections de l\'évaluation' });
     TUILES.forEach(function (t) {
+      if (t.visible && !t.visible()) return;
       var c = h('span.c', '—');
       var b = h('button.eval-tuile', { type: 'button', role: 'tab', 'aria-selected': 'false', 'aria-controls': 'eval-p-' + t.panneau, 'data-tuile': t.id, onclick: function () { self.ouvrirTuile(t.id); } }, [
         h('span.ico', { html: t.ico }),
@@ -997,11 +999,16 @@
     this.elKmHist = h('div.eval-sous-vehicule#eval-km');   /* 17 nov. : kilométrage connu, toutes nos sources */
     var pHist = carte(h('div.titre', [h('h2', 'Historique de ce véhicule'), h('p', 'Kilométrage connu, évaluations faites dans Torque et vente où il a servi d\'échange.')]), [this.elKmHist, this.elTorque, this.elEchange, this.elHistVide]);
     pHist.id = 'sec-historique';
-    var contenus = { marche: o.marche, export: this.elExport, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, rappels: pRappels, liens: pLiens, historique: pHist };
+    /* 17 nov. (S83B4F8D1F5) : ce que chaque concession réussit sur ce genre de véhicule (marche-region.js). */
+    this.elRegion = h('div#eval-region');
+    var pRegion = carte(h('div.titre', [h('h2', 'Par concession'), h('p', 'Le prix attendu, les jours en stock et le profit de chaque concession sur ce genre de véhicule, et la tendance des prix.')]), [this.elRegion]);
+    pRegion.id = 'sec-region';
+    var contenus = { marche: o.marche, export: this.elExport, region: pRegion, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, rappels: pRappels, liens: pLiens, historique: pHist };
     this.panneaux = {};
     this.elPanneaux = h('div.eval-panneaux#eval-panneaux');
     // Ordre des panneaux dans la page : Canada / É.-U. avant le marché (comme avant), le reste ensuite.
-    ['suivi', 'etat', 'export', 'marche', 'openlane', 'rappels', 'liens', 'historique'].forEach(function (k) {
+    ['suivi', 'etat', 'export', 'region', 'marche', 'openlane', 'rappels', 'liens', 'historique'].forEach(function (k) {
+      if (!contenus[k] || (k === 'region' && !self.tuiles.region)) return;
       var p = h('div.eval-panneau#eval-p-' + k, { role: 'tabpanel', hidden: 'hidden' }, [contenus[k]]);
       self.panneaux[k] = p;
       self.elPanneaux.appendChild(p);
@@ -1031,10 +1038,30 @@
     var exOuvert = panneau === 'export';
     if (this.exportOuvert !== exOuvert) { this.exportOuvert = exOuvert; this.rendreExport(); }
     if (panneau === 'marche' && !this.analyses[this.pays] && !this.enCours[this.pays] && this.parametresPrets()) this.analyser(this.pays, false);
+    if (panneau === 'region') this.rendreRegion(true);
     this.majTuiles();
     var b = this.tuiles[id] && this.tuiles[id].el;
     if (!fermer && b && b.scrollIntoView) { try { b.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); } catch (e) {} }
     if (!fermer && opts.defiler && this.elTuiles.scrollIntoView) { try { this.elTuiles.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
+  };
+
+  /* 17 nov. (S83B4F8D1F5) : le panneau « Par concession ». Les données se lisent à la première ouverture (copie du
+     navigateur d'abord) ; ensuite le panneau suit la marque, le modèle, l'année, le km, le recon et la marge. */
+  Evaluation.prototype.valeursRegion = function () {
+    return { marque: this.elMarque.value.trim(), modele: this.elModele.value.trim(), annee: this.elAnnee.value.trim(), km: this.elKm.value.trim(),
+      recon: this.elRecon ? this.elRecon.value.trim() : '', marge: this.elMarge ? this.elMarge.value.trim() : '', frais: this.elFrais ? this.elFrais.value.trim() : '',
+      cie: AMX.CONCESSION_COMPAGNIE[this.elConcession ? this.elConcession.value : ''] || '' };
+  };
+  Evaluation.prototype.rendreRegion = function (ouverture) {
+    var self = this;
+    if (!this.elRegion || !AMX.marcheRegion) return;
+    var v = this.valeursRegion(), vin = (this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    if (ouverture && !this.regionDemande) {
+      this.regionDemande = true;
+      AMX.marcheRegion.copie().then(function () { return AMX.marcheRegion.charger(false); }).then(function () { self.regionSig = ''; self.majTuiles(); }, function () {});
+    }
+    var mds = (this.regionMds && this.regionMds.vin === vin) ? this.regionMds.r : {};
+    AMX.marcheRegion.bloc(this.elRegion, v, { vin: vin, mds: mds, surMds: function (r) { self.regionMds = { vin: vin, r: r }; self.rendreRegion(); } });
   };
 
   /* 17 nov. (SAE7E4F70CA) : le kilométrage connu du NIV (toutes nos sources, KmHistorique.gs) ; alerte rouge sous le
@@ -1096,6 +1123,15 @@
       else if (us && us.alerteMmr) poser('export', 'Alerte MMR', 'rouge', 'Le marché É.-U. ne couvre pas le MMR de ' + (us.alerteMmrSeuil || 10) + ' %');
       else if (us && us.verdict) poser('export', AMX.export.texteVerdict(us), us.verdict === 'us' ? 'bleu' : (us.verdict === 'ca' ? 'vert' : (us.verdict === 'detail' ? 'ambre' : '')), AMX.export.texteProfits(us));
       else poser('export', AMX.export.exportable(vin) ? 'À comparer' : 'Pas fabriqué É.-U.', 'gris');
+    }
+    // Par concession (17 nov.) : la concession où ce genre se vend le mieux.
+    if (this.tuiles.region && AMX.marcheRegion) {
+      var vr = this.valeursRegion(), tr = AMX.marcheRegion.tuile(vr);
+      poser('region', tr.texte, tr.ton, tr.titre || '');
+      if (this.tuileOuverte === 'region') {
+        var sig = JSON.stringify(vr) + '|' + (AMX.marcheRegion.enCache() ? 1 : 0);
+        if (sig !== this.regionSig) { this.regionSig = sig; if (!this.regionMaj) this.regionMaj = AMX.debounce(function () { self.rendreRegion(); }, 400); this.regionMaj(); }
+      }
     }
     // OpenLane : la prévision, sinon la moyenne des ventes comparables.
     var ol = vinOk && AMX.openlane && AMX.openlane.valeur ? AMX.openlane.valeur(vin) : null;

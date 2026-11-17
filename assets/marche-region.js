@@ -99,13 +99,13 @@
       var achatMax = (attendu !== null && d.montants) ? centaine(attendu - (recon || 0) - marge - frais) : null;
       return { cie: cie, ref: ref !== null ? centaine(ref) : null, nAnnonces: m ? m[0] : 0, src: src, pct: p, pctSrc: pSrc, attendu: attendu, achatMax: achatMax,
         recon: recon, niveau: niveau, ventes: stat ? stat.ventes : 0, gros: stat ? stat.gros : 0, tauxDetail: stat ? stat.tauxDetail : null,
-        joursMed: stat ? stat.joursMed : null, profitMoy: stat ? stat.profitMoy : null, fiMoy: stat ? stat.fiMoy : null,
+        joursMed: stat ? stat.joursMed : null, nJours: stat ? (stat.nJours || 0) : 0, profitMoy: stat ? stat.profitMoy : null, fiMoy: stat ? stat.fiMoy : null,
         stock: gen ? gen.stock : 0, joursAppro: gen ? gen.joursAppro : null, ici: v.cie === cie };
     });
     // Le meilleur prix : seulement une concession qui vend ce genre (3 ventes et plus) et dont on connaît le % obtenu.
     var avecVentes = lignes.filter(function (l) { return l.ventes >= 3 && l.attendu !== null && l.pct !== null; });
     var meilleur = (avecVentes.length ? avecVentes : lignes.filter(function (l) { return l.attendu !== null; })).sort(function (a, b) { return b.attendu - a.attendu; })[0] || null;
-    var rapide = lignes.filter(function (l) { return l.ventes >= 3 && l.joursMed !== null; }).sort(function (a, b) { return a.joursMed - b.joursMed; })[0] || null;
+    var rapide = lignes.filter(function (l) { return l.ventes >= 3 && l.nJours >= 3 && l.joursMed !== null; }).sort(function (a, b) { return a.joursMed - b.joursMed; })[0] || null;
     if (meilleur && avecVentes.length) meilleur.meilleur = true;
     if (rapide) rapide.rapide = true;
     return { fam: fam, seg: seg, an: an, km: km, lignes: lignes, meilleur: meilleur && avecVentes.length ? meilleur : null, rapide: rapide, tendance: (d.tendances || {})[fam + '|' + an] || null };
@@ -182,7 +182,7 @@
         h('td.num', { title: l.pctSrc === 'modele' ? 'Sur ce modèle' : (l.pctSrc === 'genre' ? 'Sur ce genre de véhicule' : 'Pas assez de ventes avec un prix : on prend le marché') }, [l.pct !== null ? pct(l.pct, true) : '—']),
         h('td.num' + (l.pct !== null ? '.fort' : '.estime'), { text: argent(l.attendu), title: l.pct !== null ? 'Marché local × % que la concession obtient' : 'Le prix du marché : pas assez de ventes pour savoir ce que la concession obtient' })];
       if (m) ligne.push(h('td.num', { text: argent(l.achatMax), title: l.recon !== null ? 'Recon ' + AMX.fmtArgent(l.recon) : '' }));
-      ligne.push(h('td.num', { text: jours(l.joursMed), title: l.niveau === 'modele' ? 'Sur ce modèle' : 'Sur ce genre de véhicule' }),
+      ligne.push(h('td.num' + (l.joursMed !== null && l.nJours < 3 ? '.estime' : ''), { text: jours(l.joursMed), title: (l.niveau === 'modele' ? 'Sur ce modèle' : 'Sur ce genre de véhicule') + ' — ' + l.nJours + ' vente' + (l.nJours > 1 ? 's' : '') + ' avec une date d\'arrivée' + (l.joursMed !== null && l.nJours < 3 ? ' : trop peu pour s\'y fier' : '') }),
         h('td.num', { text: l.ventes + ' / ' + l.gros, title: l.tauxDetail !== null ? pct(l.tauxDetail) + ' vendus au détail' : '' }),
         h('td.num', { text: l.stock + (l.joursAppro !== null ? ' (' + Math.round(l.joursAppro) + ' j)' : '') }));
       if (m) ligne.push(h('td.num', { text: argent(l.profitMoy) }));
@@ -209,7 +209,7 @@
 
   /* ------------------------------ la page ------------------------------ */
   var INDICATEURS = [
-    { id: 'joursMed', t: 'Jours en stock', sens: -1, f: jours, aide: 'Jours en stock médians jusqu\'à la vente au détail' },
+    { id: 'joursMed', t: 'Jours en stock', sens: -1, f: jours, n: 'nJours', aide: 'Jours en stock médians jusqu\'à la vente au détail — date d\'arrivée : registre, fiche d\'achat, achat automatique, ou livraison du véhicule qui a amené l\'échange (la plus ancienne). Grisé : moins de 3 ventes avec une date.' },
     { id: 'pctMarche', t: '% du marché', sens: 1, f: function (x) { return pct(x, true); }, n: 'nPct', aide: 'Prix de vente ÷ prix médian affiché des annonces du même modèle-année (6 derniers mois)' },
     { id: 'ventes', t: 'Ventes au détail', sens: 1, f: function (x) { return x ? String(x) : '0'; } },
     { id: 'tauxDetail', t: 'Vendus au détail', sens: 1, f: function (x) { return pct(x); }, aide: 'Ventes au détail ÷ (détail + gros)' },
@@ -342,7 +342,7 @@
         [h('td', [h('b', { text: l.nom }), l.seg ? h('small', { text: ' ' + l.seg }) : null].filter(Boolean))].concat(cies.map(function (c) {
           var o = l.cel[c], x = o.x, base = x ? (ind.n ? x[ind.n] : x.ventes) : 0;
           var txt = (o.v === null || o.v === undefined) ? '—' : ind.f(o.v);
-          var sous = (ind.id === 'pctMarche' && base) ? base + ' vente' + (base > 1 ? 's' : '') : ((ind.id !== 'ventes' && ind.id !== 'gros' && ind.id !== 'stock' && ind.id !== 'annonces' && x) ? (x.ventes || 0) + ' vente' + ((x.ventes || 0) > 1 ? 's' : '') : '');
+          var sous = (ind.n && base) ? base + ' vente' + (base > 1 ? 's' : '') : ((ind.id !== 'ventes' && ind.id !== 'gros' && ind.id !== 'stock' && ind.id !== 'annonces' && x) ? (x.ventes || 0) + ' vente' + ((x.ventes || 0) > 1 ? 's' : '') : '');
           return h('td.num' + (meilleur && meilleur.c === c ? '.meilleur' : '') + (c === self.compagnie ? '.ici' : '') + ((base < 3 && ind.sens && o.v !== null && o.v !== undefined && ind.id !== 'joursAppro') ? '.peu' : ''), [h('span', { text: txt }), sous ? h('small', { text: sous }) : null].filter(Boolean));
         })));
       tbody.appendChild(tr);
@@ -360,7 +360,8 @@
         var x, v;
         if (self.vue === 'genre') { var pc = d.parCie[c] || {}; x = (pc.segments || {})[l.cle]; v = ind.id === 'annonces' ? (((pc.marche || {})[l.cle] || {}).n || 0) : (x ? x[ind.id] : null); }
         else { x = ((d.modeles || {})[c] || {})[l.cle]; v = x ? x[ind.id] : null; if (ind.id === 'annonces') v = null; }
-        return h('td.num', { text: v === null || v === undefined ? '—' : ind.f(v) });
+        var nb = (ind.n && x) ? (x[ind.n] || 0) : null;
+        return h('td.num' + (nb !== null && nb < 3 && v !== null && v !== undefined ? '.peu' : ''), [h('span', { text: v === null || v === undefined ? '—' : ind.f(v) }), (nb !== null && v !== null && v !== undefined) ? h('small', { text: ' (' + nb + ')' }) : null].filter(Boolean));
       }))));
     });
     var corps = [h('div.mrg-defile', [h('table.tableau.mrg-table', [thead, tbody])])];
@@ -433,6 +434,7 @@
       '.mrg-table th.ici{color:var(--vert-fonce,#00632f)}',
       '.mrg-grille td.meilleur{background:var(--vert-clair,#eaf6ef);color:var(--vert-fonce,#00632f);font-weight:700}',
       '.mrg-grille td.peu span{color:var(--encre-4,#5F6978)}',
+      '.mrg-detail td.peu span{color:var(--encre-4,#5F6978)}', '.mrg-detail td small{color:var(--encre-4,#5F6978);font-size:12px}',
       '.mrg-grille td.ici{box-shadow:inset 2px 0 0 var(--vert,#008840)}',
       '.mrg-ligne{cursor:pointer}.mrg-ligne:hover td{background:var(--fond,#f6f7f9)}.mrg-ligne:focus-visible{outline:2px solid var(--vert,#008840);outline-offset:-2px}',
       '.mrg-cie{display:flex;align-items:center;gap:6px;flex-wrap:wrap;white-space:normal}', '.mrg-table td.estime{color:var(--encre-3,#4B5563);font-style:italic}',

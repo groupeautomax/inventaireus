@@ -316,6 +316,7 @@
     this.elInd.hidden = !!this.mod || this.vue === 'apercu';
     this.elRech.hidden = !!this.mod || this.vue !== 'modele';
     this.elVues.style.display = this.mod ? 'none' : '';
+    if (this.elVues.parentNode && this.elVues.parentNode.parentNode) this.elVues.parentNode.parentNode.style.display = this.mod ? 'none' : '';
     this.remplirListe();
     this.rendreCorps();
   };
@@ -696,7 +697,7 @@
       var g = grapheModele(m, d, enc, proj, seg);
       if (!g) { zone.appendChild(h('p.mrg-note', { text: 'Pas encore de prix pour ce modèle-année.' })); return; }
       zone.appendChild(h('div.mrg-graphe', [g]));
-      var leg = [['encan', 'Ventes à l\'encan (OpenLane)']]; if ((m.evals || []).length) leg.push(['eval', 'Nos évaluations']); leg.push(['med', 'Médiane de la semaine']); if (proj.length) leg.push(['proj', 'Projection (dépréciation + saison)']);
+      var leg = []; if ((m.encan || []).length) leg.push(['encan', 'Ventes à l\'encan (OpenLane)']); if ((m.evals || []).length) leg.push(['eval', 'Nos évaluations']); if (enc && enc.t && enc.t.points && enc.t.points.length > 1) leg.push(['med', 'Médiane de la semaine']); if (proj.length) leg.push(['proj', 'Projection (dépréciation + saison)']);
       zone.appendChild(legende(leg));
       if (m.voitEvals && (m.evals || []).length) {
         var ev = m.evals.slice(-12).reverse();

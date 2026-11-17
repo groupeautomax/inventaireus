@@ -754,7 +754,10 @@
      relance ou un secours part seul. Un script d'avant (pas de « lot » dans la réponse) : chaque demande repart seule, et le
      site ne regroupe plus jusqu'au prochain chargement. */
   var LOT_FENETRE_MS = 30, LOT_MAX = 8, lotIndispo = false, lotEnAttente = null;
-  var LOT_ROUTES = /^(achatsAuto|achatsCourriels|rdv|avis|csiAlertes|importsEtat|evalDemandes|pagesOffre|suggestions|demandes|evaluations|provenances|usagesSupprimes|photosD2c|cfxEtat|rabaisD2c|programmesMois|fidelite|equiteCrm|traction|iaReglages|saaqEtat|prixDetail|evalVin|ficheVin|decoder|torqueVin|eblockVin|venteVin|rappelsNhtsa|exportParams|evaluationsUs|concessionInfo)$/;   // 17 nov. : + les petites lectures de l'évaluation (une seule exécution chez Google au lieu de 6 à 10)
+  /* 17 nov. (soir, Marc-André SAA3D295DE0) : l'évaluation elle-même (evalVin), le décodage et la fiche d'achat partent SEULS —
+     dans un lot, Google exécute les routes l'une après l'autre et le lot répond quand la plus lente a fini : avec venteVin (20 s)
+     la fiche s'affichait après 23 s (4 s seule). venteVin part seule aussi. Restent groupées les lectures secondaires. */
+  var LOT_ROUTES = /^(achatsAuto|achatsCourriels|rdv|avis|csiAlertes|importsEtat|evalDemandes|pagesOffre|suggestions|demandes|evaluations|provenances|usagesSupprimes|photosD2c|cfxEtat|rabaisD2c|programmesMois|fidelite|equiteCrm|traction|iaReglages|saaqEtat|prixDetail|torqueVin|eblockVin|rappelsNhtsa|exportParams|evaluationsUs|concessionInfo)$/;
   function lotPermis(params, opts) {
     if (lotIndispo || opts.lot === false || !params || typeof params !== 'object') return false;
     var k = Object.keys(params)[0];

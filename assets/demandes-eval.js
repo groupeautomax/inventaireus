@@ -58,17 +58,53 @@
     try { document.dispatchEvent(new CustomEvent('amx:evalDemandes')); } catch (e) {}
     if (AMX.rafraichirSousBarre) AMX.rafraichirSousBarre();
   }
+  /* 17 nov. (soir, vitesse — Marc-André SAA3D295DE0) : la liste est gardée sur l'appareil (IndexedDB, effacée à la déconnexion)
+     et s'affiche TOUT DE SUITE à l'ouverture, puis la réponse du serveur la remplace (≈ 5 s). Le serveur reste la vérité : une
+     copie n'ouvre jamais d'elle-même une fiche (ficheDemandee attend la vraie réponse) et un geste part toujours au serveur. */
+  var COPIE_CLE = 'eval_demandes', COPIE_MAX = 3 * 86400000, copieLue = false;
+  function lireCopie() {
+    if (copieLue || cache.rep || !AMX.cacheLocal || !AMX.cacheLocal.lireGz) return;
+    copieLue = true;
+    var courriel = (AMX.session && AMX.session.courriel) || '';
+    AMX.cacheLocal.lireGz(COPIE_CLE, COPIE_MAX).then(function (o) {
+      var d = o && o.donnees;
+      if (!d || !Array.isArray(d.demandes) || cache.rep || d.__courriel !== courriel) return;
+      cache.rep = d; cache.quand = 0; cache.copieLe = o.quand;   // quand = 0 : la prochaine lecture va au serveur
+      annoncer();
+    }).catch(function () {});
+  }
+  function ecrireCopie(d) {
+    try { if (AMX.cacheLocal && AMX.cacheLocal.ecrireGz) AMX.cacheLocal.ecrireGz(COPIE_CLE, Object.assign({}, d, { __courriel: (AMX.session && AMX.session.courriel) || '' })); } catch (e) {}
+  }
   function charger(force) {
-    if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(30000)) return Promise.resolve(cache.rep);
+    if (!force && cache.rep && cache.quand && Date.now() - cache.quand < AMX.dureeCopie(30000)) return Promise.resolve(cache.rep);
     if (cache.promesse) return cache.promesse;
+    lireCopie();
     cache.promesse = AMX.get({ evalDemandes: 1 }, { secours: false }).then(function (d) {
       cache.promesse = null;
       if (!d || !Array.isArray(d.demandes)) throw new Error((d && d.erreur) || SCRIPT_PAS_A_JOUR);
-      cache.rep = d; cache.quand = Date.now();
+      cache.rep = d; cache.quand = Date.now(); cache.copieLe = 0;
+      ecrireCopie(d);
       annoncer();
       return d;
     }, function (e) { cache.promesse = null; throw e; });
     return cache.promesse;
+  }
+  /* 17 nov. (soir, vitesse) : les demandes qui vous attendent sont préparées d'avance pendant que la liste est affichée —
+     évaluation, décodage et fiche d'achat lus en arrière-plan (3 demandes au plus, une fois par 10 min chacune). Au clic sur
+     « Prendre et évaluer », la page d'évaluation les reprend (AMX.evaluationPrecharger, evaluation.js) au lieu de les relire. */
+  var PRE_FAITS = {};
+  function preparerMesDemandes() {
+    if (!AMX.evaluationPrecharger || document.hidden) return;
+    var d = cache.rep; if (!d || !cache.quand) return;
+    var maintenant = Date.now(), n = 0;
+    d.demandes.forEach(function (x) {
+      if (n >= 3 || !x.vin || String(x.vin).length !== 17 || !x.pourMoi) return;   // pourMoi : à moi, ou prise par moi (DEV_aQui_)
+      if (!(x.etat === 'afaire' || x.etat === 'encours')) return;
+      if (PRE_FAITS[x.vin] && maintenant - PRE_FAITS[x.vin] < 600000) return;
+      PRE_FAITS[x.vin] = maintenant; n++;
+      try { AMX.evaluationPrecharger(x.vin); } catch (e) {}
+    });
   }
   function poser(demande, silencieux) {
     if (!cache.rep || !demande) return;
@@ -998,7 +1034,7 @@
   Vue.prototype.charger = function (force, silencieux) {
     var self = this;
     if (!cache.rep) { AMX.vider(this.elListe); this.elListe.appendChild(AMX.chargeur ? AMX.chargeur('Évaluations') : h('p.doux', 'Lecture…')); }
-    charger(force).then(function () { if (!self.detruit) self.rendre(); }).catch(function (e) {
+    charger(force).then(function () { if (!self.detruit) { self.rendre(); if (!self.portail) preparerMesDemandes(); } }).catch(function (e) {
       if (self.detruit) return;
       if (!cache.rep) { AMX.vider(self.elListe); self.elListe.appendChild(h('div.carte', [h('div.carte-corps', [h('p', { style: { color: 'var(--rouge)' }, text: AMX.erreurTexte(e) })])])); }
       if (!silencieux) erreur(e);
@@ -1025,7 +1061,7 @@
     }
     if (this.cible) { var c = this.el.querySelector('[data-id="' + this.cible + '"]'); if (c) { c.scrollIntoView({ block: 'center' }); c.classList.add('de-cible'); this.cible = ''; } }
     /* le lien d'un courriel ou d'un texto ouvre la fiche de la demande (une fois) */
-    if (this.ficheDemandee) { var vf = d.demandes.filter(function (x) { return x.id === self.ficheDemandee; })[0]; this.ficheDemandee = ''; if (vf) setTimeout(function () { if (!self.detruit) ficheDemande(vf, { portail: self.portail }); }, 60); }
+    if (this.ficheDemandee && cache.quand) { var vf = d.demandes.filter(function (x) { return x.id === self.ficheDemandee; })[0]; this.ficheDemandee = ''; if (vf) setTimeout(function () { if (!self.detruit) ficheDemande(vf, { portail: self.portail }); }, 60); }
   };
 
   /* La liste : En cours (ce qui attend mon geste d'abord) ou Terminées */
@@ -1225,7 +1261,7 @@
     transferer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); transferer(x, cache.rep); } },
     faite: function (id) { return action(id, 'faite'); },
     message: message, ouvrirFil: ouvrirFil, reglages: reglages, phase: phase,
-    vider: function () { cache = { rep: null, quand: 0, promesse: null }; }
+    vider: function () { cache = { rep: null, quand: 0, promesse: null }; copieLue = false; PRE_FAITS = {}; }
   };
 
   function injecterCss() {

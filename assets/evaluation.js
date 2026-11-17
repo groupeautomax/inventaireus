@@ -2607,15 +2607,33 @@
 
   /* ---------------------------- Chargement ------------------------------ */
   /* 17 nov. (vitesse) : décodage lancé d'avance par charger(), repris par decoder() (une minute au plus). */
-  var DECODE_PRE = {};
-  function prechargerDecodage(vin) {
+  /* 17 nov. (soir) : 10 minutes — le décodage d'un NIV ne change pas, et la liste des demandes le prépare d'avance. */
+  var DECODE_PRE = {}, DECODE_TTL = 600000;
+  function prechargerDecodage(vin, discret) {
     vin = String(vin || '').trim().toUpperCase();
     if (!vin || vin.length < 11) return;
-    if (DECODE_PRE[vin] && Date.now() - DECODE_PRE[vin].t < 60000) return;
-    var p = AMX.get({ decoder: vin });
-    p.catch(function () {});
+    if (DECODE_PRE[vin] && Date.now() - DECODE_PRE[vin].t < DECODE_TTL) return;
+    var p = AMX.get({ decoder: vin }, discret ? { discret: true } : undefined);
+    p.catch(function () { if (DECODE_PRE[vin] && DECODE_PRE[vin].p === p) delete DECODE_PRE[vin]; });
     DECODE_PRE[vin] = { t: Date.now(), p: p };
   }
+  /* 17 nov. (soir, vitesse — Marc-André SAA3D295DE0) : la liste des demandes prépare d'avance celles qui vous attendent
+     (demandes-eval.js, preparerMesDemandes) : l'évaluation (gardée 3 min), le décodage et la fiche d'achat. Au clic sur
+     « Prendre et évaluer », charger() reprend ces réponses : la page est remplie tout de suite et l'analyse part aussitôt. */
+  var EVAL_PRE = {}, EVAL_PRE_TTL = 180000;
+  function prechargerEvaluation(vin) {
+    vin = String(vin || '').trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return;
+    prechargerDecodage(vin, true);
+    if (!EVAL_PRE[vin] || Date.now() - EVAL_PRE[vin].t > EVAL_PRE_TTL) {
+      var p = AMX.get({ evalVin: vin }, { discret: true });
+      p.catch(function () { if (EVAL_PRE[vin] && EVAL_PRE[vin].p === p) delete EVAL_PRE[vin]; });
+      EVAL_PRE[vin] = { t: Date.now(), p: p };
+    }
+    if (AMX.ficheDe) AMX.ficheDe(vin).catch(function () {});
+  }
+  AMX.evaluationPrecharger = prechargerEvaluation;
+  AMX.evaluationPrecharger.vider = function () { EVAL_PRE = {}; DECODE_PRE = {}; };
 
   Evaluation.prototype.charger = function (vin) {
     var self = this;
@@ -2632,7 +2650,9 @@
        (lot) — avant, trois allers-retours de 5 à 8 s l'un après l'autre avant de voir le véhicule. */
     prechargerDecodage(vin);
     if (AMX.ficheDe) AMX.ficheDe(vin).catch(function () {});
-    return AMX.get({ evalVin: vin }).then(function (d) {
+    var pre = EVAL_PRE[vin]; delete EVAL_PRE[vin];
+    var lecture = (pre && Date.now() - pre.t < EVAL_PRE_TTL) ? pre.p.catch(function () { return AMX.get({ evalVin: vin }); }) : AMX.get({ evalVin: vin });
+    return lecture.then(function (d) {
       if (gen !== self.generation) return;
       if (d && d.refuse) throw new Error(d.erreur || d.message || 'Accès refusé');
       if (d && d.trouve) {
@@ -2680,7 +2700,7 @@
     btn.classList.add('occupe');
     this.etat('Décodage…');
     var pre = DECODE_PRE[vin]; delete DECODE_PRE[vin];
-    var serveur = (pre && Date.now() - pre.t < 60000 ? pre.p : AMX.get({ decoder: vin })).then(function (d) {
+    var serveur = (pre && Date.now() - pre.t < DECODE_TTL ? pre.p : AMX.get({ decoder: vin })).then(function (d) {
       if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, carrosserie: d.carrosserie, portes: d.portes, motricite: d.motricite, carburant: d.carburant, cabine: d.cabine, source: 'serveur' };
       return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; });
     }).catch(function () { return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; }); });

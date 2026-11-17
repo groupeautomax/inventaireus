@@ -307,7 +307,9 @@
   AMX.inventaire.monterRegistre = function (conteneur, ctx) { return new Registre(conteneur, ctx); };
   // Total en $ d'une liste de véhicules (coût d'achat de la colonne Coût) — Maxime, 7 oct. :
   // « dans les inventaires il faudrait le total en $ par type d'inventaire ».
+  var voitCouts = function () { return !AMX.voitCouts || AMX.voitCouts(); };   // 17 nov. : pas pour un vendeur (AMX.voitCouts)
   AMX.inventaire.sommeCouts = function (liste) {
+    if (!voitCouts()) return { total: 0, n: 0, sans: (liste || []).length, texte: '', detail: '', masque: true };
     var total = 0, n = 0;
     (liste || []).forEach(function (v) { var c = AMX.montant(v.cout); if (!isNaN(c) && c > 0) { total += c; n++; } });
     var sans = (liste || []).length - n;
@@ -672,12 +674,13 @@
     var avecCout = liste.filter(function (v) { return Number(v.cout) > 0; }), coutMoy = avecCout.length ? Math.round(avecCout.reduce(function (t, v) { return t + Number(v.cout); }, 0) / avecCout.length) : null;
     var ages = liste.map(function (v) { return AMX.joursDepuis(v.dateAjout); }).filter(function (j) { return j !== null && j !== undefined && !isNaN(j) && j >= 0; });
     var ageMoy = ages.length ? Math.round(ages.reduce(function (t, j) { return t + j; }, 0) / ages.length) : null;
-    this.elKpis.appendChild(kpi(String(liste.length), liste.length > 1 ? 'Véhicules' : 'Véhicule', { classe: 'neutre.inv2-fixe', sous: sA.texte + ' de coût', titre: sA.detail }));
+    this.elKpis.appendChild(kpi(String(liste.length), liste.length > 1 ? 'Véhicules' : 'Véhicule', { classe: 'neutre.inv2-fixe', sous: sA.masque ? 'dans la liste' : sA.texte + ' de coût', titre: sA.detail }));
     this.elKpis.appendChild(kpi(String(retard), 'Registre 10 j+', { classe: retard ? 'alerte' : 'neutre', sous: retard ? 'non reçu — à relancer' : 'tout est reçu', actif: f.alerte === 'retard', onclick: clic('retard') }));
     this.elKpis.appendChild(kpi(String(retardAchat), 'Achat 7 j+', { classe: retardAchat ? 'attention' : 'neutre', sous: retardAchat ? 'pas encore en stock' : 'aucun retard', actif: f.alerte === 'retardAchat', onclick: clic('retardAchat') }));
     var nAuto = sansAlerte.filter(estAuto).length;
     if (nAuto || f.alerte === 'auto') this.elKpis.appendChild(kpi(String(nAuto), 'Entrés automatiquement', { classe: 'auto', sous: 'achats à confirmer', actif: f.alerte === 'auto', onclick: clic('auto') }));
-    this.elKpis.appendChild(kpi(coutMoy === null ? '—' : AMX.fmtArgent(coutMoy, 0), 'Coût moyen', { classe: 'neutre.inv2-fixe', sous: ageMoy === null ? '' : 'âge moyen ' + ageMoy + ' j depuis l\'achat', titre: avecCout.length + ' véhicule(s) avec un coût' + (liste.length - avecCout.length ? ', ' + (liste.length - avecCout.length) + ' sans coût' : '') }));
+    if (sA.masque) this.elKpis.appendChild(kpi(ageMoy === null ? '—' : ageMoy + ' j', 'Âge moyen', { classe: 'neutre.inv2-fixe', sous: 'depuis l\'achat' }));
+    else this.elKpis.appendChild(kpi(coutMoy === null ? '—' : AMX.fmtArgent(coutMoy, 0), 'Coût moyen', { classe: 'neutre.inv2-fixe', sous: ageMoy === null ? '' : 'âge moyen ' + ageMoy + ' j depuis l\'achat', titre: avecCout.length + ' véhicule(s) avec un coût' + (liste.length - avecCout.length ? ', ' + (liste.length - avecCout.length) + ' sans coût' : '') }));
     this.rendreRegistres();
     this.rendrePorteeUi2(liste);
   };
@@ -864,7 +867,7 @@
     // Total en $ (coût d'achat) par registre et par statut — demande de Maxime, 7 oct.
     var sommeCouts = AMX.inventaire.sommeCouts;
     var sTotal = sommeCouts(base);
-    this.elKpis.appendChild(kpi(base.length, 'Total', { classe: 'neutre', sous: sTotal.texte + ' · ' + (f.compagnie ? AMX.COMPAGNIES[f.compagnie] : 'toutes'), titre: sTotal.detail + (f.compagnie ? '' : ' — toutes les compagnies'), actif: f.statuts && f.statuts.length === cfg.statuts.length && !f.alerte, onclick: function () { f.statuts = cfg.statuts.slice(); f.alerte = ''; self.construireRail(); self.rendre(); } }));
+    this.elKpis.appendChild(kpi(base.length, 'Total', { classe: 'neutre', sous: (sTotal.masque ? '' : sTotal.texte + ' · ') + (f.compagnie ? AMX.COMPAGNIES[f.compagnie] : 'toutes'), titre: sTotal.detail + (f.compagnie ? '' : ' — toutes les compagnies'), actif: f.statuts && f.statuts.length === cfg.statuts.length && !f.alerte, onclick: function () { f.statuts = cfg.statuts.slice(); f.alerte = ''; self.construireRail(); self.rendre(); } }));
     cfg.statuts.forEach(function (s) {
       var st = AMX.statut(s, cfg.feuille);
       var dansStatut = base.filter(function (v) { return v.statut === s; });
@@ -894,13 +897,14 @@
     AMX.vider(this.elRegistres);
     var regs = AMX.inventaire.valeurRegistres(this.filtres.compagnie);
     regs.forEach(function (r) {
-      self.elRegistres.appendChild(h('button' + (r.id === self.onglet ? '.actif' : ''), { type: 'button', 'data-registre': r.id, title: r.charge ? r.n + ' véhicule(s) actif(s) · ' + r.texte + ' de coût' : '', onclick: function () { if (r.id !== self.onglet) AMX.inventaire.aller(r.id); } }, [r.titre, r.charge ? h('span.compteur', { text: ' ' + r.n }) : null, (self.ui2 && r.charge && r.total) ? h('span.valeur-reg', { text: montantCourt(r.total) }) : null]));
+      self.elRegistres.appendChild(h('button' + (r.id === self.onglet ? '.actif' : ''), { type: 'button', 'data-registre': r.id, title: r.charge ? r.n + ' véhicule(s) actif(s)' + (r.texte ? ' · ' + r.texte + ' de coût' : '') : '', onclick: function () { if (r.id !== self.onglet) AMX.inventaire.aller(r.id); } }, [r.titre, r.charge ? h('span.compteur', { text: ' ' + r.n }) : null, (self.ui2 && r.charge && r.total) ? h('span.valeur-reg', { text: montantCourt(r.total) }) : null]));
     });
   };
   // Bande « Valeur des inventaires » : les trois registres côte à côte (véhicules actifs), registre courant en évidence.
   Registre.prototype.rendreValeur = function () {
     var self = this, f = this.filtres;
     AMX.vider(this.elValeur);
+    if (!voitCouts()) { this.elValeur.style.display = 'none'; this.rendreRegistres(); return; }
     var regs = AMX.inventaire.valeurRegistres(f.compagnie);
     var charges = regs.filter(function (r) { return r.charge; });
     var total = charges.reduce(function (t, r) { return t + r.total; }, 0), nTotal = charges.reduce(function (t, r) { return t + r.n; }, 0);
@@ -919,7 +923,7 @@
     var self = this;
     AMX.vider(this.elOutils);
     var sel = h('select.saisie', { onchange: function (e) { self.tri = e.target.value; AMX.memo.ecrire('inv_tri', self.tri); self.rendre(); } });
-    [['maj', 'Dernière mise à jour'], ['achat', 'Achat récent'], ['achatAsc', 'Achat ancien'], ['statut', 'Statut'], ['modele', 'Modèle'], ['stock', '# stock'], ['cout', 'Coût']].forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: self.tri === o[0], text: 'Tri : ' + o[1] })); });
+    [['maj', 'Dernière mise à jour'], ['achat', 'Achat récent'], ['achatAsc', 'Achat ancien'], ['statut', 'Statut'], ['modele', 'Modèle'], ['stock', '# stock'], ['cout', 'Coût']].filter(function (o) { return o[0] !== 'cout' || voitCouts(); }).forEach(function (o) { sel.appendChild(h('option', { value: o[0], selected: self.tri === o[0], text: 'Tri : ' + o[1] })); });
     /* 27 oct. (Maxime : « le bouton Sélectionner devrait être juste en haut des stocks et de la case à cocher ») : au-dessus de la liste, à gauche. */
     if (this.sel) this.elOutils.appendChild(this.sel.bouton);
     if (this.ui2) { this.elOutils.appendChild(h('span.espace')); this.elOutils.appendChild(sel); return; }
@@ -954,7 +958,7 @@
     var MAX = 400;
     /* v138 : la liste se lit comme un tableau — les titres de colonnes une seule fois, en haut, au lieu de « Statut / Mise à
        jour / Suivi / Coût » répétés sur chaque ligne. */
-    if (this.ui2) frag.appendChild(h('div.ligne.ligne-tete', { 'aria-hidden': 'true' }, [h('div'), h('div', 'Véhicule'), h('div.cell.statut', 'Statut'), h('div.cell.maj', 'Mise à jour'), h('div.cell.indic', 'Suivi'), h('div.montant', 'Coût'), h('div')]));
+    if (this.ui2) frag.appendChild(h('div.ligne.ligne-tete', { 'aria-hidden': 'true' }, [h('div'), h('div', 'Véhicule'), h('div.cell.statut', 'Statut'), h('div.cell.maj', 'Mise à jour'), h('div.cell.indic', 'Suivi'), h('div.montant', voitCouts() ? 'Coût' : ''), h('div')]));
     liste.slice(0, MAX).forEach(function (v) { frag.appendChild(self.ligne(v)); });
     if (liste.length > MAX) frag.appendChild(h('div.vide', { text: (liste.length - MAX) + ' autres véhicules — affinez les filtres pour les voir.' }));
     this.elListe.appendChild(h('div.liste', [frag]));
@@ -1035,7 +1039,7 @@
         v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : h('span.jours' + (retardA ? '.attention' : ''), { text: 'Acheté le ' + AMX.fmtDate(v.dateAjout) + ' · ' + jours + ' j' })]),
       h('div.cell.maj', [h('span.l', 'Mise à jour'), h('span.v', { text: AMX.fmtDate(v.maj, true) })]),
       h('div.cell.indic', [h('span.l', 'Suivi'), h('div.indicateurs', indicateurs)]),
-      h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' })]),
+      voitCouts() ? h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' })]) : h('div.montant', { 'aria-hidden': 'true' }),
       h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { if (autreRegistre) AMX.inventaire.aller(autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
@@ -1162,7 +1166,7 @@
       var corps = h('div.grille.c2', [
         h('div.champ', [h('label', '# Stock'), inpStock]),
         h('div.champ', [h('label', 'Km'), inpKm2]),
-        h('div.champ', [h('label', 'Coût'), inpCout]),
+        voitCouts() ? h('div.champ', [h('label', 'Coût'), inpCout]) : null,
         h('div.champ', [h('label', 'Compagnie'), selCompagnie]),
         h('div.champ.plein', [h('label', 'NIV (correction — modifie le registre)'), inpVin])
       ]);
@@ -1464,7 +1468,7 @@
         'Jours depuis achat': AMX.joursDepuis(v.dateAjout), 'Rappel': v.rappel === 'oui' ? 'Rappel ouvert' : v.rappel === 'non' ? 'Aucun rappel' : 'Non vérifié' };
       if (cfg.importateur) r['Importateur'] = v.importateur || '';
       r['Registre reçu'] = estEchange(v) ? 'Échange (remis avec l\'échange)' : REGISTRE[registreDe(v)].libelle;
-      r['Coût'] = v.cout ? Number(AMX.montant(v.cout)) : '';
+      if (voitCouts()) r['Coût'] = v.cout ? Number(AMX.montant(v.cout)) : '';
       r['Dernière mise à jour'] = AMX.fmtDate(v.maj, true);
       return r;
     });

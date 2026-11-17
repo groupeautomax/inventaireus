@@ -1003,7 +1003,7 @@
         h('dt', 'Registre'), h('dd', [s.dansRegistre ? AMX.badgeStatut(s.statutVehicule, 'DETAIL') : h('span.puce.attention', { text: 'absent du registre Detail' })]),
         h('dt', 'Acheté le'), h('dd', { text: s.dateAjout ? AMX.fmtDate(s.dateAjout) + ' (' + AMX.joursDepuis(s.dateAjout) + ' j)' : '—' }),
         h('dt', 'Arrivée'), h('dd', { text: s.arrivee ? AMX.fmtDate(s.arrivee) : '—' }),
-        h('dt', 'Coût'), h('dd', { text: s.cout ? AMX.fmtArgent(s.cout) : '—' }),
+        (!AMX.voitCouts || AMX.voitCouts()) ? h('dt', 'Coût') : null, (!AMX.voitCouts || AMX.voitCouts()) ? h('dd', { text: s.cout ? AMX.fmtArgent(s.cout) : '—' }) : null,
         s.rappel === 'oui' ? h('dt', 'Rappel') : null, s.rappel === 'oui' ? h('dd', [h('span.badge.rouge', { text: 'Rappel ouvert' })]) : null
       ]),
       h('div.actions-ligne', { style: { marginTop: '10px' } }, [

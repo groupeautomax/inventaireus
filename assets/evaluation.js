@@ -57,6 +57,30 @@
     if (voulu === 'avant' || voulu === 'arriere') return t === voulu;
     return t === voulu;
   }
+  /* 17 nov. (S163C7A6871, Marc-André : « il manque le carburant pour un camion, la cabine, la motricité — donner le juste prix ») :
+     carburant et cabine, comme la traction, servent à garder les bons comparables. Une annonce dont on ne connaît pas le carburant
+     ou la cabine reste (MarketCheck ne les donne pas toujours) ; une annonce qui dit autre chose sort. */
+  function sansAccent(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+  function carburantDe(x) {
+    var s = sansAccent(x); if (!s) return '';
+    if (/plug.?in|phev|rechargeable|branchable/.test(s)) return 'hybrideBranchable';
+    if (/hybri/.test(s)) return 'hybride';
+    if (/diesel|duramax|\btdi\b|ecodiesel|power ?stroke|cummins/.test(s)) return 'diesel';
+    if (/electri|\bbev\b|^ev$/.test(s)) return 'electrique';
+    if (/gas|essence|gasoline|flex|e85|petrol|unleaded/.test(s)) return 'essence';
+    return '';
+  }
+  var CARBURANTS = [['', 'Tous les carburants'], ['essence', 'Essence'], ['diesel', 'Diesel'], ['hybride', 'Hybride'], ['hybrideBranchable', 'Hybride rechargeable'], ['electrique', 'Électrique']];
+  function cabineDe(x) {
+    var s = sansAccent(x); if (!s) return '';
+    if (/crew|super ?crew|mega ?cab|multiplace|cabine double complete/.test(s)) return 'multiplace';
+    if (/double ?cab|quad ?cab|king ?cab|super ?cab|extended|\bext\.? ?cab|access ?cab|club ?cab|allongee|cabine double/.test(s)) return 'allongee';
+    if (/regular ?cab|single ?cab|standard ?cab|\breg\.? ?cab|cabine simple|cabine reguliere/.test(s)) return 'simple';
+    return '';
+  }
+  var CABINES = [['', 'Toutes les cabines'], ['multiplace', 'Multiplace (Crew)'], ['allongee', 'Double / allongée'], ['simple', 'Simple (régulière)']];
+  var MOTRICITES = [['', '—'], ['int', 'Intégrale / 4x4'], ['avant', 'Traction avant'], ['arriere', 'Propulsion (arrière)'], ['deux', '2 roues']];
+  function nomDe(liste, v) { var x = liste.filter(function (o) { return o[0] === v; })[0]; return x ? x[1] : ''; }
   var URL_MMR = 'https://mmr.manheim.com/';
 
   /* ------------------- AMX.export : Canada ou États-Unis ? -------------------
@@ -196,7 +220,8 @@
       .then(function (d) {
         var r = (d && d.Results || [])[0];
         if (!r) return null;
-        return { make: r.Make || '', model: r.Model || '', year: r.ModelYear || '', trim: r.Trim || r.Series || '', carrosserie: r.BodyClass || '', portes: r.Doors || '' };
+        return { make: r.Make || '', model: r.Model || '', year: r.ModelYear || '', trim: r.Trim || r.Series || '', carrosserie: r.BodyClass || '', portes: r.Doors || '',
+          motricite: r.DriveType || '', carburant: [r.FuelTypePrimary, r.FuelTypeSecondary, r.ElectrificationLevel].filter(Boolean).join(' '), cabine: r.CabType || '', boite: r.BedType || '' };
       })
       .catch(function () { return null; });
   }
@@ -347,6 +372,8 @@
       /* 1er nov. : page plus compacte, une rangée d'icônes qui ouvre un panneau à la fois */
       '.eval-veh-1 { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, .9fr) minmax(0, 1.3fr); gap: 8px 12px; align-items: end; }',
       '.eval-veh-2 { display: grid; grid-template-columns: .7fr 1fr 1fr 1.2fr 1fr; gap: 8px 12px; margin-top: 8px; }',
+      '.eval-veh-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 220px)); gap: 8px 12px; margin-top: 8px; } .eval-veh-3 .champ.cache { display: none; }',
+      '@media (max-width: 760px) { .eval-veh-3 { grid-template-columns: 1fr 1fr; } }',
       '.eval-niv { display: flex; gap: 6px; align-items: flex-end; } .eval-niv .champ { flex: 1 1 auto; min-width: 0; } .eval-niv .btn { height: 32px; flex: none; }',
       '.eval-veh-bas { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; } .eval-veh-bas .eval-contexte { flex: 1 1 auto; } .eval-fiche { margin-left: auto; display: flex; gap: 6px; } .eval-fiche:empty { display: none; }',
       '.eval-taux-km { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--encre-3); white-space: nowrap; } .eval-taux-km input { width: 72px; height: 28px; font-size: 13px; text-align: right; }',
@@ -504,7 +531,8 @@
     this.rappels = null;                     // rappels NHTSA pour année / marque / modèle (gratuit, chargé après le décodage)
     this.rappelsCle = '';
     this.minuterieAuto = null;
-    this.filtres = { memeVersion: false, kmProche: false, tri: 'prix', sens: 'asc', traction: '' };
+    this.filtres = { memeVersion: false, kmProche: false, tri: 'prix', sens: 'asc', traction: '', carburant: '', cabine: '' };
+    this.vehManuel = {}; this.filtresManuels = {};   // 17 nov. : carburant / motricité / cabine choisis à la main
     this.tractionVehicule = ''; this.tractionManuelle = false;   /* 7 nov. : traction du véhicule (décodeur) et choix de l'utilisateur */
     this.derniereSauvegarde = null;           // bloc `marche` d'une évaluation rechargée
     // Boîte « Canada ou États-Unis ? » (8 oct.) : ce que l'utilisateur a tapé ou réglé pour ce NIV.
@@ -751,6 +779,13 @@
     this.elStyle = h('select#e-style', { title: 'Carrosserie : seules les annonces de la même carrosserie servent de comparables' }, STYLES.map(function (x) { return h('option', { value: x[0], text: x[1] }); }));
     var cStyle = h('div.champ', [h('label', { 'for': 'e-style', text: 'Carrosserie' }), this.elStyle]);
     var cKm = champ('e-km', 'Kilométrage', { type: 'number', inputmode: 'numeric' });
+    // 17 nov. (S163C7A6871) : carburant, motricité, cabine — remplis par le décodeur, modifiables, gardés dans l'évaluation.
+    this.elCarburant = h('select#e-carburant', { title: 'Carburant : les annonces d\'un autre carburant ne servent pas de comparables' }, CARBURANTS.map(function (x) { return h('option', { value: x[0], text: x[0] ? x[1] : '—' }); }));
+    this.elMotricite = h('select#e-motricite', { title: 'Motricité : les annonces d\'une autre traction ne servent pas de comparables' }, MOTRICITES.map(function (x) { return h('option', { value: x[0], text: x[1] }); }));
+    this.elCabine = h('select#e-cabine', { title: 'Cabine d\'une camionnette : les annonces d\'une autre cabine ne servent pas de comparables' }, CABINES.map(function (x) { return h('option', { value: x[0], text: x[0] ? x[1] : '—' }); }));
+    var cCarburant = h('div.champ', [h('label', { 'for': 'e-carburant', text: 'Carburant' }), this.elCarburant]);
+    var cMotricite = h('div.champ', [h('label', { 'for': 'e-motricite', text: 'Motricité' }), this.elMotricite]);
+    this.elCabineChamp = h('div.champ', [h('label', { 'for': 'e-cabine', text: 'Cabine' }), this.elCabine]);
     this.elTaux = h('input#e-taux-km', { type: 'number', step: '0.01', value: '0.10', inputmode: 'decimal', 'aria-label': 'Ajustement des comparables, en $ par km' });
     var concessionsEval = AMX.concessionsPour('evaluations');   // portée du domaine « évaluations » (accès supplémentaires compris)
     this.elConcession = h('select#e-concession', Object.keys(concessionsEval).map(function (k) {
@@ -772,6 +807,7 @@
     var vehicule = h('div.carte#sec-vehicule', [h('div.carte-corps', [
       h('div.grille.eval-veh-1', [h('div.eval-niv', [cNiv.el, this.btnDecoder]), cKm.el, cConcession]),
       h('div.grille.eval-veh-2', [cAnnee.el, cMarque.el, cModele.el, cVersion.el, cStyle]),
+      h('div.grille.eval-veh-3', [cCarburant, cMotricite, this.elCabineChamp]),
       this.elKmAlerte = h('div.eval-km-alerte'),   /* 17 nov. (SAE7E4F70CA) : le km recule → alerte rouge */
       h('div.eval-veh-bas', [this.elContexte, this.elCfx, this.elFiche])
     ])]);
@@ -818,6 +854,11 @@
     // La carrosserie change la recherche MarketCheck : on relance l'analyse du pays affiché.
     this.elStyle.addEventListener('change', function () { self.styleManuel = true; self.analyses = {}; self.planifierAuto(); if (self.parametresPrets()) self.analyser(self.pays, false); else self.rendreMarche(); });
     this.elConcession.addEventListener('change', function () { AMX.memo.ecrire('eval_concession', self.elConcession.value); self.oublierAnalyses(); self.rendreCie(); });
+    // 17 nov. : carburant, motricité, cabine du véhicule → filtres des comparables (sauf si on les a choisis à la main dans le marché).
+    this.elCarburant.addEventListener('change', function () { self.vehManuel.carburant = true; if (!self.filtresManuels.carburant) self.filtres.carburant = self.elCarburant.value; self.planifierAuto(); self.rendreMarche(); });
+    this.elMotricite.addEventListener('change', function () { self.vehManuel.motricite = true; self.tractionVehicule = self.elMotricite.value; if (!self.tractionManuelle) self.filtres.traction = self.elMotricite.value; self.planifierAuto(); self.rendreMarche(); });
+    this.elCabine.addEventListener('change', function () { self.vehManuel.cabine = true; if (!self.filtresManuels.cabine) self.filtres.cabine = self.elCabine.value; self.planifierAuto(); self.rendreMarche(); });
+    this.elStyle.addEventListener('change', function () { self.majCabine(); });
     var depart = this.concessionDepart();
     if (depart) this.elConcession.value = depart;
     this.rendreCie();
@@ -2112,6 +2153,9 @@
     if (this.filtres.kmProche && kmV !== null) liste = liste.filter(function (x) { return x.km === null || x.km === undefined || Math.abs(x.km - kmV) <= TOLERANCE_KM; });
     var trac = this.filtres.traction;
     if (trac) liste = liste.filter(function (x) { return tractionVa(trac, x.motricite); });
+    var carbF = this.filtres.carburant, cabF = this.filtres.cabine;
+    if (carbF) liste = liste.filter(function (x) { var c = carburantDe(x.carburant) || carburantDe(x.version + ' ' + (x.moteur || '')); return !c || c === carbF; });
+    if (cabF) liste = liste.filter(function (x) { var c = cabineDe((x.titre || '') + ' ' + (x.version || '') + ' ' + (x.style || '')); return !c || c === cabF; });
     /* rang de chaque annonce par prix ramené au km du véhicule (1 = la moins chère), quel que soit le tri */
     var parAjuste = liste.map(function (x) { return x.ajuste; }).sort(asc);
     liste.forEach(function (x) { var r = 1; parAjuste.forEach(function (p) { if (p < x.ajuste) r++; }); x.rangAjuste = r; });
@@ -2231,10 +2275,27 @@
       return h('option', { value: o[0], selected: self.filtres.traction === o[0] ? true : undefined, text: o[1] + (n !== null ? ' (' + n + ')' : '') + (o[0] && o[0] === self.tractionVehicule ? ' — votre véhicule' : '') });
     }));
     selTraction.addEventListener('change', function () { self.filtres.traction = selTraction.value; self.tractionManuelle = true; self.rendreMarche(); self.rendreSommaire && self.rendreSommaire(); });
+    // 17 nov. (S163C7A6871) : carburant et cabine, comptés sur les annonces ; une annonce qui ne le dit pas reste.
+    var tousA = (a && a.actifs && a.actifs.annonces) || [];
+    var nbCarb = {}, nbCab = {};
+    tousA.forEach(function (x) {
+      var c = carburantDe(x.carburant) || carburantDe((x.version || '') + ' ' + (x.moteur || '')); nbCarb[c || '?'] = (nbCarb[c || '?'] || 0) + 1;
+      var k = cabineDe((x.titre || '') + ' ' + (x.version || '') + ' ' + (x.style || '')); nbCab[k || '?'] = (nbCab[k || '?'] || 0) + 1;
+    });
+    var carbVeh = this.elCarburant.value, cabVeh = this.elCabine.value;
+    var selCarb = h('select.saisie', { style: { height: '28px', width: 'auto' }, title: 'Carburant des annonces' + (nbCarb['?'] ? ' (' + nbCarb['?'] + ' sans carburant connu : gardées)' : '') }, CARBURANTS.map(function (o) {
+      return h('option', { value: o[0], selected: self.filtres.carburant === o[0] ? true : undefined, text: o[1] + (o[0] ? ' (' + (nbCarb[o[0]] || 0) + ')' : '') + (o[0] && o[0] === carbVeh ? ' — votre véhicule' : '') });
+    }));
+    selCarb.addEventListener('change', function () { self.filtres.carburant = selCarb.value; self.filtresManuels.carburant = true; self.rendreMarche(); self.rendreSommaire && self.rendreSommaire(); });
+    var montrerCab = this.elStyle.value === 'camionnette' || !!cabVeh || Object.keys(nbCab).some(function (k) { return k !== '?'; });
+    var selCab = montrerCab ? h('select.saisie', { style: { height: '28px', width: 'auto' }, title: 'Cabine des annonces (lue dans le titre de l\'annonce)' + (nbCab['?'] ? ' (' + nbCab['?'] + ' sans cabine connue : gardées)' : '') }, CABINES.map(function (o) {
+      return h('option', { value: o[0], selected: self.filtres.cabine === o[0] ? true : undefined, text: o[1] + (o[0] ? ' (' + (nbCab[o[0]] || 0) + ')' : '') + (o[0] && o[0] === cabVeh ? ' — votre véhicule' : '') });
+    })) : null;
+    if (selCab) selCab.addEventListener('change', function () { self.filtres.cabine = selCab.value; self.filtresManuels.cabine = true; self.rendreMarche(); self.rendreSommaire && self.rendreSommaire(); });
     this.elMarche.appendChild(h('div.eval-filtres', [
       h('label.case', [caseVersion, h('span', { text: 'Même version seulement' })]),
       h('label.case', [caseKm, h('span', { text: '± ' + AMX.fmtNombre(TOLERANCE_KM) + ' km du véhicule' })]),
-      selTraction,
+      selTraction, selCarb, selCab,
       h('span.espace'),
       h('span.doux', { text: liste.length + ' annonce' + (liste.length > 1 ? 's' : '') + ' retenue' + (liste.length > 1 ? 's' : '') }),
       tri, sensBtn
@@ -2269,7 +2330,7 @@
       lignes.push(h('tr', [
         h('td.num', { text: String(x.rangAjuste || ''), title: 'Rang du prix ramené à votre kilométrage (1 = le moins cher)' }),
         h('td.sous', [h('div', { text: x.concession || '—' }), h('span.mini', { text: [x.ville, x.province].filter(Boolean).join(', ') + (x.certifie ? ' · certifié' : '') })]),
-        h('td', [h('div', { text: x.version || '—' }), (x.style || tr) ? h('span.mini', { text: [x.style ? (STYLES.filter(function (y) { return y[0] === styleDe(x.style, x.portes, x.version, x.modele || self.elModele.value); })[0] || [, x.style])[1] : '', tr ? NOM_TRACTION[tr] : ''].filter(Boolean).join(' · ') }) : null]),
+        h('td', [h('div', { text: x.version || '—' }), (x.style || tr || x.carburant || x.titre) ? h('span.mini', { text: [x.style ? (STYLES.filter(function (y) { return y[0] === styleDe(x.style, x.portes, x.version, x.modele || self.elModele.value); })[0] || [, x.style])[1] : '', tr ? NOM_TRACTION[tr] : '', nomDe(CARBURANTS, carburantDe(x.carburant)), nomDe(CABINES, cabineDe((x.titre || '') + ' ' + (x.version || '')))].filter(Boolean).join(' · ') }) : null]),
         h('td.num', { text: x.annee || '—' }),
         h('td.num', { text: fmtKm(x.km) }),
         h('td.num', { text: fmt(x.prix) }),
@@ -2314,6 +2375,21 @@
   };
 
   /* ------------------------------ Données ------------------------------- */
+  /* La cabine ne se montre que pour une camionnette (ou quand elle est connue). */
+  Evaluation.prototype.majCabine = function () {
+    if (!this.elCabineChamp) return;
+    var voir = this.elStyle.value === 'camionnette' || !!this.elCabine.value;
+    this.elCabineChamp.classList.toggle('cache', !voir);
+  };
+  /* Pose carburant / motricité / cabine décodés, sauf ce qu'on a choisi à la main ; les filtres des comparables suivent. */
+  Evaluation.prototype.poserTechnique = function (r) {
+    if (!r) return;
+    var carb = carburantDe(r.carburant), trac = tractionDe(r.motricite), cab = cabineDe(r.cabine);
+    if (carb && !this.vehManuel.carburant) { this.elCarburant.value = carb; if (!this.filtresManuels.carburant) this.filtres.carburant = carb; }
+    if (trac && !this.vehManuel.motricite) { this.elMotricite.value = trac; }
+    if (cab && !this.vehManuel.cabine) { this.elCabine.value = cab; if (!this.filtresManuels.cabine) this.filtres.cabine = cab; }
+    this.majCabine();
+  };
   Evaluation.prototype.collecter = function () {
     var a = this.analyses[this.pays], marche = null;
     if (a && a.ok) {
@@ -2332,6 +2408,7 @@
     var sv = this.collecterSuivi();
     return {
       marque: this.elMarque.value, modele: this.elModele.value, annee: this.elAnnee.value, version: this.elVersion.value, carrosserie: this.elStyle.value,
+      carburant: this.elCarburant.value, motricite: this.elMotricite.value, cabine: this.elCabine.value,
       km: this.elKm.value, tauxKm: this.elTaux.value, prixVente: this.elPrix.value, prixAchat: this.elAchat.value, frais: this.elFrais.value, prixPaye: this.elPaye.value, recon: this.elRecon.value, marge: this.elMarge.value, concession: this.elConcession.value,
       comparables: this.comparablesCharges || [],
       reconDetail: this.reconDetail().postes, prixType: this.elPrixType.value, prixNote: this.elPrixNote.value.trim(),
@@ -2353,6 +2430,10 @@
     if (data.annee) this.elAnnee.value = data.annee;
     if (data.version) this.elVersion.value = data.version;
     if (data.carrosserie !== undefined) { this.elStyle.value = data.carrosserie || ''; this.styleManuel = !!data.carrosserie; }
+    if (data.carburant) { this.elCarburant.value = data.carburant; this.vehManuel.carburant = true; this.filtres.carburant = data.carburant; }
+    if (data.motricite) { this.elMotricite.value = data.motricite; this.vehManuel.motricite = true; }
+    if (data.cabine) { this.elCabine.value = data.cabine; this.vehManuel.cabine = true; this.filtres.cabine = data.cabine; }
+    this.majCabine();
     if (data.km) this.elKm.value = data.km;
     if (data.tauxKm) this.elTaux.value = data.tauxKm;
     if (data.prixVente) this.elPrix.value = data.prixVente;
@@ -2399,6 +2480,8 @@
     var self = this;
     ['elMarque', 'elModele', 'elAnnee', 'elVersion', 'elKm', 'elPrix', 'elPaye', 'elRecon', 'elAchat', 'elFrais'].forEach(function (k) { self[k].value = ''; });
     this.elStyle.value = ''; this.styleManuel = false;
+    this.elCarburant.value = ''; this.elMotricite.value = ''; this.elCabine.value = ''; this.vehManuel = {}; this.filtresManuels = {};
+    this.filtres.carburant = ''; this.filtres.cabine = ''; this.majCabine();
     this.poserReconDetail(null); this.elPrixType.value = ''; this.elPrixNote.value = '';
     this.ficheSource = '';
     this.comparablesCharges = [];
@@ -2476,20 +2559,22 @@
     btn.classList.add('occupe');
     this.etat('Décodage…');
     var serveur = AMX.get({ decoder: vin }).then(function (d) {
-      if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, carrosserie: d.carrosserie, portes: d.portes, motricite: d.motricite, source: 'serveur' };
+      if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, carrosserie: d.carrosserie, portes: d.portes, motricite: d.motricite, carburant: d.carburant, cabine: d.cabine, source: 'serveur' };
       return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; });
     }).catch(function () { return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; }); });
     var fiche = AMX.ficheDe(vin).catch(function () { return null; });
-    return Promise.all([serveur, fiche]).then(function (res) {
+    var vpic = decoderVin(vin);   // 17 nov. : la cabine (CabType) et le carburant viennent de vPIC, gratuit, depuis le navigateur
+    return Promise.all([serveur, fiche, vpic]).then(function (res) {
       if (self.vinCourant !== vin) return;
-      var r = res[0], f = res[1] || {};
+      var r = res[0], f = res[1] || {}, vp = res[2] || {};
+      self.poserTechnique({ carburant: (r && r.carburant) || vp.carburant, motricite: (r && r.motricite) || vp.motricite, cabine: (r && r.cabine) || vp.cabine });
       if (r) {
         if (r.make) self.elMarque.value = r.make;
         if (r.model) self.elModele.value = r.model;
         if (r.year) self.elAnnee.value = r.year;
         if (r.trim) self.elVersion.value = r.trim;
         if (!self.styleManuel) self.elStyle.value = styleDe(r.carrosserie, r.portes, r.trim, r.model);
-        self.tractionVehicule = tractionDe(r.motricite);
+        self.tractionVehicule = self.vehManuel.motricite ? self.elMotricite.value : (tractionDe(r.motricite) || tractionDe(vp.motricite));
         if (!self.tractionManuelle) self.filtres.traction = self.tractionVehicule === 'avant' || self.tractionVehicule === 'arriere' ? self.tractionVehicule : (self.tractionVehicule || '');
       }
       // La fiche d'achat complète ce qui manque (et donne le km).

@@ -960,6 +960,14 @@
     return !(AMX.perm('evaluateur') || AMX.perm('gererUtilisateurs') || AMX.perm('gererAdmins'));
   };
   AMX.voitEvaluations = function () { return !AMX.representantEval(); };
+  /* 17 nov. (SE41CCFCAD5, Gabriel) : un vendeur ou un BDC ne voit aucun coûtant (inventaire, totaux, export, suivi service), sauf
+     s'il a le droit « Modifier les montants » ou « Voir les résultats ». Même règle que le serveur (CoutsMasques.gs). */
+  AMX.voitCouts = function () {
+    var r = String(AMX.session.role || (AMX.session.perms || {}).role || '').toLowerCase();
+    if (r !== 'vendeur' && r !== 'bdc') return true;
+    var p = AMX.session.perms || {};
+    return p.modifierMontants === true || p.voirResultats === true || p.gererUtilisateurs === true || p.gererAdmins === true;
+  };
 
   function chargerProfil(deuxieme) {
     return _fetch(URL_BACKEND + '?permissions=1&jeton=' + encodeURIComponent(lire(CLE.jeton)) + '&utilisateur=' + encodeURIComponent(lire(CLE.mail)) + '&_=' + Date.now(), { cache: 'no-store' })

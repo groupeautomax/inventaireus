@@ -1143,6 +1143,10 @@
       });
     }).then(function () {
       var data = self.collecter();
+      /* 17 nov. : une fiche sans prix d'achat n'écrase pas un coût déjà inscrit au registre (tapé dans le panneau, ou
+         transport Central Fleet + PAD ajoutés par le serveur) : le coûtant partiel ne part pas. */
+      var enReg = AMX.inventaire.parVin(vin), coutReg = enReg ? parseFloat(String(enReg.cout || '').replace(/[^\d.,-]/g, '').replace(',', '.')) : NaN;
+      if (num('f-prixachat') <= 0 && coutReg > 0) delete data._coutantTotal;
       AMX.ficheOublier(vin);
       return AMX.post({ action: 'saveFiche', vin: vin, data: data }).then(function (d) {
         AMX.verifier(d, 'Enregistrement refusé par le serveur');

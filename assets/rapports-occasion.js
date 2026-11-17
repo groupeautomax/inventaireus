@@ -173,7 +173,7 @@
     this.conteneur = conteneur; this.detruit = false; this.generation = 0;
     this.vue = VUES.indexOf(ctx && ctx.onglet) >= 0 ? ctx.onglet : (VUES.indexOf(pr.vue) >= 0 ? pr.vue : 'echanges');
     if (pr.cie) AMX.choisirCompagnie(String(pr.cie).toUpperCase());
-    this.perNom = pr.du && pr.au ? 'dates' : AMX.memo.lire('rpo_periode', 'semaine');
+    this.perNom = pr.du && pr.au ? 'dates' : (/^(semaine|semaineCourante|mois|moisPrec|30j|90j|annee)$/.test(String(pr.periode || '')) ? pr.periode : AMX.memo.lire('rpo_periode', 'semaine'));   /* ?periode= (liste du vendredi) */
     this.du = pr.du || ''; this.au = pr.au || '';
     this.f = { q: '', etat: '', personne: pr.acheteur || pr.conseiller || pr.evaluateur || '', plus: false, perte: String(pr.perte || '') === '1' };
     if (this.f.perte && !pr.du) this.perNom = '90j';
@@ -646,6 +646,24 @@
             envoyer({ actif: !r.actif, acheteursListe: choisis(), acheteurs: true }, function (x) { return x.actif ? 'Courriel du lundi activé' : 'Courriel du lundi désactivé'; }, btn);
           } });
           corps.appendChild(h('div.rpo-envoi-actions', possibles.length ? [btnListe, btn] : [btn]));
+        }
+        /* 17 nov. (S6B0702B9EB, Marc-André) : la liste du vendredi — chaque acheteur coché reçoit ses achats à jour, avec le statut. */
+        var v = d.vendredi;
+        if (v) {
+          corps.appendChild(h('p.rpo-sous', { text: 'Liste du vendredi aux acheteurs' }));
+          corps.appendChild(h('p', { html: v.actif ? '<b>Activée</b> : le vendredi vers 7 h, chaque acheteur coché reçoit la liste de ses achats encore à l\'inventaire, avec le statut de chacun, et ce qui s\'est vendu dans la semaine.' : '<b>Pas activée</b> : rien ne part. Le vendredi, chaque acheteur coché recevrait la liste de ses achats encore à l\'inventaire (statut, jours), et ce qui s\'est vendu dans la semaine.' }));
+          if (v.etat && v.etat.jour) corps.appendChild(h('p.mini', { text: 'Dernier envoi : ' + jourLong(v.etat.jour) + ' — ' + (v.etat.envoyes || 0) + ' courriel(s)' + (v.etat.arret ? ' · ' + v.etat.arret : '') }));
+          if (v.erreur) corps.appendChild(h('p.mini', { text: 'Calcul impossible : ' + v.erreur }));
+          else if (!(v.destinataires || []).length) corps.appendChild(h('p.mini', { text: 'Aucun acheteur coché n\'a d\'achat à l\'inventaire.' }));
+          else corps.appendChild(h('table.tableau', [h('thead', [h('tr', [h('th', 'Acheteur'), h('th.num', 'À l\'inventaire'), h('th.num', 'Vendus (7 j)'), h('th.num', 'Achetés (7 j)')])]),
+            h('tbody', v.destinataires.map(function (x) { return h('tr', [h('td', { text: x.nom || x.qui }), h('td.num', { text: String(x.enCours) }), h('td.num', { text: String(x.vendus) }), h('td.num', { text: String(x.nouveaux) })]); }))]));
+          if (d.peutRegler) {
+            var btnV = h('button.btn' + (v.actif ? '.fantome' : '.primaire'), { type: 'button', text: v.actif ? 'Désactiver la liste du vendredi' : 'Activer la liste du vendredi', onclick: function () {
+              btnV.disabled = true;
+              AMX.post({ action: 'rapportsOccasionReglages', vendredi: !v.actif }).then(function (x) { AMX.verifier(x, 'Refusé'); AMX.toast(x.reglages.vendredi ? 'Liste du vendredi activée' : 'Liste du vendredi désactivée', 'ok'); dessiner(); }, function (e) { btnV.disabled = false; AMX.toast(AMX.erreurTexte(e), 'erreur'); });
+            } });
+            corps.appendChild(h('div.rpo-envoi-actions', [btnV]));
+          }
         }
       }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('div.vide', { text: AMX.erreurTexte(e) })); });
     };

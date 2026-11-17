@@ -1063,6 +1063,9 @@
   };
 
   /* Une ligne : le véhicule, où elle en est, la valeur, et mon bouton s'il y en a un. Un clic ouvre la fiche. */
+  /* 17 nov. (S25ABD0DCF4, Marc-André : « voir le NIV avant de cliquer sur le véhicule, si deux modèles identiques ») :
+     les 8 derniers caractères du NIV sur chaque ligne et chaque carte (le NIV complet au survol). */
+  function nivCourt(vin) { var v = String(vin || '').trim().toUpperCase(); return v.length >= 8 ? 'NIV …' + v.slice(-8) : (v ? 'NIV ' + v : ''); }
   Vue.prototype.ligne = function (x, d) {
     var self = this, R = reglages(d), ph = phase(x), c = chrono(x, R), geste = monAction(x, d, this.portail);
     var titre = x.vehicule || [x.annee, x.marque, x.modele].filter(Boolean).join(' ') || x.vin;
@@ -1081,6 +1084,7 @@
       h('div.de-l-haut', [
         h('span.badge.sans-point.' + PHASES[ph][1], { text: libellePhase(x, this.portail) }),
         h('b.de-l-titre', { text: titre }),
+        nivCourt(x.vin) ? h('span.de-niv', { text: nivCourt(x.vin), title: 'NIV ' + x.vin }) : null,   // 17 nov. (S25ABD0DCF4) : le NIV avant d'ouvrir
         badges.length ? h('span.de-l-badges', badges) : null,
         c ? h('span.de-chrono.' + c.ton, { text: duree(c.min) }) : h('span.de-l-quand', { text: quand(x.confirmeLe || x.faiteLe || x.creeLe) })
       ]),
@@ -1135,6 +1139,7 @@
         (x.etat === 'approbation' ? h('span.mini', { text: 'depuis ' + duree(depuis(x.creeLe)) }) : (x.etat === 'aconfirmer' ? h('b.de-mini-valeur.attente', { text: (x.valeurEvaluateur ? argent(x.valeurEvaluateur) + ' · ' : '') + 'à confirmer' }) : null)));
     return h('button.de-compact.' + ph + (c ? '.t-' + c.ton : '') + (tractionATraiter(x) ? '.trx-rouge' : ''), { type: 'button', 'data-id': x.id, onclick: function () { self.ouvrirDetail(x.id); } }, [
       h('b', { text: x.vehicule || x.vin }),
+      nivCourt(x.vin) ? h('span.de-niv', { text: nivCourt(x.vin), title: 'NIV ' + x.vin }) : null,
       h('span.mini', { text: [x.client, x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : ''].filter(Boolean).join(' · ') }),
       h('span.mini', { text: (x.demandeParNom || '—') + ' → ' + texteEvaluateurs(x) }),
       x.source === 'traction' ? (tractionATraiter(x) ? h('span.badge.rouge.sans-point', { text: 'Traction · valeur à donner' }) : h('span.badge.bleu.sans-point', { text: 'Traction' })) : null,
@@ -1331,6 +1336,7 @@
       '.de-stats td, .de-stats th { white-space: nowrap; }',
       '.de-raison { display: grid; grid-template-columns: minmax(160px, 1fr) 2fr 40px; gap: 10px; align-items: center; padding: 4px 0; font-size: 13px; } .de-raison i { height: 8px; background: var(--fond-2, #F3F5F7); border-radius: 4px; overflow: hidden; } .de-raison i b { display: block; height: 100%; background: #9AA5AE; }',
       '.de-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; } .de-grille .champ { display: grid; gap: 4px; } .de-grille .champ > span { font-size: 12px; color: var(--encre-3); } .de-grille .large { grid-column: 1 / -1; }',
+      '.de-niv { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; font-weight: 700; letter-spacing: .04em; color: var(--encre, #141A1F); background: #EEF2F7; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }',
       '.de-veh { min-height: 16px; } .de-avis-eval { color: #955F10; margin-top: 4px; min-height: 0; }',
       '.de-prise { color: #955F10; font-weight: 600; } .de-page .mini.de-hausse, .mini.de-hausse { color: #955F10; font-weight: 600; }',
       '.de-grille.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); } .de-detail-form { display: grid; gap: 10px; }',

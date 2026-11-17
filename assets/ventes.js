@@ -895,7 +895,7 @@
     if (sauf !== 'drapeau' && f.drapeau === 'vendues' && !vendueDans(v, this.moisCivil())) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'livrees' && !livreeDans(v, this.moisCivil())) return false;
     if (sauf !== 'drapeau' && f.drapeau === 'annulVendues' && !annulVendueDans(v, this.moisCivil())) return false;
-    if (q && !AMX.correspond([v.client, v.noClient, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin, v.cpoLibelle, v.cpo], q)) return false;   /* v138 : AMX.correspond ; 6 nov. : « cpo » trouve les CPO */
+    if (q && !AMX.correspond([v.client, v.noClient, v.venduA, v.vin, v.stock, v.conseiller, v.directeur, vehiculeTexte(v), v.id, v.echangeModele, v.echangeVin, v.echange2Modele, v.echange2Vin, v.echange2Stock, v.cpoLibelle, v.cpo], q)) return false;   /* v138 : AMX.correspond ; 6 nov. : « cpo » trouve les CPO */
     return true;
   };
   VueVentes.prototype.ajustementsVisibles = function () {
@@ -1614,12 +1614,12 @@
     if (this.vue === 'exclues' || this.vue === 'refusees' || this.modeRachat()) { this.exporterExclues(); return; }
     var d = cache.rep, liste = this.visibles(), montants = montantsVue(d), defs = AMX.ventes.produits(), sansFI = this.filtres.type === 'wholesale';
     var lignes = liste.map(function (v) {
-      var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Marché': v.type === 'wholesale' ? (marcheDe(v) === 'US' ? 'É.-U.' : 'Canada') : '', 'Catégorie': libCategorie(v.type, v.categorie), CPO: v.type === 'usage' ? (v.cpoLibelle || '') : '', 'CPO (livre)': v.type === 'usage' ? (v.cpo || '') : '', 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'No client (DMS)': v.noClient || '', Provenance: v.provenance || '', 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
+      var o = { Id: v.id, Concession: v.compagnie, Mois: capitale(v.moisLibelle || moisLibelle(moisDeVente(v))), Type: TYPES[v.type] || v.type, 'Marché': v.type === 'wholesale' ? (marcheDe(v) === 'US' ? 'É.-U.' : 'Canada') : '', 'Catégorie': libCategorie(v.type, v.categorie), CPO: v.type === 'usage' ? (v.cpoLibelle || '') : '', 'CPO (livre)': v.type === 'usage' ? (v.cpo || '') : '', 'État': ETATS[v.statut] || v.statut, 'Date vente': v.dateVente, 'Date livraison': v.dateLivraison, Client: v.client || v.venduA, 'No client (DMS)': v.noClient || '', Provenance: v.provenance || '', 'Acheté de': v.acheteDe, 'Véhicule': vehiculeTexte(v), '# Stock': v.stock, NIV: v.vin, Conseiller: v.conseiller, 'Dir. commercial (F&I)': v.directeur, Pneus: v.pneus, Paiement: libPaiement(v.paiement), 'Échange': [v.echangeStock, v.echangeModele].filter(Boolean).join(' '), 'NIV échange': v.echangeVin, 'Km échange': v.echangeKm, '2e échange': [v.echange2Stock, v.echange2Modele].filter(Boolean).join(' '), 'NIV 2e échange': v.echange2Vin || '', Livre: v.livreOnglet, 'Ligne du livre': v.livreLigne || '', Source: v.importee ? 'livre' : 'ScanAutomax', Note: v.note };
       o['Mois (livraison)'] = moisDeVente(v); o['Mois selon'] = dateLivraisonOk(v) ? 'livraison' : 'vente'; o['Mois (vente)'] = moisVenteRef(v);
       o['F&I à inscrire'] = besoinFI(v) ? 'oui' : '';
       if (montants) o['Pneus / jantes / mags ($)'] = v.pneusMontant === null || v.pneusMontant === undefined ? '' : v.pneusMontant;   /* 5 nov. */
       if (montants) { o.Holdback = v.holdback && v.holdback.holdback ? v.holdback.holdback : ''; var deb = (Array.isArray(v.banque) ? v.banque : []).filter(function (x) { return x.genre === 'deboursement'; })[0]; o['Déboursé BMW FS'] = deb ? deb.date : ''; }   /* 26 oct. */
-      if (montants) { o['Front estimé'] = frontE(v); o['Front comptable'] = frontC(v); o['Écart front'] = ecartEC(frontE(v), frontC(v)); o['F&I estimé'] = fiE(v); o['F&I comptable'] = fiC(v); o['Écart F&I'] = ecartEC(fiE(v), fiC(v)); o['Profit estimé (total)'] = estimeDe(v); o['Profit comptable (total)'] = comptableDe(v); o['Écart (total)'] = ecartDe(v); o['Prix de vente'] = v.prixVente; o['Profit front prévu'] = v.profitPrevu; o['Profit F&I prévu'] = v.profitFIPrevu; o.Accessoires = v.accessoires; o['Valeur échange accordée'] = v.echangeValeur; o['Évaluation échange'] = v.echangeEvaluation; o['Over / under'] = v.overUnder; o['Profit front réel'] = v.profitReel; o['Profit F&I réel'] = v.profitFIReel; var prd = produitsDe(v); defs.forEach(function (p) { o[p[1]] = prd[p[0]] === undefined ? '' : prd[p[0]]; }); }
+      if (montants) { o['Front estimé'] = frontE(v); o['Front comptable'] = frontC(v); o['Écart front'] = ecartEC(frontE(v), frontC(v)); o['F&I estimé'] = fiE(v); o['F&I comptable'] = fiC(v); o['Écart F&I'] = ecartEC(fiE(v), fiC(v)); o['Profit estimé (total)'] = estimeDe(v); o['Profit comptable (total)'] = comptableDe(v); o['Écart (total)'] = ecartDe(v); o['Prix de vente'] = v.prixVente; o['Profit front prévu'] = v.profitPrevu; o['Profit F&I prévu'] = v.profitFIPrevu; o.Accessoires = v.accessoires; o['Valeur échange accordée'] = v.echangeValeur; o['Évaluation échange'] = v.echangeEvaluation; o['Valeur 2e échange'] = v.echange2Valeur; o['Évaluation 2e échange'] = v.echange2Evaluation; o['Over / under'] = v.overUnder; o['Profit front réel'] = v.profitReel; o['Profit F&I réel'] = v.profitFIReel; var prd = produitsDe(v); defs.forEach(function (p) { o[p[1]] = prd[p[0]] === undefined ? '' : prd[p[0]]; }); }
       if (sansFI) { ['Dir. commercial (F&I)', 'Pneus', 'Pneus / jantes / mags ($)', 'F&I à inscrire', 'F&I estimé', 'F&I comptable', 'Écart F&I', 'Profit F&I prévu', 'Profit F&I réel'].concat(defs.map(function (p) { return p[1]; })).forEach(function (k) { delete o[k]; }); }   /* 1er nov. : pas de F&I en wholesale */
       return o;
     });
@@ -1799,6 +1799,15 @@
         montants ? ['Valeur accordée', argent(v.echangeValeur)] : null,
         montants ? ['Évaluation (ACV)', v.echangeEvaluation !== null && v.echangeEvaluation !== undefined && v.echangeEvaluation !== '' ? h('span', [argent(v.echangeEvaluation) + (v.echangeEvalLe ? ' · évaluée le ' + AMX.fmtDate(v.echangeEvalLe) : '') + (v.echangeEvalPar ? ' par ' + String(v.echangeEvalPar).split('@')[0] : ''), lienEval]) : h('span', ['— pas d\'évaluation liée', lienEval ? h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.echangeVin }), text: 'Évaluer', target: '_blank', rel: 'noopener' }) : null])] : (lienEval ? ['Évaluation', lienEval] : null),
         montants ? ['Over / under', h('span' + (nombre(v.overUnder) > 0 ? '.alerte' : ''), { text: signe(nombre(v.overUnder)) + (nombre(v.overUnder) > 0 ? ' (accordé au-dessus de l\'évaluation)' : '') })] : null
+      ]));
+    }
+    if (v.echange2Vin || v.echange2Stock || v.echange2Modele || v.echange2Valeur) {   /* 17 nov. : le 2e échange */
+      corps.appendChild(h('h4', '2e échange'));
+      corps.appendChild(dl([
+        ['Véhicule', [v.echange2Modele, v.echange2Stock ? '# ' + v.echange2Stock : ''].filter(Boolean).join(' · ') || '—'], ['NIV', v.echange2Vin || '—'], ['Km', v.echange2Km !== null && v.echange2Km !== undefined && v.echange2Km !== '' ? AMX.fmtNombre(nombre(v.echange2Km)) + ' km' : '—'],
+        montants ? ['Valeur accordée', argent(v.echange2Valeur)] : null,
+        montants ? ['Évaluation (ACV)', v.echange2Evaluation !== null && v.echange2Evaluation !== undefined && v.echange2Evaluation !== '' ? argent(v.echange2Evaluation) : '— pas d\'évaluation liée'] : null,
+        v.echange2Vin && String(v.echange2Vin).length === 17 ? ['Évaluation', h('a.btn.petit', { href: AMX.lien('outils', 'evaluation', { vin: v.echange2Vin }), text: 'Ouvrir l\'évaluation', target: '_blank', rel: 'noopener' })] : null
       ]));
     }
     if (!ws) corps.appendChild(h('h4', 'F&I — directeur commercial'));   /* 1er nov. : pas de F&I en wholesale */
@@ -2503,6 +2512,15 @@
     var inEchKm = h('input.saisie#vente-echange-km', { type: 'text', inputmode: 'numeric', placeholder: 'km', value: val(v.echangeKm) });
     var inEchValeur = h('input.saisie#vente-echange-valeur', { type: 'text', inputmode: 'decimal', placeholder: 'Valeur accordée au client', value: val(v.echangeValeur) });
     var inEchEval = h('input.saisie#vente-echange-evaluation', { type: 'text', inputmode: 'decimal', placeholder: 'Valeur d\'évaluation (ACV)', value: val(v.echangeEvaluation) });
+    /* 17 nov. (S7B91F8CEFC, George, Hyundai) : un 2e échange dans la même transaction. */
+    var a2 = !!(v.echange2Vin || v.echange2Stock || v.echange2Modele || v.echange2Valeur);
+    var inEch2Vin = h('input.saisie#vente-echange2-vin', { type: 'text', maxlength: '17', placeholder: 'NIV du 2e échange', value: v.echange2Vin || '', spellcheck: 'false', autocomplete: 'off' });
+    var elEval2 = h('div.ventes-trouve.gris#vente-echange2-eval', { text: 'Tapez le NIV : son évaluation remplit le modèle, le km et la valeur d\'achat.' });
+    var inEch2Stock = h('input.saisie#vente-echange2-stock', { type: 'text', placeholder: '# stock', value: v.echange2Stock || '' });
+    var inEch2Modele = h('input.saisie#vente-echange2-modele', { type: 'text', placeholder: 'Modèle (ex. Civic 2019)', value: v.echange2Modele || '' });
+    var inEch2Km = h('input.saisie#vente-echange2-km', { type: 'text', inputmode: 'numeric', placeholder: 'km', value: val(v.echange2Km) });
+    var inEch2Valeur = h('input.saisie#vente-echange2-valeur', { type: 'text', inputmode: 'decimal', placeholder: 'Valeur accordée au client', value: val(v.echange2Valeur) });
+    var inEch2Eval = h('input.saisie#vente-echange2-evaluation', { type: 'text', inputmode: 'decimal', placeholder: 'Valeur d\'évaluation (ACV)', value: val(v.echange2Evaluation) });
     var inOver = h('input.saisie#vente-over', { type: 'text', inputmode: 'decimal', placeholder: 'valeur accordée − évaluation', value: val(v.overUnder) });
     var evalMeta = { le: v.echangeEvalLe || '', par: v.echangeEvalPar || '' };
     var inNote = h('textarea.saisie#vente-note', { rows: '2', placeholder: 'Note (facultatif)' }); inNote.value = v.note || '';
@@ -2561,10 +2579,18 @@
     var champAcheteur = h('div.champ', [h('label', { 'for': 'vente-acheteur', text: 'Acheteur interne (fiche d\'achat)' }), inAcheteur, elAcheteurFiche]);
     var blocWholesale = h('div.grille', [champ('vente-marche', 'Marché (onglet du livre)', segMarche), champ('vente-vendua', 'Vendu à', inVenduA, 'large'), champ('vente-achetede', 'Acheté de', inAcheteDe), champ('vente-coutant', 'Coûtant', inCoutant)]);
     var blocClient = h('div.grille', [champ('vente-client', 'Client', inClient, 'large'), champ('vente-noclient', 'No client (DMS)', inNoClient), champ('vente-telephone', 'Téléphone', inTel), champ('vente-courriel', 'Courriel', inCourriel)]);
+    var blocEchange2, btnEchange2;
     var blocEchange = h('div', [
       h('div.ventes-vehicule', [champ('vente-echange-vin', 'NIV de l\'échange', inEchVin), btnEval]),
       elEval,
-      h('div.grille', [champ('vente-echange-stock', '# stock', inEchStock), champ('vente-echange-modele', 'Modèle', inEchModele), champ('vente-echange-km', 'Km', inEchKm), champ('vente-echange-valeur', 'Valeur accordée', inEchValeur), champ('vente-echange-evaluation', 'Évaluation (ACV)', inEchEval), champ('vente-over', 'Over / under', inOver)])
+      h('div.grille', [champ('vente-echange-stock', '# stock', inEchStock), champ('vente-echange-modele', 'Modèle', inEchModele), champ('vente-echange-km', 'Km', inEchKm), champ('vente-echange-valeur', 'Valeur accordée', inEchValeur), champ('vente-echange-evaluation', 'Évaluation (ACV)', inEchEval), champ('vente-over', 'Over / under', inOver)]),
+      blocEchange2 = h('div.ventes-echange2' + (a2 ? '' : '.cache'), [
+        h('h4', '2e échange'),
+        h('div.ventes-vehicule', [champ('vente-echange2-vin', 'NIV du 2e échange', inEch2Vin)]),
+        elEval2,
+        h('div.grille', [champ('vente-echange2-stock', '# stock', inEch2Stock), champ('vente-echange2-modele', 'Modèle', inEch2Modele), champ('vente-echange2-km', 'Km', inEch2Km), champ('vente-echange2-valeur', 'Valeur accordée', inEch2Valeur), champ('vente-echange2-evaluation', 'Évaluation (ACV)', inEch2Eval)])
+      ]),
+      btnEchange2 = h('button.btn.fantome.petit#vente-echange2-ajouter' + (a2 ? '.cache' : ''), { type: 'button', text: '+ Ajouter un 2e échange', onclick: function () { blocEchange2.classList.remove('cache'); btnEchange2.classList.add('cache'); inEch2Vin.focus(); } })
     ]);
     var titreEchange = h('h4', 'Échange (s\'il y en a un)'), pEchange = h('p.ventes-aide', { text: 'L\'échange entre à l\'inventaire par sa fiche d\'achat (Inventaire › Fiche d\'achat) ; ici on le lie à son évaluation. Over / under = valeur accordée − évaluation, calculé si vous ne le tapez pas.' });
     var fiDest = rep && rep.fi ? rep.fi : null;
@@ -2756,9 +2782,30 @@
     var overAuto = !val(v.overUnder);
     function majOver() {
       var a = nombre(inEchValeur.value), b = nombre(inEchEval.value);
-      if (a !== null && b !== null) { var o = Math.round((a - b) * 100) / 100; inOver.placeholder = (o > 0 ? '+' : '') + o + ' (calculé)'; if (overAuto) inOver.value = String(o); }
+      var avec2 = !!(inEch2Vin.value.trim() || inEch2Stock.value.trim() || inEch2Modele.value.trim() || inEch2Valeur.value.trim()), a2v = nombre(inEch2Valeur.value), b2 = nombre(inEch2Eval.value);
+      if (avec2 && (a2v === null || b2 === null)) return;   /* 17 nov. : sur les deux échanges, quand chacun est connu */
+      if (a !== null && b !== null) { var o = Math.round((a - b + (avec2 ? a2v - b2 : 0)) * 100) / 100; inOver.placeholder = (o > 0 ? '+' : '') + o + ' (calculé' + (avec2 ? ', 2 échanges' : '') + ')'; if (overAuto) inOver.value = String(o); }
     }
-    inEchValeur.addEventListener('input', majOver); inEchEval.addEventListener('input', majOver); inOver.addEventListener('input', function () { overAuto = !inOver.value.trim(); });
+    inEchValeur.addEventListener('input', majOver); inEchEval.addEventListener('input', majOver); inEch2Valeur.addEventListener('input', majOver); inEch2Eval.addEventListener('input', majOver);
+    var eval2EnCours = '';
+    function chercherEvaluation2(texte) {
+      var vin = String(texte || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (vin.length !== 17 || eval2EnCours === vin) return; eval2EnCours = vin;
+      elEval2.className = 'ventes-trouve gris'; elEval2.textContent = 'Recherche de l\'évaluation de ' + vin + '…';
+      AMX.ventes.evaluation(vin).then(function (e) {
+        if (inEch2Vin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase() !== vin) return;
+        AMX.vider(elEval2);
+        if (!e.trouve) { elEval2.className = 'ventes-trouve alerte'; elEval2.textContent = e.portail ? 'Aucune valeur confirmée par la direction pour ce NIV.' : 'Pas d\'évaluation pour ce NIV.'; return; }
+        var modele = [e.annee, e.marque, e.modele].filter(Boolean).join(' ');
+        if (modele && !inEch2Modele.value.trim()) inEch2Modele.value = modele;
+        if (e.km !== null && !inEch2Km.value.trim()) inEch2Km.value = String(Math.round(e.km));
+        if (e.acv !== null && !inEch2Eval.value.trim()) inEch2Eval.value = String(Math.round(e.acv * 100) / 100);
+        majOver();
+        elEval2.className = 'ventes-trouve';
+        elEval2.textContent = (e.portail ? 'Valeur confirmée par la direction : ' : 'Évaluation importée : ') + (modele || vin) + (e.acv !== null ? ' · valeur d\'achat ' + argent(e.acv) : '');
+      }, function (err) { if (!elEval2.isConnected) return; elEval2.className = 'ventes-trouve alerte'; elEval2.textContent = 'Évaluation indisponible : ' + AMX.erreurTexte(err); });
+    }
+    inEch2Vin.addEventListener('input', function () { chercherEvaluation2(inEch2Vin.value); }); inOver.addEventListener('input', function () { overAuto = !inOver.value.trim(); });
     inEchVin.addEventListener('input', function () { var vin = inEchVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(); if (vin.length === 17) chercherEvaluation(vin, false); });
     inEchVin.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); chercherEvaluation(inEchVin.value, true); } });
     rendreCategories(); rendreWholesale(); rendrePersonnes(rep || (cie ? null : {})); majTotalFI();
@@ -2786,10 +2833,13 @@
         if (!inDate.value) { AMX.toast('La date de vente est obligatoire.', 'erreur'); inDate.focus(); return false; }
         var echVin = inEchVin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (echVin && echVin.length !== 17) { AMX.toast('Le NIV de l\'échange a 17 caractères (ou laissez-le vide).', 'erreur'); inEchVin.focus(); return false; }
+        var ech2Vin = inEch2Vin.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (ech2Vin && ech2Vin.length !== 17) { AMX.toast('Le NIV du 2e échange a 17 caractères (ou laissez-le vide).', 'erreur'); inEch2Vin.focus(); return false; }
         var corpsEnvoi = { compagnie: compagnie, type: type, vin: vin, stock: stock, annee: inAnnee.value.trim(), marque: inMarque.value.trim(), modele: inModele.value.trim(), version: inVersion.value.trim(),
           client: inClient.value.trim(), noClient: type === 'wholesale' ? undefined : inNoClient.value.replace(/\s+/g, ''), telephone: inTel.value.trim(), courriel: inCourriel.value.trim(), dateVente: inDate.value, dateLivraison: inLivraison.value, categorie: rachat ? 'rachat' : selCat.value, conseiller: inConseiller.value.trim(),
           prixVente: inPrix.value.trim(), paiement: type === 'wholesale' ? (selPaiement.value || 'comptant') : selPaiement.value, classe: type === 'wholesale' ? selClasse.value : undefined, provenance: type === 'neuf' && compagnie === 'BMW' ? selProvenance.value : undefined, profitPrevu: inFront.value.trim(), accessoires: inAccess.value.trim(), overUnder: inOver.value.trim(),
           echangeStock: inEchStock.value.trim(), echangeModele: inEchModele.value.trim(), echangeVin: echVin, echangeKm: inEchKm.value.trim(), echangeValeur: inEchValeur.value.trim(), echangeEvaluation: inEchEval.value.trim(), echangeEvalLe: evalMeta.le, echangeEvalPar: evalMeta.par,
+          echange2Vin: ech2Vin, echange2Stock: inEch2Stock.value.trim(), echange2Modele: inEch2Modele.value.trim(), echange2Km: inEch2Km.value.trim(), echange2Valeur: inEch2Valeur.value.trim(), echange2Evaluation: inEch2Eval.value.trim(),
           dateRdr: type === 'wholesale' ? '' : inRdr.value, codeRdr: type === 'wholesale' ? '' : inCodeRdr.value.trim(),
           note: inNote.value.trim(), venduA: inVenduA.value.trim(), acheteDe: inAcheteDe.value.trim(), acheteur: type === 'neuf' ? undefined : inAcheteur.value.trim(), marche: type === 'wholesale' && !marcheFige ? marche : undefined, coutant: inCoutant.value.trim(), source: 'site' };
         /* 26 oct. : le profit F&I et les produits s'inscrivent dans leur propre fenêtre. 5 nov. : le nom du F&I et les pneus / jantes / mags partent avec la vente. */
@@ -2799,7 +2849,7 @@
           if (!(edition && v.montantsMasques && !pneusMtTouche)) corpsEnvoi.pneusMontant = inPneusMt.value.trim();
         }
         /* Un montant masqué (pas le droit de voir les montants) qu'on n'a pas retapé ne part pas : il effacerait le vrai. */
-        if (edition && v.montantsMasques) ['prixVente', 'profitPrevu', 'accessoires', 'overUnder', 'coutant', 'echangeValeur', 'echangeEvaluation'].forEach(function (k) { if (corpsEnvoi[k] === '') delete corpsEnvoi[k]; });
+        if (edition && v.montantsMasques) ['prixVente', 'profitPrevu', 'accessoires', 'overUnder', 'coutant', 'echangeValeur', 'echangeEvaluation', 'echange2Valeur', 'echange2Evaluation'].forEach(function (k) { if (corpsEnvoi[k] === '') delete corpsEnvoi[k]; });
         corpsEnvoi.action = edition ? 'venteCompleter' : 'venteDeclarer';
         corpsEnvoi.differe = true;   /* 7 nov. : réponse tout de suite, le livre s'écrit dans la minute (horloge du script) */
         if (edition) corpsEnvoi.id = v.id;

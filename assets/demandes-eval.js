@@ -409,6 +409,7 @@
       approuver: !portail && x.etat === 'approbation' && !!moi.diriger,
       confirmer: !portail && x.etat === 'aconfirmer' && !!moi.diriger,
       voirEvaluation: !portail && !!x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer'),
+      voirLecture: !portail && ouverte && priseParAutre(x) && !!x.vin && !!(moi.evaluateur || moi.direction || moi.diriger),
       /* 12 nov. (suggestion S8DC45A94DF) : rouvrir sa demande pour la corriger (km, note, client, état, photos) */
       modifier: x.etat !== 'annulee' && x.etat !== 'refusee' && (x.deMoi || !!moi.direction),
       /* 12 nov. (Maxime) : corriger le montant déjà donné en cliquant sur l'évaluation — la direction ; l'évaluateur quand la
@@ -432,6 +433,8 @@
     if (dr.approuver) return { texte: 'Approuver', faire: function () { approuver(x, d); } };
     if (dr.confirmer) return { texte: 'Confirmer le montant', faire: function () { confirmerMontant(x); } };
     if (dr.evaluer) return { texte: x.etat === 'afaire' ? 'Prendre et évaluer' : 'Évaluer', faire: function () { evaluer(x); } };
+    /* 17 nov. (S09FFB49AFC) : prise par un autre — les autres évaluateurs et la direction la regardent (lecture seule) */
+    if (dr.voirLecture) return { texte: 'Voir l\'évaluation', faire: function () { AMX.aller('outils', 'evaluation', { vin: x.vin, demande: x.id, lecture: 1 }); } };
     if (x.deMoi && x.infoDemandee) return { texte: 'Répondre', faire: function () { ficheDemande(x, { fil: true, portail: portail }); } };
     if (dr.resultat && x.deMoi && !x.issue && !x.expiree) return { texte: 'Indiquer le résultat', faire: function () { ficheDemande(x, { portail: portail }); } };
     return null;
@@ -452,8 +455,9 @@
   function evaluer(x) {
     var aller = function () { AMX.aller('outils', 'evaluation', { vin: x.vin, demande: x.id }); };
     /* 4 nov. : le premier qui la prend la fait — arrivé deuxième, on ne va pas plus loin */
-    if (x.etat === 'afaire') action(x.id, 'prendre').then(aller).catch(function (e) { erreur(e); if (!/Déjà prise/.test((e && e.message) || '')) aller(); else charger(true); });
-    else aller();
+    /* 17 nov. (vitesse) : on ouvre l'évaluation TOUT DE SUITE ; la page la prend en charge elle-même (rendreDemande) et dit
+       « Prise par … » si un autre l'a prise une seconde avant — avant, on attendait la réponse du serveur (7 à 13 s). */
+    aller();
   }
   function choisirIssue(x, issue) {
     if (issue !== 'perdue') return action(x.id, 'issue', { issue: x.issue === issue && x.issueSource !== 'suivi' ? '' : issue }).then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur);
@@ -761,7 +765,7 @@
       autres.push({ texte: 'Annuler la demande', action: function () { AMX.confirmer('Annuler la demande ?', titreVeh + ' · ' + x.vin, { ok: 'Annuler la demande', danger: true }).then(function (ok) { if (ok) { fermerFiche(); action(x.id, 'annuler', { raison: '' }).then(function (r) { AMX.toast(r.message, 'ok'); }).catch(erreur); } }); } });
     }
     if (dr.reevaluer) autres.push({ texte: 'Réévaluer', action: function () { fermerFiche(); reevaluer(x); } });
-    if (voit && x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer' || x.etat === 'encours')) autres.push({ texte: 'Évaluation complète', action: function () { fermerFiche(); AMX.aller('outils', 'evaluation', x.etat === 'aconfirmer' ? { vin: x.vin, demande: x.id } : { vin: x.vin }); } });
+    if (voit && x.lien && (x.etat === 'faite' || x.etat === 'aconfirmer' || x.etat === 'encours')) autres.push({ texte: 'Évaluation complète', action: function () { fermerFiche(); AMX.aller('outils', 'evaluation', x.etat === 'aconfirmer' ? { vin: x.vin, demande: x.id } : (x.etat === 'encours' && priseParAutre(x) ? { vin: x.vin, demande: x.id, lecture: 1 } : { vin: x.vin })); } });
     if (x.issue === 'achetee') autres.push({ texte: 'Fiche d\'achat', action: function () { fermerFiche(); AMX.aller('achat', '', { vin: x.vin }); } });
     var entete = h('div.fe-entete', [h('div', [h('div.fe-titre', { text: titreVeh }), sousVeh]), autres.length && AMX.menuActions ? AMX.menuActions(autres, { petit: true }) : null]);
     var qui = h('div.fe-qui', [
@@ -827,7 +831,7 @@
     var tout = function (ev) { dessinerValeur(ev); AMX.vider(elEtat); var et = ficheEtat(ev, x.detail); if (et.tagName !== 'P') elEtat.appendChild(et); hEtat.style.display = elEtat.childNodes.length ? '' : 'none'; dessinerClient(ev); hClient.style.display = elClient.childNodes.length ? '' : 'none'; };
     tout(null);
     if (voit && x.vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(x.vin) && x.etat !== 'approbation') {
-      AMX.get('evalVin=' + encodeURIComponent(x.vin), { discret: true }).then(function (r) { if (r && r.trouve && r.donnees) tout(r.donnees); }).catch(function () {});
+      AMX.get({ evalVin: x.vin }, { discret: true }).then(function (r) { if (r && r.trouve && r.donnees) tout(r.donnees); }).catch(function () {});
     }
   }
 

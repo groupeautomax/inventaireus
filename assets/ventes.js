@@ -2854,10 +2854,38 @@
         corpsEnvoi.differe = true;   /* 7 nov. : réponse tout de suite, le livre s'écrit dans la minute (horloge du script) */
         if (edition) corpsEnvoi.id = v.id;
         if (prefill.forcer) corpsEnvoi.forcer = true;
+        /* 17 nov. (Louis, S6D66E7493C : « il prend du temps pour loger et disparaît, donc on entre en double ») : une réponse
+           perdue ou très lente — on regarde si la vente est déjà enregistrée avant de dire « erreur » (sinon on la réinscrit). */
+        var debutEnvoi = Date.now();
+        var dejaLa = function () {
+          if (edition || (!vin && !stock)) return Promise.resolve(null);
+          return AMX.get({ venteVin: vin || stock, stock: stock || '' }, { essais: 2, delai: 60000 }).then(function (d) {
+            var moi = String((AMX.session && AMX.session.courriel) || '').toLowerCase();
+            return ((d && d.ventes) || []).filter(function (x) { return x.statut !== 'annulee' && String(x.declarePar || '').toLowerCase() === moi && x.declareLe && new Date(x.declareLe).getTime() > debutEnvoi - 120000; })[0] || null;
+          }, function () { return null; });
+        };
+        var reussie = function (vente, message) {
+          AMX.ventes.poser(vente);
+          if (typeof prefill.apres === 'function') { try { prefill.apres(vente); } catch (e) {} }
+          AMX.toast(message, 'ok', 8000);
+          if (!edition && !(AMX.courante && AMX.courante.section && AMX.courante.section.id === 'vente' && AMX.courante.onglet && AMX.courante.onglet.id === 'ventes') && !prefill.resterIci) AMX.aller('ventes', 'liste', { id: vente.id });
+          return true;
+        };
         return AMX.post(corpsEnvoi, { delai: 90000 }).then(function (r) {
           if (r && r.ok === false && r.code === 'DOUBLON' && r.vente) {
-            AMX.confirmer('Déjà inscrite', r.erreur + '\n\nInscrire quand même une deuxième vente pour ce véhicule ?', { ok: 'Inscrire quand même' }).then(function (ok) { if (ok) ouvrirFormulaire(Object.assign({}, prefill, { forcer: true, compagnie: compagnie, type: type, vin: vin, stock: stock }), null); else { AMX.ventes.poser(r.vente); if (typeof prefill.apres === 'function') prefill.apres(r.vente); } });
+            /* 17 nov. : le bouton principal ouvre la vente déjà inscrite ; « Inscrire quand même » reste possible, mais à côté */
+            var dv = r.vente, moiD = String((AMX.session && AMX.session.courriel) || '').toLowerCase();
+            var recente = dv.declareLe && Date.now() - new Date(dv.declareLe).getTime() < 3 * 3600000 && String(dv.declarePar || '').toLowerCase() === moiD;
+            AMX.ventes.poser(dv);
+            if (typeof prefill.apres === 'function') { try { prefill.apres(dv); } catch (e) {} }
+            AMX.modale({ titre: recente ? 'Cette vente est déjà inscrite' : 'Déjà inscrite',
+              corps: h('div', [h('p', { text: recente ? 'Vous l\'avez inscrite à ' + AMX.fmtDate(dv.declareLe, true).replace(/^\S+\s/, '') + ' : elle est bien enregistrée (' + dv.id + '). Rien de plus à faire.' : r.erreur })]),
+              boutons: [{ texte: 'Inscrire quand même une 2e vente', action: function () { ouvrirFormulaire(Object.assign({}, prefill, { forcer: true, compagnie: compagnie, type: type, vin: vin, stock: stock }), null); } },
+                { texte: 'Voir la vente', classe: 'primaire', action: function () { AMX.aller('ventes', 'liste', { id: dv.id }); } }] });
             return true;
+          }
+          if (r && r.ok === false && !r.refuse && /délai|timed? ?out|too many|verrou|lock|occup|réessay|serveur|exceeded|illisible/i.test(String(r.erreur || ''))) {
+            return dejaLa().then(function (v2) { if (v2) return reussie(v2, 'La vente était bien enregistrée (' + v2.id + ').'); verifierPost(r); return true; });
           }
           verifierPost(r);
           AMX.ventes.poser(r.vente);
@@ -2868,7 +2896,13 @@
             if (!edition && !prefill.resterIci) AMX.aller('ventes', 'liste', { id: r.vente.id });
           }
           return true;
-        }, function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur'); return false; });
+        }, function (e) {
+          AMX.toast('Vérification : la vente est-elle déjà enregistrée…', 'info', 6000);
+          return dejaLa().then(function (v2) {
+            if (v2) return reussie(v2, 'La réponse a tardé, mais la vente est bien enregistrée (' + v2.id + ').');
+            AMX.toast(AMX.erreurTexte(e) + ' — la vente n\'est pas enregistrée : réessayez.', 'erreur', 9000); return false;
+          });
+        });
       } }]
     });
     return m;

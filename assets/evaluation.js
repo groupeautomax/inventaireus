@@ -539,9 +539,11 @@
     this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null };
     this.exportForce = false;                 // « Comparer quand même » pour un NIV non exportable
     this.rapide = rapideDe(ctx);              // 17 nov. : analyse rapide (?rapide=1), rien n'est enregistré
+    this.lectureSeule = lectureDe(ctx);       // 17 nov. (S09FFB49AFC) : regarder une évaluation prise par un autre (?lecture=1)
 
     this.construire();
     this.rendreRapide();
+    this.rendreLecture();
     this.rendreMarche();
     this.surExport = function () { self.rendreExport(); };
     document.addEventListener('amx:export', this.surExport);
@@ -594,6 +596,27 @@
     this.elCieBadge.textContent = AMX.CONCESSIONS_TOUTES[k] || k || '';
   };
 
+  /* 17 nov. (Marc-André, S09FFB49AFC : « même quand quelqu'un prend l'éval en charge, les autres peuvent aller la voir pour
+     avoir plusieurs avis ») : lecture seule — rien n'est gardé (ni sauvegarde automatique, ni Enregistrer), pour ne jamais
+     écraser le travail de l'évaluateur ; on donne son avis par les messages de la demande. */
+  function lectureDe(ctx) {
+    var p = (ctx && ctx.params) || {};
+    return !!(p.lecture && p.lecture !== '0');
+  }
+  Evaluation.prototype.rendreLecture = function (qui) {
+    var l = !!this.lectureSeule;
+    if (this.el) this.el.classList.toggle('eval-lecture', l);
+    if (this.elLecture) {
+      this.elLecture.style.display = l ? '' : 'none';
+      if (qui && this.elLectureQui) this.elLectureQui.textContent = qui;
+    }
+    if (l) {
+      clearTimeout(this.minuterieAuto);
+      if (this.btnEnregistrer) this.btnEnregistrer.style.display = 'none';
+      if (this.btnEffacer) this.btnEffacer.style.display = 'none';
+      if (this.btnFaire) this.btnFaire.style.display = 'none';
+    }
+  };
   function rapideDe(ctx) {
     var p = (ctx && ctx.params) || {};
     return !!(p.rapide && p.rapide !== '0' && !p.demande);
@@ -627,6 +650,8 @@
     var dem = (ctx && ctx.params && ctx.params.demande) ? String(ctx.params.demande) : '';
     var rap = rapideDe(ctx);
     if (rap !== !!this.rapide) { this.rapide = rap; this.rendreRapide(); }
+    var lec = lectureDe(ctx);
+    if (lec !== !!this.lectureSeule) { this.lectureSeule = lec; this.rendreLecture(); }
     if (dem || (vin && vin !== this.vinCharge)) this.demandeId = dem;
     if (vin && vin !== this.vinCharge) { this.elNiv.value = vin; this.charger(vin); }
     this.rendreDemande();
@@ -666,11 +691,15 @@
         } else if (x.etat === 'faite' && AMX.evalDemandes.modifierMontant && (moi.diriger || (x.circuit !== 'directeur' && (x.pourMoi || moi.evaluateur)))) {
           /* 12 nov. (Maxime) : le montant donné se corrige d'un clic */
           autres.push({ texte: 'Modifier le montant', action: function () { AMX.evalDemandes.modifierMontant(x.id); } });
+        } else if (ouverte && priseAutre && AMX.evalDemandes.ouvrirFil) {
+          /* 17 nov. (S09FFB49AFC) : prise par un autre — on regarde, on donne son avis, on ne touche à rien */
+          principal = h('button.btn.primaire', { type: 'button', text: 'Donner mon avis', title: 'Écrire à l\'évaluateur et au représentant (messages de la demande)', onclick: function () { AMX.evalDemandes.ouvrirFil(x.id); } });
         } else if (ouverte && !priseAutre && (x.pourMoi || moi.evaluateur)) {
           principal = h('button.btn.primaire', { type: 'button', text: 'Envoyer la valeur', title: 'Enregistre l\'évaluation et envoie la valeur' + (x.circuit ? ' à la direction pour confirmation' : ''), onclick: function () { self.enregistrer(); } });
         }
         /* le bouton du bandeau remplace « Enregistrer l'évaluation » de l'en-tête (un seul bouton à l'écran) */
         if (self.btnEnregistrer) self.btnEnregistrer.style.display = principal && ouverte ? 'none' : '';
+        if (ouverte && priseAutre) { self.lectureSeule = true; self.rendreLecture((x.prisParNom || x.evaluateurNom || 'Un autre évaluateur') + ' fait cette évaluation'); }
         if (ouverte && AMX.evalDemandes.transferer && (moi.direction || moi.evaluateur || x.pourMoi)) autres.push({ texte: 'Transférer à un autre évaluateur', action: function () { AMX.evalDemandes.transferer(x.id); } });
         if (AMX.evalDemandes.ouvrirFil && x.etat !== 'refusee' && x.etat !== 'annulee') autres.push({ texte: x.messages && x.messages.length ? 'Messages (' + x.messages.length + ')' : 'Question au représentant', action: function () { AMX.evalDemandes.ouvrirFil(x.id); } });
         if (AMX.evalDemandes.fiche) autres.push({ texte: 'Fiche de la demande', action: function () { AMX.evalDemandes.fiche(x.id); } });
@@ -733,7 +762,7 @@
     });
     if (this.majChampsEtat) this.majChampsEtat();
   };
-  Evaluation.prototype.paramsAdresse = function (vin) { var p = { vin: vin }; if (this.rapide) p.rapide = 1; if (this.demandeId && (!this.demande || this.demande.vin === vin)) p.demande = this.demandeId; return p; };
+  Evaluation.prototype.paramsAdresse = function (vin) { var p = { vin: vin }; if (this.rapide) p.rapide = 1; if (this.lectureSeule) p.lecture = 1; if (this.demandeId && (!this.demande || this.demande.vin === vin)) p.demande = this.demandeId; return p; };
 
   Evaluation.prototype.etat = function (texte) { this.elEtat.textContent = texte; };
 
@@ -760,7 +789,7 @@
       h('div.actions', (AMX.ui2 && AMX.ui2())
         /* v134 (nouvelle interface) ; 12 nov. (« plein d'écrits partout ») : un seul bouton, Enregistrer — l'analyse part
            toute seule ; la relancer, la feuille d'offre et Effacer vont dans « Actions » (les boutons gardent leur code). */
-        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer, this.btnFaire]
+        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { texte: 'Mes valeurs par défaut (recon, marge)', action: function () { self.mesDefauts(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer, this.btnFaire]
         : [this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer, this.btnFaire])
     ]);
     this.rendreSauvegarde();
@@ -837,7 +866,7 @@
     ])])]);
     [this.elAchat, this.elFrais].forEach(function (el) { el.addEventListener('input', function () { self.recalculerDetail('achat'); }); });
     this.elPaye.addEventListener('input', function () { self.recalculerDetail('paye'); });
-    this.elRecon.addEventListener('input', function () { self.recalculerDetail('couts'); });
+    this.elRecon.addEventListener('input', function () { self.reconDefaut = false; self.recalculerDetail('couts'); });
     this.elMarge.addEventListener('input', function () { self.recalculerDetail('marge'); });
     this.elNiv.addEventListener('blur', function () {
       var vin = self.elNiv.value.trim();
@@ -913,7 +942,11 @@
     this.construireTuiles({ marche: marche });
 
     this.elDemande = h('div.eval-demande-zone');   /* 27 oct. : demande d'évaluation d'un représentant (demandes-eval.js) */
-    this.el = h('div.page.eval-page', [entete, this.elRapide, this.elDemande, this.elSommaire, vehicule, detail, this.elTuiles, this.elPanneaux]);
+    this.elLecture = h('div.eval-rapide-bandeau.eval-lecture-bandeau', { style: { display: 'none' } }, [
+      h('span', [h('b', 'Lecture seule'), ' — ', this.elLectureQui = h('span', 'un autre évaluateur fait cette évaluation'), '. Vos changements ici ne sont pas gardés ; donnez votre avis par « Messages ».']),
+      h('button.btn.petit', { type: 'button', text: 'Relire l\'évaluation', title: 'Recharger ce que l\'évaluateur a fait jusqu\'ici', onclick: function () { var v = self.vinCourant || self.elNiv.value.trim(); if (v) { self.vinCharge = ''; self.charger(v); } } })
+    ]);
+    this.el = h('div.page.eval-page', [entete, this.elRapide, this.elLecture, this.elDemande, this.elSommaire, vehicule, detail, this.elTuiles, this.elPanneaux]);
     this.rendreSommaire();
     this.rendreLiens();
     this.rendreExport();
@@ -1419,7 +1452,14 @@
     }
     var paye = nombre(this.elPaye.value), recon = nombre(this.elRecon.value) || 0, marge = nombre(this.elMarge.value), prix = nombre(this.elPrix.value);
     if (source === 'prix') {
-      if (paye !== null && prix !== null) this.elMarge.value = String(Math.round(prix - paye - recon));
+      /* 17 nov. (Eric, S93079C0E7B) : changer le prix de détail garde le recon et la marge visée et refait le prix payé
+         (et le prix d'achat) — sauf quand le prix payé vient de la fiche d'achat (véhicule déjà acheté) : là, la marge suit. */
+      var payeFixe = !!(this.ficheSource && /achat/.test(this.ficheSource));
+      if (prix !== null && marge !== null && !payeFixe) {
+        var nouveauPaye = Math.round(prix - recon - marge);
+        this.elPaye.value = String(nouveauPaye);
+        this.elAchat.value = String(Math.round(nouveauPaye - frais));
+      } else if (paye !== null && prix !== null) this.elMarge.value = String(Math.round(prix - paye - recon));
     } else if (paye !== null && marge !== null) {
       this.elPrix.value = String(Math.round(paye + recon + marge));
     }
@@ -1464,7 +1504,7 @@
     this.elRecon.readOnly = calcule;
     this.elRecon.parentNode.classList.toggle('eval-champ-calcule', calcule);
     this.elRecon.title = calcule ? 'Somme des postes du détail du recon' : '';
-    if (calcule) { this.elRecon.value = String(r.total); this.recalculerDetail('couts'); this.planifierAuto(); }
+    if (calcule) { this.elRecon.value = String(r.total); this.reconDefaut = false; this.recalculerDetail('couts'); this.planifierAuto(); }
   };
   Evaluation.prototype.poserReconDetail = function (d) {
     var self = this;
@@ -1778,7 +1818,7 @@
     this.majTuiles();
     if (!this.vinPourSauvegarde() || !this.parametresPrets()) return;
     clearTimeout(this.minuterieAuto);
-    this.minuterieAuto = setTimeout(function () { self.sauvegarderAuto(); }, 1500);
+    this.minuterieAuto = setTimeout(function () { self.sauvegarderAuto(); }, 6000);   // 17 nov. (vitesse) : 6 s au lieu de 1,5 s — chaque brouillon coûte une exécution de 5 à 13 s chez Google ; « Enregistrer » envoie tout
   };
 
   Evaluation.prototype.rendreEcartClient = function () {
@@ -2320,10 +2360,13 @@
       ]);
     };
     var desc = self.filtres.sens === 'desc', triK = self.filtres.tri;
-    var moiVal = triK === 'prix' ? c.prixVise : (triK === 'km' ? kmV : null);
-    var placerFin = moiVal === null || moiVal === undefined;   /* tri par année, jours, distance : « Votre véhicule » en dernier */
+    /* 17 nov. (Eric, S93079C0E7B) : « Votre véhicule » à sa place aussi quand on trie par prix affiché (Prix), par année ou par
+       distance (le véhicule est chez nous : 0 km) ; seulement les jours affichés le mettent en dernier. */
+    var anV = Number(self.elAnnee.value) || null;
+    var moiVal = (triK === 'prix' || triK === 'brut') ? c.prixVise : (triK === 'km' ? kmV : (triK === 'annee' ? anV : (triK === 'dist' ? 0 : null)));
+    var placerFin = moiVal === null || moiVal === undefined;
     liste.forEach(function (x, i) {
-      var xv = triK === 'prix' ? x.ajuste : (triK === 'km' ? x.km : null);
+      var xv = triK === 'prix' ? x.ajuste : (triK === 'brut' ? x.prix : (triK === 'km' ? x.km : (triK === 'annee' ? (Number(x.annee) || null) : (triK === 'dist' ? x.distKm : null))));
       if (!moiInsere && !placerFin && xv !== null && xv !== undefined && (desc ? xv <= moiVal : xv >= moiVal)) { lignes.push(ligneMoi()); moiInsere = true; }
       var m = moy ? x.prix / moy : null;
       var tr = tractionDe(x.motricite);
@@ -2422,6 +2465,28 @@
     };
   };
 
+  /* 17 nov. (Eric, S93079C0E7B) : recon et marge visée par défaut, gardés pour cette personne sur cet appareil. */
+  Evaluation.prototype.mesDefauts = function () {
+    var self = this;
+    var inRecon = h('input.saisie', { type: 'number', inputmode: 'numeric', placeholder: 'ex. 2000', value: AMX.memo.lire('eval_recon_defaut', '') });
+    var inMarge = h('input.saisie', { type: 'number', inputmode: 'numeric', placeholder: 'ex. 2500', value: AMX.memo.lire('eval_marge', '2000') });
+    AMX.modale({ titre: 'Mes valeurs par défaut', corps: h('div', { style: { display: 'grid', gap: '10px' } }, [
+      h('p.mini', { text: 'Elles se mettent d\'elles-mêmes sur chaque nouvelle évaluation. Le recon de la fiche d\'achat ou d\'une évaluation déjà gardée passe avant.' }),
+      h('label.champ', { style: { display: 'grid', gap: '4px' } }, [h('span', 'Recon ($)'), inRecon]),
+      h('label.champ', { style: { display: 'grid', gap: '4px' } }, [h('span', 'Marge visée ($)'), inMarge])
+    ]), boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+      var r = String(inRecon.value || '').replace(/[^0-9]/g, ''), m = String(inMarge.value || '').replace(/[^0-9]/g, '');
+      AMX.memo.ecrire('eval_recon_defaut', r);
+      if (m) AMX.memo.ecrire('eval_marge', m);
+      if (!self.vinCharge && !self.sauvegarde) {   /* une évaluation vide à l'écran : on applique tout de suite */
+        if (r && (!self.elRecon.value.trim() || self.reconDefaut)) { self.elRecon.value = r; self.reconDefaut = true; }
+        if (m) self.elMarge.value = m;
+        self.recalculerDetail('couts');
+      }
+      AMX.toast('Valeurs par défaut enregistrées' + (r ? ' : recon ' + AMX.fmtArgent(Number(r)) : '') + (m ? ', marge ' + AMX.fmtArgent(Number(m)) : '') + '.', 'ok');
+    } }] });
+  };
+
   Evaluation.prototype.remplir = function (data) {
     var self = this;
     data = data || {};
@@ -2441,7 +2506,7 @@
     if (data.prixAchat) this.elAchat.value = data.prixAchat;
     if (data.frais !== undefined && data.frais !== '') this.elFrais.value = data.frais;
     if (!this.elAchat.value && data.prixPaye) this.elAchat.value = data.prixPaye;
-    if (data.recon !== undefined && data.recon !== '') this.elRecon.value = data.recon;
+    if (data.recon !== undefined && data.recon !== '') { this.elRecon.value = data.recon; this.reconDefaut = false; }
     if (data.marge !== undefined && data.marge !== '') this.elMarge.value = data.marge;
     this.poserReconDetail(data.reconDetail);
     poserChoix(this.elPrixType, data.prixType); this.elPrixNote.value = data.prixNote || '';
@@ -2483,6 +2548,11 @@
     this.elCarburant.value = ''; this.elMotricite.value = ''; this.elCabine.value = ''; this.vehManuel = {}; this.filtresManuels = {};
     this.filtres.carburant = ''; this.filtres.cabine = ''; this.majCabine();
     this.poserReconDetail(null); this.elPrixType.value = ''; this.elPrixNote.value = '';
+    /* 17 nov. (Eric, S93079C0E7B) : mon recon par défaut sur chaque nouvelle évaluation (Actions › Mes valeurs par défaut) ;
+       le recon de la fiche d'achat ou celui de l'évaluation gardée le remplacent. */
+    var rd = AMX.memo.lire('eval_recon_defaut', '');
+    this.reconDefaut = !!rd; if (rd) this.elRecon.value = rd;
+    if (this.elMarge) this.elMarge.value = AMX.memo.lire('eval_marge', '2000');
     this.ficheSource = '';
     this.comparablesCharges = [];
     this.derniereSauvegarde = null;
@@ -2500,6 +2570,17 @@
   };
 
   /* ---------------------------- Chargement ------------------------------ */
+  /* 17 nov. (vitesse) : décodage lancé d'avance par charger(), repris par decoder() (une minute au plus). */
+  var DECODE_PRE = {};
+  function prechargerDecodage(vin) {
+    vin = String(vin || '').trim().toUpperCase();
+    if (!vin || vin.length < 11) return;
+    if (DECODE_PRE[vin] && Date.now() - DECODE_PRE[vin].t < 60000) return;
+    var p = AMX.get({ decoder: vin });
+    p.catch(function () {});
+    DECODE_PRE[vin] = { t: Date.now(), p: p };
+  }
+
   Evaluation.prototype.charger = function (vin) {
     var self = this;
     vin = String(vin || '').trim().toUpperCase();
@@ -2511,7 +2592,11 @@
     if (!AMX.inventaire.parVin(vin)) AMX.inventaire.tout().then(function () { self.rendreContexte(); self.preremplirDepuisInventaire(); }, function () {});
     else this.preremplirDepuisInventaire();
     this.etat('Recherche…');
-    return AMX.get('evalVin=' + encodeURIComponent(vin)).then(function (d) {
+    /* 17 nov. (vitesse) : le décodage et la fiche d'achat partent EN MÊME TEMPS que l'évaluation, dans le même envoi
+       (lot) — avant, trois allers-retours de 5 à 8 s l'un après l'autre avant de voir le véhicule. */
+    prechargerDecodage(vin);
+    if (AMX.ficheDe) AMX.ficheDe(vin).catch(function () {});
+    return AMX.get({ evalVin: vin }).then(function (d) {
       if (gen !== self.generation) return;
       if (d && d.refuse) throw new Error(d.erreur || d.message || 'Accès refusé');
       if (d && d.trouve) {
@@ -2558,7 +2643,8 @@
     vin = String(vin || '').trim().toUpperCase();
     btn.classList.add('occupe');
     this.etat('Décodage…');
-    var serveur = AMX.get({ decoder: vin }).then(function (d) {
+    var pre = DECODE_PRE[vin]; delete DECODE_PRE[vin];
+    var serveur = (pre && Date.now() - pre.t < 60000 ? pre.p : AMX.get({ decoder: vin })).then(function (d) {
       if (d && d.ok && d.marque) return { make: d.marque, model: d.modele, year: d.annee, trim: d.version, carrosserie: d.carrosserie, portes: d.portes, motricite: d.motricite, carburant: d.carburant, cabine: d.cabine, source: 'serveur' };
       return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; });
     }).catch(function () { return decoderVin(vin).then(function (r) { return r ? Object.assign(r, { source: 'nhtsa' }) : null; }); });
@@ -2590,7 +2676,7 @@
       var repris = [];
       if (!self.elAchat.value.trim() && achatFiche) { self.elAchat.value = String(achatFiche); repris.push('achat'); }
       if (!self.elFrais.value.trim() && fraisFiche) { self.elFrais.value = String(fraisFiche); repris.push('frais'); }
-      if (!self.elRecon.value.trim() && remise) { self.elRecon.value = String(remise); repris.push('reconditionnement'); }
+      if ((!self.elRecon.value.trim() || self.reconDefaut) && remise) { self.elRecon.value = String(remise); self.reconDefaut = false; repris.push('reconditionnement'); }
       if (repris.length) { self.ficheSource = repris.join(', '); self.recalculerDetail('achat'); }
       else if (!self.elPrix.value.trim()) self.recalculerDetail('couts');
       self.rendreSommaire();
@@ -2702,21 +2788,25 @@
   };
   Evaluation.prototype.planifierAuto = function () {
     var self = this;
-    if (this.rapide || !this.vinPourSauvegarde()) return;
+    if (this.rapide || this.lectureSeule || !this.vinPourSauvegarde()) return;
     if (!(this.analyses[this.pays] && this.analyses[this.pays].ok) && !this.derniereSauvegarde) return;
     clearTimeout(this.minuterieAuto);
-    this.minuterieAuto = setTimeout(function () { self.sauvegarderAuto(); }, 1500);
+    this.minuterieAuto = setTimeout(function () { self.sauvegarderAuto(); }, 6000);   // 17 nov. (vitesse) : 6 s au lieu de 1,5 s — chaque brouillon coûte une exécution de 5 à 13 s chez Google ; « Enregistrer » envoie tout
   };
   Evaluation.prototype.sauvegarderAuto = function () {
     var self = this, vin = this.vinPourSauvegarde();
     clearTimeout(this.minuterieAuto);
-    if (this.rapide) return Promise.resolve();   /* 17 nov. : analyse rapide — rien n'est enregistré */
+    if (this.rapide || this.lectureSeule) return Promise.resolve();   /* 17 nov. : analyse rapide ou lecture seule — rien n'est enregistré */
     if (!vin || !this.parametresPrets()) return Promise.resolve();
     if (this.vinEfface && vin === this.vinEfface) return Promise.resolve();   /* 21 oct. : ne pas recréer l'évaluation qu'on vient d'effacer */
     // (9 oct.) un NIV tapé mais pas encore chargé : on ne sauvegarde pas les chiffres de l'ancien véhicule sous le nouveau.
     if (this.vinCourant && vin !== String(this.vinCourant).trim().toUpperCase()) return Promise.resolve();
+    /* 17 nov. (vitesse) : un seul brouillon en route à la fois ; un changement pendant l'envoi repart après. */
+    if (this.autoEnVol) { this.autoEncore = true; return this.autoEnVol; }
     var data = this.collecter(), gen = this.generation;
-    return AMX.post({ action: 'saveEvaluation', vin: vin, data: data, auto: true }).then(function (d) {
+    var fini = function () { self.autoEnVol = null; if (self.autoEncore) { self.autoEncore = false; clearTimeout(self.minuterieAuto); self.minuterieAuto = setTimeout(function () { self.sauvegarderAuto(); }, 6000); } };
+    this.autoEnVol = AMX.post({ action: 'saveEvaluation', vin: vin, data: data, auto: true }).then(function (d) { fini(); return d; }, function (e) { fini(); throw e; });
+    return this.autoEnVol.then(function (d) {
       if (gen !== self.generation || !d || !d.ok) return;
       self.vinCourant = vin; self.vinCharge = vin;
       if (data.marche) self.derniereSauvegarde = data.marche;
@@ -2730,7 +2820,7 @@
     var el = this.elSauvegarde; if (!el) return;
     AMX.vider(el);
     var sv = this.sauvegarde;
-    if (this.btnEffacer) this.btnEffacer.style.display = (sv && !this.rapide && (AMX.perm('supprimer') || AMX.estAdmin())) ? '' : 'none';
+    if (this.btnEffacer) this.btnEffacer.style.display = (sv && !this.rapide && !this.lectureSeule && (AMX.perm('supprimer') || AMX.estAdmin())) ? '' : 'none';
     if (!sv) { this.btnEnregistrer.classList.remove('ok'); return; }   /* 12 nov. : rien à dire tant qu'il n'y a pas de NIV */
     if (sv.statut === 'enregistree') {
       el.appendChild(h('span.puce.ok', { text: 'Enregistrée' + (sv.enregistreLe ? ' le ' + AMX.fmtDate(sv.enregistreLe, true) : '') + (sv.enregistrePar ? ' par ' + sv.enregistrePar.split('@')[0] : '') }));
@@ -2767,6 +2857,8 @@
 
   Evaluation.prototype.enregistrer = function () {
     var self = this, btn = this.btnEnregistrer;
+    if (this.lectureSeule) { AMX.toast('Lecture seule : cette évaluation est faite par un autre évaluateur. Donnez votre avis par « Messages ».', 'attention', 7000); return; }
+    clearTimeout(this.minuterieAuto); this.autoEncore = false;   // « Enregistrer » envoie tout : le brouillon en attente n'a plus à partir
     var vin = this.elNiv.value.trim().toUpperCase();
     if (!vin) {
       this.etat('Entrez le NIV.');
@@ -2777,7 +2869,17 @@
     btn.classList.add('occupe');
     this.etat('Enregistrement…');
     var data = this.collecter();
-    AMX.post({ action: 'saveEvaluation', vin: vin, data: data }).then(function (d) {
+    /* 17 nov. (vitesse) : la demande d'évaluation de ce NIV part avec l'enregistrement — le serveur la marque faite dans la
+       même exécution (RoutesAjout.gs, ROUTES_saveEtFaite_). Un script d'avant l'ignore : on la marque faite à part, comme avant. */
+    var idDemAvant = (this.demandeId && this.demande && this.demande.vin === vin) ? this.demandeId : '';
+    if (!idDemAvant && AMX.evalDemandes && AMX.evalDemandes.enCache()) {
+      var cd0 = AMX.evalDemandes.enCache() || {}, moi0 = cd0.moi || {};
+      var ouv0 = (cd0.demandes || []).filter(function (x) { return x.vin === vin && (x.etat === 'afaire' || x.etat === 'encours') && (x.pourMoi || moi0.evaluateur || moi0.diriger); })[0];
+      if (ouv0) idDemAvant = ouv0.id;
+    }
+    var corps = { action: 'saveEvaluation', vin: vin, data: data };
+    if (idDemAvant) corps.demandeFaite = idDemAvant;
+    AMX.post(corps).then(function (d) {
       AMX.verifier(d, 'Enregistrement refusé par le serveur');
       var quand = AMX.fmtDate(d.dateMaj || new Date().toISOString(), true);
       self.vinCourant = vin; self.vinCharge = vin;
@@ -2799,6 +2901,17 @@
       // montant attend sa confirmation ; si c'est un directeur qui enregistre, la fenêtre « Confirmer le montant » s'ouvre.
       // Sans ?demande= dans l'adresse, une demande ouverte de ce NIV qui m'est confiée est marquée faite quand même.
       var idDem = (self.demandeId && self.demande && self.demande.vin === vin) ? self.demandeId : '';
+      if (idDemAvant && d.demandeFaite) {
+        var f = d.demandeFaite;
+        if (f.ok !== false && !f.refuse && f.demande) {
+          if (f.ancienne && AMX.evalDemandes.poser) AMX.evalDemandes.poser(f.ancienne, true);
+          if (AMX.evalDemandes.poser) AMX.evalDemandes.poser(f.demande);
+          AMX.toast(f.message || 'Demande faite', 'ok', 6000);
+          if (self.demandeId === idDemAvant && self.dessinerDemande) self.dessinerDemande(f.demande);
+          if (f.peutConfirmer && AMX.evalDemandes.confirmer) AMX.evalDemandes.confirmer(idDemAvant);
+        } else AMX.toast('Demande ' + idDemAvant + ' : ' + ((f && (f.erreur || f.message)) || 'pas marquée faite'), 'attention', 8000);
+        return;
+      }
       if (AMX.evalDemandes) (idDem || AMX.evalDemandes.enCache() ? Promise.resolve() : AMX.evalDemandes.charger(false)).then(function () {
         if (!idDem) {
           var cacheDem = AMX.evalDemandes.enCache() || {}, moiDem = cacheDem.moi || {};

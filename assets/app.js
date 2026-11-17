@@ -715,7 +715,7 @@
   // rien n'est arrivé après GET_SECOURS_MS une deuxième tentative part en
   // parallèle — la première réponse valable gagne, l'autre est annulée. Un GET
   // ne modifie rien : le doublon est sans danger.
-  var GET_SECOURS_MS = 6000;   // (GET_DELAI_MS = 25 s jusqu'au 16 oct. → AMX.reseau.delais.premier = 30 s)
+  var GET_SECOURS_MS = 14000;   // 17 nov. : 6 s → 14 s — Google met maintenant 4 à 8 s à démarrer chaque demande, la copie de secours partait presque toujours et doublait la charge. (GET_DELAI_MS = 25 s jusqu'au 16 oct. → AMX.reseau.delais.premier = 30 s)
   // 16 oct. (Maxime, matin où Google retenait tout : « Pas de réponse en 25 s » sur Neufs, Résultat, CSI alors que chaque
   // exécution durait 2-4 s côté Google ; ?resultatRaw=1 revenu en 96 s puis en 2 s) : PATIENCE ADAPTATIVE.
   //   - AMX.reseau suit la lenteur observée (réponses > LENT_SEUIL_MS ou délais dépassés). Tant que Google est lent :
@@ -753,8 +753,8 @@
      la fois, site + app + horloge). Seulement les routes de LOT_ROUTES (petites réponses), seulement au premier essai : une
      relance ou un secours part seul. Un script d'avant (pas de « lot » dans la réponse) : chaque demande repart seule, et le
      site ne regroupe plus jusqu'au prochain chargement. */
-  var LOT_FENETRE_MS = 30, LOT_MAX = 6, lotIndispo = false, lotEnAttente = null;
-  var LOT_ROUTES = /^(achatsAuto|achatsCourriels|rdv|avis|csiAlertes|importsEtat|evalDemandes|pagesOffre|suggestions|demandes|evaluations|provenances|usagesSupprimes|photosD2c|cfxEtat|rabaisD2c|programmesMois|fidelite|equiteCrm|traction|iaReglages|saaqEtat|prixDetail)$/;
+  var LOT_FENETRE_MS = 30, LOT_MAX = 8, lotIndispo = false, lotEnAttente = null;
+  var LOT_ROUTES = /^(achatsAuto|achatsCourriels|rdv|avis|csiAlertes|importsEtat|evalDemandes|pagesOffre|suggestions|demandes|evaluations|provenances|usagesSupprimes|photosD2c|cfxEtat|rabaisD2c|programmesMois|fidelite|equiteCrm|traction|iaReglages|saaqEtat|prixDetail|evalVin|ficheVin|decoder|torqueVin|eblockVin|venteVin|rappelsNhtsa|exportParams|evaluationsUs|concessionInfo)$/;   // 17 nov. : + les petites lectures de l'évaluation (une seule exécution chez Google au lieu de 6 à 10)
   function lotPermis(params, opts) {
     if (lotIndispo || opts.lot === false || !params || typeof params !== 'object') return false;
     var k = Object.keys(params)[0];
@@ -889,7 +889,7 @@
   // POST_SECOURS_MS — Google laisse parfois un appel « en attente » 20 à 60 s alors que le même,
   // relancé, répond en 3 s. La première réponse valable gagne, l'autre est annulée. Jamais pour
   // une action qui crée quelque chose (ajout, envoi de courriel, import).
-  var POST_SECOURS_MS = 7000;
+  var POST_SECOURS_MS = 15000;   // 17 nov. : 7 s → 15 s (même raison que GET_SECOURS_MS)
   AMX.post = function (corps, opts) {
     opts = opts || {};
     var envoyer = function (ctrlExterne) {
@@ -2619,7 +2619,7 @@
     var k = String(vin || '').toUpperCase();
     if (!k) return Promise.resolve(null);
     if (!force && fichesCache[k]) return fichesCache[k];
-    fichesCache[k] = AMX.get('ficheVin=' + encodeURIComponent(k)).then(function (d) {
+    fichesCache[k] = AMX.get({ ficheVin: k }).then(function (d) {
       return (d && d.trouve) ? (d.donnees || {}) : null;
     }).catch(function (e) { delete fichesCache[k]; throw e; });
     return fichesCache[k];

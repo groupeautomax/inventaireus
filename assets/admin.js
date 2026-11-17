@@ -1740,7 +1740,9 @@
         var perso = possede(b.ecarts, d.cle);
         var coche = perso ? b.ecarts[d.cle] === true : def;
         var verrouMoi = moi && d.cle === 'gererUtilisateurs';
-        var bloque = !b.actif || verrouMoi || verrou;
+        /* 17 nov. (Frédéric Beauvais, S07A013B13B) : seuls la RH et les propriétaires donnent ou retirent ce droit. */
+        var verrouRh = d.cle === 'rh' && !(AMX.rhNiveau && AMX.rhNiveau() === 'complet');
+        var bloque = !b.actif || verrouMoi || verrou || verrouRh;
         var cb = h('input', { type: 'checkbox', checked: coche, disabled: bloque, dataset: { cle: d.cle }, onchange: function (e) {
           if (e.target.checked === def) delete b.ecarts[d.cle]; else b.ecarts[d.cle] = e.target.checked;
           rafraichir();
@@ -1750,7 +1752,8 @@
             perso ? h('span.puce.attention', { text: 'Modifié' }) : h('span.compte', { text: 'rôle : ' + (def ? 'oui' : 'non') })]),
           d.aide ? h('div.aide', { text: d.aide }) : null,
           perso ? h('div.aide.admin-ecart', { text: 'Le rôle ' + libelleRole(b.role) + ' dit « ' + (def ? 'oui' : 'non') + ' » — modifié pour cette personne.' }) : null,
-          verrouMoi ? h('div.aide', 'Vous ne pouvez pas vous retirer ce droit.') : null
+          verrouMoi ? h('div.aide', 'Vous ne pouvez pas vous retirer ce droit.') : null,
+          verrouRh ? h('div.aide', 'Seuls les ressources humaines et les propriétaires donnent ou retirent ce droit (Ressources humaines › Accès RH).') : null
         ]));
       });
       blocDroits = h('div.bloc', [

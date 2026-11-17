@@ -88,7 +88,15 @@
       '.sug-ia-refs { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; align-items: center; } .sug-ia-ref { cursor: pointer; border: 1px solid var(--ligne); background: #fff; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .sug-ia-ref.reglee { text-decoration: line-through; opacity: .6; }',
       '.sug-ia-liste { margin: 0; padding-left: 18px; font-size: 12.5px; } .sug-ia-liste li { margin-bottom: 6px; } .sug-ia-question { display: flex; gap: 8px; align-items: center; margin-top: 4px; }',
       '.sug-ia-pied { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ligne); } .sug-ia-pied .btn { margin-left: auto; }',
-      '.sug-carte.sug-flash { box-shadow: 0 0 0 3px var(--violet); transition: box-shadow .2s; }'
+      '.sug-carte.sug-flash { box-shadow: 0 0 0 3px var(--violet); transition: box-shadow .2s; }',
+      /* 17 nov. (SF473585466) : pièces jointes (captures d'écran, photos, PDF) */
+      '.sug-pieces { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }',
+      '.sug-piece { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 10px; border: 1px solid var(--ligne); border-radius: 999px; background: var(--carte); font-size: 13px; cursor: pointer; color: var(--encre); }',
+      '.sug-piece:hover { border-color: var(--vert); } .sug-piece span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }',
+      '.sug-piece .x { border: 0; background: none; color: var(--encre-3); font-size: 16px; line-height: 1; padding: 0 0 0 4px; cursor: pointer; }',
+      '.sug-joindre { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }',
+      '.sug-apercu img { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: 8px; }',
+      '.sug-apercu iframe { width: 100%; height: 70vh; border: 0; }'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -305,6 +313,11 @@
       h('div', [h('div.l', 'Pourquoi'), h('div.t', { text: s.pourquoi })]),
       s.exemple ? h('div', [h('div.l', 'Exemple concret'), h('div.t', { text: s.exemple })]) : null
     ]));
+    if (s.pieces && s.pieces.length) {
+      el.appendChild(h('div.sug-pieces', s.pieces.map(function (pc) {
+        return h('button.sug-piece', { type: 'button', title: 'Voir la pièce jointe', onclick: function () { voirPiece(s, pc); } }, [h('span', { html: AMX.icones && (/^image/.test(pc.mime) ? AMX.icones.photo : AMX.icones.document) || '' }), h('span', { text: pc.nom })]);
+      })));
+    }
     if (s.etat !== 'recue' && s.reponse) el.appendChild(h('div.sug-reponse', [h('span.l', { text: s.etat === 'traitee' ? 'Ce qui a changé' : 'Pourquoi ce n\'est pas retenu' }), h('span', { text: s.reponse })]));
     if (admin) {
       var actions = h('div.sug-actions');
@@ -323,8 +336,51 @@
     return 'Suggestions à traiter (' + liste.length + ') — ScanAutomax, ' + AMX.fmtDate(new Date().toISOString()) + '\n\n' + liste.map(function (s, i) {
       return (i + 1) + '. [' + s.id + '] ' + s.titre + ' — ' + (s.nom || s.courriel) + (s.concession ? ' (' + s.concession + ')' : '') + ' · page : ' + (s.pageLibelle || s.page) + ' · urgence : ' + (s.urgenceLibelle || s.urgence) + ' · ' + AMX.fmtDate(s.date) + '\n' +
         '   Ce qui manque : ' + s.description + '\n' +
-        '   Pourquoi : ' + s.pourquoi + (s.exemple ? '\n   Exemple : ' + s.exemple : '');
+        '   Pourquoi : ' + s.pourquoi + (s.exemple ? '\n   Exemple : ' + s.exemple : '') +
+        ((s.pieces && s.pieces.length) ? '\n   Pièces jointes : ' + s.pieces.map(function (pc) { return pc.nom; }).join(', ') + ' (à voir dans l\'onglet Suggestions)' : '');
     }).join('\n\n');
+  }
+
+  /* 17 nov. : une pièce jointe — l'image dans une fenêtre, le PDF dans un cadre (et « Ouvrir »). GET ?suggestionPiece=1. */
+  function voirPiece(s, pc) {
+    var corps = h('div.sug-apercu', [h('p.sug-aide', { text: 'Chargement…' })]);
+    var m = AMX.modale({ titre: pc.nom, large: true, proteger: false, corps: corps, boutons: [{ texte: 'Fermer' }] });
+    AMX.get({ suggestionPiece: 1, id: s.id, p: pc.p }, { delai: 90000, secours: false }).then(function (d) {
+      if (!d || d.ok === false || d.refuse || !d.base64) throw new Error((d && d.erreur) || 'Le script n\'est pas à jour : redéployez-le (Suggestion.gs).');
+      var octets = atob(d.base64), tab = new Uint8Array(octets.length);
+      for (var i = 0; i < octets.length; i++) tab[i] = octets.charCodeAt(i);
+      var url = URL.createObjectURL(new Blob([tab], { type: d.mime }));
+      AMX.vider(corps);
+      if (/^image\//.test(d.mime)) corps.appendChild(h('img', { src: url, alt: d.nom }));
+      else corps.appendChild(h('iframe', { src: url, title: d.nom }));
+      corps.appendChild(h('p', [h('a.btn.petit', { href: url, target: '_blank', rel: 'noopener', download: d.nom, text: 'Ouvrir / enregistrer' })]));
+    }).catch(function (e) { AMX.vider(corps); corps.appendChild(h('p.sug-aide', { text: AMX.erreurTexte ? AMX.erreurTexte(e) : String(e.message || e) })); });
+    return m;
+  }
+  /* Les captures d'écran et les photos sont réduites (2 000 px, JPEG) avant l'envoi ; un PDF part tel quel (6 Mo au plus). */
+  function preparerPiece(f) {
+    var mime = String(f.type || '').toLowerCase(), nom = f.name || 'piece';
+    var lire = function (blob) { return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(String(fr.result)); }; fr.onerror = function () { rej(new Error('Lecture impossible')); }; fr.readAsDataURL(blob); }); };
+    if (mime === 'application/pdf') {
+      if (f.size > 6 * 1024 * 1024) return Promise.reject(new Error('« ' + nom + ' » est trop lourd (6 Mo au plus).'));
+      return lire(f).then(function (b64) { return { nom: nom, mime: mime, base64: b64.replace(/^data:[^,]*,/, ''), taille: f.size }; });
+    }
+    if (!/^image\//.test(mime)) return Promise.reject(new Error('« ' + nom + ' » : seulement des images (photo, capture d\'écran) ou des PDF.'));
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(f), img = new Image();
+      img.onload = function () {
+        try {
+          var max = 2000, k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+          c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+          var ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          var b64 = c.toDataURL('image/jpeg', 0.85).replace(/^data:[^,]*,/, '');
+          res({ nom: nom.replace(/\.(png|heic|heif|webp|gif|jpe?g)$/i, '') + '.jpg', mime: 'image/jpeg', base64: b64, taille: Math.round(b64.length * 0.75) });
+        } catch (e) { rej(e); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('« ' + nom + ' » : image illisible.')); };
+      img.src = url;
+    });
   }
 
   function traiter(id, etat, reponse, version, vue) {
@@ -369,6 +425,25 @@
     var exemple = h('textarea.saisie#sug-exemple', { rows: '2', placeholder: 'Un cas vécu : quel véhicule, quelle page, qu\'est-ce que vous vouliez faire.' });
     var selUrg = h('select.saisie#sug-urgence', URGENCES.map(function (u) { return h('option', { value: u[0], text: u[1] }); }));
     if (pre) { titre.value = pre.titre || ''; desc.value = pre.description || ''; pourquoi.value = pre.pourquoi || ''; exemple.value = pre.exemple || ''; }
+    // 17 nov. (SF473585466) : captures d'écran, photos ou PDF (3 au plus).
+    var pieces = [];
+    var elPieces = h('div.sug-pieces');
+    var fichier = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, style: { display: 'none' } });
+    var dessinerPieces = function () {
+      AMX.vider(elPieces);
+      pieces.forEach(function (pc, i) {
+        elPieces.appendChild(h('span.sug-piece', [h('span', { text: pc.nom + ' · ' + Math.max(1, Math.round(pc.taille / 1024)) + ' Ko' }), h('button.x', { type: 'button', title: 'Retirer', 'aria-label': 'Retirer ' + pc.nom, text: '×', onclick: function () { pieces.splice(i, 1); dessinerPieces(); } })]));
+      });
+      btnJoindre.disabled = pieces.length >= 3;
+    };
+    fichier.addEventListener('change', function () {
+      var fs = Array.prototype.slice.call(fichier.files || []);
+      fichier.value = '';
+      if (pieces.length + fs.length > 3) { AMX.toast('Trois pièces jointes au plus.', 'attention'); fs = fs.slice(0, 3 - pieces.length); }
+      fs.reduce(function (pr, f) { return pr.then(function () { return preparerPiece(f).then(function (pc) { pieces.push(pc); dessinerPieces(); }); }); }, Promise.resolve())
+        .catch(function (e) { AMX.toast(String((e && e.message) || e), 'erreur', 6000); });
+    });
+    var btnJoindre = h('button.btn.petit', { type: 'button', onclick: function () { fichier.click(); } }, [h('span', { html: (AMX.icones && AMX.icones.photo) || '' }), ' Joindre une capture d\'écran ou une photo']);
     var corps = h('div.sug-form', [
       pre && pre.source === 'maxai' ? h('p.sug-aide.maxai-redige', [AMX.maxai ? AMX.maxai.avatar(28, { bouton: false }) : null, h('span', { text: ' Rédigée par Einstein AI à partir de votre discussion : relisez et corrigez avant d\'envoyer.' })]) : null,
       h('p.sug-aide', { text: 'Une demande claire se traite vite : dites quoi, pourquoi, et donnez un exemple. Elle reste en rouge jusqu\'à ce qu\'elle soit traitée ; vous recevrez un courriel avec ce qui a changé.' }),
@@ -379,7 +454,8 @@
       h('div.champ', [h('label', { 'for': 'sug-titre', text: 'Titre' }), titre]),
       h('div.champ', [h('label', { 'for': 'sug-description', text: 'Ce qui manque / devrait changer' }), desc]),
       h('div.champ', [h('label', { 'for': 'sug-pourquoi', text: 'Pourquoi' }), pourquoi]),
-      h('div.champ', [h('label', { 'for': 'sug-exemple', text: 'Exemple concret (facultatif)' }), exemple])
+      h('div.champ', [h('label', { 'for': 'sug-exemple', text: 'Exemple concret (facultatif)' }), exemple]),
+      h('div.champ', [h('label', { text: 'Pièces jointes (facultatif)' }), h('div.sug-joindre', [btnJoindre, fichier]), elPieces])
     ]);
     return AMX.modale({
       titre: 'Nouvelle suggestion',
@@ -391,7 +467,9 @@
           if (t.length < 5) { AMX.toast('Donnez un titre (au moins 5 caractères).', 'erreur'); titre.focus(); return false; }
           if (d.length < 20) { AMX.toast('Décrivez ce qui manque (au moins 20 caractères).', 'erreur'); desc.focus(); return false; }
           if (p.length < 10) { AMX.toast('Dites pourquoi (au moins 10 caractères).', 'erreur'); pourquoi.focus(); return false; }
-          return AMX.post({ action: 'suggestionCreer', page: selPage.value, titre: t, description: d, pourquoi: p, exemple: exemple.value.trim(), urgence: selUrg.value }).then(function (r) {
+          var corpsPost = { action: 'suggestionCreer', page: selPage.value, titre: t, description: d, pourquoi: p, exemple: exemple.value.trim(), urgence: selUrg.value };
+          if (pieces.length) corpsPost.pieces = pieces.map(function (pc) { return { nom: pc.nom, mime: pc.mime, base64: pc.base64 }; });
+          return AMX.post(corpsPost, { delai: pieces.length ? 180000 : 60000 }).then(function (r) {
             if (!r || !r.ok) { AMX.toast((r && r.erreur) || 'Refusé', 'erreur'); return false; }
             AMX.suggestions.poser(r.suggestion);
             AMX.toast(r.message || 'Suggestion envoyée', 'ok', 6000);

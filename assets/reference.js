@@ -36,7 +36,11 @@
   function peutVoir() {
     var r = perms().role || '';
     if (r === 'inactif') return false;
-    return !!((AMX.embauches && AMX.embauches.peutVoir()) || (AMX.rh && AMX.rh.peutVoir && AMX.rh.peutVoir()) || r === 'admin' || r === 'proprietaire');
+    /* 17 nov. : volet fermé aux DG et directeurs tant que la RH ne l'ouvre pas (le manuel n'est pas universel avant la fin du
+       1er trimestre 2027). */
+    if (AMX.rhNiveau() === 'complet') return true;
+    if (!AMX.rhVolet('reference')) return false;
+    return !!((AMX.embauches && AMX.embauches.peutVoir()) || r === 'admin');
   }
 
   var SUJETS_SST = { sst: 'Santé et sécurité', ergonomie: 'Ergonomie', technicien: 'Techniciens', premiers: 'Premiers soins', accident: 'Accident de travail', formulaires: 'Formulaires SST' };

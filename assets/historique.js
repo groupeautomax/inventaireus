@@ -31,7 +31,7 @@
     '.hst-ligne-temps li { display: grid; grid-template-columns: 150px 14px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--ligne); font-size: 14px; }',
     '.hst-ligne-temps .d { color: var(--encre-3); font-size: 13px; white-space: nowrap; } .hst-ligne-temps .q { font-weight: 600; }',
     '.hst-ligne-temps .p { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--encre-4); }',
-    '.hst-ligne-temps .p.vert { background: var(--vert); } .hst-ligne-temps .p.rouge { background: var(--rouge, #c62828); } .hst-ligne-temps .p.ambre { background: var(--ambre); }',
+    '.hst-ligne-temps .p.vert { background: var(--vert); } .hst-ligne-temps .p.rouge { background: var(--rouge); } .hst-ligne-temps .p.ambre { background: var(--ambre); }',
     '.hst-ligne-temps .p.bleu { background: var(--bleu); } .hst-ligne-temps .p.violet { background: #6d3fb5; } .hst-ligne-temps .p.sarcelle { background: var(--sarcelle); }',
     '.hst-ligne-temps .x { color: var(--encre-2, #333); } .hst-ligne-temps .par { color: var(--encre-3); font-size: 13px; }',
     '.hst-ligne-temps li.autre .q::after { content: " · autre concession"; font-weight: 400; color: var(--encre-3); font-size: 12px; }',
@@ -156,4 +156,73 @@
   }
 
   AMX.historique = { ouvrir: ouvrir, demander: function () { ouvrir(''); }, lire: lire };
+
+  /* ---------------------------------------------------------------------------------------------------------------------
+     17 nov. 2026 (SAE7E4F70CA, Marc-André ; Maxime : « si le KM descend plutôt que monter, est-ce qu'on peut donner une
+     alerte ? ») : l'historique du kilométrage d'un NIV, toutes nos sources, et une alerte rouge quand il recule.
+     AMX.kmHistorique.charger(vin, km) → GET ?kmHistorique=<NIV>&km= (KmHistorique.gs), gardé 10 min par NIV.
+     AMX.kmHistorique.alerte(d)        → la phrase rouge, ou null.
+     AMX.kmHistorique.bloc(d)          → la liste des lectures (la fautive en rouge).
+     --------------------------------------------------------------------------------------------------------------------- */
+  var CSS_KM = [
+    '.kmh-alerte { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--rouge); border-left-width: 4px; border-radius: 8px; background: var(--rouge-bg); color: var(--encre); font-size: 14px; line-height: 1.4; }',
+    '.kmh-alerte b { color: var(--rouge); }',
+    '.kmh-liste { width: 100%; border-collapse: collapse; font-size: 14px; }',
+    '.kmh-liste th, .kmh-liste td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--ligne); vertical-align: top; }',
+    '.kmh-liste th { font-size: 12px; color: var(--encre-3); font-weight: 600; } .kmh-liste td.km { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }',
+    '.kmh-liste tr.recul td { color: var(--rouge); background: var(--rouge-bg); } .kmh-liste .src { color: var(--encre-3); font-size: 13px; }',
+    '.kmh-titre { margin: 0 0 6px; font-size: 15px; font-weight: 600; } .kmh-note { margin: 6px 0 0; color: var(--encre-3); font-size: 13px; }'
+  ].join('\n');
+  function cssKm() { if (document.getElementById('css-kmh')) return; var st = document.createElement('style'); st.id = 'css-kmh'; st.textContent = CSS_KM; document.head.appendChild(st); }
+  var CACHE_KM = {};
+  function kmTxt(n) { return Math.round(n).toLocaleString('fr-CA').replace(/[\u00a0\u202f]/g, ' ') + ' km'; }
+  function jour(d) { return d ? AMX.fmtDate(d) : ''; }
+  function chargerKm(vin, km) {
+    vin = String(vin || '').toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return Promise.reject(new Error('NIV invalide.'));
+    var c = CACHE_KM[vin];
+    var p = (c && Date.now() - c.quand < 600000) ? c.p : null;
+    if (!p) {
+      p = AMX.get({ kmHistorique: vin }, { delai: 60000, secours: false, discret: true }).then(function (d) {
+        if (d && d.refuse) throw new Error(d.erreur || 'Non autorisé.');
+        if (!d || !Array.isArray(d.lectures)) throw new Error('Le script n\'est pas à jour : redéployez-le (KmHistorique.gs).');
+        return d;
+      });
+      CACHE_KM[vin] = { quand: Date.now(), p: p };
+      p.catch(function () { delete CACHE_KM[vin]; });
+    }
+    return p.then(function (d) { return Object.assign({}, d, { kmTape: kmTape(d, km) }); });
+  }
+  /* Le km tapé sur la page comparé au plus haut connu (même règle que le script, KMH_TOLERANCE_). */
+  function kmTape(d, km) {
+    var k = parseInt(String(km || '').replace(/\D/g, ''), 10);
+    if (!k || !d || !d.kmMax) return null;
+    var tol = d.tolerance || 500;
+    return { km: k, sous: d.kmMax - k > tol, ecart: d.kmMax - k };
+  }
+  function sources(x) { return (x.sources || [x.sourceLibelle]).join(', ') + (x.detail ? ' (' + x.detail + ')' : ''); }
+  function alerteKm(d) {
+    if (!d) return null;
+    var lignes = [];
+    (d.alertes || []).slice(-3).forEach(function (a) {
+      lignes.push(h('div', { html: '<b>Le kilométrage recule de ' + kmTxt(a.ecart) + '</b> : ' + kmTxt(a.avant.km) + ' le ' + jour(a.avant.date) + ' (' + AMX.esc(sources(a.avant)) + '), puis ' + kmTxt(a.apres.km) + ' le ' + jour(a.apres.date) + ' (' + AMX.esc(sources(a.apres)) + ').' }));
+    });
+    if (d.kmTape && d.kmTape.sous) lignes.push(h('div', { html: '<b>Le km inscrit ici (' + kmTxt(d.kmTape.km) + ') est plus bas que le plus haut déjà lu</b> : ' + kmTxt(d.kmMax) + ' le ' + jour(d.kmMaxLe) + '.' }));
+    if (!lignes.length) return null;
+    cssKm();
+    return h('div.kmh-alerte', { role: 'alert' }, [h('span', { html: (AMX.icones && AMX.icones.alerte) || '⚠' }), h('div', lignes.concat([h('div.kmh-note', { text: 'À vérifier avant d\'acheter ou de vendre : erreur de saisie, odomètre remplacé ou recul. Demandez la correction (CARFAX, vendeur) au besoin.' })]))]);
+  }
+  function blocKm(d) {
+    cssKm();
+    if (!d || !(d.lectures || []).length) return h('p.kmh-note', { text: 'Aucun kilométrage connu pour ce NIV dans nos données.' });
+    var rangs = d.lectures.slice().reverse().map(function (x) {
+      return h('tr' + (x.recul ? '.recul' : ''), [h('td', { text: jour(x.date) }), h('td.km', { text: kmTxt(x.km) }), h('td', [h('span', { text: (x.sources || [x.sourceLibelle]).join(', ') }), x.detail ? h('div.src', { text: x.detail }) : null])]);
+    });
+    return h('div', [
+      h('p.kmh-titre', { text: 'Kilométrage connu (' + d.lectures.length + ' lecture' + (d.lectures.length > 1 ? 's' : '') + ')' }),
+      h('div', { style: { overflowX: 'auto' } }, [h('table.kmh-liste', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Km'), h('th', 'Source')])]), h('tbody', rangs)])]),
+      h('p.kmh-note', { text: 'Nos sources : fiche d\'achat, fichier du DMS, site de la concession, évaluations (ScanAutomax, Torque), eBlock, Manheim, annonces, service, Livre des ventes. CARFAX ne nous donne pas son historique de kilométrage.' })
+    ]);
+  }
+  AMX.kmHistorique = { charger: chargerKm, alerte: alerteKm, bloc: blocKm, oublier: function (vin) { delete CACHE_KM[String(vin || '').toUpperCase()]; } };
 })();

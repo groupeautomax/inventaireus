@@ -931,6 +931,7 @@ html.ui2 .barre-cies:has(> .choix-cie.suit-site):not(:has(> .extra)) { display: 
 .menu-actions-bouton[aria-expanded="true"] .fleche-menu { transform: rotate(180deg); }
 .menu-actions-liste { position: absolute; right: 0; top: calc(100% + 6px); z-index: 55; min-width: 220px; padding: 6px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 10px; box-shadow: var(--ombre-2); }
 .menu-actions-liste[hidden] { display: none; }
+.menu-actions-liste { overflow-y: auto; overscroll-behavior: contain; z-index: 120; }   /* 17 nov. : position fixe (app.js), jamais coupé par une fenêtre ou une carte */
 .menu-actions-liste button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 38px; padding: 0 10px; border: 0; border-radius: 7px; background: none; font: inherit; color: var(--encre-2); text-align: left; cursor: pointer; }
 .menu-actions-liste button:hover, .menu-actions-liste button:focus-visible { background: var(--gris-bg); color: var(--encre); outline: none; }
 .menu-actions-liste svg { width: 16px; height: 16px; flex: none; }

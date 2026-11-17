@@ -206,6 +206,11 @@
     var s = document.createElement('style');
     s.id = 'css-evaluation';
     s.textContent = [
+      /* 17 nov. (S04C4776488) : analyse rapide d'un NIV — rien n'est enregistré, pas de client ni d'état à remplir. */
+      '.eval-page.eval-rapide [data-tuile="suivi"], .eval-page.eval-rapide [data-tuile="etat"], .eval-page.eval-rapide #eval-sauvegarde { display: none !important; }',
+      '.eval-rapide-bandeau { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--bleu); border-radius: 8px; background: var(--bleu-bg); color: var(--encre); font-size: 14px; }',
+      '.eval-rapide-bandeau b { color: var(--bleu); }',
+      '.eval-km-alerte:empty { display: none; } .eval-km-alerte { margin: 0 0 10px; }',
       '.eval-page .carte { margin-bottom: 12px; }',
       '.eval-page .carte-corps { padding: 12px 14px; }',
       '.eval-page .carte-entete { padding: 10px 14px; }',
@@ -505,8 +510,10 @@
     // Boîte « Canada ou États-Unis ? » (8 oct.) : ce que l'utilisateur a tapé ou réglé pour ce NIV.
     this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null };
     this.exportForce = false;                 // « Comparer quand même » pour un NIV non exportable
+    this.rapide = rapideDe(ctx);              // 17 nov. : analyse rapide (?rapide=1), rien n'est enregistré
 
     this.construire();
+    this.rendreRapide();
     this.rendreMarche();
     this.surExport = function () { self.rendreExport(); };
     document.addEventListener('amx:export', this.surExport);
@@ -559,9 +566,39 @@
     this.elCieBadge.textContent = AMX.CONCESSIONS_TOUTES[k] || k || '';
   };
 
+  function rapideDe(ctx) {
+    var p = (ctx && ctx.params) || {};
+    return !!(p.rapide && p.rapide !== '0' && !p.demande);
+  }
+  /* 17 nov. : en analyse rapide, le titre, le bandeau et les boutons changent ; « Client et suivi » et « État et photos »
+     sont cachés (rien de ça ne serait gardé). */
+  Evaluation.prototype.rendreRapide = function () {
+    var r = !!this.rapide;
+    if (this.el) this.el.classList.toggle('eval-rapide', r);
+    if (this.elH1) this.elH1.textContent = r ? 'Analyse rapide' : 'Évaluation';
+    if (this.elRapide) this.elRapide.style.display = r ? '' : 'none';
+    if (this.btnFaire) this.btnFaire.style.display = r ? '' : 'none';
+    if (this.btnEnregistrer) this.btnEnregistrer.style.display = r ? 'none' : '';
+    if (r) {
+      clearTimeout(this.minuterieAuto);
+      if (this.btnEffacer) this.btnEffacer.style.display = 'none';
+      if (this.tuileOuverte === 'suivi' || this.tuileOuverte === 'etat') this.ouvrirTuile(this.tuileOuverte);
+    } else this.rendreSauvegarde();
+  };
+  Evaluation.prototype.quitterRapide = function () {
+    this.rapide = false;
+    this.rendreRapide();
+    var vin = this.vinPourSauvegarde();
+    try { history.replaceState(null, '', AMX.lien('outils', 'evaluation', vin ? this.paramsAdresse(vin) : {})); } catch (e) {}
+    if (vin) { this.sauvegarderAuto(); AMX.toast('Évaluation commencée : elle est gardée dans le registre (brouillon). « Enregistrer » la confirme.', 'ok', 6000); }
+    else AMX.toast('Entrez le NIV : l\'évaluation sera gardée dans le registre.', 'info');
+  };
+
   Evaluation.prototype.naviguer = function (ctx) {
     var vin = (ctx && ctx.params && ctx.params.vin) ? String(ctx.params.vin).trim() : '';
     var dem = (ctx && ctx.params && ctx.params.demande) ? String(ctx.params.demande) : '';
+    var rap = rapideDe(ctx);
+    if (rap !== !!this.rapide) { this.rapide = rap; this.rendreRapide(); }
     if (dem || (vin && vin !== this.vinCharge)) this.demandeId = dem;
     if (vin && vin !== this.vinCharge) { this.elNiv.value = vin; this.charger(vin); }
     this.rendreDemande();
@@ -668,7 +705,7 @@
     });
     if (this.majChampsEtat) this.majChampsEtat();
   };
-  Evaluation.prototype.paramsAdresse = function (vin) { var p = { vin: vin }; if (this.demandeId && (!this.demande || this.demande.vin === vin)) p.demande = this.demandeId; return p; };
+  Evaluation.prototype.paramsAdresse = function (vin) { var p = { vin: vin }; if (this.rapide) p.rapide = 1; if (this.demandeId && (!this.demande || this.demande.vin === vin)) p.demande = this.demandeId; return p; };
 
   Evaluation.prototype.etat = function (texte) { this.elEtat.textContent = texte; };
 
@@ -684,13 +721,19 @@
     this.btnEffacer = h('button.btn.danger#effacer-eval-btn', { type: 'button', html: I.corbeille + '<span>Effacer</span>', title: 'Effacer cette évaluation du registre', style: { display: 'none' }, onclick: function () { self.effacer(); } });
     this.btnOffre = h('button.btn#offre-btn', { type: 'button', title: 'Feuille d\'offre d\'achat à imprimer ou enregistrer en PDF', html: I.telecharger + '<span>Feuille d\'offre</span>', onclick: function () { self.feuilleOffre(); } });
     this.elSauvegarde = h('div.eval-sauvegarde#eval-sauvegarde');
+    // 17 nov. (S04C4776488, Marc-André : « je ne trouve aucun endroit où je peux simplement mettre le vin et analyser mon
+    // véhicule ») : l'analyse rapide est cette même page sans rien enregistrer ; « Faire l'évaluation » la garde ensuite.
+    this.btnFaire = h('button.btn.primaire#faire-eval-btn', { type: 'button', html: I.ok + '<span>Faire l\'évaluation</span>', title: 'Garder cette analyse comme évaluation (registre)', style: { display: 'none' }, onclick: function () { self.quitterRapide(); } });
+    this.elRapide = h('div.eval-rapide-bandeau', { style: { display: 'none' } }, [
+      h('span', { html: '<b>Analyse rapide</b> — rien n\'est enregistré : marché, OpenLane, CARFAX et historique du NIV, sans évaluation dans le registre.' })
+    ]);
     var entete = h('div.entete-page', [
-      h('div', { style: { minWidth: 0 } }, [h('div.eval-titre', [h('h1', 'Évaluation'), this.elCieBadge = h('span.badge.sans-point.eval-cie#eval-concession-badge', { title: 'Concession de cette évaluation (registre, marché local) — se change dans la carte Véhicule' })]), this.elEtat, this.elSauvegarde]),
+      h('div', { style: { minWidth: 0 } }, [h('div.eval-titre', [this.elH1 = h('h1', 'Évaluation'), this.elCieBadge = h('span.badge.sans-point.eval-cie#eval-concession-badge', { title: 'Concession de cette évaluation (registre, marché local) — se change dans la carte Véhicule' })]), this.elEtat, this.elSauvegarde]),
       h('div.actions', (AMX.ui2 && AMX.ui2())
         /* v134 (nouvelle interface) ; 12 nov. (« plein d'écrits partout ») : un seul bouton, Enregistrer — l'analyse part
            toute seule ; la relancer, la feuille d'offre et Effacer vont dans « Actions » (les boutons gardent leur code). */
-        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer]
-        : [this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer])
+        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer, this.btnFaire]
+        : [this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer, this.btnFaire])
     ]);
     this.rendreSauvegarde();
 
@@ -729,6 +772,7 @@
     var vehicule = h('div.carte#sec-vehicule', [h('div.carte-corps', [
       h('div.grille.eval-veh-1', [h('div.eval-niv', [cNiv.el, this.btnDecoder]), cKm.el, cConcession]),
       h('div.grille.eval-veh-2', [cAnnee.el, cMarque.el, cModele.el, cVersion.el, cStyle]),
+      this.elKmAlerte = h('div.eval-km-alerte'),   /* 17 nov. (SAE7E4F70CA) : le km recule → alerte rouge */
       h('div.eval-veh-bas', [this.elContexte, this.elCfx, this.elFiche])
     ])]);
 
@@ -768,7 +812,7 @@
     this.elNiv.addEventListener('input', function () { self.rendreLiens(); });
     [this.elMarque, this.elModele, this.elAnnee].forEach(function (el) { el.addEventListener('input', AMX.debounce(function () { self.rendreSommaire(); self.chargerRappels(); }, 600)); });
     this.elKm.addEventListener('input', function () { self.rendreMarche(); self.rendreExport(); });
-    this.elKm.addEventListener('change', function () { self.rendreOpenlane(); });
+    this.elKm.addEventListener('change', function () { self.rendreOpenlane(); self.rendreKm(); });
     this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); self.elPrixType.value = 'manuel'; });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
     // La carrosserie change la recherche MarketCheck : on relance l'analyse du pays affiché.
@@ -828,7 +872,7 @@
     this.construireTuiles({ marche: marche });
 
     this.elDemande = h('div.eval-demande-zone');   /* 27 oct. : demande d'évaluation d'un représentant (demandes-eval.js) */
-    this.el = h('div.page.eval-page', [entete, this.elDemande, this.elSommaire, vehicule, detail, this.elTuiles, this.elPanneaux]);
+    this.el = h('div.page.eval-page', [entete, this.elRapide, this.elDemande, this.elSommaire, vehicule, detail, this.elTuiles, this.elPanneaux]);
     this.rendreSommaire();
     this.rendreLiens();
     this.rendreExport();
@@ -876,7 +920,8 @@
     var pLiens = carte('CARFAX et liens', [this.elLiens]);
     pLiens.id = 'sec-liens';
     this.elHistVide = h('p.eval-note', { text: '' });
-    var pHist = carte(h('div.titre', [h('h2', 'Historique de ce véhicule'), h('p', 'Évaluations faites dans Torque et vente où il a servi d\'échange.')]), [this.elTorque, this.elEchange, this.elHistVide]);
+    this.elKmHist = h('div.eval-sous-vehicule#eval-km');   /* 17 nov. : kilométrage connu, toutes nos sources */
+    var pHist = carte(h('div.titre', [h('h2', 'Historique de ce véhicule'), h('p', 'Kilométrage connu, évaluations faites dans Torque et vente où il a servi d\'échange.')]), [this.elKmHist, this.elTorque, this.elEchange, this.elHistVide]);
     pHist.id = 'sec-historique';
     var contenus = { marche: o.marche, export: this.elExport, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, rappels: pRappels, liens: pLiens, historique: pHist };
     this.panneaux = {};
@@ -918,6 +963,26 @@
     if (!fermer && opts.defiler && this.elTuiles.scrollIntoView) { try { this.elTuiles.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
   };
 
+  /* 17 nov. (SAE7E4F70CA) : le kilométrage connu du NIV (toutes nos sources, KmHistorique.gs) ; alerte rouge sous le
+     véhicule quand il recule, ou quand le km tapé ici est plus bas que le plus haut déjà lu. */
+  Evaluation.prototype.rendreKm = function () {
+    var self = this, vin = this.kmVin || '';
+    if (!this.elKmAlerte || !this.elKmHist) return;
+    if (!vin || !AMX.kmHistorique) { this.kmHist = null; AMX.vider(this.elKmAlerte); AMX.vider(this.elKmHist); this.majTuiles(); return; }
+    var km = this.elKm.value;
+    AMX.kmHistorique.charger(vin, km).then(function (d) {
+      if (self.kmVin !== vin) return;
+      self.kmHist = d;
+      AMX.vider(self.elKmAlerte); AMX.vider(self.elKmHist);
+      var a = AMX.kmHistorique.alerte(d); if (a) self.elKmAlerte.appendChild(a);
+      self.elKmHist.appendChild(AMX.kmHistorique.bloc(d));
+      self.majTuiles();
+    }).catch(function (e) {
+      if (self.kmVin !== vin) return;
+      self.kmHist = null; AMX.vider(self.elKmAlerte); AMX.vider(self.elKmHist);
+      self.elKmHist.appendChild(h('p.eval-note', { text: 'Kilométrage connu : ' + AMX.erreurTexte(e) }));
+    });
+  };
   // Les petits chiffres des tuiles (appelé à chaque rendu du sommaire, des rappels, des photos, de l'historique…).
   Evaluation.prototype.majTuiles = function () {
     if (!this.tuiles) return;
@@ -986,8 +1051,10 @@
     // CARFAX et liens
     var cfx = vinOk && AMX.carfax && AMX.carfax.lien ? AMX.carfax.lien(vin) : '';
     poser('liens', !vinOk ? '—' : (cfx ? 'Rapport CARFAX' : 'Pas de CARFAX'), cfx ? 'vert' : 'gris');
-    // Historique : Torque + vente d'échange
-    if (!vinOk) poser('historique', '—', 'gris');
+    // Historique : Torque + vente d'échange ; 17 nov. : en rouge quand le kilométrage recule.
+    var kmA = this.kmHist && ((this.kmHist.alertes || []).length || (this.kmHist.kmTape && this.kmHist.kmTape.sous));
+    if (vinOk && kmA) poser('historique', 'Km qui recule', 'rouge', 'Le kilométrage recule dans nos données : voir l\'historique');
+    else if (!vinOk) poser('historique', '—', 'gris');
     else if (this.nTorque === null || this.nEchanges === null) poser('historique', '…', 'gris');
     else {
       var parts = [];
@@ -1885,6 +1952,8 @@
     // Vente où ce véhicule a servi d'échange : une requête par NIV, seulement quand il change.
     if (vinOk && this.echangeVin !== vin) { this.echangeVin = vin; this.rendreVenteEchange(vin); }
     else if (!vinOk && this.echangeVin) { this.echangeVin = ''; this.nEchanges = null; AMX.vider(this.elEchange); }
+    if (vinOk && this.kmVin !== vin) { this.kmVin = vin; this.rendreKm(); }
+    else if (!vinOk && this.kmVin) { this.kmVin = ''; this.kmHist = null; this.rendreKm(); }
     if (this.elExport && (vin || this.vinCourant) !== this.vinExport) { this.vinExport = vin || this.vinCourant; this.rendreExport(); }
     this.majTuiles();
   };
@@ -2548,7 +2617,7 @@
   };
   Evaluation.prototype.planifierAuto = function () {
     var self = this;
-    if (!this.vinPourSauvegarde()) return;
+    if (this.rapide || !this.vinPourSauvegarde()) return;
     if (!(this.analyses[this.pays] && this.analyses[this.pays].ok) && !this.derniereSauvegarde) return;
     clearTimeout(this.minuterieAuto);
     this.minuterieAuto = setTimeout(function () { self.sauvegarderAuto(); }, 1500);
@@ -2556,6 +2625,7 @@
   Evaluation.prototype.sauvegarderAuto = function () {
     var self = this, vin = this.vinPourSauvegarde();
     clearTimeout(this.minuterieAuto);
+    if (this.rapide) return Promise.resolve();   /* 17 nov. : analyse rapide — rien n'est enregistré */
     if (!vin || !this.parametresPrets()) return Promise.resolve();
     if (this.vinEfface && vin === this.vinEfface) return Promise.resolve();   /* 21 oct. : ne pas recréer l'évaluation qu'on vient d'effacer */
     // (9 oct.) un NIV tapé mais pas encore chargé : on ne sauvegarde pas les chiffres de l'ancien véhicule sous le nouveau.
@@ -2575,7 +2645,7 @@
     var el = this.elSauvegarde; if (!el) return;
     AMX.vider(el);
     var sv = this.sauvegarde;
-    if (this.btnEffacer) this.btnEffacer.style.display = (sv && (AMX.perm('supprimer') || AMX.estAdmin())) ? '' : 'none';
+    if (this.btnEffacer) this.btnEffacer.style.display = (sv && !this.rapide && (AMX.perm('supprimer') || AMX.estAdmin())) ? '' : 'none';
     if (!sv) { this.btnEnregistrer.classList.remove('ok'); return; }   /* 12 nov. : rien à dire tant qu'il n'y a pas de NIV */
     if (sv.statut === 'enregistree') {
       el.appendChild(h('span.puce.ok', { text: 'Enregistrée' + (sv.enregistreLe ? ' le ' + AMX.fmtDate(sv.enregistreLe, true) : '') + (sv.enregistrePar ? ' par ' + sv.enregistrePar.split('@')[0] : '') }));

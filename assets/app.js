@@ -1230,17 +1230,23 @@
        tuiles ») : la tuile s'ouvre sur sa page de choix ; chaque page y revient par le fil « ‹ Ressources humaines ». */
     { id: 'rh', titre: 'Ressources humaines', court: 'RH', icone: 'admin', ordre: 45, onglets: [
       { id: 'ressources', titre: 'Ressources humaines', hub: true, racine: true, icone: 'admin', desc: 'L\'embauche et le départ, les documents de référence, les dossiers des employés, les documents à signer et la santé et sécurité, pour toutes les concessions.' },
+      /* 17 nov. (Frédéric Beauvais, S07A013B13B) : pour les DG et les directeurs, seulement l'embauche et les contacts d'urgence
+         « pour le moment » ; les autres volets s'ouvrent dans Accès RH (rh-acces.js, RhAcces.gs). */
       /* 8 nov. (Maxime : « un gros onglet Embauche et départ, avec dedans Commencer le processus d'embauche et Départ ») */
       { id: 'embauchedepart', titre: 'Embauche et départ', hub: true, parent: 'ressources', icone: 'admin', couleur: 'violet', desc: 'Commencer une embauche ou un départ, et voir où en est chaque dossier.' },
       /* 8 nov. (« deux grosses tuiles pour embauche et départ séparées, et après on fait la suite séparément ») : deux très
          grosses tuiles, Embauche et Départ ; chacune ouvre sa page (sa liste, son gros bouton, sa ligne d'avancement). */
-      { id: 'embauches', titre: 'Embauche', de: 'embauches', onglet: '', parent: 'embauchedepart', cle: 'rh/embauches', icone: 'achat', couleur: 'vert', ouvrir: 'Commencer ou suivre une embauche', desc: 'Commencer le processus d\'embauche : la fiche, l\'approbation du DG, puis la RH envoie les documents à signer. Chaque dossier a sa ligne d\'avancement.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
+      { id: 'embauches', titre: 'Embauche', de: 'embauches', onglet: '', parent: 'embauchedepart', cle: 'rh/embauches', icone: 'achat', couleur: 'vert', visible: function () { return !!(AMX.embauches && AMX.embauches.peutVoir()); }, ouvrir: 'Commencer ou suivre une embauche', desc: 'Commencer le processus d\'embauche : la fiche, l\'approbation du DG, puis la RH envoie les documents à signer. Chaque dossier a sa ligne d\'avancement.', compteur: function () { return AMX.embauches ? AMX.embauches.compteur() : ''; } },   /* 7 nov. : embauches.js, Embauches.gs */
       { id: 'departs', titre: 'Départ', de: 'departs', onglet: '', parent: 'embauchedepart', cle: 'rh/departs', icone: 'alerte', couleur: 'rouge', ouvrir: 'Commencer ou suivre un départ', visible: function () { return !!(AMX.departs && AMX.departs.peutVoir()); }, desc: 'Un employé quitte : la fiche de départ, le DG l\'approuve, la RH fait la dernière paie, le relevé d\'emploi et retire les accès.', compteur: function () { return AMX.departs ? AMX.departs.compteur() : ''; } },   /* 8 nov. : departs.js, Departs.gs */
       { id: 'reference', titre: 'Documents de référence', de: 'reference', onglet: '', parent: 'ressources', cle: 'rh/reference', icone: 'achat', couleur: 'bleu', visible: function () { return !!(AMX.reference && AMX.reference.peutVoir()); }, desc: 'Le Manuel de l\'employé, les lettres d\'offre, les formulaires et la santé et sécurité, rangés par sujet.' },   /* 8 nov. : reference.js, RhReference.gs */
       { id: 'employes', titre: 'Dossiers des employés', de: 'employes', onglet: '', parent: 'ressources', cle: 'rh/employes', icone: 'admin', couleur: 'bleu', desc: 'Le dossier de chaque employé par concession : emploi, coordonnées, contacts d\'urgence ; le NAS reste dans un fichier privé.' },
       { id: 'documents', titre: 'Documents à signer', de: 'rh', onglet: '', parent: 'ressources', cle: 'rh/rh', icone: 'achat', couleur: 'vert', desc: 'Politiques, lettres et formulaires envoyés aux nouveaux employés ; signature électronique, dossier envoyé à la paie.', compteur: function () { return AMX.rh ? AMX.rh.compteur() : ''; } },   /* 7 nov. : rh.js, PortailRH.gs */
-      { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '', parent: 'ressources', cle: 'rh/sst', icone: 'alerte', couleur: 'ambre', visible: function () { return !!(AMX.sst && AMX.sst.peutGerer()); },
-        desc: 'Le registre des accidents, des premiers soins et des situations dangereuses, et la bibliothèque des documents.', compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } }
+      { id: 'sst', titre: 'Santé et sécurité', de: 'sst', onglet: '', parent: 'ressources', cle: 'rh/sst', icone: 'alerte', couleur: 'ambre', visible: function () { return !!(AMX.sst && AMX.sst.peutGerer() && AMX.rhVolet('sst')); },
+        desc: 'Le registre des accidents, des premiers soins et des situations dangereuses, et la bibliothèque des documents.', compteur: function () { return AMX.sst ? AMX.sst.compteur() : ''; } },
+      { id: 'urgences', titre: 'Contacts d\'urgence', de: 'rhurgences', onglet: '', parent: 'ressources', cle: 'rh/urgences', icone: 'alerte', couleur: 'rouge', ouvrir: 'Voir les contacts d\'urgence',
+        visible: function () { return !!AMX.rhNiveau(); }, desc: 'Qui appeler si un employé a un accident ou un malaise : ses contacts d\'urgence, par concession.' },   /* 17 nov. : rh-acces.js */
+      { id: 'acces', titre: 'Accès RH', de: 'rhacces', onglet: '', parent: 'ressources', cle: 'rh/acces', icone: 'cadenas', couleur: 'gris', ouvrir: 'Qui a accès',
+        visible: function () { return AMX.rhNiveau() === 'complet'; }, desc: 'Donner ou retirer le droit « Ressources humaines » (embauche et contacts d\'urgence) et ouvrir des volets aux DG et directeurs.' }   /* 17 nov. : rh-acces.js */
     ] },
     { id: 'outils', titre: 'Outils', icone: 'outils', ordre: 50, onglets: [
       { id: 'menu', titre: 'Outils', hub: true, racine: true, icone: 'outils', desc: 'Les imports des portails, les opportunités d\'achat, les audits et les comptes.' },
@@ -1324,6 +1330,24 @@
     if (perso[cle] === true) return false;
     if (perso[cle] === false) return true;
     return cleDansListe(AMX.ongletsCachesRole(role), cle);
+  };
+  /* 17 nov. (Frédéric Beauvais, S07A013B13B) : le niveau RH du compte — 'complet' (rôle Ressources humaines, propriétaires),
+     'dg' (directeur général), 'limite' (un autre compte à qui la RH a donné le droit « Ressources humaines » : embauche et contacts
+     d'urgence), '' (aucun). Le serveur le donne (perms.rhNiveau, RhAcces.gs) ; repli d'après le rôle pour un script d'avant. */
+  AMX.rhNiveau = function () {
+    var p = (AMX.session && AMX.session.perms) || {}, r = p.role || '';
+    if (!r || r === 'inactif' || r === 'web') return '';
+    if (p.rhNiveau !== undefined) return p.rhNiveau || '';
+    if (r === 'rh' || r === 'proprietaire') return 'complet';
+    if (r === 'admin') return 'dg';
+    return p.rh === true ? 'limite' : '';
+  };
+  /* Un volet du module RH (departs, reference, employes, sst) que la RH a ouvert aux DG et directeurs. */
+  AMX.rhVolet = function (v) {
+    var n = AMX.rhNiveau(); if (n === 'complet') return true; if (!n) return false;
+    if (v === 'employes' && n !== 'dg') return false;
+    var vol = ((AMX.session && AMX.session.perms) || {}).rhVolets || {};
+    return vol[v] === true;
   };
   /* Un onglet est-il offert à la personne ? (le rôle, puis la page elle-même) — pour cacher un bouton qui y mène. */
   AMX.voitOnglet = function (tuile, onglet) {
@@ -1412,6 +1436,9 @@
     var liste = o.enfants ? o.enfants() : [];
     var tuiles = h('div.hub-tuiles' + (liste.length === 4 ? '.quatre' : '') + (liste.length <= 2 ? '.deux.grandes' : ''));   /* 8 nov. : deux pages = deux très grosses tuiles */
     liste.forEach(function (e) {
+      /* 17 nov. : une page de choix qui n'a qu'une page pour ce compte (ex. Embauche et départ quand les départs sont fermés) :
+         la tuile mène directement à cette page. */
+      if (e.hub && e.enfants) { var seuls = e.enfants(); if (seuls.length === 1) e = seuls[0]; }
       var c = ''; try { c = e.compteur(); } catch (er) {}
       var vues = e.vues ? vuesVisibles(e) : [];
       tuiles.appendChild(h('a.hub-tuile.' + (e.couleur || 'gris'), { href: AMX.lien(t.id, e.id), 'data-onglet': e.id }, [
@@ -1919,7 +1946,24 @@
       html: '<span>' + esc(nomMenu) + '</span><svg class="fleche-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' });
     var env = h('div.menu-actions', [btn, menu]);
     var dehors = function (e) { if (!env.contains(e.target)) fermer(); };
-    var fermer = function () { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', dehors, true); };
+    /* 17 nov. (SF473585466, Tommy, Android : « les menus déroulants sont souvent coupés de moitié ») : le menu s'ouvre
+       par-dessus la page (position fixe), sous le bouton ou au-dessus s'il manque de place, avec sa propre barre de
+       défilement ; une fenêtre, une carte ou un tableau qui coupe ce qui dépasse ne le coupe plus. */
+    var auDefile = function (e) { if (!menu.contains(e.target)) fermer(); };
+    var placer = function () {
+      var r = btn.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+      menu.style.position = 'fixed'; menu.style.top = ''; menu.style.bottom = ''; menu.style.left = ''; menu.style.right = ''; menu.style.maxHeight = '';
+      var mw = Math.min(Math.max(menu.offsetWidth, 220), vw - 16), mh = menu.scrollHeight;
+      var bas = vh - r.bottom - 12, haut = r.top - 12;
+      if (mh <= bas || bas >= haut) { menu.style.top = Math.round(r.bottom + 6) + 'px'; menu.style.maxHeight = Math.max(140, bas) + 'px'; }
+      else { menu.style.bottom = Math.round(vh - r.top + 6) + 'px'; menu.style.maxHeight = Math.max(140, haut) + 'px'; }
+      menu.style.left = Math.round(Math.min(Math.max(8, r.right - mw), vw - mw - 8)) + 'px';
+    };
+    var fermer = function () {
+      menu.hidden = true; btn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('mousedown', dehors, true); document.removeEventListener('touchstart', dehors, true);
+      window.removeEventListener('scroll', auDefile, true); window.removeEventListener('resize', fermer);
+    };
     var proxies = [];
     (actions || []).filter(Boolean).forEach(function (a) {
       // v135 : `bouton` = un bouton existant de la page (il garde son code) ; l'élément du menu le clique et suit son état.
@@ -1940,8 +1984,10 @@
       if (!menu.hidden) { fermer(); return; }
       suivre();
       menu.hidden = false; btn.setAttribute('aria-expanded', 'true');
-      document.addEventListener('mousedown', dehors, true);
-      var p = menu.querySelector('button'); if (p) p.focus();
+      placer();
+      document.addEventListener('mousedown', dehors, true); document.addEventListener('touchstart', dehors, true);
+      setTimeout(function () { if (!menu.hidden) { window.addEventListener('scroll', auDefile, true); window.addEventListener('resize', fermer); } }, 0);
+      var p = menu.querySelector('button'); if (p) p.focus({ preventScroll: true });
     });
     menu.addEventListener('keydown', function (e) {
       var l = Array.prototype.slice.call(menu.querySelectorAll('button')), i = l.indexOf(document.activeElement);

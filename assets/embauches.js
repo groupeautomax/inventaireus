@@ -56,9 +56,11 @@
   function perms() { return (AMX.session && AMX.session.perms) || {}; }
   function role() { var p = perms(); return p.role || (AMX.session && AMX.session.role) || ''; }
   var ROLES_DIRECTEUR = ['gestionnaire', 'direction_ventes', 'direction_service', 'directeur_commercial'];
-  function estRh() { return perms().rh === true || role() === 'proprietaire'; }
+  /* 17 nov. (Frédéric Beauvais, S07A013B13B) : la RH = le rôle « Ressources humaines » et les propriétaires ; un directeur fait
+     l'embauche seulement si la RH lui a donné le droit « Ressources humaines » (AMX.rhNiveau() === 'limite'). */
+  function estRh() { return AMX.rhNiveau() === 'complet'; }
   function estDg() { return role() === 'admin'; }
-  function estDirecteur() { return !estRh() && ROLES_DIRECTEUR.indexOf(role()) >= 0; }
+  function estDirecteur() { return AMX.rhNiveau() === 'limite'; }
   function peutApprouver() { return estRh() || estDg(); }
   function peutVoir() { return estRh() || estDg() || estDirecteur(); }
 
@@ -305,6 +307,12 @@
       if (e.statut === 'envoyee') corps.appendChild(h('div.cex-avis', { text: 'Envoyée à la RH le ' + dateHeure(e.envoyeLe) + '. ' + (estRh() ? '« Préparer l\'envoi » remplit les documents à signer du candidat.' : 'La RH prépare les documents à signer.') }));
       if (e.statut === 'traitee') corps.appendChild(h('div.cex-ok', { text: 'Traitée le ' + dateHeure(e.traiteLe) + (e.traitePar ? ' par ' + e.traitePar : '') + (e.envoiId ? ' — documents envoyés au candidat (' + e.envoiId + ').' : '.') }));
       if (e.statut === 'annulee') corps.appendChild(h('div.cex-avis', { text: 'Annulée.' }));
+      /* 17 nov. (Frédéric) : une fois la fiche envoyée, le directeur qui l'a remplie ne la voit plus (rémunération, lettre). */
+      if (e.cachee || (estDirecteur() && e.statut !== 'brouillon' && !e.champs)) {
+        corps.appendChild(h('div.cex-avis', { text: 'Fiche envoyée : son contenu (rémunération, lettre d\'offre) n\'est plus visible pour vous. Le DG et la RH s\'en occupent ; la ligne ci-dessus montre où elle en est.' }));
+        m.boutons([{ texte: 'Fermer' }]);
+        return;
+      }
       var dl = function (paires) { var out = h('dl.cex-detail'); paires.forEach(function (p) { if (!p[1]) return; out.appendChild(h('dt', { text: p[0] })); out.appendChild(h('dd', { text: p[1] })); }); return out; };
       var c = e.champs || {}, type = (TYPES.filter(function (t) { return t[0] === e.typeEmploi; })[0] || [])[1];
       corps.appendChild(h('div.cex-h', { text: 'Candidat' }));
@@ -323,7 +331,7 @@
       corps.appendChild(h('div.cex-h', { text: 'Journal' }));
       corps.appendChild(h('ul.cex-journal', (e.journal || []).slice(0, 15).map(function (j) { return h('li', { text: dateHeure(j.le) + ' — ' + (j.qui ? j.qui + ' : ' : '') + j.quoi }); })));
       var boutons = [{ texte: 'Fermer' }];
-      var modifiable = e.statut === 'brouillon' || e.statut === 'approbation' || (e.statut === 'envoyee' && !estDirecteur());
+      var modifiable = estDirecteur() ? e.statut === 'brouillon' : (e.statut === 'brouillon' || e.statut === 'approbation' || e.statut === 'envoyee');
       if (modifiable) {
         boutons.push({ texte: 'Annuler la fiche', classe: 'danger', action: function () { return AMX.confirmer('Annuler la fiche ' + e.id + ' ?', 'La fiche reste dans « Annulées ».', { ok: 'Annuler la fiche', danger: true }).then(function (oui) { if (!oui) return false; return ecrire({ action: 'rhEmbaucheAction', id: e.id, op: 'annuler' }).then(function (r) { poser(r.embauche); AMX.toast('Fiche annulée', 'ok'); }); }).catch(function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur'); return false; }); } });
         boutons.push({ texte: 'Modifier', action: function (f) { f(); self.formulaire(e); return false; } });
@@ -435,7 +443,10 @@
       var x = lire();
       if (versRh && !x.champs.remuneration) { AMX.toast('Inscrivez le taux horaire, le salaire ou la rémunération dans la fiche d\'embauche.', 'attention', 7000); return Promise.reject(new Error('lettre')); }
       if (versRh && x.modeleId && (!texte || resteDansLettre(texte))) { AMX.toast(!texte ? 'Remplissez la lettre d\'offre (ou choisissez « Aucune lettre »).' : 'Des passages de la lettre restent à compléter (surlignés).', 'attention', 7000); return Promise.reject(new Error('lettre')); }
-      return ecrire({ action: 'rhEmbaucheEnregistrer', embauche: x, envoyer: !!versRh }).then(function (r) {
+      /* 17 nov. (Frédéric) : le directeur est prévenu qu'il ne verra plus la fiche une fois envoyée. */
+      var avant = (versRh && estDirecteur()) ? AMX.confirmer('Envoyer la fiche au DG ?', 'Une fois envoyée, la fiche n\'est plus visible pour vous (rémunération, lettre). Le DG l\'approuve ou vous la renvoie pour correction.', { ok: 'Envoyer au DG' })
+        : Promise.resolve(true);
+      return avant.then(function (oui) { if (!oui) throw new Error('lettre'); return ecrire({ action: 'rhEmbaucheEnregistrer', embauche: x, envoyer: !!versRh }); }).then(function (r) {
         poser(r.embauche);
         var ou = r.embauche && r.embauche.statut === 'approbation' ? 'Envoyée au DG pour approbation' : 'Envoyée à la RH';
         AMX.toast(versRh ? ou + (r.avises ? ' (' + r.avises + ' personne' + (r.avises > 1 ? 's' : '') + ' prévenue' + (r.avises > 1 ? 's' : '') + ')' : '') : 'Brouillon enregistré', r.avertissement ? 'attention' : 'ok');

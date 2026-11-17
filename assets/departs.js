@@ -34,11 +34,12 @@
   function perms() { return (AMX.session && AMX.session.perms) || {}; }
   function role() { var p = perms(); return p.role || (AMX.session && AMX.session.role) || ''; }
   var ROLES_DIRECTEUR = ['gestionnaire', 'direction_ventes', 'direction_service', 'directeur_commercial'];
-  function estRh() { return perms().rh === true || role() === 'proprietaire'; }
+  /* 17 nov. (Frédéric) : les départs sont fermés aux DG et directeurs tant que la RH n'ouvre pas ce volet (Accès RH). */
+  function estRh() { return AMX.rhNiveau() === 'complet'; }
   function estDg() { return role() === 'admin'; }
-  function estDirecteur() { return !estRh() && ROLES_DIRECTEUR.indexOf(role()) >= 0; }
+  function estDirecteur() { return AMX.rhNiveau() === 'limite'; }
   function peutApprouver() { return estRh() || estDg(); }
-  function peutVoir() { return estRh() || estDg() || estDirecteur(); }
+  function peutVoir() { return estRh() || ((estDg() || estDirecteur()) && AMX.rhVolet('departs')); }
 
   var cache = { rep: null, le: 0, enCours: null };
   function charger(force) {

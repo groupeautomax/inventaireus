@@ -53,7 +53,7 @@
   /* ------------------------------------------------------------------------------- accès */
   function perms() { return (AMX.session && AMX.session.perms) || {}; }
   function role() { var p = perms(); return p.role || (AMX.session && AMX.session.role) || ''; }
-  function peutGerer() { return perms().rh === true || role() === 'proprietaire' || role() === 'admin'; }
+  function peutGerer() { return AMX.rhNiveau() === 'complet' || role() === 'admin'; }   /* 17 nov. : comme SST_gere_ (RH, propriétaires, DG) */
 
   /* ------------------------------------------------------------------------------- données */
   var cache = { rep: null, le: 0, enCours: null, reg: null, regLe: 0 };
@@ -295,7 +295,7 @@
     var inTitre = saisie(''), inDesc = zone('', 2), selTheme = choix(typeof theme === 'string' && theme ? theme : (this.sujet && this.sujet !== 'registre' ? this.sujet : 'sst'), THEMES), inFichier = h('input', { type: 'file', accept: '.pdf,.jpg,.jpeg,.png' });
     var codes = Object.keys(AMX.COMPAGNIES_TOUTES || {}).filter(function (c) { return !AMX.codesPour || AMX.codesPour('inventaire') === '*' || (AMX.codesPour('inventaire') || []).indexOf(c) >= 0; });
     var opts = codes.map(function (c) { return [c, nomCie(c)]; });
-    if (perms().rh === true || role() === 'proprietaire') opts.unshift(['', 'Tout le groupe']);
+    if (AMX.rhNiveau() === 'complet') opts.unshift(['', 'Tout le groupe']);
     var selCie = choix(this.compagnie || (opts[0] || [''])[0], opts);
     inFichier.addEventListener('change', function () { var f = inFichier.files[0]; if (f && !inTitre.value) inTitre.value = f.name.replace(/\.[a-z0-9]{2,5}$/i, ''); });
     AMX.modale({ titre: 'Ajouter un document', corps: h('div.sst-form', [h('div.grille', [champ('Fichier (PDF ou image, 10 Mo au plus)', inFichier), champ('Titre', inTitre), champ('Thème', selTheme), champ('Pour', selCie)]), champ('Description (facultatif)', inDesc)]),

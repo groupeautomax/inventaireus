@@ -960,6 +960,7 @@
     AMX.vider(this.elMenu);
     var voitEval = !this.portail && AMX.voitEvaluations && AMX.voitEvaluations();
     if (voitEval) {
+      items.push({ texte: 'Analyse rapide d\'un NIV (rien n\'est enregistré)', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation', rapide: 1 }); } });   /* 17 nov. (S04C4776488) */
       items.push({ texte: 'Évaluer un véhicule (sans demande)', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation' }); } });
       items.push({ texte: 'Registre des évaluations', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluations' }); } });
       items.push({ texte: 'Archive Torque', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'torque' }); } });

@@ -121,10 +121,9 @@
   function css() { if (!document.getElementById('css-rh')) { var s = document.createElement('style'); s.id = 'css-rh'; s.textContent = CSS; document.head.appendChild(s); } }
 
   /* ------------------------------------------------------------------------------- accès */
-  function peutVoir() {
-    var p = (AMX.session && AMX.session.perms) || {}, role = p.role || (AMX.session && AMX.session.role) || '';
-    return p.rh === true || role === 'proprietaire';
-  }
+  /* 17 nov. (Frédéric Beauvais, S07A013B13B) : les documents à signer = le rôle « Ressources humaines » et les propriétaires
+     seulement (le droit « Ressources humaines » d'un DG ou d'un directeur ne donne que l'embauche et les contacts d'urgence). */
+  function peutVoir() { return AMX.rhNiveau ? AMX.rhNiveau() === 'complet' : false; }
   function estProprio() { var p = (AMX.session && AMX.session.perms) || {}; return (p.role || (AMX.session && AMX.session.role)) === 'proprietaire'; }
 
   /* ------------------------------------------------------------------------------- données */
@@ -1315,6 +1314,9 @@
       corps.appendChild(AMX.retourSujets('Tous les sujets de la bibliothèque', function () { vueBib = ''; dessiner(); }));
       corps.appendChild(AMX.teteSujet(sec.titre, sec.desc, sec.id === 'politiques' || sec.id === 'lettres' ? h('button.btn', { type: 'button', text: '+ Écrire un document', onclick: function () { self.editerTexte(null, dessiner); } })
         : sec.id === 'signer' || sec.id === 'formulaire' ? h('button.btn', { type: 'button', text: '+ Ajouter un PDF', onclick: function () { vueBib = 'ajouter'; dessiner(); } }) : null));
+      /* 17 nov. (Frédéric Beauvais) : « le manuel d'employé n'est pas universel pour l'instant ; on le prévoit pour la fin du 1er
+         trimestre 2027 » — chaque politique peut viser une seule concession (Modifier › Pour, ou « Copier pour une autre concession »). */
+      if (vueBib === 'politiques') corps.appendChild(h('div.cex-avis', { text: 'Le Manuel de l\'employé n\'est pas encore universel (prévu pour la fin du 1er trimestre 2027). Une politique propre à une concession (ex. le code vestimentaire) : ouvrez-la › Modifier › « Pour » la concession, ou « Copier pour une autre concession ».' }));
       if (vueBib === 'trousses') {
       /* trousses */
       var tr = (self.rep.trousses || []).filter(function (t) { return voirRetires || !t.retire; });
@@ -1405,7 +1407,9 @@
     var self = this, codes = this.codesCies();
     var inNom = h('input', { type: 'text', value: d ? d.nom : '', placeholder: 'Ex. Code vestimentaire, Lettre d\'offre — poste horaire' });
     var selCat = h('select', Object.keys(CATEGORIES).map(function (k) { return h('option', { value: k, text: CATEGORIES[k], selected: d ? d.categorie === k : k === 'politique' }); }));
-    var selCie = h('select', { disabled: !!d }, [h('option', { value: '', text: 'Tout le groupe' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c), selected: d && d.compagnie === c }); })));
+    /* 17 nov. (Frédéric : « personnaliser certaines politiques selon les concessions, par exemple le code vestimentaire ») : la
+       concession d'un document se change aussi après coup ; « Copier pour une autre concession » en fait une version propre. */
+    var selCie = h('select', [h('option', { value: '', text: 'Tout le groupe' })].concat(codes.map(function (c) { return h('option', { value: c, text: nomCie(c), selected: d && d.compagnie === c }); })));
     var zoneEd = h('div', [AMX.chargeur('Texte', { compact: true })]), ed = null;
     var monter = function (html) { AMX.vider(zoneEd); ed = editeurTexte(html, { contexte: function () { return { nom: inNom.value, categorie: selCat.value }; } }); zoneEd.appendChild(ed.el); };
     if (d) chargerTexte(d.id).then(monter, function (e) { AMX.vider(zoneEd); zoneEd.appendChild(h('div.rhx-erreur', { text: AMX.erreurTexte(e) })); });
@@ -1414,12 +1418,27 @@
       h('div.grille', [h('div.champ', [h('label', { text: 'Nom' }), inNom]), h('div.champ', [h('label', { text: 'Sorte' }), selCat]), h('div.champ', [h('label', { text: 'Pour' }), selCie])]),
       h('div.rhx-h', { text: 'Texte' }), zoneEd,
       h('p.rhx-prog', { text: d ? 'Les envois déjà partis gardent leur propre copie : la modification vaut pour les prochains envois.' : 'Le texte est montré à l\'employé tel quel, puis reproduit dans la copie signée.' })
-    ]), boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+    ]), boutons: [{ texte: 'Annuler' }, d ? { texte: 'Copier pour une autre concession…', action: function (fermer) {
       if (!ed) return false;
-      var corps = d ? { action: 'rhDocumentModifier', id: d.id, nom: inNom.value, categorie: selCat.value, html: ed.valeur() }
+      var autres = codes.filter(function (c) { return c !== (d.compagnie || ''); });
+      if (!autres.length) { AMX.toast('Aucune autre concession dans votre accès.', 'attention'); return false; }
+      var selC = h('select', autres.map(function (c) { return h('option', { value: c, text: nomCie(c) }); }));
+      var inN = h('input', { type: 'text', value: inNom.value + ' — ' + nomCie(autres[0]) });
+      selC.addEventListener('change', function () { inN.value = inNom.value + ' — ' + nomCie(selC.value); });
+      AMX.modale({ titre: 'Copier « ' + d.nom + ' »', corps: h('div.rhx-form', [h('div.champ', [h('label', { text: 'Pour la concession' }), selC]), h('div.champ', [h('label', { text: 'Nom de la copie' }), inN]),
+        h('p.rhx-prog', { text: 'La copie part du texte affiché ; vous l\'adaptez ensuite (ex. le code vestimentaire de cette concession). L\'original ne change pas.' })]),
+        boutons: [{ texte: 'Annuler' }, { texte: 'Copier', classe: 'primaire', action: function () {
+          return ecrire({ action: 'rhDocumentAjouter', type: 'texte', nom: inN.value, categorie: selCat.value, compagnie: selC.value, html: ed.valeur(), bibliotheque: true }).then(function (r) {
+            poserDocument(r.document); AMX.toast('Copie « ' + r.document.nom + ' » créée', 'ok'); fermer(); if (apres) apres(); self.editerTexte(r.document, apres);
+          }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur', 8000); return false; });
+        } }] });
+      return false;
+    } } : null, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+      if (!ed) return false;
+      var corps = d ? { action: 'rhDocumentModifier', id: d.id, nom: inNom.value, categorie: selCat.value, compagnie: selCie.value, html: ed.valeur() }
         : { action: 'rhDocumentAjouter', type: 'texte', nom: inNom.value, categorie: selCat.value, compagnie: selCie.value, html: ed.valeur(), bibliotheque: true };
       return ecrire(corps).then(function (r) { poserDocument(r.document); AMX.toast('« ' + r.document.nom + ' » enregistré', 'ok'); if (apres) apres(); }, function (er) { AMX.toast(AMX.erreurTexte(er), 'erreur', 8000); return false; });
-    } }] });
+    } }].filter(Boolean) });
   };
   VueRh.prototype.apercu = function (d, apres) {
     var self = this;

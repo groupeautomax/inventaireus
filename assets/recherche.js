@@ -359,6 +359,12 @@
         hist.addEventListener('click', function (e) { e.preventDefault(); var x = q.trim(); fermer(); input.blur(); AMX.historique.ouvrir(x); });
         boite.appendChild(hist);
       }
+      // 17 nov. (S04C4776488) : un NIV complet tapé dans la recherche → l'analyse rapide, sans faire d'évaluation.
+      if (cleQ.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(cleQ) && AMX.voitEvaluations && AMX.voitEvaluations() && AMX.sections.outils) {
+        var rapide = h('a.rech-autre.rech-historique', { href: AMX.lien('outils', 'evaluation', { vin: cleQ, rapide: 1 }), text: 'Analyse rapide de ce NIV — marché, OpenLane, CARFAX, kilométrage (rien n\'est enregistré) ›' });
+        rapide.addEventListener('click', function () { fermer(); input.blur(); });
+        boite.appendChild(rapide);
+      }
       if (r.enLecture.length) boite.appendChild(h('div.rech-lecture', { text: 'Encore en lecture : ' + r.enLecture.join(', ') + '…' }));
       liens().forEach(function (a) { a.setAttribute('role', 'option'); a.setAttribute('tabindex', '-1'); });
       if (!nouvelle) boite.scrollTop = defile;

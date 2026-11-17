@@ -34,6 +34,19 @@
 
   /* ------------------------------ Helpers ------------------------------ */
   function marque(v) { return String(v.modele || '').trim().split(' ')[0].toUpperCase(); }
+  // 17 nov. : « Préciser le véhicule » — liste des marques proposées et lecture d'un libellé « MARQUE Modèle Version Année ».
+  var MARQUES_VEHICULE = ['Acura', 'Alfa Romeo', 'Audi', 'BMW', 'Buick', 'Cadillac', 'Chevrolet', 'Chrysler', 'Dodge', 'Fiat', 'Ford', 'Genesis', 'GMC',
+    'Honda', 'Hyundai', 'Infiniti', 'Jaguar', 'Jeep', 'Kia', 'Land Rover', 'Lexus', 'Lincoln', 'Lucid', 'Maserati', 'Mazda', 'Mercedes-Benz', 'MINI',
+    'Mitsubishi', 'Nissan', 'Polestar', 'Porsche', 'Ram', 'Rivian', 'Subaru', 'Tesla', 'Toyota', 'Volkswagen', 'Volvo'];
+  function decouperModele(texte) {
+    var t = String(texte || '').replace(/\s+/g, ' ').trim(), annee = '';
+    var m = /\b(19[5-9]\d|20\d\d)\b/.exec(t);
+    if (m) { annee = m[1]; t = (t.slice(0, m.index) + ' ' + t.slice(m.index + 4)).replace(/\s+/g, ' ').trim(); }
+    var mots = t.split(' '), marque = mots.shift() || '';
+    if (/^(land|alfa|mercedes)$/i.test(marque) && mots.length) marque += ' ' + mots.shift();
+    var connue = MARQUES_VEHICULE.filter(function (x) { return x.toUpperCase() === marque.toUpperCase(); })[0];
+    return { annee: annee, marque: connue || marque, modele: mots.join(' ') };
+  }
   function registreDe(v) { return v.enregistrement === 'oui' ? 'oui-bon' : (v.enregistrement || 'non'); }
   // 7 nov. (Louis Prassinos, Hyundai) : un échange (provenance.js) est déjà chez nous et le client remet le certificat
   // d'immatriculation avec l'échange — ni registre à attendre, ni arrivée : ces deux retards ne s'appliquent qu'aux achats.
@@ -1189,6 +1202,55 @@
     };
     var stockVide = function () { return !String(v.stock || '').trim(); };
 
+    // 17 nov. (M-E. Fournier, SD1F4B9E02F) : un NIV pas décodé arrive « (modèle non reconnu — à préciser) » — on précise
+    // l'année, la marque et le modèle ici (POST vehiculePreciser, ModeleVehicule.gs ; la fiche d'achat existante est complétée).
+    var aPreciser = !String(v.modele || '').trim() || /mod[eè]le\s+(non\s+reconnu|[àa]\s+pr[ée]ciser)/i.test(String(v.modele || ''));
+    var peutPreciser = !verrouille && (AMX.perm('ajouterVehicule') || peutStatut || AMX.perm('ficheAchat') || peutMontants || AMX.estAdmin());
+    var preciserVehicule = function () {
+      var actuel = aPreciser ? {} : decouperModele(v.modele);
+      var max = new Date().getFullYear() + 2;
+      var inAnnee = h('input.saisie#inv-annee', { type: 'number', inputmode: 'numeric', min: 1950, max: max, placeholder: 'ex. 2023', value: actuel.annee || '' });
+      var inMarque = h('input.saisie#inv-marque', { list: 'inv-marques', placeholder: 'ex. Chevrolet', autocomplete: 'off', value: actuel.marque || '' });
+      var inModele = h('input.saisie#inv-modele', { placeholder: 'ex. Equinox', value: actuel.modele || '' });
+      var inVersion = h('input.saisie#inv-version', { placeholder: 'ex. LT AWD (facultatif)' });
+      var corps = h('div', [
+        h('p.doux', { style: { margin: '0 0 12px' }, text: 'NIV ' + v.vin + (v.stock ? ' · # stock ' + v.stock : '') + (aPreciser ? ' — le NIV n\'a pas pu être décodé.' : '') }),
+        h('div.grille.c2', [
+          h('div.champ', [h('label', 'Année'), inAnnee]),
+          h('div.champ', [h('label', 'Marque'), inMarque]),
+          h('div.champ', [h('label', 'Modèle'), inModele]),
+          h('div.champ', [h('label', 'Version (facultatif)'), inVersion])
+        ]),
+        h('datalist#inv-marques', MARQUES_VEHICULE.map(function (m) { return h('option', { value: m }); }))
+      ]);
+      // La fiche d'achat remplit ce qui est vide.
+      AMX.ficheDe(v.vin).then(function (f) {
+        if (!f) return;
+        if (!inAnnee.value && f['f-annee']) inAnnee.value = String(f['f-annee']).replace(/[^0-9]/g, '').slice(0, 4);
+        if (!inMarque.value && f['f-marque']) inMarque.value = f['f-marque'];
+        if (!inModele.value && f['f-modele'] && !/non\s+reconnu/i.test(f['f-modele'])) inModele.value = f['f-modele'];
+        if (!inVersion.value && f['f-version']) inVersion.value = f['f-version'];
+      }).catch(function () {});
+      AMX.modale({ titre: aPreciser ? 'Préciser le véhicule' : 'Modifier le véhicule', corps: corps, boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer', classe: 'primaire', action: function () {
+        var annee = inAnnee.value.replace(/[^0-9]/g, ''), marque = inMarque.value.trim(), modele = inModele.value.trim();
+        if (!annee || annee.length !== 4 || +annee < 1950 || +annee > max) { AMX.toast('Entrez l\'année (4 chiffres).', 'erreur'); inAnnee.focus(); return false; }
+        if (!marque) { AMX.toast('Entrez la marque.', 'erreur'); inMarque.focus(); return false; }
+        if (!modele) { AMX.toast('Entrez le modèle.', 'erreur'); inModele.focus(); return false; }
+        return self.ecrire({ action: 'vehiculePreciser', id: v.id, vin: v.vin, annee: annee, marque: marque, modele: modele, version: inVersion.value.trim() }, null).then(function (d) {
+          if (!d || !d.modele) { AMX.toast('Le script n\'est pas à jour : le véhicule n\'a pas été modifié (redéployez le script).', 'attention', 7000); return; }
+          AMX.toast(d.message || ('Véhicule précisé : ' + d.modele), 'ok');
+          if (AMX.ficheOublier) AMX.ficheOublier(v.vin);
+          if (self.selection === v.vin) self.rendrePanneau();
+        });
+      } }] });
+      setTimeout(function () { (inAnnee.value ? (inMarque.value ? inModele : inMarque) : inAnnee).focus(); }, 50);
+    };
+    var blocPreciser = aPreciser && peutPreciser ? h('div.bloc', [h('div.alerte-bloc.attention', [h('span', { html: I.voiture }), h('div', { style: { flex: '1' } }, [
+      h('div', { style: { fontWeight: '600' }, text: 'Modèle non reconnu' }),
+      h('div.petit', { text: 'Le NIV n\'a pas pu être décodé. Entrez l\'année, la marque et le modèle.' }),
+      h('button.btn.primaire', { style: { marginTop: '8px' }, html: I.voiture + '<span>Préciser le véhicule</span>', onclick: preciserVehicule })
+    ])])]) : null;
+
     // Rappels (8 oct., soir — Maxime) : rouge ou vert, le détail seulement en cliquant.
     var ouvrirRappels = !!self.rappelsOuverts; self.rappelsOuverts = false;
     var blocRappel = h('div.bloc', [h('h3', ['Rappels', h('button.btn.petit.fantome', { text: 'Revérifier', onclick: function (e) { e.target.classList.add('occupe'); e.target.textContent = 'Vérification…'; self.reverifierRappel(v); } })])]);
@@ -1408,6 +1470,7 @@
     });
     var blocGestion = h('div.bloc', [h('h3', 'Gestion'), h('div.actions-ligne', [
       (peutStock || peutMontants) && !verrouille ? h('button.btn', { html: I.outils + '<span>Modifier (stock, km, coût)…</span>', onclick: modifierInfos }) : null,
+      peutPreciser ? h('button.btn', { html: I.voiture + '<span>Modifier le véhicule (année, marque, modèle)…</span>', onclick: preciserVehicule }) : null,
       peutStatut && !verrouille ? selTransfert : null,
       peutSupprimer ? h('button.btn.danger', { html: I.corbeille + '<span>Supprimer</span>', onclick: function () {
         AMX.confirmerSaisie('Supprimer définitivement', 'Suppression de ' + v.vin + (v.stock ? ' (stock ' + v.stock + ')' : '') + '. Cette action est irréversible, et la relecture du DMS ou de D2C ne le rajoutera pas (sauf sous un nouveau # stock). Retapez le VIN complet pour confirmer.', v.vin, { ok: 'Supprimer', danger: true }).then(function (ok) {
@@ -1425,7 +1488,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      AMX.achatsAuto ? AMX.achatsAuto.bloc(v.vin) : null, AMX.cfxPastilles ? h('div.bloc', [h('h3', 'CARFAX'), AMX.cfxPastilles.bloc(v.vin)]) : null, blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocPreciser, AMX.achatsAuto ? AMX.achatsAuto.bloc(v.vin) : null, AMX.cfxPastilles ? h('div.bloc', [h('h3', 'CARFAX'), AMX.cfxPastilles.bloc(v.vin)]) : null, blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };

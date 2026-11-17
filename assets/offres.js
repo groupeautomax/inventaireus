@@ -667,6 +667,7 @@
         blocNego.appendChild(h('div.alerte-bloc.attention', { style: { marginTop: '10px' } }, [h('span', { html: I.alerte }), h('div', [h('div', ['Contrat ', h('b', { text: o.noContrat || '' }), ' — à contresigner' + (o.livraison ? ' · livraison ' + o.livraison : '') + (o.exportation ? ' · exportation ' + (EXPORTATIONS[o.exportation] || o.exportation) + ' (sans taxes)' : '')]), h('div.petit', { text: ligneA + '. Il reste la signature du vendeur : les deux PDF seront refaits et renvoyés à l\'acheteur.' })])]));
         if (peut) actions.appendChild(h('button.btn.primaire', { html: I.ok + '<span>Signer le contrat</span>', onclick: function () { self.modaleSigner(o, agir); } }));
       }
+      if (peut) actions.appendChild(h('button.btn.danger', { text: 'Annuler le contrat…', onclick: function () { self.modaleAnnulerContrat(o, agir); } }));
       ['vendeur', 'acheteur'].forEach(function (copie) {
         actions.appendChild(h('button.btn', { html: I.telecharger + '<span>Contrat PDF (' + copie + ')</span>', onclick: function (e) {
           var b = e.currentTarget; b.classList.add('occupe');
@@ -700,7 +701,7 @@
 
     // Historique
     var hist = (o.historique || []).slice().reverse();
-    var LIB = { offre: 'Offre de l\'acheteur', contre: 'Contre-offre', acceptee: 'Acceptée', refusee: 'Refusée', annulee: 'Annulée', lien: 'Lien renvoyé', signature: 'Signature de l\'acheteur', signatureVendeur: 'Signature du vendeur', signe: 'Contrat signé par les deux parties', contrat: 'Contrat généré', courrielEchec: 'Courriel à l\'acheteur non parti', km: 'Kilométrage', note: 'Note', exportation: 'Exportation' };
+    var LIB = { offre: 'Offre de l\'acheteur', contre: 'Contre-offre', acceptee: 'Acceptée', refusee: 'Refusée', annulee: 'Annulée', lien: 'Lien renvoyé', signature: 'Signature de l\'acheteur', signatureVendeur: 'Signature du vendeur', signe: 'Contrat signé par les deux parties', contrat: 'Contrat généré', courrielEchec: 'Courriel à l\'acheteur non parti', contratAnnule: 'Contrat annulé', courrielAnnulation: 'Acheteur prévenu de l\'annulation', km: 'Kilométrage', note: 'Note', exportation: 'Exportation' };
     var blocHist = h('div.bloc', [h('h3', 'Historique'), hist.length ? h('ul.chrono', hist.map(function (e) {
       return h('li' + (e.par === 'systeme' ? '.systeme' : '') + (e.type === 'courrielEchec' ? '.alerte' : ''), [
         h('div', [h('b', { text: LIB[e.type] || e.type }), e.montant ? ' · ' + AMX.fmtArgent(e.montant) : '', e.qui ? h('span.doux', { text: ' · ' + e.qui }) : null]),
@@ -761,6 +762,27 @@
       boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer la contre-offre', classe: 'primaire', action: function () {
         var m = AMX.montant(montant.value); if (!(m > 0)) { montant.style.borderColor = 'var(--rouge)'; montant.focus(); return false; }
         return agir('contre', { montant: String(m), message: message.value.trim() }, 'Contre-offre envoyée à l\'acheteur');
+      } }] });
+  };
+  /* 16 nov. : annuler un contrat (signé par l'acheteur ou par les deux). Raison interne obligatoire ; l'acheteur prévenu si la
+     case est cochée (jamais la raison) ; les ventes et la comptabilité le sont toujours. Les PDF restent, marqués « ANNULÉ ». */
+  Recues.prototype.modaleAnnulerContrat = function (o, agir) {
+    var raison = h('textarea.saisie', { rows: '3', placeholder: 'Ex. : refus de crédit, l\'acheteur se désiste, erreur de prix…' });
+    var prevenir = h('input', { type: 'checkbox' }); prevenir.checked = true;
+    var message = h('textarea.saisie', { rows: '3', placeholder: 'Message à l\'acheteur (facultatif)' });
+    var blocMsg = h('div.champ', [h('label', 'Message à l\'acheteur'), message]);
+    prevenir.addEventListener('change', function () { blocMsg.style.display = prevenir.checked ? '' : 'none'; });
+    var deux = !!o.contresigne;
+    AMX.modale({ titre: 'Annuler le contrat ' + (o.noContrat || ''), corps: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } }, [
+      h('p', { style: { margin: 0, color: 'var(--encre-2)' }, text: 'Contrat ' + (deux ? 'signé par les deux parties' : 'signé par l\'acheteur') + ' pour ' + (o.modele || o.vin) + ' — ' + ((o.acheteur && o.acheteur.nomLegal) || o.nom || o.courriel) + ', ' + AMX.fmtArgent(o.prixFinal) + '. L\'annulation ne s\'efface pas : les deux PDF restent dans Drive, marqués « ANNULÉ », et le véhicule n\'est plus réservé.' }),
+      h('div.champ', [h('label', 'Raison (interne, jamais montrée à l\'acheteur)'), raison]),
+      h('label.case', [prevenir, h('span', 'Prévenir l\'acheteur par courriel')]),
+      blocMsg,
+      h('div.doux.petit', { text: 'Les ventes et la comptabilité reçoivent un courriel « Contrat annulé ».' + (deux ? ' Si la vente est au Livre des ventes, annulez-la aussi.' : '') })]),
+      boutons: [{ texte: 'Garder le contrat' }, { texte: 'Annuler le contrat', classe: 'danger', action: function () {
+        var r = raison.value.trim();
+        if (r.length < 3) { raison.style.borderColor = 'var(--rouge)'; raison.focus(); return false; }
+        return agir('annulerContrat', { raison: r, prevenir: prevenir.checked, messageAcheteur: prevenir.checked ? message.value.trim() : '' }, 'Contrat annulé' + (prevenir.checked ? ' — l\'acheteur est prévenu' : ''));
       } }] });
   };
   Recues.prototype.modaleRefus = function (o, agir) {

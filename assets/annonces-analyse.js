@@ -164,7 +164,22 @@
   var NOM_GENRE = { neuf: 'Neuf', occasion: 'Occasion', demo: 'Démo' };
   var TRANCHES = [[15, '0 à 15 j'], [30, '16 à 30 j'], [45, '31 à 45 j'], [60, '46 à 60 j'], [90, '61 à 90 j'], [Infinity, '90 j et +']];
   var RESEAUX = { SEARCH: 'Recherche Google', SEARCH_PARTNERS: 'Partenaires de recherche', CONTENT: 'Display', YOUTUBE: 'YouTube', YOUTUBE_SEARCH: 'YouTube', YOUTUBE_WATCH: 'YouTube', CROSS_NETWORK: 'Plusieurs réseaux (Performance Max)', GOOGLE_TV: 'Google TV', MIXED: 'Mixte', TOUS: 'Tous les réseaux', UNKNOWN: 'Inconnu', UNSPECIFIED: 'Non précisé' };
-  var ONGLETS = [['resume', 'Résumé'], ['vehicules', 'Véhicules'], ['ventes', 'Ventes'], ['branchement', 'Branchement Google Ads']];
+  var ONGLETS = [['resume', 'Résumé'], ['conversions', 'Conversions'], ['vehicules', 'Véhicules'], ['ventes', 'Ventes'], ['branchement', 'Branchement Google Ads']];
+  /* 17 nov. (Maxime : « voir le détail des conversions ») — les types d'action de Google Ads, en mots simples. */
+  var GROUPES_CONV = [['appel', 'Appels'], ['demande', 'Demandes du site'], ['autre', 'Autres conversions']];
+  var CAT_CONV = { PHONE_CALL_LEAD: ['appel', 'Appel'], REQUEST_QUOTE: ['demande', 'Formulaire du site'], SUBMIT_LEAD_FORM: ['demande', 'Formulaire du site'], CONTACT: ['demande', 'Contact'],
+    BOOK_APPOINTMENT: ['demande', 'Rendez-vous'], IMPORTED_LEAD: ['demande', 'Lead importé'], QUALIFIED_LEAD: ['demande', 'Lead qualifié'], CONVERTED_LEAD: ['demande', 'Lead converti'],
+    GET_DIRECTIONS: ['autre', 'Itinéraire'], PAGE_VIEW: ['autre', 'Page vue'], OUTBOUND_CLICK: ['autre', 'Clic vers un autre site'], ENGAGEMENT: ['autre', 'Engagement'],
+    STORE_VISIT: ['autre', 'Visite en magasin'], STORE_SALE: ['autre', 'Vente en magasin'], SIGNUP: ['autre', 'Inscription'], DOWNLOAD: ['autre', 'Téléchargement'], PURCHASE: ['autre', 'Achat'] };
+  var NOMS_ACTION = { 'AI-qualified call leads': 'Appels jugés sérieux par Google', 'Calls from ads': 'Appels venus des annonces', 'Phone call leads': 'Appels', 'Store visits': 'Visites en magasin', 'Local actions - Directions': 'Itinéraires' };
+  var REGIONS_TEL = { '819': 'Estrie, Mauricie, Centre-du-Québec', '873': 'Estrie, Mauricie, Centre-du-Québec', '450': 'Montérégie, Laurentides, Lanaudière', '579': 'Montérégie, Laurentides, Lanaudière',
+    '354': 'Montérégie, Laurentides, Lanaudière', '514': 'Montréal', '438': 'Montréal', '263': 'Montréal', '418': 'Québec, Est du Québec', '581': 'Québec, Est du Québec', '367': 'Québec, Est du Québec',
+    '613': 'Est de l\'Ontario', '343': 'Est de l\'Ontario', '753': 'Est de l\'Ontario', '416': 'Toronto', '647': 'Toronto', '437': 'Toronto', '905': 'Grand Toronto', '289': 'Grand Toronto', '365': 'Grand Toronto',
+    '705': 'Nord de l\'Ontario', '249': 'Nord de l\'Ontario', '506': 'Nouveau-Brunswick', '902': 'Maritimes', '782': 'Maritimes' };
+  function catConv(c) { return CAT_CONV[c] || ['autre', c ? 'Autre' : 'Autre']; }
+  function nomAction(n) { return NOMS_ACTION[n] || n; }
+  function duree(s) { s = Math.round(s || 0); if (s < 60) return s + ' s'; var m = Math.floor(s / 60), r = s % 60; return m + ' min' + (r ? ' ' + String(r).padStart(2, '0') + ' s' : ''); }
+  function heureAppel(t) { var m = String(t || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/); return m ? fmtJour(m[1]) + ', ' + Number(m[2]) + ' h ' + m[3] : String(t || ''); }
   var FILTRES_V = [['', 'Tous'], ['vedette', 'Mis de l\'avant'], ['propose', 'Proposés'], ['avecClics', 'Avec des clics'], ['sous', 'Sous-exposés'], ['sansConv', 'Dépense sans conversion'], ['photos', 'Moins de 10 photos'], ['exclu', 'Exclus du flux']];
   var GRAPHES = [['impressions', 'Impressions'], ['clics', 'Clics'], ['cout', 'Dépense'], ['conversions', 'Conversions']];
   /* colonnes du tableau des véhicules : clé, titre, cachée sur téléphone */
@@ -328,17 +343,19 @@
     return [
       '/* ScanAutomax — résultats des annonces de véhicules, par véhicule (NIV), pour ' + (nom || 'la concession') + '.',
       '   Ce script ne change RIEN dans Google Ads : il lit les statistiques des 30 derniers jours (aujourd\'hui compris)',
-      '   et les écrit dans la feuille de ScanAutomax. À programmer « Toutes les heures ». */',
+      '   et les écrit dans la feuille de ScanAutomax. À programmer « Toutes les heures ».',
+      '   Version 2 (17 nov. 2026) : aussi le détail des conversions (par type, par véhicule) et les appels venus des annonces. */',
       'var FEUILLE = \'' + url + '\';',
       'var JOURS = 30;',
       '',
       'function lire(q) { var out = [], it = AdsApp.search(q); while (it.hasNext()) out.push(it.next()); return out; }',
+      'function essai(q, repli) { try { return lire(q); } catch (e) { if (repli) { try { return lire(repli); } catch (e2) {} } Logger.log(\'Pas lu : \' + String(e).slice(0, 200)); return null; } }',
       'function n(x) { var v = Number(x); return isFinite(v) ? v : 0; }',
-      'function ecrire(ss, nom, tete, lignes) {',
+      'function ecrire(ss, nom, tete, lignes, nTexte) {',
       '  var sh = ss.getSheetByName(nom) || ss.insertSheet(nom);',
       '  sh.clearContents();',
       '  var t = [tete].concat(lignes);',
-      '  sh.getRange(1, 1, t.length, 4).setNumberFormat(\'@\');',
+      '  sh.getRange(1, 1, t.length, nTexte || 4).setNumberFormat(\'@\');',
       '  sh.getRange(1, 1, t.length, tete.length).setValues(t);',
       '}',
       'function main() {',
@@ -359,11 +376,36 @@
       '  });',
       '  ecrire(ss, \'Vehicules\', [\'date\', \'item_id\', \'reseau\', \'campagne\', \'impressions\', \'clics\', \'cout\', \'conversions\', \'valeur\'], v);',
       '  ecrire(ss, \'Campagnes\', [\'date\', \'campagne\', \'type\', \'impressions\', \'clics\', \'cout\', \'conversions\', \'valeur\'], c);',
+      '  /* Le détail des conversions par type d\'action : « conversions » au jour du clic (comme dans Google Ads),',
+      '     « jour_conversion » au jour où la demande est arrivée. */',
+      '  var k = [], kv = [], ap = [];',
+      '  rows = essai(\'SELECT segments.date, campaign.name, segments.conversion_action_name, segments.conversion_action_category, metrics.conversions, metrics.conversions_value, metrics.all_conversions, metrics.conversions_by_conversion_date FROM campaign WHERE \' + PLAGE,',
+      '    \'SELECT segments.date, campaign.name, segments.conversion_action_name, segments.conversion_action_category, metrics.conversions, metrics.conversions_value, metrics.all_conversions FROM campaign WHERE \' + PLAGE);',
+      '  (rows || []).forEach(function (r) {',
+      '    if (!n(r.metrics.allConversions) && !n(r.metrics.conversions) && !n(r.metrics.conversionsByConversionDate)) return;',
+      '    k.push([r.segments.date, r.campaign.name, r.segments.conversionActionName || \'\', r.segments.conversionActionCategory || \'\', n(r.metrics.conversions), n(r.metrics.conversionsValue), n(r.metrics.allConversions),',
+      '      r.metrics.conversionsByConversionDate === undefined ? \'\' : n(r.metrics.conversionsByConversionDate)]);',
+      '  });',
+      '  if (rows) ecrire(ss, \'Conversions\', [\'date\', \'campagne\', \'action\', \'categorie\', \'conversions\', \'valeur\', \'toutes\', \'jour_conversion\'], k, 4);',
+      '  /* Par véhicule (NIV) et par type d\'action. */',
+      '  rows = essai(\'SELECT segments.date, segments.product_item_id, segments.conversion_action_name, metrics.conversions, metrics.all_conversions FROM shopping_performance_view WHERE \' + PLAGE + \' AND metrics.all_conversions > 0\');',
+      '  (rows || []).forEach(function (r) {',
+      '    kv.push([r.segments.date, String(r.segments.productItemId || \'\').toUpperCase(), r.segments.conversionActionName || \'\', n(r.metrics.conversions), n(r.metrics.allConversions)]);',
+      '  });',
+      '  if (rows) ecrire(ss, \'ConvVehicules\', [\'date\', \'item_id\', \'action\', \'conversions\', \'toutes\'], kv, 3);',
+      '  /* Les appels venus des annonces (numéro de transfert de Google) : jamais le numéro de la personne, seulement l\'indicatif. */',
+      '  rows = essai(\'SELECT call_view.start_call_date_time, call_view.call_duration_seconds, call_view.caller_area_code, call_view.call_status, call_view.type, call_view.call_tracking_display_location, campaign.name FROM call_view ORDER BY call_view.start_call_date_time DESC LIMIT 1000\');',
+      '  (rows || []).forEach(function (r) {',
+      '    var cv = r.callView || {}, d = String(cv.startCallDateTime || \'\');',
+      '    if (d.slice(0, 10) < debut) return;',
+      '    ap.push([d, String(n(cv.callDurationSeconds)), String(cv.callerAreaCode || \'\'), String(cv.callStatus || \'\'), String(cv.type || \'\'), String(cv.callTrackingDisplayLocation || \'\'), (r.campaign || {}).name || \'\']);',
+      '  });',
+      '  if (rows) ecrire(ss, \'Appels\', [\'debut\', \'duree\', \'indicatif\', \'statut\', \'type\', \'emplacement\', \'campagne\'], ap, 7);',
       '  var info = ss.getSheetByName(\'Info\') || ss.insertSheet(\'Info\');',
       '  info.clearContents();',
-      '  info.getRange(1, 1, 4, 2).setNumberFormat(\'@\');',
-      '  info.getRange(1, 1, 4, 2).setValues([[\'maj\', new Date().toISOString()], [\'compte\', compte.getCustomerId()], [\'devise\', compte.getCurrencyCode()], [\'periode\', debut + \' au \' + fin]]);',
-      '  Logger.log(v.length + \' lignes par véhicule, \' + c.length + \' lignes par campagne (\' + debut + \' au \' + fin + \').\');',
+      '  info.getRange(1, 1, 5, 2).setNumberFormat(\'@\');',
+      '  info.getRange(1, 1, 5, 2).setValues([[\'maj\', new Date().toISOString()], [\'compte\', compte.getCustomerId()], [\'devise\', compte.getCurrencyCode()], [\'periode\', debut + \' au \' + fin], [\'version\', \'2\']]);',
+      '  Logger.log(v.length + \' lignes par véhicule, \' + c.length + \' par campagne, \' + k.length + \' de conversions, \' + kv.length + \' de conversions par véhicule, \' + ap.length + \' appels (\' + debut + \' au \' + fin + \').\');',
       '}'
     ].join('\n');
   }
@@ -490,12 +532,13 @@
     /* 4. les onglets */
     var nVeh = this.lignesVehicules().filter(function (x) { return x.etat !== 'exclu' || x.s.impressions; }).length, nVen = this.statsVentes().L.length;
     this.elOnglets = h('div.ana-onglets', { role: 'tablist' }, ONGLETS.filter(function (o) { return o[0] !== 'branchement' || !a.branche || self.onglet === 'branchement'; }).map(function (o) {
-      var n = o[0] === 'vehicules' ? nVeh : (o[0] === 'ventes' ? nVen : null);
+      var n = o[0] === 'vehicules' ? nVeh : (o[0] === 'ventes' ? nVen : (o[0] === 'conversions' ? Math.round(d.conv && d.conv.lu ? (d.conv.actions || []).reduce(function (t, x) { return t + (x.conversions || 0); }, 0) : ((d.totaux || {}).conversions || 0)) : null));
       return h('button' + (self.onglet === o[0] ? '.actif' : ''), { type: 'button', role: 'tab', 'aria-selected': self.onglet === o[0] ? 'true' : 'false', onclick: function () { self.aller(o[0]); } },
         [document.createTextNode(o[1]), n !== null ? h('span.n', { text: nb(n) }) : null]);
     }));
     this.elCorps.appendChild(this.elOnglets);
     if (this.onglet === 'vehicules') this.ongletVehicules();
+    else if (this.onglet === 'conversions') this.ongletConversions();
     else if (this.onglet === 'ventes') this.ongletVentes();
     else if (this.onglet === 'branchement') {
       if (a.branche) this.elCorps.appendChild(h('button.ana-retour', { type: 'button', text: '‹ Retour au Résumé', onclick: function () { self.aller('resume'); } }));
@@ -553,7 +596,7 @@
         kpi(r.ctr === null ? '—' : pctVal(r.ctr, 2), 'Taux de clic', { zero: r.ctr === null, v: vr('ctr', 1), note: 'clics ÷ impressions', marche: ligneMarche(REP.ctr, r.ctr, this.genre) }),
         kpi(argentFin(t.cout), 'Dépense', { zero: !t.cout, v: v('cout', 0), note: 'facturée par Google' }),
         kpi(r.cpc === null ? '—' : argent(r.cpc, 2), 'Coût par clic', { zero: r.cpc === null, v: vr('cpc', -1), note: 'dépense ÷ clics', marche: ligneMarche(REP.cpc, r.cpc, this.genre) }),
-        kpi(dec1(t.conversions), 'Conversions', { zero: !t.conversions, v: v('conversions', 1), note: 'appels, formulaires, itinéraires',
+        kpi(dec1(t.conversions), 'Conversions', { zero: !t.conversions, v: v('conversions', 1), note: t.conversions ? 'voir le détail ›' : 'appels, formulaires, itinéraires', onclick: function () { self.aller('conversions'); }, title: 'Le détail : appels, demandes du site, jour par jour, véhicules',
           marche: ligneMarche(REP.conv, t.clics ? 100 * t.conversions / t.clics : null, this.genre, { nous: t.clics ? pctVal(100 * t.conversions / t.clics, 2) : '' }) }),
         kpi(r.cpa === null ? '—' : argentFin(r.cpa), 'Coût par conversion', { zero: r.cpa === null, v: vr('cpa', -1), note: 'dépense ÷ conversions', marche: ligneMarche(REP.cpl, r.cpa, this.genre) }),
         kpi(t.valeur ? argentFin(t.valeur) : '—', 'Valeur des conversions', { zero: !t.valeur, v: t.valeur ? v('valeur', 1) : null, note: 'valeur inscrite dans Google Ads' })
@@ -984,6 +1027,77 @@
   };
 
   /* =============================== Ventes =============================== */
+  /* =============================== Conversions (17 nov.) ===============================
+     Maxime : « je veux pouvoir voir le détail des conversions ». Par type (appels, demandes du site), jour par jour, par véhicule,
+     et les appels venus des annonces (heure, durée, indicatif — jamais le numéro). Les noms des clients ne passent pas par Google :
+     les demandes du site sont dans le CRM, les appels dans le téléphone de la concession. */
+  Vue.prototype.ongletConversions = function () {
+    var self = this, d = this.rep || {}, a = d.ads || {}, cv = d.conv || {}, z = h('section.ana-zone');
+    this.elCorps.appendChild(z);
+    if (!a.branche) { z.appendChild(h('div.ana-carte.ambre', { text: 'Google Ads n\'est pas encore branché : le détail des conversions paraîtra ici.' })); return; }
+    if (!cv.lu) {
+      z.appendChild(h('div.ana-carte.ambre', [h('b', 'Le détail arrive au prochain passage du script Google Ads.'), document.createTextNode(' Il passe toutes les heures. Si rien ne paraît d\'ici deux heures, le script de Google Ads est encore l\'ancien : copiez le nouveau (Actions › Branchement Google Ads).')]));
+      return;
+    }
+    var tot = d.totaux || vide(), parG = { appel: 0, demande: 0, autre: 0 };
+    (cv.actions || []).forEach(function (x) { parG[catConv(x.categorie)[0]] += x.conversions || 0; });
+    var totConv = (cv.actions || []).reduce(function (t, x) { return t + (x.conversions || 0); }, 0);
+    var surVeh = (cv.vehicules || []).reduce(function (t, x) { return t + (x.total || 0); }, 0);
+    var app = cv.appels || [], dureeMoy = app.length ? app.reduce(function (t, x) { return t + (x.duree || 0); }, 0) / app.length : 0;
+    var manques = app.filter(function (x) { return x.statut === 'MISSED'; }).length;
+    if (this.genre) z.appendChild(h('p.ana-note', { text: 'Les types, les jours et les appels comptent toute la campagne : Google ne les sépare pas entre neufs et occasions. Seule la liste des véhicules suit le choix « ' + (NOM_GENRE[this.genre] || '') + 's ».' }));
+    /* 1. les chiffres */
+    var tu = [tuile(dec1(totConv), 'Conversions', totConv ? 'vert' : '', tot.cout && totConv ? argentFin(tot.cout / totConv) + ' chacune' : 'dans la période')];
+    GROUPES_CONV.forEach(function (g) { if (parG[g[0]] || g[0] !== 'autre') tu.push(tuile(dec1(parG[g[0]]), g[1], '', g[0] === 'appel' ? 'jugés sérieux par Google' : (g[0] === 'demande' ? 'formulaires envoyés' : ''))); });
+    tu.push(tuile(dec1(surVeh), 'Sur un véhicule précis', '', totConv ? 'sur ' + dec1(totConv) + ' — les autres viennent des annonces texte ou du bouton Appeler' : ''));
+    if (cv.appelsLu) tu.push(tuile(app.length, 'Appels venus des annonces', manques ? 'ambre' : '', app.length ? 'durée moyenne ' + duree(dureeMoy) + (manques ? ' · ' + manques + ' manqué' + (manques > 1 ? 's' : '') : '') : 'aucun dans la période'));
+    z.appendChild(h('div.ana-tuiles', tu));
+    if (!totConv && !app.length) { z.appendChild(h('div.ana-vide', { text: 'Aucune conversion ni aucun appel dans cette période.' })); return; }
+    /* 2. par type */
+    if ((cv.actions || []).length) {
+      z.appendChild(h('h2', 'Par type'));
+      z.appendChild(h('div.ana-defile', [h('table.ana-table', [h('thead', [h('tr', [h('th', 'Type'), h('th', 'Action dans Google Ads'), h('th.n', 'Conversions'), h('th.n.cache-tel', { text: 'Au jour de la demande', title: 'Google compte une conversion au jour du clic ; cette colonne la compte au jour où l\'appel ou la demande est arrivé.' }), h('th.n.cache-tel', 'Valeur')])]),
+        h('tbody', cv.actions.map(function (x) { var c = catConv(x.categorie);
+          return h('tr', [h('td', [h('span.ana-pastille.' + (c[0] === 'appel' ? 'vert' : (c[0] === 'demande' ? 'bleu' : 'gris')), { text: c[1] })]),
+            h('td', [h('b', { text: nomAction(x.nom) }), nomAction(x.nom) !== x.nom ? h('span.sous', { text: x.nom }) : null]),
+            h('td.n', { text: dec1(x.conversions) }), h('td.n.cache-tel', { text: dec1(x.jourConv) }), h('td.n.cache-tel', { text: x.valeur ? argentFin(x.valeur) : '—' })]); }))])]));
+    }
+    /* 3. jour par jour */
+    if ((cv.jours || []).length) {
+      var nomsG = {}; (cv.actions || []).forEach(function (x) { nomsG[x.nom] = catConv(x.categorie)[0]; });
+      var gs = GROUPES_CONV.filter(function (g) { return parG[g[0]]; });
+      z.appendChild(h('h2', 'Jour par jour'));
+      z.appendChild(h('div.ana-defile', [h('table.ana-table', [h('thead', [h('tr', [h('th', 'Jour')].concat(gs.map(function (g) { return h('th.n', { text: g[1] }); })).concat([h('th.n', 'Total'), h('th.n.cache-tel', { text: 'Arrivées ce jour-là', title: 'Au jour de l\'appel ou de la demande (Google compte la conversion au jour du clic).' })]))]),
+        h('tbody', cv.jours.map(function (j) { var pg = { appel: 0, demande: 0, autre: 0 }; Object.keys(j.actions || {}).forEach(function (n) { pg[nomsG[n] || 'autre'] += j.actions[n]; });
+          return h('tr', [h('td', { text: fmtJour(j.date) })].concat(gs.map(function (g) { return h('td.n' + (pg[g[0]] ? '' : '.zero'), { text: dec1(pg[g[0]]) }); }))
+            .concat([h('td.n', [h('b', { text: dec1(j.total) })]), h('td.n.cache-tel' + (j.jourConv ? '' : '.zero'), { text: dec1(j.jourConv) })])); }))])]));
+    }
+    /* 4. les véhicules qui ont amené une conversion */
+    var L = this.lignesVehicules(true), parVin = {}; L.forEach(function (x) { parVin[x.vin] = x; });
+    var vs = (cv.vehicules || []).filter(function (y) { var x = parVin[y.vin]; return !self.genre || (x && self.garde(x.genre)); });
+    if (vs.length) {
+      z.appendChild(h('h2', 'Véhicules qui ont amené une conversion'));
+      z.appendChild(h('div.ana-defile', [h('table.ana-table', [h('thead', [h('tr', [h('th', 'Véhicule'), h('th', 'Type'), h('th.n', 'Conversions'), h('th.n.cache-tel', 'Clics'), h('th.n.cache-tel', 'Dépense')])]),
+        h('tbody', vs.map(function (y) { var x = parVin[y.vin] || {}, s = (d.vehicules || {})[y.vin] || vide();
+          var types = Object.keys(y.actions || {}).map(function (n) { var c = catConv(((cv.actions || []).filter(function (q) { return q.nom === n; })[0] || {}).categorie); return c[1] + (y.actions[n] !== 1 ? ' × ' + dec1(y.actions[n]) : ''); }).join(', ');
+          return h('tr', [h('td', [h('b', { text: x.vehicule || y.vin }), h('span.sous', { text: [x.stock ? '# ' + x.stock : '', y.vin.slice(-8), (y.dates || []).map(fmtJour).join(', ')].filter(Boolean).join(' · ') })]),
+            h('td', { text: types }), h('td.n', { text: dec1(y.total) }), h('td.n.cache-tel', { text: nb(s.clics) }), h('td.n.cache-tel', { text: argentFin(s.cout || 0) })]); }))])]));
+    }
+    /* 5. les appels */
+    if (cv.appelsLu) {
+      z.appendChild(h('h2', 'Appels venus des annonces'));
+      if (!app.length) z.appendChild(h('div.ana-vide', { text: 'Aucun appel venu des annonces dans cette période.' }));
+      else z.appendChild(h('div.ana-defile', [h('table.ana-table', [h('thead', [h('tr', [h('th', 'Quand'), h('th.n', 'Durée'), h('th', 'Région'), h('th', 'Réponse'), h('th.cache-tel', 'Comment')])]),
+        h('tbody', app.slice(0, 300).map(function (x) {
+          return h('tr', [h('td', { text: heureAppel(x.debut) }), h('td.n', { text: duree(x.duree) }),
+            h('td', x.indicatif ? [h('b', { text: x.indicatif }), h('span.sous', { text: REGIONS_TEL[x.indicatif] || '' })] : [h('span.sous', { text: 'indicatif non transmis' })]),
+            h('td', [h('span.ana-pastille.' + (x.statut === 'MISSED' ? 'rouge' : 'vert'), { text: x.statut === 'MISSED' ? 'Manqué' : 'Répondu' })]),
+            h('td.cache-tel', { text: (x.type === 'HIGH_END_MOBILE_SEARCH' ? 'Bouton Appeler de l\'annonce' : (x.type === 'MANUALLY_DIALED' ? 'Numéro composé' : (x.type || ''))) + (x.emplacement === 'LANDING_PAGE' ? ' (site)' : '') })]); }))])]));
+      if (app.length > 300) z.appendChild(h('p.ana-note', { text: 'Les 300 plus récents sur ' + app.length + '.' }));
+    }
+    z.appendChild(h('p.ana-note', { text: 'Google compte une conversion au jour du clic sur l\'annonce. « Appels jugés sérieux » : Google garde les appels qu\'il juge sérieux (durée, contenu) ; un appel court ou manqué peut ne pas compter. Les noms des clients ne passent jamais par Google : les demandes du site arrivent au CRM, les appels au téléphone de la concession (comparez l\'heure et l\'indicatif).' }));
+  };
+
   Vue.prototype.ongletVentes = function () {
     var d = this.rep || {}, z = h('section.ana-zone'), ads = this.donneesAds();
     this.elCorps.appendChild(z);
@@ -1091,6 +1205,15 @@
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(veh.length ? veh : [{ '': 'aucun véhicule' }]), 'Véhicules');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ven.length ? ven : [{ '': 'aucune vente' }]), 'Ventes');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sem), 'Semaines');
+    var cv = d.conv || {};
+    if (cv.lu) {
+      var kt = (cv.actions || []).map(function (x) { return { 'Type': catConv(x.categorie)[1], 'Action': nomAction(x.nom), 'Nom dans Google Ads': x.nom, 'Conversions': x.conversions, 'Au jour de la demande': x.jourConv, 'Valeur': x.valeur }; });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kt.length ? kt : [{ '': 'aucune conversion' }]), 'Conversions');
+      var kj = (cv.jours || []).map(function (j) { var o = { 'Jour': j.date }; Object.keys(j.actions || {}).forEach(function (n) { o[nomAction(n)] = j.actions[n]; }); o['Total'] = j.total; o['Arrivées ce jour-là'] = j.jourConv; return o; });
+      if (kj.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kj), 'Conversions par jour');
+      var ka = (cv.appels || []).map(function (x) { return { 'Début': x.debut, 'Durée (s)': x.duree, 'Indicatif': x.indicatif, 'Région': REGIONS_TEL[x.indicatif] || '', 'Réponse': x.statut === 'MISSED' ? 'Manqué' : 'Répondu', 'Comment': x.type === 'HIGH_END_MOBILE_SEARCH' ? 'Bouton Appeler de l\'annonce' : (x.type === 'MANUALLY_DIALED' ? 'Numéro composé' : x.type) }; });
+      if (cv.appelsLu) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ka.length ? ka : [{ '': 'aucun appel' }]), 'Appels');
+    }
     var e = d.einstein;
     if (e) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ 'Einstein': e.resume }].concat((e.actions || []).map(function (a, i) { return { 'Einstein': (i + 1) + '. ' + a.titre + ' — ' + a.pourquoi + (a.vehicules.length ? ' (' + a.vehicules.join(', ') + ')' : '') }; }))), 'Einstein');
     XLSX.writeFile(wb, 'analyse-annonces-' + String(d.compagnie || 'BMW').toLowerCase() + '-' + p.du + '-' + p.au + '.xlsx');

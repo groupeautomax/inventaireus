@@ -570,7 +570,12 @@
     this.rendreDemande();
   }
 
+  /* 18 nov. : une sauvegarde automatique qui finit après qu'on a quitté la page ne réécrit plus l'adresse (elle ramenait
+     l'adresse de l'évaluation pendant qu'on regardait une autre page). */
+  function poserAdresse(vue, params) { if (vue && vue.demontee) return; history.replaceState(null, '', AMX.lien('outils', 'evaluation', params)); }
   Evaluation.prototype.demonter = function () {
+    this.demontee = true;
+    if (AMX.evaluationCourante) AMX.evaluationCourante.quitteLe = Date.now();   /* 18 nov. : on vient de quitter cette évaluation */
     document.removeEventListener('amx:inventaire', this.surInventaire);
     document.removeEventListener('amx:carfax', this.surCarfax);
     document.removeEventListener('amx:export', this.surExport);
@@ -640,7 +645,7 @@
     this.rapide = false;
     this.rendreRapide();
     var vin = this.vinPourSauvegarde();
-    try { history.replaceState(null, '', AMX.lien('outils', 'evaluation', vin ? this.paramsAdresse(vin) : {})); } catch (e) {}
+    try { poserAdresse(this, vin ? this.paramsAdresse(vin) : {}); } catch (e) {}
     if (vin) { this.sauvegarderAuto(); AMX.toast('Évaluation commencée : elle est gardée dans le registre (brouillon). « Enregistrer » la confirme.', 'ok', 6000); }
     else AMX.toast('Entrez le NIV : l\'évaluation sera gardée dans le registre.', 'info');
   };
@@ -1047,6 +1052,14 @@
 
   /* 17 nov. (S83B4F8D1F5) : le panneau « Par concession ». Les données se lisent à la première ouverture (copie du
      navigateur d'abord) ; ensuite le panneau suit la marque, le modèle, l'année, le km, le recon et la marge. */
+  /* 18 nov. (Maxime : « l'analyse doit se rapporter au modèle que l'on évalue ») : le véhicule de la page, pour l'onglet
+     « Marché par région » d'Évaluations — il s'ouvre sur la fiche de ce modèle-année, à son km (marche-region.js). */
+  Evaluation.prototype.publierVehicule = function () {
+    if (this.demontee) return;
+    var v = this.valeursRegion(), vin = String(this.vinCourant || '').toUpperCase();
+    AMX.evaluationCourante = (v.marque && v.modele && v.annee) ? { vin: vin, marque: v.marque, modele: v.modele, annee: v.annee, km: v.km,
+      adresse: AMX.lien('outils', 'evaluation', vin ? this.paramsAdresse(vin) : {}), quitteLe: 0 } : null;
+  };
   Evaluation.prototype.valeursRegion = function () {
     return { marque: this.elMarque.value.trim(), modele: this.elModele.value.trim(), annee: this.elAnnee.value.trim(), km: this.elKm.value.trim(),
       recon: this.elRecon ? this.elRecon.value.trim() : '', marge: this.elMarge ? this.elMarge.value.trim() : '', frais: this.elFrais ? this.elFrais.value.trim() : '',
@@ -1061,7 +1074,7 @@
       AMX.marcheRegion.copie().then(function () { return AMX.marcheRegion.charger(false); }).then(function () { self.regionSig = ''; self.majTuiles(); }, function () {});
     }
     var mds = (this.regionMds && this.regionMds.vin === vin) ? this.regionMds.r : {};
-    AMX.marcheRegion.bloc(this.elRegion, v, { vin: vin, mds: mds, surMds: function (r) { self.regionMds = { vin: vin, r: r }; self.rendreRegion(); } });
+    AMX.marcheRegion.bloc(this.elRegion, v, { vin: vin, mds: mds, lienMarche: true, surMds: function (r) { self.regionMds = { vin: vin, r: r }; self.rendreRegion(); } });
   };
 
   /* 17 nov. (SAE7E4F70CA) : le kilométrage connu du NIV (toutes nos sources, KmHistorique.gs) ; alerte rouge sous le
@@ -1124,6 +1137,7 @@
       else if (us && us.verdict) poser('export', AMX.export.texteVerdict(us), us.verdict === 'us' ? 'bleu' : (us.verdict === 'ca' ? 'vert' : (us.verdict === 'detail' ? 'ambre' : '')), AMX.export.texteProfits(us));
       else poser('export', AMX.export.exportable(vin) ? 'À comparer' : 'Pas fabriqué É.-U.', 'gris');
     }
+    try { this.publierVehicule(); } catch (eV) {}
     // Par concession (17 nov.) : la concession où ce genre se vend le mieux.
     if (this.tuiles.region && AMX.marcheRegion) {
       var vr = this.valeursRegion(), tr = AMX.marcheRegion.tuile(vr);
@@ -2663,7 +2677,7 @@
         self.etat('Décodage…');
         self.decoder(vin).then(function () { if (gen === self.generation && self.parametresPrets()) { self.etat(''); self.analyser(self.pays, false); } });
       }
-      history.replaceState(null, '', AMX.lien('outils', 'evaluation', self.paramsAdresse(vin)));
+      poserAdresse(self, self.paramsAdresse(vin));
     }).catch(function (e) {
       if (gen !== self.generation) return;
       self.vinCharge = '';
@@ -2869,7 +2883,7 @@
       if (data.us) AMX.export.oublierVerdicts();
       self.sauvegarde = { statut: d.statut || 'auto', dateMaj: d.dateMaj || new Date().toISOString(), enregistreLe: d.enregistreLe || '', enregistrePar: d.enregistrePar || '' };
       self.rendreSauvegarde();
-      history.replaceState(null, '', AMX.lien('outils', 'evaluation', self.paramsAdresse(vin)));
+      poserAdresse(self, self.paramsAdresse(vin));
     }).catch(function () { /* silencieux : le bouton Enregistrer reste là */ });
   };
   Evaluation.prototype.rendreSauvegarde = function () {
@@ -2904,7 +2918,7 @@
         AMX.toast('Évaluation de ' + vin + ' effacée' + (r.lignes > 1 ? ' (' + r.lignes + ' lignes)' : '') + '.', 'ok');
         self.elNiv.value = ''; self.vinCourant = ''; self.vinCharge = '';
         self.reinitialiser();
-        try { history.replaceState(null, '', AMX.lien('outils', 'evaluation', {})); } catch (e2) {}
+        try { poserAdresse(self, {}); } catch (e2) {}
         if (typeof self.rendreLiens === 'function') self.rendreLiens();
         setTimeout(function () { if (self.vinEfface === vin) self.vinEfface = ''; }, 20000);
       });
@@ -2951,7 +2965,7 @@
         self.etat('Attention : ce véhicule a aussi été évalué chez ' + (AMX.COMPAGNIES_TOUTES[(d.alerte.concessions || [])[0]] || 'une autre concession') + ' — ' + n + ' directeur' + (n > 1 ? 's' : '') + ' prévenu' + (n > 1 ? 's' : '') + ' (' + (d.alerte.courriels || 0) + ' courriel' + ((d.alerte.courriels || 0) > 1 ? 's' : '') + ', ' + (d.alerte.textos || 0) + ' texto' + ((d.alerte.textos || 0) > 1 ? 's' : '') + ').', 'attention');
         AMX.toast('Alerte envoyée aux directeurs : même véhicule évalué dans deux concessions (' + (d.alerte.textos || 0) + ' texto' + ((d.alerte.textos || 0) > 1 ? 's' : '') + ', ' + (d.alerte.courriels || 0) + ' courriel' + ((d.alerte.courriels || 0) > 1 ? 's' : '') + ').', 'attention', 8000);
       }
-      history.replaceState(null, '', AMX.lien('outils', 'evaluation', self.paramsAdresse(vin)));
+      poserAdresse(self, self.paramsAdresse(vin));
       self.rendreContexte();
       // 27 oct. : la demande d'évaluation de ce NIV est faite (DemandesEval.gs). 2 nov. : dans le circuit du directeur, le
       // montant attend sa confirmation ; si c'est un directeur qui enregistre, la fenêtre « Confirmer le montant » s'ouvre.

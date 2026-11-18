@@ -310,21 +310,19 @@
     this.elTri = h('select.saisie#anu-tri', { 'aria-label': 'Trier', onchange: function () { self.f.tri = self.elTri.value; AMX.memo.ecrire('anu_tri', self.f.tri); self.rafraichir(); } },
       TRIS.map(function (t) { return h('option', { value: t[0], text: 'Tri : ' + t[1] }); }));
     this.elTri.value = this.f.tri;
-    this.elActionsF = h('div.inv2-statuts#anu-actions', { role: 'group', 'aria-label': 'Conseil' });
-    this.elTranches = h('div.inv2-statuts#anu-tranches', { role: 'group', 'aria-label': 'Âge' });
-    this.elPrixF = h('div.inv2-statuts#anu-prix', { role: 'group', 'aria-label': 'Prix' });
+    /* 18 nov. (Maxime : « refais ce tableau, j'aime pas plein de bulles, inspire-toi de ce qui existe sur le marché ») : plus de
+       pastilles. Deux tableaux cliquables à la façon de vAuto (la liste de travail et les tranches d'âge) : une ligne = un filtre. */
+    this.elQuoi = h('div.carte.anu-quoi');
+    this.elAges = h('div.carte.anu-ages');
     this.elPxd = h('div.anu-pxd');
-    this.elFiltres = h('div.inv2-filtres.anu-filtres', [
-      h('div.anu-ligne', [h('div.recherche.inv2-recherche', [h('span', { html: I.recherche }), this.elQ]), this.elTri]),
-      h('div.anu-ligne', [h('span.anu-lib', 'Conseil'), this.elActionsF]),
-      h('div.anu-ligne', [h('span.anu-lib', 'Âge'), this.elTranches]),
-      h('div.anu-ligne', [h('span.anu-lib', 'Prix'), this.elPrixF])]);
+    this.elFiltres = h('div.anu-haut', [
+      h('div.anu-ligne.anu-chercher', [h('div.recherche.inv2-recherche', [h('span', { html: I.recherche }), this.elQ]), this.elTri]),
+      h('div.anu-deux', [this.elQuoi, this.elAges])]);
     this.elPortee = h('div.portee-chiffres');
     this.elKpis = h('div.kpis.anu-kpis');
-    this.elProfil = h('div.carte.anu-profil');
     this.elCiesTable = h('div.carte.anu-cies');
     this.conteneur.appendChild(h('div.page.anu-page', [h('div.entete-page', [h('div', [h('h1', 'Analyse occasion'), this.elSous]), this.elActions]),
-      this.elCies, this.elPxd, this.elFiltres, this.elPortee, this.elKpis, this.elProfil, this.elCiesTable, this.elOutilsListe, this.elListe]));
+      this.elCies, this.elPxd, this.elFiltres, this.elPortee, this.elKpis, this.elCiesTable, this.elOutilsListe, this.elListe]));
   };
   VueAnalyse.prototype.p = function () { return params(this.d); };
   /* Toutes nos occasions au détail : le registre Detail (en stock, acheté, transit) et ce que le Prix du marché en sait. */
@@ -400,34 +398,8 @@
   };
   VueAnalyse.prototype.rafraichir = function () {
     var self = this, f = this.f, p = this.p();
-    // Pastilles de conseil (comptées avec les autres filtres)
-    AMX.vider(this.elActionsF);
-    var pourA = this.filtrer('action');
-    var pastille = function (cont, actif, lib, n, couleur, clic) {
-      cont.appendChild(h('button.inv2-pastille' + (actif ? '.actif' : ''), { type: 'button', 'aria-pressed': actif ? 'true' : 'false', onclick: clic },
-        [couleur ? h('i.anu-pt.' + couleur) : null, h('span', { text: lib }), h('b', { text: String(n) })]));
-    };
-    pastille(this.elActionsF, !f.action, 'Tous', pourA.length, '', function () { f.action = ''; AMX.memo.ecrire('anu_action', ''); self.limite = LIMITE; self.rafraichir(); });
-    ACTIONS.slice().sort(function (a, b) { return a[3] - b[3]; }).forEach(function (a) {
-      var n = pourA.filter(function (x) { return x.action.code === a[0]; }).length;
-      if (!n && f.action !== a[0]) return;
-      pastille(self.elActionsF, f.action === a[0], a[1], n, a[2], function () { f.action = a[0]; AMX.memo.ecrire('anu_action', a[0]); self.limite = LIMITE; self.rafraichir(); });
-    });
-    AMX.vider(this.elTranches);
-    var pourT = this.filtrer('tranche');
-    pastille(this.elTranches, f.tranche === '', 'Tous', pourT.length, '', function () { f.tranche = ''; self.rafraichir(); });
-    p.tranches.forEach(function (t, i) {
-      var n = pourT.filter(function (x) { return x.tranche === i; }).length;
-      pastille(self.elTranches, String(f.tranche) === String(i), libTranche(i, p.tranches), n, i >= p.tranches.length - 2 ? 'ambre' : '', function () { f.tranche = String(f.tranche) === String(i) ? '' : i; self.rafraichir(); });
-    });
-    AMX.vider(this.elPrixF);
-    var pourP = this.filtrer('prix');
-    FILTRES_PRIX.forEach(function (x) {
-      var n = pourP.filter(function (a) { return testPrix(a, x[0]); }).length;
-      if (!n && f.prix !== x[0]) return;
-      pastille(self.elPrixF, f.prix === x[0], x[1], n, x[2], function () { f.prix = f.prix === x[0] ? '' : x[0]; self.limite = LIMITE; self.rafraichir(); });
-    });
-    this.elPrixF.parentNode.hidden = !this.elPrixF.childNodes.length;
+    this.rendreQuoi();
+    this.rendreAges();
     var liste = this.trier(this.filtrer());
     var actifs = [];
     if (f.q) actifs.push('« ' + f.q + ' »');
@@ -437,7 +409,6 @@
     AMX.porteeChiffres(this.elPortee, { n: liste.length, unite: ['occasion', 'occasions'], contexte: [this.compagnie ? COURTS[this.compagnie] || this.compagnie : 'toutes les concessions', 'registre Detail'],
       filtres: actifs, effacer: function () { f.q = ''; f.action = ''; f.tranche = ''; f.prix = ''; self.elQ.value = ''; AMX.memo.ecrire('anu_action', ''); self.rafraichir(); } });
     this.rendreKpis(liste);
-    this.rendreProfil(liste);
     this.rendreCies(liste);
     this.rendreListe(liste);
   };
@@ -459,37 +430,92 @@
     this.elKpis.appendChild(tuile(AMX.fmtNombre(baisser.length) + ' · ' + AMX.fmtNombre(monter.length), 'À baisser · à monter', baisser.length || monter.length ? signe(somme(baisser.map(function (a) { return a.ecartCible; }))) + ' · ' + signe(somme(monter.map(function (a) { return a.ecartCible; }))) : '', baisser.length ? 'neg' : ''));
     this.elKpis.appendChild(tuile(AMX.fmtNombre(gros.length), 'Envisager le gros', p.ageGros + ' j et plus', gros.length ? 'neg' : ''));
   };
-  /* Profil de prix par âge (vAuto « pricing profile ») : le % du marché moyen de chaque tranche contre le % visé. */
-  VueAnalyse.prototype.rendreProfil = function (liste) {
-    var self = this, p = this.p(), couts = voitCouts();
-    AMX.vider(this.elProfil);
-    if (!liste.length) { this.elProfil.hidden = true; return; }
-    this.elProfil.hidden = false;
-    var rangs = p.tranches.map(function (t, i) {
-      var l = liste.filter(function (a) { return a.tranche === i; });
-      return { i: i, n: l.length, part: liste.length ? l.length / liste.length * 100 : 0, ptm: moyenne(l.map(function (a) { return a.ptm; })), cible: t.cible,
-        ctm: moyenne(l.map(function (a) { return a.ctm; })), profit: moyenne(l.map(function (a) { return a.profitAff; })), baisser: l.filter(function (a) { return a.action.code === 'baisser'; }).length,
-        sansPrix: l.filter(function (a) { return a.action.code === 'sansprix'; }).length };
+  /* 18 nov. — une ligne cliquable d'un tableau-filtre (Entrée et Espace comptent comme un clic) et sa barre de part. */
+  function ligneFiltre(actif, clic, cellules, cls) {
+    return h('tr' + (cls ? '.' + cls : '') + (actif ? '.actif' : ''), { tabindex: '0', role: 'button', 'aria-pressed': actif ? 'true' : 'false', title: actif ? 'Retirer ce filtre' : 'Voir ces occasions', onclick: clic,
+      onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clic(); } } }, cellules.filter(Boolean));
+  }
+  function partEl(part, couleur) {
+    return h('div.anu-part', [h('div.anu-barre', [h('i' + (couleur ? '.' + couleur : ''), { style: 'width:' + Math.min(100, Math.round(part)) + '%' })]), h('span', { text: Math.round(part) + ' %' })]);
+  }
+  function nomEl(lib, couleur) { return h('span.anu-nom', [h('i.anu-pt' + (couleur ? '.' + couleur : '')), h('b', { text: lib })]); }
+  var TITRES_COL = { 'Occ.': 'Occasions', 'Âge moy.': 'Âge moyen (jours en stock)', 'Écart au visé': 'Somme des écarts entre notre prix et le prix visé (médiane du marché × % visé pour l\'âge).',
+    'Au coût': 'Somme des coûts de ces occasions', 'Part': 'Part des occasions de la liste', 'Visé': '% du marché visé pour cet âge (Réglages)', '% coût': 'Notre coût ÷ médiane du marché', '% du marché': 'Notre prix ÷ médiane des annonces de la même version, ajustée à notre km' };
+  function clsAge(i, tranches) { return i >= tranches.length - 2 ? 'rouge' : (i >= 2 ? 'ambre' : 'vert'); }
+  /* « Quoi faire » : la liste de travail (un conseil par ligne) et le suivi des prix. Une ligne = un filtre ; les nombres
+     tiennent compte des autres filtres (recherche, âge…), comme les pastilles d'avant. */
+  VueAnalyse.prototype.rendreQuoi = function () {
+    var self = this, f = this.f, couts = voitCouts();
+    AMX.vider(this.elQuoi);
+    var pourA = this.filtrer('action'), pourP = this.filtrer('prix');
+    var choisirA = function (code) { f.action = f.action === code ? '' : code; AMX.memo.ecrire('anu_action', f.action); self.limite = LIMITE; self.rafraichir(); };
+    var choisirP = function (code) { f.prix = f.prix === code ? '' : code; self.limite = LIMITE; self.rafraichir(); };
+    var cellules = function (l, base, lib, couleur, montant) {
+      var age = moyenne(l.map(function (a) { return a.jours; })), ec = montant ? somme(l.map(function (a) { return a.ecartCible; })) : null, ct = somme(l.map(function (a) { return a.cout; }));
+      return [h('td', [nomEl(lib, couleur)]), h('td.num', { text: AMX.fmtNombre(l.length) }), h('td.opt', [partEl(base ? l.length / base * 100 : 0, couleur)]),
+        h('td.num.opt', { text: nb(age) ? Math.round(age) + ' j' : '—' }),
+        h('td.num.' + (montant && l.length ? (ec < 0 ? 'neg' : 'bleu') : 'doux'), { text: montant && l.length ? signe(ec) : '—' }),
+        couts ? h('td.num.opt.opt2', { text: ct ? argent(ct) : '—' }) : null];
+    };
+    var corps = [];
+    ACTIONS.slice().sort(function (a, b) { return a[3] - b[3]; }).forEach(function (a) {
+      var l = pourA.filter(function (x) { return x.action.code === a[0]; });
+      if (!l.length && f.action !== a[0]) return;
+      corps.push(ligneFiltre(f.action === a[0], function () { choisirA(a[0]); }, cellules(l, pourA.length, a[1], a[2], a[0] === 'baisser' || a[0] === 'monter')));
     });
-    var tete = ['Âge', 'Occasions', 'Part du stock', '% du marché', 'Visé', couts ? '% coût' : null, 'À baisser'].filter(function (x) { return x !== null; });
-    var corps = rangs.map(function (r) {
-      var ecart = nb(r.ptm) ? r.ptm - r.cible : null, cls = !nb(ecart) ? '' : (ecart > p.tolerance ? 'neg' : (ecart < -p.tolerance ? 'bleu' : 'pos'));
-      var barre = h('div.anu-barre', { title: 'Part du stock : ' + Math.round(r.part) + ' %' }, [h('i', { style: 'width:' + Math.min(100, Math.round(r.part)) + '%' })]);
-      return h('tr' + (String(self.f.tranche) === String(r.i) ? '.actif' : ''), { tabindex: '0', title: 'Voir ces occasions', onclick: function () { self.f.tranche = String(self.f.tranche) === String(r.i) ? '' : r.i; self.rafraichir(); } }, [
-        h('td', [h('b', { text: libTranche(r.i, p.tranches) })]), h('td.num', { text: AMX.fmtNombre(r.n) }), h('td', [h('div.anu-part', [barre, h('span', { text: Math.round(r.part) + ' %' })])]),
-        h('td.num.' + (cls || 'x'), { text: pct(r.ptm) }), h('td.num.doux', { text: pct(r.cible) }),
-        couts ? h('td.num' + (nb(r.ctm) && r.ctm > p.ctmMax ? '.neg' : ''), { text: pct(r.ctm) }) : null,
-        h('td.num' + (r.baisser ? '.neg' : ''), { text: r.baisser ? String(r.baisser) : '·' })].filter(Boolean));
+    var prix = [];
+    FILTRES_PRIX.forEach(function (x) {
+      var l = pourP.filter(function (a) { return testPrix(a, x[0]); });
+      if (!l.length && f.prix !== x[0]) return;
+      prix.push(ligneFiltre(f.prix === x[0], function () { choisirP(x[0]); }, cellules(l, pourP.length, x[1], x[2], false)));
     });
+    var tete = [['Conseil', ''], ['Occ.', 'num'], ['Part', 'opt'], ['Âge moy.', 'num.opt'], ['Écart au visé', 'num'], couts ? ['Au coût', 'num.opt.opt2'] : null].filter(Boolean);
+    var ageTous = moyenne(pourA.map(function (a) { return a.jours; })), coutTous = somme(pourA.map(function (a) { return a.cout; }));
+    var pied = ligneFiltre(false, function () { if (!f.action && !f.prix) return; f.action = ''; f.prix = ''; AMX.memo.ecrire('anu_action', ''); self.limite = LIMITE; self.rafraichir(); }, [
+      h('td', { text: 'Toutes les occasions' }), h('td.num', { text: AMX.fmtNombre(pourA.length) }), h('td.opt'), h('td.num.opt', { text: nb(ageTous) ? Math.round(ageTous) + ' j' : '—' }), h('td.num.doux', { text: '' }),
+      couts ? h('td.num.opt.opt2', { text: coutTous ? argent(coutTous) : '—' }) : null]);
+    pied.title = f.action || f.prix ? 'Retirer ces filtres' : '';
+    this.elQuoi.appendChild(h('div.carte-corps', [h('div.anu-titre', [h('h3', 'Quoi faire')]),
+      h('div.anu-defile', [h('table.anu-table.anu-filtre', [
+        h('thead', [h('tr', tete.map(function (x) { return h('th' + (x[1] ? '.' + x[1] : ''), { text: x[0], title: TITRES_COL[x[0]] || '' }); }))]),
+        h('tbody', corps.length ? corps : [h('tr.anu-rien', [h('td.doux', { colspan: String(tete.length), text: 'Aucune occasion pour cette recherche.' })])]),
+        prix.length ? h('tbody.anu-suivi', [h('tr.anu-sous', [h('th', { colspan: String(tete.length), text: 'Suivi des prix' })])].concat(prix)) : null,
+        h('tfoot', [pied])].filter(Boolean))])]));
+  };
+  /* « Âge du stock » (vAuto « pricing profile ») : par tranche, le % du marché moyen contre le % visé. Une ligne = un filtre. */
+  VueAnalyse.prototype.rendreAges = function () {
+    var self = this, f = this.f, p = this.p(), couts = voitCouts();
+    AMX.vider(this.elAges);
+    var liste = this.filtrer('tranche');
+    var choisir = function (i) { f.tranche = String(f.tranche) === String(i) ? '' : i; self.limite = LIMITE; self.rafraichir(); };
+    var clsPtm = function (ptm, cible) { var e = nb(ptm) && nb(cible) ? ptm - cible : null; return !nb(e) ? 'x' : (e > p.tolerance ? 'neg' : (e < -p.tolerance ? 'bleu' : 'pos')); };
+    var corps = p.tranches.map(function (t, i) {
+      var l = liste.filter(function (a) { return a.tranche === i; }), part = liste.length ? l.length / liste.length * 100 : 0;
+      var ptm = moyenne(l.map(function (a) { return a.ptm; })), ctm = moyenne(l.map(function (a) { return a.ctm; })), baisser = l.filter(function (a) { return a.action.code === 'baisser'; }).length;
+      return ligneFiltre(String(f.tranche) === String(i), function () { choisir(i); }, [
+        h('td', [nomEl(libTranche(i, p.tranches), clsAge(i, p.tranches))]), h('td.num', { text: AMX.fmtNombre(l.length) }), h('td', [partEl(part, clsAge(i, p.tranches))]),
+        h('td.num.' + clsPtm(ptm, t.cible), { text: pct(ptm) }), h('td.num.doux.opt', { text: pct(t.cible) }),
+        couts ? h('td.num.opt' + (nb(ctm) && ctm > p.ctmMax ? '.neg' : ''), { text: pct(ctm) }) : null,
+        h('td.num' + (baisser ? '.neg' : '.doux'), { text: baisser ? String(baisser) : '·' })]);
+    });
+    var avecPtm = liste.filter(function (a) { return nb(a.ptm); });
+    var ptmT = moyenne(avecPtm.map(function (a) { return a.ptm; })), cibleT = moyenne(avecPtm.map(function (a) { return a.cible; })), ctmT = moyenne(liste.map(function (a) { return a.ctm; }));
+    var baisserT = liste.filter(function (a) { return a.action.code === 'baisser'; }).length;
+    var pied = ligneFiltre(false, function () { if (f.tranche === '') return; f.tranche = ''; self.limite = LIMITE; self.rafraichir(); }, [
+      h('td', { text: 'Tout le stock' }), h('td.num', { text: AMX.fmtNombre(liste.length) }), h('td'),
+      h('td.num.' + clsPtm(ptmT, cibleT), { text: pct(ptmT) }), h('td.num.doux.opt', { text: pct(cibleT) }),
+      couts ? h('td.num.opt' + (nb(ctmT) && ctmT > p.ctmMax ? '.neg' : ''), { text: pct(ctmT) }) : null,
+      h('td.num' + (baisserT ? '.neg' : '.doux'), { text: baisserT ? String(baisserT) : '·' })]);
+    pied.title = f.tranche === '' ? '' : 'Retirer ce filtre';
+    var tete = [['Âge', ''], ['Occ.', 'num'], ['Part', ''], ['% du marché', 'num'], ['Visé', 'num.opt'], couts ? ['% coût', 'num.opt'] : null, ['À baisser', 'num']].filter(Boolean);
     var j30 = liste.filter(function (a) { return nb(a.jours) && a.jours <= 30; }).length, j60 = liste.filter(function (a) { return nb(a.jours) && a.jours > 30 && a.jours <= 60; }).length, j60p = liste.length - j30 - j60;
-    var pc = function (n) { return Math.round(n / liste.length * 100); };
-    this.elProfil.appendChild(h('div.carte-corps', [
-      h('div.anu-titre', [h('h3', 'Profil de prix par âge')]),
-      h('div.anu-defile', [h('table.anu-table', [h('thead', [h('tr', tete.map(function (t, i) { return h('th' + (i ? '.num' : ''), { text: t }); }))]), h('tbody', corps)])]),
-      h('div.anu-repartition', { title: 'Repères : 60 à 70 % à 30 j et moins, au plus 25 % de 31 à 60 j, au plus 5 % au-delà de 60 j.' }, [
+    var pc = function (n) { return liste.length ? Math.round(n / liste.length * 100) : 0; };
+    this.elAges.appendChild(h('div.carte-corps', [h('div.anu-titre', [h('h3', 'Âge du stock')]),
+      h('div.anu-defile', [h('table.anu-table.anu-filtre', [h('thead', [h('tr', tete.map(function (x) { return h('th' + (x[1] ? '.' + x[1] : ''), { text: x[0], title: TITRES_COL[x[0]] || '' }); }))]), h('tbody', corps), h('tfoot', [pied])])]),
+      liste.length ? h('div.anu-repartition', { title: 'Repères : 60 à 70 % à 30 j et moins, au plus 25 % de 31 à 60 j, au plus 5 % au-delà de 60 j.' }, [
         h('span', [h('b', { text: pc(j30) + ' %' }), ' à 30 j et moins']),
         h('span', [h('b.' + (pc(j60) > 25 ? 'neg' : 'x'), { text: pc(j60) + ' %' }), ' de 31 à 60 j']),
-        h('span', [h('b.' + (pc(j60p) > 5 ? 'neg' : 'x'), { text: pc(j60p) + ' %' }), ' au-delà de 60 j'])])]));
+        h('span', [h('b.' + (pc(j60p) > 5 ? 'neg' : 'x'), { text: pc(j60p) + ' %' }), ' au-delà de 60 j'])]) : null].filter(Boolean)));
   };
   VueAnalyse.prototype.rendreCies = function (liste) {
     var self = this, p = this.p(), couts = voitCouts();
@@ -521,8 +547,14 @@
     AMX.vider(this.elListe);
     if (!this.detail && !this.marche) { this.elListe.appendChild(AMX.chargeur ? AMX.chargeur('Analyse des occasions', { compact: true }) : h('div.vide', 'Chargement…')); return; }
     if (!liste.length) { this.elListe.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune occasion pour ces filtres'), h('div', { text: 'Effacez les filtres ou choisissez « Tous ».' })])); return; }
-    var tetes = [['anu-veh', 'Occasion'], ['anu-age', 'Âge'], ['anu-prix', 'Notre prix'], ['anu-marche', 'Marché'], ['anu-ptm', '% du marché'], ['anu-conseil', 'Conseil'], ['anu-act', '']];
-    this.elListe.appendChild(h('div.anu-rangee.anu-tete', tetes.map(function (t) { return h('div.' + t[0], { text: t[1] }); })));
+    /* 18 nov. : un clic sur un titre de colonne trie la liste (comme le menu « Tri »). */
+    var tetes = [['anu-veh', 'Occasion', 'modele'], ['anu-age', 'Âge', 'jours'], ['anu-prix', 'Notre prix', ''], ['anu-marche', 'Marché', ''], ['anu-ptm', '% du marché', 'ptm'], ['anu-conseil', 'Conseil', 'priorite'], ['anu-act', '', '']];
+    this.elListe.appendChild(h('div.anu-rangee.anu-tete', tetes.map(function (t) {
+      if (!t[2]) return h('div.' + t[0], { text: t[1] });
+      var actif = self.f.tri === t[2];
+      return h('div.' + t[0], [h('button.anu-trier' + (actif ? '.actif' : ''), { type: 'button', title: 'Trier par ' + t[1].toLowerCase(), 'aria-pressed': actif ? 'true' : 'false', text: t[1] + (actif ? (t[2] === 'modele' ? ' ▴' : ' ▾') : ''),
+        onclick: function (e) { e.stopPropagation(); self.f.tri = t[2]; AMX.memo.ecrire('anu_tri', t[2]); self.elTri.value = t[2]; self.rafraichir(); } })]);
+    })));
     liste.slice(0, this.limite).forEach(function (a) { self.elListe.appendChild(self.rangee(a)); });
     if (liste.length > this.limite) this.elListe.appendChild(h('button.btn.anu-plus', { type: 'button', text: 'Afficher ' + Math.min(LIMITE, liste.length - this.limite) + ' de plus (' + (liste.length - this.limite) + ' restants)', onclick: function () { self.limite += LIMITE; self.rafraichir(); } }));
   };
@@ -536,7 +568,7 @@
     var veh = h('div.anu-veh', [AMX.logoMarque ? AMX.logoMarque(nomMarque(a.marque) || String(a.texte || '').split(' ')[0], 'petit') : null, h('div', [
       h('div.nom', [h('a', { href: AMX.inventaire.lien ? AMX.inventaire.lien('DETAIL', { vin: a.vin }) : '#', text: a.nom || a.vin, title: 'Ouvrir dans Occasion — ' + a.vin, onclick: function (e) { e.stopPropagation(); } }), AMX.cfxPastilles ? AMX.cfxPastilles.puce(a.vin) : null]),
       h('div.anu-ligne2', [versionEl, h('span.mini', { text: [a.stock ? '# ' + a.stock : '', COURTS[a.compagnie] || a.compagnie].filter(Boolean).join(' · ') })]),
-      alerte ? h('div.anu-alertes', [h('span.puce.' + alerte.c, { text: alerte.t, title: alerte.title || '' })]) : null])]);
+      alerte ? h('div.anu-alertes', [h('span.anu-alerte.' + alerte.c, { text: alerte.t, title: alerte.title || '' })]) : null])]);
     var age = h('div.anu-age', [h('span.anu-jours.t' + Math.min(a.tranche, 5) + (a.tranche >= p.tranches.length - 2 ? '.vieux' : ''), { text: nb(a.jours) ? a.jours + ' j' : '—', title: a.dateAjout ? 'Entré au registre le ' + AMX.fmtDate(a.dateAjout) : '' })]);
     var prix = h('div.anu-prix', [nb(a.prix) ? h('b', { text: argent(a.prix) }) : h('span.doux', { text: '—' }),
       nb(a.prixAttente) ? h('div.mini.bleu', { text: '→ ' + argent(a.prixAttente), title: 'Nouveau prix enregistré, à inscrire sur le site (favori D2C)' })
@@ -547,7 +579,8 @@
     var ptm = h('div.anu-ptm', { title: nb(a.ptm) ? 'Visé : ' + pct(a.cible) + (nb(a.rang) ? ' · ' + rangTexte(a.rang, a.n + 1) : '') : '' }, [h('b.' + clsP, { text: pct(a.ptm) }), nb(a.ptm) ? h('div.mini.doux', { text: 'visé ' + pct(a.cible) }) : null]);
     var lib = A_LIB[a.action.code] || A_LIB.ok;
     var conseilEl = h('div.anu-conseil', { title: a.action.detail || '' }, [
-      a.action.code === 'version' ? h('button.puce.' + lib.c + '.anu-action', { type: 'button', text: a.action.titre, onclick: function (e) { e.stopPropagation(); self.preciserVersion(a); } }) : h('span.puce.' + lib.c + '.anu-action', { text: a.action.titre }),
+      a.action.code === 'version' ? h('button.anu-action', { type: 'button', onclick: function (e) { e.stopPropagation(); self.preciserVersion(a); } }, [h('i.anu-pt.' + lib.c), h('span', { text: a.action.titre })])
+        : h('span.anu-action', [h('i.anu-pt.' + lib.c), h('span', { text: a.action.titre })]),
       a.action.court ? h('div.mini', { text: a.action.court }) : null]);
     var menu = AMX.menuActions ? AMX.menuActions([
       { texte: ouvert ? 'Masquer les détails' : 'Détails et comparables', action: basculer },
@@ -755,24 +788,35 @@
     if (document.getElementById('css-anu')) return;
     var s = document.createElement('style'); s.id = 'css-anu';
     s.textContent = [
-      '.inv2-filtres.anu-filtres { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; } .anu-filtres > .anu-ligne { width: 100%; min-width: 0; }',
+      '.anu-haut { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }',
+      '.anu-deux { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; } .anu-deux > .carte { margin: 0; min-width: 0; container-type: inline-size; }',
+      '.anu-filtre .anu-barre { min-width: 36px; max-width: 120px; } @container (max-width: 610px) { .anu-filtre .opt2 { display: none; } }',
+      '@media (max-width: 1100px) { .anu-deux { grid-template-columns: minmax(0, 1fr); } }',
+      '.anu-filtre tbody tr[role=button], .anu-filtre tfoot tr { cursor: pointer; } .anu-filtre tbody tr[role=button]:hover, .anu-filtre tfoot tr:hover { background: var(--fond); }',
+      '.anu-filtre tr.actif, .anu-filtre tr.actif:hover { background: var(--vert-clair); box-shadow: inset 3px 0 0 var(--vert); }',
+      '.anu-filtre tr:focus-visible { outline: 2px solid var(--vert); outline-offset: -2px; }',
+      '.anu-filtre tfoot td { border-top: 2px solid var(--trait); border-bottom: 0; font-weight: 600; }',
+      '.anu-filtre .anu-sous th { padding-top: 14px; text-transform: uppercase; letter-spacing: .04em; }',
+      '.anu-nom { display: inline-flex; align-items: center; white-space: nowrap; } .anu-nom b { font-weight: 600; }',
+      '.anu-barre i.rouge { background: var(--rouge); } .anu-barre i.ambre { background: var(--ambre); } .anu-barre i.bleu { background: var(--bleu); } .anu-barre i.gris { background: var(--encre-4); }',
+      '.anu-table .doux { color: var(--encre-4); }',
+      '@media (max-width: 640px) { .anu-filtre .opt, .anu-filtre .anu-barre { display: none; } .anu-filtre th, .anu-filtre td { padding-left: 5px; padding-right: 5px; } .anu-filtre th { white-space: normal; } .anu-filtre .anu-nom { white-space: normal; } .anu-filtre .anu-part span { min-width: 0; } }',
+      '.anu-trier { all: unset; cursor: pointer; } .anu-trier:hover, .anu-trier.actif { color: var(--encre); } .anu-trier:hover { text-decoration: underline; } .anu-trier:focus-visible { outline: 2px solid var(--vert); outline-offset: 2px; }',
       '.anu-ligne { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }',
       '.anu-stat { border: 1px solid var(--ligne); border-radius: 10px; background: var(--carte, #fff); padding: 12px 14px; margin: 10px 0; } .anu-stat-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 8px; } .anu-stat-tete .n { font-size: 24px; font-weight: 800; line-height: 1; } .anu-stat-tete b { font-size: 14px; } .anu-stat-tete .doux { font-size: 13px; color: var(--encre-3); } .anu-stat-grille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; } .anu-stat-col .l { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--encre-3); } .anu-stat-col .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; } .anu-stat-col .m { font-size: 12px; color: var(--encre-3); font-variant-numeric: tabular-nums; } @media (max-width: 560px) { .anu-stat-grille { grid-template-columns: 1fr; gap: 6px; } }',   /* 6 nov. : bloc « véhicules similaires sur le marché » */
       '.anu-ligne .recherche { flex: 1 1 320px; max-width: 520px; } .anu-ligne #anu-tri { flex: 0 0 auto; width: auto; }',
-      '.anu-lib { font-size: 12px; font-weight: 600; color: var(--encre-3); text-transform: uppercase; letter-spacing: .04em; min-width: 58px; }',
       '.anu-pt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--encre-4); }',
       '.anu-pt.rouge { background: var(--rouge); } .anu-pt.vert { background: var(--vert); } .anu-pt.bleu { background: var(--bleu); } .anu-pt.ambre { background: var(--ambre); }',
       '.kpis.anu-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); overflow: visible; } .kpis.anu-kpis .kpi { min-width: 0; } .kpis.anu-kpis .kpi:nth-child(5n) { border-right: 0; }',
       '@media (max-width: 1100px) { .kpis.anu-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kpis.anu-kpis .kpi { border-bottom: 1px solid var(--ligne); } } @media (max-width: 700px) { .kpis.anu-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
-      '.anu-profil, .anu-cies { margin-bottom: 14px; }',
+      '.anu-cies { margin-bottom: 14px; }',
       '.anu-titre { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 8px; } .anu-titre h3 { margin: 0; font-size: 15px; }',
       '.anu-defile { overflow-x: auto; }',
       '.anu-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }',
       '.anu-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--encre-3); padding: 6px 8px; border-bottom: 1px solid var(--trait); white-space: nowrap; }',
       '.anu-table td { padding: 7px 8px; border-bottom: 1px solid var(--trait); vertical-align: middle; }',
       '.anu-table th.num, .anu-table td.num { text-align: right; white-space: nowrap; }',
-      '.anu-profil tbody tr, .anu-cies tbody tr { cursor: pointer; } .anu-profil tbody tr:hover, .anu-cies tbody tr:hover { background: var(--fond); }',
-      '.anu-profil tbody tr.actif { background: var(--vert-clair); }',
+      '.anu-cies tbody tr { cursor: pointer; } .anu-cies tbody tr:hover { background: var(--fond); }',
       '.anu-part { display: flex; align-items: center; gap: 8px; } .anu-part span { font-variant-numeric: tabular-nums; min-width: 38px; }',
       '.anu-barre { flex: 1 1 auto; min-width: 60px; max-width: 160px; height: 8px; border-radius: 4px; background: var(--fond-2, #EEF1F4); overflow: hidden; }',
       '.anu-barre i { display: block; height: 100%; background: var(--vert); }',
@@ -783,9 +827,13 @@
       '  grid-template-columns: minmax(240px, 2.2fr) 70px 110px 120px 100px minmax(170px, 1.3fr) 40px; }',
       '.anu-rangee:hover { background: var(--fond); } .anu-rangee.ouvert { background: var(--fond); }',
       '.anu-ligne2 { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin-top: 3px; }',
-      '.anu-version { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #E3EEFB; color: var(--bleu); border: 0; }',
-      'button.anu-version.manque { background: #FFF4DB; color: var(--ambre); cursor: pointer; } button.anu-version.manque:hover { text-decoration: underline; }',
-      'button.anu-action { border: 0; cursor: pointer; font: inherit; }',
+      /* 18 nov. : plus de bulles dans les lignes — du texte, la couleur seulement là où elle dit quelque chose. */
+      '.anu-version { font-size: 12px; font-weight: 600; color: var(--encre-3); border: 0; background: none; padding: 0; }',
+      'button.anu-version.manque { color: var(--ambre); cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; text-decoration: underline; }',
+      '.anu-action { display: inline-flex; align-items: center; font-weight: 600; color: var(--encre); background: none; padding: 0; text-align: left; } .anu-action .anu-pt { flex: none; }',
+      'button.anu-action { border: 0; cursor: pointer; font: inherit; font-weight: 600; } button.anu-action span { text-decoration: underline; }',
+      '.anu-alerte { font-size: 12px; font-weight: 600; color: var(--encre-3); } .anu-alerte.rouge { color: var(--rouge); } .anu-alerte.ambre { color: var(--ambre); } .anu-alerte.bleu { color: var(--bleu); } .anu-alerte.vert { color: var(--vert-fonce); }',
+      '.anu-page .anu-rangee .cfx-pastille { background: none; padding: 0; margin: 0 0 0 8px; font-weight: 600; }',
       '.anu-details { grid-column: 1 / -1; cursor: default; background: var(--blanc, #fff); border: 1px solid var(--trait); border-radius: 8px; padding: 10px 12px; }',
       '.anu-det-actions { margin-bottom: 10px; } .anu-prix .mini.bleu { color: var(--bleu); font-weight: 600; }',
       '.anu-dets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 14px; margin-bottom: 10px; }',
@@ -796,11 +844,11 @@
       '.anu-rangee.anu-tete { border-top: 0; background: var(--fond); font-size: 12px; font-weight: 600; color: var(--encre-3); text-transform: uppercase; letter-spacing: .04em; }',
       '.anu-rangee .mini { font-size: 12px; color: var(--encre-3); margin-top: 2px; } .anu-rangee .mini.doux, .anu-rangee .doux { color: var(--encre-4); }',
       '.anu-veh { display: flex; gap: 10px; align-items: flex-start; min-width: 0; } .anu-veh .nom a { font-weight: 600; color: var(--encre); text-decoration: none; } .anu-veh .nom a:hover { text-decoration: underline; }',
-      '.anu-alertes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; } .anu-alertes .puce { font-size: 12px; }',
-      '.anu-jours { display: inline-block; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--vert-clair); color: var(--vert-fonce); font-variant-numeric: tabular-nums; }',
-      '.anu-jours.t2, .anu-jours.t3 { background: #FFF4DB; color: var(--ambre); } .anu-jours.vieux { background: #FDE2E2; color: var(--rouge); }',
+      '.anu-alertes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }',
+      '.anu-jours { font-size: 15px; font-weight: 700; color: var(--vert-fonce); font-variant-numeric: tabular-nums; }',
+      '.anu-jours.t2, .anu-jours.t3 { color: var(--ambre); } .anu-jours.vieux { color: var(--rouge); }',
       '.anu-ptm b, .anu-marche b, .anu-prix b { font-size: 15px; font-variant-numeric: tabular-nums; }',
-      '.anu-action { font-weight: 600; } .anu-page .puce.rouge { background: #FDE2E2; color: var(--rouge); } .anu-page .puce.ambre { background: #FFF4DB; color: var(--ambre); } .anu-page .puce.bleu { background: #E3EEFB; color: var(--bleu); } .anu-page .puce.vert { background: var(--vert-clair); color: var(--vert-fonce); }',
+      '.anu-page .puce.rouge { background: #FDE2E2; color: var(--rouge); } .anu-page .puce.ambre { background: #FFF4DB; color: var(--ambre); } .anu-page .puce.bleu { background: #E3EEFB; color: var(--bleu); } .anu-page .puce.vert { background: var(--vert-clair); color: var(--vert-fonce); }',
       '.anu-act { display: flex; justify-content: flex-end; }',
 
       '.anu-plus { margin: 12px auto; display: block; }',

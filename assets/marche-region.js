@@ -6,7 +6,7 @@
 
    - AMX.marcheRegion : charger, copie, enCache, famille, segment, pourVehicule, bloc (tuile « Par concession » de
      l'évaluation), tuile (petit texte de la tuile), mds (vitesse du marché MarketCheck autour de chaque concession).
-   - Section « marcheregion » : Inventaire › Occasion › Marché par région (Par genre · Par modèle · Tendances).
+   - Section « marcheregion » : Inventaire › Occasion › Évaluations › Marché par région (18 nov. : une vue d'Évaluations, plus un onglet à part).
    Règle v138 : filtres (indicateur) → « Chiffres et liste » → tableau. Montants seulement avec le droit (d.montants). */
 (function () {
   'use strict';
@@ -168,8 +168,10 @@
     if (!r || !r.lignes.length) { conteneur.appendChild(h('p.eval-note', { text: (r && r.raison ? r.raison + ' : ' : '') + 'entrez la marque, le modèle et l\'année.' })); return; }
     var titre = h('div.mrg-titre', [
       h('b', { text: nomSegment(d, r.seg) }),
-      h('span', { text: ' · ' + (v.marque || '') + ' ' + (v.modele || '') + ' ' + r.an + (r.km ? ' · ' + AMX.fmtNombre(r.km) + ' km' : '') })
-    ]);
+      h('span', { text: ' · ' + (v.marque || '') + ' ' + (v.modele || '') + ' ' + r.an + (r.km ? ' · ' + AMX.fmtNombre(r.km) + ' km' : '') }),
+      /* 18 nov. : de l'évaluation, un clic ouvre tout le marché de ce modèle (vue « Marché par région » d'Évaluations). */
+      opts.lienMarche && r.fam && AMX.lien ? h('a.mrg-lien-marche', { href: AMX.lien('inventaire', 'evaluations', { vue: 'marche', modele: r.fam + '|' + r.an }), text: 'Tout le marché de ce modèle ›' }) : null
+    ].filter(Boolean));
     var m = d.montants;
     var cols = [['Concession', ''], ['Marché local', 'Prix médian AFFICHÉ des annonces du même modèle-année dans ' + (d.rayonKm || 60) + ' km, ramené à votre km'],
       ['Vendu à', 'Ce que la concession obtient d\'habitude : prix de vente ÷ prix affiché du marché (ventes des 6 derniers mois)'], ['Prix attendu', 'Marché local × % obtenu par la concession']];
@@ -256,6 +258,14 @@
     this.vue = VUES.some(function (x) { return x[0] === p.voir; }) ? p.voir : (AMX.memo.lire('mrg_vue2', 'apercu') || 'apercu');
     if (!VUES.some(function (x) { return x[0] === self.vue; })) this.vue = 'apercu';
     this.mod = p.modele ? String(p.modele) : '';
+    /* 18 nov. (Maxime : « l'analyse doit se rapporter au modèle que l'on évalue ») : ouverte depuis l'évaluation d'un véhicule
+       (onglet « Marché par région », lien du panneau « Par concession », ou adresse avec ?vin=), la page s'ouvre sur la fiche de
+       ce modèle-année, à son km, avec le retour à l'évaluation. */
+    this.vin = p.vin ? String(p.vin).toUpperCase() : '';
+    this.evalue = null;
+    var ec = AMX.evaluationCourante;
+    if (ec && ((this.vin && ec.vin === this.vin) || (!this.vin && ec.quitteLe && Date.now() - ec.quitteLe < 4000))) this.evalue = ec;
+    else if (this.vin) { this.evalue = { vin: this.vin, adresse: AMX.lien('outils', 'evaluation', { vin: this.vin }) }; if (!this.mod) this.lireEvalue(); }
     this.segSaison = AMX.memo.lire('mrg_seg_saison', 'tous') || 'tous'; this.indChaleur = AMX.memo.lire('mrg_ind_chaleur', 'joursMed') || 'joursMed';
     this.ind = AMX.memo.lire('mrg_ind', 'joursMed') || 'joursMed';
     this.q = p.q || '';
@@ -268,6 +278,27 @@
     copie().then(function () { self.rendre(); });
     this.charger(false);
   }
+  /* Adresse ouverte avec un NIV seulement (rechargement, lien) : l'évaluation enregistrée, sinon le décodeur. */
+  Vue.prototype.lireEvalue = function () {
+    var self = this, vin = this.vin;
+    var poser = function (o) { if (!o || !o.marque || !o.modele || !o.annee || self.vin !== vin) return false; self.evalue = { vin: vin, marque: o.marque, modele: o.modele, annee: o.annee, km: o.km || '', adresse: self.evalue.adresse }; self.evalueFait = false; self.rendre(); return true; };
+    AMX.get({ evalVin: vin }, { discret: true }).then(function (d) { return (d && d.trouve && poser(d.donnees || {})) || AMX.get({ decoder: vin }, { discret: true }).then(function (x) { poser(x && x.ok ? x : null); }); }).catch(function () {});
+  };
+  /* Le modèle-année du véhicule évalué, une fois les données là (la famille se lit dans la réponse du serveur). */
+  Vue.prototype.resoudreEvalue = function () {
+    var d = cache.d, e = this.evalue;
+    if (!d || !e || !e.marque || this.evalueFait) return;
+    this.evalueFait = true;
+    var fam = famille(d, e.marque, e.modele), an = nombre(e.annee);
+    e.nom = [an || '', e.marque, e.modele].filter(Boolean).join(' ');
+    if (!fam || !an) return;
+    e.mod = fam + '|' + an;
+    if (!this.mod) {
+      this.mod = e.mod;
+      var q = { vue: 'marche', modele: e.mod }; if (e.vin) q.vin = e.vin;
+      try { history.replaceState(null, '', AMX.lien('inventaire', 'evaluations', q)); } catch (x) {}
+    }
+  };
   Vue.prototype.demonter = function () { document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:marcheRegion', this.surDonnees); };
   Vue.prototype.charger = function (force) {
     var self = this; this.erreur = '';
@@ -306,6 +337,7 @@
     var self = this, d = cache.d;
     AMX.barreConcessions(this.elCies, { domaine: 'evaluations', valeur: this.compagnie, onchange: function (c) { AMX.choisirCompagnie(c); } });
     if (!d) { this.elSous.textContent = this.erreur ? 'Lecture impossible : ' + this.erreur : 'Chargement…'; AMX.vider(this.elCorps); if (!this.erreur) this.elCorps.appendChild(AMX.chargeur('Marché par région')); return; }
+    this.resoudreEvalue();
     var sem = (d.semaines || []).length;
     this.elSous.textContent = ['Ventes des 12 derniers mois', d.lecture && d.lecture.le ? 'annonces du ' + AMX.fmtDateCourte(d.lecture.le) + ' (' + AMX.fmtNombre(d.lecture.n || 0) + ')' : 'aucune lecture du marché', sem + ' semaine' + (sem > 1 ? 's' : '') + ' de prix', cache.copieLe ? 'copie du navigateur — mise à jour en cours…' : ''].filter(Boolean).join(' · ') + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : '');
     AMX.vider(this.elVues);
@@ -657,7 +689,8 @@
 
   /* ---------- La fiche d'un modèle-année ---------- */
   Vue.prototype.allerModele = function (k) {
-    var base = String(location.hash || '#/inventaire/marcheregion').split('?')[0], cible = base + (k ? '?modele=' + encodeURIComponent(k) : '');
+    /* 18 nov. : la page est une vue d'Évaluations (#/inventaire/evaluations?vue=marche) — l'adresse garde la vue. */
+    var cible = AMX.lien('inventaire', 'evaluations', k ? { vue: 'marche', modele: k } : { vue: 'marche' });
     if (location.hash === cible) { this.naviguer({ params: { modele: k } }); return; }
     location.hash = cible;
     var self = this; setTimeout(function () { if ((self.mod || '') !== k) self.naviguer({ params: { modele: k } }); }, 60);
@@ -675,12 +708,17 @@
   Vue.prototype.rendreFiche = function () {
     var self = this, d = cache.d, k = this.mod, p = k.split('|'), fam = p[0], an = Number(p[1]), seg = segment(d, fam), corps = this.elCorps;
     this.elPortee.hidden = true;
-    corps.appendChild(h('button.btn.fantome.mrg-retour', { type: 'button', text: '‹ Retour à l\'aperçu', onclick: function () { self.allerModele(''); } }));
+    /* 18 nov. : le véhicule qu'on évalue — retour à son évaluation, et l'encan ramené à son km. */
+    var ev = this.evalue && (!this.evalue.mod || this.evalue.mod === k) ? this.evalue : null, kmEv = ev && nombre(ev.km) ? nombre(ev.km) : null;
+    corps.appendChild(h('div.mrg-retours', [
+      ev && ev.adresse ? h('a.btn.primaire.mrg-retour-eval', { href: ev.adresse, text: '‹ Retour à l\'évaluation' }) : null,
+      h('button.btn.fantome.mrg-retour', { type: 'button', text: ev ? 'Tout le marché par région' : '‹ Retour à l\'aperçu', onclick: function () { self.evalue = null; self.vin = ''; self.allerModele(''); } })].filter(Boolean)));
     corps.appendChild(h('h2.mrg-fiche-titre', [h('span', { text: nomFamille(fam) + ' ' + an }), h('small', { text: ' ' + nomSegment(d, seg) })]));
-    var enc = encanPour(d, fam, an, null), ajd = new Date();
+    if (ev && ev.marque) corps.appendChild(h('p.mrg-evalue', [h('b', 'Le véhicule que vous évaluez : '), (ev.nom || '') + (kmEv ? ' · ' + AMX.fmtNombre(kmEv) + ' km' : '') + (ev.vin ? ' · NIV …' + ev.vin.slice(-8) : '')]));
+    var enc = encanPour(d, fam, an, kmEv), ajd = new Date();
     var proj = enc ? [30, 60, 90].map(function (j) { return projeter(d, seg, enc.valeur, j, ajd); }).filter(Boolean) : [];
     var t = enc && enc.t;
-    var tuiles = [h('div.mrg-tuile', [h('b', { text: enc ? AMX.fmtArgent(centaine(enc.valeur)) : '—' }), h('span', { text: enc ? 'à l\'encan aujourd\'hui (' + AMX.fmtNombre(t.kmRef || 0) + ' km)' : 'pas assez de ventes à l\'encan' })])];
+    var tuiles = [h('div.mrg-tuile', [h('b', { text: enc ? AMX.fmtArgent(centaine(enc.valeur)) : '—' }), h('span', { text: enc ? 'à l\'encan aujourd\'hui (' + AMX.fmtNombre(kmEv || t.kmRef || 0) + ' km' + (kmEv ? ', le km du véhicule évalué' : '') + ')' : 'pas assez de ventes à l\'encan' })])];
     proj.forEach(function (x) { var dif = (x.valeur / enc.valeur - 1) * 100; tuiles.push(h('div.mrg-tuile' + (dif <= -2 ? '.rouge' : (dif > 0.5 ? '.bleu' : '')), [h('b', { text: '≈ ' + AMX.fmtArgent(centaine(x.valeur)) }), h('span', { text: 'dans ' + x.jours + ' jours (' + signePct(dif, true) + ')' })])); });
     if (t && t.pente30 !== undefined && t.pente30 !== null) tuiles.push(h('div.mrg-tuile' + (t.pente30 < -1.5 ? '.rouge' : ''), [h('b', { text: signePct(t.pente30, true) + ' / mois' }), h('span', { text: 'tendance récente à l\'encan (' + t.n + ' ventes)' })]));
     corps.appendChild(h('div.mrg-tuiles', tuiles));
@@ -711,7 +749,7 @@
     }, function (e) { AMX.vider(zone); zone.appendChild(h('p.mrg-note', { text: 'Lecture impossible : ' + AMX.erreurTexte(e) })); });
     // Où le vendre : la même table que la tuile de l'évaluation.
     var c = h('section.mrg-carte', [h('h3', 'Où le vendre')]);
-    var zb = h('div'); c.appendChild(zb); bloc(zb, { marque: /^serie\d$/.test(fam) ? 'BMW' : '', modele: nomFamille(fam), annee: an, cie: self.compagnie || '' }, {});
+    var zb = h('div'); c.appendChild(zb); bloc(zb, { marque: ev && ev.marque ? ev.marque : (/^serie\d$/.test(fam) ? 'BMW' : ''), modele: ev && ev.modele ? ev.modele : nomFamille(fam), annee: an, km: kmEv || '', cie: self.compagnie || '' }, {});   /* 18 nov. : au km du véhicule évalué */
     corps.appendChild(c);
   };
   Vue.prototype.remplirListe = function () {
@@ -806,7 +844,8 @@
       '.puce-cie.vert{background:var(--vert,#008840)}.puce-cie.bleu{background:var(--bleu,#1A64BF)}.puce-cie.violet{background:#6b4fbb}.puce-cie.sombre{background:#141A1F}.puce-cie.ambre{background:var(--ambre,#955F10)}',
       '.mrg-badge{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--fond-2,#eef0f3);color:var(--encre-2,#333)}',
       '.mrg-badge.vert{background:var(--vert-clair,#eaf6ef);color:var(--vert-fonce,#00632f)}.mrg-badge.bleu{background:#e8f0fb;color:var(--bleu,#1A64BF)}',
-      '.mrg-titre{margin:0 0 10px;font-size:15px}',
+      '.mrg-titre{margin:0 0 10px;font-size:15px}', '.mrg-lien-marche{margin-left:12px;font-size:13.5px;font-weight:600;white-space:nowrap}',
+      '.mrg-retours{display:flex;flex-wrap:wrap;gap:8px;margin:12px 12px 0}.mrg-retours .mrg-retour{margin:0}', '.mrg-evalue{margin:6px 16px 0;font-size:14px;color:var(--encre-2,#344054)}',
       '.mrg-pied{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px}',
       '.mrg-tendance{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--encre-2,#333)}',
       '.mrg-courbe{color:var(--bleu,#1A64BF);flex:none}',

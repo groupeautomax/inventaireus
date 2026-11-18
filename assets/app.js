@@ -1182,13 +1182,12 @@
       { id: 'occasion', titre: 'Occasion', hub: true, icone: 'voiture', couleur: 'bleu', desc: 'L\'inventaire d\'occasion et ses outils : choisissez une page.' },   /* neutre : un vendeur n'y voit que deux tuiles */
       { id: 'usage', titre: 'Inventaire occasion', de: 'inventaire', onglet: 'usage', parent: 'occasion', icone: 'voiture', couleur: 'vert', desc: 'Les registres É.-U., Canada et Detail : statut, # stock, coût, photos, rapports.' },
       { id: 'analyse', titre: 'Analyse', de: 'analyse', onglet: '', parent: 'occasion', icone: 'resultat', couleur: 'bleu', desc: 'Le prix de chaque occasion face au marché : % du marché, rang, jours, conseil.' },   /* 24 oct. : façon vAuto (analyse-usage.js) */
-      { id: 'marcheregion', titre: 'Marché par région', de: 'marcheregion', onglet: '', parent: 'occasion', icone: 'resultat', couleur: 'sarcelle', ouvrir: 'Comparer les concessions', desc: 'Ce que chaque concession réussit sur chaque genre de véhicule : jours, % du marché, détail ou gros, recon, et la tendance des prix.' },   /* 17 nov. : S83B4F8D1F5 (marche-region.js, MarcheRegion.gs) */
       { id: 'achat', titre: 'Fiche d\'achat', de: 'achat', onglet: '', parent: 'occasion', icone: 'achat', couleur: 'ambre', desc: 'Inscrire un achat ou un échange : le véhicule entre au registre et suit partout.' },
       /* 10 nov. (Maxime : « un rapport par concession pour les échanges chaque semaine par conseiller des ventes, et un rapport pour
          les acheteurs ») : rapports-occasion.js, RapportsOccasion.gs ; le courriel du lundi se règle sur la page. */
       { id: 'rapportsocc', titre: 'Rapports', de: 'rapportsocc', parent: 'occasion', icone: 'resultat', couleur: 'sarcelle', desc: 'Les échanges par conseiller des ventes, les achats par acheteur, et les échanges haussés après l\'évaluation.',
         vues: [{ id: 'echanges', titre: 'Échanges' }, { id: 'achats', titre: 'Achats' }, { id: 'hausses', titre: 'Hausses d\'échange' }] },   /* 10 nov. : HaussesEchange.gs */
-      { id: 'evaluations', titre: 'Évaluations', de: 'outils', parent: 'occasion', icone: 'outils', couleur: 'violet',
+      { id: 'evaluations', titre: 'Évaluations', de: 'outils', parent: 'occasion', icone: 'outils', couleur: 'violet', vuesIndependantes: true,
         desc: function () { return AMX.voitEvaluations() ? 'Demander, évaluer, approuver et confirmer les évaluations.' : 'Demander une évaluation et recevoir la valeur.'; },
         visible: function () { return AMX.voitEvaluations() || AMX.representantEval(); },
         /* 3 nov. : un seul endroit pour les évaluations. Le représentant (vendeur, BDC) n'y voit que « Mes demandes » (son
@@ -1199,10 +1198,17 @@
         vues: [
           { id: 'portail', titre: 'Évaluations', de: 'evalPortail', onglet: '', visible: function () { return AMX.representantEval(); } },
           { id: 'demandes', titre: 'Évaluations', de: 'demandesEval', onglet: '' },
+          /* 18 nov. (Maxime : « il faut que l'onglet Marché par région soit un onglet disponible dans la fenêtre d'évaluation et
+             non un onglet séparé ») : une vue d'Évaluations (marche-region.js). `vuesIndependantes` : les vues sont des pages
+             distinctes — l'onglet s'ouvre toujours sur la première (la liste) et passer de l'une à l'autre n'emporte pas les paramètres. */
+          { id: 'marche', titre: 'Marché par région', de: 'marcheregion', onglet: '', visible: function () { return AMX.voitEvaluations() && !AMX.ongletCache('inventaire/marcheregion'); } },
           { id: 'evaluation', titre: 'Évaluer un véhicule', cachee: true, visible: function () { return AMX.voitEvaluations(); } },
           { id: 'evaluations', titre: 'Registre', cachee: true, visible: function () { return AMX.voitEvaluations(); } },
           { id: 'torque', titre: 'Archive Torque', cachee: true, visible: function () { return AMX.voitEvaluations(); } }
         ] },   /* 27 oct. : Demandes = le board de l'évaluateur et du représentant (demandes-eval.js) */
+      /* 18 nov. : « Marché par région » n'est plus un onglet d'Occasion (voir la vue « marche » d'Évaluations). L'entrée reste, hors des
+         menus, pour la clé de rôle 'inventaire/marcheregion' (Admin, Onglets.gs) et AMX.voitOnglet ; son adresse mène à la vue (routeur). */
+      { id: 'marcheregion', titre: 'Marché par région', de: 'marcheregion', onglet: '', parent: 'occasion', icone: 'resultat', couleur: 'sarcelle', horsMenu: function () { return true; } },   /* 17 nov. : S83B4F8D1F5 (marche-region.js, MarcheRegion.gs) */
       /* 10 nov. (Maxime : « un outil dans le site avec un NIV et un km pour calculer les locations uniquement pour BMW ; ce
          programme est bon nov et déc ») : le programme de location de BMW Services financiers pour les BMW d'occasion
          (location-bmw.js ; la grille et les taux restent dans le script, LocationBmw.gs). Comptes qui voient BMW Sherbrooke et
@@ -1304,7 +1310,7 @@
     var vis = vuesVisibles(o); if (!vis.length) return '';
     var demandee = String((params && params.vue) || '');
     if (vuesVisibles(o, true).some(function (v) { return v.id === demandee; })) return demandee;
-    var memo = String(AMX.memo.lire('vue_' + tuile.id + '_' + o.id, '') || '');
+    var memo = o.vuesIndependantes ? '' : String(AMX.memo.lire('vue_' + tuile.id + '_' + o.id, '') || '');   /* 18 nov. : vues indépendantes = toujours la première (Évaluations : la liste) */
     if (vis.some(function (v) { return v.id === memo; })) return memo;
     return vis[0].id;
   }
@@ -1407,7 +1413,7 @@
       var cle = o.cle || (t.id + '/' + (o.id || ''));   /* `cle` : clé de rôle gardée par une page qui a changé de tuile */
       var enfants = function () { return def.onglets.filter(function (e) { return e.parent === o.id; }); };
       return {
-        id: o.id, titre: o.titre, de: o.de, onglet: o.onglet, fixes: o.fixes, vues: o.vues, monter: o.monter,
+        id: o.id, titre: o.titre, de: o.de, onglet: o.onglet, fixes: o.fixes, vues: o.vues, monter: o.monter, vuesIndependantes: !!o.vuesIndependantes,
         hub: !!o.hub, racine: !!o.racine, parent: o.parent || '', icone: o.icone, couleur: o.couleur, ouvrir: o.ouvrir || '', cle: cle,
         desc: function () { try { return typeof o.desc === 'function' ? o.desc() : (o.desc || ''); } catch (e) { return ''; } },
         horsMenu: function () { try { return !!(o.horsMenu && o.horsMenu()); } catch (e) { return false; } },
@@ -1641,6 +1647,8 @@
     // représentant). Les liens des courriels et textos déjà envoyés (DemandesEval.gs) passent par ici.
     // 4 nov. : « Échanges de neufs » a quitté Vente — la bulle « Échanges » d'Inventaire › Neufs.
     if (r.section === 'vente' && r.onglet === 'echanges') { var px = { onglet: 'echanges' }; Object.keys(r.params || {}).forEach(function (k) { if (k !== 'seul') px[k] = r.params[k]; }); AMX.aller('inventaire', 'neufs', px); return; }
+    // 18 nov. : « Marché par région » a quitté les onglets d'Occasion — une vue d'Évaluations.
+    if (r.section === 'inventaire' && r.onglet === 'marcheregion') { var pm = { vue: 'marche' }; Object.keys(r.params || {}).forEach(function (k) { if (k !== 'vue') pm[k] = r.params[k]; }); AMX.aller('inventaire', 'evaluations', pm); return; }
     if (r.section === 'vente' && r.onglet === 'evaldemandes') { var pe = { vue: 'portail' }; Object.keys(r.params || {}).forEach(function (k) { pe[k] = r.params[k]; }); AMX.aller('inventaire', 'evaluations', pe); return; }
     // 21 oct. : anciennes sections (offres, resultat, achat, avis, csi, admin…) et anciens onglets → leur tuile.
     var trad = AMX.traduire(r.section, r.onglet, r.params);
@@ -2328,7 +2336,7 @@
         var seg = h('div.vues.segment', { role: 'group', 'aria-label': ong.titre });
         vis.forEach(function (v) {
           var s = sourceDeVue(ong, v), c = s.de ? compteurSource(AMX.sources[s.de] || AMX.sections[s.de], s.onglet) : '';
-          var p = {}; Object.keys((AMX.courante && AMX.courante.params) || {}).forEach(function (k) { if (k !== 'vue') p[k] = AMX.courante.params[k]; }); p.vue = v.id;
+          var p = {}; if (!ong.vuesIndependantes) Object.keys((AMX.courante && AMX.courante.params) || {}).forEach(function (k) { if (k !== 'vue') p[k] = AMX.courante.params[k]; }); p.vue = v.id;   /* 18 nov. : pas pour des vues indépendantes */
           seg.appendChild(h('a' + (v.id === courante ? '.actif' : ''), { href: AMX.lien(sec.id, ong.id, p), 'data-vue': v.id }, [v.titre, (c !== '' && c !== null && c !== undefined) ? h('span.compteur', { text: String(c) }) : null]));
         });
         sb.appendChild(seg);

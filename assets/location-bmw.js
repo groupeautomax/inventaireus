@@ -309,22 +309,33 @@
      un script d'avant : lu au plus 6 h avant la lecture la plus récente. `tous` garde les autres, pour dire pourquoi un NIV
      tapé n'est plus proposé. */
   var FS_FENETRE_MS = 6 * 3600000;
-  function bmwfsDisponibles(fiches) {
-    var vus = {}, out = [], maxLu = 0, serveur = false;
+  /* 18 nov. (Maxime : « les unités de BMW FS dans l'onglet Location ne doivent pas disparaître mais juste être rafraîchies ») :
+     les ventes de BMW FS finissent toutes à la même date ; le lendemain, le serveur les disait « vente terminée » et la liste
+     se vidait jusqu'au prochain clic du favori (lecture du 15 nov., ventes finies le 16 : plus rien les 17 et 18). Une vente
+     terminée ne retire donc plus une unité : elle reste, à son dernier prix lu, marquée « à rafraîchir » (x.finie), tant
+     qu'elle a été vue au dernier passage complet du favori (regle.depuis de ?manheim=1 ; sinon 6 h avant la lecture la plus
+     récente). Seules partent : une unité qu'un passage complet plus récent n'a pas revue (vendue ou retirée) et une unité
+     achetée par nous. Le prochain clic du favori rafraîchit le prix, la fin de vente et retire les vendues. */
+  function bmwfsDisponibles(fiches, regle, maintenant) {
+    var vus = {}, out = [], maxLu = 0, serveur = false, now = maintenant || Date.now();
     (fiches || []).forEach(function (f) { if (f && f.type === 'dispo') { var t = Date.parse(f.luLe || '') || 0; if (t > maxLu) maxLu = t; if (f.aVendre !== undefined) serveur = true; } });
+    var depuis = Date.parse((regle && regle.depuis) || '') || (maxLu ? maxLu - FS_FENETRE_MS : 0);
     (fiches || []).forEach(function (f) {
       if (!f || f.type !== 'dispo') return;
       var vin = cleRech(f.vin);
       if (vin.length !== 17 || vus[vin]) return;
       vus[vin] = 1;
       var t = Date.parse(f.luLe || '') || 0, txt = [f.modele, f.version].filter(Boolean).join(' ');
-      var actuel = serveur ? f.aVendre === true : (!!maxLu && t >= maxLu - FS_FENETRE_MS);
+      var fin = Date.parse(f.finVente || '') || 0, finie = !!fin && fin < now;
+      var actuel = serveur ? (f.aVendre === true || (f.horsVente === 'venteFinie' && !!t && !!depuis && t >= depuis)) : (!!maxLu && t >= maxLu - FS_FENETRE_MS);
       out.push({ f: f, vin: vin, annee: Number(f.annee) || anneeDe(txt), serie: serieDe(txt), bmw: /^BMW$/i.test(String(f.marque || '').trim()), actuel: actuel,
+        finie: actuel && (finie || f.horsVente === 'venteFinie'),
         hors: actuel ? '' : (serveur ? (f.horsVente || 'plusVu') : 'plusVu') });
     });
     var hors = { plusVu: 0, achete: 0, venteFinie: 0 };
     out.forEach(function (x) { if (!x.actuel && hors[x.hors] !== undefined) hors[x.hors]++; });
-    return { liste: out.filter(function (x) { return x.actuel; }), tous: out, hors: hors, serveur: serveur, lu: maxLu ? new Date(maxLu).toISOString() : '' };
+    var liste = out.filter(function (x) { return x.actuel; });
+    return { liste: liste, tous: out, hors: hors, serveur: serveur, lu: maxLu ? new Date(maxLu).toISOString() : '', aRafraichir: liste.filter(function (x) { return x.finie; }).length };
   }
   /* 15 nov. (« il faut suivre l'évolution du prix ») — le prix demandé du jour, le premier prix vu, le dernier changement.
      L'historique vient du serveur (prixHisto : [[AAAA-MM-JJ, prix], …], un point à chaque changement). */
@@ -351,7 +362,7 @@
     return [f.annee, f.marque, mo, v].filter(Boolean).join(' ');
   }
   /* Une fiche de BMW FS sous la forme d'une ligne de registre : pour la recherche par la fin du NIV. */
-  function fsCommeInv(x) { return { vin: x.vin, stock: '', modele: texteFs(x.f), statut: '', _feuille: 'BMWFS', compagnie: '', _bmwfs: x.f }; }
+  function fsCommeInv(x) { return { vin: x.vin, stock: '', modele: texteFs(x.f), statut: '', _feuille: 'BMWFS', compagnie: '', _bmwfs: x.f, _finie: !!x.finie }; }
 
   /* -- 13 nov. (Maxime : « des aperçus des modèles que l'on calcule et le calcul du coûtant, estimé si BMW FS avec le transport
      et les frais d'encan ») -- */
@@ -844,8 +855,8 @@
     this.fs = null; this.fsChoisi = null; this.fsVeh = null; this.fsMarche = null;
     this.fsPret = (A.manheim && A.manheim.charger ? A.manheim.charger(false) : Promise.resolve(null)).then(function (d) {
       self.mhFiches = (d && d.fiches) || [];
-      self.fs = bmwfsDisponibles(self.mhFiches); self.fsEtat = (d && d.etat && d.etat.dispos) || null; return self.fs;
-    }, function (e) { self.fs = { liste: [], tous: [], hors: {}, lu: '' }; self.fsErreur = A.erreurTexte ? A.erreurTexte(e) : String(e && e.message || e); return self.fs; });
+      self.fs = bmwfsDisponibles(self.mhFiches, d && d.aVendre); self.fsEtat = (d && d.etat && d.etat.dispos) || null; return self.fs;
+    }, function (e) { self.fs = { liste: [], tous: [], hors: {}, lu: '', aRafraichir: 0 }; self.fsErreur = A.erreurTexte ? A.erreurTexte(e) : String(e && e.message || e); return self.fs; });
     /* 15 nov. : le Livre des ventes (version légère) — une occasion vendue mais pas encore livrée n'est plus proposée. */
     this.vendus = null;
     this.vendusPret = this.chargerVendus();
@@ -948,7 +959,7 @@
           h('span.mod', { text: v.modele || '—' }),
           h('span.vin', { text: '…' + vin.slice(-8) }),
           puceEvol(evolPrix(ff)),
-          h('span.etat', { text: [kmTxt(ff.km), ff.prix ? argent(ff.prix) : '', [ff.ville, ff.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ') })
+          h('span.etat', { text: [kmTxt(ff.km), ff.prix ? argent(ff.prix) : '', [ff.ville, ff.province].filter(Boolean).join(', '), v._finie ? 'vente terminée, à rafraîchir' : ''].filter(Boolean).join(' · ') })
         ])
       ]);
     }
@@ -1060,6 +1071,7 @@
         if (!x.adm.ok) puces.push(h('span.hors-puce', { text: 'Hors programme · ' + x.adm.raison }));
         var ev = evolPrix(ff), pe = puceEvol(ev);
         if (pe) puces.push(pe);
+        if (x.finie) puces.push(h('span.hors-puce', { title: 'La vente lue s\'est terminée : prix et disponibilité à rafraîchir avec le favori « Automax ← Manheim »', text: 'Vente terminée' + (ff.finVente ? ' le ' + jourCourt(ff.finVente) : '') + ' · à rafraîchir' }));
         var cf = null;
         if (montants && self.opp) { var c0 = coutFs(ff, self.opp.parVin[x.vin], self.opp.params); if (c0.total !== null) cf = h('span.cout', { title: 'Prix demandé + frais d\'encan + transport jusqu\'à Sherbrooke (estimés)', text: 'coûtant ≈ ' + argent(c0.total) + (c0.complet ? '' : ' sans transport') }); }
         return h('button.avec-photo' + (x.adm.ok ? '' : '.hors'), { type: 'button', role: 'option', title: x.vin, onclick: function () { m.fermer(); self.choisirFs(ff); } }, [
@@ -1122,9 +1134,12 @@
         if (self.fsErreur) elInfo.appendChild(h('div.lbm-avis.rouge', { style: { marginTop: 0, marginBottom: '10px' }, text: 'Lecture des fiches Manheim impossible : ' + self.fsErreur }));
         else if (!lu) elInfo.appendChild(h('div.lbm-avis.ambre', { style: { marginTop: 0, marginBottom: '10px' }, text: 'Les véhicules de BMW FS n\'ont pas encore été lus : dans Manheim (marketplace.manheim.ca › Disponible), cliquez le favori « Automax ← Manheim ».' }));
         else elInfo.appendChild(h('div.lbm-avis.' + (age > 3 ? 'ambre' : 'bleu'), { style: { marginTop: 0, marginBottom: '10px' }, text: 'Lus sur BMW FS (Manheim › Disponible) le ' + quandFr(lu) + ' par le favori « Automax ← Manheim »' + (age > 3 ? ' : il y a ' + Math.floor(age) + ' jours — recliquez le favori dans Manheim pour la liste du jour.' : '.') + ' Le prix est le prix demandé par BMW FS (ce que la concession paierait), pas un prix de vente.' }));
+        /* 18 nov. : une vente terminée depuis la lecture ne retire plus l'unité — elle reste, à rafraîchir. */
+        var nRaf = (self.fs && self.fs.aRafraichir) || 0, nListe = ((self.fs && self.fs.liste) || []).length;
+        if (lu && nRaf) elInfo.appendChild(h('div.lbm-avis.ambre', { style: { marginTop: 0, marginBottom: '10px' }, text: (nRaf === nListe ? 'La vente de ces ' + nRaf + ' véhicules' : 'La vente de ' + nRaf + ' véhicule' + (nRaf > 1 ? 's' : '')) + ' s\'est terminée depuis la lecture : ' + (nRaf > 1 ? 'ils restent' : 'il reste') + ' ici, au dernier prix lu. Recliquez le favori « Automax ← Manheim » dans Manheim (Disponible) pour rafraîchir les prix et retirer ce qui est vendu.' }));
         /* 15 nov. : seulement ce qui est encore à vendre ; les autres sont comptés, pas proposés. */
         var hs = (self.fs && self.fs.hors) || {}, nHors = (hs.plusVu || 0) + (hs.achete || 0) + (hs.venteFinie || 0);
-        if (lu && nHors) elInfo.appendChild(h('div.lbm-veh-sous', { style: { margin: '-4px 0 10px' }, text: nHors + ' véhicule' + (nHors > 1 ? 's' : '') + ' de BMW FS ne ' + (nHors > 1 ? 'sont' : 'est') + ' plus à vendre et n\'' + (nHors > 1 ? 'apparaissent' : 'apparaît') + ' plus ici : ' + [hs.plusVu ? hs.plusVu + ' plus vu' + (hs.plusVu > 1 ? 's' : '') + ' au dernier passage complet du favori (vendu' + (hs.plusVu > 1 ? 's' : '') + ' ou retiré' + (hs.plusVu > 1 ? 's' : '') + ')' : '', hs.achete ? hs.achete + ' acheté' + (hs.achete > 1 ? 's' : '') + ' par nous' : '', hs.venteFinie ? hs.venteFinie + ' vente' + (hs.venteFinie > 1 ? 's' : '') + ' terminée' + (hs.venteFinie > 1 ? 's' : '') : ''].filter(Boolean).join(', ') + '.' }));
+        if (lu && nHors) elInfo.appendChild(h('div.lbm-veh-sous', { style: { margin: '-4px 0 10px' }, text: nHors + ' véhicule' + (nHors > 1 ? 's' : '') + ' de BMW FS ' + (nHors > 1 ? 'ne sont' : 'n\'est') + ' plus à vendre et n\'' + (nHors > 1 ? 'apparaissent' : 'apparaît') + ' plus ici : ' + [hs.plusVu ? hs.plusVu + ' plus vu' + (hs.plusVu > 1 ? 's' : '') + ' au dernier passage complet du favori (vendu' + (hs.plusVu > 1 ? 's' : '') + ' ou retiré' + (hs.plusVu > 1 ? 's' : '') + ')' : '', hs.achete ? hs.achete + ' acheté' + (hs.achete > 1 ? 's' : '') + ' par nous' : '', hs.venteFinie ? hs.venteFinie + ' vente' + (hs.venteFinie > 1 ? 's' : '') + ' terminée' + (hs.venteFinie > 1 ? 's' : '') + ' et pas revue' + (hs.venteFinie > 1 ? 's' : '') + ' depuis' : ''].filter(Boolean).join(', ') + '.' }));
         tous = ((self.fs && self.fs.liste) || []).map(function (x) { x.adm = admissibleFs(prog, x); return x; });
         tous.sort(function (a, b) { return (b.adm.ok - a.adm.ok) || (b.bmw - a.bmw) || texteFs(a.f).replace(/^\d+ /, '').localeCompare(texteFs(b.f).replace(/^\d+ /, ''), 'fr', { numeric: true }) || ((b.annee || 0) - (a.annee || 0)); });
         if (!tous.some(function (x) { return x.adm.ok; })) { f.seulsProgramme = false; caseProg.checked = false; }
@@ -1275,7 +1290,7 @@
     });
   };
   VueLocation.prototype.blocFs = function () {
-    var self = this, ff = this.fsVeh, plusVu = false, ev = evolPrix(ff);
+    var self = this, ff = this.fsVeh, ev = evolPrix(ff), finMs = Date.parse(ff.finVente || '') || 0, finie = !!finMs && finMs < Date.now();   /* 18 nov. : vente terminée = à rafraîchir, pas retirée */
     var infos = [ff.prix ? 'prix demandé ' + argent(ff.prix) : '', typeof ff.cote === 'number' ? 'CR ' + String(ff.cote.toFixed(1)).replace('.', ',') : '', kmTxt(ff.km), [ff.ville, ff.province].filter(Boolean).join(', '), ff.luLe ? 'lu le ' + quandFr(ff.luLe, true) : ''].filter(Boolean).join(' · ');
     var actions = [];
     if (A.manheim && A.manheim.ouvrir) actions.push(h('button.btn.petit', { type: 'button', text: 'Photos et état', onclick: function () { A.manheim.ouvrir(ff.vin); } }));
@@ -1283,7 +1298,7 @@
     return h('div.lbm-fs', [
       h('div', [h('b', { text: 'À vendre sur BMW FS' }), document.createTextNode(' (Manheim) : ' + infos + '.')]),
       this.graphePrix(ff, ev),
-      h('div.lbm-veh-sous', { text: 'Le prix demandé est ce que la concession paierait à BMW FS, pas le prix de vente : entrez le prix de vente plus bas.' + (plusVu ? ' Plus vu sur BMW FS au dernier passage du favori : il est peut-être déjà vendu.' : '') }),
+      h('div.lbm-veh-sous', { text: 'Le prix demandé est ce que la concession paierait à BMW FS, pas le prix de vente : entrez le prix de vente plus bas.' + (finie ? ' La vente lue s\'est terminée le ' + jourCourt(ff.finVente) + ' : prix et disponibilité à rafraîchir (favori « Automax ← Manheim » dans Manheim).' : '') }),
       actions.length ? h('div.lbm-fs-actions', actions) : null
     ]);
   };
@@ -1390,7 +1405,7 @@
   /* Un NIV de BMW FS qui n'est plus à vendre : la raison, sans prix ni coûtant. */
   VueLocation.prototype.blocFsAncien = function () {
     var x = this.fsAncien, ff = x.f;
-    var pourquoi = x.hors === 'achete' ? 'acheté par nous (il est dans nos registres)' : (x.hors === 'venteFinie' ? 'la vente est terminée' : 'pas revu au dernier passage complet du favori « Automax ← Manheim » (vendu ou retiré)');
+    var pourquoi = x.hors === 'achete' ? 'acheté par nous (il est dans nos registres)' : (x.hors === 'venteFinie' ? 'la vente est terminée et il n\'a pas été revu depuis' : 'pas revu au dernier passage complet du favori « Automax ← Manheim » (vendu ou retiré)');
     return h('div.lbm-avis.ambre', { style: { marginTop: 0 }, text: 'Plus à vendre sur BMW FS : ' + pourquoi + (ff.luLe ? ' — vu pour la dernière fois le ' + quandFr(ff.luLe, true) : '') + (ff.prix ? ', à ' + argent(ff.prix) : '') + '.' });
   };
   /* -- 13 nov. : les photos (Maxime : « des aperçus des modèles que l'on calcule ») --

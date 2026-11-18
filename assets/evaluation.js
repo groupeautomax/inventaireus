@@ -376,6 +376,8 @@
       '@media (max-width: 760px) { .eval-veh-3 { grid-template-columns: 1fr 1fr; } }',
       '.eval-niv { display: flex; gap: 6px; align-items: flex-end; } .eval-niv .champ { flex: 1 1 auto; min-width: 0; } .eval-niv .btn { height: 32px; flex: none; }',
       '.eval-veh-bas { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; } .eval-veh-bas .eval-contexte { flex: 1 1 auto; } .eval-fiche { margin-left: auto; display: flex; gap: 6px; } .eval-fiche:empty { display: none; }',
+      /* 18 nov. : au téléphone, la pastille CARFAX passe à la ligne au lieu de dépasser de l'écran. */
+      '.eval-cfx { min-width: 0; max-width: 100%; } .eval-cfx .cfx-pastille { white-space: normal; text-align: left; border-radius: 14px; }',
       '.eval-taux-km { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--encre-3); white-space: nowrap; } .eval-taux-km input { width: 72px; height: 28px; font-size: 13px; text-align: right; }',
       '.eval-tuiles { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding: 2px 2px 8px; margin: 0 0 4px; scrollbar-width: thin; scroll-margin-top: calc(var(--barre-h) + var(--sous-h) + 70px); }',
       '.eval-tuile { flex: 0 0 auto; scroll-snap-align: start; display: flex; align-items: center; gap: 10px; min-width: 150px; max-width: 240px; padding: 9px 12px; border: 1px solid var(--ligne); border-radius: var(--rayon); background: var(--carte); color: var(--encre); font: inherit; text-align: left; cursor: pointer; box-shadow: 0 1px 2px rgba(16,24,40,.04); }',
@@ -575,7 +577,6 @@
   function poserAdresse(vue, params) { if (vue && vue.demontee) return; history.replaceState(null, '', AMX.lien('outils', 'evaluation', params)); }
   Evaluation.prototype.demonter = function () {
     this.demontee = true;
-    if (AMX.evaluationCourante) AMX.evaluationCourante.quitteLe = Date.now();   /* 18 nov. : on vient de quitter cette évaluation */
     document.removeEventListener('amx:inventaire', this.surInventaire);
     document.removeEventListener('amx:carfax', this.surCarfax);
     document.removeEventListener('amx:export', this.surExport);
@@ -967,7 +968,7 @@
     { id: 'ca', titre: 'Marché Canada', ico: '<b>CA</b>', panneau: 'marche' },
     { id: 'us', titre: 'Marché É.-U.', ico: '<b>US</b>', panneau: 'marche' },
     { id: 'export', titre: 'Canada ou É.-U. ?', ico: ICO_ECHANGE, panneau: 'export' },
-    { id: 'region', titre: 'Par concession', ico: I.resultat, panneau: 'region', visible: function () { return !!(AMX.marcheRegion && AMX.voitOnglet && AMX.voitOnglet('inventaire', 'marcheregion')); } },   /* 17 nov. : S83B4F8D1F5 (marche-region.js) */
+    { id: 'region', titre: 'Marché par région', ico: I.resultat, panneau: 'region', visible: function () { return !!(AMX.marcheRegion && AMX.voitOnglet && AMX.voitOnglet('inventaire', 'marcheregion')); } },   /* 17 nov. : S83B4F8D1F5 (marche-region.js) */
     { id: 'openlane', titre: 'OpenLane', ico: I.resultat, panneau: 'openlane' },
     { id: 'suivi', titre: 'Client et suivi', ico: I.relance, panneau: 'suivi' },
     { id: 'etat', titre: 'État et photos', ico: I.photo, panneau: 'etat' },
@@ -1006,7 +1007,9 @@
     pHist.id = 'sec-historique';
     /* 17 nov. (S83B4F8D1F5) : ce que chaque concession réussit sur ce genre de véhicule (marche-region.js). */
     this.elRegion = h('div#eval-region');
-    var pRegion = carte(h('div.titre', [h('h2', 'Par concession'), h('p', 'Le prix attendu, les jours en stock et le profit de chaque concession sur ce genre de véhicule, et la tendance des prix.')]), [this.elRegion]);
+    /* 18 nov. (Maxime : « partie prenante d'une évaluation, pas une analyse distincte ») : toute l'analyse du marché
+       par région du véhicule évalué est ici — encan, projection, par concession, prix dans le temps, saison. */
+    var pRegion = carte(h('div.titre', [h('h2', 'Marché par région'), h('p', 'Ce véhicule, à son km : la valeur à l\'encan aujourd\'hui et dans 30, 60 et 90 jours, le prix attendu dans chaque concession, le prix dans le temps et la saison.')]), [this.elRegion]);
     pRegion.id = 'sec-region';
     var contenus = { marche: o.marche, export: this.elExport, region: pRegion, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, rappels: pRappels, liens: pLiens, historique: pHist };
     this.panneaux = {};
@@ -1050,16 +1053,8 @@
     if (!fermer && opts.defiler && this.elTuiles.scrollIntoView) { try { this.elTuiles.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
   };
 
-  /* 17 nov. (S83B4F8D1F5) : le panneau « Par concession ». Les données se lisent à la première ouverture (copie du
+  /* 17 nov. (S83B4F8D1F5), 18 nov. : le panneau « Marché par région » (toute l'analyse, AMX.marcheRegion.fiche). Les données se lisent à la première ouverture (copie du
      navigateur d'abord) ; ensuite le panneau suit la marque, le modèle, l'année, le km, le recon et la marge. */
-  /* 18 nov. (Maxime : « l'analyse doit se rapporter au modèle que l'on évalue ») : le véhicule de la page, pour l'onglet
-     « Marché par région » d'Évaluations — il s'ouvre sur la fiche de ce modèle-année, à son km (marche-region.js). */
-  Evaluation.prototype.publierVehicule = function () {
-    if (this.demontee) return;
-    var v = this.valeursRegion(), vin = String(this.vinCourant || '').toUpperCase();
-    AMX.evaluationCourante = (v.marque && v.modele && v.annee) ? { vin: vin, marque: v.marque, modele: v.modele, annee: v.annee, km: v.km,
-      adresse: AMX.lien('outils', 'evaluation', vin ? this.paramsAdresse(vin) : {}), quitteLe: 0 } : null;
-  };
   Evaluation.prototype.valeursRegion = function () {
     return { marque: this.elMarque.value.trim(), modele: this.elModele.value.trim(), annee: this.elAnnee.value.trim(), km: this.elKm.value.trim(),
       recon: this.elRecon ? this.elRecon.value.trim() : '', marge: this.elMarge ? this.elMarge.value.trim() : '', frais: this.elFrais ? this.elFrais.value.trim() : '',
@@ -1074,7 +1069,7 @@
       AMX.marcheRegion.copie().then(function () { return AMX.marcheRegion.charger(false); }).then(function () { self.regionSig = ''; self.majTuiles(); }, function () {});
     }
     var mds = (this.regionMds && this.regionMds.vin === vin) ? this.regionMds.r : {};
-    AMX.marcheRegion.bloc(this.elRegion, v, { vin: vin, mds: mds, lienMarche: true, surMds: function (r) { self.regionMds = { vin: vin, r: r }; self.rendreRegion(); } });
+    (AMX.marcheRegion.fiche || AMX.marcheRegion.bloc)(this.elRegion, v, { vin: vin, mds: mds, surMds: function (r) { self.regionMds = { vin: vin, r: r }; self.rendreRegion(); } });
   };
 
   /* 17 nov. (SAE7E4F70CA) : le kilométrage connu du NIV (toutes nos sources, KmHistorique.gs) ; alerte rouge sous le
@@ -1137,8 +1132,7 @@
       else if (us && us.verdict) poser('export', AMX.export.texteVerdict(us), us.verdict === 'us' ? 'bleu' : (us.verdict === 'ca' ? 'vert' : (us.verdict === 'detail' ? 'ambre' : '')), AMX.export.texteProfits(us));
       else poser('export', AMX.export.exportable(vin) ? 'À comparer' : 'Pas fabriqué É.-U.', 'gris');
     }
-    try { this.publierVehicule(); } catch (eV) {}
-    // Par concession (17 nov.) : la concession où ce genre se vend le mieux.
+    // Marché par région (17 nov.) : la concession où ce genre se vend le mieux.
     if (this.tuiles.region && AMX.marcheRegion) {
       var vr = this.valeursRegion(), tr = AMX.marcheRegion.tuile(vr);
       poser('region', tr.texte, tr.ton, tr.titre || '');

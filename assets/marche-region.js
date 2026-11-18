@@ -4,9 +4,13 @@
    genre de véhicule (pick-up, VUS compact…) — ventes, jours en stock, % du marché obtenu, gros, recon — le marché local et
    la tendance des prix par modèle. Données : GET ?marcheRegion=1 (MarcheRegion.gs).
 
-   - AMX.marcheRegion : charger, copie, enCache, famille, segment, pourVehicule, bloc (tuile « Par concession » de
-     l'évaluation), tuile (petit texte de la tuile), mds (vitesse du marché MarketCheck autour de chaque concession).
-   - Section « marcheregion » : Inventaire › Occasion › Évaluations › Marché par région (18 nov. : une vue d'Évaluations, plus un onglet à part).
+   - AMX.marcheRegion : charger, copie, enCache, famille, segment, pourVehicule, fiche (TOUTE l'analyse du véhicule
+     qu'on évalue, dans le panneau « Marché par région » de l'évaluation : encan aujourd'hui et à 30, 60, 90 jours,
+     par concession, prix dans le temps, saison), bloc (la table par concession seule), tuile (petit texte de la
+     tuile), mds (vitesse du marché MarketCheck autour de chaque concession).
+   - 18 nov. : ce n'est plus un onglet ni une analyse à part (Maxime) : l'analyse fait partie de l'évaluation.
+     La section « marcheregion » (vue d'ensemble de tous les modèles) n'est plus dans aucun menu ; elle reste à son
+     adresse (#/inventaire/marcheregion) et garde la clé de rôle « inventaire/marcheregion », qui ouvre le panneau.
    Règle v138 : filtres (indicateur) → « Chiffres et liste » → tableau. Montants seulement avec le droit (d.montants). */
 (function () {
   'use strict';
@@ -168,10 +172,8 @@
     if (!r || !r.lignes.length) { conteneur.appendChild(h('p.eval-note', { text: (r && r.raison ? r.raison + ' : ' : '') + 'entrez la marque, le modèle et l\'année.' })); return; }
     var titre = h('div.mrg-titre', [
       h('b', { text: nomSegment(d, r.seg) }),
-      h('span', { text: ' · ' + (v.marque || '') + ' ' + (v.modele || '') + ' ' + r.an + (r.km ? ' · ' + AMX.fmtNombre(r.km) + ' km' : '') }),
-      /* 18 nov. : de l'évaluation, un clic ouvre tout le marché de ce modèle (vue « Marché par région » d'Évaluations). */
-      opts.lienMarche && r.fam && AMX.lien ? h('a.mrg-lien-marche', { href: AMX.lien('inventaire', 'evaluations', { vue: 'marche', modele: r.fam + '|' + r.an }), text: 'Tout le marché de ce modèle ›' }) : null
-    ].filter(Boolean));
+      h('span', { text: ' · ' + (v.marque || '') + ' ' + (v.modele || '') + ' ' + r.an + (r.km ? ' · ' + AMX.fmtNombre(r.km) + ' km' : '') })
+    ]);
     var m = d.montants;
     var cols = [['Concession', ''], ['Marché local', 'Prix médian AFFICHÉ des annonces du même modèle-année dans ' + (d.rayonKm || 60) + ' km, ramené à votre km'],
       ['Vendu à', 'Ce que la concession obtient d\'habitude : prix de vente ÷ prix affiché du marché (ventes des 6 derniers mois)'], ['Prix attendu', 'Marché local × % obtenu par la concession']];
@@ -213,7 +215,7 @@
       }
     }
     var te = r.tendanceEncan, ce = te && courbe(te.points);
-    if (te) pied.appendChild(h('div.mrg-tendance', { title: 'Prix payé à l\'encan (OpenLane), ramené au même km, 6 derniers mois' }, [ce, h('span', { text: texteEncan(te) })].filter(Boolean)));
+    if (te && !opts.sansEncan) pied.appendChild(h('div.mrg-tendance', { title: 'Prix payé à l\'encan (OpenLane), ramené au même km, 6 derniers mois' }, [ce, h('span', { text: texteEncan(te) })].filter(Boolean)));
     var t = r.tendance, c = t && courbe(t.points);
     pied.appendChild(h('div.mrg-tendance', { title: 'Prix affiché des annonces de concessionnaires (lecture du lundi)' }, [c, h('span', { text: (te ? 'Annonces : ' : '') + texteTendance(t) })].filter(Boolean)));
     if (opts.vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(opts.vin) && !Object.keys(mds).length && opts.surMds) {
@@ -258,14 +260,6 @@
     this.vue = VUES.some(function (x) { return x[0] === p.voir; }) ? p.voir : (AMX.memo.lire('mrg_vue2', 'apercu') || 'apercu');
     if (!VUES.some(function (x) { return x[0] === self.vue; })) this.vue = 'apercu';
     this.mod = p.modele ? String(p.modele) : '';
-    /* 18 nov. (Maxime : « l'analyse doit se rapporter au modèle que l'on évalue ») : ouverte depuis l'évaluation d'un véhicule
-       (onglet « Marché par région », lien du panneau « Par concession », ou adresse avec ?vin=), la page s'ouvre sur la fiche de
-       ce modèle-année, à son km, avec le retour à l'évaluation. */
-    this.vin = p.vin ? String(p.vin).toUpperCase() : '';
-    this.evalue = null;
-    var ec = AMX.evaluationCourante;
-    if (ec && ((this.vin && ec.vin === this.vin) || (!this.vin && ec.quitteLe && Date.now() - ec.quitteLe < 4000))) this.evalue = ec;
-    else if (this.vin) { this.evalue = { vin: this.vin, adresse: AMX.lien('outils', 'evaluation', { vin: this.vin }) }; if (!this.mod) this.lireEvalue(); }
     this.segSaison = AMX.memo.lire('mrg_seg_saison', 'tous') || 'tous'; this.indChaleur = AMX.memo.lire('mrg_ind_chaleur', 'joursMed') || 'joursMed';
     this.ind = AMX.memo.lire('mrg_ind', 'joursMed') || 'joursMed';
     this.q = p.q || '';
@@ -278,27 +272,6 @@
     copie().then(function () { self.rendre(); });
     this.charger(false);
   }
-  /* Adresse ouverte avec un NIV seulement (rechargement, lien) : l'évaluation enregistrée, sinon le décodeur. */
-  Vue.prototype.lireEvalue = function () {
-    var self = this, vin = this.vin;
-    var poser = function (o) { if (!o || !o.marque || !o.modele || !o.annee || self.vin !== vin) return false; self.evalue = { vin: vin, marque: o.marque, modele: o.modele, annee: o.annee, km: o.km || '', adresse: self.evalue.adresse }; self.evalueFait = false; self.rendre(); return true; };
-    AMX.get({ evalVin: vin }, { discret: true }).then(function (d) { return (d && d.trouve && poser(d.donnees || {})) || AMX.get({ decoder: vin }, { discret: true }).then(function (x) { poser(x && x.ok ? x : null); }); }).catch(function () {});
-  };
-  /* Le modèle-année du véhicule évalué, une fois les données là (la famille se lit dans la réponse du serveur). */
-  Vue.prototype.resoudreEvalue = function () {
-    var d = cache.d, e = this.evalue;
-    if (!d || !e || !e.marque || this.evalueFait) return;
-    this.evalueFait = true;
-    var fam = famille(d, e.marque, e.modele), an = nombre(e.annee);
-    e.nom = [an || '', e.marque, e.modele].filter(Boolean).join(' ');
-    if (!fam || !an) return;
-    e.mod = fam + '|' + an;
-    if (!this.mod) {
-      this.mod = e.mod;
-      var q = { vue: 'marche', modele: e.mod }; if (e.vin) q.vin = e.vin;
-      try { history.replaceState(null, '', AMX.lien('inventaire', 'evaluations', q)); } catch (x) {}
-    }
-  };
   Vue.prototype.demonter = function () { document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:marcheRegion', this.surDonnees); };
   Vue.prototype.charger = function (force) {
     var self = this; this.erreur = '';
@@ -337,7 +310,6 @@
     var self = this, d = cache.d;
     AMX.barreConcessions(this.elCies, { domaine: 'evaluations', valeur: this.compagnie, onchange: function (c) { AMX.choisirCompagnie(c); } });
     if (!d) { this.elSous.textContent = this.erreur ? 'Lecture impossible : ' + this.erreur : 'Chargement…'; AMX.vider(this.elCorps); if (!this.erreur) this.elCorps.appendChild(AMX.chargeur('Marché par région')); return; }
-    this.resoudreEvalue();
     var sem = (d.semaines || []).length;
     this.elSous.textContent = ['Ventes des 12 derniers mois', d.lecture && d.lecture.le ? 'annonces du ' + AMX.fmtDateCourte(d.lecture.le) + ' (' + AMX.fmtNombre(d.lecture.n || 0) + ')' : 'aucune lecture du marché', sem + ' semaine' + (sem > 1 ? 's' : '') + ' de prix', cache.copieLe ? 'copie du navigateur — mise à jour en cours…' : ''].filter(Boolean).join(' · ') + (this.erreur ? ' — mise à jour impossible : ' + this.erreur : '');
     AMX.vider(this.elVues);
@@ -651,10 +623,8 @@
       pills.appendChild(h('button.inv2-pastille' + (cle === x[0] ? '.actif' : ''), { type: 'button', text: x[1], 'aria-pressed': cle === x[0] ? 'true' : 'false', onclick: function () { self.segSaison = x[0]; AMX.memo.ecrire('mrg_seg_saison', x[0]); self.rendreCorps(); } }));
     });
     carte.appendChild(pills);
-    var ajd = new Date(), dans60 = new Date(ajd.getTime() + 60 * 86400000), dans120 = new Date(ajd.getTime() + 120 * 86400000);
-    var maint = saisonAu(sa, ajd), d60 = saisonAu(sa, dans60) - maint, d120 = saisonAu(sa, dans120) - maint, dep = sa.dep30 || 0;
-    var nom = cle === 'tous' ? 'les véhicules d\'occasion' : nomSegment(d, cle).toLowerCase();
-    carte.appendChild(h('p.mrg-phrase', { text: MOIS_LONGS[ajd.getMonth()] + ' : ' + nom + ' valent ' + (Math.abs(maint) < 0.3 ? 'à peu près la moyenne de l\'année' : (signePct(Math.abs(maint), true).replace('+', '') + (maint > 0 ? ' au-dessus de' : ' sous') + ' la moyenne de l\'année')) + '. D\'ici ' + MOIS_LONGS[dans60.getMonth()].toLowerCase() + ', la saison seule : ' + signePct(d60, true) + ' ; d\'ici ' + MOIS_LONGS[dans120.getMonth()].toLowerCase() + ' : ' + signePct(d120, true) + '.' }));
+    var ajd = new Date(), ps = phraseSaison(cle === 'tous' ? 'les véhicules d\'occasion' : nomSegment(d, cle).toLowerCase(), sa, ajd), d60 = ps.d60, dep = ps.dep;
+    carte.appendChild(h('p.mrg-phrase', { text: ps.texte }));
     carte.appendChild(h('div.mrg-tuiles', [
       h('div.mrg-tuile' + (d60 < -0.5 ? '.rouge' : (d60 > 0.5 ? '.bleu' : '')), [h('b', { text: signePct(d60, true) }), h('span', 'saison, d\'ici 60 jours')]),
       h('div.mrg-tuile', [h('b', { text: signePct(dep, true) }), h('span', 'dépréciation normale, par mois')]),
@@ -689,8 +659,7 @@
 
   /* ---------- La fiche d'un modèle-année ---------- */
   Vue.prototype.allerModele = function (k) {
-    /* 18 nov. : la page est une vue d'Évaluations (#/inventaire/evaluations?vue=marche) — l'adresse garde la vue. */
-    var cible = AMX.lien('inventaire', 'evaluations', k ? { vue: 'marche', modele: k } : { vue: 'marche' });
+    var base = String(location.hash || '#/inventaire/marcheregion').split('?')[0], cible = base + (k ? '?modele=' + encodeURIComponent(k) : '');
     if (location.hash === cible) { this.naviguer({ params: { modele: k } }); return; }
     location.hash = cible;
     var self = this; setTimeout(function () { if ((self.mod || '') !== k) self.naviguer({ params: { modele: k } }); }, 60);
@@ -705,20 +674,38 @@
     var p = AMX.get({ marcheRegion: 1, modele: k }, { secours: false, delai: 90000 }).then(function (d) { MODELES[k] = { d: d }; return d; }, function (e) { delete MODELES[k]; throw e; });
     MODELES[k] = { p: p }; return p;
   }
-  Vue.prototype.rendreFiche = function () {
-    var self = this, d = cache.d, k = this.mod, p = k.split('|'), fam = p[0], an = Number(p[1]), seg = segment(d, fam), corps = this.elCorps;
-    this.elPortee.hidden = true;
-    /* 18 nov. : le véhicule qu'on évalue — retour à son évaluation, et l'encan ramené à son km. */
-    var ev = this.evalue && (!this.evalue.mod || this.evalue.mod === k) ? this.evalue : null, kmEv = ev && nombre(ev.km) ? nombre(ev.km) : null;
-    corps.appendChild(h('div.mrg-retours', [
-      ev && ev.adresse ? h('a.btn.primaire.mrg-retour-eval', { href: ev.adresse, text: '‹ Retour à l\'évaluation' }) : null,
-      h('button.btn.fantome.mrg-retour', { type: 'button', text: ev ? 'Tout le marché par région' : '‹ Retour à l\'aperçu', onclick: function () { self.evalue = null; self.vin = ''; self.allerModele(''); } })].filter(Boolean)));
-    corps.appendChild(h('h2.mrg-fiche-titre', [h('span', { text: nomFamille(fam) + ' ' + an }), h('small', { text: ' ' + nomSegment(d, seg) })]));
-    if (ev && ev.marque) corps.appendChild(h('p.mrg-evalue', [h('b', 'Le véhicule que vous évaluez : '), (ev.nom || '') + (kmEv ? ' · ' + AMX.fmtNombre(kmEv) + ' km' : '') + (ev.vin ? ' · NIV …' + ev.vin.slice(-8) : '')]));
-    var enc = encanPour(d, fam, an, kmEv), ajd = new Date();
+  /* ------------------------------ l'analyse d'un modèle-année (18 nov.) ------------------------------
+     Maxime : « je veux que Marché par région soit une partie prenante d'une évaluation plutôt qu'un onglet différent ;
+     je ne veux pas que ce soit une analyse distincte ». Une seule analyse, donc, écrite ici : le panneau « Marché par
+     région » de l'évaluation d'un véhicule la reçoit en entier (au km, au recon et à la marge de l'évaluation) par
+     AMX.marcheRegion.fiche ; la fiche d'un modèle de la vue d'ensemble montre la même.
+     o = { km, v (valeurs de la table par concession), blocOpts (vin, mds, surMds) } */
+  function phraseSaison(nom, sa, ajd) {
+    var dans60 = new Date(ajd.getTime() + 60 * 86400000), dans120 = new Date(ajd.getTime() + 120 * 86400000);
+    var maint = saisonAu(sa, ajd), d60 = saisonAu(sa, dans60) - maint, d120 = saisonAu(sa, dans120) - maint, dep = sa.dep30 || 0;
+    return { maint: maint, d60: d60, d120: d120, dep: dep,
+      texte: MOIS_LONGS[ajd.getMonth()] + ' : ' + nom + ' valent ' + (Math.abs(maint) < 0.3 ? 'à peu près la moyenne de l\'année' : (signePct(Math.abs(maint), true).replace('+', '') + (maint > 0 ? ' au-dessus de' : ' sous') + ' la moyenne de l\'année')) + '. D\'ici ' + MOIS_LONGS[dans60.getMonth()].toLowerCase() + ', la saison seule : ' + signePct(d60, true) + ' ; d\'ici ' + MOIS_LONGS[dans120.getMonth()].toLowerCase() + ' : ' + signePct(d120, true) + '.' };
+  }
+  /** La saison du genre du véhicule : une phrase et les douze mois. */
+  function carteSaisonGenre(d, seg) {
+    var s = d && d.saisons, sa = saisonDe(d, seg); if (!s || !sa || !sa.pct) return null;
+    var propre = !!(s.seg && s.seg[seg]), ajd = new Date();
+    var ps = phraseSaison(propre ? nomSegment(d, seg).toLowerCase() : 'les véhicules d\'occasion', sa, ajd);
+    return h('section.mrg-carte', [
+      h('h3', { text: 'La saison' + (propre ? ' — ' + nomSegment(d, seg) : '') }),
+      h('p.mrg-phrase', { text: ps.texte }),
+      h('div.mrg-graphe', [grapheSaisons(sa, ajd)]),
+      legende([['bleu', 'Mois où les prix sont au-dessus de la moyenne'], ['rouge', 'Mois où ils sont en dessous']])
+    ]);
+  }
+  function corpsModele(corps, d, k, o) {
+    o = o || {};
+    var p = k.split('|'), fam = p[0], an = Number(p[1]), seg = segment(d, fam), km = nombre(o.km);
+    var enc = encanPour(d, fam, an, km), ajd = new Date();
     var proj = enc ? [30, 60, 90].map(function (j) { return projeter(d, seg, enc.valeur, j, ajd); }).filter(Boolean) : [];
     var t = enc && enc.t;
-    var tuiles = [h('div.mrg-tuile', [h('b', { text: enc ? AMX.fmtArgent(centaine(enc.valeur)) : '—' }), h('span', { text: enc ? 'à l\'encan aujourd\'hui (' + AMX.fmtNombre(kmEv || t.kmRef || 0) + ' km' + (kmEv ? ', le km du véhicule évalué' : '') + ')' : 'pas assez de ventes à l\'encan' })])];
+    var kmTxt = km ? AMX.fmtNombre(km) + ' km' : ((enc && enc.t && enc.t.kmRef) ? AMX.fmtNombre(enc.t.kmRef) + ' km' : '');
+    var tuiles = [h('div.mrg-tuile', [h('b', { text: enc ? AMX.fmtArgent(centaine(enc.valeur)) : '—' }), h('span', { text: enc ? 'à l\'encan aujourd\'hui' + (kmTxt ? ' (' + kmTxt + ')' : '') : 'pas assez de ventes à l\'encan' })])];
     proj.forEach(function (x) { var dif = (x.valeur / enc.valeur - 1) * 100; tuiles.push(h('div.mrg-tuile' + (dif <= -2 ? '.rouge' : (dif > 0.5 ? '.bleu' : '')), [h('b', { text: '≈ ' + AMX.fmtArgent(centaine(x.valeur)) }), h('span', { text: 'dans ' + x.jours + ' jours (' + signePct(dif, true) + ')' })])); });
     if (t && t.pente30 !== undefined && t.pente30 !== null) tuiles.push(h('div.mrg-tuile' + (t.pente30 < -1.5 ? '.rouge' : ''), [h('b', { text: signePct(t.pente30, true) + ' / mois' }), h('span', { text: 'tendance récente à l\'encan (' + t.n + ' ventes)' })]));
     corps.appendChild(h('div.mrg-tuiles', tuiles));
@@ -727,10 +714,17 @@
       var ecart = t.pente30 - sa.dep30;
       if (Math.abs(ecart) >= 1) corps.appendChild(h('div.alerte.' + (ecart < 0 ? 'attention' : 'info'), { text: 'Ce modèle ' + (ecart < 0 ? 'baisse plus vite' : 'tient mieux') + ' que son genre : ' + signePct(t.pente30, true) + ' par mois à l\'encan contre ' + signePct(sa.dep30, true) + ' normalement. ' + (ecart < 0 ? 'Prudence sur le prix d\'achat.' : '') }));
     }
-    var zone = h('div.mrg-graphe-zone', [AMX.chargeur ? AMX.chargeur('Courbe du modèle', { compact: true }) : h('p', 'Chargement…')]);
+    // Par concession : le marché local, le prix attendu, l'achat maximal, les jours en stock, la revente.
+    var c = h('section.mrg-carte', [h('h3', 'Par concession : où le vendre, à quel prix')]);
+    var zb = h('div'); c.appendChild(zb);
+    var ob = {}; Object.keys(o.blocOpts || {}).forEach(function (x) { ob[x] = o.blocOpts[x]; });
+    ob.sansEncan = !!enc;   // l'encan est déjà dans les tuiles du haut, au km du véhicule : pas deux chiffres différents
+    bloc(zb, o.v || { marque: /^serie\d$/.test(fam) ? 'BMW' : '', modele: nomFamille(fam), annee: an, km: km || '' }, ob);
+    corps.appendChild(c);
+    // Le prix dans le temps : les ventes à l'encan, nos évaluations, la médiane et la projection.
+    var zone = h('div.mrg-graphe-zone');
     corps.appendChild(h('section.mrg-carte', [h('h3', 'Le prix dans le temps'), zone]));
-    lireModele(k).then(function (m) {
-      AMX.vider(zone);
+    var remplir = function (m) {
       if (!m || !m.ok) { zone.appendChild(h('p.mrg-note', { text: (m && m.erreur) || 'Lecture impossible.' })); return; }
       var g = grapheModele(m, d, enc, proj, seg);
       if (!g) { zone.appendChild(h('p.mrg-note', { text: 'Pas encore de prix pour ce modèle-année.' })); return; }
@@ -746,11 +740,37 @@
         });
         zone.appendChild(h('div.mrg-defile', [h('table.tableau.mrg-table', [h('thead', [h('tr', [h('th', 'Date'), h('th', 'Concession'), h('th.num', 'Km'), h('th.num', 'Valeur'), h('th.num', 'vs encan'), h('th', 'Suivi')])]), tb])]));
       }
-    }, function (e) { AMX.vider(zone); zone.appendChild(h('p.mrg-note', { text: 'Lecture impossible : ' + AMX.erreurTexte(e) })); });
-    // Où le vendre : la même table que la tuile de l'évaluation.
-    var c = h('section.mrg-carte', [h('h3', 'Où le vendre')]);
-    var zb = h('div'); c.appendChild(zb); bloc(zb, { marque: ev && ev.marque ? ev.marque : (/^serie\d$/.test(fam) ? 'BMW' : ''), modele: ev && ev.modele ? ev.modele : nomFamille(fam), annee: an, km: kmEv || '', cie: self.compagnie || '' }, {});   /* 18 nov. : au km du véhicule évalué */
-    corps.appendChild(c);
+    };
+    var lu = MODELES[k] && MODELES[k].d;
+    if (lu) remplir(lu);   // déjà lu : pas de clignotement quand l'évaluation change (km, recon, marge)
+    else {
+      zone.appendChild(AMX.chargeur ? AMX.chargeur('Courbe du modèle', { compact: true }) : h('p', 'Chargement…'));
+      lireModele(k).then(function (m) { AMX.vider(zone); remplir(m); }, function (e) { AMX.vider(zone); zone.appendChild(h('p.mrg-note', { text: 'Lecture impossible : ' + AMX.erreurTexte(e) })); });
+    }
+    var cs = carteSaisonGenre(d, seg); if (cs) corps.appendChild(cs);
+  }
+  /** Toute l'analyse du véhicule qu'on évalue, dans le panneau de l'évaluation.
+      v = { marque, modele, annee, km, recon, marge, frais, cie } ; opts = { vin, mds, surMds }. */
+  function ficheVehicule(conteneur, v, opts) {
+    opts = opts || {};
+    AMX.vider(conteneur);
+    var d = cache.d;
+    if (!d) {
+      conteneur.appendChild(AMX.chargeur ? AMX.chargeur('Marché par région', { compact: true }) : h('p.eval-note', 'Chargement…'));
+      copie().then(function () { return charger(false); }).then(function () { if (cache.d) ficheVehicule(conteneur, v, opts); }, function (e) { AMX.vider(conteneur); conteneur.appendChild(h('p.eval-note', { text: 'Marché par région : ' + AMX.erreurTexte(e) })); });
+      return;
+    }
+    var fam = famille(d, v.marque, v.modele), an = nombre(v.annee);
+    if (!fam || !an) { conteneur.appendChild(h('p.eval-note', { text: (!fam ? 'Modèle à préciser' : 'Année à préciser') + ' : entrez la marque, le modèle et l\'année.' })); return; }
+    var corps = h('div.mrg-dans-eval'); conteneur.appendChild(corps);
+    corpsModele(corps, d, fam + '|' + an, { km: v.km, v: v, blocOpts: opts });
+  }
+  Vue.prototype.rendreFiche = function () {
+    var self = this, d = cache.d, k = this.mod, p = k.split('|'), fam = p[0], an = Number(p[1]), seg = segment(d, fam), corps = this.elCorps;
+    this.elPortee.hidden = true;
+    corps.appendChild(h('button.btn.fantome.mrg-retour', { type: 'button', text: '‹ Retour à l\'aperçu', onclick: function () { self.allerModele(''); } }));
+    corps.appendChild(h('h2.mrg-fiche-titre', [h('span', { text: nomFamille(fam) + ' ' + an }), h('small', { text: ' ' + nomSegment(d, seg) })]));
+    corpsModele(corps, d, k, { v: { marque: /^serie\d$/.test(fam) ? 'BMW' : '', modele: nomFamille(fam), annee: an, cie: self.compagnie || '' } });
   };
   Vue.prototype.remplirListe = function () {
     var d = cache.d; if (!d || this.listeFaite === d) return; this.listeFaite = d;
@@ -844,8 +864,7 @@
       '.puce-cie.vert{background:var(--vert,#008840)}.puce-cie.bleu{background:var(--bleu,#1A64BF)}.puce-cie.violet{background:#6b4fbb}.puce-cie.sombre{background:#141A1F}.puce-cie.ambre{background:var(--ambre,#955F10)}',
       '.mrg-badge{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--fond-2,#eef0f3);color:var(--encre-2,#333)}',
       '.mrg-badge.vert{background:var(--vert-clair,#eaf6ef);color:var(--vert-fonce,#00632f)}.mrg-badge.bleu{background:#e8f0fb;color:var(--bleu,#1A64BF)}',
-      '.mrg-titre{margin:0 0 10px;font-size:15px}', '.mrg-lien-marche{margin-left:12px;font-size:13.5px;font-weight:600;white-space:nowrap}',
-      '.mrg-retours{display:flex;flex-wrap:wrap;gap:8px;margin:12px 12px 0}.mrg-retours .mrg-retour{margin:0}', '.mrg-evalue{margin:6px 16px 0;font-size:14px;color:var(--encre-2,#344054)}',
+      '.mrg-titre{margin:0 0 10px;font-size:15px}',
       '.mrg-pied{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px}',
       '.mrg-tendance{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--encre-2,#333)}',
       '.mrg-courbe{color:var(--bleu,#1A64BF);flex:none}',
@@ -900,14 +919,17 @@
       '.mrg-chaleur td.meilleur{background:#d3eedd;color:var(--vert-fonce,#00632f);font-weight:700}.mrg-chaleur td.peu span{color:var(--encre-4,#5F6978)}.mrg-chaleur td.vide-c span{color:#c3c7cd}',
       '.mrg-retour{margin:12px 12px 0}.mrg-fiche-titre{margin:8px 16px 0;font-size:22px}.mrg-fiche-titre small{font-size:14px;color:var(--encre-3,#4B5563);font-weight:400}',
       '.mrg-corps>.mrg-tuiles{margin:12px 16px}.mrg-corps>.alerte{margin:0 16px 12px}',
+      /* 18 nov. : la même analyse dans le panneau de l\'évaluation (la carte du panneau a déjà ses marges). */
+      '.mrg-dans-eval>.mrg-tuiles{margin:0 0 12px}.mrg-dans-eval>.alerte{margin:0 0 12px}',
+      '.mrg-dans-eval .mrg-carte{padding:14px 0 0;margin-top:14px;border-bottom:0;border-top:1px solid var(--trait,#e5e7eb)}.mrg-dans-eval .mrg-carte>h3:first-child{margin-top:0}',
       '.mrg-revente{font-size:14px;padding:8px 10px;border-radius:8px;flex-basis:100%}.mrg-revente.rouge{background:#fdecec}.mrg-revente.ambre{background:#fff4dc}.mrg-revente.vert{background:var(--vert-clair,#eaf6ef)}',
       '.mrg-annees>div{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0}.mrg-annees b{min-width:120px}',
-      '@media (max-width:640px){.mrg-question{font-size:16px!important}.mrg-evals{grid-template-columns:1fr}.mrg-tuile b{font-size:19px}}'
+      '@media (max-width:640px){.mrg-question{font-size:16px!important}.mrg-evals{grid-template-columns:1fr}.mrg-tuile b{font-size:19px}.mrg-dans-eval>.mrg-tuiles{grid-template-columns:1fr 1fr}.mrg-dans-eval>.mrg-tuiles>.mrg-tuile:first-child{grid-column:1/-1}}'
     ].join('\n');
     document.head.appendChild(s);
   }
 
   AMX.marcheRegion = { charger: charger, copie: copie, enCache: function () { return cache.d; }, famille: function (m, mo) { return famille(cache.d, m, mo); },
     segment: function (f) { return segment(cache.d, f); }, pourVehicule: function (v) { return pourVehicule(cache.d, v); }, pourVehiculeAvec: pourVehicule,
-    bloc: function (c, v, o) { injecterCss(); return bloc(c, v, o); }, tuile: tuile, mds: mdsLire, vider: function () { cache.d = null; cache.quand = 0; cache.copieLe = 0; } };
+    bloc: function (c, v, o) { injecterCss(); return bloc(c, v, o); }, fiche: function (c, v, o) { injecterCss(); return ficheVehicule(c, v, o); }, tuile: tuile, mds: mdsLire, vider: function () { cache.d = null; cache.quand = 0; cache.copieLe = 0; } };
 })();

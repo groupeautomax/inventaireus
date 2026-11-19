@@ -564,7 +564,72 @@
   /** Programmes valables aujourd'hui (mois courant, ou un mois d'avant dont la fin n'est pas passée). */
   function programmesDuJour(liste, ajd) {
     var mois = ajd.slice(0, 7);
-    return (liste || []).filter(function (p) { return (p.mois === mois || (p.fin && p.fin >= ajd && p.mois <= mois)) && (!p.fin || p.fin >= ajd); });
+    return (liste || []).filter(function (p) { return p.moisPasse === true || ((p.mois === mois || (p.fin && p.fin >= ajd && p.mois <= mois)) && (!p.fin || p.fin >= ajd)); });
+  }
+  /* ---- 18 nov. (Maxime : « inscrire en vert ou rouge quel programme du manufacturier est calculé ; si c'est celui du mois
+     passé, en rouge […] on doit toujours savoir si le bon programme est calculé ») ----
+     Le serveur (?programmesMois=1&jour=1) dit où en est chaque source automatique de la concession (site de la concession,
+     hyundaicanada.com, bulletin GM) : mois lu, date de lecture, date de vérification (le témoin du jour compare une trentaine
+     de versions avec le site), date du dernier changement des taux. Une source sans programme ce mois-ci envoie ceux du mois
+     passé, marqués `moisPasse` : le calcul se fait quand même, en ROUGE. */
+  var MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  var MOIS_COURTS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juill.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  function moisIndex(m) { var i = Number(String(m || '').slice(5, 7)) - 1; return /^\d{4}-\d{2}/.test(String(m || '')) && i >= 0 && i < 12 ? i : -1; }
+  function moisNom(m) { var i = moisIndex(m); return i < 0 ? '' : MOIS_FR[i] + ' ' + String(m).slice(0, 4); }
+  function moisCourt(m) { var i = moisIndex(m); return i < 0 ? '' : MOIS_COURTS[i]; }
+  function deMois(m) { var n = moisNom(m); return n ? (/^[ao]/.test(n) ? 'd\'' : 'de ') + n : ''; }
+  /** Le jour local (AAAA-MM-JJ) d'un horodatage du serveur. */
+  function jourLocal(x) { if (!x) return ''; var d = new Date(x); return isNaN(d) ? String(x).slice(0, 10) : iso(d); }
+  function jourTexte(x) { var j = jourLocal(x); return j ? AMX.fmtDateCourte(j) : ''; }
+  /** L'état des programmes d'une concession : { connu, mois, niveau: ok | rouge | inconnu, sources: [{ cle, nom, niveau,
+      raison: '' | passe | aucun | change | vieux, mois, n, luLe, verifieLe, changeLe, enCours, erreur, texte, court }] }.
+      `info` = la réponse de ?programmesMois=1&jour=1 ; `progs` = ses programmes (ceux du mois passé marqués moisPasse). */
+  function etatProgrammes(info, progs, ajd) {
+    var out = { connu: false, mois: String((info && info.mois) || ajd || '').slice(0, 7), niveau: 'inconnu', sources: [], peutLancer: !!(info && info.peutLancer) };
+    if (!info || !Array.isArray(info.sources)) return out;
+    out.connu = true;
+    var mois = out.mois, a = dateMidi(ajd);
+    var depuis = function (x) { var d = dateMidi(jourLocal(x)); return d && a ? Math.round((a - d) / JOUR_MS) : null; };
+    var plusRecent = function (l) { var m = ''; l.forEach(function (p) { if (p.le && String(p.le) > m) m = String(p.le); }); return m; };
+    info.sources.forEach(function (s) {
+      var siens = (progs || []).filter(function (p) { return String(p.id).indexOf(s.prefixe) === 0; });
+      var lm = siens.filter(function (p) { return !p.moisPasse && p.mois === mois; }), lp = siens.filter(function (p) { return p.moisPasse; });
+      if (s.secours && !lm.length && !lp.length) return;   /* le bulletin GM ne sert que quand il a des programmes en jeu */
+      var lu = lm.length ? (plusRecent(lm) || (s.mois === mois ? s.luLe : '')) : (lp.length ? plusRecent(lp) : '');
+      var verif = lm.length && s.verifieLe && String(s.verifieLe) > String(lu) ? s.verifieLe : lu;
+      var j = depuis(verif), limite = (Number(s.jours) || 7) + 2;
+      var x = { cle: s.cle, nom: s.nom, genre: s.genre, secours: !!s.secours, prefixe: s.prefixe, n: lm.length, nPrecedent: lp.length, mois: lm.length ? mois : (lp.length ? lp[0].mois : ''),
+        luLe: lu, verifieLe: verif, changeLe: s.changeLe || '', enCours: s.enCours || null, erreur: s.erreur || '', changeVuLe: s.changeVuLe || '', niveau: 'ok', raison: '' };
+      if (!lm.length && lp.length) x.raison = 'passe';
+      else if (!lm.length) x.raison = 'aucun';
+      else if (s.aRelire) x.raison = 'change';
+      else if (j === null || j > limite) x.raison = 'vieux';
+      if (x.raison) x.niveau = 'rouge';
+      var lect = x.enCours ? ' (lecture en cours)' : '';
+      x.titre = 'Programme ' + deMois(mois);
+      if (x.raison === 'passe') { x.titre = 'Programme ' + deMois(x.mois); x.suite = 'celui ' + deMois(mois) + ' n\'est pas encore lu' + lect; }
+      else if (x.raison === 'aucun') { x.titre = 'Aucun programme lu'; x.suite = (String(x.erreur || '').replace(/^Aucun programme lu[^:]*:\s*/i, '') || 'rien à calculer') + lect; }
+      else if (x.raison === 'change') x.suite = x.changeVuLe ? 'le manufacturier l\'a changé le ' + jourTexte(x.changeVuLe) + ' : relecture en cours' : 'relecture complète demandée, pas encore finie';
+      else if (x.raison === 'vieux') x.suite = 'pas vérifié depuis le ' + (jourTexte(verif) || '?');
+      else {
+        x.suite = 'vérifié ' + (j === 0 ? 'aujourd\'hui' : (j === 1 ? 'hier' : 'le ' + jourTexte(verif)));
+        if (x.changeLe) x.suite += jourLocal(x.changeLe).slice(0, 7) === mois ? ' · taux en vigueur depuis le ' + jourTexte(x.changeLe) : ' · mêmes taux depuis le ' + jourTexte(x.changeLe);
+      }
+      x.court = x.titre + ' — ' + x.suite;
+      x.texte = x.titre + ' · ' + x.nom + ' · ' + x.suite;
+      out.sources.push(x);
+    });
+    if (out.sources.length) out.niveau = out.sources.some(function (x) { return x.niveau === 'rouge'; }) ? 'rouge' : 'ok';
+    return out;
+  }
+  /** Le programme d'UNE ligne : { niveau: ok | rouge, court: « prog. nov. », titre } (null sans programme). */
+  function programmeDeLigne(r, etat) {
+    var p = r && r.programme; if (!p || p.manquant) return null;
+    var mois = (etat && etat.mois) || iso(new Date()).slice(0, 7);
+    if (p.source === 'gm') return { niveau: 'ok', court: 'Fin. GM ' + moisCourt(mois), titre: 'Taux de la Financière GM : scénarios lus dans GM Dealer Direct ce mois-ci, au terme du contrat.' };
+    var src = null; ((etat && etat.sources) || []).forEach(function (x) { if (!src && p.progId && String(p.progId).indexOf(x.prefixe) === 0) src = x; });
+    var m = p.mois || mois, passe = !!p.moisPasse, niveau = passe || (src && src.niveau === 'rouge') ? 'rouge' : 'ok';
+    return { niveau: niveau, source: src, court: 'prog. ' + moisCourt(m), titre: src ? src.texte : (passe ? 'Programme ' + deMois(m) + ' : celui ' + deMois(mois) + ' n\'est pas encore lu.' : 'Programme ' + deMois(m) + (p.par ? ' — ' + p.par : ' (saisi à la main dans les Programmes du mois)')) };
   }
   /** Taux GM du mois : par famille de modèle, les scénarios de financement de DealDriver (véhicule, version, terme, taux). */
   function indexTauxGm(comptes, familleDe, ajd) {
@@ -660,14 +725,15 @@
     (progs || []).forEach(function (p) { if (p.type === 'rabais' && progCorrespond(p, s)) { rabais += nombre(p.rabais) || 0; if (p.rabaisAvantTaxes !== 'oui') avant = false; noms.push(p.note || p.modele || 'rabais'); } });
     var base = { type: type, rabais: rabais, rabaisAvantTaxes: avant, rabaisNoms: noms, termeVoulu: voulu, kmVoulu: kmVoulu, residuelPct: null, kmAn: kmVoulu, interpole: null, termeExact: true, kmExact: true };
     var c = (progs || []).filter(function (p) { return p.type === type && nombre(p.taux) !== null && (nombre(p.terme) || p.grille) && progCorrespond(p, s); });
-    c.sort(function (a, b) { return progPrecision(b) - progPrecision(a); });
+    c.sort(function (a, b) { return (progPrecision(b) - progPrecision(a)) || ((a.moisPasse ? 1 : 0) - (b.moisPasse ? 1 : 0)); });   /* à précision égale, le programme de ce mois-ci avant celui du mois passé */
     /* 9 nov. (Maxime : « le terme du contrat doit être le même que celui proposé ») : sans le terme du contrat (ni terme, ni
        dates chez le prêteur), on ne prend jamais le terme du programme à la place — pas de mensualité. */
     if (!voulu) return Object.assign({}, base, { manquant: true, terme: null, financementSeul: false, raison: 'le terme du contrat est inconnu (le prêteur ne le donne pas) : impossible de comparer au même terme' });
     /* le programme le plus précis qui DONNE ce terme (sa grille, ou sa ligne quand elle est à ce terme) */
     for (var i = 0; i < c.length; i++) {
       var p0 = c[i], t0 = voulu, ch = grilleChoix(p0, t0, kmVoulu), o = null;
-      var lib = { source: 'programme', libelle: 'programme du mois' + (noteSource(p0.note) ? ' (' + noteSource(p0.note) + ')' : ''), note: p0.note || '' };
+      var lib = { source: 'programme', libelle: (p0.moisPasse ? 'programme du mois passé' : 'programme du mois') + (noteSource(p0.note) ? ' (' + noteSource(p0.note) + ')' : ''), note: p0.note || '',
+        progId: p0.id || '', mois: p0.mois || '', moisPasse: !!p0.moisPasse, par: p0.par || '' };   /* 18 nov. : quel programme est calculé */
       if (ch && ch.taux !== null && (!location || ch.residuelPct > 0)) {
         o = Object.assign({}, base, lib, { taux: ch.taux, terme: ch.terme, termeExact: ch.termeExact, interpole: ch.interpole });
         if (location) Object.assign(o, { kmAn: ch.kmAn || kmVoulu, kmExact: ch.kmExact, residuelPct: ch.residuelPct });
@@ -1072,6 +1138,7 @@
       return cache.promesse;
     },
     enCache: function () { return cache.donnees; },
+    etatProgrammes: etatProgrammes, programmeDeLigne: programmeDeLigne,
     fidelite: chargerFidelite,
     crm: chargerCrm, crmDe: crmDe,
     vider: function () { cache.donnees = null; cache.le = 0; FID = {}; CRM = {}; AMX.cacheLocal.oublier('equite'); Object.keys(SYNCS).forEach(function (c) { if (SYNCS[c].enCours) SYNCS[c].arret = true; }); },
@@ -1135,6 +1202,11 @@
       '.eq-fid-carte { margin: 10px 0 4px; border: 1px solid #BFE3CC; border-left: 4px solid #0B8A45; border-radius: 8px; background: #F4FBF6; padding: 2px 12px 8px; } .eq-fid-carte summary { cursor: pointer; padding: 8px 0 4px; list-style: none; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .eq-fid-carte summary::-webkit-details-marker { display: none; } .eq-fid-carte summary .fleche { display: inline-block; transition: transform .15s; color: #0B6B3A; } .eq-fid-carte details[open] summary .fleche { transform: rotate(90deg); } .eq-fid-carte summary .ouvrir { margin-left: auto; color: #0B6B3A; font-weight: 600; font-size: 13px; } .eq-fid-carte .eq-fid-vues { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; } .eq-fid-carte .eq-fid-vues button { border: 1px solid #BFE3CC; background: #fff; border-radius: 14px; padding: 3px 10px; font-size: 13px; cursor: pointer; } .eq-fid-carte .eq-fid-vues button[aria-pressed="true"] { background: #0B8A45; border-color: #0B8A45; color: #fff; } .eq-fid-carte table { background: #fff; } .eq-exp-ok { color: #0B6B3A; font-weight: 700; } .eq-fid-barre { padding: 6px 0 0; } .eq-fid-barre .outils { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; } .eq-fid-exp { font-size: 13px; display: inline-flex; gap: 4px; align-items: center; } tr.eq-offre-seule td { background: #FAFDFB; } .eq-exp-non { color: #B42318; font-weight: 700; } .eq-fid-carte table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; } .eq-fid-carte th, .eq-fid-carte td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--ligne, #E4E8EC); vertical-align: top; } .eq-fid-carte th { font-size: 12px; color: var(--encre-3, #4B5563); font-weight: 600; } .eq-fid-carte .pin { font-family: ui-monospace, Menlo, monospace; } .eq-fid-carte .defile { overflow-x: auto; } .eq-fid-carte .outils { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }',
       '.eq-us { display: flex; gap: 6px; align-items: center; margin-top: 3px; } .eq-us-puce { background: #E8F0FE; color: #1A64BF; font-weight: 700; font-size: 11.5px; padding: 1px 6px; border-radius: 8px; }',
       '.eq-ia-res { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 12px; border-radius: 10px; background: var(--vert-clair); font-size: 13px; } .eq-ia-res .sous { color: var(--encre-3); font-size: 12px; flex: 1 1 200px; }',
+      '.eq-prog-etat { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; } .eq-prog-etat:empty { display: none; } .eq-prog-b { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 12px; border-radius: 10px; border: 1px solid transparent; font: inherit; font-size: 13px; line-height: 1.3; text-align: left; cursor: pointer; } .eq-prog-b .pt { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; } .eq-prog-b .agir { flex: 0 0 auto; font-weight: 700; text-decoration: underline; }',
+      '.eq-prog-b.ok { background: var(--vert-clair); color: var(--vert-fonce); } .eq-prog-b.ok .pt { background: var(--vert); } .eq-prog-b.rouge { background: var(--rouge-bg); border-color: var(--rouge-bord, #F9C7C2); color: var(--rouge); font-weight: 600; } .eq-prog-b.rouge .pt { background: var(--rouge); } .eq-prog-b:hover, .eq-prog-b:focus-visible { border-color: currentColor; }',
+      '.eq-table .eq-prog-l { display: block; width: 100%; margin: 1px 0 0; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; line-height: 1.25; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .eq-table .eq-prog-l.ok { color: var(--vert-fonce); } .eq-table .eq-prog-l.rouge { color: var(--rouge); font-weight: 700; cursor: pointer; text-decoration: underline; }',
+      '.eq-prog-ligne { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 13px; } .eq-prog-ligne.ok { background: var(--vert-clair); color: var(--vert-fonce); } .eq-prog-ligne.rouge { background: var(--rouge-bg); color: var(--rouge); font-weight: 600; } .eq-prog-ligne span { flex: 1 1 240px; }',
+      '.eq-prog-src { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--ligne, #E3E7EB); border-left: 5px solid var(--vert); } .eq-prog-src.rouge { border-left-color: var(--rouge); background: var(--rouge-bg); } .eq-prog-src h4 { margin: 0 0 4px; font-size: 15px; } .eq-prog-src .verdict { margin: 0 0 6px; font-weight: 600; } .eq-prog-src.ok .verdict { color: var(--vert-fonce); } .eq-prog-src.rouge .verdict { color: var(--rouge); } .eq-prog-src ul { margin: 0 0 8px; padding-left: 18px; font-size: 13px; } .eq-prog-src .actions-ligne { margin-top: 8px; } .eq-prog-msg { margin: 6px 0 0; font-size: 13px; }',
       '.eq-sync { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--fond-2, #F4F6F8); font-size: 13px; } .eq-sync.ok { background: var(--vert-clair); } .eq-sync.alerte { background: #FFF4E0; color: var(--ambre); } .eq-sync .eq-sync-txt { flex: 1 1 260px; }',
       '.eq-sync .eq-sync-barre { flex: 1 1 180px; height: 6px; border-radius: 3px; background: var(--ligne, #E3E7EB); overflow: hidden; } .eq-sync .eq-sync-barre span { display: block; height: 100%; background: var(--vert); transition: width .3s; }',
       '.eq-table td.eq-us-cell { min-width: 120px; } .eq-table input.eq-mmr { width: 92px; height: 24px; font-size: 12px; text-align: right; } .eq-table .eq-us-lien { font-size: 12px; }',
@@ -1212,11 +1284,77 @@
   VueEquite.prototype.chargerProgrammes = function () {
     var self = this, cie = this.cie; this.progs = this.progs || {};
     if (this.progs[cie] !== undefined) return;
-    this.progs[cie] = [];
-    AMX.get({ programmesMois: 1, compagnie: cie }, { discret: true }).then(function (d) {
-      if (d && Array.isArray(d.programmes) && d.programmes.length) { self.progs[cie] = d.programmes; if (!self.detruit) self.planifierRendu(0); }
+    this.progs[cie] = []; this.progInfo = this.progInfo || {};
+    return AMX.get({ programmesMois: 1, compagnie: cie, jour: 1 }, { discret: true }).then(function (d) {
+      if (!d || !Array.isArray(d.programmes)) return;
+      /* 18 nov. : l'état de chaque source, et les programmes du mois passé d'une source pas encore lue ce mois-ci (en rouge) */
+      self.progInfo[cie] = { sources: Array.isArray(d.sources) ? d.sources : null, mois: d.mois || '', moisPrecedent: d.moisPrecedent || '', peutLancer: !!d.peutLancer, le: Date.now() };
+      self.progs[cie] = d.programmes.concat(Array.isArray(d.precedents) ? d.precedents : []);
+      if (!self.detruit) self.planifierRendu(0);
     }).catch(function () {});
   };
+  /** 18 nov. : la bande « quel programme est calculé » — un bouton par source, vert ou rouge ; un clic = le détail et la mise à jour. */
+  VueEquite.prototype.rendreProg = function () {
+    var self = this, el = this.elProg; if (!el) return;
+    AMX.vider(el);
+    var e = this.etatProg; if (!e || !e.connu) return;
+    e.sources.forEach(function (x) {
+      var rouge = x.niveau === 'rouge';
+      el.appendChild(h('button.eq-prog-b.' + (rouge ? 'rouge' : 'ok'), { type: 'button', title: rouge ? 'Le calcul n\'utilise pas le bon programme : cliquez pour le mettre à jour.' : 'Le bon programme est calculé. Cliquez pour le détail.', onclick: function () { self.ouvrirProgramme(); } },
+        [h('span.pt'), h('span', { text: (rouge ? '⚠ ' : '✓ ') + x.texte }), rouge ? h('span.agir', { text: 'Mettre à jour' }) : null]));
+    });
+  };
+  /** La fenêtre « Programme du manufacturier » : où en est chaque source, quoi faire, et « Lire maintenant » (direction). */
+  VueEquite.prototype.ouvrirProgramme = function () {
+    var self = this, cie = this.cie, corps = h('div'), message = '', occupe = '';
+    var li = function (t) { return h('li', { text: t }); };
+    var dessiner = function () {
+      AMX.vider(corps);
+      var e = self.etatProgrammes(); self.etatProg = e;
+      if (!e.connu) { corps.appendChild(h('p', { text: 'L\'état des programmes n\'est pas encore connu : le script du site doit être déployé (ProgrammesAuto.gs, MoteurOffres.gs).' })); return; }
+      if (!e.sources.length) corps.appendChild(h('p', { text: 'Aucune lecture automatique de programmes pour cette concession. Les programmes se saisissent dans Relance › Portefeuille clients › Programmes du mois.' }));
+      e.sources.forEach(function (x) {
+        var rouge = x.niveau === 'rouge', faits = [], quoi = '';
+        if (x.n) faits.push(AMX.fmtNombre(x.n) + ' programmes ' + deMois(e.mois) + ', lus le ' + (jourTexte(x.luLe) || '?') + '.');
+        else if (x.nPrecedent) faits.push(AMX.fmtNombre(x.nPrecedent) + ' programmes ' + deMois(x.mois) + ' (lus le ' + (jourTexte(x.luLe) || '?') + ') servent au calcul en attendant.');
+        if (x.n && x.verifieLe) faits.push('Comparé avec ' + x.nom + ' pour la dernière fois le ' + jourTexte(x.verifieLe) + '.');
+        if (x.changeLe) faits.push('Dernier changement des taux vu le ' + jourTexte(x.changeLe) + '.');
+        if (x.enCours) faits.push('Lecture en cours : ' + (x.enCours.pages < x.enCours.totalPages ? x.enCours.pages + ' pages de modèles sur ' + x.enCours.totalPages : x.enCours.faites + ' versions sur ' + x.enCours.total) + ' — la suite se fait toute seule dans les prochaines minutes.');
+        if (x.erreur) faits.push('Dernière lecture : ' + x.erreur);
+        if (x.raison === 'passe') quoi = 'Les mensualités sont calculées avec le programme du mois passé, donc à vérifier avant d\'en parler à un client. ';
+        else if (x.raison === 'aucun') quoi = 'Aucune mensualité ne peut être calculée pour les modèles de cette source. ';
+        else if (x.raison === 'change') quoi = 'Le manufacturier vient de changer son programme : les mensualités affichées sont encore celles d\'avant. ';
+        else if (x.raison === 'vieux') quoi = 'La vérification quotidienne ne s\'est pas faite : le programme a pu changer sans qu\'on le voie. ';
+        if (rouge) quoi += x.genre === 'bulletin' ? 'Transférez le bulletin GM « Programmes principaux » du mois à l\'adresse des programmes (Relance › Portefeuille clients › Programmes du mois).'
+          : (e.peutLancer ? 'Cliquez « Lire maintenant » : la lecture prend de 1 à 5 minutes.' : 'La lecture se refait toute seule chaque matin vers 5 h ; pour la lancer tout de suite, demandez à la direction (bouton « Lire maintenant » de cette fenêtre).');
+        var btn = e.peutLancer && x.genre !== 'bulletin' ? h('button.btn.petit' + (rouge ? '.primaire' : ''), { type: 'button', text: occupe === x.cle ? 'Lecture… (de 1 à 5 minutes)' : 'Lire maintenant', disabled: occupe ? 'disabled' : null, onclick: function () { lire(x); } }) : null;
+        corps.appendChild(h('div.eq-prog-src.' + (rouge ? 'rouge' : 'ok'), [h('h4', { text: x.nom + (x.secours ? ' (secours)' : '') }), h('p.verdict', { text: (rouge ? '⚠ ' : '✓ ') + x.court }),
+          faits.length ? h('ul', faits.map(li)) : null, quoi ? h('p.petit', { style: { margin: 0 }, text: quoi }) : null, btn ? h('div.actions-ligne', [btn]) : null]));
+      });
+      if (message) corps.appendChild(h('p.eq-prog-msg', { text: message }));
+      corps.appendChild(h('p.doux.petit', { style: { margin: '10px 0 0' }, text: 'Comment ça se met à jour : chaque matin vers 5 h, ScanAutomax compare une trentaine de versions avec le site ; à la moindre différence, tout le programme est relu le jour même. Tout est relu aussi le 1er du mois et au moins une fois par semaine (Hyundai : chaque jour). Vert = ce qui est calculé est ce que le site affiche. Rouge = programme du mois passé, pas vérifié, ou en cours de relecture.' }));
+    };
+    var lire = function (x) {
+      occupe = x.cle; message = ''; dessiner();
+      AMX.post({ action: 'programmesAuto', source: x.cle }, { delai: 300000, secours: false }).then(function (r) {
+        occupe = '';
+        if (r && r.ok) message = x.nom + ' : ' + AMX.fmtNombre(r.lignes || 0) + ' programmes lus.';
+        else if (r && (r.enCours || r.occupe)) message = x.nom + ' : ' + (r.erreur || 'lecture en cours, la suite se fait toute seule.');
+        else message = x.nom + ' : ' + ((r && r.erreur) || 'lecture impossible.');
+        return self.rechargerProgrammes();
+      }).catch(function (er) { occupe = ''; message = x.nom + ' : ' + AMX.erreurTexte(er) + ' La lecture a peut-être continué : rouvrez cette fenêtre dans quelques minutes.'; return self.rechargerProgrammes(); })
+        .then(function () { dessiner(); if (!self.detruit) self.rendre(); });
+    };
+    dessiner();
+    var boutons = [{ texte: 'Fermer' }];
+    if (AMX.voitOnglet && AMX.voitOnglet('relance', 'portefeuille')) boutons.unshift({ texte: 'Programmes du mois', action: function () { AMX.aller('relance', 'portefeuille'); return true; } });
+    boutons.unshift({ texte: 'Revérifier', action: function () { message = 'État relu.'; self.rechargerProgrammes().then(function () { dessiner(); if (!self.detruit) self.rendre(); }); return false; } });
+    AMX.modale({ titre: 'Programme du manufacturier — ' + nomCie(cie), corps: corps, large: true, proteger: false, boutons: boutons });
+  };
+  /** Relit les programmes de la concession (après « Lire maintenant »). */
+  VueEquite.prototype.rechargerProgrammes = function () { if (this.progs) delete this.progs[this.cie]; return this.chargerProgrammes() || Promise.resolve(); };
+  /** L'état des programmes de la concession affichée (vert ou rouge). */
+  VueEquite.prototype.etatProgrammes = function () { return etatProgrammes(this.progInfo && this.progInfo[this.cie], this.progs && this.progs[this.cie], iso(new Date())); };
   VueEquite.prototype.analyser = function () {
     var comptes = AMX.equite.comptes(this.cie);
     var valeurs = AMX.openlane && AMX.openlane.valeur ? function (vin) { var r = AMX.openlane.valeur(vin); return r && r.luLe ? r : null; } : null;
@@ -1361,24 +1499,31 @@
     var compter = function (liste, cle) { var m = {}; liste.forEach(function (r) { var k = cle(r); if (k) m[k] = (m[k] || 0) + 1; }); return m; };
     if (this.filtres.modele && !this.lignes.some(function (r) { return modeleDe(r) === self.filtres.modele; })) this.filtres.modele = '';
     if (this.filtres.annee && !this.lignes.some(function (r) { return texte(r.compte.annee) === self.filtres.annee; })) this.filtres.annee = '';
-    var nMod = compter(this.visibles('modele'), modeleDe), nAn = compter(this.visibles('annee'), function (r) { return texte(r.compte.annee); });
-    if (this.filtres.modele && !nMod[this.filtres.modele]) nMod[this.filtres.modele] = 0;
-    if (this.filtres.annee && !nAn[this.filtres.annee]) nAn[this.filtres.annee] = 0;
-    var optsModele = Object.keys(nMod).sort(function (a, b) { return a.localeCompare(b, 'fr', { numeric: true }); }).map(function (k) { return [k, k + ' (' + nMod[k] + ')']; });
-    var optsAnnee = Object.keys(nAn).sort().reverse().map(function (k) { return [k, k + ' (' + nAn[k] + ')']; });
+    /* Les deux menus se refont aussi pendant qu'on tape dans la recherche (la barre de filtres, elle, reste en place pour garder le curseur). */
+    var menusMA = function () {
+      var nMod = compter(self.visibles('modele'), modeleDe), nAn = compter(self.visibles('annee'), function (r) { return texte(r.compte.annee); });
+      if (self.filtres.modele && !nMod[self.filtres.modele]) nMod[self.filtres.modele] = 0;
+      if (self.filtres.annee && !nAn[self.filtres.annee]) nAn[self.filtres.annee] = 0;
+      return {
+        modele: [['', 'Tous les modèles']].concat(Object.keys(nMod).sort(function (a, b) { return a.localeCompare(b, 'fr', { numeric: true }); }).map(function (k) { return [k, k + ' (' + nMod[k] + ')']; })),
+        annee: [['', 'Toutes les années']].concat(Object.keys(nAn).sort().reverse().map(function (k) { return [k, k + ' (' + nAn[k] + ')']; }))
+      };
+    };
+    var menus0 = menusMA(), selModele = sel('modele', menus0.modele), selAnnee = sel('annee', menus0.annee);
+    var remplirMenu = function (s, cle, options) { s.textContent = ''; options.forEach(function (o) { s.appendChild(h('option', { value: o[0], text: o[1] })); }); s.value = self.filtres[cle]; };
     var selTri = h('select.eq-tri' + (this.tri ? '.actif' : ''), { title: 'L\'ordre de la liste' }, TRIS.map(function (o) { return h('option', { value: o[0], text: o[1] }); }));
     selTri.value = this.tri;
     selTri.addEventListener('change', function () { self.tri = selTri.value; AMX.memo.ecrire('eq_tri', self.tri); setTimeout(function () { self.rendre(); }, 0); });
     var rech = h('input.recherche', { type: 'search', placeholder: 'Client, NIV, modèle, ville…', value: this.filtres.q });
-    rech.addEventListener('input', function () { self.filtres.q = rech.value; self.rendreTuiles(); self.rendreTable(); });
+    rech.addEventListener('input', function () { self.filtres.q = rech.value; self.rendreTuiles(); self.rendreTable(); var m = menusMA(); remplirMenu(selModele, 'modele', m.modele); remplirMenu(selAnnee, 'annee', m.annee); });
     this.elCompte = h('span.compte');
     var filtres = h('div.eq-filtres', [
       rech,
       sel('type', [['', 'Location et financement'], ['location', 'Locations'], ['financement', 'Financements']]),
       sel('echeance', [['', 'Toute échéance'], ['3', '≤ 3 mois'], ['6', '≤ 6 mois'], ['12', '≤ 12 mois'], ['24', '≤ 24 mois']]),
       sel('conseiller', [['', 'Tous les conseillers']].concat(Object.keys(conseillers).sort().map(function (k) { return [k, k === '—' ? 'Sans conseiller' : k]; }))),
-      sel('modele', [['', 'Tous les modèles']].concat(optsModele)),
-      sel('annee', [['', 'Toutes les années']].concat(optsAnnee)),
+      selModele,
+      selAnnee,
       /* 8 nov. : le représentant attitré dans ScanAutomax (Équité → CRM) — pas le conseiller du prêteur. */
       dCrm ? (function () {
         var noms = {}; (dCrm.reps || []).forEach(function (r) { noms[r.courriel] = r.nom; });
@@ -1407,6 +1552,8 @@
         h('span.sous', { text: this.ia.conditions.map(texteCondition).join(' · ') + (this.ia.tri ? ' · trié par ' + this.ia.tri + (this.ia.sens === 'croissant' ? ' ↑' : ' ↓') : '') }), effacer]);
     }
     this.elSync = h('div.eq-sync');
+    this.elProg = h('div.eq-prog-etat');   /* 18 nov. : quel programme du manufacturier est calculé, en vert ou en rouge */
+    this.etatProg = this.etatProgrammes();
     this.elTuiles = h('div.eq-tuiles');
     this.elFid = estHmf(this.cie) ? h('div.eq-fid-carte') : null;
     var contactOk = !!(d && d.contact);
@@ -1414,8 +1561,9 @@
     var restreint = !!(d && d.restreint);
     var avisVendeur = restreint ? h('p.eq-vendeur', { text: 'Vos clients seulement : ceux qui vous sont attitrés, et ceux que vous avez vendus (le prêteur vous nomme, ou la vente est à votre nom au Livre des ventes). La direction des ventes distribue les autres.' }) : null;
     var outilsListe = contactOk && this.sel && !restreint ? h('div.eq-outils-liste', [this.sel.bouton, h('span.doux.petit', { text: 'Cochez des clients pour les envoyer au CRM (' + CRM_MAX + ' au plus à la fois), ou cliquez « → CRM » sur une ligne.' })]) : null;
-    el.appendChild(h('div.carte', [h('div.carte-corps', [avisVendeur, this.elSync, iaBarre, iaRes, filtres, this.elTuiles, this.elFid, params, outilsListe, this.elTable])]));
+    el.appendChild(h('div.carte', [h('div.carte-corps', [avisVendeur, this.elSync, this.elProg, iaBarre, iaRes, filtres, this.elTuiles, this.elFid, params, outilsListe, this.elTable])]));
     this.majSync();
+    this.rendreProg();
     this.rendreTuiles();
     this.rendreFidelite();
     this.rendreTable();
@@ -1670,7 +1818,7 @@
   function textePaiementVw(r) {
     var v = r.vwf; if (!v || !v.paiementPeriode) return '';
     if (v.periode === 'mois' && v.taxe === 1) return '';
-    return (r.location ? ', taxes comprises' : '') + '\nAu contrat (VW Finance) : ' + fmt2(v.paiementPeriode) + ' ' + v.nom + (r.location ? ', avant taxes' : '') + (v.sur ? '' : ' — fréquence déduite du solde, à vérifier');
+    return (r.location ? ', taxes comprises' : '') + '\nAu contrat (VW Finance) : ' + fmt2(v.paiementPeriode) + ' ' + v.nom + (r.location ? ', avant taxes' : '') + (r.location ? (v.sur ? '' : ' — nombre de paiements déduit du solde, à vérifier') : ' — fréquence déduite du solde et de l\'échéance');
   }
   function sourceDetteCourte(r) {
     var d = r.dette || {}, qui = r.gm ? 'GM' : (r.mode === 'vw' ? 'VW' : (r.mode === 'hmf' ? 'HMF' : 'BMW'));
@@ -1751,6 +1899,14 @@
       projEl = h('button.eq-proj.eq-proj-btn.eq-manquant', { type: 'button', text: r.programme.financementSeul ? '→ location pas offerte' : '→ programme à trouver', onclick: function (ev) { ev.stopPropagation(); self.detailPaiement(r); } });
       titrePaie += '\nPas de nouvelle mensualité : ' + r.programme.raison + '. Les Programmes du mois sont lus tout seuls sur le site de la concession ou chez le manufacturier.';
     } else projEl = h('div.eq-proj.eq-nul', { text: '→ —' });
+    /* 18 nov. : quel programme est calculé — vert (celui du mois, vérifié) ou rouge (mois passé, pas vérifié : un clic pour le mettre à jour) */
+    var pl = r.mensualite !== null ? programmeDeLigne(r, this.etatProg) : null, progEl = null;
+    if (pl && this.etatProg && this.etatProg.connu) {
+      progEl = pl.niveau === 'rouge'
+        ? h('button.eq-prog-l.rouge', { type: 'button', text: '⚠ ' + pl.court, title: pl.titre + '\nCliquez pour le mettre à jour.', onclick: function (ev) { ev.stopPropagation(); self.ouvrirProgramme(); } })
+        : h('div.eq-prog-l.ok', { text: '✓ ' + pl.court, title: pl.titre });
+      titrePaie += '\n\n' + (pl.niveau === 'rouge' ? '⚠ ' : '✓ ') + pl.titre;
+    }
     var noteSuivi = [c.suiviNote, c.suiviLe ? AMX.fmtDateCourte(c.suiviLe) + (c.suiviPar ? ' · ' + String(c.suiviPar).split('@')[0] : '') : ''].filter(Boolean).join('\n');
     if (noteSuivi) selSuivi.title = noteSuivi;
     /* 8 nov. : envoi au CRM et représentant attitré (EquiteCrm.gs). */
@@ -1765,7 +1921,7 @@
       h('td', { title: titreClient }, [h('div.nom.coupe', { text: nomClient(c) }), h('div.sous.coupe', [telEl || h('span', { text: court(c.ville, 18) }), mailEl ? ' ' : '', mailEl]), puces.length ? h('div.eq-puces', puces) : null]),
       h('td', { title: veh + (c.vin ? '\nNIV ' + c.vin : '') }, [h('div.coupe', { text: vehCourt }), h('div.vin.coupe', { text: c.vin ? '…' + String(c.vin).slice(-8) : '' })]),
       h('td', { title: titreContrat }, [h('div.coupe', { text: typeC + (r.tauxContrat !== null ? ' · ' + fmtTaux(r.tauxContrat) + (r.tauxSource === 'estime' ? '*' : '') : '') }), h('div.sous.coupe' + (r.echeanceProche ? '.eq-neg' : ''), { text: c.echeance ? 'éch. ' + moisAn(c.echeance) + (r.moisRestants !== null ? ' (' + r.moisRestants + ' m)' : '') : '' })]),
-      h('td.num.eq-paie', { title: titrePaie }, [h('div', { text: fmt$(r.paiement) }), projEl]),
+      h('td.num.eq-paie', { title: titrePaie }, [h('div', { text: fmt$(r.paiement) }), projEl, progEl]),
       h('td.num', [valeurEl]),
       h('td.num', { title: titreDette }, [h('button.eq-dette', { type: 'button', text: fmtK(r.solde), onclick: function () { self.detailDette(r); } })].concat(detteSous)),
       h('td.num', { title: r.location && r.equiteEcheance !== null ? 'À l\'échéance : ' + fmtSigne(r.equiteEcheance) : '' }, [h('div' + eqCls, { text: r.equite === null ? '—' : fmtKSigne(r.equite) }), r.location && r.equiteEcheance !== null ? h('div.sous', { text: 'éch. ' + fmtKSigne(r.equiteEcheance) }) : null]),
@@ -2137,6 +2293,10 @@
         loc && p.kmAn ? ['Km par année', AMX.fmtNombre(p.kmAn) + ' km' + (p.kmExact === false && p.kmVoulu ? ' (le contrat en a ' + AMX.fmtNombre(p.kmVoulu) + ')' : '')] : null,
         ['Source', p.source === 'gm' ? 'Financière GM (scénarios lus dans GM Dealer Direct ce mois-ci, au terme du contrat)' : (noteSource(p.note) || 'Programmes du mois')]
       ]);
+      /* 18 nov. : est-ce le bon programme ? */
+      var plD = programmeDeLigne(r, this.etatProg), selfD = this;
+      if (plD && this.etatProg && this.etatProg.connu) blocs.push(h('p.eq-prog-ligne.' + plD.niveau, [h('span', { text: (plD.niveau === 'rouge' ? '⚠ ' : '✓ ') + plD.titre }),
+        plD.niveau === 'rouge' ? h('button.btn.petit', { type: 'button', text: 'Mettre à jour', onclick: function () { selfD.ouvrirProgramme(); } }) : null]));
       if (ecarts.length) blocs.push(h('p.doux.petit', { style: { margin: '4px 0 0' }, text: 'À savoir : ' + ecarts.join(' · ') + '.' }));
       var lignes = [['Prix du neuf : PDSF ' + fmt$(k.pdsf) + ' + frais ' + fmt$(k.frais), fmt$(k.prix)]];
       if (k.rabais) lignes.push(['Rabais' + (p.rabaisD2c ? ' affichés sur le site' : ' du manufacturier') + (loc || k.rabaisAvant ? ' (avant taxes)' : ' (après taxes)'), '− ' + fmt$(k.rabais)]);
@@ -2202,7 +2362,8 @@
   };
   VueEquite.prototype.exporter = function () {
     if (typeof XLSX === 'undefined') { AMX.toast('Export Excel indisponible (SheetJS non chargé).', 'erreur'); return; }
-    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux du contrat %': r.tauxContrat === null ? '' : r.tauxContrat, 'Taux du contrat : source': r.tauxSource === 'estime' ? 'estimé (rachat, paiement, mensualités)' : (r.tauxSource === 'preteur' ? 'prêteur' : ''), 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': r.paiement, 'Paiement au contrat': r.vwf && r.vwf.paiementPeriode ? r.vwf.paiementPeriode : '', 'Fréquence du paiement': r.vwf ? r.vwf.nom + (r.location ? ', avant taxes' : '') : '', 'Valeur résiduelle': r.location && nombre(c.residuel) !== null ? nombre(c.residuel) : '', 'Paiements qui restent': r.dette && r.dette.source === 'vwf' ? r.dette.reste : '', 'Valeur (moyenne des ventes OpenLane)': r.valeur, 'Ventes OpenLane': r.nVentes, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'Location anticipée': r.anticipee ? (r.equiteAbsorbee ? 'oui — équité négative reprise par Hyundai : ' + Math.round(r.equiteAbsorbee) + ' $' : 'oui') : '', 'Fidélité Hyundai': texteFidelite(r.fidelite), 'Fidélité : PIN': r.fidelite ? r.fidelite.pin || '' : '', 'Fidélité : expiration': r.fidelite ? r.fidelite.expiration || '' : '', 'Taux avant fidélité %': r.programme && r.programme.fidelite ? r.programme.tauxAvantFidelite : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Transaction du neuf': r.programme ? (r.programme.type === 'location' ? 'location' : 'financement') : '', 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Km / an du neuf': r.programme && r.programme.type === 'location' ? r.programme.kmAn || '' : '', 'Résiduel du neuf %': r.programme && r.programme.type === 'location' ? r.programme.residuelPct || '' : '', 'Écart avec le contrat': r.programmeManquant ? 'programme à trouver : ' + r.programme.raison : ecartsTransaction(r).join(' · '), 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Taux d\'aujourd\'hui %': r.tauxJour === null ? '' : r.tauxJour, 'Écart de taux (pts)': r.ecartTaux === null ? '' : r.ecartTaux, 'Sauver de l\'intérêt': r.sauver ? 'oui' : '', 'Intérêts sauvés (estimé)': r.interetSauve === null ? '' : r.interetSauve, 'Intérêts sauvés / mois': r.interetMois === null ? '' : r.interetMois, 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '', 'Représentant attitré': (crmDe(r.compte.compagnie || '', c.compte) || {}).representantNom || '', 'Représentant d\'origine': (origineDe(r.compte.compagnie || '', c) || {}).nom || '', 'Orphelin': (function () { var o = origineDe(r.compte.compagnie || '', c); return o ? (o.orphelin ? 'oui — ' + o.raison : 'non') : ''; })(), 'Envoyé au CRM le': ((crmDe(r.compte.compagnie || '', c.compte) || {}).crmLe || '').slice(0, 10) }; });
+    var etatP = this.etatProg || this.etatProgrammes();   /* 18 nov. : quel programme est calculé, dans l'export aussi */
+    var rows = this.visibles().map(function (r) { var c = r.compte; return { 'Client': nomClient(c), 'Téléphone': c.telephone || '', 'Courriel': c.courriel || '', 'Ville': c.ville || '', 'Compte': c.compte, 'Véhicule': vehiculeTexte(c), 'NIV': c.vin, 'Contrat': c.typeContrat, 'Terme': c.terme, 'Taux du contrat %': r.tauxContrat === null ? '' : r.tauxContrat, 'Taux du contrat : source': r.tauxSource === 'estime' ? 'estimé (rachat, paiement, mensualités)' : (r.tauxSource === 'preteur' ? 'prêteur' : ''), 'Échéance': c.echeance, 'Mois restants': r.moisRestants, 'Paiement actuel': r.paiement, 'Paiement au contrat': r.vwf && r.vwf.paiementPeriode ? r.vwf.paiementPeriode : '', 'Fréquence du paiement': r.vwf ? r.vwf.nom + (r.location ? ', avant taxes' : '') : '', 'Valeur résiduelle': r.location && nombre(c.residuel) !== null ? nombre(c.residuel) : '', 'Paiements qui restent': r.dette && r.dette.source === 'vwf' ? r.dette.reste : '', 'Valeur (moyenne des ventes OpenLane)': r.valeur, 'Ventes OpenLane': r.nVentes, 'Source valeur': r.valeurSource, 'Dette du jour': r.solde === null ? '' : Math.round(r.solde * 100) / 100, 'Source de la dette': texteDette(r), 'Équité': r.equite === null ? '' : Math.round(r.equite), 'Fabriqué aux É.-U.': r.exportable ? 'oui' : '', 'Location anticipée': r.anticipee ? (r.equiteAbsorbee ? 'oui — équité négative reprise par Hyundai : ' + Math.round(r.equiteAbsorbee) + ' $' : 'oui') : '', 'Fidélité Hyundai': texteFidelite(r.fidelite), 'Fidélité : PIN': r.fidelite ? r.fidelite.pin || '' : '', 'Fidélité : expiration': r.fidelite ? r.fidelite.expiration || '' : '', 'Taux avant fidélité %': r.programme && r.programme.fidelite ? r.programme.tauxAvantFidelite : '', 'MMR ($ US)': r.mmr === null ? '' : r.mmr, 'Gros É.-U.': r.grosUS === null ? '' : Math.round(r.grosUS), 'Équité É.-U.': r.equiteUS === null ? '' : Math.round(r.equiteUS), 'Neuf proposé': r.proposition ? r.proposition.vehicule : (r.neuf ? [r.neuf.annee, r.neuf.modele, r.neuf.version].join(' ') : ''), 'PDSF neuf': r.neuf && !r.proposition ? r.neuf.prix : '', 'Neuf : état': r.neuf ? ETATS_NEUF[r.neuf.etat] : '', 'Neuf : source': r.neuf ? r.neuf.origine : '', 'Neuf : choix': r.neufVoie === 'remplacant' ? 'remplaçant' : (r.neufVoie === 'voisin' ? 'modèle voisin' : (r.neuf ? 'même modèle' : '')), 'Version du client': libelleVersion(r.version), 'Version du neuf': r.neuf ? libelleVersion(r.neuf.ver) : '', 'Neuf : version': VOIES_VERSION[r.versionVoie] || '', 'Ne pas téléphoner': r.ndnc ? 'oui' : '', 'Nouvelle mensualité': r.mensualite === null ? '' : Math.round(r.mensualite), 'Transaction du neuf': r.programme ? (r.programme.type === 'location' ? 'location' : 'financement') : '', 'Taux du neuf %': r.programme ? r.programme.taux : '', 'Terme du neuf': r.programme ? r.programme.terme : '', 'Km / an du neuf': r.programme && r.programme.type === 'location' ? r.programme.kmAn || '' : '', 'Résiduel du neuf %': r.programme && r.programme.type === 'location' ? r.programme.residuelPct || '' : '', 'Écart avec le contrat': r.programmeManquant ? 'programme à trouver : ' + r.programme.raison : ecartsTransaction(r).join(' · '), 'Rabais du manufacturier': r.programme ? r.programme.rabais || '' : '', 'Source du taux': r.programme ? r.programme.libelle : '', 'Programme calculé': (function () { var pl = r.mensualite !== null ? programmeDeLigne(r, etatP) : null; return pl ? pl.titre : ''; })(), 'Bon programme': (function () { var pl = r.mensualite !== null && etatP && etatP.connu ? programmeDeLigne(r, etatP) : null; return pl ? (pl.niveau === 'rouge' ? 'NON — à mettre à jour' : 'oui') : ''; })(), 'Écart / mois': r.ecart === null ? '' : Math.round(r.ecart), 'Taux d\'aujourd\'hui %': r.tauxJour === null ? '' : r.tauxJour, 'Écart de taux (pts)': r.ecartTaux === null ? '' : r.ecartTaux, 'Sauver de l\'intérêt': r.sauver ? 'oui' : '', 'Intérêts sauvés (estimé)': r.interetSauve === null ? '' : r.interetSauve, 'Intérêts sauvés / mois': r.interetMois === null ? '' : r.interetMois, 'Cible': r.cible ? 'oui' : '', 'Conseiller': c.conseiller || '', 'Suivi': SUIVIS[c.suivi || ''], 'Note': c.suiviNote || '', 'Représentant attitré': (crmDe(r.compte.compagnie || '', c.compte) || {}).representantNom || '', 'Représentant d\'origine': (origineDe(r.compte.compagnie || '', c) || {}).nom || '', 'Orphelin': (function () { var o = origineDe(r.compte.compagnie || '', c); return o ? (o.orphelin ? 'oui — ' + o.raison : 'non') : ''; })(), 'Envoyé au CRM le': ((crmDe(r.compte.compagnie || '', c.compte) || {}).crmLe || '').slice(0, 10) }; });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Équité');
     XLSX.writeFile(wb, 'equite-' + this.cie.toLowerCase() + '-' + iso(new Date()) + '.xlsx');

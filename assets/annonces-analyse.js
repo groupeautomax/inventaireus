@@ -49,7 +49,7 @@
     '.ana-kpi-zone { display: grid; gap: 18px; margin: 0 0 24px; }',
     '.ana-kgroupe > h2 { font-size: 20px; margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }',
     '.ana-kgroupe > h2 small { font-size: 15px; font-weight: 400; color: var(--encre-2); }',
-    '.ana-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }',
+    '.ana-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; } .ana-kpis.k5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }',
     '.ana-k { border: 1px solid var(--ligne); background: var(--carte); border-radius: 14px; padding: 14px 16px 15px; text-align: left; font: inherit; color: var(--encre); box-shadow: var(--ombre); min-width: 0; }',
     'button.ana-k { cursor: pointer; } button.ana-k:hover { border-color: var(--vert); }',
     '.ana-k .lib { display: block; font-size: 16px; font-weight: 700; color: var(--encre-2); }',
@@ -149,7 +149,29 @@
     '.ana-vide { padding: 26px; text-align: center; color: var(--encre-2); font-size: 17px; border: 1px dashed var(--ligne-forte); border-radius: 14px; background: var(--carte); }',
     '.ana-note { font-size: 16px; color: var(--encre-2); margin: 0 0 12px; line-height: 1.5; }',
     '.ana-plus { display: block; margin: 16px auto 0; }',
-    '@media (max-width: 1100px) { .ana-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
+    /* 18 nov. : de Google à la vente, être mieux vu sur Google, détails repliés */
+    '.ana-parcours { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }',
+    '.ana-etape { position: relative; border: 1px solid var(--ligne); background: var(--carte); border-radius: 14px; padding: 14px 16px; text-align: left; font: inherit; color: var(--encre); box-shadow: var(--ombre); min-width: 0; }',
+    'button.ana-etape { cursor: pointer; } button.ana-etape:hover { border-color: var(--vert); }',
+    '.ana-etape .lib { display: block; font-size: 15px; font-weight: 700; color: var(--encre-2); line-height: 1.3; }',
+    '.ana-etape b { display: block; font-size: 28px; line-height: 1.15; margin-top: 6px; font-variant-numeric: tabular-nums; }',
+    '.ana-etape em { display: block; font-style: normal; font-size: 15px; color: var(--encre-2); margin-top: 4px; line-height: 1.35; }',
+    '.ana-etape.zero b { color: var(--encre-3); }',
+    '.ana-etape .fl { position: absolute; right: -13px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; background: var(--carte); border: 1px solid var(--ligne); display: grid; place-items: center; font-style: normal; font-weight: 800; color: var(--encre-3); z-index: 1; font-size: 15px; line-height: 1; }',
+    '.ana-point { display: flex; gap: 12px; align-items: center; border: 1px solid var(--ligne); background: var(--carte); border-radius: 14px; padding: 12px 16px; margin: 0 0 10px; }',
+    '.ana-point > div { flex: 1 1 auto; min-width: 0; } .ana-point b { font-size: 17px; } .ana-point p { margin: 4px 0 0; font-size: 16px; color: var(--encre-2); line-height: 1.5; }',
+    '.ana-point .rond { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; background: var(--gris); align-self: flex-start; margin-top: 6px; }',
+    '.ana-ctrl-tete { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin: 0 0 12px; } .ana-ctrl-tete > b { font-size: 18px; } .ana-ctrl-tete .esp { flex: 1 1 auto; }',
+    '.ana-ctrl .ana-point { margin: 0 0 8px; flex-wrap: nowrap !important; } .ana-ctrl-ok { margin: 10px 0 0; font-size: 15px; color: var(--encre-2); line-height: 1.6; } .ana-ctrl-ok b { color: var(--vert-fonce); }',
+    '.ana-point.rouge .rond { background: var(--rouge); } .ana-point.ambre .rond { background: var(--ambre); } .ana-point.bleu .rond { background: var(--bleu); } .ana-point.vert .rond { background: var(--vert); }',
+    '.ana-cols.serre { gap: 3px; } .ana-cols.serre .c .b { border-radius: 3px 3px 0 0; }',
+    '.ana-replis > details { border: 1px solid var(--ligne); border-radius: 14px; background: var(--carte); padding: 6px 14px; margin: 0 0 10px; }',
+    '.ana-replis > details > summary { font-size: 18px; } .ana-replis details .ana-defile { margin: 8px 0 10px; } .ana-replis details .ana-note { margin-top: 8px; }',
+    '.ana-table td a { color: var(--vert-fonce); font-weight: 600; text-decoration: none; word-break: break-all; } .ana-table td a:hover { text-decoration: underline; }',
+    '@media (max-width: 1100px) { .ana-parcours { grid-template-columns: repeat(3, minmax(0, 1fr)); } .ana-etape .fl { display: none; } }',
+    '@media (max-width: 640px) { .ana-parcours { grid-template-columns: 1fr 1fr; gap: 8px; } .ana-etape b { font-size: 24px; } .ana-point { flex-wrap: wrap; } }',
+    '.ana-defile:has(> table.vt) { container-type: inline-size; } @container (max-width: 1360px) { table.vt .cache-moyen { display: none; } }',
+    '@media (max-width: 1100px) { .ana-kpis, .ana-kpis.k5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ana-kpis.k5 > :last-child { grid-column: 1 / -1; } }',
     '@media (max-width: 640px) { .ana-kpis { gap: 8px; } .ana-k { padding: 12px 12px 13px; } .ana-k b { font-size: 26px; } .ana-k .lib { font-size: 15px; }',
     '  .ana-tuiles { grid-template-columns: 1fr 1fr; } .ana-tuile b { font-size: 24px; } .ana-tuile span { font-size: 15px; } .ana-cols { height: 190px; } .ana-cols .c .v { display: none; }',
     '  .ana-age .r { grid-template-columns: 1fr; } .ana-age .l { grid-template-columns: 1fr 130px; } .ana-onglets button { font-size: 16px; padding: 10px 10px; }',
@@ -164,7 +186,7 @@
   var NOM_GENRE = { neuf: 'Neuf', occasion: 'Occasion', demo: 'Démo' };
   var TRANCHES = [[15, '0 à 15 j'], [30, '16 à 30 j'], [45, '31 à 45 j'], [60, '46 à 60 j'], [90, '61 à 90 j'], [Infinity, '90 j et +']];
   var RESEAUX = { SEARCH: 'Recherche Google', SEARCH_PARTNERS: 'Partenaires de recherche', CONTENT: 'Display', YOUTUBE: 'YouTube', YOUTUBE_SEARCH: 'YouTube', YOUTUBE_WATCH: 'YouTube', CROSS_NETWORK: 'Plusieurs réseaux (Performance Max)', GOOGLE_TV: 'Google TV', MIXED: 'Mixte', TOUS: 'Tous les réseaux', UNKNOWN: 'Inconnu', UNSPECIFIED: 'Non précisé' };
-  var ONGLETS = [['resume', 'Résumé'], ['conversions', 'Conversions'], ['vehicules', 'Véhicules'], ['ventes', 'Ventes'], ['branchement', 'Branchement Google Ads']];
+  var ONGLETS = [['resume', 'Résumé'], ['site', 'Site web'], ['ficheGoogle', 'Fiche Google'], ['conversions', 'Conversions'], ['vehicules', 'Véhicules'], ['ventes', 'Ventes'], ['branchement', 'Branchement Google Ads']];   /* 18 nov. : + Site web, Fiche Google */
   /* 17 nov. (Maxime : « voir le détail des conversions ») — les types d'action de Google Ads, en mots simples. */
   var GROUPES_CONV = [['appel', 'Appels'], ['demande', 'Demandes du site'], ['autre', 'Autres conversions']];
   var CAT_CONV = { PHONE_CALL_LEAD: ['appel', 'Appel'], REQUEST_QUOTE: ['demande', 'Formulaire du site'], SUBMIT_LEAD_FORM: ['demande', 'Formulaire du site'], CONTACT: ['demande', 'Contact'],
@@ -180,15 +202,17 @@
   function nomAction(n) { return NOMS_ACTION[n] || n; }
   function duree(s) { s = Math.round(s || 0); if (s < 60) return s + ' s'; var m = Math.floor(s / 60), r = s % 60; return m + ' min' + (r ? ' ' + String(r).padStart(2, '0') + ' s' : ''); }
   function heureAppel(t) { var m = String(t || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/); return m ? fmtJour(m[1]) + ', ' + Number(m[2]) + ' h ' + m[3] : String(t || ''); }
-  var FILTRES_V = [['', 'Tous'], ['vedette', 'Mis de l\'avant'], ['propose', 'Proposés'], ['avecClics', 'Avec des clics'], ['sous', 'Sous-exposés'], ['sansConv', 'Dépense sans conversion'], ['photos', 'Moins de 10 photos'], ['exclu', 'Exclus du flux']];
+  var FILTRES_V = [['', 'Tous'], ['vedette', 'Mis de l\'avant'], ['propose', 'Proposés'], ['avecClics', 'Avec des clics'], ['gratuits', 'Clics gratuits'], ['sous', 'Sous-exposés'], ['sansConv', 'Dépense sans conversion'], ['photos', 'Moins de 10 photos'], ['sansVue', 'Jamais vus sur le site'], ['refuse', 'Refusés par Google'], ['exclu', 'Exclus du flux']];
   var GRAPHES = [['impressions', 'Impressions'], ['clics', 'Clics'], ['cout', 'Dépense'], ['conversions', 'Conversions']];
-  /* colonnes du tableau des véhicules : clé, titre, cachée sur téléphone */
-  var COLS_V = [['impressions', 'Impressions', false], ['clics', 'Clics', false], ['ctr', 'Taux de clic', true], ['cout', 'Dépense', false], ['cpc', 'Coût / clic', true], ['conversions', 'Conv.', true], ['cpa', 'Coût / conv.', true]];
+  /* colonnes du tableau des véhicules : clé, titre, cachée sur téléphone, cachée quand le tableau manque de place (les ratios restent dans les chiffres du haut) */
+  var COLS_V = [['impressions', 'Impressions', false], ['clics', 'Clics', false], ['ctr', 'Taux de clic', true, true], ['cout', 'Dépense', false], ['cpc', 'Coût / clic', true, true], ['conversions', 'Conv.', true], ['cpa', 'Coût / conv.', true, true], ['gratuits', 'Clics gratuits', true], ['vues', 'Vues (site)', true], ['demandesSite', 'Demandes (site)', true]];   /* 18 nov. : vues de la fiche et demandes, Google Analytics */
   var GESTES = {
     mettre_avant: { texte: 'Ouvrir Annonces Google pour les cocher', href: '#/marketing/google' },
     retirer_avant: { texte: 'Ouvrir Annonces Google pour les décocher', href: '#/marketing/google' },
     prix: { texte: 'Voir l\'analyse occasion (prix du marché)', href: '#/inventaire/analyse' },
-    budget: { texte: 'Ouvrir Google Ads', href: URL_ADS, dehors: true }
+    budget: { texte: 'Ouvrir Google Ads', href: URL_ADS, dehors: true },
+    ficheGoogle: { texte: 'Ouvrir le profil d\'entreprise Google', href: 'https://business.google.com/locations', dehors: true },
+    corrigerGoogle: { texte: 'Ouvrir Annonces Google', href: '#/marketing/google' }
   };
 
   /* ---- Repères du marché (15 nov.) — À UN SEUL ENDROIT : pour les mettre à jour, changer seulement ce tableau.
@@ -460,9 +484,9 @@
     var self = this, cie = this.cie || 'BMW', p = periodeDates(this.periode);
     if (!this.rep) { AMX.vider(this.elCorps); this.elCorps.appendChild(AMX.chargeur('Analyse des annonces')); }
     var fl = AMX.fluxGoogle ? AMX.fluxGoogle.charger(cie, force).catch(function (e) { return { erreurFlux: AMX.erreurTexte(e) }; }) : Promise.resolve({ erreurFlux: 'Module Annonces Google absent.' });
-    return Promise.all([charger(cie, p.du, p.au, force), fl]).then(function (r) {
+    return Promise.all([charger(cie, p.du, p.au, force), fl, chargerGa(cie, p.du, p.au, force)]).then(function (r) {
       if (self.detruit || cie !== (self.cie || 'BMW')) return;
-      self.rep = r[0]; self.flux = r[1]; self.rendre();
+      self.rep = r[0]; self.flux = r[1]; self.ga = r[2]; self.rendre();
     }).catch(function (e) {
       if (self.detruit) return; AMX.vider(self.elCorps); self.elCorps.appendChild(h('div.ana-vide', { text: AMX.erreurTexte(e) }));
     });
@@ -538,6 +562,8 @@
     }));
     this.elCorps.appendChild(this.elOnglets);
     if (this.onglet === 'vehicules') this.ongletVehicules();
+    else if (this.onglet === 'site') this.ongletSite();
+    else if (this.onglet === 'ficheGoogle') this.ongletFiche();
     else if (this.onglet === 'conversions') this.ongletConversions();
     else if (this.onglet === 'ventes') this.ongletVentes();
     else if (this.onglet === 'branchement') {
@@ -615,6 +641,19 @@
         if (partHf > 0.25) z.appendChild(h('div.ana-carte.ambre', { text: pct(hf.cout, hf.total) + ' de la dépense va aux annonces texte plutôt qu\'aux véhicules : la campagne s\'éloigne du flux. Revoir les titres et descriptions du groupe de composants dans Google Ads.' }));
       }
     }
+    /* 18 nov. : le site (Google Analytics) et la fiche Google — toujours visibles, « — » tant que ce n'est pas lu */
+    var G = this.gaRep(), gaOk = this.gaDonnees(), Fi = G ? G.fiche : null, sfi = sommeFiche(Fi), fOk = !!(Fi && Fi.fiches.length), gt = gaOk ? G.ga.totaux : null, gp = gaOk && this.periode !== 'tout' ? G.ga.precedent : null;
+    var pasLu = (this.ga || {}).pasAJour ? 'script à déployer' : 'à brancher', pf = this.merchantPerf(), pfOk = !!pf;
+    z.appendChild(h('div.ana-kgroupe', [h('h2', [document.createTextNode('Le site et la fiche Google'), h('small', { text: 'Google Analytics et le profil d\'entreprise Google' + (this.genre ? ' · tous les genres' : '') })]),
+      h('div.ana-kpis.k5', [
+        kpi(gaOk ? nb(gt.sessions) : '—', 'Visites du site', { zero: !gaOk || !gt.sessions, v: gp ? variation(gt.sessions, gp.sessions, 1) : null, note: gaOk ? pct(gt.payant, gt.sessions) + ' payées · ' + pct(gt.naturel, gt.sessions) + ' recherche gratuite' : pasLu, onclick: function () { self.aller('site'); } }),
+        kpi(gaOk ? nb(gt.demandes) : '—', 'Demandes envoyées', { zero: !gaOk || !gt.demandes, classe: gaOk && gt.demandes ? 'vert' : '', v: gp ? variation(gt.demandes, gp.demandes, 1) : null, note: gaOk ? 'formulaires du site · ' + (gt.sessions ? pct(gt.demandes, gt.sessions, 2) + ' des visites' : '') : pasLu, onclick: function () { self.aller('site'); } }),
+        kpi(fOk ? nb(sfi.t.vues) : '—', 'Vues de la fiche Google', { zero: !fOk || !sfi.t.vues, v: fOk && this.periode !== 'tout' ? variation(sfi.t.vues, sfi.pr.vues, 1) : null, note: fOk ? 'recherche et Maps (3 à 5 jours de retard)' : (Fi && Fi.erreur ? 'pas encore lisible' : pasLu), onclick: function () { self.aller('ficheGoogle'); } }),
+        kpi(fOk ? nb(sfi.t.appels) : '—', 'Appels de la fiche Google', { zero: !fOk || !sfi.t.appels, classe: fOk && sfi.t.appels ? 'vert' : '', v: fOk && this.periode !== 'tout' ? variation(sfi.t.appels, sfi.pr.appels, 1) : null, note: fOk ? nb(sfi.t.siteWeb) + ' clics vers le site · ' + nb(sfi.t.itineraires) + ' itinéraires' : pasLu, onclick: function () { self.aller('ficheGoogle'); } }),
+        kpi(pfOk ? nb(pf.totaux.clicsGratuit) : '—', 'Clics gratuits dans Google', { zero: !pfOk || !pf.totaux.clicsGratuit, classe: pfOk && pf.totaux.clicsGratuit ? 'vert' : '', v: pfOk && pf.precedent && this.periode !== 'tout' ? variation(pf.totaux.clicsGratuit, pf.precedent.clicsGratuit, 1) : null,
+          note: pfOk ? nb(pf.totaux.imprGratuit) + ' fois vus sans payer · ' + nb(pf.totaux.clicsAds) + ' clics d\'annonces' : (G && G.merchant && G.merchant.perf && G.merchant.perf.erreur ? 'pas encore lisible' : ((this.ga || {}).pasAJour ? 'script à déployer' : 'Merchant Center, lu chaque matin')),
+          onclick: function () { self.aller('vehicules', { filtre: pfOk && pf.totaux.clicsGratuit ? 'gratuits' : '', q: '' }); } })
+      ])]));
     /* ventes et publicité */
     var s = this.statsVentes(), ads = this.donneesAds(), allerV = function () { self.aller('ventes'); };
     var tiles = [
@@ -650,6 +689,8 @@
   Vue.prototype.ongletResume = function () {
     var c = this.elCorps;
     c.appendChild(this.carteEinstein());
+    c.appendChild(this.zoneParcours());
+    c.appendChild(this.zonePresence());
     c.appendChild(this.zoneReperes());
     c.appendChild(this.zoneSemaines());
     c.appendChild(this.zoneFlux());
@@ -912,24 +953,35 @@
       if (vus[vin]) return; var ve = vendues[vin];
       out.push({ vin: vin, genre: g[vin] || '', vehicule: ve ? ve.vehicule : '', stock: ve ? ve.stock : '', jours: ve ? ve.joursVente : null, s: V[vin], vie: vie[vin] || null, vente: ve || null, surSite: false, problemes: [] });
     });
+    /* 18 nov. : vues de la fiche sur le site (Google Analytics) et état chez Google (Merchant Center) */
+    var pv = this.parVinSite(), mp = this.merchantParId(), pf = this.merchantPerf(), pvm = pf ? (pf.parVin || {}) : null;
+    out.forEach(function (x) { x.site = pv ? (pv[x.vin] || { vues: 0, demandes: 0 }) : null; x.gm = mp ? (mp[x.vin] || null) : null; x.mc = pvm ? (pvm[String(x.vin || '').toUpperCase()] || [0, 0, 0, 0]) : null; });
     return tous ? out : out.filter(function (x) { return self.garde(x.genre); });
   };
   Vue.prototype.passe = function (x, fl) {
     if (!fl) return true;
+    if (fl === 'sansVue') return !!(x.site && x.surSite && x.etat !== 'exclu' && !x.site.vues && !x.site.demandes);
+    if (fl === 'refuse') return !!(x.gm && x.gm[0] === 'refuse');
     if (fl === 'vedette') return !!x.vedette && x.etat !== 'exclu';
     if (fl === 'propose') return !!x.suggestion && !x.vedette && x.etat !== 'exclu';
     if (fl === 'avecClics') return x.s.clics > 0;
+    if (fl === 'gratuits') return !!(x.mc && x.mc[2] > 0);
     if (fl === 'sous') return x.surSite && x.vedette && x.etat !== 'exclu' && (x.jours || 0) >= 15 && !x.s.clics;
     if (fl === 'sansConv') return x.s.cout > 0 && !x.s.conversions;
     if (fl === 'photos') return x.surSite && x.etat !== 'exclu' && (x.nbPhotos || 0) < 10;
     if (fl === 'exclu') return x.etat === 'exclu';
     return true;
   };
+  /* d'où vient une colonne : Google Analytics (site), Merchant Center (fiches gratuites) ou Google Ads */
+  function sourceCol(k) { return k === 'vues' || k === 'demandesSite' ? 'ga' : (k === 'gratuits' ? 'mc' : 'ads'); }
   function valeurV(x, cle) {
     var s = x.s || vide(), r = ratios(s);
     if (cle === 'ctr' || cle === 'cpc' || cle === 'cpa') return r[cle];
     if (cle === 'age') return x.jours;
     if (cle === 'prix') return x.prix;
+    if (cle === 'vues') return x.site ? x.site.vues : null;
+    if (cle === 'demandesSite') return x.site ? x.site.demandes : null;
+    if (cle === 'gratuits') return x.mc ? x.mc[2] : null;
     if (cle === 'vehicule') return x.vehicule || x.vin;
     return s[cle] || 0;
   }
@@ -954,12 +1006,17 @@
       var n = avecQ.filter(function (x) { return self.passe(x, fv[0]); }).length;
       if (fv[0] && !n && fv[0] !== fl) return null;
       if ((fv[0] === 'sous' || fv[0] === 'sansConv' || fv[0] === 'avecClics') && !ads) return null;
+      if (fv[0] === 'gratuits' && !self.merchantPerf()) return null;
       return h('button' + (fl === fv[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': fl === fv[0] ? 'true' : 'false', onclick: function () { self.filtreV = fv[0]; self.nV = 100; self.rendre(); } }, [document.createTextNode(fv[1]), h('b', { text: String(n) })]);
     })));
     var inp = h('input.saisie', { type: 'search', placeholder: 'Chercher : modèle, # stock, NIV', value: q });
     inp.addEventListener('input', AMX.debounce ? AMX.debounce(function () { self.q = inp.value; self.nV = 100; self.rendreGrille(); }, 250) : function () { self.q = inp.value; self.rendreGrille(); });
     z.appendChild(h('div.ana-filtres', [inp]));
     if (!ads) z.appendChild(h('p.ana-note', { text: 'Les chiffres de chaque véhicule (impressions, clics, dépense…) paraîtront ici dès que Google aura montré les annonces.' }));
+    var notesV = [];
+    if (this.merchantPerf()) notesV.push('« Clics gratuits » : clics sur le véhicule dans les fiches gratuites de Google (onglet Shopping, recherche, images), sans payer — Merchant Center');
+    if (this.gaDonnees()) notesV.push('« Vues (site) » : fois que la fiche du véhicule a été ouverte sur le site, toutes sources confondues (Google Analytics) ; « Demandes (site) » : formulaires envoyés depuis cette fiche');
+    if (notesV.length) z.appendChild(h('p.ana-note', { text: notesV.join('. ') + '.' }));
     else if (!Object.keys((this.rep || {}).vehicules || {}).length) z.appendChild(h('div.ana-carte.ambre', { text: 'Google Ads a donné des résultats par campagne, mais pas encore par véhicule pour cette période. Les totaux du haut sont justes ; le détail par véhicule suivra.' }));
     this.elGrille = h('div'); z.appendChild(this.elGrille);
     this.elCorps.appendChild(z);
@@ -989,25 +1046,27 @@
         effacer: function () { self.filtreV = ''; self.q = ''; self.rendre(); } });
     }
     if (!L.length) { g.appendChild(h('div.ana-vide', { text: 'Aucun véhicule ici.' })); return; }
-    var th = function (c, titre, num, tel) {
+    var th = function (c, titre, num, tel, moy) {
       var actif = self.tri === c;
-      return h('th' + (num ? '.n' : '') + (tel ? '.cache-tel' : '') + (actif ? '.trie' : ''), { 'aria-sort': actif ? (self.sens > 0 ? 'ascending' : 'descending') : 'none' },
+      return h('th' + (num ? '.n' : '') + (tel ? '.cache-tel' : '') + (moy ? '.cache-moyen' : '') + (actif ? '.trie' : ''), { 'aria-sort': actif ? (self.sens > 0 ? 'ascending' : 'descending') : 'none' },
         [h('button', { type: 'button', title: 'Trier par ' + titre.toLowerCase(), text: titre + (actif ? (self.sens > 0 ? ' ▲' : ' ▼') : ''), onclick: function () { self.trier(c); } })]);
     };
-    var tete = h('tr', [th('vehicule', 'Véhicule', false, false), th('age', 'Âge', true, true)].concat(COLS_V.map(function (c) { return th(c[0], c[1], true, c[2]); })));
+    var tete = h('tr', [th('vehicule', 'Véhicule', false, false), th('age', 'Âge', true, true)].concat(COLS_V.map(function (c) { return th(c[0], c[1], true, c[2], c[3]); })));
     var tb = h('tbody'), tot = vide();
     L.forEach(function (x) { ajoute(tot, x.s); });
     L.slice(0, this.nV).forEach(function (x) { tb.appendChild(self.rangeeVehicule(x, ads)); });
-    var rt = ratios(tot);
+    var rt = ratios(tot), ga = this.gaDonnees(), totGa = { vues: 0, demandesSite: 0, gratuits: 0 }, montreSrc = { ga: ga, mc: !!this.merchantPerf(), ads: ads };
+    L.forEach(function (x) { if (x.site) { totGa.vues += x.site.vues || 0; totGa.demandesSite += x.site.demandes || 0; } if (x.mc) totGa.gratuits += x.mc[2] || 0; });
     var pied = h('tr', [h('td', [document.createTextNode('Total · ' + nb(L.length) + ' véhicule' + (L.length > 1 ? 's' : '')), ads ? h('span.tot-tel', { text: chiffresTel(tot) }) : null]), h('td.n.cache-tel')].concat(COLS_V.map(function (c) {
-      var val = c[0] === 'ctr' || c[0] === 'cpc' || c[0] === 'cpa' ? rt[c[0]] : tot[c[0]];
-      return h('td.n' + (c[2] ? '.cache-tel' : ''), { text: ads ? texteV(c[0], val) : '—' });
+      var src = sourceCol(c[0]);
+      var val = src !== 'ads' ? totGa[c[0]] : (c[0] === 'ctr' || c[0] === 'cpc' || c[0] === 'cpa' ? rt[c[0]] : tot[c[0]]);
+      return h('td.n' + (c[2] ? '.cache-tel' : '') + (c[3] ? '.cache-moyen' : ''), { text: montreSrc[src] ? texteV(c[0], val) : '—' });
     })));
     g.appendChild(h('div.ana-defile', [h('table.ana-table.vt', [h('thead', [tete]), tb, h('tfoot', [pied])])]));
     if (L.length > this.nV) g.appendChild(h('button.btn.ana-plus', { type: 'button', text: 'Afficher ' + Math.min(100, L.length - this.nV) + ' de plus (' + (L.length - this.nV) + ' restants)', onclick: function () { self.nV += 100; self.rendreGrille(); } }));
   };
   Vue.prototype.rangeeVehicule = function (x, ads) {
-    var s = x.s, past = [];
+    var self = this, s = x.s, past = [], ga = this.gaDonnees(), montreSrc = { ga: ga, mc: !!this.merchantPerf(), ads: ads };
     if (x.vedette && x.etat !== 'exclu') past.push(['violet', 'Annoncé']);
     if (x.etat === 'exclu') past.push(['rouge', 'Exclu' + (x.problemes[0] ? ' : ' + String(x.problemes[0]).replace(/ — .*$/, '') : '')]);
     if (!x.surSite) past.push(['gris', x.vente ? 'Vendu le ' + fmtJour(x.vente.dateVente) : 'Plus sur le site']);
@@ -1016,13 +1075,17 @@
     if (ads && x.vedette && x.surSite && x.etat !== 'exclu' && (x.jours || 0) >= 15 && !s.clics) past.push(['ambre', 'Aucun clic']);
     if (s.cout > 0 && !s.conversions) past.push(['ambre', 'Sans conversion']);
     if (x.surSite && (x.nbPhotos || 0) < 10 && x.etat !== 'exclu') past.push(['gris', (x.nbPhotos || 0) + ' photos']);
+    if (x.gm && x.gm[0] === 'refuse') past.push(['rouge', 'Refusé par Google' + (x.gm[1] && x.gm[1][0] ? ' : ' + self.nomProbleme(x.gm[1][0]) : '')]);
+    else if (x.gm && x.gm[0] === 'attente') past.push(['gris', 'En examen chez Google']);
+    if (x.site && x.surSite && x.etat !== 'exclu' && !x.site.vues && !x.site.demandes) past.push(['ambre', 'Jamais vu sur le site']);
+    if (x.site && x.site.demandes) past.push(['vert', x.site.demandes + ' demande' + (x.site.demandes > 1 ? 's' : '') + ' sur la fiche']);
     var det = [x.stock ? '# ' + x.stock : '', NOM_GENRE[x.genre] || '', x.prix ? argent(x.prix) : ''].filter(Boolean).join(' · ');
     var nom = x.url ? h('a.nom', { href: x.url, target: '_blank', rel: 'noopener', title: 'Voir la fiche sur le site', text: x.vehicule || x.vin }) : h('div.nom', { text: x.vehicule || x.vin });
     var cell = h('div.ana-veh', [h('div.ph', [x.photo ? h('img', { src: x.photo, alt: '', loading: 'lazy' }) : h('span', { text: '—' })]),
       h('div', [nom, h('span.sous', { text: det }), ads ? h('span.tel', { text: chiffresTel(s) }) : null, past.length ? h('div.pas', past.map(function (p) { return h('span.ana-pastille.' + p[0], { text: p[1] }); })) : null])]);
     return h('tr', { 'data-ref': refDe(x) }, [h('td', [cell]), h('td.n.cache-tel', { text: x.jours !== null && x.jours !== undefined ? x.jours + ' j' : '—' })].concat(COLS_V.map(function (c) {
-      var val = valeurV(x, c[0]), z = !ads || !val;
-      return h('td.n' + (c[2] ? '.cache-tel' : '') + (z ? '.zero' : ''), { text: ads ? texteV(c[0], val) : '—' });
+      var montre = montreSrc[sourceCol(c[0])], val = valeurV(x, c[0]), z = !montre || !val;
+      return h('td.n' + (c[2] ? '.cache-tel' : '') + (c[3] ? '.cache-moyen' : '') + (z ? '.zero' : ''), { text: montre ? texteV(c[0], val) : '—' });
     })));
   };
 
@@ -1132,6 +1195,7 @@
   Vue.prototype.ongletBranchement = function () {
     var self = this, d = this.rep || {}, a = d.ads || {}, fe = a.feuille, z = h('section.ana-zone');
     this.elCorps.appendChild(z);
+    z.appendChild(this.carteSourcesGoogle());   /* 18 nov. */
     if (a.branche) {
       z.appendChild(h('div.ana-carte', [h('h3', 'Google Ads est branché'),
         h('p', { text: (a.joursAvecDonnees ? 'Résultats du ' + fmtJour(a.premierJour) + ' au ' + fmtJour(a.dernierJour) + ' (' + a.joursAvecDonnees + ' jour' + (a.joursAvecDonnees > 1 ? 's' : '') + ').' : 'Pas encore de résultats : Google n\'a montré aucune annonce.') + (a.majAds ? ' Script Google Ads passé le ' + quand(a.majAds) + '.' : '') + (a.luLe ? ' Lu par ScanAutomax le ' + quand(a.luLe) + '.' : '') + (a.devise && a.devise !== 'CAD' ? ' Montants en ' + a.devise + '.' : '') }),
@@ -1194,7 +1258,9 @@
       { 'Mesure': 'Ventes de la période', 'Valeur': s.L.length }, { 'Mesure': 'Vendues après un clic', 'Valeur': s.inf.length },
       { 'Mesure': 'Dépense par vente après un clic', 'Valeur': s.inf.length && s.depense ? Math.round(s.depense / s.inf.length * 100) / 100 : '' }
     ];
-    var veh = this.lignesVehicules().map(function (v) { var rv = ratios(v.s); return { 'NIV': v.vin, '# stock': v.stock || '', 'Véhicule': v.vehicule || '', 'Genre': NOM_GENRE[v.genre] || '', 'Âge (jours)': v.jours === null || v.jours === undefined ? '' : v.jours, 'Prix': v.prix || '', 'Photos': v.nbPhotos || '', 'Mis de l\'avant': v.vedette ? 'oui' : 'non', 'Impressions': v.s.impressions, 'Clics': v.s.clics, 'Taux de clic (%)': rv.ctr === null ? '' : Math.round(rv.ctr * 100) / 100, 'Dépense': Math.round(v.s.cout * 100) / 100, 'Coût par clic': rv.cpc === null ? '' : Math.round(rv.cpc * 100) / 100, 'Conversions': v.s.conversions, 'Coût par conversion': rv.cpa === null ? '' : Math.round(rv.cpa * 100) / 100, 'Sur le site': v.surSite ? 'oui' : 'non', 'Vendu le': v.vente ? v.vente.dateVente : '' }; });
+    var pfx = this.merchantPerf();
+    if (pfx) res.push({ 'Mesure': 'Clics gratuits sur nos véhicules (Merchant Center, tous genres)', 'Valeur': pfx.totaux.clicsGratuit }, { 'Mesure': 'Fois vus sans payer (Merchant Center)', 'Valeur': pfx.totaux.imprGratuit }, { 'Mesure': 'Clics d\'annonces (Merchant Center)', 'Valeur': pfx.totaux.clicsAds });
+    var veh = this.lignesVehicules().map(function (v) { var rv = ratios(v.s); return { 'Vues de la fiche (site)': v.site ? v.site.vues : '', 'Demandes (site)': v.site ? v.site.demandes : '', 'Clics gratuits (Google)': v.mc ? v.mc[2] : '', 'Vu sans payer (Google)': v.mc ? v.mc[3] : '', 'Google (Merchant Center)': v.gm ? ({ approuve: 'approuvé', refuse: 'refusé', attente: 'en examen', inconnu: '' }[v.gm[0]] || '') + (v.gm[1] && v.gm[1].length ? ' — ' + v.gm[1].join(', ') : '') : '', 'NIV': v.vin, '# stock': v.stock || '', 'Véhicule': v.vehicule || '', 'Genre': NOM_GENRE[v.genre] || '', 'Âge (jours)': v.jours === null || v.jours === undefined ? '' : v.jours, 'Prix': v.prix || '', 'Photos': v.nbPhotos || '', 'Mis de l\'avant': v.vedette ? 'oui' : 'non', 'Impressions': v.s.impressions, 'Clics': v.s.clics, 'Taux de clic (%)': rv.ctr === null ? '' : Math.round(rv.ctr * 100) / 100, 'Dépense': Math.round(v.s.cout * 100) / 100, 'Coût par clic': rv.cpc === null ? '' : Math.round(rv.cpc * 100) / 100, 'Conversions': v.s.conversions, 'Coût par conversion': rv.cpa === null ? '' : Math.round(rv.cpa * 100) / 100, 'Sur le site': v.surSite ? 'oui' : 'non', 'Vendu le': v.vente ? v.vente.dateVente : '' }; });
     var ven = (d.ventes || []).map(function (v) { var o = { 'Vendue le': v.dateVente, 'NIV': v.vin, '# stock': v.stock, 'Véhicule': v.vehicule, 'Type': v.type === 'usage' ? 'Occasion' : 'Neuf', 'Jours en stock': v.joursVente === undefined ? '' : v.joursVente, 'Impressions avant la vente': v.pub ? v.pub.impressions : 0, 'Clics avant la vente': v.pub ? v.pub.clics : 0, 'Dépense avant la vente': v.pub ? v.pub.cout : 0, 'Après un clic': v.influence ? 'oui' : 'non' }; if (d.montants) o['Profit brut'] = typeof v.profit === 'number' ? v.profit : ''; return o; });
     var sem = (d.semaines || []).map(function (w) { return { 'Semaine du': w.du, 'Au': w.au, 'Impressions': w.impressions, 'Clics': w.clics, 'Dépense': w.cout, 'Conversions': w.conversions }; });
     var g = this.genre, rep = REPERES.map(function (rp) { var v = valeurRep(rp, g); return { 'Indicateur': rp.titre, 'Repère': v.texte + (rp.suffixe || ''), 'Équivalent $ CA': approxCad(rp, v).replace(/^ \(≈ |\)$/g, ''), 'Portée': rp.portee, 'Source': rp.source, 'Date': rp.date, 'Lien': rp.lien }; });
@@ -1214,12 +1280,366 @@
       var ka = (cv.appels || []).map(function (x) { return { 'Début': x.debut, 'Durée (s)': x.duree, 'Indicatif': x.indicatif, 'Région': REGIONS_TEL[x.indicatif] || '', 'Réponse': x.statut === 'MISSED' ? 'Manqué' : 'Répondu', 'Comment': x.type === 'HIGH_END_MOBILE_SEARCH' ? 'Bouton Appeler de l\'annonce' : (x.type === 'MANUALLY_DIALED' ? 'Numéro composé' : x.type) }; });
       if (cv.appelsLu) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ka.length ? ka : [{ '': 'aucun appel' }]), 'Appels');
     }
+    /* 18 nov. : site web, fiche Google, Merchant Center */
+    var G = this.gaRep();
+    if (G && this.gaDonnees()) {
+      var gt = G.ga.totaux;
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ 'Mesure': 'Visites', 'Valeur': gt.sessions }, { 'Mesure': 'Visiteurs', 'Valeur': gt.utilisateurs }, { 'Mesure': 'Nouveaux visiteurs', 'Valeur': gt.nouveaux },
+        { 'Mesure': 'Visites engagées', 'Valeur': gt.engagees }, { 'Mesure': 'Demandes envoyées', 'Valeur': gt.demandes }, { 'Mesure': 'Vues de fiches de véhicules', 'Valeur': G.ga.fiches.vues },
+        { 'Mesure': 'Visites payées', 'Valeur': gt.payant }, { 'Mesure': 'Recherche Google gratuite', 'Valeur': gt.naturel }, { 'Mesure': 'En vente, jamais vus', 'Valeur': G.ga.fiches.sansVue.length }]
+        .concat(G.ga.canaux.map(function (c) { return { 'Mesure': 'Canal — ' + c.nom, 'Valeur': c.sessions, 'Demandes': c.demandes, 'Engagées': c.engagees }; }))), 'Site web');
+      if (G.ga.jours.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(G.ga.jours.map(function (j) { return { 'Jour': j.jour, 'Visites': j.sessions, 'Demandes': j.demandes, 'Visites payées': j.payant, 'Recherche gratuite': j.naturel }; })), 'Site par jour');
+    }
+    if (G && G.fiche && G.fiche.fiches.length) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(G.fiche.fiches.map(function (f) { var a2 = f.totaux; return { 'Fiche': f.nom, 'Vues': a2.vues, 'Recherche': a2.rechercheMobile + a2.rechercheOrdi, 'Maps': a2.mapsMobile + a2.mapsOrdi, 'Appels': a2.appels, 'Clics vers le site': a2.siteWeb, 'Itinéraires': a2.itineraires, 'Messages': a2.messages }; })
+        .concat((G.fiche.mots || []).map(function (m) { return { 'Fiche': 'Recherche : ' + m.mot, 'Vues': m.valeur || (m.seuil ? '< ' + m.seuil : '') }; }))), 'Fiche Google');
+      var ctl = []; G.fiche.fiches.forEach(function (f) { (f.controles || []).forEach(function (c) { ctl.push({ 'Fiche': f.titre || f.nom, 'Point': c.titre, 'État': { vert: 'correct', ambre: 'à améliorer', rouge: 'à corriger' }[c.ton] || c.ton, 'Quoi faire': c.quoi }); }); });
+      if (ctl.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ctl), 'Fiche à compléter');
+    }
+    if (G && G.merchant && G.merchant.n) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((G.merchant.problemes || []).map(function (pb) { return { 'Problème': pb.description || pb.code, 'Code': pb.code, 'Véhicules': pb.n, 'Attribut': pb.attribut, 'Détail': pb.detail, 'NIV': (pb.ids || []).join(', ') }; }).concat([{ 'Problème': 'Total : ' + G.merchant.n + ' véhicules — ' + G.merchant.approuve + ' approuvés, ' + G.merchant.refuse + ' refusés, ' + G.merchant.attente + ' en examen' }])), 'Merchant Center');
     var e = d.einstein;
     if (e) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ 'Einstein': e.resume }].concat((e.actions || []).map(function (a, i) { return { 'Einstein': (i + 1) + '. ' + a.titre + ' — ' + a.pourquoi + (a.vehicules.length ? ' (' + a.vehicules.join(', ') + ')' : '') }; }))), 'Einstein');
     XLSX.writeFile(wb, 'analyse-annonces-' + String(d.compagnie || 'BMW').toLowerCase() + '-' + p.du + '-' + p.au + '.xlsx');
   };
 
-  AMX.annoncesAnalyse = { charger: charger, peutVoir: peutVoir, scriptAds: scriptAds, vider: function () { cache = {}; } };
+  /* =============================== Site web et fiche Google (18 nov.) ===============================
+     Maxime : « revois le module de marketing avec Google Analytics et améliore la qualité de notre présence sur Google et la qualité
+     de l'analyse ». GoogleAnalytics.gs lit (lecture seule) Google Analytics des sites, les statistiques des fiches Google et l'état
+     de chaque véhicule dans Merchant Center ; GET ?googleAnalytics=1&compagnie=&du=&au=. */
+  var NOMS_COMPTES = { nous: 'Notre campagne (Google Ads 958-027-4646)', axifuge: 'Axifuge (l\'agence)', autre: 'Autre compte Google Ads' };
+  var URL_FICHES = 'https://business.google.com/locations';
+  var cacheGa = {};
+  function chargerGa(cie, du, au, force) {
+    var cle = cie + '|' + du + '|' + au, c = cacheGa[cle];
+    if (!force && c && Date.now() - c.le < AMX.dureeCopie(300000)) return Promise.resolve(c.rep);
+    return AMX.get({ googleAnalytics: '1', compagnie: cie, du: du, au: au }, { delai: 90000, secours: false, discret: true }).then(function (d) {
+      if (d && d.refuse) return { erreur: d.erreur || 'Accès refusé.' };
+      if (!d || d.ok === false) return { erreur: (d && d.erreur) || 'Lecture impossible.' };
+      if (!d.ga || !d.fiche) return { pasAJour: true };
+      cacheGa[cle] = { rep: d, le: Date.now() };
+      return d;
+    }).catch(function (e) { return { erreur: AMX.erreurTexte(e) }; });
+  }
+  Vue.prototype.gaRep = function () { var g = this.ga || {}; return g.ga ? g : null; };
+  Vue.prototype.gaDonnees = function () { var g = this.gaRep(); return !!(g && g.ga.branche && (g.ga.sites || []).some(function (s) { return s.dernier; })); };
+  Vue.prototype.parVinSite = function () { var g = this.gaRep(); return g && this.gaDonnees() ? (g.ga.fiches.parVin || {}) : null; };
+  /* 18 nov. : clics et impressions par véhicule dans Google (Merchant Center, rapport des produits) : [clics annonces, impressions annonces, clics gratuits, impressions gratuites] */
+  Vue.prototype.merchantPerf = function () { var g = this.gaRep(); return g && g.merchant && g.merchant.perf && g.merchant.perf.lu ? g.merchant.perf : null; };
+  Vue.prototype.merchantParId = function () { var g = this.gaRep(); return g && g.merchant && g.merchant.n ? (g.merchant.parId || {}) : null; };
+  Vue.prototype.nomProbleme = function (code) {
+    var g = this.gaRep(), p = g && g.merchant ? (g.merchant.problemes || []).filter(function (x) { return x.code === code; })[0] : null;
+    return p ? (p.description || code) : String(code || '').replace(/_/g, ' ');
+  };
+  function sommeFiche(F) { var t = { vues: 0, appels: 0, siteWeb: 0, itineraires: 0, messages: 0, recherche: 0, maps: 0 }, pr = { vues: 0, appels: 0, siteWeb: 0, itineraires: 0 };
+    ((F && F.fiches) || []).forEach(function (f) { var a = f.totaux, b = f.precedent || {};
+      t.vues += a.vues; t.appels += a.appels; t.siteWeb += a.siteWeb; t.itineraires += a.itineraires; t.messages += a.messages || 0;
+      t.recherche += a.rechercheMobile + a.rechercheOrdi; t.maps += a.mapsMobile + a.mapsOrdi;
+      pr.vues += b.vues || 0; pr.appels += b.appels || 0; pr.siteWeb += b.siteWeb || 0; pr.itineraires += b.itineraires || 0; });
+    return { t: t, pr: pr };
+  }
+  /* Une série jour par jour, regroupée par semaine quand la période dépasse 45 jours. */
+  function serie(jours, cles) {
+    if (jours.length <= 45) return jours.map(function (j) { var o = { du: j.jour, etiquette: fmtJour(j.jour) }; cles.forEach(function (k) { o[k] = j[k] || 0; }); return o; });
+    var out = [];
+    for (var i = 0; i < jours.length; i += 7) {
+      var bloc = jours.slice(i, i + 7), o = { du: bloc[0].jour, etiquette: fmtJour(bloc[0].jour) };
+      cles.forEach(function (k) { o[k] = bloc.reduce(function (s, j) { return s + (j[k] || 0); }, 0); });
+      out.push(o);
+    }
+    return out;
+  }
+  function barres(S, cle, fmt, titre) {
+    var max = 0; S.forEach(function (s) { max = Math.max(max, s[cle] || 0); });
+    if (!max) return h('div.ana-vide', { text: 'Rien à montrer pour cette période.' });
+    var pas = S.length > 16 ? Math.ceil(S.length / 8) : (S.length > 8 ? 2 : 1);
+    return h('div.ana-carte', [
+      h('div.ana-cols' + (S.length > 20 ? '.serre' : ''), S.map(function (s, i) {
+        var v = s[cle] || 0, haut = Math.max(v ? 2 : 0, Math.round(100 * v / max));
+        return h('div.c' + (i === S.length - 1 ? '.der' : ''), { title: (titre ? titre + ' — ' : '') + s.etiquette + ' : ' + fmt(v) }, [h('div.v', { text: v && S.length <= 20 ? fmt(v) : '' }), h('div.b', { style: { height: haut + '%' } })]);
+      })),
+      h('div.ana-dates', S.map(function (s, i) { return h('span', { text: i % pas === 0 || i === S.length - 1 ? s.etiquette : '' }); }))
+    ]);
+  }
+
+  /* ---- la ligne d'état de Google Analytics : elle dit pourquoi un chiffre manque ---- */
+  Vue.prototype.zoneEtatGa = function () {
+    var self = this, G = this.gaRep(), g0 = this.ga || {}, cls, txt, actions = [];
+    if (g0.pasAJour) { cls = 'ambre'; txt = [h('b', 'Le script n\'est pas à jour.'), document.createTextNode(' Déployez la version qui contient GoogleAnalytics.gs : le site web et la fiche Google paraîtront ici.')]; }
+    else if (g0.erreur && !G) { cls = 'ambre'; txt = [h('b', 'Google Analytics n\'a pas pu être lu.'), document.createTextNode(' ' + g0.erreur)]; }
+    else if (!G || !G.ga.branche) {
+      cls = 'ambre'; txt = [h('b', 'Google Analytics n\'est pas encore branché.'), document.createTextNode(' Une seule autorisation, connecté comme mallard@groupeautomax.com (le compte qui a accès aux sites dans Google Analytics) : ScanAutomax pourra lire, jamais changer.')];
+      if (G && G.ga.peutBrancher) actions.push(h('button.btn.primaire', { type: 'button', text: 'Brancher Google Analytics', onclick: function () { self.brancherGa(); } }));
+      else txt.push(document.createTextNode(' La propriétaire ou un administrateur du groupe le branche.'));
+    } else {
+      var err = G.ga.sites.filter(function (s) { return s.erreur; }), lu = G.ga.sites.filter(function (s) { return s.dernier; });
+      if (err.length && !lu.length) { cls = 'ambre'; txt = [h('b', 'Google Analytics est branché, mais la lecture a échoué.'), document.createTextNode(' ' + err[0].nom + ' : ' + err[0].erreur)]; }
+      else if (!lu.length) { cls = 'bleu'; txt = [h('b', 'Google Analytics est branché.'), document.createTextNode(' La première lecture se fait dans l\'heure (ou « Relire maintenant »).')]; }
+      else {
+        cls = err.length ? 'ambre' : 'vert';
+        txt = [h('b', 'Google Analytics à jour'), document.createTextNode(' — ' + lu.map(function (s) { return s.nom; }).join(', ') + ', lu le ' + quand(lu[0].luLe) + '. '),
+          h('span.doux', { text: 'Les chiffres d\'hier et d\'aujourd\'hui bougent encore : Google les finalise en 24 à 48 h.' })];
+        if (err.length) txt.push(h('span.doux', { text: ' ' + err.map(function (s) { return s.nom + ' : ' + s.erreur; }).join(' · ') }));
+      }
+      actions.push(h('button.btn', { type: 'button', text: this.relectureGa ? 'Lecture…' : 'Relire maintenant', disabled: !!this.relectureGa, onclick: function () { self.relireGa(); } }));
+    }
+    return h('div.ana-statut.' + cls, [h('span.rond'), h('div.t', txt)].concat(actions));
+  };
+  Vue.prototype.brancherGa = function () {
+    var self = this;
+    AMX.post({ action: 'googleAnalytics', op: 'lien', compagnie: this.cie || 'BMW' }, { secours: false }).then(function (r) {
+      if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Refusé');
+      if (!r.url) throw new Error(SCRIPT_PAS_A_JOUR.replace('AnnoncesAnalyse.gs', 'GoogleAnalytics.gs'));
+      AMX.modale({ titre: 'Brancher Google Analytics', corps: h('div', [
+        h('p', { text: 'Ouvrez le lien connecté comme ' + (r.compte || 'mallard@groupeautomax.com') + ' (le compte qui a accès aux sites dans Google Analytics), puis cliquez « Autoriser ». ScanAutomax pourra seulement lire les statistiques.' }),
+        h('p', { text: 'Le lien est bon ' + (r.valide || 30) + ' minutes. Revenez ensuite ici et cliquez « Relire maintenant ».' })]),
+        boutons: [{ texte: 'Fermer' }, { texte: 'Ouvrir le lien', classe: 'primaire', action: function () { window.open(r.url, '_blank', 'noopener'); } }] });
+    }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 9000); });
+  };
+  Vue.prototype.relireGa = function () {
+    var self = this, p = periodeDates(this.periode), cie = this.cie || 'BMW';
+    if (this.relectureGa) return; this.relectureGa = true; this.rendre();
+    AMX.post({ action: 'googleAnalytics', op: 'relire', compagnie: cie }, { secours: false, delai: 240000 }).then(function (r) {
+      if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Refusé');
+      AMX.toast(r.message || 'Relu.', (r.sources || []).some(function (s) { return s.erreur; }) ? 'erreur' : 'ok', 9000);
+    }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 9000); }).then(function () {
+      Object.keys(cacheGa).forEach(function (k) { if (k.indexOf(cie + '|') === 0) delete cacheGa[k]; });
+      return chargerGa(cie, p.du, p.au, true);
+    }).then(function (g) { self.relectureGa = false; if (self.detruit) return; self.ga = g; self.rendre(); });
+  };
+
+  /* ---- Résumé : de Google à la vente ---- */
+  Vue.prototype.zoneParcours = function () {
+    var self = this, d = this.rep || {}, G = this.gaRep(), z = h('section.ana-zone'), ga = this.gaDonnees();
+    var F = G ? G.fiche : null, sf = sommeFiche(F), t = this.totauxGenre().t, s = this.statsVentes();
+    var appelsAds = 0; ((d.conv || {}).actions || []).forEach(function (x) { if (catConv(x.categorie)[0] === 'appel') appelsAds += x.conversions || 0; });
+    var etapes = [
+      ['Vues de la fiche Google', F && F.fiches.length ? nbCourt(sf.t.vues) : '—', 'recherche et Maps, gratuit', function () { self.aller('ficheGoogle'); }],
+      ['Impressions des annonces', this.donneesAds() ? nbCourt(t.impressions) : '—', this.merchantPerf() ? 'Google Ads · + ' + nbCourt(this.merchantPerf().totaux.imprGratuit) + ' gratuites' : 'Google Ads', null],
+      ['Visites du site', ga ? nbCourt(G.ga.totaux.sessions) : '—', ga ? pct(G.ga.totaux.payant, G.ga.totaux.sessions) + ' payées' : 'Google Analytics', function () { self.aller('site'); }],
+      ['Vues de fiches de véhicules', ga ? nbCourt(G.ga.fiches.vues) : '—', 'pages des véhicules du site', function () { self.aller('vehicules', { filtre: '', q: '' }); }],
+      ['Demandes et appels', ga || appelsAds || (F && F.fiches.length) ? nb((ga ? G.ga.totaux.demandes : 0) + sf.t.appels + Math.round(appelsAds)) : '—',
+        [ga ? nb(G.ga.totaux.demandes) + ' formulaire' + (G.ga.totaux.demandes > 1 ? 's' : '') : '', F && F.fiches.length ? nb(sf.t.appels) + ' appel' + (sf.t.appels > 1 ? 's' : '') + ' (fiche)' : '', appelsAds ? nb(appelsAds) + ' (annonces)' : ''].filter(Boolean).join(' · ') || 'formulaires, appels', function () { self.aller(ga ? 'site' : 'conversions'); }],
+      ['Ventes', nb(s.L.length), 'Livre des ventes', function () { self.aller('ventes'); }]
+    ];
+    z.appendChild(h('h2', 'De Google à la vente'));
+    z.appendChild(h('div.ana-parcours', etapes.map(function (e, i) {
+      return h((e[3] ? 'button' : 'div') + '.ana-etape' + (e[1] === '—' ? '.zero' : ''), e[3] ? { type: 'button', onclick: e[3] } : {}, [
+        h('span.lib', { text: e[0] }), h('b', { text: e[1] }), h('em', { text: e[2] }), i < etapes.length - 1 ? h('i.fl', { 'aria-hidden': 'true', text: '›' }) : null]);
+    })));
+    if (!ga || !(F && F.fiches.length)) z.appendChild(h('p.ana-note', { text: '« — » : ' + [!ga ? 'Google Analytics' : '', !(F && F.fiches.length) ? 'la fiche Google' : ''].filter(Boolean).join(' et ') + ' pas encore lu' + (!ga && !(F && F.fiches.length) ? 's' : '') + ' — voir les onglets Site web et Fiche Google.' }));
+    return z;
+  };
+
+  /* ---- Résumé : être mieux vu sur Google — ce qui est à corriger ---- */
+  Vue.prototype.zonePresence = function () {
+    var self = this, G = this.gaRep(), z = h('section.ana-zone'), items = [];
+    var item = function (cls, titre, texte, bouton) { items.push(h('div.ana-point.' + cls, [h('span.rond'), h('div', [h('b', { text: titre }), texte ? h('p', { text: texte }) : null]), bouton || null])); };
+    if (!G) { if ((this.ga || {}).pasAJour) item('ambre', 'Le script n\'est pas à jour', 'Déployez la version qui contient GoogleAnalytics.gs.'); }
+    else {
+      var g = G.ga, m = G.merchant || {}, F = G.fiche || {};
+      if (!g.branche) item('ambre', 'Brancher Google Analytics', 'Sans lui, on ne voit pas ce que font les visiteurs une fois sur le site (visites, fiches de véhicules vues, demandes).',
+        g.peutBrancher ? h('button.btn.primaire', { type: 'button', text: 'Brancher', onclick: function () { self.brancherGa(); } }) : null);
+      if (m.n && m.refuse) {
+        var p0 = (m.problemes || [])[0];
+        item('rouge', m.refuse + ' véhicule' + (m.refuse > 1 ? 's' : '') + ' refusé' + (m.refuse > 1 ? 's' : '') + ' par Google', p0 ? 'Raison la plus fréquente : ' + (p0.description || p0.code) + (p0.n > 1 ? ' (' + p0.n + ' véhicules)' : '') + '.' + (p0.detail ? ' ' + p0.detail : '') : 'Ces véhicules ne paraissent pas dans les annonces.',
+          h('button.btn', { type: 'button', text: 'Voir', onclick: function () { self.aller('vehicules', { filtre: 'refuse', q: '' }); } }));
+      }
+      if (m.n && m.attente) item('bleu', m.attente + ' véhicule' + (m.attente > 1 ? 's' : '') + ' en examen chez Google', 'Google vérifie chaque nouveau véhicule avant de l\'annoncer (quelques heures à quelques jours).');
+      if (this.gaDonnees() && g.fiches.sansVue.length) {
+        item('ambre', g.fiches.sansVue.length + ' véhicule' + (g.fiches.sansVue.length > 1 ? 's' : '') + ' en vente sans aucune vue sur le site', 'Dans la période, personne n\'a ouvert leur fiche sur le site (sur ' + g.fiches.nFlux + ' en vente). Les mettre de l\'avant dans les annonces, revoir le prix ou les photos.',
+          h('button.btn', { type: 'button', text: 'Voir', onclick: function () { self.aller('vehicules', { filtre: 'sansVue', q: '' }); } }));
+      }
+      if (this.gaDonnees() && g.totaux.sessions >= 300 && g.totaux.demandes / g.totaux.sessions < 0.004) {
+        item('ambre', 'Peu de demandes pour le nombre de visites', pct(g.totaux.demandes, g.totaux.sessions, 2) + ' des visites envoient une demande. Vérifier que les formulaires des fiches marchent et que le bouton de demande se voit sur téléphone.');
+      }
+      var pc = g.parCompte || {};
+      if (pc.nous && pc.axifuge && pc.nous.sessions && pc.axifuge.sessions) {
+        item('bleu', 'Deux campagnes Google Ads amènent des visites sur ce site', 'Notre campagne : ' + nb(pc.nous.sessions) + ' visites · Axifuge : ' + nb(pc.axifuge.sessions) + ' visites. Sur les mêmes véhicules, elles peuvent enchérir l\'une contre l\'autre.',
+          h('button.btn', { type: 'button', text: 'Comparer', onclick: function () { self.aller('site'); } }));
+      }
+      (F.fiches || []).forEach(function (f) {
+        var nv = (f.controles || []).filter(function (c) { return c.ton !== 'vert'; });
+        if (!nv.length) return;
+        var rouge = nv.some(function (c) { return c.ton === 'rouge'; });
+        item(rouge ? 'rouge' : 'ambre', 'Fiche Google « ' + (f.titre || f.nom) + ' » : ' + nv.length + ' point' + (nv.length > 1 ? 's' : '') + ' à compléter',
+          nv.slice(0, 3).map(function (c) { return c.titre; }).join(' · ') + (nv.length > 3 ? ' · et ' + (nv.length - 3) + ' autre' + (nv.length - 3 > 1 ? 's' : '') : '') + '. Une fiche complète est montrée pour plus de recherches.',
+          h('button.btn', { type: 'button', text: 'Voir', onclick: function () { self.aller('ficheGoogle'); } }));
+      });
+      if (F.erreur) item('ambre', 'Les statistiques de la fiche Google ne se lisent pas', F.erreur);
+      else if (F.fiches && F.fiches.length) {
+        var sf = sommeFiche(F);
+        if (sf.pr.appels >= 10 && sf.t.appels < sf.pr.appels * 0.8) item('ambre', 'Moins d\'appels venus de la fiche Google', nb(sf.t.appels) + ' appels contre ' + nb(sf.pr.appels) + ' la période d\'avant. Vérifier les heures d\'ouverture, les photos et les réponses aux avis.',
+          h('button.btn', { type: 'button', text: 'Voir', onclick: function () { self.aller('ficheGoogle'); } }));
+      }
+    }
+    z.appendChild(h('h2', 'Être mieux vu sur Google'));
+    if (!items.length) { z.appendChild(h('div.ana-point.vert', [h('span.rond'), h('div', [h('b', 'Rien à corriger pour l\'instant'), h('p', { text: 'Aucun véhicule refusé, et chaque véhicule en vente a été vu sur le site.' })])])); return z; }
+    items.forEach(function (x) { z.appendChild(x); });
+    return z;
+  };
+
+  /* =============================== Onglet Site web =============================== */
+  Vue.prototype.ongletSite = function () {
+    var self = this, G = this.gaRep(), z = h('section.ana-zone'), d = this.rep || {};
+    this.elCorps.appendChild(z);
+    z.appendChild(this.zoneEtatGa());
+    if (!this.gaDonnees()) return;
+    var g = G.ga, t = g.totaux, pr = this.periode === 'tout' ? null : g.precedent, evt = (g.sites.filter(function (s) { return s.evtDemande; })[0] || {}).evtDemande || '';
+    var v = function (a, b, sens) { return pr ? variation(a, b, sens) : null; };
+    var pv = g.fiches.parVin || {}, nVus = Object.keys(pv).filter(function (k) { return pv[k].vues; }).length;
+    z.appendChild(h('div.ana-kgroupe', [h('h2', [document.createTextNode('Le site web'), h('small', { text: g.sites.map(function (s) { return s.nom; }).join(' · ') + ' · Google Analytics · ' + (nomPeriode(this.periode) || '').toLowerCase() })]),
+      h('div.ana-kpis', [
+        kpi(nb(t.sessions), 'Visites', { zero: !t.sessions, v: v(t.sessions, pr && pr.sessions, 1), note: nb(t.utilisateurs) + ' visiteurs, dont ' + nb(t.nouveaux) + ' nouveaux' }),
+        kpi(pct(t.engagees, t.sessions), 'Visites engagées', { zero: !t.sessions, note: 'restés 10 s et plus, ou 2 pages et plus' }),
+        kpi(nb(t.demandes), 'Demandes envoyées', { zero: !t.demandes, classe: t.demandes ? 'vert' : '', v: v(t.demandes, pr && pr.demandes, 1), note: evt ? 'formulaires du site (événement « ' + evt + ' »)' : 'aucun événement de demande trouvé' }),
+        kpi(t.sessions ? pct(t.demandes, t.sessions, 2) : '—', 'Taux de demande', { zero: !t.demandes, note: 'demandes ÷ visites' }),
+        kpi(nb(g.fiches.vues), 'Vues de fiches de véhicules', { zero: !g.fiches.vues, note: nb(nVus) + ' véhicule' + (nVus > 1 ? 's' : '') + ' vu' + (nVus > 1 ? 's' : '') + ' · voir le tableau ›', onclick: function () { self.aller('vehicules', { filtre: '', q: '' }); } }),
+        kpi(nb(g.fiches.sansVue.length), 'En vente, jamais vus', { zero: false, classe: g.fiches.sansVue.length ? 'ambre' : 'vert', note: 'sur ' + nb(g.fiches.nFlux) + ' fiches en vente' + (g.fiches.sansVue.length ? ' · voir ›' : ''),
+          onclick: g.fiches.sansVue.length ? function () { self.aller('vehicules', { filtre: 'sansVue', q: '' }); } : null,
+          marche: ligneMarche(REP.sansVue, null, this.genre, { nous: g.fiches.nFlux ? pct(g.fiches.sansVue.length, g.fiches.nFlux) + ' sur la période' : '' }) }),
+        kpi(nb(t.payant), 'Visites payées', { zero: !t.payant, v: v(t.payant, pr && pr.payant, 0), note: pct(t.payant, t.sessions) + ' des visites (annonces Google, Performance Max…)' }),
+        kpi(nb(t.naturel), 'Recherche Google gratuite', { zero: !t.naturel, v: v(t.naturel, pr && pr.naturel, 1), note: pct(t.naturel, t.sessions) + ' des visites' })
+      ])]));
+    /* jour par jour */
+    var cleG = this.grapheSite || 'sessions';
+    var segG = h('div.segment.seg', [['sessions', 'Visites'], ['demandes', 'Demandes'], ['payant', 'Visites payées'], ['naturel', 'Recherche gratuite']].map(function (x) {
+      return h('button' + (cleG === x[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': cleG === x[0] ? 'true' : 'false', text: x[1], onclick: function () { self.grapheSite = x[0]; self.rendre(); } });
+    }));
+    var S = serie(g.jours, ['sessions', 'demandes', 'payant', 'naturel']);
+    z.appendChild(h('div.ana-zone', [h('h2', [document.createTextNode(S.length && g.jours.length > 45 ? 'Semaine par semaine' : 'Jour par jour'), segG]), barres(S, cleG, nbCourt)]));
+    /* par canal */
+    var tot = t.sessions || 0;
+    z.appendChild(h('div.ana-zone', [h('h2', 'D\'où viennent les visiteurs'), h('div.ana-defile', [h('table.ana-table', [
+      h('thead', [h('tr', [h('th', 'Canal'), h('th.n', 'Visites'), h('th.n', 'Part'), h('th.n.cache-tel', 'Engagées'), h('th.n', 'Demandes'), h('th.n.cache-tel', 'Taux de demande'), h('th.n.cache-tel', 'vs avant')])]),
+      h('tbody', g.canaux.filter(function (c) { return c.sessions || c.demandes; }).map(function (c) {
+        var vv = pr ? variation(c.sessions, c.avant.sessions, 1) : null;
+        return h('tr', [h('td', [h('b', { text: c.nom }), c.payant ? h('span.ana-pastille.violet', { text: 'payant' }) : null]), h('td.n', { text: nb(c.sessions) }), h('td.n', { text: pct(c.sessions, tot) }),
+          h('td.n.cache-tel', { text: pct(c.engagees, c.sessions) }), h('td.n' + (c.demandes ? '' : '.zero'), { text: nb(c.demandes) }), h('td.n.cache-tel', { text: c.sessions ? pct(c.demandes, c.sessions, 2) : '—' }),
+          h('td.n.cache-tel', { text: vv ? vv.t.replace(' vs avant', '') : '—' })]);
+      }))])])]));
+    /* les comptes Google Ads */
+    var pc = g.parCompte || {}, cles = ['nous', 'axifuge', 'autre'].filter(function (k) { return pc[k] && pc[k].sessions; });
+    if (cles.length) {
+      var coutNous = this.donneesAds() ? ((d.totaux || {}).cout || 0) : 0;
+      z.appendChild(h('div.ana-zone', [h('h2', 'Les visites payées par Google Ads, compte par compte'),
+        h('div.ana-defile', [h('table.ana-table', [
+          h('thead', [h('tr', [h('th', 'Compte Google Ads'), h('th.n', 'Visites'), h('th.n.cache-tel', 'Engagées'), h('th.n', 'Événements clés'), h('th.n', 'Coût par visite')])]),
+          h('tbody', cles.map(function (k) { var a = pc[k];
+            return h('tr', [h('td', { text: NOMS_COMPTES[k] || k }), h('td.n', { text: nb(a.sessions) }), h('td.n.cache-tel', { text: pct(a.engagees, a.sessions) }), h('td.n', { text: nb(a.evenementsCles) }),
+              h('td.n', { text: k === 'nous' && coutNous && a.sessions ? argent(coutNous / a.sessions, 2) : '—' })]); }))])]),
+        h('p.ana-note', { text: 'Les visites sont comptées par Google Analytics sur le site ; la dépense de notre campagne vient de Google Ads. La dépense d\'Axifuge n\'est pas connue de ScanAutomax.' + (pc.nous && pc.axifuge ? ' Les deux campagnes annoncent les mêmes véhicules : elles peuvent enchérir l\'une contre l\'autre.' : '') })]));
+    }
+    /* événements clés, campagnes, pages (repliés) */
+    var det = h('div');
+    if (g.evenements.length) det.appendChild(h('details', [h('summary', { text: 'Événements clés (' + g.evenements.length + ')' }), h('div.ana-defile', [h('table.ana-table', [
+      h('thead', [h('tr', [h('th', 'Événement'), h('th.n', 'Nombre'), h('th.n', 'Période d\'avant')])]),
+      h('tbody', g.evenements.map(function (e) { return h('tr', [h('td', [document.createTextNode(e.nom), e.nom === evt ? h('span.ana-pastille.vert', { text: 'demande' }) : null]), h('td.n', { text: nb(e.n) }), h('td.n', { text: pr ? nb(e.avant) : '—' })]); }))])])]));
+    if (g.campagnes.length) det.appendChild(h('details', [h('summary', { text: 'Sources et campagnes (' + g.campagnes.length + ')' }), h('div.ana-defile', [h('table.ana-table', [
+      h('thead', [h('tr', [h('th', 'Source / support'), h('th', 'Campagne'), h('th.n', 'Visites'), h('th.n', 'Événements clés')])]),
+      h('tbody', g.campagnes.slice(0, 40).map(function (c) { return h('tr', [h('td', { text: c.source }), h('td', [document.createTextNode(c.campagne), c.compte ? h('span.ana-pastille.' + (c.compte === 'nous' ? 'vert' : 'gris'), { text: c.compte === 'nous' ? 'nous' : (c.compte === 'axifuge' ? 'Axifuge' : 'autre') }) : null]), h('td.n', { text: nb(c.sessions) }), h('td.n', { text: nb(c.evenementsCles) })]); }))])])]));
+    var site0 = (g.sites[0] || {}).nom || '', lien = function (chemin, site) { var s = (g.sites.filter(function (x) { return x.cle === site; })[0] || {}).nom || site0; return 'https://www.' + s + chemin; };
+    var perP = g.pagesPeriode ? ' — du ' + fmtJour(g.pagesPeriode.du) + ' au ' + fmtJour(g.pagesPeriode.au) : '';
+    if (g.entrees.length) det.appendChild(h('details', [h('summary', { text: 'Pages d\'entrée (30 derniers jours)' + perP }), h('div.ana-defile', [h('table.ana-table', [
+      h('thead', [h('tr', [h('th', 'Page'), h('th.cache-tel', 'Canal'), h('th.n', 'Visites'), h('th.n', 'Événements clés')])]),
+      h('tbody', g.entrees.map(function (e) { return h('tr', [h('td', [h('a', { href: lien(e.page, e.site), target: '_blank', rel: 'noopener', text: e.page || '/' })]), h('td.cache-tel', { text: e.canal }), h('td.n', { text: nb(e.sessions) }), h('td.n', { text: nb(e.cles) })]); }))])])]));
+    if (g.pages.length) det.appendChild(h('details', [h('summary', { text: 'Pages les plus vues (30 derniers jours)' + perP }), h('div.ana-defile', [h('table.ana-table', [
+      h('thead', [h('tr', [h('th', 'Page'), h('th.n', 'Vues'), h('th.n.cache-tel', 'Visiteurs'), h('th.n', 'Événements clés')])]),
+      h('tbody', g.pages.map(function (p) { return h('tr', [h('td', [h('a', { href: lien(p.chemin, p.site), target: '_blank', rel: 'noopener', text: p.chemin || '/' })]), h('td.n', { text: nb(p.vues) }), h('td.n.cache-tel', { text: nb(p.utilisateurs) }), h('td.n', { text: nb(p.cles) })]); }))])])]));
+    if (g.fiches.sansNiv.length) det.appendChild(h('details', [h('summary', { text: 'Fiches de véhicules vues, plus en vente (' + g.fiches.sansNiv.length + ')' }),
+      h('p.ana-note', { text: 'Des fiches vendues ou retirées que des visiteurs ouvrent encore (anciens liens, recherche Google).' }), h('div.ana-defile', [h('table.ana-table', [
+      h('thead', [h('tr', [h('th', 'Fiche'), h('th.n', 'Vues'), h('th.n', 'Demandes')])]),
+      h('tbody', g.fiches.sansNiv.slice(0, 40).map(function (f) { return h('tr', [h('td', { text: (f.nom || 'Fiche ' + f.id) + ' (no ' + f.id + ')' }), h('td.n', { text: nb(f.vues) }), h('td.n', { text: nb(f.demandes) })]); }))])])]));
+    if (det.childNodes.length) z.appendChild(h('div.ana-zone.ana-replis', [h('h2', 'Le détail')].concat([].slice.call(det.childNodes))));
+  };
+
+  /* =============================== Onglet Fiche Google =============================== */
+  var NOMS_DEP = { ventes: 'Ventes', service: 'Service', occasion: 'Occasion' };
+  Vue.prototype.ongletFiche = function () {
+    var self = this, G = this.gaRep(), z = h('section.ana-zone'), g0 = this.ga || {};
+    this.elCorps.appendChild(z);
+    var F = G ? G.fiche : null;
+    var etat = function (cls, titre, texte, bouton) { z.appendChild(h('div.ana-statut.' + cls, [h('span.rond'), h('div.t', [h('b', { text: titre }), texte ? document.createTextNode(' ' + texte) : null])].concat(bouton ? [bouton] : []))); };
+    if (g0.pasAJour) { etat('ambre', 'Le script n\'est pas à jour.', 'Déployez la version qui contient GoogleAnalytics.gs.'); return; }
+    if (!F) { etat('ambre', 'La fiche Google n\'a pas pu être lue.', g0.erreur || ''); return; }
+    if (!F.branche) { etat('ambre', 'Les fiches Google ne sont pas branchées.', 'Elles se branchent avec le suivi des avis (Relance › Avis Google).'); return; }
+    if (F.erreur && !F.fiches.length) { etat('ambre', 'Les statistiques des fiches Google ne se lisent pas.', F.erreur); return; }
+    if (!F.fiches.length) { etat('bleu', 'Pas encore lu.', 'La première lecture se fait dans l\'heure (ou « Relire maintenant » dans l\'onglet Site web).'); return; }
+    etat(F.erreur ? 'ambre' : 'vert', 'Fiche Google lue le ' + quand(F.luLe) + '.', 'Google publie ces chiffres avec 3 à 5 jours de retard' + (F.dernier ? ' : dernier jour reçu, le ' + String(fmtJour(F.dernier)).replace(/\.$/, '') + '.' : '.') + (F.erreur ? ' ' + F.erreur : ''),
+      h('a.btn', { href: URL_FICHES, target: '_blank', rel: 'noopener', text: 'Ouvrir le profil d\'entreprise' }));
+    var sf = sommeFiche(F), t = sf.t, pr = this.periode === 'tout' ? null : sf.pr, v = function (a, b) { return pr ? variation(a, b, 1) : null; };
+    z.appendChild(h('div.ana-kgroupe', [h('h2', [document.createTextNode('La fiche Google'), h('small', { text: F.fiches.map(function (f) { return f.nom; }).join(' · ') + ' · ' + (nomPeriode(this.periode) || '').toLowerCase() })]),
+      h('div.ana-kpis', [
+        kpi(nb(t.vues), 'Vues de la fiche', { zero: !t.vues, v: v(t.vues, pr && pr.vues), note: nb(t.recherche) + ' dans la recherche · ' + nb(t.maps) + ' dans Maps' }),
+        kpi(nb(t.appels), 'Appels', { zero: !t.appels, classe: t.appels ? 'vert' : '', v: v(t.appels, pr && pr.appels), note: 'bouton « Appeler » de la fiche' }),
+        kpi(nb(t.siteWeb), 'Clics vers le site', { zero: !t.siteWeb, v: v(t.siteWeb, pr && pr.siteWeb), note: 'bouton « Site Web »' }),
+        kpi(nb(t.itineraires), 'Itinéraires', { zero: !t.itineraires, v: v(t.itineraires, pr && pr.itineraires), note: 'demandes d\'itinéraire vers la concession' }),
+        kpi(t.vues ? pct(t.appels + t.siteWeb + t.itineraires + t.messages, t.vues, 1) : '—', 'Taux d\'action', { zero: !t.vues, note: 'appels, clics, itinéraires ÷ vues' }),
+        kpi(nb(t.messages), 'Messages', { zero: !t.messages, note: 'clics sur « Message »' })
+      ])]));
+    z.appendChild(this.zoneControlesFiche(F));
+    if (F.fiches.length > 1) {
+      z.appendChild(h('div.ana-zone', [h('h2', 'Fiche par fiche'), h('div.ana-defile', [h('table.ana-table', [
+        h('thead', [h('tr', [h('th', 'Fiche'), h('th.n', 'Vues'), h('th.n.cache-tel', 'Recherche'), h('th.n.cache-tel', 'Maps'), h('th.n', 'Appels'), h('th.n', 'Site'), h('th.n.cache-tel', 'Itinéraires')])]),
+        h('tbody', F.fiches.map(function (f) { var a = f.totaux;
+          return h('tr', [h('td', [h('b', { text: f.nom }), f.departement ? h('span.sous', { text: NOMS_DEP[f.departement] || f.departement }) : null]), h('td.n', { text: nb(a.vues) }), h('td.n.cache-tel', { text: nb(a.rechercheMobile + a.rechercheOrdi) }),
+            h('td.n.cache-tel', { text: nb(a.mapsMobile + a.mapsOrdi) }), h('td.n', { text: nb(a.appels) }), h('td.n', { text: nb(a.siteWeb) }), h('td.n.cache-tel', { text: nb(a.itineraires) })]); }))])])]));
+    }
+    var cleF = this.grapheFiche || 'vues';
+    var segF = h('div.segment.seg', [['vues', 'Vues'], ['appels', 'Appels'], ['siteWeb', 'Clics vers le site'], ['itineraires', 'Itinéraires']].map(function (x) {
+      return h('button' + (cleF === x[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': cleF === x[0] ? 'true' : 'false', text: x[1], onclick: function () { self.grapheFiche = x[0]; self.rendre(); } });
+    }));
+    var S = serie(F.jours, ['vues', 'appels', 'siteWeb', 'itineraires']);
+    z.appendChild(h('div.ana-zone', [h('h2', [document.createTextNode(F.jours.length > 45 ? 'Semaine par semaine' : 'Jour par jour'), segF]), barres(S, cleF, nbCourt)]));
+    if (F.mots && F.mots.length) {
+      var mm = F.moisMots ? new Date(F.moisMots + '-15T12:00:00').toLocaleDateString('fr-CA', { month: 'long', year: 'numeric' }) : '';
+      z.appendChild(h('div.ana-zone', [h('h2', 'Ce que les gens cherchent quand ils trouvent la fiche' + (mm ? ' — ' + mm : '')), h('div.ana-defile', [h('table.ana-table', [
+        h('thead', [h('tr', [h('th', 'Recherche'), h('th.n', 'Personnes')])]),
+        h('tbody', F.mots.slice(0, 40).map(function (m) { return h('tr', [h('td', { text: m.mot }), h('td.n', { text: m.valeur ? nb(m.valeur) : (m.seuil ? 'moins de ' + nb(m.seuil) : '—') })]); }))])]),
+        h('p.ana-note', { text: 'Google donne ces recherches par mois, au début du mois suivant. « Moins de 15 » : Google ne donne pas le chiffre exact quand il est petit.' })]));
+    }
+  };
+
+  /* ---- 18 nov. : la fiche Google est-elle complète ? (catégories, description, heures, jours fériés, photos, publications…)
+     Lu une fois par jour dans le profil d'entreprise (API Business Information, en lecture), contrôlé par GoogleAnalytics.gs. ---- */
+  Vue.prototype.zoneControlesFiche = function (F) {
+    var z = h('div.ana-zone'), fs = (F.fiches || []).filter(function (f) { return (f.controles || []).length || f.infoErreur; });
+    var le = fs.reduce(function (m, f) { return f.infoLe && f.infoLe > m ? f.infoLe : m; }, '');
+    z.appendChild(h('h2', [document.createTextNode('La fiche est-elle complète ?'), h('small', { text: le ? 'vérifiée le ' + quand(le) : 'vérifiée chaque matin dans le profil d\'entreprise' })]));
+    if (!fs.length) { z.appendChild(h('p.ana-note', { text: 'La vérification se fait à la prochaine lecture des fiches (une fois par jour, le matin) : catégories, description, heures et jours fériés, photos, publications.' })); return z; }
+    fs.forEach(function (f) {
+      var cs = f.controles || [], nv = cs.filter(function (c) { return c.ton !== 'vert'; }), ok = cs.filter(function (c) { return c.ton === 'vert'; });
+      var rouge = nv.some(function (c) { return c.ton === 'rouge'; });
+      var tete = h('div.ana-ctrl-tete', [h('b', { text: f.titre || f.nom }),
+        h('span.ana-pastille.' + (f.infoErreur && !cs.length ? 'gris' : (rouge ? 'rouge' : (nv.length ? 'ambre' : 'vert'))), { text: f.infoErreur && !cs.length ? 'pas lisible' : (nv.length ? nv.length + ' point' + (nv.length > 1 ? 's' : '') + ' à compléter' : 'Complète') }),
+        h('span.esp'),
+        f.mapsUri ? h('a.btn.petit', { href: f.mapsUri, target: '_blank', rel: 'noopener', text: 'Voir sur Google Maps' }) : null,
+        h('a.btn.petit', { href: URL_FICHES, target: '_blank', rel: 'noopener', text: 'Modifier la fiche' })]);
+      var carte = h('div.ana-carte.ana-ctrl', [tete]);
+      if (f.infoErreur && !cs.length) carte.appendChild(h('p.ana-note', { text: f.infoErreur }));
+      nv.forEach(function (c) { carte.appendChild(h('div.ana-point.' + c.ton, [h('span.rond'), h('div', [h('b', { text: c.titre }), c.quoi ? h('p', { text: c.quoi }) : null])])); });
+      if (ok.length) carte.appendChild(h('p.ana-ctrl-ok', [h('b', { text: '✓ ' }), document.createTextNode(ok.map(function (c) { return c.titre; }).join(' · '))]));
+      z.appendChild(carte);
+    });
+    z.appendChild(h('p.ana-note', { text: 'ScanAutomax ne change rien à la fiche : il la lit et dit quoi corriger. Les heures des jours fériés des 45 prochains jours sont comparées au calendrier ' + 'du Québec (de l\'Ontario pour Hawkesbury).' }));
+    return z;
+  };
+
+  /* ---- Branchement : l'état des trois sources Google ---- */
+  Vue.prototype.carteSourcesGoogle = function () {
+    var self = this, G = this.gaRep(), g0 = this.ga || {}, el = h('div.ana-carte');
+    el.appendChild(h('h3', 'Google Analytics, fiches Google et Merchant Center'));
+    if (g0.pasAJour || !G) { el.appendChild(h('p', { text: g0.pasAJour ? 'Le script n\'est pas à jour : déployez la version qui contient GoogleAnalytics.gs.' : (g0.erreur || 'Pas encore lu.') })); return el; }
+    var l = h('ul');
+    l.appendChild(h('li', { text: 'Google Analytics : ' + (G.ga.branche ? 'branché (' + (G.ga.compte || 'mallard@groupeautomax.com') + ')' + G.ga.sites.map(function (s) { return ' · ' + s.nom + (s.erreur ? ' : ' + s.erreur : (s.dernier ? ' lu jusqu\'au ' + fmtJour(s.dernier) : ' pas encore lu')); }).join('') : 'pas branché') }));
+    l.appendChild(h('li', { text: 'Fiches Google : ' + (G.fiche.branche ? (G.fiche.fiches.length ? G.fiche.fiches.length + ' fiche' + (G.fiche.fiches.length > 1 ? 's' : '') + ', lue' + (G.fiche.fiches.length > 1 ? 's' : '') + ' le ' + quand(G.fiche.luLe) : (G.fiche.erreur || 'pas encore lues')) : 'pas branchées (Relance › Avis Google)') }));
+    l.appendChild(h('li', { text: 'Merchant Center : ' + (G.merchant.compte ? (G.merchant.n ? G.merchant.n + ' véhicules lus le ' + quand(G.merchant.luLe) + ' (' + G.merchant.approuve + ' approuvés, ' + G.merchant.refuse + ' refusés, ' + G.merchant.attente + ' en examen)' : (G.merchant.erreur || 'pas encore lu')) : 'pas de compte pour cette concession') }));
+    el.appendChild(l);
+    el.appendChild(h('div.rangee', [G.ga.peutBrancher && !G.ga.branche ? h('button.btn.primaire', { type: 'button', text: 'Brancher Google Analytics', onclick: function () { self.brancherGa(); } }) : null,
+      h('button.btn', { type: 'button', text: 'Relire maintenant', onclick: function () { self.relireGa(); } })]));
+    return el;
+  };
+
+  AMX.annoncesAnalyse = { charger: charger, chargerGa: chargerGa, peutVoir: peutVoir, scriptAds: scriptAds, vider: function () { cache = {}; cacheGa = {}; } };
   AMX.section('annoncesanalyse', {
     titre: 'Analyse des annonces', icone: 'resultat', ordre: 37,
     visible: function () { return peutVoir(); },

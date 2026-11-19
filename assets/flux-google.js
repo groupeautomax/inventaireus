@@ -35,6 +35,7 @@
     '.fgv-vues { display: flex; flex-wrap: wrap; gap: 6px; } .fgv-vues button { border: 1px solid var(--ligne); background: var(--carte); color: var(--encre-2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }',
     '.fgv-vues button.actif { background: var(--encre); border-color: var(--encre); color: #fff; } .fgv-vues button .n { opacity: .75; margin-left: 4px; }',
     /* 15 nov. : véhicules en offre de location et textes d'annonce pour la page des offres */
+    '.fgv-ligne span.clg { display: inline-block; margin: 4px 6px 0 0; font-size: 13px; font-weight: 600; color: var(--vert-fonce); }',
     '.fgv-ligne span.loc { display: inline-block; margin: 4px 6px 0 0; font-size: 12px; font-weight: 700; color: #0b5cad; background: #e7f0fb; border: 1px solid #b9d3f2; border-radius: 999px; padding: 1px 8px; }',
     '.fgv-bloc-loc { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 14px; border: 1px solid #b9d3f2; background: #f1f6fd; border-radius: 10px; padding: 8px 12px; margin: 0 0 10px; } .fgv-bloc-loc span { flex: 1 1 320px; }',
     '.fgv-textes { border: 1px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; font-size: 14px; }',
@@ -55,6 +56,9 @@
     '.fgv-ligne .prop { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 700; color: #6d28d9; background: #f1ebff; border-radius: 999px; padding: 2px 9px; }',
     '.fgv-ligne .chg { display: inline-block; margin-top: 4px; margin-left: 4px; font-size: 12px; font-weight: 700; color: var(--ambre); background: #fff1d6; border-radius: 999px; padding: 2px 9px; }',
     '.fgv-ligne .d { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-align: right; } .fgv-ligne .prix { font-size: 16px; font-weight: 800; }',
+    '.fgv-pastille.approuve { background: var(--vert-clair); color: var(--vert-fonce); } .fgv-pastille.refuse { background: #fde2e2; color: var(--rouge); } .fgv-pastille.attente { background: var(--gris-bg); color: var(--encre-2); }',
+    '.fgv-google { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; border: 1px solid var(--ligne); background: var(--carte); border-radius: 12px; padding: 10px 14px; margin: 0 0 12px; font-size: 15px; } .fgv-google b { font-weight: 700; } .fgv-google .r { color: var(--rouge); font-weight: 700; } .fgv-google .v { color: var(--vert-fonce); font-weight: 700; } .fgv-google .doux { color: var(--encre-2); }',
+    '.fgv-ligne .pbg { font-size: 13px; color: var(--rouge); font-weight: 600; margin-top: 2px; }',
     '.fgv-pastille { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 9px; } .fgv-pastille.completer { background: #fff1d6; color: var(--ambre); } .fgv-pastille.exclu { background: #fde2e2; color: var(--rouge); }',
     '.fgv-groupe { margin: 18px 0 8px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--encre-2); }',
     '.fgv-vide { padding: 30px; text-align: center; color: var(--encre-3); }',
@@ -92,7 +96,7 @@
   var VISER = { min: 20, max: 40 };   /* nombre de véhicules conseillé pour une campagne d'environ 50 $ par jour */
   var GENRES = { neuf: 'Neuf', demo: 'Démo', occasion: 'Occasion' };
   var ETATS = { pret: 'Prêt pour Google', completer: 'À compléter', exclu: 'Exclu' };
-  var VUES = [['choisis', 'Annoncés'], ['proposes', 'Proposés'], ['location', 'En location'], ['prets', 'Tous les véhicules'], ['exclus', 'Exclus']];
+  var VUES = [['choisis', 'Annoncés'], ['proposes', 'Proposés'], ['location', 'En location'], ['prets', 'Tous les véhicules'], ['refuses', 'Refusés par Google'], ['exclus', 'Exclus']];   /* 18 nov. : + Refusés par Google (Merchant Center) */
 
   /* 15 nov. (Maxime : promouvoir les unités en location dans Google) : textes d'annonce pour la page des offres de location
      du site, à copier dans Google Ads. AUCUN chiffre de paiement, de comptant ou de taux : au Québec, une publicité qui montre
@@ -176,10 +180,30 @@
   VueFlux.prototype.charger = function (force) {
     var self = this, cie = this.cie || 'BMW';
     if (!cache[cie]) { AMX.vider(this.elCorps); this.elCorps.appendChild(AMX.chargeur('Annonces Google')); }
+    this.chargerGoogle(cie, force);
     return charger(cie, force).then(function (d) { if (self.detruit || cie !== (self.cie || 'BMW')) return; self.rep = d; self.rendre(); }).catch(function (e) {
       if (self.detruit) return; AMX.vider(self.elCorps); self.elCorps.appendChild(h('div.fgv-vide', { text: AMX.erreurTexte(e) }));
     });
   };
+
+  /* 18 nov. : l'état de chaque véhicule chez Google (Merchant Center : approuvé, refusé, en examen), lu par GoogleAnalytics.gs
+     (?googleAnalytics=1&seulMerchant=1). Une fois par 5 minutes ; rien si le script n'est pas à jour. */
+  var cacheGm = {};
+  VueFlux.prototype.chargerGoogle = function (cie, force) {
+    var self = this, c = cacheGm[cie];
+    if (!force && c && Date.now() - c.le < 300000) { this.gm = c.m; return; }
+    this.gm = null;
+    AMX.get({ googleAnalytics: '1', compagnie: cie, seulMerchant: '1' }, { discret: true, secours: false }).then(function (r) {
+      var m = r && r.merchant && r.merchant.n ? r.merchant : null;
+      cacheGm[cie] = { m: m, le: Date.now() };
+      if (self.detruit || cie !== (self.cie || 'BMW')) return;
+      self.gm = m; if (self.rep && self.elListe) { self.rendreVues(); self.rendreListe(); }
+    }).catch(function () {});
+  };
+  VueFlux.prototype.etatGoogle = function (l) { var m = this.gm, v = vinDe(l); return m && v ? (m.parId[v] || null) : null; };
+  /* [clics annonces, impressions annonces, clics gratuits, impressions gratuites] des 28 derniers jours (Merchant Center) */
+  VueFlux.prototype.clicsGoogle = function (l) { var m = this.gm, v = vinDe(l); return m && v && m.perf && m.perf.lu ? ((m.perf.parVin || {})[String(v).toUpperCase()] || null) : null; };
+  VueFlux.prototype.nomProbleme = function (code) { var p = ((this.gm || {}).problemes || []).filter(function (x) { return x.code === code; })[0]; return p ? (p.description || code) : String(code || '').replace(/_/g, ' '); };
 
   /* ---- Les choix pas encore publiés : { NIV: true (à annoncer) | false (à retirer) }, gardés sur l'appareil ---- */
   VueFlux.prototype.brouillon = function () {
@@ -435,6 +459,7 @@
   };
   VueFlux.prototype.dansVue = function (l, vue) {
     if (vue === 'exclus') return l.etat === 'exclu';
+    if (vue === 'refuses') { var eg = this.etatGoogle(l); return !!(eg && eg[0] === 'refuse'); }
     if (l.etat === 'exclu') return false;
     if (vue === 'choisis') return this.choisi(l) || this.change(l);   /* un véhicule décoché reste visible jusqu'à « Publier » */
     if (vue === 'proposes') return !!l.suggestion;
@@ -509,7 +534,7 @@
     AMX.vider(this.elVues);
     VUES.forEach(function (v) {
       var n = (d.lignes || []).filter(function (l) { return self.dansVue(l, v[0]) && (!f.genre || l.genre === f.genre); }).length;
-      if ((v[0] === 'exclus' || v[0] === 'location') && !n) return;
+      if ((v[0] === 'exclus' || v[0] === 'location' || v[0] === 'refuses') && !n) return;
       self.elVues.appendChild(h('button' + (f.vue === v[0] ? '.actif' : ''), { type: 'button', onclick: function () { f.vue = v[0]; self.rendreVues(); self.rendreListe(); } }, [document.createTextNode(v[1]), h('span.n', { text: String(n) })]));
     });
   };
@@ -526,6 +551,14 @@
       this.elListe.appendChild(h('div.fgv-bloc-loc', [h('span', { text: 'Les véhicules de la page des offres de location du site. Dans le flux, ils portent l\'étiquette « location » (étiquette personnalisée 3) : un groupe d\'annonces peut les viser à part. L\'annonce montre le prix comptant et mène à la fiche du véhicule.' }),
         aCocherL.length ? h('button.btn.petit', { type: 'button', text: 'Cocher les ' + aCocherL.length, onclick: function () { self.basculer(aCocherL, true); } }) : null]));
       if (d.offresLocation && d.offresLocation.page) this.elListe.appendChild(this.carteTextesLocation(d.offresLocation.page));
+    }
+    if (this.gm) {
+      var m = this.gm;
+      this.elListe.appendChild(h('div.fgv-google', [h('b', 'Chez Google :'), h('span.v', { text: m.approuve + ' approuvé' + (m.approuve > 1 ? 's' : '') }),
+        m.refuse ? h('span.r', { text: m.refuse + ' refusé' + (m.refuse > 1 ? 's' : '') }) : null, m.attente ? h('span', { text: m.attente + ' en examen' }) : null,
+        m.perf && m.perf.lu ? h('span', { text: '28 derniers jours : ' + AMX.fmtNombre(m.perf.totaux.clicsAds + m.perf.totaux.clicsGratuit) + ' clics sur nos véhicules (' + AMX.fmtNombre(m.perf.totaux.clicsGratuit) + ' gratuits, ' + AMX.fmtNombre(m.perf.totaux.clicsAds) + ' d\'annonces)' }) : null,
+        h('span.doux', { text: 'Merchant Center, lu le ' + (m.luLe ? AMX.fmtDate(m.luLe, true) : '—') }),
+        m.refuse && this.f.vue !== 'refuses' ? h('button.btn.petit', { type: 'button', text: 'Voir les refusés', onclick: function () { self.f.vue = 'refuses'; self.rendreVues(); self.rendreListe(); } }) : null]));
     }
     if (!liste.length) { this.elListe.appendChild(h('div.fgv-vide', { text: this.f.vue === 'choisis' ? 'Aucun véhicule annoncé : cochez-en dans « Proposés » ou « Tous les véhicules ».' : 'Aucun véhicule ici.' })); return; }
     this.elListe.appendChild(h('div.fgv-liste', liste.slice(0, 300).map(function (l) { return self.ligne(l); })));
@@ -547,6 +580,9 @@
     if (l.suggestion && !on) textes.push(h('span.prop', { text: 'Proposé : ' + l.suggestion }));
     if (l.location) textes.push(h('span.loc', { text: 'Offre de location' + (l.location.terme ? ' · ' + l.location.terme + ' mois' : '') }));
     if (chg) textes.push(h('span.chg', { text: on ? 'sera annoncé à la publication' : 'sera retiré à la publication' }));
+    var eg = this.etatGoogle(l), pc = this.clicsGoogle(l);
+    if (pc && (pc[0] || pc[2])) textes.push(h('span.clg', { text: AMX.fmtNombre(pc[0] + pc[2]) + ' clic' + (pc[0] + pc[2] > 1 ? 's' : '') + ' dans Google en 28 jours' + (pc[2] ? ' (' + AMX.fmtNombre(pc[2]) + ' gratuit' + (pc[2] > 1 ? 's' : '') + ')' : '') }));
+    if (eg && eg[0] === 'refuse') textes.push(h('div.pbg', { text: 'Refusé par Google' + (eg[1] && eg[1].length ? ' : ' + eg[1].map(function (c) { return self.nomProbleme(c); }).join(' · ') : '') }));
     var coche = h('button.fgv-coche' + (on ? '.on' : ''), { type: 'button', disabled: exclu, 'aria-pressed': on ? 'true' : 'false', 'aria-label': (on ? 'Ne plus annoncer ' : 'Annoncer ') + (l.vehicule || ''), title: exclu ? 'Ne peut pas être annoncé' : (on ? 'Décocher : ne plus annoncer' : 'Cocher : annoncer sur Google'), text: on ? '✓' : '',
       onclick: function (e) { e.stopPropagation(); self.basculer([l]); } });
     var menu = [{ texte: 'Aperçu de l\'annonce', action: function () { self.apercuUn(l); } }, { texte: 'Voir la fiche sur le site', action: function () { window.open(l.url, '_blank', 'noopener'); } }];
@@ -557,6 +593,7 @@
     if (vin && l.retire) menu.push({ texte: 'Remettre dans le flux', action: function () { self.retirerOuRemettre(vin, ''); } });
     var droite = [l.prix ? h('div.prix', { text: argent(l.prix) }) : null];
     if (l.etat !== 'pret') droite.push(h('span.fgv-pastille.' + l.etat, { text: ETATS[l.etat] || l.etat }));
+    else if (eg && eg[0] !== 'inconnu') droite.push(h('span.fgv-pastille.' + eg[0], { text: { approuve: 'Approuvé par Google', refuse: 'Refusé par Google', attente: 'En examen chez Google' }[eg[0]] || eg[0] }));
     if (AMX.menuActions) droite.push(AMX.menuActions(menu, { petit: true }));
     var el = h('div.fgv-ligne' + (on ? '.choisi' : '') + (chg ? '.change' : '') + (exclu ? '.exclu' : ''), [coche, img, h('div.t', textes), h('div.d', droite)]);
     if (!exclu) el.addEventListener('click', function (e) { if (e.target.closest('button, a, .menu-actions, [role="menu"]')) return; self.basculer([l]); });

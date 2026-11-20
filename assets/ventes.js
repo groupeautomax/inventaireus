@@ -322,11 +322,12 @@
     },
     copie: function (cie, mois) { return AMX.cacheLocal.lireGz(cleCopie('ventes_', cleDe(cie, mois)), 7 * 86400000); },
     /* Le tableau récapitulatif d'une année (?ventesRecap=1) : par mois × neufs / occasions / wholesale, conseillers, produits F&I. */
-    recap: function (cie, annee, force, type) {
-      var cle = cleDe(cie, annee) + (type ? '|' + type : '');
+    recap: function (cie, annee, force, type, flotte) {
+      flotte = type === 'neuf' ? choixFlotte(flotte) : '';   /* 19 nov. : Détail ou flotte (Neuf) */
+      var cle = cleDe(cie, annee) + (type ? '|' + type : '') + (flotte ? '|' + flotte : '');
       if (!force && cacheRecap.rep && cacheRecap.cle === cle && Date.now() - cacheRecap.quand < AMX.dureeCopie(45000)) return Promise.resolve(cacheRecap.rep);
       if (cacheRecap.enVol[cle]) return cacheRecap.enVol[cle];
-      var params = { ventesRecap: 1 }; if (cie) params.compagnie = cie; if (annee) params.annee = annee; if (type) params.type = type;   /* 3 nov. : un seul type */
+      var params = { ventesRecap: 1 }; if (cie) params.compagnie = cie; if (annee) params.annee = annee; if (type) params.type = type; if (flotte) params.flotte = flotte;   /* 3 nov. : un seul type */
       var p = cacheRecap.enVol[cle] = AMX.get(params, { gz: true, copie: cleCopie('ventes_recap_', cle), secours: false, delai: 60000 }).then(function (r) {
         if (cacheRecap.enVol[cle] === p) delete cacheRecap.enVol[cle];
         verifierRecap(r);
@@ -335,7 +336,7 @@
       }, function (e) { if (cacheRecap.enVol[cle] === p) delete cacheRecap.enVol[cle]; throw e; });
       return p;
     },
-    copieRecap: function (cie, annee, type) { return AMX.cacheLocal.lireGz(cleCopie('ventes_recap_', cleDe(cie, annee) + (type ? '|' + type : '')), 7 * 86400000); },
+    copieRecap: function (cie, annee, type, flotte) { flotte = type === 'neuf' ? choixFlotte(flotte) : ''; return AMX.cacheLocal.lireGz(cleCopie('ventes_recap_', cleDe(cie, annee) + (type ? '|' + type : '') + (flotte ? '|' + flotte : '')), 7 * 86400000); },
     /* Une vente avec son historique (les grandes listes voyagent sans journal : `sansJournal`). */
     une: function (id) { return AMX.get({ venteId: id }, { secours: false }).then(function (r) { verifierPost(r); return r.vente; }); },
     /* L'évaluation d'un NIV (Outils › Évaluation) — pour l'échange d'une vente. */
@@ -954,7 +955,7 @@
      les concessions qui inscrivent leurs RDR (le serveur les nomme dans rdr.cies). */
   VueVentes.prototype.moisRdr = function () { return this.vue !== 'commandes' && /^\d{4}-\d{2}$/.test(String(this.periode || '')) ? this.periode : ''; };
   VueVentes.prototype.estRdr = function (v) { var m = this.moisRdr(); return !!m && v.statut !== 'annulee' && !!v.dateRdr && moisManuf(v.dateRdr) === m; };   /* mois du manufacturier (2 nov.) */
-  VueVentes.prototype.sansRdr = function (v) { var m = this.moisRdr(), d = cache.rep, cies = d && d.rdr && d.rdr.cies ? d.rdr.cies : []; return !!m && v.statut !== 'annulee' && v.type === 'neuf' && !v.dateRdr && dateLivraisonOk(v) && moisDeVente(v) === m && cies.indexOf(v.compagnie) >= 0; };
+  VueVentes.prototype.sansRdr = function (v) { var m = this.moisRdr(), d = cache.rep, cies = d && d.rdr && d.rdr.cies ? d.rdr.cies : []; return !!m && v.statut !== 'annulee' && v.type === 'neuf' && !v.flotteLivre && !v.dateRdr && dateLivraisonOk(v) && moisDeVente(v) === m && cies.indexOf(v.compagnie) >= 0; };
   /* Les nombres des pastilles : état (sans le filtre d'état), type (sans le filtre de type), F&I à inscrire / pas au livre
      (sans ce drapeau) — chaque nombre est ce qu'on verra en cliquant. */
   VueVentes.prototype.compteurs = function () {
@@ -1770,13 +1771,13 @@
   /* ------------------------------ Récapitulatif ------------------------------ */
   VueVentes.prototype.chargerRecap = function (force) {
     if (this.filtres.type === 'rachat') this.filtres.type = 'usage';   /* 9 nov. : le récapitulatif n'a pas d'onglet Rachat de bail */
-    var self = this, cie = this.compagnie, annee = this.annee, type = this.filtres.type, cle = cleDe(cie, annee) + (type ? '|' + type : '');
+    var self = this, cie = this.compagnie, annee = this.annee, type = this.filtres.type, flotte = type === 'neuf' ? choixFlotte(this.filtres.flotte) : '', cle = cleDe(cie, annee) + (type ? '|' + type : '') + (flotte ? '|' + flotte : '');
     cacheRecap.vue = cle;
     if (!cacheRecap.rep || cacheRecap.cle !== cle) {
       AMX.vider(this.elVueRecap); this.elVueRecap.appendChild(AMX.chargeur('Récapitulatif des ventes'));
-      AMX.ventes.copieRecap(cie, annee, type).then(function (o) { if (o && o.donnees && cacheRecap.vue === cle && (!cacheRecap.rep || cacheRecap.cle !== cle)) { try { verifierRecap(o.donnees); cacheRecap.rep = o.donnees; cacheRecap.cle = cle; cacheRecap.quand = 0; cacheRecap.copieLe = o.quand; self.rendreRecap(); } catch (e) {} } }).catch(function () {});
+      AMX.ventes.copieRecap(cie, annee, type, flotte).then(function (o) { if (o && o.donnees && cacheRecap.vue === cle && (!cacheRecap.rep || cacheRecap.cle !== cle)) { try { verifierRecap(o.donnees); cacheRecap.rep = o.donnees; cacheRecap.cle = cle; cacheRecap.quand = 0; cacheRecap.copieLe = o.quand; self.rendreRecap(); } catch (e) {} } }).catch(function () {});
     }
-    AMX.ventes.recap(cie, annee, force, type).then(function () { if (cacheRecap.vue !== cle) return; self.rendreCies(); self.rendreRecap(); if (force === true) AMX.toast('Récapitulatif mis à jour', 'ok'); }, function (e) {
+    AMX.ventes.recap(cie, annee, force, type, flotte).then(function () { if (cacheRecap.vue !== cle) return; self.rendreCies(); self.rendreRecap(); if (force === true) AMX.toast('Récapitulatif mis à jour', 'ok'); }, function (e) {
       if (cacheRecap.vue !== cle) return;
       var msg = AMX.erreurTexte(e);
       self.elSous.textContent = /route|absent|inconnue|pas à jour/i.test(msg) ? 'Route absente — redéployez le script (Vente.gs).' : msg;
@@ -1793,8 +1794,21 @@
     var tp = this.filtres.type, parServeur = r.type === tp, sansFIr = tp === 'wholesale', nomType = libelleTypeOnglet(tp);
     var montants = !!r.montants, T = r.totaux || {}, tot = (parServeur ? T.total : T[tp]) || {};
     var copie = cacheRecap.copieLe ? 'Copie du ' + AMX.copieTexte(cacheRecap.copieLe) + ' — mise à jour en cours… · ' : '';
-    this.elSous.textContent = copie + 'Année ' + r.annee + ' · ' + nomType + ' · ' + pluriel((parServeur ? r.nombre : tot.n) || 0, 'vente') + (tot.attenteFI ? ' · ' + tot.attenteFI + ' en attente du F&I' : '') + (tot.compta ? ' · ' + tot.compta + ' comptabilisée' + (tot.compta > 1 ? 's' : '') : '') + (r.genereLe && !cacheRecap.copieLe ? ' · calculé à ' + AMX.fmtDate(r.genereLe, true).replace(/^\S+\s/, '') : '');
+    this.elSous.textContent = copie + 'Année ' + r.annee + ' · ' + nomType + (tp === 'neuf' && r.flotte ? ' · ' + (r.flotte === 'flotte' ? nomFlotte(this.compagnie || '', true).toLowerCase() + ' seulement' : 'détail seulement') : '') + ' · ' + pluriel((parServeur ? r.nombre : tot.n) || 0, 'vente') + (tot.attenteFI ? ' · ' + tot.attenteFI + ' en attente du F&I' : '') + (tot.compta ? ' · ' + tot.compta + ' comptabilisée' + (tot.compta > 1 ? 's' : '') : '') + (r.genereLe && !cacheRecap.copieLe ? ' · calculé à ' + AMX.fmtDate(r.genereLe, true).replace(/^\S+\s/, '') : '');
     AMX.vider(el);
+    /* 19 nov. : « Détail ou flotte » aussi dans le récapitulatif du neuf — le même choix que la liste ; le serveur recompte.
+       Seulement avec un script à jour (r.flotte) et quand l'année a des flottes. */
+    if (tp === 'neuf' && r.flotte !== undefined && (r.nFlottes > 0 || r.flotte)) {
+      var ui2r = !!(AMX.ui2 && AMX.ui2()), cieR = this.compagnie || '';
+      var boutonsR = FLOTTES_NEUF.map(function (g) {
+        var actif = (r.flotte || '') === g[0], lib = g[0] === 'flotte' ? nomFlotte(cieR) : g[1], nb = g[0] === 'flotte' ? String(r.nFlottes || 0) : '';
+        return h((ui2r ? 'button.inv2-pastille' : 'button') + (actif ? '.actif' : ''), { type: 'button', 'data-flotte': g[0] || 'tous', 'aria-pressed': actif ? 'true' : 'false', title: g[0] === 'detail' ? 'Tout ce qui n\'est pas une flotte' : (g[0] === 'flotte' ? 'Ventes de catégorie « ' + (cieR === 'BMW' ? 'Fleet/Employé' : 'Flotte') + ' » au livre, cette année' : 'Détail et flottes ensemble'),
+          onclick: function () { if ((self.filtres.flotte || '') === g[0]) return; self.filtres.flotte = g[0]; self.chargerRecap(); } },
+          ui2r ? [h('span', { text: lib })].concat(nb ? [h('b', { text: nb })] : []) : [lib + (nb ? ' ' : '')].concat(nb ? [h('span.n', { text: nb })] : []));
+      });
+      el.appendChild(ui2r ? h('div.ventes-achats#ventes-recap-flottes', { role: 'group', 'aria-label': 'Détail ou flotte' }, [h('span.tit', { text: 'Détail ou flotte' })].concat(boutonsR))
+        : h('div.segment#ventes-recap-flottes', { role: 'group', 'aria-label': 'Détail ou flotte' }, boutonsR));
+    }
     var aller = function (mois) { var p = { type: tp }; if (mois) p.mois = mois; AMX.aller('ventes', 'liste', p); };
     var cle = function (a) { return a && a.n ? (a.reel ? a.reel + ' réel' + (a.prevu ? ' · ' + a.prevu + ' prévu' : '') : (a.prevu ? a.prevu + ' au prévu' : '')) : ''; };
     /* Chiffres clés */

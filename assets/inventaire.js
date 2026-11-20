@@ -430,6 +430,7 @@
     if (AMX.achatsAuto) { AMX.achatsAuto.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:achatsAuto', this.surCarfax); }
     if (AMX.photosD2c) { AMX.photosD2c.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:photosD2c', this.surCarfax); }
     if (AMX.provenance) { AMX.provenance.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:provenance', this.surCarfax); }
+    if (AMX.coutsDms && voitCouts()) { AMX.coutsDms.charger().catch(function () {}); document.addEventListener('amx:coutsDms', this.surCarfax); }
     // 27 oct. : pastille mauve « Courriel · à ajouter » — contrats d'achat reçus par courriel qu'il reste à vérifier et ajouter.
     if (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) { AMX.achatsAuto.contrats.charger().then(function () { if (!self.detruit) self.rendre(); }).catch(function () {}); document.addEventListener('amx:contrats', this.surCarfax); }
     this.minuterie = setInterval(function () { self.rafraichir(); }, 60000);
@@ -456,6 +457,7 @@
     document.removeEventListener('amx:contrats', this.surCarfax);
     document.removeEventListener('amx:photosD2c', this.surCarfax);
     document.removeEventListener('amx:provenance', this.surCarfax);
+    document.removeEventListener('amx:coutsDms', this.surCarfax);
     document.removeEventListener('amx:compagnie', this.surCie);
     window.removeEventListener('focus', this.surVisible);
     if (this.observateur) this.observateur.disconnect();
@@ -522,6 +524,7 @@
           h('button.btn', { html: I.telecharger + '<span>Exporter Excel</span>', onclick: function () { self.exporter(); } }),
           h('button.btn', { html: I.scan + '<span>Actions en lot</span>', onclick: function () { self.modaleLot('ajout'); } }),
           h('button.btn', { html: (I.corbeille) + '<span>Occasions effacées</span>', onclick: function () { AMX.inventaire.effaces(); } }),
+          (AMX.coutsDms && AMX.estProprietaire && AMX.estProprietaire()) ? h('button.btn', { html: (I.outils || '') + '<span>PAD par concession</span>', onclick: function () { AMX.coutsDms.charger().catch(function () {}).then(function () { return AMX.coutsDms.regler(); }); } }) : null,
           AMX.historique ? h('button.btn', { html: (I.recherche || I.filtre || '') + '<span>Historique d\'un # stock</span>', onclick: function () { AMX.historique.demander(); } }) : null,
           (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) ? h('button.btn', { html: (I.courriel) + '<span>Contrats d\'achat reçus</span>', onclick: function () { self.ouvrirContrats(); } }) : null,
           AMX.perm('ajouterVehicule') ? h('button.btn.primaire', { html: I.plus + '<span>Ajouter</span>', onclick: function () { self.modaleLot('ajout'); } }) : null
@@ -607,6 +610,7 @@
       { texte: 'Exporter Excel', icone: I.telecharger, action: function () { self.exporter(); } },
       { texte: 'Actions en lot', icone: I.scan, action: function () { self.modaleLot('ajout'); } },
       { texte: 'Occasions effacées', icone: I.corbeille, action: function () { AMX.inventaire.effaces(); } },
+      (AMX.coutsDms && AMX.estProprietaire && AMX.estProprietaire()) ? { texte: 'PAD par concession (coût réel)…', icone: I.outils, action: function () { AMX.coutsDms.charger().catch(function () {}).then(function () { return AMX.coutsDms.regler(); }); } } : null,
       AMX.historique ? { texte: 'Historique d\'un # stock…', icone: I.recherche || I.filtre, action: function () { AMX.historique.demander(); } } : null,
       (AMX.achatsAuto && AMX.achatsAuto.peutLire()) ? { texte: 'Lire les achats OPENLANE', icone: I.rafraichir, action: function () { AMX.achatsAuto.lireOpenlane(AMX.compagnieChoisie('inventaire') || '').then(function () { self.charger(true); }).catch(function () {}); } } : null,
       (AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.peutLire()) ? { texte: 'Contrats d\'achat reçus (courriel)', icone: I.courriel, action: function () { self.ouvrirContrats(); } } : null
@@ -1052,7 +1056,8 @@
         v.statut === 'transit' ? h('span.jours.attention', { text: 'Expédié depuis ' + AMX.joursDepuis(v.maj) + ' j' }) : h('span.jours' + (retardA ? '.attention' : ''), { text: 'Acheté le ' + AMX.fmtDate(v.dateAjout) + ' · ' + jours + ' j' })]),
       h('div.cell.maj', [h('span.l', 'Mise à jour'), h('span.v', { text: AMX.fmtDate(v.maj, true) })]),
       h('div.cell.indic', [h('span.l', 'Suivi'), h('div.indicateurs', indicateurs)]),
-      voitCouts() ? h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' })]) : h('div.montant', { 'aria-hidden': 'true' }),
+      // 20 nov. (S57B2871C3C) : sous le coût (total, avec le PAD), le coût réel d'après le fichier du DMS (couts-dms.js)
+      voitCouts() ? h('div.montant', [h('span.l', 'Coût'), h('span', { text: v.cout ? AMX.fmtArgent(v.cout) : '—' }), AMX.coutsDms ? AMX.coutsDms.sousCout(v) : null]) : h('div.montant', { 'aria-hidden': 'true' }),
       h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
     ]);
     el.addEventListener('click', function () { if (autreRegistre) AMX.inventaire.aller(autreRegistre.toLowerCase(), { vin: v.vin }); else self.selectionner(v.vin); });
@@ -1488,7 +1493,7 @@
         ]),
         h('button.fermer', { title: 'Fermer', html: I.fermer, onclick: fermer })
       ]),
-      blocPreciser, AMX.achatsAuto ? AMX.achatsAuto.bloc(v.vin) : null, AMX.cfxPastilles ? h('div.bloc', [h('h3', 'CARFAX'), AMX.cfxPastilles.bloc(v.vin)]) : null, blocActions, blocStatut, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
+      blocPreciser, AMX.achatsAuto ? AMX.achatsAuto.bloc(v.vin) : null, AMX.cfxPastilles ? h('div.bloc', [h('h3', 'CARFAX'), AMX.cfxPastilles.bloc(v.vin)]) : null, blocActions, blocStatut, (AMX.coutsDms && voitCouts()) ? AMX.coutsDms.bloc(v, { apres: function () { if (!self.detruit) self.rendre(); } }) : null, (cfg.feuille === 'DETAIL' && AMX.service && !verrouille && v.statut !== 'arrive') ? AMX.service.bloc(v) : null, blocTransport, blocEval, blocFicheEblock, blocManheim, blocEblock, blocMarche, blocOpenlane, blocRappel, blocPhotos, blocLiens, blocGestion
     ]);
     this.elPanneau.appendChild(carte);
   };
@@ -1531,12 +1536,19 @@
         'Jours depuis achat': AMX.joursDepuis(v.dateAjout), 'Rappel': v.rappel === 'oui' ? 'Rappel ouvert' : v.rappel === 'non' ? 'Aucun rappel' : 'Non vérifié' };
       if (cfg.importateur) r['Importateur'] = v.importateur || '';
       r['Registre reçu'] = estEchange(v) ? 'Échange (remis avec l\'échange)' : REGISTRE[registreDe(v)].libelle;
-      if (voitCouts()) r['Coût'] = v.cout ? Number(AMX.montant(v.cout)) : '';
+      if (voitCouts()) {
+        r['Coût'] = v.cout ? Number(AMX.montant(v.cout)) : '';
+        var cd = AMX.coutsDms ? AMX.coutsDms.de(v) : null;      // 20 nov. : payé, service, PAD et coût réel d'après le fichier du DMS
+        r['Payé (DMS)'] = cd && cd.paye !== null ? cd.paye : '';
+        r['Ajouté par le service'] = cd && cd.service !== null ? cd.service : '';
+        r['PAD'] = cd && cd.pad ? cd.pad : '';
+        r['Coût réel (sans PAD)'] = cd && cd.reel !== null ? cd.reel : '';
+      }
       r['Dernière mise à jour'] = AMX.fmtDate(v.maj, true);
       return r;
     });
     var ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{ wch: 10 }, { wch: 19 }, { wch: 26 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 16 }];
+    ws['!cols'] = [{ wch: 10 }, { wch: 19 }, { wch: 26 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 8 }, { wch: 18 }, { wch: 16 }];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Inventaire ' + cfg.titre.replace(/[^A-Za-z]/g, '') || 'Inventaire');
     XLSX.writeFile(wb, 'inventaire-' + this.onglet + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');

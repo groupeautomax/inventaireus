@@ -189,6 +189,69 @@
     var inp = h('input' + (opts.mono ? '.mono' : ''), attrs);
     return { el: h('div.champ', [h('label', { 'for': id, text: libelle }), inp]), input: inp };
   }
+  /* 20 nov. (Maxime : « on doit pouvoir faire des recherches avec des années, modèles, trims, pas juste avec le NIV ») :
+     les cases Marque, Modèle et Version proposent ce qui existe VRAIMENT sur le marché — les modèles et les versions des
+     annonces de MarketCheck, par le serveur (?marche=1&listes=1). Script d'avant (la réponse n'a pas `listes: true`) :
+     les modèles de vPIC (gratuit, depuis le navigateur) et les versions des annonces de la dernière analyse. */
+  var MARQUES_MARCHE = ['Acura', 'Alfa Romeo', 'Audi', 'BMW', 'Buick', 'Cadillac', 'Chevrolet', 'Chrysler', 'Dodge', 'Fiat', 'Ford', 'Genesis', 'GMC',
+    'Honda', 'Hyundai', 'Infiniti', 'Jaguar', 'Jeep', 'Kia', 'Land Rover', 'Lexus', 'Lincoln', 'Lucid', 'Maserati', 'Mazda', 'Mercedes-Benz', 'MINI',
+    'Mitsubishi', 'Nissan', 'Polestar', 'Porsche', 'Ram', 'Rivian', 'Subaru', 'Tesla', 'Toyota', 'Volkswagen', 'Volvo'];
+  var LISTES = {}, LISTES_SERVEUR = null;   // LISTES_SERVEUR : null = pas encore demandé, false = le script ne connaît pas la route
+  function cleTexte(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ''); }
+  function anneeValide(a) { a = Number(a); return (a >= 1990 && a <= new Date().getFullYear() + 2) ? a : 0; }
+  function parNom(p, q) { return String(p[0]).localeCompare(String(q[0]), 'fr', { numeric: true }); }
+  function listesVpic(annee, marque) {
+    return fetch('https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/' + encodeURIComponent(marque) + '/modelyear/' + annee + '?format=json')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var vus = {}, out = [];
+        ((j && j.Results) || []).forEach(function (x) {
+          var n = String(x.Model_Name || '').trim(), k = cleTexte(n);
+          if (!n || vus[k] || /trailer|industries|\binc\b|incomplete|chassis|motorhome/i.test(n)) return;   /* vPIC liste aussi les remorques et les châssis du même fabricant */
+          vus[k] = 1; out.push([n, 0]);
+        });
+        return out;
+      });
+  }
+  /* → Promise<{ cle, source: 'marche' | 'vpic' | '', modeles: [[nom, n]] | null, versions: { cléDuModèle: [[nom, n]] } }> */
+  function listesMarche(pays, annee, marque, modele) {
+    var cle = pays + '|' + annee + '|' + cleTexte(marque), km = cleTexte(modele);
+    var L = LISTES[cle] || (LISTES[cle] = { cle: cle, source: '', modeles: null, versions: {}, p: null, pv: {} });
+    function demander(avecModele) {
+      var q = { marche: 1, listes: 1, pays: pays, annee: annee, marque: marque };
+      if (avecModele) q.modele = modele;
+      return AMX.get(q, { discret: true, secours: false }).then(function (d) {
+        if (!d || d.listes !== true) { LISTES_SERVEUR = false; return; }
+        LISTES_SERVEUR = true;
+        if (d.ok && Array.isArray(d.modeles) && d.modeles.length) { L.modeles = d.modeles; L.source = 'marche'; }
+        if (avecModele && d.ok && Array.isArray(d.versions)) L.versions[km] = d.versions;
+      }).catch(function () {});
+    }
+    function modeles() {
+      if (L.modeles) return Promise.resolve();
+      if (!L.p) L.p = (LISTES_SERVEUR === false ? Promise.resolve() : demander(false)).then(function () {
+        if (L.modeles) return;
+        return listesVpic(annee, marque).then(function (m) { if (m.length) { L.modeles = m; L.source = 'vpic'; } }).catch(function () {});
+      }).then(function () { if (!L.modeles) L.p = null; });
+      return L.p;
+    }
+    return modeles().then(function () {
+      if (!km || L.versions[km] || LISTES_SERVEUR !== true) return L;
+      if (!L.pv[km]) L.pv[km] = demander(true).then(function () { if (!L.versions[km]) delete L.pv[km]; });
+      return L.pv[km].then(function () { return L; });
+    });
+  }
+  function remplirListe(dl, liste) {
+    if (!dl) return;
+    AMX.vider(dl);
+    (liste || []).slice(0, 200).forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; dl.appendChild(o); });
+  }
+  /* Un modèle tapé (ou décodé) que le marché ne connaît pas sous ce nom : les noms qui s'en approchent. */
+  function modelesProches(modeles, md) {
+    var k = cleTexte(md), mot = cleTexte(String(md).split(/\s+/)[0]);
+    return (modeles || []).filter(function (x) { var kx = cleTexte(x[0]); return kx.indexOf(k) >= 0 || k.indexOf(kx) >= 0 || (mot.length >= 3 && kx.indexOf(mot) === 0); })
+      .sort(function (p, q) { return (q[1] || 0) - (p[1] || 0); }).slice(0, 4);
+  }
   /* 26 oct. (Gabriel, BMW Sherbrooke) : « un onglet pour les TRIM, pour séparer les coupés, 4 portes, cabriolets… » — Maxime :
      « applicable partout ». La carrosserie choisie filtre les annonces de MarketCheck (body_type / doors) et les comparables. */
   var STYLES = [['', 'Toutes'], ['coupe', 'Coupé (2 portes)'], ['berline', 'Berline (4 portes)'], ['grancoupe', 'Gran Coupé (4 portes, hayon)'], ['cabriolet', 'Cabriolet'],
@@ -375,6 +438,11 @@
       '.eval-veh-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 220px)); gap: 8px 12px; margin-top: 8px; } .eval-veh-3 .champ.cache { display: none; }',
       '@media (max-width: 760px) { .eval-veh-3 { grid-template-columns: 1fr 1fr; } }',
       '.eval-niv { display: flex; gap: 6px; align-items: flex-end; } .eval-niv .champ { flex: 1 1 auto; min-width: 0; } .eval-niv .btn { height: 32px; flex: none; }',
+      /* 20 nov. : chercher sans NIV — le bouton et sa note sous les cases du véhicule */
+      '.eval-chercher { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-top: 10px; }',
+      '.eval-chercher .btn[hidden] { display: none; }',
+      '.eval-chercher-note { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; min-width: 0; font-size: 13px; color: var(--encre-3); }',
+      '.eval-chercher-inconnu { color: var(--ambre); font-weight: 600; }',
       '.eval-veh-bas { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; } .eval-veh-bas .eval-contexte { flex: 1 1 auto; } .eval-fiche { margin-left: auto; display: flex; gap: 6px; } .eval-fiche:empty { display: none; }',
       /* 18 nov. : au téléphone, la pastille CARFAX passe à la ligne au lieu de dépasser de l'écran. */
       '.eval-cfx { min-width: 0; max-width: 100%; } .eval-cfx .cfx-pastille { white-space: normal; text-align: left; border-radius: 14px; }',
@@ -534,6 +602,8 @@
     this.rappelsCle = '';
     this.minuterieAuto = null;
     this.filtres = { memeVersion: false, kmProche: false, tri: 'prix', sens: 'asc', traction: '', carburant: '', cabine: '' };
+    this.sigAnalyse = { ca: '', us: '' };     // 20 nov. : année|marque|modèle|version de l'analyse affichée (recherche sans NIV)
+    this.listes = null; this.listesCle = '';  // modèles et versions du marché pour l'année et la marque tapées
     this.vehManuel = {}; this.filtresManuels = {};   // 17 nov. : carburant / motricité / cabine choisis à la main
     this.tractionVehicule = ''; this.tractionManuelle = false;   /* 7 nov. : traction du véhicule (décodeur) et choix de l'utilisateur */
     this.derniereSauvegarde = null;           // bloc `marche` d'une évaluation rechargée
@@ -622,6 +692,7 @@
       if (this.btnEffacer) this.btnEffacer.style.display = 'none';
       if (this.btnFaire) this.btnFaire.style.display = 'none';
     }
+    this.rendreChercher();
   };
   function rapideDe(ctx) {
     var p = (ctx && ctx.params) || {};
@@ -632,7 +703,7 @@
   Evaluation.prototype.rendreRapide = function () {
     var r = !!this.rapide;
     if (this.el) this.el.classList.toggle('eval-rapide', r);
-    if (this.elH1) this.elH1.textContent = r ? 'Analyse rapide' : 'Évaluation';
+    if (this.elH1) this.elH1.textContent = r ? 'Évaluation sans enregistrer' : 'Évaluation';   /* 20 nov. : le nom du bouton de la page Évaluations */
     if (this.elRapide) this.elRapide.style.display = r ? '' : 'none';
     if (this.btnFaire) this.btnFaire.style.display = r ? '' : 'none';
     if (this.btnEnregistrer) this.btnEnregistrer.style.display = r ? 'none' : '';
@@ -790,7 +861,7 @@
     // véhicule ») : l'analyse rapide est cette même page sans rien enregistrer ; « Faire l'évaluation » la garde ensuite.
     this.btnFaire = h('button.btn.primaire#faire-eval-btn', { type: 'button', html: I.ok + '<span>Faire l\'évaluation</span>', title: 'Garder cette analyse comme évaluation (registre)', style: { display: 'none' }, onclick: function () { self.quitterRapide(); } });
     this.elRapide = h('div.eval-rapide-bandeau', { style: { display: 'none' } }, [
-      h('span', { html: '<b>Analyse rapide</b> — rien n\'est enregistré : marché, OpenLane, CARFAX et historique du NIV, sans évaluation dans le registre.' })
+      h('span', { html: '<b>Rien n\'est enregistré.</b> Cherchez par NIV, ou par année, marque, modèle et version.' })
     ]);
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [h('div.eval-titre', [this.elH1 = h('h1', 'Évaluation'), this.elCieBadge = h('span.badge.sans-point.eval-cie#eval-concession-badge', { title: 'Concession de cette évaluation (registre, marché local) — se change dans la carte Véhicule' })]), this.elEtat, this.elSauvegarde]),
@@ -831,6 +902,14 @@
     var cConcession = h('div.champ', [h('label', { 'for': 'e-concession', text: 'Concession' }), this.elConcession]);
     this.elNiv = cNiv.input; this.elMarque = cMarque.input; this.elModele = cModele.input; this.elVersion = cVersion.input;
     this.elAnnee = cAnnee.input; this.elKm = cKm.input;
+    /* 20 nov. : chercher sans NIV — listes de choix (marques, modèles et versions du marché) et bouton sous les cases. */
+    this.dlMarques = h('datalist#eval-liste-marques', MARQUES_MARCHE.map(function (m) { return h('option', { value: m }); }));
+    this.dlModeles = h('datalist#eval-liste-modeles');
+    this.dlVersions = h('datalist#eval-liste-versions');
+    this.elMarque.setAttribute('list', 'eval-liste-marques'); this.elModele.setAttribute('list', 'eval-liste-modeles'); this.elVersion.setAttribute('list', 'eval-liste-versions');
+    this.btnChercher = h('button.btn.primaire#chercher-btn', { type: 'button', html: I.recherche + '<span>Analyser le marché</span>', title: 'Analyser le marché avec l\'année, la marque, le modèle et la version', onclick: function () { self.chercherSaisie(); } });
+    this.elChercherNote = h('div.eval-chercher-note');
+    this.elChercher = h('div.eval-chercher', [this.btnChercher, this.elChercherNote]);
     this.elContexte = h('div.eval-contexte.cache');
     this.elFiche = h('div.eval-fiche');            // « Créer la fiche d'achat » (rendreLiens)
     this.elCfx = h('div.eval-cfx'); this.cfxVin = '';   // 5 nov. : pastille CARFAX (accident déclaré ou non, rien de commandé)
@@ -845,6 +924,7 @@
       h('div.grille.eval-veh-1', [h('div.eval-niv', [cNiv.el, this.btnDecoder]), cKm.el, cConcession]),
       h('div.grille.eval-veh-2', [cAnnee.el, cMarque.el, cModele.el, cVersion.el, cStyle]),
       h('div.grille.eval-veh-3', [cCarburant, cMotricite, this.elCabineChamp]),
+      this.elChercher, this.dlMarques, this.dlModeles, this.dlVersions,
       this.elKmAlerte = h('div.eval-km-alerte'),   /* 17 nov. (SAE7E4F70CA) : le km recule → alerte rouge */
       h('div.eval-veh-bas', [this.elContexte, this.elCfx, this.elFiche])
     ])]);
@@ -888,6 +968,16 @@
     this.elKm.addEventListener('change', function () { self.rendreOpenlane(); self.rendreKm(); });
     this.elPrix.addEventListener('input', function () { self.recalculerDetail('prix'); self.elPrixType.value = 'manuel'; });
     this.elVersion.addEventListener('input', AMX.debounce(function () { if (self.analyses[self.pays]) self.rendreMarche(); }, 200));
+    /* 20 nov. : recherche sans NIV. Entrée dans une des quatre cases lance l'analyse ; une case changée après une analyse
+       la refait (l'analyse affichée ne doit jamais être celle d'un autre véhicule) ; les listes suivent l'année et la marque. */
+    var majListesLent = AMX.debounce(function () { self.majListes(); }, 500);
+    [this.elAnnee, this.elMarque, this.elModele].forEach(function (el) { el.addEventListener('input', function () { self.rendreChercher(); majListesLent(); }); });
+    [this.elModele, this.elVersion].forEach(function (el) { el.addEventListener('focus', function () { self.majListes(); }); });
+    [this.elAnnee, this.elMarque, this.elModele, this.elVersion].forEach(function (el) {
+      el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); self.chercherSaisie(); } });
+      el.addEventListener('change', function () { self.relancerSiChange(); });
+    });
+    this.elNiv.addEventListener('input', function () { self.rendreChercher(); });
     // La carrosserie change la recherche MarketCheck : on relance l'analyse du pays affiché.
     this.elStyle.addEventListener('change', function () { self.styleManuel = true; self.analyses = {}; self.planifierAuto(); if (self.parametresPrets()) self.analyser(self.pays, false); else self.rendreMarche(); });
     this.elConcession.addEventListener('change', function () { AMX.memo.ecrire('eval_concession', self.elConcession.value); self.oublierAnalyses(); self.rendreCie(); });
@@ -1619,6 +1709,7 @@
   // Bandeau collant : chiffres clés + liens vers les sections.
   Evaluation.prototype.rendreSommaire = function () {
     if (!this.elSommaire) return;
+    this.rendreChercher();   /* 20 nov. : la note « sans NIV » suit le NIV, l'année, la marque et le modèle */
     AMX.vider(this.elSommaire);
     var veh = [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ');
     var km = nombre(this.elKm.value), paye = nombre(this.elPaye.value), recon = nombre(this.elRecon.value), marge = nombre(this.elMarge.value), prix = nombre(this.elPrix.value);
@@ -2199,8 +2290,9 @@
     var g = ++this.genAnalyse[pays];
     this.enCours[pays] = true;
     this.analyses[pays] = null;
+    this.sigAnalyse[pays] = this.signatureSaisie();
     this.rendreMarche();
-    this.btnAnalyser.classList.add('occupe');
+    this.btnAnalyser.classList.add('occupe'); if (this.btnChercher) this.btnChercher.classList.add('occupe');
     return AMX.get(this.parametres(pays)).then(function (d) {
       if (g !== self.genAnalyse[pays]) return;
       self.enCours[pays] = false;
@@ -2213,6 +2305,12 @@
         self.etat('Marché ' + (pays === 'us' ? 'É.-U.' : 'Canada') + ' : ' + ((self.analyses[pays].actifs || {}).n || 0) + ' annonces, ' + ((self.analyses[pays].vendus || {}).n90 || 0) + ' ventes en 90 jours.');
         // Chaque analyse est conservée d'office dans le registre (évaluateur + concession).
         self.sauvegarderAuto();
+        /* 20 nov. : sans la liste du serveur, les versions proposées sont celles des annonces lues ; aucune annonce →
+           on vérifie que le marché connaît ce nom de modèle (la note sous les cases le dit). */
+        if (pays === self.pays) {
+          if (!(self.listes && self.listes.versions[cleTexte(self.elModele.value)])) remplirListe(self.dlVersions, self.versionsAnnonces());
+          if (!((self.analyses[pays].actifs || {}).n)) self.majListes();
+        }
       }
     }).catch(function (e) {
       if (g !== self.genAnalyse[pays]) return;
@@ -2220,7 +2318,82 @@
       self.analyses[pays] = { ok: false, erreur: AMX.erreurTexte(e) };
       self.rendreMarche();
       AMX.toast('Analyse impossible — ' + AMX.erreurTexte(e), 'erreur');
-    }).then(function () { self.btnAnalyser.classList.remove('occupe'); });
+    }).then(function () { self.btnAnalyser.classList.remove('occupe'); if (self.btnChercher) self.btnChercher.classList.remove('occupe'); });
+  };
+
+  /* ------------------- 20 nov. : chercher sans NIV --------------------- */
+  Evaluation.prototype.signatureSaisie = function () {
+    return [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].map(function (x) { return String(x || '').trim().toLowerCase(); }).join('|');
+  };
+  /* Le bouton « Analyser le marché » de la carte Véhicule et la touche Entrée : avec un NIV, il est décodé d'abord. */
+  Evaluation.prototype.chercherSaisie = function () {
+    if (this.lectureSeule) return;
+    if (!this.parametresPrets()) {
+      if (this.elNiv.value.trim().length >= 11) { this.analyser(this.pays, true); return; }
+      AMX.toast('Entrez l\'année, la marque et le modèle (ou un NIV).', 'attention');
+      var vide = !anneeValide(nombre(this.elAnnee.value)) ? this.elAnnee : (!this.elMarque.value.trim() ? this.elMarque : this.elModele);
+      try { vide.focus(); } catch (e) {}
+      return;
+    }
+    this.analyses[this.pays] = null;
+    this.analyser(this.pays, true);
+    this.ouvrirTuile(this.pays, { forcer: true, defiler: true });
+  };
+  /* L'année, la marque, le modèle ou la version changés à la main après une analyse : on la refait. */
+  Evaluation.prototype.relancerSiChange = function () {
+    var p = this.pays;
+    if (this.lectureSeule || !this.parametresPrets()) return;
+    if (!(this.analyses[p] || this.enCours[p])) return;
+    if (this.sigAnalyse[p] === this.signatureSaisie()) return;
+    this.oublierAnalyses();
+    this.analyser(p, false);
+  };
+  /* Les versions vues dans les annonces de l'analyse affichée (même année, même marque, même modèle), les plus fréquentes d'abord. */
+  Evaluation.prototype.versionsAnnonces = function () {
+    var a = this.analyses[this.pays], n = {}, noms = {};
+    if (!a || !a.ok || !a.actifs) return [];
+    var s = this.signatureSaisie().split('|'), s0 = String(this.sigAnalyse[this.pays] || '').split('|');
+    if (s[0] !== s0[0] || s[1] !== s0[1] || s[2] !== s0[2]) return [];
+    (a.actifs.annonces || []).forEach(function (x) { var v = String(x.version || '').trim(), k = cleTexte(v); if (!k) return; n[k] = (n[k] || 0) + 1; noms[k] = noms[k] || v; });
+    return Object.keys(n).map(function (k) { return [noms[k], n[k]]; }).sort(function (p, q) { return q[1] - p[1] || parNom(p, q); });
+  };
+  /* Les listes des cases Modèle et Version, pour l'année et la marque tapées (rien n'est demandé sans ces deux-là). */
+  Evaluation.prototype.majListes = function () {
+    var self = this, an = anneeValide(nombre(this.elAnnee.value)), mq = this.elMarque.value.trim(), md = this.elModele.value.trim(), pays = this.pays === 'us' ? 'us' : 'ca';
+    if (!an || mq.length < 2) { this.listes = null; this.listesCle = ''; remplirListe(this.dlModeles, []); remplirListe(this.dlVersions, []); this.rendreChercher(); return Promise.resolve(); }
+    var cle = pays + '|' + an + '|' + cleTexte(mq) + '|' + cleTexte(md);
+    if (this.listesCle === cle && this.listes) return Promise.resolve();
+    this.listesCle = cle;
+    return listesMarche(pays, an, mq, md).then(function (L) {
+      if (self.listesCle !== cle) return;
+      self.listes = L;
+      remplirListe(self.dlModeles, (L.modeles || []).slice().sort(parNom));
+      remplirListe(self.dlVersions, L.versions[cleTexte(md)] || self.versionsAnnonces());
+      self.rendreChercher();
+    }).catch(function () { if (self.listesCle === cle) self.listesCle = ''; });
+  };
+  /* Sous les cases : le bouton « Analyser le marché » tant qu'il n'y a pas de NIV complet, et la note — soit le rappel
+     « l'année, la marque et le modèle suffisent », soit un modèle que le marché ne connaît pas sous ce nom. */
+  Evaluation.prototype.rendreChercher = function () {
+    if (!this.elChercher) return;
+    var self = this, complet = /^[A-HJ-NPR-Z0-9]{17}$/i.test(this.elNiv.value.trim());
+    var an = anneeValide(nombre(this.elAnnee.value)), mq = this.elMarque.value.trim(), md = this.elModele.value.trim(), L = this.listes, proches = null;
+    if (L && L.source === 'marche' && L.modeles && L.modeles.length && md && an && L.cle === (this.pays === 'us' ? 'us' : 'ca') + '|' + an + '|' + cleTexte(mq)) {
+      var k = cleTexte(md);
+      if (!L.modeles.some(function (x) { return cleTexte(x[0]) === k; })) proches = modelesProches(L.modeles, md);
+    }
+    AMX.vider(this.elChercherNote);
+    this.btnChercher.hidden = complet;
+    if (proches) {
+      this.elChercherNote.appendChild(h('span.eval-chercher-inconnu', { text: '« ' + md + ' » n\'est pas un nom de modèle du marché pour ' + an + ' ' + mq + '.' }));
+      if (proches.length) {
+        this.elChercherNote.appendChild(h('span', { text: 'Essayez :' }));
+        proches.forEach(function (x) {
+          self.elChercherNote.appendChild(h('button.btn.petit', { type: 'button', text: x[0], onclick: function () { self.elModele.value = x[0]; self.listesCle = ''; self.majListes(); self.rendreSommaire(); self.chercherSaisie(); } }));
+        });
+      } else this.elChercherNote.appendChild(h('span', { text: 'Choisissez-le dans la liste de la case Modèle.' }));
+    } else if (!complet) this.elChercherNote.appendChild(h('span', { text: 'Pas de NIV ? L\'année, la marque et le modèle suffisent — la version précise la recherche.' }));
+    this.elChercher.style.display = (this.lectureSeule || (complet && !proches)) ? 'none' : '';
   };
 
   // Annonces filtrées + prix ajustés, triées selon le filtre.
@@ -2306,7 +2479,7 @@
     if (!a) {
       var prets = this.parametresPrets();
       var attente = h('div.eval-attente', [
-        h('div', { text: prets ? 'Prêt à analyser ' + [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ') + ' sur le marché ' + (pays === 'us' ? 'américain' : 'canadien') + ' — ' + nomPortee(self.portee[pays], pays, self.etats[pays]) + '.' : 'Décodez le NIV (ou entrez l\'année, la marque et le modèle), puis lancez l\'analyse.' }),
+        h('div', { text: prets ? 'Prêt à analyser ' + [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ') + ' sur le marché ' + (pays === 'us' ? 'américain' : 'canadien') + ' — ' + nomPortee(self.portee[pays], pays, self.etats[pays]) + '.' : 'Entrez un NIV, ou l\'année, la marque et le modèle, puis « Analyser le marché ».' }),
         prets ? h('button.btn.primaire', { type: 'button', html: I.recherche + '<span>Analyser le marché ' + (pays === 'us' ? 'américain' : 'canadien') + '</span>', onclick: function () { self.analyser(pays, true); } }) : null
       ]);
       this.elMarche.appendChild(attente);
@@ -2601,6 +2774,7 @@
 
   Evaluation.prototype.oublierAnalyses = function () {
     this.analyses = { ca: null, us: null };
+    this.sigAnalyse = { ca: '', us: '' };
     this.enCours = { ca: false, us: false };
     this.genAnalyse.ca++; this.genAnalyse.us++;
     this.rendreMarche();
@@ -2628,10 +2802,13 @@
     this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null };
     this.exportForce = false;
     this.analyses = { ca: null, us: null };
+    this.sigAnalyse = { ca: '', us: '' };
+    this.listes = null; this.listesCle = ''; remplirListe(this.dlModeles, []); remplirListe(this.dlVersions, []);
     this.enCours = { ca: false, us: false };
     this.genAnalyse.ca++; this.genAnalyse.us++;
     this.rendreMarche();
     this.rendreExport();
+    this.rendreChercher();
   };
 
   /* ---------------------------- Chargement ------------------------------ */

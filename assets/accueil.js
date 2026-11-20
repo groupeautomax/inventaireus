@@ -219,7 +219,7 @@
       var actions = [];
       var ajouterAction = function (sec, onglet, texte, icone, cls, params) { var s = AMX.sections[sec]; if (!s || (s.visible && !s.visible())) return; actions.push(h('a' + (cls ? '.' + cls : ''), { href: AMX.lien(sec, onglet, params), html: (I[icone] || '') + '<span>' + texte + '</span>' })); };
       ajouterAction('outils', 'evaluation', 'Évaluer un véhicule', 'scan', 'primaire');
-      if (AMX.voitEvaluations && AMX.voitEvaluations()) ajouterAction('outils', 'evaluation', 'Analyse rapide d\'un NIV', 'recherche', '', { rapide: 1 });   /* 17 nov. (S04C4776488) */
+      if (AMX.voitEvaluations && AMX.voitEvaluations()) ajouterAction('outils', 'evaluation', 'Évaluation sans enregistrer', 'recherche', '', { rapide: 1 });   /* 17 nov. (S04C4776488) */
       ajouterAction('achat', '', 'Nouvelle fiche d\'achat', 'achat');
       ajouterAction('service', 'encours', 'Suivi service', 'service');
       ajouterAction('outils', 'openlane', 'Valeurs OpenLane', 'outils');
@@ -608,7 +608,7 @@
     var rac = [];
     var ajout = function (src, onglet, texte, icone, params) { if (!voit(src)) return; rac.push(h('a.acc2-raccourci', { href: AMX.lien(src, onglet, params) }, [h('span.ic', { html: I[icone] || '' }), h('span', { text: texte })])); };
     ajout('outils', 'evaluation', 'Évaluer un véhicule', 'scan');
-    if (AMX.voitEvaluations && AMX.voitEvaluations()) ajout('outils', 'evaluation', 'Analyse rapide d\'un NIV', 'recherche', { rapide: 1 });   /* 17 nov. (S04C4776488) */
+    if (AMX.voitEvaluations && AMX.voitEvaluations()) ajout('outils', 'evaluation', 'Évaluation sans enregistrer', 'recherche', { rapide: 1 });   /* 17 nov. (S04C4776488) */
     ajout('achat', '', 'Nouvelle fiche d\'achat', 'achat');
     if (AMX.ventes && AMX.ventes.peutDeclarer && AMX.ventes.peutDeclarer()) ajout('ventes', 'liste', 'Inscrire une vente', 'vente', { nouvelle: Date.now() });
     if (ongletVoit('service', 'rendezvous')) ajout('service', 'rendezvous', 'Nouveau rendez-vous', 'service', { nouveau: 1 });

@@ -982,11 +982,16 @@
   Vue.prototype.construire = function () {
     var self = this;
     this.btnDemander = h('button.btn.primaire.de-nouvelle', { type: 'button', html: I.plus + '<span>Nouvelle évaluation</span>', onclick: function () { demander({ compagnie: AMX.compagnieChoisie('evaluations') }); } });
+    /* 20 nov. (Maxime) : « Évaluation sans enregistrer » à côté de « Nouvelle évaluation » — l'analyse d'un véhicule par NIV, ou
+       par année, marque, modèle et version, sans rien écrire au registre. Seulement pour qui voit les évaluations. */
+    this.btnSans = h('button.btn.de-sans', { type: 'button', hidden: true, title: 'Marché, OpenLane, CARFAX : par NIV, ou par année, marque, modèle et version. Rien n\'est enregistré.',
+      html: I.recherche + '<span>Évaluation sans enregistrer</span>', onclick: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation', rapide: 1 }); } });
+    if (!this.portail && AMX.voitEvaluations && AMX.voitEvaluations()) this.btnSans.hidden = false;
     this.elMenu = h('span');
     this.elDispo = h('span');
     /* 19 nov. : `.page` = les marges de toutes les pages (le titre collait au bord gauche de l'écran). */
     this.el.appendChild(h('div.page.de-page' + (this.portail ? '.de-portail' : ''), [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('div.de-titre', [h('h1', 'Évaluations'), this.elDispo])]), h('div.actions', [this.elMenu, this.btnDemander])]),
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('div.de-titre', [h('h1', 'Évaluations'), this.elDispo])]), h('div.actions', [this.elMenu, this.btnSans, this.btnDemander])]),
       this.elRetour = h('div'),
       this.elCies = h('div'),
       this.elFiltres = h('div.de-filtres', [
@@ -1004,8 +1009,8 @@
     var self = this, moi = d.moi || {}, items = [];
     AMX.vider(this.elMenu);
     var voitEval = !this.portail && AMX.voitEvaluations && AMX.voitEvaluations();
+    if (this.btnSans) this.btnSans.hidden = !voitEval;   /* le bouton est dans l'en-tête, plus dans ce menu (20 nov.) */
     if (voitEval) {
-      items.push({ texte: 'Analyse rapide d\'un NIV (rien n\'est enregistré)', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation', rapide: 1 }); } });   /* 17 nov. (S04C4776488) */
       items.push({ texte: 'Évaluer un véhicule (sans demande)', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation' }); } });
       items.push({ texte: 'Registre des évaluations', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluations' }); } });
       items.push({ texte: 'Archive Torque', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'torque' }); } });
@@ -1281,6 +1286,7 @@
       '.de-titre { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }',
       '.de-dispo { display: inline-flex; align-items: center; border: 1px solid var(--ligne); background: var(--carte); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 13px; color: var(--encre-2); cursor: pointer; }',
       '.de-nouvelle { min-height: 44px; font-size: 15px; padding: 0 18px; }',
+      '.de-sans { min-height: 44px; font-size: 15px; padding: 0 16px; }', '.de-sans[hidden] { display: none !important; }',
       '.de-groupes button { display: inline-flex; align-items: center; gap: 6px; } .de-groupes .n { font-weight: 700; opacity: .7; }',
       '.de-liste { gap: 8px; } .de-groupe { display: flex; gap: 8px; align-items: center; margin: 14px 0 2px; font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--encre-2); }',
       '.de-groupe b { background: var(--rouge); color: #fff; border-radius: 9px; padding: 0 8px; font-size: 12px; } .de-groupe.doux b { background: var(--gris-bg, #EEF1F4); color: var(--encre-2); }',

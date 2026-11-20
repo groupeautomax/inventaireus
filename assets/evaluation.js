@@ -709,6 +709,8 @@
         if (ouverte && AMX.evalDemandes.transferer && (moi.direction || moi.evaluateur || x.pourMoi)) autres.push({ texte: 'Transférer à un autre évaluateur', action: function () { AMX.evalDemandes.transferer(x.id); } });
         if (AMX.evalDemandes.ouvrirFil && x.etat !== 'refusee' && x.etat !== 'annulee') autres.push({ texte: x.messages && x.messages.length ? 'Messages (' + x.messages.length + ')' : 'Question au représentant', action: function () { AMX.evalDemandes.ouvrirFil(x.id); } });
         if (AMX.evalDemandes.fiche) autres.push({ texte: 'Fiche de la demande', action: function () { AMX.evalDemandes.fiche(x.id); } });
+        /* 19 nov. (S29651453EC) : la feuille à remettre au client, dès que la valeur est donnée (et confirmée, s'il y a un circuit). */
+        if (AMX.evalDemandes.feuillePossible && AMX.evalDemandes.feuillePossible(x.id)) autres.push({ texte: 'Feuille d\'évaluation (imprimer / PDF)', action: function () { AMX.evalDemandes.feuille(x.id); } });
         el.appendChild(h('div.eval-demande.' + x.etat, [
           h('span.badge.sans-point.' + etiquette[1], { text: etiquette[0], title: x.refusRaison || x.annuleRaison || '' }),
           h('span.eval-demande-txt', { text: ['Demande de ' + (x.demandeParNom || '—'), x.client || '', x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : ''].filter(Boolean).join(' · ') }),
@@ -1113,7 +1115,7 @@
         var c = self.calculs(a), n = (a.actifs && a.actifs.n) || 0;
         if (p === 'ca' && c.marchePct !== null && c.marchePct !== undefined) {
           var pos = c.marchePct;
-          poser(p, pct(pos) + (c.rang ? ' · ' + c.rang + '/' + c.rangSur : ''), pos <= 0.97 ? 'vert' : (pos <= 1.03 ? 'ambre' : 'rouge'), '% du marché et rang de votre prix de détail parmi ' + n + ' annonces');
+          poser(p, pct(pos) + (c.rang ? ' · ' + c.rang + '/' + c.rangSur : ''), pos <= 0.97 ? 'vert' : (pos <= 1.03 ? 'ambre' : 'rouge'), texteMarche(c) + (c.rang ? ' — rang ' + c.rang + ' sur ' + c.rangSur : ''));
         } else if (c.standard) poser(p, p === 'us' ? AMX.fmtNombre(c.standard) + ' $ US' : fmt(c.standard), '', 'Prix standard (médiane ramenée à votre km), ' + n + ' annonces');
         else poser(p, n + ' annonce' + (n > 1 ? 's' : ''), 'gris');
         return;
@@ -1587,8 +1589,8 @@
       if (c && pos !== null) {
         var ton = pos <= 0.97 ? 'pos' : (pos <= 1.03 ? 'moyen' : 'neg');
         var lecture = pos <= 0.97 ? 'sous le marché : se vend vite' : (pos <= 1.03 ? 'dans le marché' : 'au-dessus du marché : plus long à vendre');
-        this.elDetailResume.appendChild(h('div.eval-marche-bandeau.' + ton, { title: 'Votre détail ' + fmt(prix) + ' vs marché standard ' + fmt(c.standard) + (a.actifs && a.actifs.n ? ' (' + a.actifs.n + ' annonces, ramenées à votre km)' : '') }, [
-          h('div', [h('div.l', { text: '% du marché' }), h('div.gros.num', { text: pct(pos) })]),
+        this.elDetailResume.appendChild(h('div.eval-marche-bandeau.' + ton, { title: texteMarche(c) }, [
+          h('div', [h('div.l', { text: c.marcheBase === 'km' ? '% du marché · à votre km' : '% du marché' }), h('div.gros.num', { text: pct(pos) })]),
           c.rang ? h('div', [h('div.l', { text: 'Rang' }), h('div.rang.num', { text: c.rang + ' sur ' + c.rangSur })]) : null,
           h('div.expl', { text: lecture })
         ]));
@@ -2249,6 +2251,12 @@
     return liste;
   };
 
+  /* 19 nov. : ce que le « % du marché » compare, en clair (infobulles). */
+  function texteMarche(c) {
+    if (!c || !c.marcheMoy) return '% du marché';
+    var base = c.marcheBase === 'km' ? 'prix moyen des annonces retenues, ramenées à votre kilométrage' : (c.marcheBase === 'annonces' ? 'prix moyen des annonces retenues (entrez le km du véhicule pour les ramener à son kilométrage)' : 'prix moyen affiché du marché, non ajusté au kilométrage (moins de 3 annonces retenues)');
+    return 'Votre prix de détail' + (c.prixVise ? ' ' + fmt(c.prixVise) : '') + ' ÷ ' + fmt(c.marcheMoy) + ' : ' + base + (c.marcheKmMoy ? ' · km moyen du marché ' + fmtKm(c.marcheKmMoy) : '');
+  }
   // Les trois prix + la position du prix visé.
   Evaluation.prototype.calculs = function (a) {
     var liste = this.annoncesRetenues(a);
@@ -2263,9 +2271,20 @@
       if (ajustes.length) { med = mediane(ajustes); }
       if (med) { res.agressif = arrondi50(med * 0.93); res.standard = arrondi50(med); res.conservateur = arrondi50(med * 1.04); res.base = ajustes.length ? ajustes.length + ' annonce(s) seulement : −7 % / +4 % autour de la médiane' : 'statistiques du marché : −7 % / +4 % autour de la médiane'; }
     }
-    var moyActive = a && a.actifs && a.actifs.prix && a.actifs.prix.moyenne;
-    if (!moyActive && ajustes.length) moyActive = moyenne(liste.map(function (x) { return x.prix; }));
-    res.marchePct = (prixVise && moyActive) ? prixVise / moyActive : null;
+    /* 19 nov. (SE1D606924D, Frédéric, VW) : le % du marché compare votre prix à la moyenne des annonces RAMENÉES À VOTRE
+       KILOMÉTRAGE (les mêmes prix ajustés que les cibles et le rang) — avant, c'était la moyenne des prix affichés, quel que
+       soit le km des annonces : un véhicule à 30 000 km semblait « cher » à côté d'annonces à 90 000 km. Moins de 3 annonces
+       retenues : la moyenne des prix affichés du marché, comme avant (dite « non ajustée »). */
+    var moyStats = a && a.actifs && a.actifs.prix && a.actifs.prix.moyenne;
+    var kmVeh = nombre(this.elKm.value), avecKm = liste.filter(function (x) { return x.km !== null && x.km !== undefined && x.km > 0; });
+    var moyMarche = null;
+    res.marcheBase = '';
+    if (ajustes.length >= 3) { moyMarche = moyenne(ajustes); res.marcheBase = (kmVeh !== null && avecKm.length) ? 'km' : 'annonces'; }
+    else if (moyStats) { moyMarche = moyStats; res.marcheBase = 'brut'; }
+    else if (ajustes.length) { moyMarche = moyenne(liste.map(function (x) { return x.prix; })); res.marcheBase = 'brut'; }
+    res.marcheMoy = moyMarche ? Math.round(moyMarche) : null;
+    res.marcheKmMoy = avecKm.length ? Math.round(moyenne(avecKm.map(function (x) { return x.km; }))) : null;
+    res.marchePct = (prixVise && moyMarche) ? prixVise / moyMarche : null;
     if (prixVise && ajustes.length) {
       var rang = 1; ajustes.forEach(function (p) { if (p < prixVise) rang++; });
       res.rang = rang; res.rangSur = ajustes.length + 1;
@@ -2387,7 +2406,9 @@
 
     var moy = act.prix && act.prix.moyenne;
     var lignes = [];
-    var moiInsere = !c.prixVise;
+    /* 19 nov. (Eric, SE13E15625A) : « Votre véhicule » paraît aussi AVANT qu'un prix soit entré — rangé par son km, son année
+       ou sa distance ; trié par prix, il attend à la fin tant qu'il n'a pas de prix. */
+    var moiInsere = false;
     var kmV = nombre(this.elKm.value);
     var ligneMoi = function () {
       return h('tr.eval-moi', [
@@ -2407,12 +2428,12 @@
     /* 17 nov. (Eric, S93079C0E7B) : « Votre véhicule » à sa place aussi quand on trie par prix affiché (Prix), par année ou par
        distance (le véhicule est chez nous : 0 km) ; seulement les jours affichés le mettent en dernier. */
     var anV = Number(self.elAnnee.value) || null;
-    var moiVal = (triK === 'prix' || triK === 'brut') ? c.prixVise : (triK === 'km' ? kmV : (triK === 'annee' ? anV : (triK === 'dist' ? 0 : null)));
+    var moiVal = (triK === 'prix' || triK === 'brut') ? (c.prixVise || null) : (triK === 'km' ? kmV : (triK === 'annee' ? anV : (triK === 'dist' ? 0 : null)));
     var placerFin = moiVal === null || moiVal === undefined;
     liste.forEach(function (x, i) {
       var xv = triK === 'prix' ? x.ajuste : (triK === 'brut' ? x.prix : (triK === 'km' ? x.km : (triK === 'annee' ? (Number(x.annee) || null) : (triK === 'dist' ? x.distKm : null))));
       if (!moiInsere && !placerFin && xv !== null && xv !== undefined && (desc ? xv <= moiVal : xv >= moiVal)) { lignes.push(ligneMoi()); moiInsere = true; }
-      var m = moy ? x.prix / moy : null;
+      var m = (c.marcheBase === 'km' || c.marcheBase === 'annonces') && c.marcheMoy ? x.ajuste / c.marcheMoy : (moy ? x.prix / moy : null);
       var tr = tractionDe(x.motricite);
       lignes.push(h('tr', [
         h('td.num', { text: String(x.rangAjuste || ''), title: 'Rang du prix ramené à votre kilométrage (1 = le moins cher)' }),
@@ -2428,7 +2449,7 @@
         h('td', x.lien ? [h('a.petit', { href: x.lien, target: '_blank', rel: 'noopener', text: 'Voir' })] : '')
       ]));
     });
-    if (!moiInsere) lignes.push(ligneMoi());
+    if (!moiInsere && (c.prixVise || liste.length)) lignes.push(ligneMoi());
     var th = function (texte, cle, titre) {
       var actif = self.filtres.tri === cle, fl = actif ? (self.filtres.sens === 'desc' ? ' ▼' : ' ▲') : ' ↕';
       var b = h('th.num.eval-tri' + (actif ? '.actif' : ''), { title: (titre ? titre + ' — ' : '') + 'cliquez pour trier' }, [texte, h('span.fl', { text: fl })]);
@@ -2436,7 +2457,7 @@
       return b;
     };
     this.elMarche.appendChild(h('div.eval-table', [h('table.tableau#eval-comparables', [
-      h('thead', [h('tr', [th('Rang', 'prix', 'Rang du prix ramené à votre kilométrage (1 = le moins cher) — cliquez pour trier'), h('th', 'Concession'), h('th', 'Version'), th('Année', 'annee'), th('Odomètre', 'km'), th('Prix', 'brut'), th('Prix ajusté', 'prix', 'Prix ramené à votre kilométrage'), th('Jours', 'jours'), th('Distance', 'dist'), h('th.num', 'Marché %'), h('th', '')])]),
+      h('thead', [h('tr', [th('Rang', 'prix', 'Rang du prix ramené à votre kilométrage (1 = le moins cher) — cliquez pour trier'), h('th', 'Concession'), h('th', 'Version'), th('Année', 'annee'), th('Odomètre', 'km'), th('Prix', 'brut'), th('Prix ajusté', 'prix', 'Prix ramené à votre kilométrage'), th('Jours', 'jours'), th('Distance', 'dist'), h('th.num', { title: c.marcheBase === 'km' ? 'Prix ramené à votre kilométrage ÷ moyenne des annonces retenues, ramenées au même kilométrage' : 'Prix ÷ prix moyen du marché', text: 'Marché %' }), h('th', '')])]),
       h('tbody', lignes.length ? lignes : [h('tr', [h('td', { colspan: 11, text: 'Aucune annonce ne correspond aux filtres.' })])])
     ])]));
 

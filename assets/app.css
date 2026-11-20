@@ -1193,6 +1193,17 @@ body.avec-barre-selection #maxai-bulle { display: none; }
 /* Au-dessus d'une page rangée sous une page de choix : le retour et les pages sœurs. */
 .hub-fil { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; max-width: 1600px; margin: 0 auto -6px; padding: 14px 16px 0; }
 .hub-fil[hidden] { display: none; }
+/* 19 nov. : les vues d'une page (Liste · Commandes vendues · Exclues…), en onglets DANS la page, sous le fil */
+.vues-page { max-width: 1600px; margin: 0 auto -8px; padding: 12px 16px 0; }
+.vues-page[hidden] { display: none; }
+.vues-page-rang { display: flex; flex-wrap: wrap; gap: 0 2px; border-bottom: 1px solid var(--ligne); }
+.vues-page a { display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px 8px; margin-bottom: -1px; font-size: 14.5px; font-weight: 600; color: var(--encre-3); text-decoration: none; white-space: nowrap; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0; }
+.vues-page a:hover { color: var(--encre); background: var(--gris-bg); text-decoration: none; }
+.vues-page a.actif { color: var(--vert-fonce); border-bottom-color: var(--vert); font-weight: 700; }
+.vues-page a .compteur { font-size: 12px; font-weight: 700; color: var(--encre-3); background: var(--gris-bg); border-radius: 999px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+.vues-page a.actif .compteur { color: var(--vert-fonce); background: var(--vert-clair); }
+@media (max-width: 640px) { .vues-page { padding: 10px 10px 0; } .vues-page a { padding: 8px 10px 7px; font-size: 14px; } }
+@media print { .vues-page { display: none; } }
 .hub-retour { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--encre-2); text-decoration: none; padding: 5px 10px 5px 6px; border-radius: 8px; border: 1px solid var(--ligne); background: var(--carte); }
 .hub-retour svg { width: 15px; height: 15px; transform: rotate(180deg); }
 .hub-retour:hover { text-decoration: none; background: var(--gris-bg); color: var(--encre); }
@@ -1247,3 +1258,9 @@ html.ui2 .agencement:not(.sans-rail).avec-panneau { grid-template-columns: minma
   .agencement.avec-panneau > .panneau .panneau-entete { flex-wrap: wrap; }
   .agencement.avec-panneau > .panneau .panneau-entete > button.fermer { flex-basis: 100%; justify-content: flex-start; }
 }
+
+/* 19 nov. : une nouvelle version du site est en ligne (app.js) */
+.amx-version { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 90; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; background: var(--encre); color: #fff; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.25); font-size: 14px; font-weight: 600; max-width: calc(100vw - 20px); }
+.amx-version .btn { flex: none; }
+@media (max-width: 640px) { .amx-version { left: 10px; right: 10px; top: auto; bottom: 76px; transform: none; border-radius: 14px; justify-content: space-between; } }
+@media print { .amx-version { display: none; } }

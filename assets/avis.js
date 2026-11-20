@@ -226,14 +226,28 @@
   function estNegatif(a) { return a.etoiles > 0 && a.etoiles <= SEUIL; }
   /* 9 nov. (vitesse) : les nombres des onglets Avis et Sondages (et de l'Accueil) — la liste complète si elle est fraîche, sinon le
      résumé du serveur (?avis=1&resume=1, quelques octets au lieu de 4,1 Mo), sinon la copie gardée dans le navigateur. */
-  function nombreATraiter(quoi) {
-    var d = cache.reponse, r = cache.resume;
-    if (d && d.avis && (cache.quand || !r)) {
-      if (quoi === 'avis') return d.avis.filter(function (a) { return A_TRAITER[a.etat] && estNegatif(a); }).length;
-      return d.sondages.filter(function (s) { return s.note !== null && s.note <= SEUIL && AMX.joursDepuis(s.reponduLe) <= 7; }).length;
-    }
-    return r ? (Number(r[quoi]) || 0) : 0;
+  function nombreATraiter(quoi, cie) {
+    var p = parConcession(quoi);
+    if (cie) return p[cie] || 0;
+    return Object.keys(p).reduce(function (n, c) { return n + p[c]; }, 0);
   }
+  /* 19 nov. (S7AFE17162B) : le même compte, par concession — l'Accueil dit OÙ est l'avis à traiter et y mène. Un avis retiré
+     de Google ne compte pas (comme au serveur depuis le 12 nov.). */
+  function parConcession(quoi) {
+    var d = cache.reponse, r = cache.resume, out = {};
+    if (d && d.avis && (cache.quand || !r)) {
+      var liste = quoi === 'avis'
+        ? d.avis.filter(function (a) { return a.enLigne !== false && A_TRAITER[a.etat] && estNegatif(a); })
+        : (d.sondages || []).filter(function (s) { return s.note !== null && s.note <= SEUIL && AMX.joursDepuis(s.reponduLe) <= 7; });
+      liste.forEach(function (x) { var c = String(x.concession || ''); out[c] = (out[c] || 0) + 1; });
+      return out;
+    }
+    if (r && r.parCie) { Object.keys(r.parCie).forEach(function (c) { var n = Number((r.parCie[c] || {})[quoi]) || 0; if (n) out[c] = n; }); return out; }
+    if (r && Number(r[quoi])) out[''] = Number(r[quoi]);
+    return out;
+  }
+  AMX.avis.aTraiter = function (quoi, cie) { return nombreATraiter(quoi || 'avis', cie || ''); };
+  AMX.avis.aTraiterParConcession = function (quoi) { return parConcession(quoi || 'avis'); };
 
   /* --------------------------------- Section -------------------------------- */
   AMX.section('avis', {
@@ -254,6 +268,7 @@
     this.params = ctx.params || {};
     this.filtres = { recherche: '', concession: AMX.compagnieChoisie('inventaire') || AMX.maConcession(), etoiles: '', etat: '', personne: (ctx.params && ctx.params.personne) || '', enLigne: '' };   /* 12 nov. : enLigne '' = en ligne seulement, 'retires', 'tous' */   /* 16 oct. : même concession que le reste du site */
     this.filtrePersonnes = '';   // Aperçu › tableau par personne : '', 'ventes', 'service', 'direction', 'autres'
+    this.appliquerParams();
     this.construire();
     this.charger();
     this.surAvis = function () { self.rendre(); AMX.rafraichirSousBarre(); };
@@ -261,7 +276,14 @@
     this.minuterie = setInterval(function () { if (!document.hidden) self.charger(true); }, 300000);
   }
   Avis.prototype.demonter = function () { clearInterval(this.minuterie); document.removeEventListener('amx:avis', this.surAvis); };
-  Avis.prototype.naviguer = function (ctx) { this.onglet = ctx.onglet || 'apercu'; this.params = ctx.params || {}; this.rendre(); };
+  Avis.prototype.naviguer = function (ctx) { this.onglet = ctx.onglet || 'apercu'; this.params = ctx.params || {}; this.appliquerParams(); this.rendre(); };
+  /* 19 nov. : ?atraiter=1[&cie=CODE|toutes] (lien de l'Accueil) = les avis négatifs à traiter seulement, dans la concession dite. */
+  Avis.prototype.appliquerParams = function () {
+    var p = this.params || {};
+    if (!p.atraiter) return;
+    this.filtres.etoiles = 'neg'; this.filtres.etat = 'traiter'; this.filtres.enLigne = ''; this.filtres.recherche = ''; this.filtres.personne = '';
+    if (p.cie) this.filtres.concession = p.cie === 'toutes' ? '' : String(p.cie).toUpperCase();
+  };
 
   Avis.prototype.construire = function () {
     var self = this;

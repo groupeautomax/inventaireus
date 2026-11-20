@@ -792,6 +792,9 @@
     var autres = [];
     if (dr.modifierValeur) autres.push({ texte: 'Modifier le montant', action: function () { fermerFiche(); modifierMontant(x); } });
     if (dr.modifier) autres.push({ texte: 'Modifier la demande', action: function () { fermerFiche(); modifier(x); } });
+    /* 19 nov. (S29651453EC, François) : la feuille à remettre au client, une fois le montant donné (feuille-evaluation.js) */
+    var feuille = AMX.feuilleEvaluation && AMX.feuilleEvaluation.possible(x) ? function (btn) { AMX.feuilleEvaluation.ouvrir(x, { portail: portail, bouton: btn || null }); } : null;
+    if (feuille) autres.push({ texte: 'Feuille d\'évaluation (imprimer / PDF)', action: function () { feuille(); } });
     autres.push({ texte: (x.messages || []).length ? 'Messages (' + x.messages.length + ')' : 'Écrire un message', action: function () { fermerFiche(); ouvrirFil(x.id); } });
     if (dr.transferer) autres.push({ texte: x.etat === 'approbation' ? 'Changer les évaluateurs proposés' : 'Transférer à un autre évaluateur', action: function () { fermerFiche(); transferer(x, d); } });
     if (dr.approuver) autres.push({ texte: 'Refuser la demande', action: function () { fermerFiche(); refuser(x); } });
@@ -834,6 +837,7 @@
           modif ? h('span.fe-modifier', { text: 'Modifier' }) : null]));
         if (x.valeurEvaluateur && Number(x.valeurEvaluateur) !== Number(x.valeur) && !portail) elValeur.appendChild(h('p.mini', { text: 'Évaluateur : ' + argent(x.valeurEvaluateur) + (x.faitePar ? ' (' + x.faitePar + ')' : '') }));
         if (x.noteDirecteur) elValeur.appendChild(h('p.fe-note', [h('b', { text: 'Note de la direction : ' }), x.noteDirecteur]));
+        if (feuille) { var bFeuille = h('button.btn.petit.fe-feuille-btn', { type: 'button', title: 'La feuille à remettre au client : véhicule, état, valeur évaluée, validité, déclaration et signatures', onclick: function () { feuille(bFeuille); } }, [h('span', { html: I.telecharger || '' }), h('span', { text: 'Feuille d\'évaluation' })]); elValeur.appendChild(h('div.fe-feuille', [bFeuille, x.expiree ? h('span.mini', { text: 'Valeur expirée : la feuille le dira.' }) : null])); }
       } else if (valEv) {
         elValeur.appendChild(h('div.fe-montant', [h('span', { text: x.etat === 'aconfirmer' ? 'Valeur de l\'évaluateur — à confirmer' : 'Valeur de l\'évaluateur' }), h('b', { text: argent(valEv) })]));
       } else {
@@ -980,7 +984,8 @@
     this.btnDemander = h('button.btn.primaire.de-nouvelle', { type: 'button', html: I.plus + '<span>Nouvelle évaluation</span>', onclick: function () { demander({ compagnie: AMX.compagnieChoisie('evaluations') }); } });
     this.elMenu = h('span');
     this.elDispo = h('span');
-    this.el.appendChild(h('div.de-page' + (this.portail ? '.de-portail' : ''), [
+    /* 19 nov. : `.page` = les marges de toutes les pages (le titre collait au bord gauche de l'écran). */
+    this.el.appendChild(h('div.page.de-page' + (this.portail ? '.de-portail' : ''), [
       h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('div.de-titre', [h('h1', 'Évaluations'), this.elDispo])]), h('div.actions', [this.elMenu, this.btnDemander])]),
       this.elRetour = h('div'),
       this.elCies = h('div'),
@@ -1256,6 +1261,9 @@
     renvoyer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); renvoyer(x); } },
     /* 7 nov. : la fiche simple d'une demande (photos, valeur, état, client) */
     fiche: function (id) { var x = AMX.evalDemandes.une(id); if (x) ficheDemande(x); return !!x; },
+    /* 19 nov. : la feuille d'évaluation à imprimer (page d'évaluation, menu de la demande) */
+    feuille: function (id) { var x = AMX.evalDemandes.une(id); if (!x || !AMX.feuilleEvaluation) return false; AMX.feuilleEvaluation.ouvrir(x, { portail: !!(AMX.representantEval && AMX.representantEval()) }); return true; },
+    feuillePossible: function (id) { var x = AMX.evalDemandes.une(id); return !!(x && AMX.feuilleEvaluation && AMX.feuilleEvaluation.possible(x)); },
     une: function (id) { var d = cache.rep; return d ? d.demandes.filter(function (x) { return x.id === id; })[0] || null : null; },
     prendre: function (id) { return action(id, 'prendre'); },
     transferer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); transferer(x, cache.rep); } },
@@ -1313,6 +1321,7 @@
       '.fe-valeur { display: grid; gap: 8px; } .fe-montant { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 14px; border-radius: 10px; background: var(--vert-clair, #E8F5EE); }',
       '.fe-montant span { font-size: 13px; color: var(--vert-fonce, #0E5E31); font-weight: 600; } .fe-montant b { font-size: 26px; color: var(--vert-fonce, #0E5E31); } .fe-montant small { font-size: 12px; color: var(--encre-3); }',
       '.fe-montant.sans { background: var(--fond); } .fe-montant.sans span { color: var(--encre-3); }',
+      '.fe-feuille { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; } .fe-feuille-btn svg { width: 15px; height: 15px; }',
       '.fe-montant.cliquable { cursor: pointer; } .fe-montant.cliquable:hover, .fe-montant.cliquable:focus-visible { box-shadow: 0 0 0 2px var(--vert, #008840) inset; } .fe-modifier { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--vert-fonce, #0E5E31); text-decoration: underline; }',
       '.fe-reperes, .fe-champs, .fe-qui { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; }',
       '.fe-champ { display: grid; gap: 1px; } .fe-champ span { font-size: 12px; color: var(--encre-3); } .fe-champ b { font-size: 14px; font-weight: 600; color: var(--encre); }',

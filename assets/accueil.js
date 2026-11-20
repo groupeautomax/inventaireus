@@ -545,9 +545,17 @@
     if (voit('avis') && AMX.avis) {
       if (!(AMX.avis.aDesNombres ? AMX.avis.aDesNombres() : AMX.avis.enCache())) attente.push('avis');
       else {
-        var na = compteurOnglet('avis', 'avis'), ns = compteurOnglet('avis', 'sondages');
-        if (na) out.push({ ton: 'rouge', n: na, titre: 'Avis Google négatifs à traiter', href: AMX.lien('avis', 'avis'), ic: 'relance' });
-        if (ns) out.push({ ton: 'ambre', n: ns, titre: 'Sondages clients notés 3 ou moins (7 derniers jours)', href: AMX.lien('avis', 'sondages'), ic: 'relance' });
+        /* 19 nov. (S7AFE17162B) : la ligne suit la concession choisie, nomme les concessions quand on regarde tout le groupe,
+           et mène à la liste des avis négatifs À TRAITER de cette concession (avant : toute la liste, d'où une confusion avec un
+           avis déjà répondu). */
+        var parA = AMX.avis.aTraiterParConcession ? AMX.avis.aTraiterParConcession('avis') : null;
+        var parS = AMX.avis.aTraiterParConcession ? AMX.avis.aTraiterParConcession('sondages') : null;
+        var somme = function (p) { return Object.keys(p).reduce(function (n, c) { return n + (!cie || c === cie ? p[c] : 0); }, 0); };
+        var ou = function (p) { if (cie) return ''; var cs = Object.keys(p).filter(function (c) { return c && p[c]; }); return cs.length ? ' — ' + cs.map(function (c) { return (AMX.COMPAGNIES_TOUTES[c] || c) + (cs.length > 1 ? ' ' + p[c] : ''); }).join(' · ') : ''; };
+        var seule = function (p) { var cs = Object.keys(p).filter(function (c) { return c && p[c]; }); return cie || (cs.length === 1 ? cs[0] : 'toutes'); };
+        var na = parA ? somme(parA) : compteurOnglet('avis', 'avis'), ns = parS ? somme(parS) : compteurOnglet('avis', 'sondages');
+        if (na) out.push({ ton: 'rouge', n: na, titre: 'Avis Google négatifs à traiter' + (parA ? ou(parA) : ''), href: AMX.lien('avis', 'avis', parA ? { atraiter: 1, cie: seule(parA) } : null), ic: 'relance' });
+        if (ns) out.push({ ton: 'ambre', n: ns, titre: 'Sondages clients notés 3 ou moins (7 derniers jours)' + (parS ? ou(parS) : ''), href: AMX.lien('avis', 'sondages'), ic: 'relance' });
       }
     }
     // 7 nov. (Louis Prassinos) : sondages CSI à 8 ou moins sur 10, à traiter (CsiAlertes.gs)

@@ -1154,7 +1154,7 @@
       /* 3 nov. (Maxime : « nous avons un onglet évaluation et une autre évaluation demandée, ça porte à confusion ») :
          « Évaluations demandées » quitte Vente — le représentant trouve ses demandes dans Inventaire › Occasion › Évaluation
          (vue « Mes demandes »). L'ancienne adresse #/vente/evaldemandes y mène (router). */
-      { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', icone: 'achat', couleur: 'bleu', desc: 'Inscrire une vente : ScanAutomax remplit le Livre des ventes de la comptabilité. Commandes vendues, récapitulatif.', vues: [{ id: 'liste', titre: 'Liste' }, { id: 'commandes', titre: 'Commandes vendues' }, { id: 'exclues', titre: 'Exclues' }, { id: 'refusees', titre: 'Refusées' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 3 nov. : + Refusées (lignes en rouge au livre de Ste-Marie : gardées, jamais comptées) ; 2 nov. : + Exclues (aftersale, accommodation, rachat de bail : gardées, jamais comptées) ; 1er nov. : + Commandes vendues (vendues, pas encore livrées) ; 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
+      { id: 'ventes', titre: 'Livre des ventes', de: 'ventes', icone: 'achat', couleur: 'bleu', desc: 'Inscrire une vente : ScanAutomax remplit le Livre des ventes de la comptabilité. Commandes vendues, récapitulatif.', vueFixe: true, vues: [{ id: 'liste', titre: 'Liste' }, { id: 'commandes', titre: 'Commandes vendues' }, { id: 'exclues', titre: 'Exclues' }, { id: 'refusees', titre: 'Refusées' }, { id: 'recap', titre: 'Récapitulatif' }] },   /* 3 nov. : + Refusées (lignes en rouge au livre de Ste-Marie : gardées, jamais comptées) ; 2 nov. : + Exclues (aftersale, accommodation, rachat de bail : gardées, jamais comptées) ; 1er nov. : + Commandes vendues (vendues, pas encore livrées) ; 21 oct. : la vente s'inscrit ici, ScanAutomax remplit le Livre des ventes ; Liste par mois · Récapitulatif (ventes.js) */
       /* 3 nov. (Maxime : « regrouper offres reçues, en vente et acheteurs dans un onglet (Offre au marché) ; quand on clique
          sur l'onglet on voit clairement les choix de sous-menu en gros et non le détail ») : un onglet « page de choix »
          (hub) — trois grosses tuiles, la page s'ouvre au clic. */
@@ -1308,8 +1308,12 @@
     var vis = vuesVisibles(o); if (!vis.length) return '';
     var demandee = String((params && params.vue) || '');
     if (vuesVisibles(o, true).some(function (v) { return v.id === demandee; })) return demandee;
-    var memo = String(AMX.memo.lire('vue_' + tuile.id + '_' + o.id, '') || '');
-    if (vis.some(function (v) { return v.id === memo; })) return memo;
+    /* 19 nov. (S996E9717E2, S75FE5AAEE4) : un onglet `vueFixe` (Livre des ventes) s'ouvre toujours sur sa première vue —
+       deux directeurs restaient pris sur « Commandes vendues », retenue d'une visite d'avant. */
+    if (!o.vueFixe) {
+      var memo = String(AMX.memo.lire('vue_' + tuile.id + '_' + o.id, '') || '');
+      if (vis.some(function (v) { return v.id === memo; })) return memo;
+    }
     return vis[0].id;
   }
   /* 3 nov. 2026 — onglets par rôle (Maxime : « oui c'est bon », tableau proposé le même jour). Le rôle décide des onglets
@@ -1411,7 +1415,7 @@
       var cle = o.cle || (t.id + '/' + (o.id || ''));   /* `cle` : clé de rôle gardée par une page qui a changé de tuile */
       var enfants = function () { return def.onglets.filter(function (e) { return e.parent === o.id; }); };
       return {
-        id: o.id, titre: o.titre, de: o.de, onglet: o.onglet, fixes: o.fixes, vues: o.vues, monter: o.monter,
+        id: o.id, titre: o.titre, de: o.de, onglet: o.onglet, fixes: o.fixes, vues: o.vues, vueFixe: o.vueFixe, monter: o.monter,
         hub: !!o.hub, racine: !!o.racine, parent: o.parent || '', icone: o.icone, couleur: o.couleur, ouvrir: o.ouvrir || '', cle: cle,
         desc: function () { try { return typeof o.desc === 'function' ? o.desc() : (o.desc || ''); } catch (e) { return ''; } },
         horsMenu: function () { try { return !!(o.horsMenu && o.horsMenu()); } catch (e) { return false; } },
@@ -1501,6 +1505,27 @@
       return h('a' + (e.id === o.id ? '.actif' : ''), { href: AMX.lien(t.id, e.id), 'aria-current': e.id === o.id ? 'page' : null, text: e.titre });
     })));
   };
+  /* 19 nov. : les vues d'une page (Liste · Commandes vendues · Exclues · Refusées · Récapitulatif) sont DANS la page, sous le
+     fil, en onglets bien visibles — avant, elles étaient au bout de la sous-barre du haut, loin de la page, et deux directeurs
+     ne les ont jamais vues. Les paramètres de l'adresse sont gardés d'une vue à l'autre, comme avant. */
+  Tuile.prototype.dessinerVues = function (o, vue, params) {
+    var z = this.vuesEl; if (!z) return;
+    if (o !== undefined) { this.vuesDe = o; this.vueIci = vue; this.vuesParams = params || {}; }
+    o = this.vuesDe; vue = this.vueIci; params = this.vuesParams || {};
+    AMX.vider(z);
+    var t = this.def, vis = o && o.vues ? vuesVisibles(o) : [];
+    if (vis.length < 2) { z.hidden = true; return; }
+    z.hidden = false; z.setAttribute('aria-label', 'Vues de ' + o.titre);
+    var rang = h('div.vues-page-rang', { role: 'tablist' });
+    vis.forEach(function (v) {
+      var s = sourceDeVue(o, v), c = s.de ? compteurSource(AMX.sources[s.de] || AMX.sections[s.de], s.onglet) : '';
+      var p = {}; Object.keys(params).forEach(function (k) { if (k !== 'vue') p[k] = params[k]; }); p.vue = v.id;
+      var ici = v.id === vue;
+      rang.appendChild(h('a' + (ici ? '.actif' : ''), { href: AMX.lien(t.id, o.id, p), 'data-vue': v.id, role: 'tab', 'aria-selected': ici ? 'true' : 'false' },
+        [h('span', { text: v.titre }), (c !== '' && c !== null && c !== undefined) ? h('span.compteur', { text: String(c) }) : null]));
+    });
+    z.appendChild(rang);
+  };
   Tuile.prototype.monterEnfant = function (ctx) {
     var r = this.resoudre(ctx);
     if (this.enfant && this.enfant.demonter) { try { this.enfant.demonter(); } catch (e) {} }
@@ -1508,9 +1533,12 @@
     this.cle = r.cle;
     this.fil = h('nav.hub-fil', { 'aria-label': 'Pages de ' + (r.onglet.parent || this.def.titre) });
     this.conteneur.appendChild(this.fil);
+    this.vuesEl = h('nav.vues-page');
+    this.conteneur.appendChild(this.vuesEl);
     var corps = h('div.tuile-corps');
     this.conteneur.appendChild(corps);
     this.dessinerFil(r.onglet);
+    this.dessinerVues(r.onglet, r.vue, ctx.params);
     var sous = { onglet: r.ongletSource, params: r.params };
     this.enfant = (r.monter ? r.monter(corps, sous) : (r.source ? r.source.monter(corps, sous) : null)) || {};
   };
@@ -1518,11 +1546,12 @@
     var r = this.resoudre(ctx);
     if (r.cle !== this.cle || !this.enfant || !this.enfant.naviguer) { this.monterEnfant(ctx); return; }
     this.dessinerFil(r.onglet);
+    this.dessinerVues(r.onglet, r.vue, ctx.params);
     this.enfant.naviguer({ onglet: r.ongletSource, params: r.params });
   };
   Tuile.prototype.rafraichir = function () {
     if (this.enfant && this.enfant instanceof PageChoix) this.enfant.rafraichir();
-    else if (courante.onglet) this.dessinerFil(courante.onglet);
+    else if (courante.onglet) { this.dessinerFil(courante.onglet); this.dessinerVues(); }
   };
   Tuile.prototype.demonter = function () { if (this.enfant && this.enfant.demonter) { try { this.enfant.demonter(); } catch (e) {} } this.enfant = null; };
 
@@ -2325,21 +2354,9 @@
       sb.appendChild(h('a' + (ici ? '.actif' : ''), { href: AMX.lien(sec.id, o.id), 'aria-current': ici ? 'page' : null }, [o.titre, (c !== null && c !== undefined && c !== '') ? h('span.compteur', { text: String(c) }) : null]));
     });
     sb.appendChild(h('div.espace'));
-    // 21 oct. : les vues de l'onglet actif (anciens onglets regroupés : Résultats › É.-U. · Wholesale Canada · Neufs…).
-    if (ong && ong.vues && sec.tuile) {
-      var vis = vuesVisibles(ong), courante = vueCourante(sec, ong, (AMX.courante && AMX.courante.params) || {});
-      if (vis.length > 1) {
-        var seg = h('div.vues.segment', { role: 'group', 'aria-label': ong.titre });
-        vis.forEach(function (v) {
-          var s = sourceDeVue(ong, v), c = s.de ? compteurSource(AMX.sources[s.de] || AMX.sections[s.de], s.onglet) : '';
-          var p = {}; Object.keys((AMX.courante && AMX.courante.params) || {}).forEach(function (k) { if (k !== 'vue') p[k] = AMX.courante.params[k]; }); p.vue = v.id;
-          seg.appendChild(h('a' + (v.id === courante ? '.actif' : ''), { href: AMX.lien(sec.id, ong.id, p), 'data-vue': v.id }, [v.titre, (c !== '' && c !== null && c !== undefined) ? h('span.compteur', { text: String(c) }) : null]));
-        });
-        sb.appendChild(seg);
-      }
-    }
+    /* 19 nov. : les vues de l'onglet actif ne sont plus ici — elles sont dans la page (Tuile.dessinerVues). */
     if (sec.outils) { var out = h('div.outils'); sec.outils(out); sb.appendChild(out); }
-    var sansVues = !sb.querySelector('.vues, .outils');
+    var sansVues = !sb.querySelector('.outils');
     sb.classList.toggle('sans-vues', sansVues);
     if (AMX.ui2() && sansVues && bureauUi2()) document.documentElement.style.setProperty('--sous-h', '0px');
     majCote();
@@ -2971,6 +2988,140 @@
       if (e.key === '/' && !/input|textarea|select/i.test((document.activeElement || {}).tagName || '')) { e.preventDefault(); input.focus(); }
     });
   }
+
+  /* ------------------- Photos HEIC / HEIF (19 nov., SEA1F749363) -------------------
+     Les téléphones récents donnent des photos .heic ; Chrome, Edge et Firefox ne savent pas les lire, et chaque page qui réduit
+     une photo (évaluation, demande d'évaluation, texto, inspection, suggestion…) répondait « Image illisible ». Ici, une fois
+     pour tout le site : dès qu'un champ « fichier » reçoit une photo HEIC, elle est convertie en JPEG AVANT que la page la
+     voie (le champ garde le même geste, la page ne change pas). Safari la lit lui-même ; ailleurs, un convertisseur est chargé
+     à la demande (heic-to, sinon heic2any). Rien n'est envoyé nulle part : tout se fait dans le navigateur. */
+  (function () {
+    var RE = /\.(heic|heif)$/i;
+    function estHeic(f) { return !!f && (/^image\/hei[cf]/i.test(f.type || '') || RE.test(f.name || '')); }
+    function charger(url, test) {
+      return new Promise(function (ok, non) {
+        if (test()) { ok(); return; }
+        var sc = document.createElement('script'); sc.src = url; sc.async = true;
+        sc.onload = function () { test() ? ok() : non(new Error('Convertisseur HEIC illisible')); };
+        sc.onerror = function () { non(new Error('Convertisseur HEIC injoignable')); };
+        document.head.appendChild(sc);
+      });
+    }
+    function natif(f) {
+      if (!window.createImageBitmap) return Promise.reject(new Error('pas de lecture native'));
+      return window.createImageBitmap(f).then(function (bmp) {
+        var c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+        c.getContext('2d').drawImage(bmp, 0, 0);
+        return new Promise(function (ok, non) { c.toBlob(function (b) { b ? ok(b) : non(new Error('Image illisible')); }, 'image/jpeg', 0.9); });
+      });
+    }
+    function parHeicTo(f) {
+      return charger('https://cdn.jsdelivr.net/npm/heic-to@1.5.0/dist/iife/heic-to.js', function () { return typeof window.HeicTo === 'function'; })
+        .then(function () { return window.HeicTo({ blob: f, type: 'image/jpeg', quality: 0.9 }); });
+    }
+    function parHeic2any(f) {
+      return charger('https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js', function () { return typeof window.heic2any === 'function'; })
+        .then(function () { return window.heic2any({ blob: f, toType: 'image/jpeg', quality: 0.9 }); })
+        .then(function (b) { return Array.isArray(b) ? b[0] : b; });
+    }
+    /** Un fichier HEIC → un fichier JPEG du même nom (.jpg) ; tout autre fichier est rendu tel quel. */
+    AMX.heicVersJpeg = function (f) {
+      if (!estHeic(f)) return Promise.resolve(f);
+      var nom = String(f.name || 'photo').replace(RE, '') + '.jpg';
+      return natif(f).catch(function () { return parHeicTo(f); }).catch(function () { return parHeic2any(f); }).then(function (b) {
+        if (!b || !b.size) throw new Error('Photo HEIC illisible');
+        return new File([b], nom, { type: 'image/jpeg', lastModified: f.lastModified || Date.now() });
+      });
+    };
+    AMX.estHeic = estHeic;
+    function surChoix(e) {
+      var inp = e.target;
+      if (!inp || inp.tagName !== 'INPUT' || inp.type !== 'file' || inp.__amxHeic || !inp.files || !inp.files.length) return;
+      var fichiers = Array.prototype.slice.call(inp.files);
+      if (!fichiers.some(estHeic)) return;
+      e.stopImmediatePropagation(); e.stopPropagation();
+      var nb = fichiers.filter(estHeic).length;
+      AMX.toast(nb > 1 ? 'Conversion de ' + nb + ' photos HEIC…' : 'Conversion de la photo HEIC…', '', 4000);
+      Promise.all(fichiers.map(function (f) { return AMX.heicVersJpeg(f).catch(function () { return null; }); })).then(function (liste) {
+        var bons = liste.filter(Boolean), rates = liste.length - bons.length;
+        if (rates) AMX.toast((rates > 1 ? rates + ' photos HEIC n\'ont pas pu être lues' : 'Cette photo HEIC n\'a pas pu être lue') + ' : enregistrez-la en JPEG et réessayez.', 'erreur', 8000);
+        if (!bons.length) { try { inp.value = ''; } catch (e1) {} return; }
+        try {
+          var dt = new DataTransfer(); bons.forEach(function (f) { dt.items.add(f); });
+          inp.__amxHeic = true; inp.files = dt.files;
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (e2) { AMX.toast('Photo HEIC : conversion impossible dans ce navigateur. Enregistrez-la en JPEG et réessayez.', 'erreur', 8000); }
+        setTimeout(function () { inp.__amxHeic = false; }, 0);
+      });
+    }
+    /* Sur un ordinateur, le champ accepte aussi .heic (sur iPhone on n'y touche pas : iOS donne déjà un JPEG tant que le champ
+       ne nomme pas le HEIC). */
+    var IOS = /iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    function elargir(inp) {
+      if (IOS || !inp || inp.tagName !== 'INPUT' || inp.type !== 'file') return;
+      var a = inp.getAttribute('accept') || '';
+      if (a && /image\/|\.jpe?g|\.png/i.test(a) && !/hei[cf]/i.test(a)) inp.setAttribute('accept', a + ',.heic,.heif');
+    }
+    document.addEventListener('change', surChoix, true);                       // champs dans la page
+    document.addEventListener('click', function (e) { elargir(e.target); }, true);
+    try {                                                                        // champs hors de la page, ouverts par .click()
+      var clic = HTMLInputElement.prototype.click;
+      HTMLInputElement.prototype.click = function () {
+        if (this.type === 'file') { elargir(this); if (!this.__amxHeicEcoute) { this.__amxHeicEcoute = true; this.addEventListener('change', surChoix, true); } }
+        return clic.apply(this, arguments);
+      };
+    } catch (e) {}
+  })();
+
+  /* ------------------- Nouvelle version du site (19 nov., SE13E15625A) -------------------
+     Une page restée ouverte garde l'ancien code : une correction mise en ligne le 17 nov. n'était toujours pas vue le 18. La
+     page compare, aux 15 minutes et à chaque retour sur l'onglet, les numéros de version de index.html en ligne avec les siens ;
+     s'ils diffèrent : une bande « Nouvelle version — Recharger », et la page se recharge d'elle-même au prochain changement de
+     page (jamais pendant qu'une fenêtre est ouverte). Seulement sur le vrai site (https), pas dans la maquette. */
+  (function () {
+    if (location.protocol !== 'https:') return;
+    var RE = /assets\/([a-z0-9._-]+?)\.(?:js|css)\?v=(\d+)/i;
+    /* Même lecture des deux côtés : les adresses des balises <script src> et <link href> seulement (jamais un commentaire ni
+       un script en ligne), dans la page ouverte comme dans le index.html en ligne. */
+    function signature(doc) {
+      var out = [];
+      Array.prototype.forEach.call(doc.querySelectorAll('script[src], link[href]'), function (e) {
+        var m = RE.exec(e.getAttribute('src') || e.getAttribute('href') || ''); if (m) out.push(m[1] + ':' + m[2]);
+      });
+      return out.sort().join(',');
+    }
+    /* Garde-fou : une version déjà rechargée une fois dans cet onglet n'est plus proposée (cache d'un serveur, lecture
+       différente) — jamais de rechargement en boucle. */
+    function dejaVue(s) { try { return sessionStorage.getItem('amx_version_vue') === s; } catch (e) { return false; } }
+    function recharger() { try { sessionStorage.setItem('amx_version_vue', enLigne); } catch (e) {} location.reload(); }
+    var ici = '', enLigne = '', nouvelle = false, dernier = 0, bande = null;
+    function montrer() {
+      if (bande || !document.body) return;
+      bande = h('div.amx-version', { role: 'status' }, [
+        h('span', { text: 'Une nouvelle version de ScanAutomax est prête.' }),
+        h('button.btn.petit.primaire', { type: 'button', text: 'Recharger', onclick: recharger })]);
+      document.body.appendChild(bande);
+    }
+    function verifier() {
+      if (nouvelle || !ici || document.visibilityState !== 'visible' || Date.now() - dernier < 10 * 60000) return;
+      dernier = Date.now();
+      fetch(location.pathname + '?t=' + dernier, { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (html) {
+        if (!html) return;
+        var s = signature(new DOMParser().parseFromString(html, 'text/html'));
+        if (s && s !== ici && !dejaVue(s)) { enLigne = s; nouvelle = true; montrer(); }
+      }).catch(function () {});
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+      ici = signature(document);
+      dernier = Date.now();
+      setInterval(verifier, 15 * 60000);
+      document.addEventListener('visibilitychange', verifier);
+    });
+    window.addEventListener('hashchange', function () {
+      if (nouvelle && !document.querySelector('.voile')) recharger();
+    });
+    AMX.versionNouvelle = function () { return nouvelle; };
+  })();
 
   /* ------------------------------ Démarrage ----------------------------- */
   document.addEventListener('DOMContentLoaded', function () {

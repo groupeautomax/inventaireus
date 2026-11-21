@@ -336,7 +336,8 @@
     if (voit('outils') && AMX.voitEvaluations() && AMX.evaluations) AMX.evaluations.charger().then(relancer, rien);   /* 2 nov. : jamais pour un représentant */
     if ((voit('demandesEval') || voit('evalPortail')) && AMX.evalDemandes) AMX.evalDemandes.charger().then(relancer, rien);   /* 27 oct. : demandes d'évaluation ; 2 nov. : portail du représentant */
     if (voitImports()) chargerImports().then(relancer, rien);
-    if (voit('rechercheVehicule') && AMX.rechercheVehicule) AMX.rechercheVehicule.charger().then(relancer, rien);   /* 16 nov. : nouveaux véhicules des recherches avec Einstein */
+    if (voit('rechercheVehicule') && AMX.rechercheVehicule) AMX.rechercheVehicule.charger().then(relancer, rien);
+    if (voit('taux') && AMX.taux && AMX.taux.charger) AMX.taux.charger().then(relancer, rien);   /* 21 nov. : grilles des banques reçues, à confirmer (Taux Einstein) */   /* 16 nov. : nouveaux véhicules des recherches avec Einstein */
     if (voit('portefeuille') && AMX.portefeuille && AMX.portefeuille.pages) (cie ? [cie] : (AMX.codesPour ? AMX.codesPour('inventaire') : [])).forEach(function (c) { AMX.portefeuille.pages(c).then(relancer, rien); });   /* 5 nov. : réponses aux pages d'offre (toutes les concessions visibles sur « Tout le groupe ») */
   };
 
@@ -448,6 +449,12 @@
     if (voit('inventaire') && AMX.achatsAuto && AMX.achatsAuto.contrats && AMX.achatsAuto.contrats.enCache()) {
       var cv = AMX.achatsAuto.contrats.aVerifier(cie);
       if (cv.length) out.push({ ton: 'ambre', n: cv.length, titre: 'Contrats d\'achat reçus par courriel, à vérifier', detail: cv.slice(0, 2).map(function (c) { return c.raison || c.fichier; }).join(' · ') + (cv.length > 2 ? '…' : ''), href: AMX.inventaire.lien('detail', { contrats: 1 }), ic: 'inventaire' });
+    }
+    // 21 nov. : grilles de taux des banques reçues (courriel, Torque) qu'Einstein AI a lues — une personne confirme (GrillesRecues.gs)
+    if (voit('taux') && AMX.taux && AMX.taux.recues && AMX.taux.recues()) {
+      var gr = AMX.taux.recues(), nGr = gr.aConfirmer || 0, nLire = gr.aLire || 0;
+      if (nGr) out.push({ ton: 'ambre', n: nGr, titre: 'Grilles de taux des banques reçues, à confirmer', detail: 'Einstein AI les a lues : vérifiez chaque programme avant qu\'il serve au comparateur' + (nLire ? ' · ' + nLire + ' autre' + (nLire > 1 ? 's' : '') + ' à lire' : ''), href: '#/vente/taux?vue=grilles&recues=1', ic: 'vente' });
+      else if (nLire) out.push({ ton: 'bleu', n: nLire, titre: 'Grilles de taux des banques reçues, à lire par Einstein AI', detail: 'Taux Einstein › Lire les grilles', href: '#/vente/taux?vue=grilles&recues=1', ic: 'vente' });
     }
     // 16 nov. : offres des acheteurs du portail sur les véhicules GM Financial (PortailGmf.gs), à traiter — ambre
     if (ongletVoit('outils', 'opportunites') && AMX.offresGmf && AMX.offresGmf.enCache()) {

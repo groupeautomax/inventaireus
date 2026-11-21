@@ -1,5 +1,5 @@
 /* =========================================================================
-   Vente › Taux et financement — comparer les programmes des banques (21 novembre 2026)
+   Vente › Taux Einstein — comparer les programmes des banques (21 novembre 2026 ; nommé « Taux Einstein » par Maxime le 21 nov.)
 
    Maxime : « ce n'est pas le tableau de bord de Torque que je veux, c'est Intellitaux — regarde ce que tu peux trouver pour
    faire le même outil ». Quatre vues, en onglets dans la page :
@@ -219,6 +219,48 @@
   }
   function texteErreur(e) { return AMX.erreurTexte ? AMX.erreurTexte(e) : ((e && e.message) || 'Erreur'); }
 
+  /* 21 nov. : grilles reçues par courriel ou reprises de Torque (GrillesRecues.gs). Einstein AI PROPOSE ; une personne confirme. */
+  var SCRIPT_RECUES = 'Le script n\'est pas à jour : déployez une nouvelle version (GrillesRecues.gs).';
+  var recues = { rep: null, quand: 0, promesse: null };
+  function chargerRecues(force) {
+    if (!force && recues.rep && Date.now() - recues.quand < AMX.dureeCopie(60000)) return Promise.resolve(recues.rep);
+    if (!force && recues.promesse) return recues.promesse;
+    recues.promesse = AMX.get({ grillesRecues: 1 }, { delai: 60000 }).then(function (d) {
+      AMX.verifier(d, 'Grilles reçues illisibles');
+      if (d.grillesRecues !== true || !Array.isArray(d.recues)) throw new Error(SCRIPT_RECUES);
+      recues.rep = d; recues.quand = Date.now(); recues.promesse = null; return d;
+    }, function (e) { recues.promesse = null; throw e; });
+    return recues.promesse;
+  }
+  function posterRecues(corps, opts) {
+    return AMX.post(corps, opts || { secours: false, rejouer: false, delai: 90000 }).then(function (d) {
+      AMX.verifier(d, 'Action refusée');
+      if (d.grillesRecues !== true) throw new Error(SCRIPT_RECUES);
+      return d;
+    });
+  }
+  /* La lecture des documents déposés : un document par requête (30 à 90 s chacun), tant que la page est ouverte. */
+  var LECTURE = { en: false, arret: false, lus: 0, reste: 0, erreurs: [] };
+  function annoncerLecture() { try { document.dispatchEvent(new CustomEvent('amx:grillesRecues')); } catch (e) {} }
+  function lireTout() {
+    if (LECTURE.en) return;
+    LECTURE.en = true; LECTURE.arret = false; LECTURE.lus = 0; LECTURE.erreurs = [];
+    annoncerLecture();
+    (function suivant() {
+      if (LECTURE.arret) { LECTURE.en = false; annoncerLecture(); return; }
+      AMX.post({ action: 'grillesRecuesLire', max: 1 }, { secours: false, rejouer: false, delai: 330000 }).then(function (r) {
+        if (r && r.enCours) { setTimeout(suivant, 20000); annoncerLecture(); return; }
+        AMX.verifier(r, 'Lecture refusée');
+        if (r.grillesRecues !== true) throw new Error(SCRIPT_RECUES);
+        LECTURE.lus += r.lus || 0; LECTURE.reste = r.reste || 0;
+        (r.erreurs || []).forEach(function (t) { LECTURE.erreurs.push(t); });
+        recues.quand = 0;
+        if (!r.lus || !r.reste) { LECTURE.en = false; vider(); annoncerLecture(); AMX.toast(LECTURE.lus + ' document' + (LECTURE.lus > 1 ? 's' : '') + ' lu' + (LECTURE.lus > 1 ? 's' : '') + ' par Einstein AI.', 'ok'); return; }
+        annoncerLecture(); suivant();
+      }).catch(function (e) { LECTURE.en = false; LECTURE.erreurs.push(texteErreur(e)); annoncerLecture(); AMX.toast('Lecture arrêtée — ' + texteErreur(e), 'erreur'); });
+    })();
+  }
+
   /* =============================== Aides d'écran =============================== */
   function argent(x, d) { return nb(x) ? AMX.fmtArgent(x, d === undefined ? 2 : d) : '—'; }
   function pct(x) { return nb(x) ? x.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + ' %' : '—'; }
@@ -294,9 +336,13 @@
     this.charger(false);
     this.surCie = function () { if (!self.detruit && self.vue === 'comparateur') self.rendre(); };
     document.addEventListener('amx:compagnie', this.surCie);
+    this.recuesDemandees = !!(ctx && ctx.params && ctx.params.recues);
+    this.surLecture = function () { if (!self.detruit) { if (self.majRecues) self.majRecues(); if (!LECTURE.en && self.d) { vider(); self.charger(false); } } };
+    document.addEventListener('amx:grillesRecues', this.surLecture);
   }
-  VueTaux.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); };
+  VueTaux.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:grillesRecues', this.surLecture); };
   VueTaux.prototype.naviguer = function (ctx) {
+    if (ctx && ctx.params && ctx.params.recues && this.d) this.ouvrirRecues();
     var v = ctx && ctx.onglet; if (VUES.indexOf(v) < 0 || v === this.vue) return;
     this.vue = v; this.rendre();
   };
@@ -309,7 +355,7 @@
     this.btnImprimer = h('button.btn', { type: 'button', html: (I.imprimer || '') + '<span>Imprimer le tableau</span>', onclick: function () { self.imprimerAmortissement(); } });
     this.elActions = h('div.actions');
     this.corps = h('div.tx-corps');
-    this.page.appendChild(h('div.entete-page', [h('div', [h('h1', 'Taux et financement'), this.elSous]), this.elActions]));
+    this.page.appendChild(h('div.entete-page', [h('div', [h('h1', 'Taux Einstein'), this.elSous]), this.elActions]));
     this.page.appendChild(this.corps);
   };
   VueTaux.prototype.charger = function (force) {
@@ -319,6 +365,7 @@
       if (self.detruit) return;
       self.d = d; self.erreur = ''; self.rendre();
       if (force) AMX.toast('Programmes à jour.', 'ok', 2500);
+      if (self.recuesDemandees) { self.recuesDemandees = false; self.ouvrirRecues(); }
     }).catch(function (e) {
       if (self.detruit) return;
       self.erreur = texteErreur(e); self.rendre();
@@ -342,6 +389,7 @@
     if (this.vue === 'garantie') { this.rendreGarantie(); return; }
     if (this.erreur) { this.corps.appendChild(h('div.alerte-bloc.erreur', [h('strong', 'Les programmes n\'ont pas pu être lus. '), h('span', { text: this.erreur })])); return; }
     if (!this.d) { this.corps.appendChild(AMX.chargeur('Lecture des programmes')); return; }
+    this.rendreBandeRecues();
     if (this.vue === 'grilles') this.rendreGrilles(); else this.rendreComparateur();
   };
   VueTaux.prototype.vers = function (vue) { AMX.aller('vente', 'taux', { vue: vue }); };
@@ -704,6 +752,7 @@
         if (!o.paliers.length) { dire('Inscrivez au moins un palier : un taux.'); return false; }
         if (o.paliers.some(function (x) { return x.taux < 0 || x.taux > 35; })) { dire('Un taux doit être entre 0 et 35 %.'); return false; }
         dire('');
+        if (opts.enregistrer) return opts.enregistrer(o).then(function (r) { fermer(); if (opts.apres) opts.apres(r); return false; }).catch(function (e) { dire(texteErreur(e)); throw e; });
         return poster({ action: 'tauxProgramme', programme: o }).then(function (r) {
           fermer();
           if (opts.apres) opts.apres(r.programme);
@@ -749,6 +798,216 @@
         corps.appendChild(h('p.tx-note', 'Vous pouvez inscrire le programme à la main : « Ajouter un programme ».'));
       }).then(function () { return m; });
     });
+  };
+
+  /* ------------------------------ Grilles reçues (courriel, Torque) ------------------------------ */
+  var ETATS_PROP = {
+    nouveau: ['Nouveau programme', 'tx-p-nouveau'], change: ['Changé', 'tx-p-change'], pareil: ['Pareil à vos grilles', 'tx-p-pareil'],
+    confirme: ['Enregistré', 'tx-p-fait'], enregistre: ['Enregistré', 'tx-p-fait'], planifie: ['Prévu', 'tx-p-prevu'], ignore: ['Ignoré', 'tx-p-ignore']
+  };
+  /* Le bloc en haut de la page : l'adresse, ce qui attend, la lecture en cours. */
+  VueTaux.prototype.rendreBandeRecues = function () {
+    var self = this, r = this.d && this.d.recues;
+    if (!r) return;                                         // script d'avant : rien
+    var n = r.aConfirmer || 0, aLire = r.aLire || 0;
+    if (this.vue === 'comparateur' && !n && !aLire && !LECTURE.en) return;
+    var el = h('section.carte.tx-recues' + (n ? '.attention' : ''));
+    this.elRecues = el;
+    this.majRecues = function () { if (self.elRecues === el) self.remplirBande(el); };
+    this.remplirBande(el);
+    this.corps.appendChild(el);
+  };
+  VueTaux.prototype.remplirBande = function (el) {
+    var self = this, r = (this.d && this.d.recues) || {}, d = this.d || {}, n = r.aConfirmer || 0, aLire = r.aLire || 0;
+    AMX.vider(el);
+    var titre = n ? n + ' programme' + (n > 1 ? 's' : '') + ' reçu' + (n > 1 ? 's' : '') + ', à confirmer' : (aLire ? aLire + ' grille' + (aLire > 1 ? 's' : '') + ' reçue' + (aLire > 1 ? 's' : '') + ', à lire par Einstein AI' : 'Grilles reçues');
+    var etat = LECTURE.en ? 'Einstein AI lit les grilles… ' + LECTURE.lus + ' lue' + (LECTURE.lus > 1 ? 's' : '') + (LECTURE.reste ? ', ' + LECTURE.reste + ' à lire' : '') + '.' :
+      (n ? 'Einstein AI a lu les grilles des banques : vérifiez chaque programme, puis confirmez.' : (aLire ? 'Cliquez « Lire les grilles » : Einstein AI propose les programmes, vous confirmez.' : 'Envoyez les grilles des banques à cette adresse : Einstein AI les lit et vous propose les programmes à confirmer.'));
+    var adr = r.adresse || '';
+    el.appendChild(h('div.tx-recues-txt', [
+      h('strong', { text: titre }),
+      h('span', { text: etat }),
+      adr ? h('span.tx-recues-adr', [h('span', 'Adresse des grilles : '), h('code', { text: adr }),
+        h('button.tx-lien', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(adr, 'Adresse copiée.'); } })]) : null
+    ]));
+    var g = h('div.tx-recues-gestes');
+    if (LECTURE.en) g.appendChild(h('button.btn.petit', { type: 'button', text: 'Arrêter la lecture', onclick: function () { LECTURE.arret = true; AMX.toast('La lecture s\'arrête après la grille en cours.', 'info'); } }));
+    else if (aLire && d.peutModifier) g.appendChild(h('button.btn' + (n ? '' : '.primaire'), { type: 'button', text: 'Lire les grilles (' + aLire + ')', onclick: function () { lireTout(); } }));
+    g.appendChild(h('button.btn' + (n ? '.primaire' : ''), { type: 'button', text: n ? 'Voir et confirmer (' + n + ')' : 'Grilles reçues', onclick: function () { self.ouvrirRecues(); } }));
+    el.appendChild(g);
+  };
+
+  /* Ouvre un document reçu (PDF, image ou texte du courriel). */
+  VueTaux.prototype.ouvrirDocRecu = function (x) {
+    var w = null; try { w = window.open('', '_blank'); } catch (e) {}
+    AMX.get({ grilleRecueDoc: 1, id: x.id }, { delai: 60000 }).then(function (d) {
+      AMX.verifier(d, 'Document illisible');
+      if (!d.base64) throw new Error('Document introuvable.');
+      var bin = atob(d.base64), o = new Uint8Array(bin.length); for (var k = 0; k < bin.length; k++) o[k] = bin.charCodeAt(k);
+      var type = d.mime || 'application/pdf'; if (/^text\//.test(type)) type = 'text/plain;charset=utf-8';
+      var url = URL.createObjectURL(new Blob([o], { type: type }));
+      if (w && !w.closed) w.location = url; else { var a = h('a', { href: url, download: d.nom || 'grille' }); document.body.appendChild(a); a.click(); a.remove(); }
+      setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+    }).catch(function (e) { if (w && !w.closed) w.close(); AMX.toast('Document non ouvert — ' + texteErreur(e), 'erreur'); });
+  };
+
+  /* La fenêtre des grilles reçues : chaque document, ce qu'Einstein AI en a lu, et ce qui change dans vos grilles. */
+  VueTaux.prototype.ouvrirRecues = function () {
+    var self = this;
+    var filtre = 'atraiter';
+    var corps = h('div.tx-recues-fen', [AMX.chargeur('Lecture des grilles reçues', { compact: true })]);
+    var m = AMX.modale({ titre: 'Grilles de taux reçues', corps: corps, large: true, classe: 'tx-voile', proteger: false, sansFocus: true,
+      boutons: [{ texte: 'Fermer' }], onFermer: function () { document.removeEventListener('amx:grillesRecues', surLecture); ouvert = false; } });
+    var ouvert = true, dernier = null;
+    function surLecture() { if (ouvert) relire(true); }
+    document.addEventListener('amx:grillesRecues', surLecture);
+    function relire(force) {
+      return chargerRecues(force).then(function (d) { if (!ouvert) return; dernier = d; dessiner(d); }).catch(function (e) {
+        if (!ouvert) return;
+        AMX.vider(corps); corps.appendChild(h('div.alerte-bloc.erreur', { text: 'Les grilles reçues n\'ont pas pu être lues — ' + texteErreur(e) }));
+      });
+    }
+    function apres(r, message) {
+      AMX.toast(message || (r && r.message) || 'Fait.', 'ok');
+      recues.quand = 0; vider();
+      self.charger(false);
+      return relire(true);
+    }
+    function agir(corpsReq, btn) {
+      if (btn) { btn.disabled = true; btn.classList.add('occupe'); }
+      return posterRecues(corpsReq).then(function (r) { return apres(r); }).catch(function (e) {
+        if (btn) { btn.disabled = false; btn.classList.remove('occupe'); }
+        AMX.toast(texteErreur(e), 'erreur');
+      });
+    }
+    function verifier(x, p) {
+      var prog = JSON.parse(JSON.stringify(p.prog || {}));
+      var cible = p.cible && ((self.d && self.d.programmes) || []).filter(function (q) { return q.id === p.cible.id; })[0];
+      prog.id = cible ? cible.id : '';
+      if (cible) {
+        if (!(prog.concessions || []).length && (cible.concessions || []).length) prog.concessions = cible.concessions;
+        if (!prog.exige && cible.exige) prog.exige = cible.exige;
+        if (!prog.conditions && cible.conditions) prog.conditions = cible.conditions;
+        if (cible.actif === false) prog.actif = false;
+      }
+      self.formulaire(prog, { einstein: true,
+        enregistrer: function (o) { return posterRecues({ action: 'grilleRecueAction', id: x.id, i: p.i, op: 'confirmer', programmeId: cible ? cible.id : '', prog: o }); },
+        apres: function (r) { apres(r); } });
+    }
+    function dessiner(d) {
+      AMX.vider(corps);
+      var peut = !!d.peutAgir, liste = d.recues || [];
+      var aLire = d.aLire || 0, adr = (d.reglages && d.reglages.adresses && d.reglages.adresses[0]) || '';
+      /* haut : adresse, lecture, relève */
+      var haut = h('div.tx-recues-haut', [
+        h('div.tx-recues-txt', [
+          adr ? h('span.tx-recues-adr', [h('span', 'Les banques envoient leurs grilles à : '), h('code', { text: adr }),
+            h('button.tx-lien', { type: 'button', text: 'Copier', onclick: function () { AMX.copier(adr, 'Adresse copiée.'); } })]) : null,
+          h('span', { text: LECTURE.en ? 'Einstein AI lit les grilles… ' + LECTURE.lus + ' lue' + (LECTURE.lus > 1 ? 's' : '') + (LECTURE.reste ? ', ' + LECTURE.reste + ' à lire' : '') + '.' :
+            (d.etat && d.etat.le ? 'Courriels relevés le ' + jour(d.etat.le) + ' à ' + String(new Date(d.etat.le).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })) + '.' : 'Les courriels sont relevés aux 30 minutes, de 6 h à 22 h.') })
+        ]),
+        h('div.tx-recues-gestes', [
+          LECTURE.en ? h('button.btn.petit', { type: 'button', text: 'Arrêter la lecture', onclick: function () { LECTURE.arret = true; AMX.toast('La lecture s\'arrête après la grille en cours.', 'info'); } }) :
+            (aLire && peut ? h('button.btn.primaire', { type: 'button', text: 'Lire les grilles (' + aLire + ')', onclick: function () { if (!d.ia) { AMX.toast('Einstein AI n\'a pas de clé : Admin › Einstein AI.', 'erreur'); return; } lireTout(); } }) : null),
+          peut ? h('button.btn', { type: 'button', text: 'Relever les courriels', onclick: function (e) {
+            var b = e.currentTarget; b.disabled = true; b.classList.add('occupe');
+            posterRecues({ action: 'grillesRecuesCourriels' }).then(function (r) { b.disabled = false; b.classList.remove('occupe'); return apres(r); })
+              .catch(function (err) { b.disabled = false; b.classList.remove('occupe'); AMX.toast(texteErreur(err), 'erreur'); });
+          } }) : null
+        ])
+      ]);
+      corps.appendChild(haut);
+      corps.appendChild(h('details.tx-recues-comment', [
+        h('summary', 'Comment recevoir les grilles toutes seules'),
+        h('ol', [
+          h('li', 'Demandez à chaque représentant de banque d\'ajouter cette adresse à l\'envoi de ses grilles (ou de vous mettre en copie).'),
+          h('li', 'Ou, dans votre boîte courriel, une règle qui fait suivre à cette adresse les courriels des banques qui contiennent une grille.'),
+          h('li', 'Le PDF, une photo de la grille ou le texte du courriel : tout se lit. Einstein AI propose ; une personne confirme chaque programme.')
+        ]),
+        adr ? h('p.tx-note', [h('span', 'Texte à envoyer aux banques : '),
+          h('button.tx-lien', { type: 'button', text: 'Copier le texte', onclick: function () {
+            AMX.copier('Bonjour, pourriez-vous ajouter l\'adresse ' + adr + ' à l\'envoi de vos grilles de taux et de vos changements de programmes ? Merci.', 'Texte copié.');
+          } })]) : null
+      ]));
+      /* filtre */
+      var sel = h('select.saisie.tx-recues-filtre', { 'aria-label': 'Montrer' }, [h('option', { value: 'atraiter', text: 'À traiter' }), h('option', { value: 'tout', text: 'Tout (120 derniers jours)' })]);
+      sel.value = filtre; sel.addEventListener('change', function () { filtre = sel.value; dessiner(dernier); });
+      var visibles = liste.filter(function (x) { return filtre === 'tout' || x.statut === 'a_confirmer' || x.statut === 'a_lire' || x.statut === 'erreur'; });
+      corps.appendChild(h('div.tx-recues-barre', [h('strong', { text: visibles.length + ' document' + (visibles.length > 1 ? 's' : '') }), sel]));
+      if (!visibles.length) {
+        corps.appendChild(h('p.tx-note', { text: liste.length ? 'Rien à traiter : toutes les grilles reçues sont réglées.' : 'Aucune grille reçue pour le moment.' }));
+        return;
+      }
+      visibles.forEach(function (x) { corps.appendChild(carteDoc(x, peut)); });
+    }
+    function carteDoc(x, peut) {
+      var nomInst = x.institution || x.indInstitution || (x.lecture && x.lecture.institution) || 'Institution à confirmer';
+      var sous = [x.sourceLibelle, x.indProgramme || '', 'reçu le ' + jour(x.recuLe), x.source === 'courriel' && x.de ? 'de ' + x.de : ''].filter(Boolean).join(' · ');
+      var ton = x.statut === 'a_confirmer' ? 'attention' : (x.statut === 'erreur' ? 'erreur' : (x.statut === 'a_lire' ? 'info' : ''));
+      var gestes = h('div.tx-recues-gestes', [
+        x.aDocument ? h('button.btn.petit', { type: 'button', text: 'Voir la grille', onclick: function () { self.ouvrirDocRecu(x); } }) : null,
+        peut && x.aConfirmer > 1 ? h('button.btn.petit.primaire', { type: 'button', text: 'Confirmer les ' + x.aConfirmer, onclick: function (e) {
+          var b = e.currentTarget;
+          AMX.confirmer('Confirmer les ' + x.aConfirmer + ' programmes ?', 'Ils sont enregistrés dans vos grilles tels qu\'Einstein AI les a lus. Vérifiez-les d\'abord avec la grille de la banque.', { ok: 'Confirmer' })
+            .then(function (oui) { if (oui) agir({ action: 'grilleRecueAction', id: x.id, op: 'confirmerTout' }, b); });
+        } }) : null,
+        peut && (x.statut === 'erreur' || x.statut === 'pas_grille' || (x.statut === 'a_confirmer' && !x.propositions.some(function (p) { return p.etat === 'confirme' || p.etat === 'enregistre'; }))) ?
+          h('button.btn.petit', { type: 'button', text: 'Relire', title: 'Einstein AI relit ce document', onclick: function (e) {
+            var b = e.currentTarget; b.disabled = true; b.classList.add('occupe');
+            AMX.post({ action: 'grilleRecueAction', id: x.id, op: 'relire' }, { secours: false, rejouer: false, delai: 330000 }).then(function (r) {
+              if (r && r.enCours) throw new Error('Une lecture est déjà en cours : réessayez dans une minute.');
+              AMX.verifier(r, 'Lecture refusée'); return apres(r, 'Grille relue.');
+            }).catch(function (err) { b.disabled = false; b.classList.remove('occupe'); AMX.toast(texteErreur(err), 'erreur'); });
+          } }) : null,
+        peut && x.statut !== 'ignore' && x.statut !== 'traite' ? h('button.btn.petit.fantome', { type: 'button', text: 'Ignorer la grille', onclick: function (e) {
+          var b = e.currentTarget;
+          AMX.confirmer('Ignorer cette grille ?', 'Rien ne sera enregistré dans vos grilles. Le document reste dans « Tout ».', { ok: 'Ignorer' })
+            .then(function (oui) { if (oui) agir({ action: 'grilleRecueAction', id: x.id, op: 'ignorerTout' }, b); });
+        } }) : null
+      ]);
+      var l = x.lecture || {};
+      var el = h('section.tx-recu' + (ton ? '.' + ton : ''), [
+        h('div.tx-recu-tete', [
+          h('div.tx-prog-txt', [h('strong', { text: nomInst + (x.fichier ? ' — ' + x.fichier : '') }), h('span.tx-prog-sous', { text: sous }),
+            h('span.tx-etat' + (x.statut === 'erreur' ? '.tx-neg' : ''), { text: x.statutLibelle + (x.raison && x.statut !== 'a_confirmer' ? ' — ' + x.raison : '') })]),
+          gestes
+        ]),
+        l.resume ? h('p.tx-note', { text: l.resume }) : null,
+        (l.aVerifier || []).length ? h('div.alerte-bloc.attention', [h('strong', 'À vérifier : '), h('ul', l.aVerifier.map(function (t) { return h('li', { text: t }); }))]) : null,
+        x.propositions.length ? h('ul.tx-recu-props', x.propositions.map(function (p) { return ligneProp(x, p, peut); })) : null
+      ]);
+      return el;
+    }
+    function ligneProp(x, p, peut) {
+      var e = ETATS_PROP[p.etat] || [p.etat, ''];
+      var prog = p.prog || {};
+      var paliers = (prog.paliers || []).map(function (q) { return pct(q.taux) + (nb(q.termeMin) || nb(q.termeMax) ? ' (' + (nb(q.termeMin) ? q.termeMin : '…') + '-' + (nb(q.termeMax) ? q.termeMax : '…') + ' m.)' : '') + ' → ' + resumeRistourne(q); }).join('  |  ');
+      var gestes = null;
+      if (peut && (p.etat === 'nouveau' || p.etat === 'change')) {
+        gestes = h('div.tx-recues-gestes', [
+          h('button.btn.petit.primaire', { type: 'button', text: 'Confirmer', onclick: function (ev) {
+            agir({ action: 'grilleRecueAction', id: x.id, i: p.i, op: 'confirmer' }, ev.currentTarget);
+          } }),
+          h('button.btn.petit', { type: 'button', text: 'Vérifier et modifier', onclick: function () { verifier(x, p); } }),
+          h('button.btn.petit.fantome', { type: 'button', text: 'Ignorer', onclick: function (ev) { agir({ action: 'grilleRecueAction', id: x.id, i: p.i, op: 'ignorer' }, ev.currentTarget); } })
+        ]);
+      }
+      return h('li', [
+        h('div.tx-prog-txt', [
+          h('span.tx-recu-nom', [h('strong', { text: (prog.programme || 'Programme') }), h('span.tx-p-etat.' + (e[1] || 'tx-p-pareil'), { text: p.etat === 'planifie' ? 'Prévu le ' + jour(p.appliquerLe) : e[0] })]),
+          h('span.tx-prog-sous', { text: resumeProgramme(prog) }),
+          paliers ? h('span.tx-prog-sous', { text: paliers }) : null,
+          prog.boni && nb(prog.boni.montant) ? h('span.tx-prog-sous', { text: boniDe(prog, {}).texte }) : null,
+          p.cible && p.etat === 'change' ? h('span.tx-prog-sous', { text: 'Remplace « ' + p.cible.programme + ' » (mis à jour le ' + (jour(p.cible.majLe) || '—') + ').' }) : null,
+          p.changements && p.changements.length && p.etat === 'change' ? h('ul.tx-recu-ch', p.changements.map(function (t) { return h('li', { text: t }); })) : null,
+          p.etat === 'planifie' ? h('span.tx-prog-sous.tx-prevu', { text: 'Confirmé le ' + jour(p.faitLe) + (p.faitPar ? ' par ' + p.faitPar : '') + ' : remplacera « ' + ((p.cible && p.cible.programme) || prog.programme) + ' » le ' + jour(p.appliquerLe) + '. La grille actuelle reste en vigueur d\'ici là.' }) : null,
+          (p.etat === 'confirme' || p.etat === 'enregistre' || p.etat === 'ignore') && p.faitLe ? h('span.tx-prog-sous', { text: e[0] + ' le ' + jour(p.faitLe) + (p.faitPar ? ' par ' + p.faitPar : '') + (p.modifie ? ', chiffres corrigés avant l\'enregistrement' : '') + '.' }) : null
+        ]),
+        gestes
+      ]);
+    }
+    relire(false);
+    return m;
   };
 
   /* ------------------------------ Amortissement ------------------------------ */
@@ -974,6 +1233,29 @@
       '.tx-case { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; } .tx-case input { width: 16px; height: 16px; margin: 0; }',
       '.tx-ia { display: flex; flex-direction: column; gap: 12px; } .tx-ia p { margin: 0; }',
       '.tx-prop { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; border: 1px solid var(--ligne); border-radius: 9px; padding: 10px 12px; }',
+      /* grilles reçues */
+      '.tx-recues { display: flex; gap: 14px; align-items: center; justify-content: space-between; padding: 12px 16px; margin-bottom: 14px; flex-wrap: wrap; }',
+      '.tx-recues.attention { border-color: var(--ambre); box-shadow: inset 4px 0 0 var(--ambre); }',
+      '.tx-recues-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 13.5px; } .tx-recues-txt > span { color: var(--encre-2); }',
+      '.tx-recues-adr { display: inline-flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 13px; } .tx-recues-adr code { font-size: 13px; background: var(--carte-2); padding: 1px 6px; border-radius: 5px; word-break: break-all; }',
+      '.tx-recues-gestes { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 0 0 auto; }',
+      '.tx-recues-fen { display: flex; flex-direction: column; gap: 12px; }',
+      '.tx-recues-haut { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; }',
+      '.tx-recues-comment { font-size: 13px; color: var(--encre-2); } .tx-recues-comment summary { cursor: pointer; font-weight: 600; } .tx-recues-comment ol { margin: 8px 0; padding-left: 20px; } .tx-recues-comment li { margin: 3px 0; line-height: 1.5; }',
+      '.tx-recues-barre { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid var(--ligne); padding-top: 10px; } .tx-recues-filtre { width: auto; }',
+      '.tx-recu { border: 1px solid var(--ligne); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }',
+      '.tx-recu.attention { border-left: 4px solid var(--ambre); } .tx-recu.erreur { border-left: 4px solid var(--rouge); } .tx-recu.info { border-left: 4px solid var(--bleu); }',
+      '.tx-recu-tete { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }',
+      '.tx-recu-props { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }',
+      '.tx-recu-props > li { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; padding: 9px 0; border-top: 1px solid var(--ligne); }',
+      '.tx-recu-nom { display: inline-flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 14px; }',
+      '.tx-p-etat { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 5px; }',
+      '.tx-p-nouveau { color: var(--bleu); background: var(--bleu-bg); } .tx-p-change { color: var(--ambre); background: var(--ambre-bg); }',
+      '.tx-p-pareil, .tx-p-ignore { color: var(--encre-3); background: var(--carte-2); } .tx-p-fait { color: var(--vert-fonce); background: var(--vert-clair); }',
+      '.tx-p-prevu { color: var(--bleu); background: var(--bleu-bg); } .tx-prevu { color: var(--encre-2); }',
+      '.tx-recues-barre strong { white-space: nowrap; } .tx-recues-barre select.saisie { width: auto; max-width: 260px; }',
+      '.tx-recu-ch { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--encre-2); } .tx-recu-ch li { margin: 2px 0; }',
+      '@media (max-width: 640px) { .tx-recu-tete, .tx-recu-props > li { flex-direction: column; } }',
       /* amortissement, garantie */
       '.tx-chiffres { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }',
       '.tx-chiffre { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 11px 14px; display: flex; flex-direction: column; gap: 3px; }',
@@ -997,9 +1279,10 @@
 
   /* =============================== Section =============================== */
   AMX.section('taux', {
-    titre: 'Taux et financement', icone: 'resultat', ordre: 18,
+    titre: 'Taux Einstein', icone: 'resultat', ordre: 18,
     visible: function () { return peutVoir(); },
     monter: function (c, ctx) { return new VueTaux(c, ctx); }
   });
-  AMX.taux = { calcul: Calcul, charger: charger, vider: vider, peutVoir: peutVoir };
+  AMX.taux = { calcul: Calcul, charger: charger, vider: vider, peutVoir: peutVoir, enCache: function () { return cache.rep; },
+    recues: function () { return (cache.rep && cache.rep.recues) || null; }, lecture: function () { return LECTURE.en; } };
 })();

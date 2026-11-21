@@ -907,6 +907,43 @@
           peut ? h('button.btn.petit', { type: 'button', id: 'adm-eval-equipe-' + c, text: eq.length ? 'Modifier l\'équipe' : 'Choisir l\'équipe', onclick: function () { self.modaleEquipeEval(c, r); } }) : null
         ]));
       }
+      /* 21 nov. (S0C76692ED3, S007240CC1F, SBE4F94578B, SFB9041A8D5) : qui reçoit le montant confirmé, et les questions au
+         représentant. Trois réglages par concession (montantRep, montantDirection, avisQuestions) ; les deux derniers créent
+         des envois automatiques : le propriétaire seulement. Montrés seulement si le script les connaît (d.envois). */
+      if (d.envois) {
+        var peutEnvois = peut && !!d.peutReglerEnvois;
+        var caseEnvoi = function (cle, coche, permis, texte) {
+          var b = h('input', { type: 'checkbox', id: 'adm-eval-' + cle + '-' + c, checked: coche ? 'checked' : undefined });
+          b.disabled = !permis;
+          b.addEventListener('change', function () {
+            b.disabled = true;
+            var corps = { action: 'evalDemandeAction', op: 'reglages', compagnie: c };
+            corps[cle] = b.checked;
+            AMX.post(corps).then(function (x) {
+              if (x && x.vehicules && !x.reglages) throw new Error('le script n\'est pas à jour (DemandesEval.gs)');
+              if (!x || x.ok === false || x.refuse) throw new Error((x && x.erreur) || 'refusé');
+              if (!x.envois) throw new Error('le script n\'est pas à jour (DemandesEval.gs) : le réglage n\'a pas été enregistré');
+              self.evalEnvoisOuverts = self.evalEnvoisOuverts || {}; self.evalEnvoisOuverts[c] = true;
+              self.rendreEvalReglages(x); AMX.toast(x.message || 'Réglage enregistré.', 'ok');
+              if (AMX.evalDemandes && AMX.evalDemandes.vider) AMX.evalDemandes.vider();
+            }).catch(function (e) { b.checked = !b.checked; b.disabled = !permis; AMX.toast('Réglage impossible — ' + AMX.erreurTexte(e), 'erreur'); });
+          });
+          return h('label.case', { title: permis ? '' : (cle === 'montantRep' ? 'Seul le directeur général de la concession (ou le propriétaire) change ce réglage.' : 'Ce réglage crée des envois automatiques : le propriétaire seulement.') }, [b, h('span', { text: texte })]);
+        };
+        var dirs = r.directeurs || [];
+        var resume = (r.montantRep !== false ? 'le représentant reçoit le montant' : 'le représentant ne reçoit pas le montant') +
+          (r.montantDirection ? ' · la direction aussi' : '') + (r.avisQuestions ? ' · questions par texto' : '');
+        var det = h('details.admin-eval-envois', { style: { margin: '0 0 14px 28px' } }, [
+          h('summary.petit', { style: { cursor: 'pointer' }, text: 'Montant et questions : ' + resume }),
+          h('div', { style: { display: 'grid', gap: '6px', margin: '8px 0 0' } }, [
+            caseEnvoi('montantRep', r.montantRep !== false, peut, 'Le représentant reçoit et voit le montant confirmé (décochée : il est seulement prévenu que l\'évaluation est prête, le montant reste chez la direction)'),
+            caseEnvoi('montantDirection', !!r.montantDirection, peutEnvois, 'Le montant confirmé part aussi à la direction des ventes, par texto sinon courriel' + (dirs.length ? ' (' + dirs.join(', ') + ')' : ' (aucun directeur inscrit pour cette concession)')),
+            caseEnvoi('avisQuestions', !!r.avisQuestions, peutEnvois, 'Une question posée au représentant lui est envoyée, et sa réponse est envoyée à celui qui l\'a posée (texto, sinon courriel)')
+          ])
+        ]);
+        if (self.evalEnvoisOuverts && self.evalEnvoisOuverts[c]) det.open = true;
+        self.elEvalReglListe.appendChild(det);
+      }
     });
   };
   /* Choisir qui reçoit les demandes d'évaluation d'une concession (cases à cocher). POST evalDemandeAction { op: 'reglages', compagnie, equipe: [courriels] }. */

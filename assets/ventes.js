@@ -471,6 +471,7 @@
       '.ventes-trouve { margin: 6px 0 12px; padding: 8px 12px; border-radius: var(--rayon-s); background: var(--vert-clair); border: 1px solid #B6E0C6; font-size: 12.5px; }',
       '.ventes-trouve.gris { background: var(--carte-2); border-color: var(--ligne); color: var(--encre-3); }',
       '.ventes-trouve.alerte { background: #FEF3C7; border-color: #FDE68A; color: #92400E; }',
+      '.ventes-calc-profit { margin-top: 4px; font-size: 12.5px; color: var(--encre-3); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .ventes-calc-profit:empty { display: none; }',
       '.ventes-trouve .btn { margin-left: 8px; }',
       '.ventes-aide { font-size: 12px; color: var(--encre-3); margin: 0 0 10px; line-height: 1.5; }',
       '.ventes-aide.fi { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: var(--rayon-s); padding: 8px 12px; color: #1E3A8A; }',
@@ -1940,7 +1941,7 @@
       v.dateRdr ? ['Date RDR', AMX.fmtDate(v.dateRdr) + (v.codeRdr ? ' · code ' + v.codeRdr : '')] : (v.type === 'neuf' && v.statut !== 'annulee' && !v.horsVente ? ['Date RDR', h('span.puce' + (dateLivraisonOk(v) ? '.alerte' : ''), { text: 'pas inscrite au livre' })] : null),
       [ws ? 'Vendu à' : 'Client', v.client || v.venduA || '—'], v.noClient ? ['No client (DMS)', v.noClient] : null, v.telephone ? ['Téléphone', AMX.telephoneTexte ? AMX.telephoneTexte(v.telephone) : v.telephone] : null, v.courriel ? ['Courriel', v.courriel] : null,
       ws ? ['Acheté de', v.acheteDe || '—'] : null, ['Véhicule', vehiculeTexte(v) || '—'], ['# Stock', v.stock || '—'], ['NIV', v.vin || '—'], v.type !== 'neuf' && (v.acheteur || ws) ? ['Acheteur interne', v.acheteur || '—'] : null, ['Conseiller', v.conseiller || '—'], ws && v.classe ? ['Catégorie', libClasse(v.classe)] : null,   /* 13 nov. (SA87F861E7B) : le wholesale a de nouveau conseiller, paiement et catégorie (le livre de BMW en a besoin) */   /* 9 nov. : l'acheteur de la fiche d'achat */
-      montants ? ['Prix de vente', argent(v.prixVente)] : null, montants && ws ? ['Coûtant', argent(v.coutant)] : null, ['Paiement', libPaiement(v.paiement) || '—'],
+      montants ? ['Prix de vente', argent(v.prixVente)] : null, montants && ws ? ['Coûtant', argent(v.coutant)] : null, montants && ws && v.fraisVente !== undefined && v.fraisVente !== null && v.fraisVente !== '' ? ['Frais de vente', argent(v.fraisVente)] : null, ['Paiement', libPaiement(v.paiement) || '—'],
       montants ? [ws ? 'Profit estimé' : 'Front estimé (voiture)', argent(frontE(v))] : null, montants ? [ws ? 'Profit comptable' : 'Front comptable', frontC(v) === null ? 'pas encore inscrit' : argent(frontC(v))] : null,
       montants && ecartEC(frontE(v), frontC(v)) !== null ? [ws ? 'Écart' : 'Écart front', h('span' + classeEcart(ecartEC(frontE(v), frontC(v))), { text: signe(ecartEC(frontE(v), frontC(v))) + ' (comptable − estimé)' })] : null,
       montants && !ws ? ['Accessoires', argent(v.accessoires)] : null, v.note ? ['Note', v.note] : null
@@ -2733,7 +2734,9 @@
     var champPneus = h('div.champ.champ-pneus', [h('label', { 'for': 'vente-pneus-montant', text: 'Pneus / jantes / mags vendus' }), h('div.ventes-pneus', [segPneus, inPneusMt])]);
     var segMarche = h('div.segment#vente-marche', [['', 'Canada'], ['US', 'É.-U.']].map(function (m) { return h('button' + (marche === m[0] ? '.actif' : ''), { type: 'button', 'data-marche': m[0] || 'CA', text: m[1], disabled: marcheFige ? 'disabled' : undefined, title: marcheFige ? 'La vente est déjà dans cet onglet du livre' : undefined, onclick: function () { if (marcheFige) return; marche = m[0]; segMarche.querySelectorAll('button').forEach(function (b) { b.classList.toggle('actif', (b.dataset.marche === 'US' ? 'US' : '') === marche); }); } }); }));
     var champAcheteur = h('div.champ', [h('label', { 'for': 'vente-acheteur', text: 'Acheteur interne (fiche d\'achat)' }), inAcheteur, elAcheteurFiche]);
-    var blocWholesale = h('div.grille', [champ('vente-marche', 'Marché (onglet du livre)', segMarche), champ('vente-vendua', 'Vendu à', inVenduA, 'large'), champ('vente-achetede', 'Acheté de', inAcheteDe), champ('vente-coutant', 'Coûtant', inCoutant)]);
+    /* 21 nov. (S9059FDBA4D, Marc-André) : frais de la vente wholesale (encan, transport) → colonne « Frais Encan » du livre. */
+    var inFraisVente = h('input.saisie#vente-frais-vente', { type: 'text', inputmode: 'decimal', placeholder: '0,00 $', value: v.fraisVente !== undefined && v.fraisVente !== null && v.fraisVente !== '' ? v.fraisVente : '' });
+    var blocWholesale = h('div.grille', [champ('vente-marche', 'Marché (onglet du livre)', segMarche), champ('vente-vendua', 'Vendu à', inVenduA, 'large'), champ('vente-achetede', 'Acheté de', inAcheteDe), champ('vente-coutant', 'Coûtant', inCoutant), champ('vente-frais-vente', 'Frais de vente (encan, transport)', inFraisVente)]);
     var blocClient = h('div.grille', [champ('vente-client', 'Client', inClient, 'large'), champ('vente-noclient', 'No client (DMS)', inNoClient), champ('vente-telephone', 'Téléphone', inTel), champ('vente-courriel', 'Courriel', inCourriel)]);
     var blocEchange2, btnEchange2;
     var blocEchange = h('div', [
@@ -2765,6 +2768,18 @@
     var titreVente = h('h4', 'Vente — direction des ventes');
     var champLivraison = champ('vente-livraison', 'Livraison (prévue)', inLivraison), champConseiller = champ('vente-conseiller-liste', 'Conseiller', menuConseiller.el);
     var champPaiement = champ('vente-paiement', 'Mode de paiement', selPaiement), champFront = champ('vente-front', 'Profit front prévu', inFront), champAccess = champ('vente-accessoires', 'Accessoires ($)', inAccess);
+    /* Wholesale : profit prévu = prix − coûtant − frais de vente, proposé en un clic. */
+    var elCalcProfit = h('div.ventes-calc-profit'); champFront.appendChild(elCalcProfit);
+    function majCalcProfit() {
+      elCalcProfit.textContent = '';
+      if (type !== 'wholesale') return;
+      var p = nombre(inPrix.value), c = nombre(inCoutant.value), f = nombre(inFraisVente.value) || 0;
+      if (p === null || p === undefined || isNaN(p) || c === null || c === undefined || isNaN(c) || !String(inPrix.value).trim() || !String(inCoutant.value).trim()) return;
+      var r = Math.round((p - c - f) * 100) / 100;
+      elCalcProfit.appendChild(h('span', { text: 'Prix − coûtant' + (f ? ' − frais' : '') + ' = ' + signe(r) + ' ' }));
+      if (nombre(inFront.value) !== r) elCalcProfit.appendChild(h('button.btn.petit.fantome', { type: 'button', text: 'Prendre', onclick: function () { inFront.value = String(r).replace('.', ','); inFront.dispatchEvent(new Event('input', { bubbles: true })); majCalcProfit(); } }));
+    }
+    [inPrix, inCoutant, inFraisVente, inFront].forEach(function (x) { x.addEventListener('input', majCalcProfit); });
     var champClasse = champ('vente-classe', 'Catégorie', selClasse), champCat = champ('vente-categorie', 'Catégorie', selCat);
     var corps = h('div.ventes-form', [
       edition ? h('p.ventes-aide', { text: v.id + ' · ' + (TYPES[v.type] || v.type) + ' · ' + (v.importee ? 'importée du livre' : 'inscrite par ' + (v.declareParNom || v.declarePar || '')) + (v.livre === 'ecrit' ? ' · au livre ligne ' + v.livreLigne : '') + ' · ' + capitale(v.moisLibelle || moisLibelle(moisDeVente(v))) }) : null,
@@ -2808,6 +2823,7 @@
       titreVente.textContent = ws ? 'Vente wholesale' : 'Vente — direction des ventes';
       if (typeof cpPneus !== 'undefined') cpPneus.rendre(selCie.value || cie, type);
       var lf = champFront.querySelector('label'); if (lf) lf.textContent = ws ? 'Profit prévu' : 'Profit front prévu';
+      majCalcProfit();
       champAcheteur.style.display = type === 'neuf' || rachat ? 'none' : '';   /* 9 nov. : occasion et wholesale */
       if (type !== 'neuf' && !rachat) acheteurDeFiche(inVin.value);
       champRdr.style.display = ws ? 'none' : ''; champCodeRdr.style.display = ws || String(selCie.value || cie).toUpperCase() !== 'STM' ? 'none' : '';
@@ -2997,7 +3013,7 @@
           echangeStock: inEchStock.value.trim(), echangeModele: inEchModele.value.trim(), echangeVin: echVin, echangeKm: inEchKm.value.trim(), echangeValeur: inEchValeur.value.trim(), echangeEvaluation: inEchEval.value.trim(), echangeEvalLe: evalMeta.le, echangeEvalPar: evalMeta.par,
           echange2Vin: ech2Vin, echange2Stock: inEch2Stock.value.trim(), echange2Modele: inEch2Modele.value.trim(), echange2Km: inEch2Km.value.trim(), echange2Valeur: inEch2Valeur.value.trim(), echange2Evaluation: inEch2Eval.value.trim(),
           dateRdr: type === 'wholesale' ? '' : inRdr.value, codeRdr: type === 'wholesale' ? '' : inCodeRdr.value.trim(),
-          note: inNote.value.trim(), venduA: inVenduA.value.trim(), acheteDe: inAcheteDe.value.trim(), acheteur: type === 'neuf' ? undefined : inAcheteur.value.trim(), marche: type === 'wholesale' && !marcheFige ? marche : undefined, coutant: inCoutant.value.trim(), source: 'site' };
+          note: inNote.value.trim(), venduA: inVenduA.value.trim(), acheteDe: inAcheteDe.value.trim(), acheteur: type === 'neuf' ? undefined : inAcheteur.value.trim(), marche: type === 'wholesale' && !marcheFige ? marche : undefined, coutant: inCoutant.value.trim(), fraisVente: type === 'wholesale' ? inFraisVente.value.trim() : undefined, source: 'site' };
         /* 26 oct. : le profit F&I et les produits s'inscrivent dans leur propre fenêtre. 5 nov. : le nom du F&I et les pneus / jantes / mags partent avec la vente. */
         if (type !== 'wholesale') {
           corpsEnvoi.directeur = inDirecteur.value.trim();
@@ -3005,7 +3021,7 @@
           if (!(edition && v.montantsMasques && !pneusMtTouche)) corpsEnvoi.pneusMontant = inPneusMt.value.trim();
         }
         /* Un montant masqué (pas le droit de voir les montants) qu'on n'a pas retapé ne part pas : il effacerait le vrai. */
-        if (edition && v.montantsMasques) ['prixVente', 'profitPrevu', 'accessoires', 'overUnder', 'coutant', 'echangeValeur', 'echangeEvaluation', 'echange2Valeur', 'echange2Evaluation'].forEach(function (k) { if (corpsEnvoi[k] === '') delete corpsEnvoi[k]; });
+        if (edition && v.montantsMasques) ['prixVente', 'profitPrevu', 'accessoires', 'overUnder', 'coutant', 'fraisVente', 'echangeValeur', 'echangeEvaluation', 'echange2Valeur', 'echange2Evaluation'].forEach(function (k) { if (corpsEnvoi[k] === '') delete corpsEnvoi[k]; });
         corpsEnvoi.action = edition ? 'venteCompleter' : 'venteDeclarer';
         corpsEnvoi.differe = true;   /* 7 nov. : réponse tout de suite, le livre s'écrit dans la minute (horloge du script) */
         if (edition) corpsEnvoi.id = v.id;

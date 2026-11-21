@@ -839,7 +839,11 @@
     var dessinerValeur = function (ev) {
       AMX.vider(elValeur);
       var valEv = Number(x.valeurEvaluateur || x.valeur) || Number(ev && ev.suivi && ev.suivi.valeurClient) || Number(ev && ev.prixAchat) || 0;
-      if (x.etat === 'faite' && x.valeur) {
+      if (x.etat === 'faite' && x.montantCache) {
+        /* 21 nov. : concession où le montant reste chez la direction — le représentant sait que c'est prêt, sans le montant */
+        elValeur.appendChild(h('div.fe-montant.sans', [h('span', { text: 'Évaluation prête' }), h('small', { text: 'Le montant est chez la direction' + (x.confirmeParNom ? ' (' + x.confirmeParNom + ')' : '') + '.' })]));
+        if (x.noteDirecteur) elValeur.appendChild(h('p.fe-note', [h('b', { text: 'Note de la direction : ' }), x.noteDirecteur]));
+      } else if (x.etat === 'faite' && x.valeur) {
         var modif = dr.modifierValeur ? function () { fermerFiche(); modifierMontant(x); } : null;
         elValeur.appendChild(h('div.fe-montant' + (modif ? '.cliquable' : ''), modif ? { role: 'button', tabindex: '0', title: 'Modifier le montant', onclick: modif, onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); modif(); } } } : {}, [
           h('span', { text: x.circuit === 'directeur' ? 'Valeur confirmée' : 'Valeur donnée' }), h('b', { text: argent(x.valeur) }), x.valideJusqu ? h('small', { text: 'valide jusqu\'au ' + AMX.fmtDate(x.valideJusqu) }) : null,
@@ -853,7 +857,7 @@
         elValeur.appendChild(h('div.fe-montant.sans', [h('span', { text: x.etat === 'approbation' ? 'À approuver' : (x.etat === 'refusee' ? 'Refusée' : (x.etat === 'annulee' ? 'Annulée' : 'Pas encore évaluée')) })]));
       }
       /* 21 nov. : tant que la valeur n'est pas donnée, la feuille de travail (à remplir à la main en faisant le tour du véhicule) */
-      if (travail && !feuille) { var bTravail = h('button.btn.petit.fe-feuille-btn', { type: 'button', title: 'À imprimer avant l\'évaluation : description complète du véhicule (modèle et version), cases à cocher et zones de dommages à remplir à la main. Aucune valeur.', onclick: function () { travail(bTravail); } }, [h('span', { html: I.telecharger || '' }), h('span', { text: 'Feuille de travail' })]); elValeur.appendChild(h('div.fe-feuille', [bTravail, h('span.mini', { text: 'À imprimer avant l\'évaluation.' })])); }
+      if (travail && !feuille && !x.montantCache) { var bTravail = h('button.btn.petit.fe-feuille-btn', { type: 'button', title: 'À imprimer avant l\'évaluation : description complète du véhicule (modèle et version), cases à cocher et zones de dommages à remplir à la main. Aucune valeur.', onclick: function () { travail(bTravail); } }, [h('span', { html: I.telecharger || '' }), h('span', { text: 'Feuille de travail' })]); elValeur.appendChild(h('div.fe-feuille', [bTravail, h('span.mini', { text: 'À imprimer avant l\'évaluation.' })])); }
       if (!ev) return;
       var m = ev.marche || {}, pctM = Number(m.marchePct);
       var repere = [
@@ -1136,7 +1140,8 @@
     var qui = this.portail ? (x.evaluateurNom && x.prise ? 'évaluée par ' + x.evaluateurNom : '') : (x.demandeParNom || '');
     var sous = [x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : '', x.client || '', qui].filter(Boolean).join(' · ');
     var valeur = null;
-    if (x.etat === 'faite' && x.valeur) valeur = h('div.de-l-valeur', [h('b', { text: argent(x.valeur) }), x.expiree ? h('span.rouge', { text: 'échue' }) : (x.issue ? h('span', { text: ISSUES[x.issue] }) : null)]);
+    if (x.etat === 'faite' && x.montantCache) valeur = h('div.de-l-valeur', [h('b', { text: 'Prête' }), h('span', { text: 'voir la direction' })]);
+    else if (x.etat === 'faite' && x.valeur) valeur = h('div.de-l-valeur', [h('b', { text: argent(x.valeur) }), x.expiree ? h('span.rouge', { text: 'échue' }) : (x.issue ? h('span', { text: ISSUES[x.issue] }) : null)]);
     else if (x.etat === 'aconfirmer' && x.valeurEvaluateur && !this.portail) valeur = h('div.de-l-valeur.attente', [h('b', { text: argent(x.valeurEvaluateur) }), h('span', { text: 'à confirmer' })]);
     var badges = [];
     if (x.source === 'traction') badges.push(h('span.badge.sans-point.' + (tractionATraiter(x) ? 'rouge' : 'bleu'), { text: 'Traction' }));
@@ -1199,7 +1204,7 @@
   Vue.prototype.carteCompacte = function (x, d) {
     var self = this, R = reglages(d), c = chrono(x, R), ph = phase(x);
     var bas = c ? h('span.de-chrono.' + c.ton, { text: '⏱ ' + duree(c.min) + (x.etat === 'afaire' && c.min >= R.prise ? ' · pas prise' : '') }) :
-      (x.etat === 'faite' ? h('b.de-mini-valeur', { text: (x.valeur ? argent(x.valeur) : 'valeur') + (x.issue ? ' · ' + ISSUES[x.issue] : (x.expiree ? ' · échue' : '')) }) :
+      (x.etat === 'faite' ? h('b.de-mini-valeur', { text: (x.montantCache ? 'prête · voir la direction' : (x.valeur ? argent(x.valeur) : 'valeur')) + (x.issue ? ' · ' + ISSUES[x.issue] : (x.expiree ? ' · échue' : '')) }) :
         (x.etat === 'approbation' ? h('span.mini', { text: 'depuis ' + duree(depuis(x.creeLe)) }) : (x.etat === 'aconfirmer' ? h('b.de-mini-valeur.attente', { text: (x.valeurEvaluateur ? argent(x.valeurEvaluateur) + ' · ' : '') + 'à confirmer' }) : null)));
     return h('button.de-compact.' + ph + (c ? '.t-' + c.ton : '') + (tractionATraiter(x) ? '.trx-rouge' : ''), { type: 'button', 'data-id': x.id, onclick: function () { self.ouvrirDetail(x.id); } }, [
       h('b', { text: x.vehicule || x.vin }),

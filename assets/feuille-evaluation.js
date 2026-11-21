@@ -77,8 +77,8 @@
       en: { origine: 'Factory warranty', prolongee: 'Extended warranty', motopropulseur: 'Powertrain', assurance: 'Insurance products' }
     },
     options: {
-      fr: { toit: 'Toit ouvrant', cuir: 'Cuir', siegesChauffants: 'Sièges chauffants', volantChauffant: 'Volant chauffant', siegesVentiles: 'Sièges ventilés', navigation: 'Navigation', camera360: 'Caméra 360°', demarreur: 'Démarreur à distance', regulateur: 'Régulateur adaptatif', anglesMorts: 'Angles morts', hayon: 'Hayon électrique', attelage: 'Attelage', son: 'Son haut de gamme', teteHaute: 'Affichage tête haute', marchepieds: 'Marchepieds', caisse: 'Doublure de caisse', cable: 'Câble de recharge (VÉ)' },
-      en: { toit: 'Sunroof', cuir: 'Leather', siegesChauffants: 'Heated seats', volantChauffant: 'Heated steering wheel', siegesVentiles: 'Ventilated seats', navigation: 'Navigation', camera360: '360° camera', demarreur: 'Remote start', regulateur: 'Adaptive cruise', anglesMorts: 'Blind-spot monitoring', hayon: 'Power liftgate', attelage: 'Trailer hitch', son: 'Premium audio', teteHaute: 'Head-up display', marchepieds: 'Running boards', caisse: 'Bedliner', cable: 'Charging cable (EV)' }
+      fr: { climatisation: 'Air climatisé', toit: 'Toit ouvrant', cuir: 'Cuir', siegesChauffants: 'Sièges chauffants', volantChauffant: 'Volant chauffant', siegesVentiles: 'Sièges ventilés', navigation: 'Navigation', camera360: 'Caméra 360°', demarreur: 'Démarreur à distance', regulateur: 'Régulateur adaptatif', anglesMorts: 'Angles morts', hayon: 'Hayon électrique', attelage: 'Attelage', son: 'Son haut de gamme', teteHaute: 'Affichage tête haute', marchepieds: 'Marchepieds', caisse: 'Doublure de caisse', cable: 'Câble de recharge (VÉ)' },
+      en: { climatisation: 'Air conditioning', toit: 'Sunroof', cuir: 'Leather', siegesChauffants: 'Heated seats', volantChauffant: 'Heated steering wheel', siegesVentiles: 'Ventilated seats', navigation: 'Navigation', camera360: '360° camera', demarreur: 'Remote start', regulateur: 'Adaptive cruise', anglesMorts: 'Blind-spot monitoring', hayon: 'Power liftgate', attelage: 'Trailer hitch', son: 'Premium audio', teteHaute: 'Head-up display', marchepieds: 'Running boards', caisse: 'Bedliner', cable: 'Charging cable (EV)' }
     },
     pneus: { fr: {}, en: { 'neufs': 'New', 'bons': 'Good', 'moyens': 'Fair', 'à changer': 'To replace', 'aucun': 'None' } },
     pareBrise: { fr: {}, en: { 'bon': 'Good', 'éclat': 'Chipped', 'fissuré': 'Cracked', 'à changer': 'To replace' } },
@@ -167,7 +167,7 @@
       conseiller: txt(x.demandeParNom), evaluePar: txt(x.faitePar), evalueLe: txt(x.faiteLe), imprimeLe: maintenant,
       vehicule: {
         titre: titre, vin: txt(x.vin), km: nombre(x.km),
-        carrosserie: txt(ev && ev.carrosserie) || txt(dec.carrosserie), moteur: txt(dec.moteur),
+        carrosserie: txt(ev && ev.carrosserie) || txt(dec.carrosserie), moteur: txt(ev && ev.moteur) || txt(dec.moteur),
         carburant: txt(ev && ev.carburant) || txt(dec.carburant), transmission: txt(dec.transmission),
         motricite: txt(ev && ev.motricite) || txt(dec.motricite),
         cles: e.cles || '', couleurExt: e.couleurExt || '', couleurInt: e.couleurInt || ''

@@ -18,7 +18,11 @@
    - Valeur expirée : la feuille s'imprime quand même, et le dit en gros à la place de la validité.
    - Anglais quand la langue du client de la demande est « en ».
 
-   AMX.feuilleEvaluation = { possible(x), ouvrir(x, { portail }), donnees(x, sources), construire(f) } */
+   21 nov. (SDE46C0E402, George Prassinos) : la FEUILLE DE TRAVAIL, à imprimer AVANT l'évaluation — description complète
+   (année, marque, modèle, version), cases à cocher, zones de dommages. Elle ne lit jamais l'évaluation et ne porte aucune valeur.
+
+   AMX.feuilleEvaluation = { possible(x), ouvrir(x, { portail }), donnees(x, sources), construire(f),
+                             travailPossible(x), ouvrirTravail(x, { bouton }), donneesTravail(x, sources), construireTravail(f) } */
 (function () {
   'use strict';
   var AMX = window.AMX;
@@ -219,7 +223,17 @@
       '.fev-decl p { margin: 0 0 4px; font-size: 10.5px; line-height: 1.36; text-align: justify; }',
       '.fev-signatures { display: grid; grid-template-columns: 1.4fr .8fr 1.2fr; gap: 22px; margin-top: 20px; break-inside: avoid; }',
       '.fev-signatures .fev-trait { border-bottom: 1px solid #111; height: 22px; margin-bottom: 3px; }',
-      '.fev-pied { margin-top: 10px; font-size: 9.5px; color: #555; text-align: center; }'
+      '.fev-pied { margin-top: 10px; font-size: 9.5px; color: #555; text-align: center; }',
+      /* 21 nov. : la feuille de travail (avant l'évaluation) — cases à cocher, lignes à remplir, zones de dommages */
+      '.fev-c { display: inline-block; width: 10px; height: 10px; border: 1px solid #111; border-radius: 2px; margin-right: 4px; vertical-align: -1px; position: relative; }',
+      '.fev-c.oui::after { content: "\\2713"; position: absolute; left: 0; top: -4px; font-size: 11px; font-weight: 800; line-height: 1; }',
+      '.fev-choix { display: flex; flex-wrap: wrap; gap: 2px 12px; } .fev-choix span { white-space: nowrap; }',
+      '.fev-blanc { display: inline-block; min-width: 90px; border-bottom: 1px solid #777; height: 12px; vertical-align: bottom; } .fev-blanc.long { min-width: 150px; }',
+      '.fev-tr-veh { display: grid; grid-template-columns: 1.25fr 1fr; gap: 10px; margin-bottom: 8px; }',
+      '.fev-schema svg { display: block; width: 100%; height: auto; max-height: 118px; } .fev-schema-legende { font-size: 9.5px; color: #444; text-align: center; margin-top: 2px; }',
+      '.fev-zones { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 16px; } .fev-zone b { font-size: 10.5px; } .fev-zone .fev-doux { font-size: 9.5px; } .fev-zone .fev-trait { border-bottom: 1px solid #999; height: 15px; }',
+      '.fev-opt-tr { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 10px; }',
+      '.fev-tr-note { margin-top: 8px; padding: 5px 9px; border: 1px dashed #777; border-radius: 4px; font-size: 10.5px; }'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -362,5 +376,165 @@
       .then(function (ok) { enCours = false; if (opts.bouton) opts.bouton.classList.remove('occupe'); return ok; });
   }
 
-  AMX.feuilleEvaluation = { possible: possible, ouvrir: ouvrir, donnees: donnees, construire: construire, injecterCss: injecterCss, textes: T };
+  /* ------------------------------ Feuille de travail (21 nov. 2026) ------------------------------
+     Suggestion SDE46C0E402 (George Prassinos, Hyundai) : « la description complète du véhicule (modèle et version) et un
+     document à imprimer AVANT l'évaluation », pour faire le tour du véhicule et y noter les dommages à la main, comme la
+     feuille de Torque.
+
+     RÈGLES
+     - Elle sort d'une demande qui n'est ni annulée ni refusée — dès l'envoi, avant toute valeur.
+     - Elle ne lit JAMAIS l'évaluation : seulement la demande (ce que le représentant a inscrit), la concession et le
+       décodeur du NIV. Donc aucune valeur, aucun prix, aucun coût, aucune note — un représentant peut l'imprimer.
+     - Document de travail interne, en français ; ce n'est pas la feuille à remettre au client (celle-là vient après,
+       avec la valeur). */
+  var CHOIX_TRAVAIL = {
+    etat: [['excellent', 'Excellent'], ['bon', 'Bon'], ['normal', 'Normal'], ['mauvais', 'Mauvais']],
+    pneus: ['Neufs', 'Bons', 'Moyens', 'À changer', 'Aucun'],
+    pareBrise: ['Bon', 'Éclat', 'Fissuré', 'À changer'],
+    accident: [['non', 'Non'], ['oui', 'Oui'], ['inconnu', 'Inconnu']],
+    cles: [['1', '1'], ['2', '2'], ['3', '3 et plus']]
+  };
+  var ZONES_TRAVAIL = [
+    ['Avant', 'pare-chocs, capot, calandre, phares'], ['Arrière', 'pare-chocs, hayon ou coffre, feux'],
+    ['Côté conducteur', 'ailes, portes, rétroviseur, bas de caisse'], ['Côté passager', 'ailes, portes, rétroviseur, bas de caisse'],
+    ['Toit et vitres', 'toit, pare-brise, vitres'], ['Jantes', 'éraflures, jante faussée, enjoliveurs'],
+    ['Intérieur', 'sièges, tapis, tableau de bord, odeurs'], ['Mécanique', 'moteur, transmission, freins, bruits, fuites']
+  ];
+  /* Vue de dessus, dessin maison (aucune marque) : l'avant est à gauche, le côté conducteur en bas. */
+  var SCHEMA_TRAVAIL = '<svg viewBox="0 0 260 118" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Vue de dessus du véhicule" fill="none" stroke="#111" stroke-width="1.4">'
+    + '<rect x="46" y="12" width="26" height="9" rx="3" fill="#ddd"/><rect x="182" y="12" width="26" height="9" rx="3" fill="#ddd"/>'
+    + '<rect x="46" y="85" width="26" height="9" rx="3" fill="#ddd"/><rect x="182" y="85" width="26" height="9" rx="3" fill="#ddd"/>'
+    + '<rect x="24" y="19" width="212" height="68" rx="26" fill="#fff"/>'
+    + '<path d="M84 27 Q76 53 84 79 M84 27 L104 31 M84 79 L104 75 M104 31 L104 75"/>'
+    + '<path d="M196 29 Q202 53 196 77 M196 29 L180 32 M196 77 L180 74 M180 32 L180 74"/>'
+    + '<path d="M104 31 L180 32 M104 75 L180 74 M140 31 L140 75" stroke-width="1"/>'
+    + '<g fill="#444" stroke="none" font-family="Helvetica, Arial, sans-serif" font-size="8.5" font-weight="700">'
+    + '<text x="2" y="56">AVANT</text><text x="240" y="50" transform="rotate(90 240 50)">ARRIÈRE</text>'
+    + '<text x="130" y="8" text-anchor="middle">CÔTÉ PASSAGER</text><text x="130" y="110" text-anchor="middle">CÔTÉ CONDUCTEUR</text></g></svg>';
+
+  function travailPossible(x) { return !!x && !!x.id && x.etat !== 'annulee' && x.etat !== 'refusee'; }
+
+  /* Les données de la feuille de travail — la demande, la concession, le décodeur. Jamais l'évaluation. */
+  function donneesTravail(x, sources) {
+    sources = sources || {};
+    var info = sources.info || {}, dec = (sources.dec && sources.dec.ok !== false) ? sources.dec : {};
+    var detail = x.detail || {}, suivi = detail.suivi || {}, eD = detail.etatVehicule || {};
+    var annee = txt(x.annee) || txt(dec.annee), marque = txt(x.marque) || txt(dec.marque), modele = txt(x.modele) || txt(dec.modele);
+    var version = txt(dec.version);
+    var titre = txt(x.vehicule) || [annee, marque, modele].filter(Boolean).join(' ');
+    if (version && titre.toLowerCase().indexOf(version.toLowerCase()) < 0) titre = (titre + ' ' + version).trim();
+    var nomCie = txt(info.nomOfficiel) || txt(info.nom) || txt((AMX.COMPAGNIES_TOUTES || {})[x.compagnie]) || txt(x.compagnie);
+    var adresse = [txt(info.adressePhys) || txt(info.adresse), [txt(info.villePhys) || txt(info.ville), txt(info.province)].filter(Boolean).join(', '), txt(info.codePostalPhys) || txt(info.codePostal)].filter(Boolean).join(' · ');
+    return {
+      id: txt(x.id), demandeLe: txt(x.creeLe), imprimeLe: sources.maintenant || new Date(),
+      concession: { nom: nomCie, adresse: adresse, telephone: txt(info.telephone) },
+      client: { nom: txt(suivi.client) || txt(x.client), telephone: txt(x.telephone) },
+      conseiller: txt(x.demandeParNom), evaluateur: txt(x.prisParNom) || txt(x.evaluateurNom),
+      vehicule: {
+        titre: titre, annee: annee, marque: marque, modele: modele, version: version, vin: txt(x.vin), km: nombre(x.km),
+        carrosserie: txt(dec.carrosserie), moteur: txt(dec.moteur), carburant: txt(dec.carburant), transmission: txt(dec.transmission),
+        motricite: txt(dec.motricite), portes: txt(dec.portes), places: txt(dec.places),
+        cles: txt(eD.cles), couleurExt: txt(eD.couleurExt), couleurInt: txt(eD.couleurInt)
+      },
+      /* ce que le représentant a déjà inscrit dans sa demande est coché d'avance ; le reste se coche à la main */
+      etat: {
+        general: txt(eD.general), pneusEte: txt(eD.pneusEte), pneusHiver: txt(eD.pneusHiver), pneusDim: txt(eD.pneusDim),
+        pareBrise: txt(eD.pareBrise), accident: txt(eD.accident),
+        constats: codesDe(eD.constats), options: codesDe(eD.options), garanties: codesDe(eD.garanties)
+      }
+    };
+  }
+
+  function construireTravail(f) {
+    var h = AMX.h, c = f.concession, v = f.vehicule, e = f.etat;
+    var pareil = function (a, b) { return txt(a).toLowerCase() === txt(b).toLowerCase(); };
+    var caseA = function (libelleCase, cochee) { return h('span', [h('i.fev-c' + (cochee ? '.oui' : '')), libelleCase]); };
+    var choix = function (liste, valeur) {
+      return h('div.fev-choix', liste.map(function (o) { var code = Array.isArray(o) ? o[0] : o, nom = Array.isArray(o) ? o[1] : o; return caseA(nom, !!valeur && pareil(valeur, code)); }));
+    };
+    var cases = function (groupe, choisis) {
+      var noms = CODES[groupe].fr;
+      return Object.keys(noms).map(function (k) { return caseA(noms[k], choisis.indexOf(k) >= 0); });
+    };
+    /* une rangée s'imprime toujours : la valeur connue, sinon une ligne à remplir à la main */
+    var rangee = function (nom, valeur, mono) { return h('tr', [h('th', { text: nom }), h('td' + (mono && valeur ? '.fev-mono' : ''), valeur ? { text: valeur } : [h('span.fev-blanc.long')])]); };
+    var tableVeh = h('table.fev-table', [h('tbody', [
+      rangee('Année', v.annee), rangee('Marque', v.marque), rangee('Modèle', v.modele), rangee('Version', v.version),
+      rangee('NIV', v.vin, true),
+      rangee('Odomètre', v.km ? entier(v.km, 'fr') + ' km' : ''),
+      rangee('Carrosserie', libelle('carrosserie', 'fr', v.carrosserie) + (v.portes ? ' · ' + v.portes + ' portes' : '')),
+      rangee('Moteur', v.moteur),
+      rangee('Carburant', libelle('carburant', 'fr', v.carburant)),
+      rangee('Transmission', transmissionTexte('fr', v.transmission)),
+      rangee('Motricité', libelle('motricite', 'fr', v.motricite)),
+      rangee('Couleur', v.couleurExt), rangee('Intérieur', v.couleurInt)
+    ])]);
+    var ligneChoix = function (nom, el) { return h('div', { style: 'margin-bottom:3px' }, [h('b', { text: nom + ' : ' }), el]); };
+    var demande = f.demandeLe ? 'Demandée le ' + dateLongue(f.demandeLe, 'fr', true) : '';
+    return h('div#feuille-eval-impression.fev-page.fev-travail', { lang: 'fr' }, [
+      h('div.fev-entete', [
+        h('div', [h('div.fev-cie-nom', { text: c.nom }), c.adresse ? h('div.fev-doux', { text: c.adresse }) : null, c.telephone ? h('div.fev-doux', { text: c.telephone }) : null]),
+        h('div.fev-titre', [h('h1', { text: 'Feuille de travail' }), h('div.fev-doux', { text: 'Évaluation d\'un véhicule · demande ' + f.id }), demande ? h('div.fev-doux', { text: demande }) : null])
+      ]),
+      h('div.fev-deux', [
+        h('div.fev-boite', [h('span.fev-l', { text: 'Client' }), h('div.fev-fort', { text: f.client.nom || '—' }), f.client.telephone ? h('div', { text: f.client.telephone }) : null]),
+        h('div.fev-boite', [h('span.fev-l', { text: 'Conseiller · évaluateur' }), h('div.fev-fort', { text: f.conseiller || '—' }),
+          h('div', f.evaluateur ? { text: 'Évaluateur : ' + f.evaluateur } : ['Évaluateur : ', h('span.fev-blanc.long')])])
+      ]),
+      h('div.fev-tr-veh', [
+        h('div.fev-boite', [h('span.fev-l', { text: 'Véhicule' }), h('div.fev-veh-titre', { text: v.titre || '—' }), tableVeh]),
+        h('div', [
+          h('div.fev-boite', { style: 'margin-bottom:8px' }, [h('span.fev-l', { text: 'État général' }), choix(CHOIX_TRAVAIL.etat, e.general),
+            h('div', { style: 'margin-top:5px' }, [h('b', { text: 'Clés : ' }), choix(CHOIX_TRAVAIL.cles, v.cles)])]),
+          h('div.fev-boite', [h('span.fev-l', { text: 'Où sont les dommages' }), h('div.fev-schema', { html: SCHEMA_TRAVAIL }),
+            h('div.fev-schema-legende', { text: 'Marquez sur le dessin : X éraflure · O bosse · R rouille · B bris · P peinture refaite' })])
+        ])
+      ]),
+      h('div.fev-boite', { style: 'margin-bottom:8px' }, [h('span.fev-l', { text: 'Dommages et réparations à prévoir' }),
+        h('div.fev-zones', ZONES_TRAVAIL.map(function (z) { return h('div.fev-zone', [h('b', { text: z[0] }), h('span.fev-doux', { text: ' — ' + z[1] }), h('div.fev-trait')]); }))]),
+      h('div.fev-trois', [
+        h('div.fev-boite', [h('span.fev-l', { text: 'Pneus' }), ligneChoix('Été', choix(CHOIX_TRAVAIL.pneus, e.pneusEte)), ligneChoix('Hiver', choix(CHOIX_TRAVAIL.pneus, e.pneusHiver)),
+          h('div', e.pneusDim ? { text: 'Dimension : ' + e.pneusDim } : ['Dimension : ', h('span.fev-blanc')])]),
+        h('div.fev-boite', [h('span.fev-l', { text: 'Pare-brise · accident' }), ligneChoix('Pare-brise', choix(CHOIX_TRAVAIL.pareBrise, e.pareBrise)),
+          ligneChoix('Accident déclaré', choix(CHOIX_TRAVAIL.accident, e.accident)), h('div', ['Montant des dommages : ', h('span.fev-blanc')])]),
+        h('div.fev-boite', [h('span.fev-l', { text: 'À noter' }), h('div.fev-choix', cases('constats', e.constats))])
+      ]),
+      h('div.fev-boite', { style: 'margin-bottom:8px' }, [h('span.fev-l', { text: 'Options' }), h('div.fev-opt-tr', cases('options', e.options)),
+        h('div', { style: 'margin-top:4px' }, ['Autres options : ', h('span.fev-blanc.long'), ' ', h('span.fev-blanc.long')])]),
+      h('div.fev-boite', { style: 'margin-bottom:8px' }, [h('span.fev-l', { text: 'Garanties et protections' }), h('div.fev-choix', cases('garanties', e.garanties))]),
+      h('div.fev-comm', [h('span.fev-l', { text: 'Notes' }), h('div.fev-trait'), h('div.fev-trait'), h('div.fev-trait')]),
+      h('div.fev-tr-note', { text: 'Feuille de travail interne : elle ne porte aucune valeur. La valeur est donnée par l\'évaluateur dans ScanAutomax ; la feuille à remettre au client s\'imprime ensuite, à partir de la même demande.' }),
+      h('div.fev-pied', { text: [c.nom, 'Demande ' + f.id, 'Imprimée le ' + dateLongue(f.imprimeLe, 'fr', true)].filter(Boolean).join(' · ') })
+    ]);
+  }
+
+  function ouvrirTravail(x, opts) {
+    opts = opts || {};
+    if (!travailPossible(x)) { AMX.toast('Pas de feuille de travail pour une demande annulée ou refusée.', 'attention'); return Promise.resolve(false); }
+    if (enCours) return Promise.resolve(false);
+    enCours = true;
+    injecterCss();
+    if (opts.bouton) opts.bouton.classList.add('occupe');
+    /* la concession et le décodeur seulement — jamais l'évaluation */
+    return Promise.all([auPlus(lireInfo(x), 7000), auPlus(lireDecodage(x.vin), 7000)]).then(function (r) {
+      var f = donneesTravail(x, { info: r[0], dec: r[1], maintenant: new Date() });
+      var ancienne = document.getElementById('feuille-eval-impression'); if (ancienne) ancienne.remove();
+      var page = construireTravail(f);
+      document.body.appendChild(page);
+      document.body.classList.add('impression-feuille-eval');
+      var nettoyer = function () {
+        document.body.classList.remove('impression-feuille-eval');
+        window.removeEventListener('afterprint', nettoyer);
+        setTimeout(function () { if (page.parentNode && !page.classList.contains('fev-apercu')) page.remove(); }, 500);
+      };
+      window.addEventListener('afterprint', nettoyer);
+      setTimeout(function () { try { window.print(); } catch (e) { nettoyer(); } }, 80);
+      setTimeout(function () { if (document.body.classList.contains('impression-feuille-eval')) nettoyer(); }, 60000);
+      return true;
+    }).catch(function (e) { AMX.toast('Feuille de travail non préparée — ' + (AMX.erreurTexte ? AMX.erreurTexte(e) : e.message), 'erreur'); return false; })
+      .then(function (ok) { enCours = false; if (opts.bouton) opts.bouton.classList.remove('occupe'); return ok; });
+  }
+
+  AMX.feuilleEvaluation = { possible: possible, ouvrir: ouvrir, donnees: donnees, construire: construire, injecterCss: injecterCss, textes: T,
+    travailPossible: travailPossible, ouvrirTravail: ouvrirTravail, donneesTravail: donneesTravail, construireTravail: construireTravail };
 })();

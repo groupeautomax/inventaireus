@@ -91,7 +91,7 @@
      Les paramètres (préfixes de NIV exportables, écart, ajustement, pas des
      flèches, dates d'encan) et le taux du jour (Banque du Canada) viennent de
      GET ?exportParams=1, gardés 1 h dans la session. */
-  var EXPORT_DEFAUT = { prefixes: ['1', '4', '5'], ecartPct: 3, ecartAchatPct: 4, ecartEchangePct: 3, pasEcart: 0.5, ajustement: 6000, pasAjustement: 500, grosPct: 15, pasGrosPct: 1, alerteMmrPct: 10, tauxManuel: 0, premierEncan: '', derniereExpedition: '' };
+  var EXPORT_DEFAUT = { prefixes: ['1', '4', '5'], ecartPct: 3, ecartAchatPct: 4, ecartEchangePct: 3, pasEcart: 0.5, ajustement: 6000, pasAjustement: 500, grosPct: 15, pasGrosPct: 1, alerteMmrPct: 10, deadCostAjustement: 3000, tauxManuel: 0, premierEncan: '', derniereExpedition: '' };
   var exportCache = { rep: null, quand: 0, promesse: null };
   (function () { try { var o = JSON.parse(sessionStorage.getItem('amx_export_params_v1') || 'null'); if (o && o.rep && Date.now() - o.quand < 3600000) { exportCache.rep = o.rep; exportCache.quand = o.quand; } } catch (e) {} })();
   AMX.export = {
@@ -121,6 +121,10 @@
     },
     oublierVerdicts: function () { exportCache.verdictsQuand = 0; },
     exportable: function (vin) { var v = String(vin || '').trim().toUpperCase(); if (!v) return false; return (AMX.export.params().prefixes || []).some(function (p) { return v.indexOf(String(p).toUpperCase()) === 0; }); },
+    /* 21 nov. (Maxime) : « Dead cost » — le même calcul, mais au taux du jour SANS rien enlever et 3 000 $ retirés au lieu
+       de 6 000 $. Le montant vient de EXPORT_PARAMS.deadCostAjustement s'il existe un jour, sinon 3 000 $. */
+    deadCostAjustement: function () { var a = nombre((AMX.export.params() || {}).deadCostAjustement); return a !== null ? a : 3000; },
+    deadCost: function (mmr, taux) { return AMX.export.calculer(mmr, taux, 0, AMX.export.deadCostAjustement()); },
     calculer: function (mmr, taux, ecartPct, ajustement) {
       var m = nombre(mmr), t = nombre(taux), e = nombre(ecartPct), a = nombre(ajustement);
       if (e === null) e = 0; if (a === null) a = 0;
@@ -396,7 +400,8 @@
       '.eval-export-corps { display: flex; flex-direction: column; gap: 10px; }',
       '.eval-export-ligne { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }',
       '.eval-export-ligne .champ { flex: 1 1 150px; min-width: 130px; max-width: 260px; }',
-      '.eval-export-ligne.saisie .champ.reglages { flex: 1 1 auto; max-width: none; display: flex; align-items: flex-end; }',
+      '.eval-export-ligne.saisie .champ.reglages { flex: 1 1 auto; max-width: none; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px; }',
+      '.eval-export-ligne.saisie .champ.reglages #e-us-reglages { white-space: normal; height: auto; min-height: 32px; text-align: left; max-width: 100%; }',
       '.eval-export-ligne.saisie .champ.reglages label { display: none; }',
       '.eval-export-ligne.saisie .champ.reglages .btn { height: 32px; white-space: nowrap; }',
       '.eval-export-reglages { border: 1px dashed var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--fond); }',
@@ -608,7 +613,7 @@
     this.tractionVehicule = ''; this.tractionManuelle = false;   /* 7 nov. : traction du véhicule (décodeur) et choix de l'utilisateur */
     this.derniereSauvegarde = null;           // bloc `marche` d'une évaluation rechargée
     // Boîte « Canada ou États-Unis ? » (8 oct.) : ce que l'utilisateur a tapé ou réglé pour ce NIV.
-    this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null };
+    this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null, deadCost: false };
     this.exportForce = false;                 // « Comparer quand même » pour un NIV non exportable
     this.rapide = rapideDe(ctx);              // 17 nov. : analyse rapide (?rapide=1), rien n'est enregistré
     this.lectureSeule = lectureDe(ctx);       // 17 nov. (S09FFB49AFC) : regarder une évaluation prise par un autre (?lecture=1)
@@ -782,6 +787,8 @@
         if (AMX.evalDemandes.fiche) autres.push({ texte: 'Fiche de la demande', action: function () { AMX.evalDemandes.fiche(x.id); } });
         /* 19 nov. (S29651453EC) : la feuille à remettre au client, dès que la valeur est donnée (et confirmée, s'il y a un circuit). */
         if (AMX.evalDemandes.feuillePossible && AMX.evalDemandes.feuillePossible(x.id)) autres.push({ texte: 'Feuille d\'évaluation (imprimer / PDF)', action: function () { AMX.evalDemandes.feuille(x.id); } });
+        /* 21 nov. (SDE46C0E402) : la feuille de travail, à imprimer avant l'évaluation (aucune valeur dessus) */
+        if (AMX.evalDemandes.feuilleTravailPossible && AMX.evalDemandes.feuilleTravailPossible(x.id)) autres.push({ texte: 'Feuille de travail (imprimer)', action: function () { AMX.evalDemandes.feuilleTravail(x.id); } });
         el.appendChild(h('div.eval-demande.' + x.etat, [
           h('span.badge.sans-point.' + etiquette[1], { text: etiquette[0], title: x.refusRaison || x.annuleRaison || '' }),
           h('span.eval-demande-txt', { text: ['Demande de ' + (x.demandeParNom || '—'), x.client || '', x.km ? AMX.fmtNombre(Number(x.km)) + ' km' : ''].filter(Boolean).join(' · ') }),
@@ -1327,6 +1334,10 @@
     this.elUsTauxInfo = h('div.eval-export-taux');
     this.elUsReglages = h('div.eval-export-reglages', [h('div.eval-export-ligne', [cTaux.el, cEcart, cAjust, cGrosPct]), this.elUsPrereglages, this.elUsTauxInfo]);
     this.btnUsReglages = h('button.btn.fantome.petit#e-us-reglages', { type: 'button', onclick: function () { self.reglagesOuverts = !self.reglagesOuverts; self.rendreExport(); } });
+    /* 21 nov. (Maxime) : « Dead cost », à cliquer — taux du jour sans rien enlever, 3 000 $ retirés au lieu de 6 000 $. */
+    this.btnUsDead = h('button.btn.petit.fantome#e-us-dead', { type: 'button', 'aria-pressed': 'false', text: 'Dead cost',
+      title: 'Dead cost : le même calcul, au taux du jour sans rien enlever, et ' + fmt(AMX.export.deadCostAjustement()) + ' retirés au lieu de ' + fmt((AMX.export.params() || {}).ajustement || 6000) + '. Cliquez encore pour revenir au calcul habituel.',
+      onclick: function () { self.us.deadCost = !self.us.deadCost; self.rendreExport(); self.planifierAuto(); } });
     this.elUsChaine = h('div.eval-export-chaine');
     // Les trois colonnes de profit, construites une fois
     var col = function (cls, libelle) { var o = { el: null, v: h('div.v.num', '—'), s: h('div.s', '') }; o.el = h('div.eval-export-col.' + cls, [h('div.l', libelle), o.v, o.s]); return o; };
@@ -1336,7 +1347,7 @@
     this.elUsCols = h('div.eval-export-cols', [this.colUs.el, this.colCa.el, this.colDetail.el, this.colMarche.el]);
     this.elUsVerdict = h('div.eval-export-verdict');
     this.elUsCorps = h('div.eval-export-corps', [
-      h('div.eval-export-ligne.saisie', [cMmr.el, cGros.el, h('div.champ.reglages', [h('label', { text: ' ' }), this.btnUsReglages])]),
+      h('div.eval-export-ligne.saisie', [cMmr.el, cGros.el, h('div.champ.reglages', [h('label', { text: ' ' }), this.btnUsDead, this.btnUsReglages])]),
       this.elUsReglages, this.elUsChaine, this.elUsCols, this.elUsVerdict
     ]);
     this.elUsResume = h('div.eval-export-resume');
@@ -1371,6 +1382,11 @@
   // Les valeurs effectives : ce que l'utilisateur a réglé, sinon les paramètres du serveur et le taux du jour.
   Evaluation.prototype.usEffectif = function () {
     var p = AMX.export.params(), t = AMX.export.taux();
+    if (this.us.deadCost) {
+      /* Dead cost : le taux du jour (Banque du Canada) tel quel — le taux tapé à la main seulement si le taux du jour manque. */
+      var tj = t && t.ok ? t.taux : null, ts = this.us.taux !== null && this.us.taux !== undefined ? this.us.taux : null;
+      return { taux: tj !== null ? tj : ts, ecartPct: 0, ajustement: AMX.export.deadCostAjustement(), tauxSource: tj !== null ? (t.source || '') : (ts !== null ? 'saisie' : ''), tauxDate: tj !== null ? (t.date || '') : '', deadCost: true };
+    }
     var taux = this.us.taux !== null && this.us.taux !== undefined ? this.us.taux : (t && t.ok ? t.taux : null);
     var ecart = this.us.ecartPct !== null && this.us.ecartPct !== undefined ? this.us.ecartPct : p.ecartPct;
     var ajust = this.us.ajustement !== null && this.us.ajustement !== undefined ? this.us.ajustement : p.ajustement;
@@ -1466,7 +1482,7 @@
       grosUS: c.grosUS, grosCA: gca.valeur, grosCASource: gca.source, grosCAEstime: !!gca.estime, grosPct: this.usGrosPct(),
       marcheUS: al.marche ? al.marche.moyenne : null, marcheUSn: al.marche ? al.marche.n : null, marcheUSPct: al.pct, alerteMmr: al.alerte === true, alerteMmrSeuil: al.seuil,
       paye: r.paye, profitUS: r.profitUS, profitCA: r.profitCA, profitDetail: r.profitDetail, margeDetailCA: md.valeur, margeDetailBase: md.base,
-      meilleur: v.meilleur, second: v.second, ecart: v.ecart, verdict: v.verdict, calculeLe: new Date().toISOString() };
+      meilleur: v.meilleur, second: v.second, ecart: v.ecart, verdict: v.verdict, deadCost: !!this.us.deadCost, calculeLe: new Date().toISOString() };
   };
 
   Evaluation.prototype.rendreExport = function () {
@@ -1499,6 +1515,7 @@
       if (alR.alerte) this.elUsResume.appendChild(h('span.badge.rouge', { text: 'Marché É.-U. ' + (alR.pct >= 0 ? '+' : '') + alR.pct + ' % vs MMR (seuil ' + alR.seuil + ' %)' }));
       if (v.verdict) {
         this.elUsResume.appendChild(h('span.badge.' + AMX.export.classeVerdict(v), { text: AMX.export.phraseVerdict(v) }));
+        if (this.us.deadCost) this.elUsResume.appendChild(h('span.badge.bleu', { text: 'Dead cost' }));
         this.elUsResume.appendChild(h('span', { text: AMX.export.texteProfits(v) }));
       } else if (!alR.alerte) {
         this.elUsResume.appendChild(h('span', { text: 'Cliquez pour comparer les profits (É.-U., gros Canada, détail).' }));
@@ -1519,10 +1536,15 @@
     if (this.us.grosCA === '' || this.us.grosCA === null) this.elUsGrosCA.placeholder = gca.valeur !== null ? fmt(gca.valeur) + (gca.estime ? ' (estimé)' : '') : 'Encan / eBlock';
     // Réglages : un résumé sur une ligne, les champs seulement si on ouvre.
     var t = AMX.export.taux();
-    this.btnUsReglages.textContent = (this.reglagesOuverts ? 'Fermer les réglages' : 'Réglages') + ' : taux ' + (e.taux !== null ? e.taux.toFixed(4) : '—') + ' − ' + e.ecartPct + ' % · − ' + fmt(e.ajustement) + ' · gros estimé − ' + this.usGrosPct() + ' %';
+    var dead = !!this.us.deadCost;
+    this.btnUsDead.setAttribute('aria-pressed', dead ? 'true' : 'false');
+    this.btnUsDead.classList.toggle('primaire', dead); this.btnUsDead.classList.toggle('fantome', !dead);
+    this.btnUsDead.textContent = dead ? '✓ Dead cost' : 'Dead cost';
+    this.btnUsReglages.textContent = (this.reglagesOuverts ? 'Fermer les réglages' : 'Réglages') + ' : taux ' + (e.taux !== null ? e.taux.toFixed(4) : '—') + (dead ? ' (rien d\'enlevé)' : ' − ' + e.ecartPct + ' %') + ' · − ' + fmt(e.ajustement) + ' · gros estimé − ' + this.usGrosPct() + ' %';
     this.elUsReglages.style.display = this.reglagesOuverts ? '' : 'none';
     AMX.vider(this.elUsPrereglages);
     var pre = function (txt, pct, actif) { return h('button.btn' + (actif ? '.primaire' : '.fantome'), { type: 'button', text: txt + ' ' + pct + ' %', onclick: function () { self.elUsEcart.value = String(pct); self.usModifie('ecart'); } }); };
+    if (dead) this.elUsPrereglages.appendChild(h('span.puce.info', { text: 'Dead cost : l\'écart au taux et l\'ajustement ne servent pas (taux du jour, − ' + fmt(e.ajustement) + ').' }));
     this.elUsPrereglages.appendChild(h('span', { text: 'Écart au taux :' }));
     this.elUsPrereglages.appendChild(pre('Achat', p.ecartAchatPct, e.ecartPct === p.ecartAchatPct));
     this.elUsPrereglages.appendChild(pre('Échange', p.ecartEchangePct, e.ecartPct === p.ecartEchangePct && p.ecartEchangePct !== p.ecartAchatPct));
@@ -1536,11 +1558,13 @@
     // La chaîne du calcul É.-U., en clair
     AMX.vider(this.elUsChaine);
     if (c.grosUS !== null) {
-      this.elUsChaine.appendChild(h('span', { text: 'Prix de vente É.-U. : ' + AMX.fmtNombre(c.mmr) + ' $ US × ' + c.tauxAjuste.toFixed(4) + ' (' + c.taux.toFixed(4) + ' − ' + c.ecartPct + ' %) = ' + fmt(c.converti) + ' − ' + fmt(c.ajustement) + ' = ' }));
+      if (dead) this.elUsChaine.appendChild(h('span', { text: 'Dead cost : ' + AMX.fmtNombre(c.mmr) + ' $ US × ' + c.taux.toFixed(4) + ' (taux du jour, rien d\'enlevé) = ' + fmt(c.converti) + ' − ' + fmt(c.ajustement) + ' = ' }));
+      else this.elUsChaine.appendChild(h('span', { text: 'Prix de vente É.-U. : ' + AMX.fmtNombre(c.mmr) + ' $ US × ' + c.tauxAjuste.toFixed(4) + ' (' + c.taux.toFixed(4) + ' − ' + c.ecartPct + ' %) = ' + fmt(c.converti) + ' − ' + fmt(c.ajustement) + ' = ' }));
       this.elUsChaine.appendChild(h('b', { text: fmt(c.grosUS) + ' CA' }));
     } else this.elUsChaine.appendChild(h('span.doux', { text: c.taux === null ? 'Taux du jour indisponible : tapez-le dans les réglages.' : 'Entrez le MMR ($ US).' }));
     // Trois colonnes : profit É.-U. | profit gros Canada | profit détail Canada
     var payeTexte = r.paye !== null ? fmt(r.paye) : 'prix payé ?';
+    this.colUs.el.firstChild.textContent = dead ? 'Profit É.-U. (dead cost)' : 'Profit É.-U.';
     this.colUs.el.classList.toggle('gagnant', v.verdict === 'us'); this.colUs.v.textContent = fmt(r.profitUS);
     this.colUs.s.textContent = c.grosUS !== null ? (r.paye !== null ? fmt(c.grosUS) + ' − payé ' + payeTexte : 'Prix payé à entrer') : 'MMR à entrer';
     this.colCa.el.classList.toggle('gagnant', v.verdict === 'ca'); this.colCa.el.classList.toggle('estime', !!gca.estime); this.colCa.v.textContent = fmt(r.profitCA);
@@ -2757,7 +2781,9 @@
     this.us = { mmr: u && u.mmr !== null && u.mmr !== undefined ? String(u.mmr) : '', taux: u && u.tauxSource === 'saisie' && u.taux ? u.taux : null, tauxDate: '', tauxSource: u && u.tauxSource === 'saisie' ? 'saisie' : '',
       ecartPct: u && u.ecartPct !== null && u.ecartPct !== undefined ? u.ecartPct : null, ajustement: u && u.ajustement !== null && u.ajustement !== undefined ? u.ajustement : null,
       grosCA: u && u.grosCASource === 'saisie' && u.grosCA !== null && u.grosCA !== undefined ? String(u.grosCA) : '', grosCASource: u && u.grosCASource === 'saisie' ? 'saisie' : '',
-      grosPct: u && u.grosPct !== null && u.grosPct !== undefined ? nombre(u.grosPct) : null };
+      grosPct: u && u.grosPct !== null && u.grosPct !== undefined ? nombre(u.grosPct) : null, deadCost: !!(u && u.deadCost) };
+    /* Dead cost : l'écart (0) et l'ajustement (3 000 $) gardés avec l'évaluation viennent du mode, pas d'un réglage tapé. */
+    if (this.us.deadCost) { this.us.ecartPct = null; this.us.ajustement = null; if (!(u && u.tauxSource === 'saisie')) this.us.taux = null; }
     this.exportForce = !!(u && u.mmr !== null && u.mmr !== undefined && String(u.mmr) !== '');
     if (this.derniereSauvegarde && this.derniereSauvegarde.portee) { var pv = this.derniereSauvegarde.pays === 'us' ? 'us' : 'ca'; this.portee[pv] = porteeValide(this.derniereSauvegarde.portee, this.portee[pv]); if (this.derniereSauvegarde.etat && ETATS[pv][this.derniereSauvegarde.etat]) this.etats[pv] = this.derniereSauvegarde.etat; }
     // Statut posé par le serveur (Api.gs) : « auto » ou « enregistree » ; les anciennes fiches sans statut ont été enregistrées à la main.
@@ -2799,7 +2825,7 @@
     this.rendreSauvegarde();
     this.remplirSuivi({});
     this.rappels = null; this.rappelsCle = ''; this.rendreRappels();
-    this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null };
+    this.us = { mmr: '', taux: null, tauxDate: '', tauxSource: '', ecartPct: null, ajustement: null, grosCA: '', grosCASource: '', grosPct: null, deadCost: false };
     this.exportForce = false;
     this.analyses = { ca: null, us: null };
     this.sigAnalyse = { ca: '', us: '' };

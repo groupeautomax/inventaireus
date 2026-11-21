@@ -1,0 +1,1005 @@
+/* =========================================================================
+   Vente › Taux et financement — comparer les programmes des banques (21 novembre 2026)
+
+   Maxime : « ce n'est pas le tableau de bord de Torque que je veux, c'est Intellitaux — regarde ce que tu peux trouver pour
+   faire le même outil ». Quatre vues, en onglets dans la page :
+     Comparateur          — pour une transaction (année, montant financé taxes incluses, terme, taux vendu), chaque
+                            programme des banques : taux, ristourne, boni, gain du client par versement, potentiel.
+     Grilles de taux      — les programmes inscrits, par institution ; ajouter, modifier, joindre le PDF de la banque,
+                            « Lire une grille (PDF) avec Einstein » (il PROPOSE, une personne vérifie et enregistre).
+     Amortissement        — le tableau d'un prêt ou d'une location, à imprimer.
+     Garantie prolongée   — le graphique mois × kilométrage : financement, garantie du manufacturier, protection.
+
+   Les taux sont NOS grilles (TauxBanques.gs, feuille TauxProgrammes) : rien n'est repris d'un autre outil.
+   Formules (vérifiées le 21 nov. sur un exemple : 35 000 $, 72 mois, 8,49 % → 622,07 $ par mois) :
+     paiement            = P × i ÷ (1 − (1 + i)^−n), i = taux ÷ 12, 26 ou 52 ;
+     gain par versement  = (paiement au taux vendu − paiement au taux du palier) ÷ (1 + taxes) — l'écart AVANT taxes ;
+     gain total          = gain par versement × nombre de versements ;
+     ristourne           = % du montant financé, ou $ fixe, ou par tranche de montant ;
+     potentiel           = ristourne + gain total (le boni est montré à part).
+   Réservé à la direction et au F&I (le serveur refuse les autres). Rien n'est gardé dans le navigateur, sauf la dernière
+   transaction tapée (des chiffres, aucun client).
+   ========================================================================= */
+(function () {
+  'use strict';
+  var h = AMX.h, I = AMX.icones || {};
+  var SCRIPT_PAS_A_JOUR = 'Le script n\'est pas à jour : déployez une nouvelle version (TauxBanques.gs).';
+  var VUES = ['comparateur', 'grilles', 'amortissement', 'garantie'];
+  var SOUS = {
+    comparateur: 'Comparez les programmes des banques pour une transaction.',
+    grilles: 'Les programmes des banques inscrits pour vos concessions.',
+    amortissement: 'Le tableau d\'un prêt ou d\'une location, versement par versement.',
+    garantie: 'Ce que le client finance, et ce qui est encore garanti.'
+  };
+  var MODALITES = [['mois', 'Au mois', 'par mois'], ['deuxSemaines', 'Aux 2 semaines', 'aux 2 semaines'], ['semaine', 'À la semaine', 'par semaine']];
+  var PROVINCES = [['QC', 'Québec — TPS + TVQ 14,975 %', 0.14975], ['ON', 'Ontario — TVH 13 %', 0.13]];
+  var INSTITUTIONS = ['Banque Nationale', 'Banque Royale (RBC)', 'Banque Scotia', 'Banque TD', 'BMO', 'CIBC', 'Desjardins', 'iA Financement auto', 'Banque Laurentienne', 'Santander', 'Eden Park', 'BMW Services financiers', 'Financière GM', 'Hyundai Finance', 'VW Finance'];
+  var ETATS = { neuf: 'Neufs', occasion: 'Occasions', tous: 'Neufs et occasions' };
+  var CLIENTS = { particulier: 'Particuliers', entreprise: 'Entreprises', tous: 'Tous les clients' };
+  var C_BLEU = '#2a78d6', C_ORANGE = '#eb6834';
+
+  /* =============================== Calculs (purs) =============================== */
+  var PAR_AN = { mois: 12, deuxSemaines: 26, semaine: 52 };
+  function nb(x) { return typeof x === 'number' && isFinite(x); }
+  function num(x) {
+    if (nb(x)) return x;
+    var s = String(x === null || x === undefined ? '' : x).replace(/[\s  $%]/g, '').replace(',', '.');
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+    var n = Number(s); return isFinite(n) ? n : null;
+  }
+  function cents(x) { return Math.round((x + (x >= 0 ? 1e-9 : -1e-9)) * 100) / 100; }
+  function parAn(modalite) { return PAR_AN[modalite] || 12; }
+  function nbVersements(terme, modalite) { return Math.max(1, Math.round((Number(terme) || 0) * parAn(modalite) / 12)); }
+  /* Le versement, non arrondi. opts.residuel = valeur à la fin du terme (location) ; opts.debut = versement en début de période. */
+  function paiement(montant, taux, terme, modalite, opts) {
+    opts = opts || {};
+    var P = Number(montant) || 0, R = Number(opts.residuel) || 0;
+    if (!(P > 0) || !(Number(terme) > 0)) return 0;
+    var n = nbVersements(terme, modalite), i = (Number(taux) || 0) / 100 / parAn(modalite), pmt;
+    if (i === 0) pmt = (P - R) / n;
+    else { var v = Math.pow(1 + i, -n); pmt = (P - R * v) * i / (1 - v); if (opts.debut) pmt = pmt / (1 + i); }
+    return pmt;
+  }
+  /* La ristourne d'un palier pour un montant financé, et la tranche d'après. */
+  function ristourne(palier, montant) {
+    var M = Number(montant) || 0, out = { montant: 0, pct: null, tranche: null, suivante: null };
+    var tr = (palier && palier.tranches) || [];
+    if (tr.length) {
+      var ici = null, apres = null;
+      tr.forEach(function (t) {
+        var de = Number(t.de) || 0, a = nb(t.a) ? t.a : null;
+        if (M >= de && (a === null || M < a)) ici = t;
+        else if (de > M && (!apres || de < apres.de)) apres = t;
+      });
+      if (ici) { out.montant = (ici.fixe || 0) + (ici.pct ? M * ici.pct / 100 : 0); out.pct = ici.pct || null; out.tranche = ici; }
+      if (apres) out.suivante = { de: apres.de, manque: apres.de - M, montant: (apres.fixe || 0) + (apres.pct ? apres.de * apres.pct / 100 : 0) };
+    } else if (palier) {
+      out.montant = (palier.fixe || 0) + (palier.pct ? M * palier.pct / 100 : 0); out.pct = palier.pct || null;
+    }
+    out.montant = cents(out.montant);
+    return out;
+  }
+  function termeMaxDe(p, annee) {
+    var t = p && p.termes && p.termes[String(annee)];
+    return nb(t) ? t : (nb(p && p.termeMax) ? p.termeMax : null);
+  }
+  function palierVaut(palier, terme) { return (!nb(palier.termeMin) || terme >= palier.termeMin) && (!nb(palier.termeMax) || terme <= palier.termeMax); }
+  /* Le boni d'un programme pour cette transaction : { montant, applicable, texte }. */
+  function boniDe(p, t) {
+    var b = p && p.boni; if (!b) return { montant: 0, applicable: false, texte: '' };
+    var cond = [], ok = true;
+    if (nb(b.anneeMin) || nb(b.anneeMax)) {
+      cond.push('Année du véhicule : ' + (nb(b.anneeMin) ? b.anneeMin : '…') + ' jusqu\'à ' + (nb(b.anneeMax) ? b.anneeMax : '…'));
+      if (nb(t.annee) && ((nb(b.anneeMin) && t.annee < b.anneeMin) || (nb(b.anneeMax) && t.annee > b.anneeMax))) ok = false;
+    }
+    if (nb(b.prixMin)) { cond.push('Montant : à partir de ' + AMX.fmtArgent(b.prixMin)); if (nb(t.montant) && t.montant < b.prixMin) ok = false; }
+    var texte = (b.montant ? 'Boni jusqu\'à ' + AMX.fmtArgent(b.montant) : 'Boni') + (cond.length ? ' · ' + cond.join(' · ') : '') + (b.note ? ' · ' + b.note : '');
+    return { montant: b.montant || 0, applicable: ok && !!b.montant, texte: texte };
+  }
+  /* Pourquoi un programme ne s'applique pas : { filtre: true } (pas le type demandé) ou { raisons: [...] }. */
+  function admissible(p, t) {
+    if (t.typeTaux && p.typeTaux !== t.typeTaux) return { filtre: true };
+    if (t.cie && p.concessions && p.concessions.length && p.concessions.indexOf(t.cie) < 0) return { filtre: true };
+    var r = [];
+    if (p.enVigueur === false) r.push(p.actif === false ? 'programme retiré' : (p.aVenir ? 'commence le ' + p.debut : 'terminé le ' + p.fin));
+    if (p.etat && p.etat !== 'tous' && t.etat && p.etat !== t.etat) r.push(p.etat === 'neuf' ? 'véhicules neufs seulement' : 'véhicules d\'occasion seulement');
+    if (p.client && p.client !== 'tous' && t.client && p.client !== t.client) r.push(p.client === 'entreprise' ? 'entreprises seulement' : 'particuliers seulement');
+    if (nb(t.annee) && ((nb(p.anneeMin) && t.annee < p.anneeMin) || (nb(p.anneeMax) && t.annee > p.anneeMax))) r.push('années ' + (nb(p.anneeMin) ? p.anneeMin : '…') + ' à ' + (nb(p.anneeMax) ? p.anneeMax : '…'));
+    if (nb(t.montant) && nb(p.montantMin) && t.montant < p.montantMin) r.push('montant minimal ' + AMX.fmtArgent(p.montantMin));
+    if (nb(t.montant) && nb(p.montantMax) && t.montant > p.montantMax) r.push('montant maximal ' + AMX.fmtArgent(p.montantMax));
+    var tm = termeMaxDe(p, t.annee);
+    if (nb(t.terme) && nb(tm) && t.terme > tm) r.push('terme maximal ' + tm + ' mois');
+    if (!r.length && nb(t.terme) && !(p.paliers || []).some(function (x) { return palierVaut(x, t.terme); })) r.push('aucun taux pour un terme de ' + t.terme + ' mois');
+    return { raisons: r };
+  }
+  /* La comparaison. t = { annee, montant, terme, tauxVendu, modalite, etat, client, typeTaux, cie }, taxe = 0.14975. */
+  function comparer(programmes, t, taxe) {
+    var complet = nb(t.tauxVendu) && t.tauxVendu > 0, n = nbVersements(t.terme, t.modalite);
+    var vendu = complet ? paiement(t.montant, t.tauxVendu, t.terme, t.modalite) : null;
+    var lignes = [], exclus = [];
+    (programmes || []).forEach(function (p) {
+      var a = admissible(p, t);
+      if (a.filtre) return;
+      if (a.raisons.length) { exclus.push({ p: p, raisons: a.raisons }); return; }
+      var boni = boniDe(p, t), meilleur = null, tauxMin = null;
+      var paliers = (p.paliers || []).filter(function (x) { return palierVaut(x, t.terme); }).map(function (x) {
+        var r = ristourne(x, t.montant), o = { palier: x, taux: x.taux, ristourne: r.montant, pct: r.pct, suivante: r.suivante, paiement: paiement(t.montant, x.taux, t.terme, t.modalite) };
+        o.ristBoni = cents(r.montant + (boni.applicable ? boni.montant : 0));
+        if (complet) {
+          o.gainVersement = (cents(vendu) - cents(o.paiement)) / (1 + (taxe || 0));   /* les versements au cent près, comme le client les paie */
+          o.gainTotal = o.gainVersement * n;
+          o.potentiel = r.montant + o.gainTotal;
+          if (meilleur === null || o.potentiel > meilleur) meilleur = o.potentiel;
+        }
+        if (tauxMin === null || x.taux < tauxMin) tauxMin = x.taux;
+        return o;
+      });
+      lignes.push({ p: p, paliers: paliers, boni: boni, termeMax: termeMaxDe(p, t.annee), meilleur: meilleur, tauxMin: tauxMin });
+    });
+    lignes.sort(complet
+      ? function (a, b) { return (b.meilleur - a.meilleur) || String(a.p.institution).localeCompare(String(b.p.institution)); }
+      : function (a, b) { return (a.tauxMin - b.tauxMin) || String(a.p.institution).localeCompare(String(b.p.institution)); });
+    return { complet: complet, versements: n, paiementVendu: vendu, lignes: lignes, exclus: exclus };
+  }
+  function ajouterPeriodes(iso, k, modalite) {
+    var d = new Date(String(iso || '').slice(0, 10) + 'T12:00:00');
+    if (!isFinite(d.getTime())) return '';
+    if (modalite === 'semaine') d.setDate(d.getDate() + 7 * k);
+    else if (modalite === 'deuxSemaines') d.setDate(d.getDate() + 14 * k);
+    else { var j = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + k); d.setDate(Math.min(j, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); }
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  /* Le tableau d'amortissement. Prêt : versement en fin de période, solde à 0. Location : versement en début de période,
+     solde = la valeur résiduelle à la fin du terme. */
+  function amortissement(o) {
+    var P = Number(o.montant) || 0, location = !!o.location, R = location ? (Number(o.residuel) || 0) : 0;
+    var n = nbVersements(o.terme, o.modalite), i = (Number(o.taux) || 0) / 100 / parAn(o.modalite);
+    if (!(P > 0) || !(Number(o.terme) > 0) || R >= P) return null;
+    var pmt = cents(paiement(P, o.taux, o.terme, o.modalite, { residuel: R, debut: location }));
+    var solde = P, lignes = [], totalInt = 0, totalVerse = 0;
+    for (var k = 1; k <= n; k++) {
+      var interet = location ? (k === 1 ? 0 : cents(solde * i)) : cents(solde * i);
+      var verse = pmt;
+      if (!location && k === n) verse = cents(solde + interet);   /* le dernier versement solde le prêt au cent près */
+      var capital = cents(verse - interet);
+      solde = cents(solde - capital);
+      totalInt += interet; totalVerse += verse;
+      lignes.push({ n: k, date: ajouterPeriodes(o.date, location ? k - 1 : k, o.modalite), versement: verse, interet: interet, capital: capital, solde: solde });
+    }
+    var fin = null;
+    if (location) { var dernier = cents(solde * i); totalInt += dernier; fin = { date: ajouterPeriodes(o.date, n, o.modalite), interet: dernier, solde: cents(solde + dernier) }; }
+    return { paiement: pmt, versements: n, totalInterets: cents(totalInt), totalVerse: cents(totalVerse), lignes: lignes, fin: fin, residuel: R, location: location };
+  }
+  /* La couverture : où finit chaque garantie sur la route du véhicule (mois depuis la mise en service, km). */
+  function garantie(o) {
+    var age = Math.max(0, Number(o.ageMois) || 0), km0 = Math.max(0, Number(o.kmActuel) || 0), kmMois = Math.max(0, Number(o.kmAn) || 0) / 12, terme = Math.max(0, Number(o.terme) || 0);
+    var finFin = age + terme;
+    function fin(g) {
+      if (!g || !(g.mois > 0) || !(g.km > 0)) return null;
+      var tKm = g.km <= km0 ? age : (kmMois > 0 ? age + (g.km - km0) / kmMois : Infinity);
+      var t = Math.min(g.mois, tKm);
+      return { mois: g.mois, km: g.km, finMois: t, dansMois: Math.max(0, t - age), cause: tKm < g.mois ? 'km' : 'temps', expiree: t <= age };
+    }
+    var m = fin(o.manuf), p = fin(o.prot);
+    var finM = m ? m.finMois : age, finP = p ? Math.max(finM, p.finMois) : finM;
+    return {
+      age: age, km0: km0, kmFin: km0 + kmMois * terme, finFinancement: finFin, manuf: m, prot: p,
+      sansGarantie: Math.max(0, finFin - Math.max(age, finM)),
+      sansProtection: Math.max(0, finFin - Math.max(age, finP)),
+      gagne: Math.max(0, Math.min(finFin, finP) - Math.max(age, finM))
+    };
+  }
+  var Calcul = { num: num, cents: cents, parAn: parAn, nbVersements: nbVersements, paiement: paiement, ristourne: ristourne, termeMaxDe: termeMaxDe, palierVaut: palierVaut,
+    boniDe: boniDe, admissible: admissible, comparer: comparer, ajouterPeriodes: ajouterPeriodes, amortissement: amortissement, garantie: garantie };
+
+  /* =============================== Données =============================== */
+  var cache = { rep: null, quand: 0, promesse: null };
+  function peutVoir() {
+    var s = AMX.session || {}, p = s.perms || {}, r = String(s.role || '');
+    if (r === 'inactif') return false;
+    return ['proprietaire', 'admin', 'gestionnaire', 'direction_ventes', 'directeur_commercial'].indexOf(r) >= 0 || p.ventesFI === true || !!p.gererUtilisateurs || !!p.gererAdmins;
+  }
+  function charger(force) {
+    if (!force && cache.rep && Date.now() - cache.quand < AMX.dureeCopie(120000)) return Promise.resolve(cache.rep);
+    if (!force && cache.promesse) return cache.promesse;
+    cache.promesse = AMX.get({ tauxBanques: 1 }, { delai: 60000 }).then(function (d) {
+      AMX.verifier(d, 'Programmes illisibles');
+      if (d.tauxBanques !== true || !Array.isArray(d.programmes)) throw new Error(SCRIPT_PAS_A_JOUR);
+      cache.rep = d; cache.quand = Date.now(); cache.promesse = null; return d;
+    }, function (e) { cache.promesse = null; throw e; });
+    return cache.promesse;
+  }
+  function vider() { cache.rep = null; cache.quand = 0; cache.promesse = null; }
+  function poster(corps, opts) {
+    return AMX.post(corps, opts || { secours: false, rejouer: false, delai: 60000 }).then(function (d) {
+      AMX.verifier(d, 'Enregistrement refusé');
+      if (d.tauxBanques !== true) throw new Error(SCRIPT_PAS_A_JOUR);
+      return d;
+    });
+  }
+  function texteErreur(e) { return AMX.erreurTexte ? AMX.erreurTexte(e) : ((e && e.message) || 'Erreur'); }
+
+  /* =============================== Aides d'écran =============================== */
+  function argent(x, d) { return nb(x) ? AMX.fmtArgent(x, d === undefined ? 2 : d) : '—'; }
+  function pct(x) { return nb(x) ? x.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + ' %' : '—'; }
+  function jour(iso) { if (!iso) return ''; var d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return isFinite(d.getTime()) ? d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' }) : String(iso); }
+  function aujIso() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function modaliteLib(m, court) { var x = MODALITES.filter(function (y) { return y[0] === m; })[0] || MODALITES[0]; return court ? x[2] : x[1]; }
+  function champ(libelle, el, aide) { return h('div.champ', [h('label', { text: libelle }), el, aide ? h('span.aide', { text: aide }) : null]); }
+  function saisie(type, valeur, attrs) {
+    var a = { type: type || 'text', autocomplete: 'off' }; Object.keys(attrs || {}).forEach(function (k) { a[k] = attrs[k]; });
+    var el = h('input.saisie', a); if (valeur !== undefined && valeur !== null) el.value = String(valeur); return el;
+  }
+  function choix(options, valeur, attrs) {
+    var el = h('select.saisie', attrs || {}, options.map(function (o) { return h('option', { value: o[0], text: o[1] }); }));
+    el.value = valeur === undefined || valeur === null ? '' : String(valeur); if (el.selectedIndex < 0) el.selectedIndex = 0; return el;
+  }
+  function provinceDefaut(d) {
+    var cie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
+    var taxe = d && d.taxes && cie ? d.taxes[cie] : null;
+    return taxe && Math.abs(taxe - 0.13) < 1e-6 ? 'ON' : 'QC';
+  }
+  function taxeDe(prov) { var x = PROVINCES.filter(function (p) { return p[0] === prov; })[0] || PROVINCES[0]; return x[2]; }
+  function lireFichier(f) {
+    return new Promise(function (ok, non) {
+      var r = new FileReader();
+      r.onload = function () { ok(String(r.result || '').replace(/^data:[^,]*,/, '')); };
+      r.onerror = function () { non(new Error('Fichier illisible.')); };
+      r.readAsDataURL(f);
+    });
+  }
+  function choisirPdf() {
+    return new Promise(function (ok) {
+      var inp = h('input', { type: 'file', accept: 'application/pdf,.pdf', style: { display: 'none' } });
+      inp.addEventListener('change', function () { var f = inp.files && inp.files[0]; inp.remove(); ok(f || null); });
+      document.body.appendChild(inp); inp.click();
+    });
+  }
+  function resumeTaux(p) {
+    var l = (p.paliers || []).map(function (x) { return x.taux; }); if (!l.length) return '—';
+    var a = Math.min.apply(null, l), b = Math.max.apply(null, l);
+    return a === b ? pct(a) : pct(a).replace(' %', '') + ' à ' + pct(b);
+  }
+  function resumeRistourne(x) {
+    if (x.tranches && x.tranches.length) return x.tranches.map(function (t) { return AMX.fmtArgent(t.de) + (nb(t.a) ? ' à ' + AMX.fmtArgent(t.a) : ' et plus') + ' : ' + (nb(t.fixe) ? AMX.fmtArgent(t.fixe) : '') + (nb(t.fixe) && nb(t.pct) ? ' + ' : '') + (nb(t.pct) ? pct(t.pct) : ''); }).join(' · ');
+    var m = []; if (nb(x.pct)) m.push(pct(x.pct) + ' du montant financé'); if (nb(x.fixe)) m.push(AMX.fmtArgent(x.fixe)); return m.join(' + ') || 'aucune';
+  }
+  function resumeProgramme(p) {
+    var m = [ETATS[p.etat] || ETATS.tous];
+    if (p.client && p.client !== 'tous') m.push(CLIENTS[p.client]);
+    m.push(p.typeTaux === 'variable' ? 'taux variable' : 'taux fixe');
+    if (nb(p.anneeMin) || nb(p.anneeMax)) m.push('années ' + (nb(p.anneeMin) ? p.anneeMin : '…') + ' à ' + (nb(p.anneeMax) ? p.anneeMax : '…'));
+    if (nb(p.termeMax)) m.push('jusqu\'à ' + p.termeMax + ' mois');
+    if (p.concessions && p.concessions.length) m.push(p.concessions.map(function (c) { return (AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[c]) || c; }).join(', '));
+    return m.join(' · ');
+  }
+
+  /* =============================== La page =============================== */
+  var MEMO_T = 'taux_transaction';
+  function transactionDefaut() { return { annee: new Date().getFullYear() - 2, montant: '', terme: 72, tauxVendu: '', modalite: 'mois', etat: 'occasion', client: 'particulier', typeTaux: '', province: '' }; }
+  function VueTaux(conteneur, ctx) {
+    injecterCss();
+    var self = this;
+    this.conteneur = conteneur; this.detruit = false;
+    this.vue = VUES.indexOf(ctx && ctx.onglet) >= 0 ? ctx.onglet : 'comparateur';
+    this.d = null; this.erreur = '';
+    var m = AMX.memo.lire(MEMO_T, null), t = transactionDefaut();
+    if (m && typeof m === 'object') Object.keys(t).forEach(function (k) { if (m[k] !== undefined) t[k] = m[k]; });
+    this.t = t;
+    this.am = { date: aujIso(), montant: '', terme: 72, taux: '', modalite: 'mois', genre: 'pret', residuel: '' };
+    this.gp = { service: '', terme: 72, km: '', kmAn: 20000, manuf: '48|80000', manufMois: 48, manufKm: 80000, protMois: 84, protKm: 140000 };
+    this.page = h('div.page.tx-page');
+    conteneur.appendChild(this.page);
+    this.construire();
+    this.charger(false);
+    this.surCie = function () { if (!self.detruit && self.vue === 'comparateur') self.rendre(); };
+    document.addEventListener('amx:compagnie', this.surCie);
+  }
+  VueTaux.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); };
+  VueTaux.prototype.naviguer = function (ctx) {
+    var v = ctx && ctx.onglet; if (VUES.indexOf(v) < 0 || v === this.vue) return;
+    this.vue = v; this.rendre();
+  };
+  VueTaux.prototype.construire = function () {
+    var self = this;
+    this.elSous = h('p', { text: SOUS[this.vue] });
+    this.btnRafraichir = h('button.btn', { type: 'button', html: (I.rafraichir || '') + '<span>Rafraîchir</span>', onclick: function () { self.charger(true); } });
+    this.btnAjouter = h('button.btn.primaire', { type: 'button', html: (I.plus || '') + '<span>Ajouter un programme</span>', onclick: function () { self.formulaire(null); } });
+    this.btnEinstein = h('button.btn', { type: 'button', html: '<span>Lire une grille (PDF) avec Einstein</span>', onclick: function () { self.lireGrille(); } });
+    this.btnImprimer = h('button.btn', { type: 'button', html: (I.imprimer || '') + '<span>Imprimer le tableau</span>', onclick: function () { self.imprimerAmortissement(); } });
+    this.elActions = h('div.actions');
+    this.corps = h('div.tx-corps');
+    this.page.appendChild(h('div.entete-page', [h('div', [h('h1', 'Taux et financement'), this.elSous]), this.elActions]));
+    this.page.appendChild(this.corps);
+  };
+  VueTaux.prototype.charger = function (force) {
+    var self = this;
+    if (!this.d) this.rendre();
+    return charger(force).then(function (d) {
+      if (self.detruit) return;
+      self.d = d; self.erreur = ''; self.rendre();
+      if (force) AMX.toast('Programmes à jour.', 'ok', 2500);
+    }).catch(function (e) {
+      if (self.detruit) return;
+      self.erreur = texteErreur(e); self.rendre();
+    });
+  };
+  VueTaux.prototype.majActions = function () {
+    var d = this.d, liste = [], garder = [];
+    if (this.vue === 'grilles') {
+      if (d && d.peutModifier) { liste.push(this.btnAjouter); garder.push(this.btnAjouter); if (d.einstein) { liste.push(this.btnEinstein); garder.push(this.btnEinstein); } }
+      liste.push(this.btnRafraichir);
+    } else if (this.vue === 'comparateur') { liste.push(this.btnRafraichir); garder.push(this.btnRafraichir); }
+    else if (this.vue === 'amortissement') { liste.push(this.btnImprimer); garder.push(this.btnImprimer); }
+    AMX.vider(this.elActions);
+    (AMX.actionsEntete ? AMX.actionsEntete(liste, garder) : liste).forEach(function (b) { if (b) this.elActions.appendChild(b); }, this);
+  };
+  VueTaux.prototype.rendre = function () {
+    this.elSous.textContent = SOUS[this.vue];
+    this.majActions();
+    AMX.vider(this.corps);
+    if (this.vue === 'amortissement') { this.rendreAmortissement(); return; }
+    if (this.vue === 'garantie') { this.rendreGarantie(); return; }
+    if (this.erreur) { this.corps.appendChild(h('div.alerte-bloc.erreur', [h('strong', 'Les programmes n\'ont pas pu être lus. '), h('span', { text: this.erreur })])); return; }
+    if (!this.d) { this.corps.appendChild(AMX.chargeur('Lecture des programmes')); return; }
+    if (this.vue === 'grilles') this.rendreGrilles(); else this.rendreComparateur();
+  };
+  VueTaux.prototype.vers = function (vue) { AMX.aller('vente', 'taux', { vue: vue }); };
+
+  /* ------------------------------ Comparateur ------------------------------ */
+  VueTaux.prototype.transaction = function () {
+    var t = this.t, cie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
+    return { annee: num(t.annee), montant: num(t.montant), terme: num(t.terme), tauxVendu: num(t.tauxVendu), modalite: t.modalite || 'mois', etat: t.etat || 'occasion',
+      client: t.client || 'particulier', typeTaux: t.typeTaux || '', cie: cie || '' };
+  };
+  VueTaux.prototype.rendreComparateur = function () {
+    var self = this, d = this.d, t = this.t;
+    if (!t.province) t.province = provinceDefaut(d);
+    var enVigueur = d.programmes.filter(function (p) { return p.enVigueur !== false; });
+    if (!enVigueur.length) {
+      this.corps.appendChild(h('div.carte', [h('div.carte-corps.tx-depart', [
+        h('h2', 'Aucun programme inscrit pour l\'instant'),
+        h('p', 'Le comparateur calcule à partir des grilles de taux que vos banques remettent à la concession. Inscrivez-les une fois dans « Grilles de taux » : un programme par grille, avec ses paliers de taux, sa ristourne et son boni.'),
+        d.peutModifier
+          ? h('div.tx-depart-boutons', [h('button.btn.primaire', { type: 'button', text: 'Ouvrir les grilles de taux', onclick: function () { self.vers('grilles'); } })])
+          : h('p.tx-note', 'Le directeur commercial (F&I), le directeur général ou le propriétaire peut les inscrire.')
+      ])]));
+      return;
+    }
+    var maj = function () { AMX.memo.ecrire(MEMO_T, self.t); self.rendreResultats(); };
+    var lent = AMX.debounce(maj, 220);
+    function lie(el, cle, tout) { el.addEventListener(tout ? 'change' : 'input', function () { self.t[cle] = el.value; (tout ? maj : lent)(); }); return el; }
+    this.elPaiement = h('output.tx-paiement');
+    var form = h('form.carte.tx-form', { onsubmit: function (e) { e.preventDefault(); maj(); }, 'aria-label': 'Votre transaction' }, [
+      h('div.carte-entete', [h('h2', 'Votre transaction')]),
+      h('div.carte-corps', [
+        champ('Année du véhicule', lie(saisie('text', t.annee, { inputmode: 'numeric', id: 'tx-annee', maxlength: '4' }), 'annee')),
+        champ('Montant financé (taxes incluses)', lie(saisie('text', t.montant, { inputmode: 'decimal', id: 'tx-montant', placeholder: '35 000' }), 'montant')),
+        champ('Terme (mois)', lie(saisie('text', t.terme, { inputmode: 'numeric', id: 'tx-terme', list: 'tx-termes', maxlength: '3' }), 'terme')),
+        h('datalist#tx-termes', [24, 36, 48, 60, 72, 84, 96].map(function (x) { return h('option', { value: String(x) }); })),
+        champ('Taux vendu au client (%)', lie(saisie('text', t.tauxVendu, { inputmode: 'decimal', id: 'tx-vendu', placeholder: 'facultatif — ex. 8,49' }), 'tauxVendu'), 'Avec un taux vendu : le gain du client et le potentiel de chaque programme.'),
+        champ('Versements', lie(choix(MODALITES, t.modalite, { id: 'tx-modalite' }), 'modalite', true)),
+        this.elPaiement,
+        champ('Véhicule', lie(choix([['occasion', 'Occasion'], ['neuf', 'Neuf']], t.etat, { id: 'tx-etat' }), 'etat', true)),
+        champ('Client', lie(choix([['particulier', 'Particulier'], ['entreprise', 'Entreprise']], t.client, { id: 'tx-client' }), 'client', true)),
+        champ('Type de taux', lie(choix([['', 'Fixes et variables'], ['fixe', 'Fixes'], ['variable', 'Variables']], t.typeTaux, { id: 'tx-type' }), 'typeTaux', true)),
+        champ('Taxes', lie(choix(PROVINCES.map(function (p) { return [p[0], p[1]]; }), t.province, { id: 'tx-province' }), 'province', true), 'Le gain du client est montré avant taxes.'),
+        h('button.btn.fantome.tx-reinit', { type: 'button', text: 'Réinitialiser', onclick: function () { self.t = transactionDefaut(); AMX.memo.ecrire(MEMO_T, self.t); self.rendre(); } })
+      ])
+    ]);
+    this.elRes = h('div.tx-res');
+    this.corps.appendChild(h('div.tx-deux', [form, this.elRes]));
+    this.rendreResultats();
+  };
+  VueTaux.prototype.rendreResultats = function () {
+    var self = this, d = this.d, z = this.elRes; if (!z) return;
+    AMX.vider(z);
+    var t = this.transaction(), taxe = taxeDe(this.t.province);
+    var manque = [];
+    if (!nb(t.annee) || t.annee < 1990 || t.annee > 2100) manque.push('l\'année du véhicule');
+    if (!nb(t.montant) || t.montant <= 0) manque.push('le montant financé');
+    if (!nb(t.terme) || t.terme < 1 || t.terme > 120) manque.push('le terme');
+    if (this.elPaiement) {
+      var p0 = nb(t.tauxVendu) && t.tauxVendu > 0 && !manque.length ? paiement(t.montant, t.tauxVendu, t.terme, t.modalite) : null;
+      this.elPaiement.textContent = p0 === null ? '' : 'Versement du client : ' + argent(cents(p0)) + ' ' + modaliteLib(t.modalite, true);
+      this.elPaiement.hidden = p0 === null;
+    }
+    if (manque.length) { z.appendChild(h('div.carte', [h('div.carte-corps.tx-attente', [h('p', 'Inscrivez ' + manque.join(', ').replace(/, ([^,]*)$/, ' et $1') + ' pour comparer les programmes.')])])); return; }
+    var r = comparer(d.programmes.filter(function (p) { return p.enVigueur !== false; }), t, taxe);
+    var inst = {}; r.lignes.forEach(function (l) { inst[l.p.institution] = 1; });
+    var tete = h('div.tx-res-tete', [
+      h('strong', { text: r.lignes.length + ' programme' + (r.lignes.length > 1 ? 's' : '') + ' · ' + Object.keys(inst).length + ' institution' + (Object.keys(inst).length > 1 ? 's' : '') }),
+      h('span', { text: r.complet
+        ? 'Taux vendu ' + pct(t.tauxVendu) + ' · ' + r.versements + ' versements de ' + argent(cents(r.paiementVendu)) + ' · classés du plus payant au moins payant'
+        : 'Du taux le plus bas au plus haut. Inscrivez le taux vendu pour voir le gain et le potentiel.' })
+    ]);
+    z.appendChild(tete);
+    if (!r.lignes.length) z.appendChild(h('div.carte', [h('div.carte-corps.tx-attente', [h('p', 'Aucun programme inscrit ne s\'applique à cette transaction.')])]));
+    else z.appendChild(r.complet ? this.tableComplete(r, t) : this.tableSimple(r, t));
+    if (r.exclus.length) {
+      z.appendChild(h('details.tx-exclus', [
+        h('summary', { text: r.exclus.length + ' programme' + (r.exclus.length > 1 ? 's' : '') + ' pas admissible' + (r.exclus.length > 1 ? 's' : '') + ' pour cette transaction' }),
+        h('ul', r.exclus.map(function (x) { return h('li', [h('button.tx-lien', { type: 'button', text: x.p.institution + ' — ' + x.p.programme, onclick: function () { self.fiche(x.p); } }), h('span', { text: ' : ' + x.raisons.join(', ') })]); }))
+      ]));
+    }
+    var dates = d.programmes.map(function (p) { return p.majLe || ''; }).sort();
+    z.appendChild(h('p.tx-note', { text: 'Estimation à partir des grilles inscrites dans « Grilles de taux »' + (dates.length && dates[dates.length - 1] ? ' (dernière mise à jour le ' + jour(dates[dates.length - 1]) + ')' : '') + '. La ristourne, le boni et le taux restent ceux de l\'approbation de la banque.' }));
+  };
+  VueTaux.prototype.celluleProgramme = function (l, n) {
+    var self = this, p = l.p;
+    return h('th.tx-prog', { scope: 'rowgroup', rowspan: String(Math.max(1, n)) }, [
+      h('span.tx-inst', { text: p.institution }),
+      h('button.tx-lien', { type: 'button', text: p.programme, title: 'Voir le programme : conditions, paliers, grille', onclick: function () { self.fiche(p); } }),
+      h('span.tx-prog-sous', { text: (p.typeTaux === 'variable' ? 'Variable' : 'Fixe') + (p.exige ? ' · ' + p.exige : '') }),
+      p.pdf ? h('button.tx-lien.tx-pdf', { type: 'button', text: 'Grille (PDF)', onclick: function () { self.ouvrirPdf(p); } }) : null
+    ]);
+  };
+  VueTaux.prototype.celluleBoni = function (l, n) {
+    var b = l.boni;
+    if (!b.texte) return h('td.num.tx-boni', { rowspan: String(Math.max(1, n)), text: '—' });
+    return h('td.num.tx-boni' + (b.applicable ? '' : '.non'), { rowspan: String(Math.max(1, n)), title: b.texte }, [
+      h('span', { text: b.montant ? argent(b.montant, 0) : 'voir' }), b.applicable ? null : h('small', { text: b.montant ? 'conditions pas remplies' : 'conditions' })
+    ]);
+  };
+  VueTaux.prototype.tableComplete = function (r, t) {
+    var self = this, premier = true;
+    var corps = r.lignes.map(function (l) {
+      var n = l.paliers.length, lignes = l.paliers.map(function (o, k) {
+        var meilleur = premier && o.potentiel === l.meilleur; if (meilleur) premier = false;
+        return h('tr' + (meilleur ? '.tx-top' : ''), [
+          k === 0 ? self.celluleProgramme(l, n) : null,
+          h('td.num', { title: 'Versement à ce taux : ' + argent(cents(o.paiement)) + ' ' + modaliteLib(t.modalite, true) }, [h('strong', { text: pct(o.taux) })]),
+          h('td.num', { text: argent(o.ristourne), title: nb(o.pct) ? pct(o.pct) + ' du montant financé' : '' }),
+          k === 0 ? self.celluleBoni(l, n) : null,
+          h('td.num', { text: argent(o.ristBoni) }),
+          h('td.num' + (o.gainVersement < -0.005 ? '.tx-neg' : ''), { text: argent(cents(o.gainVersement)) }),
+          h('td.num' + (o.gainTotal < -0.005 ? '.tx-neg' : ''), { text: argent(cents(o.gainTotal)) }),
+          h('td.num.tx-pot' + (o.potentiel < -0.005 ? '.tx-neg' : ''), [h('strong', { text: argent(cents(o.potentiel)) }), meilleur ? h('small', 'le plus payant') : null]),
+          h('td.num.opt', { text: o.suivante ? argent(o.suivante.manque, 0) : 's. o.', title: o.suivante ? 'Il manque ' + argent(o.suivante.manque, 0) + ' pour la tranche de ' + argent(o.suivante.de, 0) + ' (ristourne ' + argent(o.suivante.montant) + ')' : 'Pas de tranche de montant' }),
+          k === 0 ? h('td.num.opt', { rowspan: String(n), text: nb(l.termeMax) ? l.termeMax + ' mois' : '—' }) : null
+        ]);
+      });
+      return h('tbody', lignes);
+    });
+    return h('div.carte.tx-defile', [h('table.tableau.tx-table', [
+      h('thead', [h('tr', [h('th', 'Institution et programme'), h('th.num', 'Taux'), h('th.num', 'Ristourne'), h('th.num', 'Boni'), h('th.num', 'Ristourne + boni'),
+        h('th.num', { text: 'Gain par versement', title: 'Ce que le client paie de moins à chaque versement, avant taxes, par rapport au taux vendu' }), h('th.num', 'Gain total'),
+        h('th.num', { text: 'Potentiel', title: 'Ristourne + gain total : ce que la transaction peut rapporter si le client garde son versement' }),
+        h('th.num.opt', 'Tranche suivante'), h('th.num.opt', 'Terme max.')])])
+    ].concat(corps))]);
+  };
+  VueTaux.prototype.tableSimple = function (r) {
+    var self = this;
+    var corps = r.lignes.map(function (l) {
+      var n = l.paliers.length;
+      return h('tbody', l.paliers.map(function (o, k) {
+        return h('tr', [
+          k === 0 ? self.celluleProgramme(l, n) : null,
+          h('td.num', [h('strong', { text: pct(o.taux) })]),
+          h('td.num', { text: argent(o.ristourne), title: nb(o.pct) ? pct(o.pct) + ' du montant financé' : '' }),
+          k === 0 ? h('td.num', { rowspan: String(n), text: nb(l.termeMax) ? l.termeMax + ' mois' : '—' }) : null,
+          k === 0 ? h('td.tx-texte.opt', { rowspan: String(n), text: l.p.majoration || 'Aucune majoration' }) : null,
+          k === 0 ? h('td.tx-texte' + (l.boni.texte && !l.boni.applicable ? '.non' : ''), { rowspan: String(n), text: l.boni.texte || '—' }) : null
+        ]);
+      }));
+    });
+    return h('div.carte.tx-defile', [h('table.tableau.tx-table', [
+      h('thead', [h('tr', [h('th', 'Institution et programme'), h('th.num', 'Taux'), h('th.num', 'Ristourne'), h('th.num', 'Terme max.'), h('th.opt', 'Majoration'), h('th', 'Boni')])])
+    ].concat(corps))]);
+  };
+  VueTaux.prototype.ouvrirPdf = function (p) {
+    var w = null; try { w = window.open('', '_blank'); } catch (e) {}
+    AMX.get({ tauxGrille: p.id }, { delai: 60000 }).then(function (d) {
+      AMX.verifier(d, 'Grille illisible');
+      if (!d.base64) throw new Error('Aucune grille en PDF pour ce programme.');
+      var bin = atob(d.base64), o = new Uint8Array(bin.length); for (var k = 0; k < bin.length; k++) o[k] = bin.charCodeAt(k);
+      var url = URL.createObjectURL(new Blob([o], { type: 'application/pdf' }));
+      if (w && !w.closed) w.location = url; else { var a = h('a', { href: url, download: d.nom || 'grille.pdf' }); document.body.appendChild(a); a.click(); a.remove(); }
+      setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+    }).catch(function (e) { if (w && !w.closed) w.close(); AMX.toast('Grille non ouverte — ' + texteErreur(e), 'erreur'); });
+  };
+  /* La fiche d'un programme : tout ce que la banque a écrit. */
+  VueTaux.prototype.fiche = function (p) {
+    var self = this, d = this.d || {};
+    var lignes = (p.paliers || []).map(function (x) {
+      return h('tr', [h('td.num', [h('strong', { text: pct(x.taux) })]), h('td', { text: nb(x.termeMin) || nb(x.termeMax) ? (nb(x.termeMin) ? x.termeMin : '…') + ' à ' + (nb(x.termeMax) ? x.termeMax : '…') + ' mois' : 'tous les termes' }), h('td', { text: resumeRistourne(x) })]);
+    });
+    var termes = Object.keys(p.termes || {}).sort().map(function (a) { return a + ' : ' + p.termes[a] + ' mois'; });
+    var b = boniDe(p, {});
+    var corps = h('div.tx-fiche', [
+      h('p.tx-fiche-sous', { text: resumeProgramme(p) }),
+      p.enVigueur === false ? h('div.alerte-bloc.attention', { text: p.actif === false ? 'Programme retiré : il ne sert plus au comparateur.' : (p.aVenir ? 'Ce programme commence le ' + jour(p.debut) + '.' : 'Ce programme s\'est terminé le ' + jour(p.fin) + '.') }) : null,
+      h('table.tableau.tx-table.tx-paliers', [h('thead', [h('tr', [h('th.num', 'Taux'), h('th', 'Terme'), h('th', 'Ristourne')])]), h('tbody', lignes)]),
+      h('dl.tx-dl', [
+        b.texte ? h('dt', 'Boni') : null, b.texte ? h('dd', { text: b.texte }) : null,
+        termes.length ? h('dt', 'Terme maximal par année') : null, termes.length ? h('dd', { text: termes.join(' · ') }) : null,
+        p.majoration ? h('dt', 'Majoration') : null, p.majoration ? h('dd', { text: p.majoration }) : null,
+        p.exige ? h('dt', 'Réservé à') : null, p.exige ? h('dd', { text: p.exige }) : null,
+        (p.debut || p.fin) ? h('dt', 'En vigueur') : null, (p.debut || p.fin) ? h('dd', { text: (p.debut ? 'du ' + jour(p.debut) : '') + (p.fin ? ' au ' + jour(p.fin) : '') }) : null,
+        p.conditions ? h('dt', 'Conditions') : null, p.conditions ? h('dd.tx-pre', { text: p.conditions }) : null
+      ]),
+      h('p.tx-note', { text: 'Mis à jour le ' + (jour(p.majLe) || '—') + (p.majParNom ? ' par ' + p.majParNom : '') + (p.source === 'einstein' ? ' · lu dans le PDF par Einstein AI, puis vérifié' : '') + '.' })
+    ]);
+    var boutons = [{ texte: 'Fermer' }];
+    if (p.pdf) boutons.push({ texte: 'Ouvrir la grille (PDF)', action: function () { self.ouvrirPdf(p); return false; } });
+    if (d.peutModifier) boutons.push({ texte: 'Modifier', classe: 'primaire', action: function (f) { f(); self.formulaire(p); return false; } });
+    AMX.modale({ titre: p.institution + ' — ' + p.programme, corps: corps, large: true, boutons: boutons, proteger: false });
+  };
+
+  /* ------------------------------ Grilles de taux ------------------------------ */
+  VueTaux.prototype.rendreGrilles = function () {
+    var self = this, d = this.d, z = this.corps;
+    if (!d.programmes.length) {
+      z.appendChild(h('div.carte', [h('div.carte-corps.tx-depart', [
+        h('h2', 'Inscrivez votre première grille'),
+        h('p', 'Un programme = une grille de taux d\'une banque : ses paliers de taux, la ristourne à chaque palier, le boni et ses conditions. Le comparateur calcule ensuite tout seul pour chaque transaction.'),
+        d.peutModifier ? h('div.tx-depart-boutons', [
+          h('button.btn.primaire', { type: 'button', text: 'Ajouter un programme', onclick: function () { self.formulaire(null); } }),
+          d.einstein ? h('button.btn', { type: 'button', text: 'Lire une grille (PDF) avec Einstein', onclick: function () { self.lireGrille(); } }) : null
+        ]) : h('p.tx-note', 'Le directeur commercial (F&I), le directeur général ou le propriétaire peut les inscrire.'),
+        d.peutModifier && d.einstein ? h('p.tx-note', 'Einstein AI lit le PDF de la banque et propose les paliers : vous vérifiez chaque chiffre, puis vous enregistrez. Rien n\'est enregistré sans vous.') : null
+      ])]));
+      return;
+    }
+    var par = {}, ordre = [];
+    d.programmes.forEach(function (p) { if (!par[p.institution]) { par[p.institution] = []; ordre.push(p.institution); } par[p.institution].push(p); });
+    ordre.sort(function (a, b) { return a.localeCompare(b); });
+    var gauche = h('div.tx-inst-liste', ordre.map(function (nom) {
+      var l = par[nom].slice().sort(function (a, b) { return (a.enVigueur === false ? 1 : 0) - (b.enVigueur === false ? 1 : 0) || a.programme.localeCompare(b.programme); });
+      return h('section.carte.tx-inst-carte', [
+        h('div.carte-entete', [h('h2', { text: nom }), h('span.tx-compte', { text: l.filter(function (p) { return p.enVigueur !== false; }).length + ' en vigueur' })]),
+        h('ul.tx-progs', l.map(function (p) {
+          var etat = p.actif === false ? 'Retiré' : (p.echu ? 'Terminé le ' + jour(p.fin) : (p.aVenir ? 'Commence le ' + jour(p.debut) : ''));
+          return h('li' + (p.enVigueur === false ? '.tx-hors' : ''), [
+            h('div.tx-prog-txt', [
+              h('button.tx-lien.tx-prog-nom', { type: 'button', text: p.programme, onclick: function () { self.fiche(p); } }),
+              h('span.tx-prog-sous', { text: resumeProgramme(p) }),
+              h('span.tx-prog-sous', { text: (p.paliers || []).length + ' palier' + ((p.paliers || []).length > 1 ? 's' : '') + ' · ' + resumeTaux(p) + (p.boni && p.boni.montant ? ' · boni ' + AMX.fmtArgent(p.boni.montant) : '') + ' · mis à jour le ' + (jour(p.majLe) || '—') }),
+              etat ? h('span.tx-etat', { text: etat }) : null
+            ]),
+            h('div.tx-prog-gestes', [
+              p.pdf ? h('button.btn.petit', { type: 'button', text: 'PDF', title: 'Ouvrir la grille de la banque', onclick: function () { self.ouvrirPdf(p); } }) : null,
+              d.peutModifier ? h('button.btn.petit', { type: 'button', text: 'Modifier', onclick: function () { self.formulaire(p); } }) : null,
+              d.peutModifier ? h('button.btn.petit', { type: 'button', text: p.pdf ? 'Remplacer le PDF' : 'Joindre le PDF', onclick: function () { self.joindrePdf(p); } }) : null,
+              d.peutModifier ? h('button.btn.petit.fantome', { type: 'button', text: p.actif === false ? 'Remettre' : 'Retirer', onclick: function () { self.retirer(p); } }) : null
+            ])
+          ]);
+        }))
+      ]);
+    }));
+    var mises = h('aside.carte.tx-mises', [
+      h('div.carte-entete', [h('h2', 'Dernières mises à jour')]),
+      h('ul', (d.mises || []).map(function (m) {
+        return h('li', [h('strong', { text: m.institution }), h('span', { text: m.programme + (m.actif === false ? ' (retiré)' : '') }), h('small', { text: jour(m.le) + (m.par ? ' · ' + m.par : '') })]);
+      })),
+      !(d.mises || []).length ? h('p.tx-note', 'Aucune mise à jour.') : null
+    ]);
+    z.appendChild(h('div.tx-grilles', [gauche, mises]));
+  };
+  VueTaux.prototype.apresEcriture = function (rep, message) {
+    var self = this;
+    AMX.toast(message || (rep && rep.message) || 'Enregistré.', 'ok');
+    vider();
+    return charger(true).then(function (d) { if (!self.detruit) { self.d = d; self.rendre(); } }).catch(function () {});
+  };
+  VueTaux.prototype.retirer = function (p) {
+    var self = this, remettre = p.actif === false;
+    (remettre ? Promise.resolve(true) : AMX.confirmer('Retirer ce programme ?', p.institution + ' — ' + p.programme + ' ne servira plus au comparateur. Il reste dans la liste, grisé : vous pourrez le remettre.', { ok: 'Retirer', danger: true }))
+      .then(function (oui) {
+        if (!oui) return;
+        return poster({ action: 'tauxProgrammeRetirer', id: p.id, remettre: remettre }).then(function (r) { return self.apresEcriture(r); });
+      }).catch(function (e) { AMX.toast(texteErreur(e), 'erreur'); });
+  };
+  VueTaux.prototype.joindrePdf = function (p) {
+    var self = this;
+    choisirPdf().then(function (f) {
+      if (!f) return;
+      if (f.size > 12 * 1024 * 1024) { AMX.toast('Le PDF dépasse 12 Mo.', 'erreur'); return; }
+      AMX.toast('Envoi de la grille…', 'info', 3000);
+      return lireFichier(f).then(function (b64) { return poster({ action: 'tauxGrillePdf', id: p.id, nom: f.name, base64: b64 }, { secours: false, rejouer: false, delai: 120000 }); })
+        .then(function (r) { return self.apresEcriture(r); });
+    }).catch(function (e) { AMX.toast('Grille non jointe — ' + texteErreur(e), 'erreur'); });
+  };
+
+  /* Le formulaire d'un programme (ajout, modification, proposition d'Einstein à vérifier). */
+  VueTaux.prototype.formulaire = function (p, opts) {
+    var self = this; opts = opts || {};
+    var neuf = !p || !p.id, src = p || {};
+    var inst = saisie('text', src.institution || '', { id: 'txf-institution', list: 'txf-institutions', maxlength: '60' });
+    var connues = {}; INSTITUTIONS.forEach(function (n) { connues[n] = 1; }); ((this.d && this.d.programmes) || []).forEach(function (x) { connues[x.institution] = 1; });
+    var nom = saisie('text', src.programme || '', { id: 'txf-programme', maxlength: '120' });
+    var type = choix([['fixe', 'Fixe'], ['variable', 'Variable']], src.typeTaux || 'fixe', { id: 'txf-type' });
+    var etat = choix([['tous', 'Neufs et occasions'], ['neuf', 'Neufs seulement'], ['occasion', 'Occasions seulement']], src.etat || 'tous', { id: 'txf-etat' });
+    var client = choix([['tous', 'Tous les clients'], ['particulier', 'Particuliers seulement'], ['entreprise', 'Entreprises seulement']], src.client || 'tous', { id: 'txf-client' });
+    var aMin = saisie('text', nb(src.anneeMin) ? src.anneeMin : '', { inputmode: 'numeric', maxlength: '4', id: 'txf-annee-min' }), aMax = saisie('text', nb(src.anneeMax) ? src.anneeMax : '', { inputmode: 'numeric', maxlength: '4', id: 'txf-annee-max' });
+    var mMin = saisie('text', nb(src.montantMin) ? src.montantMin : '', { inputmode: 'decimal' }), mMax = saisie('text', nb(src.montantMax) ? src.montantMax : '', { inputmode: 'decimal' });
+    var tMax = saisie('text', nb(src.termeMax) ? src.termeMax : '', { inputmode: 'numeric', maxlength: '3', id: 'txf-terme-max' });
+    var termes = saisie('text', Object.keys(src.termes || {}).sort().map(function (a) { return a + ': ' + src.termes[a]; }).join(', '), { placeholder: 'ex. 2019: 72, 2020: 84' });
+    var debut = saisie('date', src.debut || ''), fin = saisie('date', src.fin || '');
+    var exige = saisie('text', src.exige || '', { maxlength: '80', placeholder: 'ex. membre Desjardins, employé RBC' });
+    var majoration = saisie('text', src.majoration || '', { maxlength: '300', placeholder: 'ex. + 0,50 % au-delà de 84 mois' });
+    var conditions = h('textarea.saisie', { rows: '3', maxlength: '1500' }); conditions.value = src.conditions || '';
+    var b = src.boni || {};
+    var bMontant = saisie('text', nb(b.montant) ? b.montant : '', { inputmode: 'decimal', id: 'txf-boni' }), bAMin = saisie('text', nb(b.anneeMin) ? b.anneeMin : '', { inputmode: 'numeric', maxlength: '4' }), bAMax = saisie('text', nb(b.anneeMax) ? b.anneeMax : '', { inputmode: 'numeric', maxlength: '4' });
+    var bPrix = saisie('text', nb(b.prixMin) ? b.prixMin : '', { inputmode: 'decimal' }), bNote = saisie('text', b.note || '', { maxlength: '300' });
+    var cies = Object.keys(AMX.COMPAGNIES || {}), casesCie = cies.map(function (c) {
+      var cb = h('input', { type: 'checkbox', value: c }); cb.checked = (src.concessions || []).indexOf(c) >= 0;
+      return h('label.tx-case', [cb, h('span', { text: AMX.COMPAGNIES[c] || c })]);
+    });
+    /* les paliers */
+    var zonePaliers = h('div.tx-paliers-form');
+    function ligneTranche(t) {
+      t = t || {};
+      var de = saisie('text', nb(t.de) ? t.de : '', { inputmode: 'decimal', placeholder: '0', 'aria-label': 'Montant financé à partir de' }), a = saisie('text', nb(t.a) ? t.a : '', { inputmode: 'decimal', placeholder: 'et plus', 'aria-label': 'Jusqu\'à' });
+      var tp = saisie('text', nb(t.pct) ? String(t.pct).replace('.', ',') : '', { inputmode: 'decimal', placeholder: '%', 'aria-label': 'Ristourne en %' }), tf = saisie('text', nb(t.fixe) ? t.fixe : '', { inputmode: 'decimal', placeholder: '$', 'aria-label': 'Ristourne en $' });
+      var el = h('div.tx-tranche', [h('span', 'de'), de, h('span', 'à'), a, h('span', '→'), tp, h('span', '%  ou'), tf, h('span', '$'),
+        h('button.btn.petit.fantome', { type: 'button', text: 'Retirer', onclick: function () { el.remove(); } })]);
+      el._lire = function () { return { de: num(de.value) || 0, a: num(a.value), pct: num(tp.value), fixe: num(tf.value) }; };
+      return el;
+    }
+    function blocPalier(x) {
+      x = x || {};
+      var taux = saisie('text', nb(x.taux) ? String(x.taux).replace('.', ',') : '', { inputmode: 'decimal', placeholder: '7,49', 'aria-label': 'Taux en %' });
+      var tm1 = saisie('text', nb(x.termeMin) ? x.termeMin : '', { inputmode: 'numeric', maxlength: '3', placeholder: 'tous', 'aria-label': 'Terme minimal en mois' }), tm2 = saisie('text', nb(x.termeMax) ? x.termeMax : '', { inputmode: 'numeric', maxlength: '3', placeholder: 'tous', 'aria-label': 'Terme maximal en mois' });
+      var rp = saisie('text', nb(x.pct) ? String(x.pct).replace('.', ',') : '', { inputmode: 'decimal', placeholder: '0,9', 'aria-label': 'Ristourne en % du montant financé' }), rf = saisie('text', nb(x.fixe) ? x.fixe : '', { inputmode: 'decimal', placeholder: '0', 'aria-label': 'Ristourne fixe en $' });
+      var zt = h('div.tx-tranches');
+      (x.tranches || []).forEach(function (t) { zt.appendChild(ligneTranche(t)); });
+      var el = h('div.tx-palier', [
+        h('div.tx-palier-rang', [
+          h('label', [h('span', 'Taux (%)'), taux]), h('label', [h('span', 'Terme de'), tm1]), h('label', [h('span', 'à (mois)'), tm2]),
+          h('label', [h('span', 'Ristourne (%)'), rp]), h('label', [h('span', 'ou fixe ($)'), rf]),
+          h('button.btn.petit.fantome', { type: 'button', text: 'Retirer le palier', onclick: function () { el.remove(); } })
+        ]),
+        zt,
+        h('button.tx-lien', { type: 'button', text: '+ Ristourne par tranche de montant financé', onclick: function () { zt.appendChild(ligneTranche()); } })
+      ]);
+      el._lire = function () {
+        var tr = Array.prototype.map.call(zt.children, function (c) { return c._lire(); }).filter(function (t) { return nb(t.pct) || nb(t.fixe); });
+        return { taux: num(taux.value), termeMin: num(tm1.value), termeMax: num(tm2.value), pct: num(rp.value), fixe: num(rf.value), tranches: tr };
+      };
+      return el;
+    }
+    (src.paliers && src.paliers.length ? src.paliers : [{}]).forEach(function (x) { zonePaliers.appendChild(blocPalier(x)); });
+    var erreur = h('div.alerte-bloc.erreur', { hidden: true, role: 'alert' });
+    var corps = h('div.tx-formulaire', [
+      opts.einstein ? h('div.alerte-bloc.attention', 'Proposition d\'Einstein AI : vérifiez chaque chiffre avec la grille de la banque avant d\'enregistrer.') : null,
+      h('datalist#txf-institutions', Object.keys(connues).sort().map(function (n) { return h('option', { value: n }); })),
+      h('div.tx-grille2', [champ('Institution', inst), champ('Nom du programme', nom)]),
+      h('div.tx-grille4', [champ('Type de taux', type), champ('Véhicules', etat), champ('Clients', client), champ('Terme maximal (mois)', tMax)]),
+      h('div.tx-grille4', [champ('Année minimale', aMin), champ('Année maximale', aMax), champ('Montant minimal ($)', mMin), champ('Montant maximal ($)', mMax)]),
+      h('h3', 'Paliers de taux'),
+      h('p.tx-note', 'Un palier = un taux offert au client et la ristourne versée à la concession à ce taux : un % du montant financé, un montant fixe, ou par tranche de montant.'),
+      zonePaliers,
+      h('button.btn.petit', { type: 'button', text: '+ Ajouter un palier', onclick: function () { zonePaliers.appendChild(blocPalier()); } }),
+      h('h3', 'Boni'),
+      h('div.tx-grille4', [champ('Montant ($)', bMontant), champ('Année minimale', bAMin), champ('Année maximale', bAMax), champ('Montant financé minimal ($)', bPrix)]),
+      champ('Conditions du boni', bNote),
+      h('h3', 'Conditions'),
+      h('div.tx-grille2', [champ('Réservé à', exige), champ('Majoration', majoration)]),
+      h('div.tx-grille2', [champ('En vigueur du', debut), champ('au', fin, 'Vide = sans date de fin.')]),
+      champ('Terme maximal par année-modèle', termes, 'Seulement s\'il change selon l\'année. Sinon, le terme maximal du haut suffit.'),
+      champ('Conditions du programme', conditions),
+      cies.length > 1 ? h('div.champ', [h('label', 'Concessions'), h('div.tx-cases', casesCie), h('span.aide', 'Aucune case cochée = toutes les concessions.')]) : null,
+      erreur
+    ]);
+    function lire() {
+      var tm = {}; termes.value.split(/[,;]+/).forEach(function (x) { var m = /(\d{4})\s*[:=]\s*(\d{1,3})/.exec(x); if (m) tm[m[1]] = Number(m[2]); });
+      var concessions = []; casesCie.forEach(function (l) { var cb = l.querySelector('input'); if (cb.checked) concessions.push(cb.value); });
+      return {
+        id: src.id || '', institution: inst.value.trim(), programme: nom.value.trim(), typeTaux: type.value, etat: etat.value, client: client.value,
+        anneeMin: num(aMin.value), anneeMax: num(aMax.value), montantMin: num(mMin.value), montantMax: num(mMax.value), termeMax: num(tMax.value), termes: tm,
+        paliers: Array.prototype.map.call(zonePaliers.children, function (c) { return c._lire(); }).filter(function (x) { return nb(x.taux); }),
+        boni: { montant: num(bMontant.value), anneeMin: num(bAMin.value), anneeMax: num(bAMax.value), prixMin: num(bPrix.value), note: bNote.value.trim() },
+        majoration: majoration.value.trim(), conditions: conditions.value.trim(), exige: exige.value.trim(), concessions: concessions, debut: debut.value, fin: fin.value,
+        source: opts.einstein ? 'einstein' : (src.source || 'main'), actif: src.actif === false ? false : true
+      };
+    }
+    function dire(m) { erreur.textContent = m; erreur.hidden = !m; if (m) erreur.scrollIntoView({ block: 'nearest' }); }
+    AMX.modale({
+      titre: neuf ? (opts.einstein ? 'Vérifier le programme proposé' : 'Ajouter un programme') : 'Modifier le programme', corps: corps, large: true, classe: 'tx-voile',
+      boutons: [{ texte: 'Annuler' }, { texte: 'Enregistrer le programme', classe: 'primaire', action: function (fermer) {
+        var o = lire();
+        if (o.institution.length < 2) { dire('Inscrivez l\'institution.'); inst.focus(); return false; }
+        if (o.programme.length < 2) { dire('Inscrivez le nom du programme.'); nom.focus(); return false; }
+        if (!o.paliers.length) { dire('Inscrivez au moins un palier : un taux.'); return false; }
+        if (o.paliers.some(function (x) { return x.taux < 0 || x.taux > 35; })) { dire('Un taux doit être entre 0 et 35 %.'); return false; }
+        dire('');
+        return poster({ action: 'tauxProgramme', programme: o }).then(function (r) {
+          fermer();
+          if (opts.apres) opts.apres(r.programme);
+          return self.apresEcriture(r).then(function () { return false; });
+        }).catch(function (e) { dire(texteErreur(e)); throw e; });
+      } }]
+    });
+  };
+  /* Einstein AI lit le PDF d'une banque et propose des programmes : rien n'est enregistré sans une personne. */
+  VueTaux.prototype.lireGrille = function () {
+    var self = this;
+    choisirPdf().then(function (f) {
+      if (!f) return;
+      if (f.size > 12 * 1024 * 1024) { AMX.toast('Le PDF dépasse 12 Mo.', 'erreur'); return; }
+      var attente = h('div.tx-ia-attente', [AMX.chargeur('Einstein AI lit la grille', { compact: true }), h('p.tx-note', { text: f.name + ' — une minute au plus. Rien ne sera enregistré : vous vérifierez chaque programme.' })]);
+      var corps = h('div.tx-ia', [attente]);
+      var m = AMX.modale({ titre: 'Lire une grille avec Einstein AI', corps: corps, large: true, proteger: false, boutons: [{ texte: 'Fermer' }] });
+      return lireFichier(f).then(function (b64) {
+        return poster({ action: 'tauxLireGrille', nom: f.name, base64: b64 }, { secours: false, rejouer: false, delai: 150000 }).then(function (r) {
+          AMX.vider(corps);
+          corps.appendChild(h('p', { text: r.message || '' }));
+          if ((r.aVerifier || []).length) corps.appendChild(h('div.alerte-bloc.attention', [h('strong', 'À vérifier : '), h('ul', r.aVerifier.map(function (t) { return h('li', { text: t }); }))]));
+          var joindre = h('input', { type: 'checkbox' }); joindre.checked = true;
+          if ((r.propositions || []).length) corps.appendChild(h('label.tx-case', [joindre, h('span', 'Joindre ce PDF à chaque programme enregistré')]));
+          (r.propositions || []).forEach(function (p) {
+            var etat = h('span.tx-etat'), btn = h('button.btn.primaire.petit', { type: 'button', text: 'Vérifier et enregistrer' });
+            btn.addEventListener('click', function () {
+              self.formulaire(p, { einstein: true, apres: function (enr) {
+                etat.textContent = 'Enregistré (' + enr.id + ')'; btn.disabled = true; btn.textContent = 'Enregistré';
+                if (joindre.checked && enr && enr.id) poster({ action: 'tauxGrillePdf', id: enr.id, nom: f.name, base64: b64 }, { secours: false, rejouer: false, delai: 120000 }).then(function () { vider(); }).catch(function (e) { AMX.toast('PDF non joint — ' + texteErreur(e), 'attention'); });
+              } });
+            });
+            corps.appendChild(h('div.tx-prop', [
+              h('div.tx-prog-txt', [h('strong', { text: p.institution + ' — ' + p.programme }), h('span.tx-prog-sous', { text: resumeProgramme(p) }),
+                h('span.tx-prog-sous', { text: (p.paliers || []).map(function (x) { return pct(x.taux) + ' → ' + resumeRistourne(x); }).join('  |  ') }),
+                p.boni ? h('span.tx-prog-sous', { text: boniDe(p, {}).texte }) : null, etat]),
+              btn
+            ]));
+          });
+        });
+      }).catch(function (e) {
+        AMX.vider(corps); corps.appendChild(h('div.alerte-bloc.erreur', { text: 'La grille n\'a pas été lue — ' + texteErreur(e) }));
+        corps.appendChild(h('p.tx-note', 'Vous pouvez inscrire le programme à la main : « Ajouter un programme ».'));
+      }).then(function () { return m; });
+    });
+  };
+
+  /* ------------------------------ Amortissement ------------------------------ */
+  VueTaux.prototype.lireAm = function () {
+    var a = this.am, location = a.genre === 'location';
+    return { date: a.date || aujIso(), montant: num(a.montant), terme: num(a.terme), taux: num(a.taux) || 0, modalite: a.modalite, location: location, residuel: location ? (num(a.residuel) || 0) : 0 };
+  };
+  VueTaux.prototype.rendreAmortissement = function () {
+    var self = this, a = this.am;
+    /* le comparateur a déjà une transaction : on la reprend une fois */
+    if (a.montant === '' && num(this.t.montant)) { a.montant = this.t.montant; a.terme = this.t.terme || a.terme; a.taux = this.t.tauxVendu || ''; a.modalite = this.t.modalite || 'mois'; }
+    var maj = AMX.debounce(function () { self.rendreTableauAm(); }, 200);
+    function lie(el, cle, tout) { el.addEventListener(tout ? 'change' : 'input', function () { self.am[cle] = el.value; if (cle === 'genre') self.rendre(); else maj(); }); return el; }
+    var location = a.genre === 'location';
+    var form = h('form.carte.tx-form', { onsubmit: function (e) { e.preventDefault(); self.rendreTableauAm(); }, 'aria-label': 'Le financement' }, [
+      h('div.carte-entete', [h('h2', 'Le financement')]),
+      h('div.carte-corps', [
+        champ('Prêt ou location', lie(choix([['pret', 'Prêt (achat)'], ['location', 'Location']], a.genre, { id: 'txa-genre' }), 'genre', true)),
+        champ('Date de départ', lie(saisie('date', a.date, { id: 'txa-date' }), 'date', true)),
+        champ(location ? 'Montant à financer (avant taxes)' : 'Montant financé', lie(saisie('text', a.montant, { inputmode: 'decimal', id: 'txa-montant', placeholder: '35 000' }), 'montant')),
+        location ? champ('Valeur résiduelle ($)', lie(saisie('text', a.residuel, { inputmode: 'decimal', id: 'txa-residuel' }), 'residuel')) : null,
+        champ('Terme (mois)', lie(saisie('text', a.terme, { inputmode: 'numeric', maxlength: '3', id: 'txa-terme' }), 'terme')),
+        champ('Taux d\'intérêt (%)', lie(saisie('text', a.taux, { inputmode: 'decimal', id: 'txa-taux', placeholder: '7,49' }), 'taux')),
+        champ('Versements', lie(choix(MODALITES, a.modalite, { id: 'txa-modalite' }), 'modalite', true)),
+        location ? h('p.tx-note', 'Location : versement en début de période, avant taxes (les taxes s\'ajoutent à chaque versement). Le versement d\'un contrat réel peut différer de quelques dollars.') : null
+      ])
+    ]);
+    this.elAm = h('div.tx-res');
+    this.corps.appendChild(h('div.tx-deux', [form, this.elAm]));
+    this.rendreTableauAm();
+  };
+  VueTaux.prototype.rendreTableauAm = function () {
+    var z = this.elAm; if (!z) return;
+    AMX.vider(z);
+    var o = this.lireAm(), r = amortissement(o);
+    this.btnImprimer.disabled = !r;
+    if (!r) { z.appendChild(h('div.carte', [h('div.carte-corps.tx-attente', [h('p', o.location && nb(o.montant) && o.residuel >= o.montant ? 'La valeur résiduelle doit être plus basse que le montant à financer.' : 'Inscrivez le montant, le terme et le taux pour voir le tableau.')])])); return; }
+    z.appendChild(h('div.tx-chiffres', [
+      h('div.tx-chiffre', [h('span', 'Versement ' + modaliteLib(o.modalite, true)), h('strong', { text: argent(r.paiement) })]),
+      h('div.tx-chiffre', [h('span', 'Versements'), h('strong', { text: String(r.versements) })]),
+      h('div.tx-chiffre', [h('span', 'Intérêts'), h('strong', { text: argent(r.totalInterets) })]),
+      h('div.tx-chiffre', [h('span', r.location ? 'Total versé (avant taxes)' : 'Total versé'), h('strong', { text: argent(r.totalVerse) })])
+    ]));
+    z.appendChild(h('div.carte.tx-defile', [this.tableAm(r)]));
+  };
+  VueTaux.prototype.tableAm = function (r) {
+    var lignes = r.lignes.map(function (l) { return h('tr', [h('td.num', { text: String(l.n) }), h('td', { text: jour(l.date) }), h('td.num', { text: argent(l.versement) }), h('td.num', { text: argent(l.interet) }), h('td.num', { text: argent(l.capital) }), h('td.num', { text: argent(l.solde) })]); });
+    if (r.fin) lignes.push(h('tr.tx-fin', [h('td'), h('td', { text: jour(r.fin.date) }), h('td', { text: 'Fin du terme' }), h('td.num', { text: argent(r.fin.interet) }), h('td'), h('td.num', [h('strong', { text: argent(r.fin.solde) })])]));
+    return h('table.tableau.tx-table.tx-am', [
+      h('thead', [h('tr', [h('th.num', 'No'), h('th', 'Date'), h('th.num', 'Versement'), h('th.num', 'Intérêt'), h('th.num', 'Capital'), h('th.num', 'Solde')])]),
+      h('tbody', lignes)
+    ]);
+  };
+  VueTaux.prototype.imprimerAmortissement = function () {
+    var o = this.lireAm(), r = amortissement(o); if (!r) return;
+    var ancienne = document.getElementById('taux-impression'); if (ancienne) ancienne.remove();
+    var page = h('div#taux-impression', [
+      h('h1', r.location ? 'Tableau d\'amortissement — location' : 'Tableau d\'amortissement — prêt'),
+      h('p', { text: 'Montant ' + argent(o.montant) + (r.location ? ' · valeur résiduelle ' + argent(r.residuel) : '') + ' · ' + o.terme + ' mois · ' + pct(o.taux) + ' · versement ' + argent(r.paiement) + ' ' + modaliteLib(o.modalite, true) + ' · intérêts ' + argent(r.totalInterets) + ' · départ le ' + jour(o.date) }),
+      this.tableAm(r),
+      h('p.tx-note', 'Estimation. Le contrat de la banque fait foi.' + (r.location ? ' Location : montants avant taxes.' : ''))
+    ]);
+    document.body.appendChild(page);
+    document.body.classList.add('impression-taux');
+    var nettoyer = function () { document.body.classList.remove('impression-taux'); window.removeEventListener('afterprint', nettoyer); setTimeout(function () { if (page.parentNode) page.remove(); }, 500); };
+    window.addEventListener('afterprint', nettoyer);
+    setTimeout(function () { try { window.print(); } catch (e) { nettoyer(); } }, 80);
+    setTimeout(function () { if (document.body.classList.contains('impression-taux')) nettoyer(); }, 60000);
+  };
+
+  /* ------------------------------ Garantie prolongée ------------------------------ */
+  var GARANTIES = [['36|60000', '3 ans ou 60 000 km'], ['48|80000', '4 ans ou 80 000 km'], ['60|100000', '5 ans ou 100 000 km'], ['perso', 'Personnalisée']];
+  VueTaux.prototype.lireGp = function () {
+    var g = this.gp, age = 0;
+    if (g.service) { var d = new Date(g.service + 'T12:00:00'), a = new Date(); if (isFinite(d.getTime())) age = Math.max(0, (a.getFullYear() - d.getFullYear()) * 12 + (a.getMonth() - d.getMonth()) + (a.getDate() - d.getDate()) / 30); }
+    var m = g.manuf === 'perso' ? { mois: num(g.manufMois) || 0, km: num(g.manufKm) || 0 } : { mois: Number(String(g.manuf).split('|')[0]), km: Number(String(g.manuf).split('|')[1]) };
+    return { ageMois: age, kmActuel: num(g.km) || 0, kmAn: num(g.kmAn) || 0, terme: num(g.terme) || 0, manuf: m, prot: { mois: num(g.protMois) || 0, km: num(g.protKm) || 0 } };
+  };
+  VueTaux.prototype.rendreGarantie = function () {
+    var self = this, g = this.gp;
+    var maj = AMX.debounce(function () { self.rendreGraphique(); }, 200);
+    function lie(el, cle, tout) { el.addEventListener(tout ? 'change' : 'input', function () { self.gp[cle] = el.value; if (cle === 'manuf') self.rendre(); else maj(); }); return el; }
+    var perso = g.manuf === 'perso';
+    var form = h('form.carte.tx-form', { onsubmit: function (e) { e.preventDefault(); self.rendreGraphique(); }, 'aria-label': 'Le véhicule et son financement' }, [
+      h('div.carte-entete', [h('h2', 'Le véhicule et son financement')]),
+      h('div.carte-corps', [
+        champ('Date de mise en service', lie(saisie('date', g.service, { id: 'txg-service' }), 'service', true), 'Vide = véhicule neuf, mis en service aujourd\'hui.'),
+        champ('Kilométrage actuel', lie(saisie('text', g.km, { inputmode: 'numeric', id: 'txg-km', placeholder: '0' }), 'km')),
+        champ('Kilométrage prévu par année', lie(saisie('text', g.kmAn, { inputmode: 'numeric', id: 'txg-kman' }), 'kmAn')),
+        champ('Terme du financement (mois)', lie(saisie('text', g.terme, { inputmode: 'numeric', maxlength: '3', id: 'txg-terme' }), 'terme')),
+        champ('Garantie du manufacturier', lie(choix(GARANTIES, g.manuf, { id: 'txg-manuf' }), 'manuf', true)),
+        perso ? h('div.tx-grille2', [champ('Mois', lie(saisie('text', g.manufMois, { inputmode: 'numeric' }), 'manufMois')), champ('Kilomètres', lie(saisie('text', g.manufKm, { inputmode: 'numeric' }), 'manufKm'))]) : null,
+        h('div.tx-grille2', [champ('Protection : mois', lie(saisie('text', g.protMois, { inputmode: 'numeric', id: 'txg-prot-mois' }), 'protMois')), champ('Protection : km', lie(saisie('text', g.protKm, { inputmode: 'numeric', id: 'txg-prot-km' }), 'protKm'))]),
+        h('p.tx-note', 'Les durées et les kilomètres se comptent depuis la mise en service du véhicule.')
+      ])
+    ]);
+    this.elGp = h('div.tx-res');
+    this.corps.appendChild(h('div.tx-deux', [form, this.elGp]));
+    this.rendreGraphique();
+  };
+  function moisTexte(m) { m = Math.round(m); if (m <= 0) return '0 mois'; var a = Math.floor(m / 12), r = m % 12; return (a ? a + ' an' + (a > 1 ? 's' : '') : '') + (a && r ? ' ' : '') + (r ? r + ' mois' : ''); }
+  VueTaux.prototype.rendreGraphique = function () {
+    var z = this.elGp; if (!z) return;
+    AMX.vider(z);
+    var o = this.lireGp();
+    if (!(o.terme > 0) || !(o.kmAn > 0)) { z.appendChild(h('div.carte', [h('div.carte-corps.tx-attente', [h('p', 'Inscrivez le terme du financement et le kilométrage prévu par année.')])])); return; }
+    var r = garantie(o);
+    var phrases = [];
+    if (r.manuf) phrases.push(r.manuf.expiree ? 'La garantie du manufacturier est déjà terminée.' : 'La garantie du manufacturier se termine dans ' + moisTexte(r.manuf.dansMois) + ' (' + (r.manuf.cause === 'km' ? 'par le kilométrage' : 'par la durée') + ').');
+    phrases.push(r.sansGarantie > 0.5 ? 'Sans protection, le client paie son véhicule pendant ' + moisTexte(r.sansGarantie) + ' sans garantie.' : 'Le financement se termine avant la garantie du manufacturier.');
+    if (r.prot) phrases.push(r.sansProtection > 0.5 ? 'Avec la protection : ' + moisTexte(r.gagne) + ' de plus sous garantie ; il reste ' + moisTexte(r.sansProtection) + ' de financement sans garantie.' : 'Avec la protection, le véhicule est garanti pendant tout le financement' + (r.gagne > 0.5 ? ' (' + moisTexte(r.gagne) + ' de plus).' : '.'));
+    z.appendChild(h('div.tx-chiffres', [
+      h('div.tx-chiffre', [h('span', 'Financement sans garantie'), h('strong' + (r.sansGarantie > 0.5 ? '.tx-neg' : ''), { text: moisTexte(r.sansGarantie) })]),
+      h('div.tx-chiffre', [h('span', 'Avec la protection'), h('strong', { text: r.prot ? moisTexte(r.sansProtection) + ' sans garantie' : '—' })]),
+      h('div.tx-chiffre', [h('span', 'Kilométrage à la fin du financement'), h('strong', { text: AMX.fmtNombre(Math.round(r.kmFin)) + ' km' })])
+    ]));
+    z.appendChild(h('div.carte', [h('div.carte-corps', [this.graphique(r), h('ul.tx-phrases', phrases.map(function (p) { return h('li', { text: p }); }))])]));
+  };
+  var NS = 'http://www.w3.org/2000/svg';
+  function svg(tag, attrs, enfants) {
+    var e = document.createElementNS(NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { if (attrs[k] !== null && attrs[k] !== undefined) e.setAttribute(k, attrs[k]); });
+    (enfants || []).forEach(function (c) { if (c === null || c === undefined) return; e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return e;
+  }
+  VueTaux.prototype.graphique = function (r) {
+    var L = 760, H = 380, mg = { g: 84, d: 18, h: 16, b: 44 }, pl = L - mg.g - mg.d, ph = H - mg.h - mg.b;
+    var maxM = Math.max(r.finFinancement, r.manuf ? r.manuf.mois : 0, r.prot ? r.prot.mois : 0, 24), maxK = Math.max(r.kmFin, r.manuf ? r.manuf.km : 0, r.prot ? r.prot.km : 0, 20000);
+    maxM = Math.ceil(maxM / 12) * 12; var pasK = maxK > 200000 ? 50000 : 20000; maxK = Math.ceil(maxK / pasK) * pasK;
+    function x(m) { return mg.g + m / maxM * pl; } function y(k) { return mg.h + ph - k / maxK * ph; }
+    var el = [];
+    for (var m = 0; m <= maxM; m += 12) { el.push(svg('line', { x1: x(m), y1: mg.h, x2: x(m), y2: mg.h + ph, class: 'tx-g-grille' })); el.push(svg('text', { x: x(m), y: H - 24, class: 'tx-g-axe', 'text-anchor': 'middle' }, [String(m)])); }
+    for (var k = 0; k <= maxK; k += pasK) { el.push(svg('line', { x1: mg.g, y1: y(k), x2: mg.g + pl, y2: y(k), class: 'tx-g-grille' })); el.push(svg('text', { x: mg.g - 8, y: y(k) + 4, class: 'tx-g-axe', 'text-anchor': 'end' }, [AMX.fmtNombre(k)])); }
+    el.push(svg('text', { x: mg.g + pl / 2, y: H - 6, class: 'tx-g-titre', 'text-anchor': 'middle' }, ['Mois depuis la mise en service']));
+    el.push(svg('text', { x: 14, y: mg.h + ph / 2, class: 'tx-g-titre', 'text-anchor': 'middle', transform: 'rotate(-90 14 ' + (mg.h + ph / 2) + ')' }, ['Kilométrage']));
+    function rect(g, couleur, nom) {
+      if (!g) return;
+      el.push(svg('rect', { x: x(0), y: y(g.km), width: x(g.mois) - x(0), height: y(0) - y(g.km), fill: couleur, 'fill-opacity': 0.16, stroke: couleur, 'stroke-width': 2, rx: 4 }, [svg('title', {}, [nom + ' : ' + moisTexte(g.mois) + ' ou ' + AMX.fmtNombre(g.km) + ' km'])]));
+      el.push(svg('text', { x: x(0) + 8, y: y(g.km) + 17, class: 'tx-g-nom' }, [nom]));
+    }
+    rect(r.prot, C_ORANGE, 'Protection');
+    rect(r.manuf, C_BLEU, 'Garantie du manufacturier');
+    /* le financement : la route du véhicule pendant le terme, et sa zone en pointillé */
+    el.push(svg('rect', { x: x(r.age), y: y(r.kmFin), width: x(r.finFinancement) - x(r.age), height: y(r.km0) - y(r.kmFin), class: 'tx-g-fin' }, [svg('title', {}, ['Financement : ' + moisTexte(r.finFinancement - r.age) + ', jusqu\'à ' + AMX.fmtNombre(Math.round(r.kmFin)) + ' km'])]));
+    el.push(svg('line', { x1: x(r.age), y1: y(r.km0), x2: x(r.finFinancement), y2: y(r.kmFin), class: 'tx-g-route' }));
+    el.push(svg('circle', { cx: x(r.age), cy: y(r.km0), r: 5, class: 'tx-g-point' }, [svg('title', {}, ['Aujourd\'hui : ' + AMX.fmtNombre(Math.round(r.km0)) + ' km'])]));
+    el.push(svg('circle', { cx: x(r.finFinancement), cy: y(r.kmFin), r: 5, class: 'tx-g-point' }, [svg('title', {}, ['Fin du financement : ' + AMX.fmtNombre(Math.round(r.kmFin)) + ' km'])]));
+    el.push(svg('text', { x: x(r.finFinancement) - 6, y: y(r.kmFin) - 8, class: 'tx-g-nom', 'text-anchor': 'end' }, ['Fin du financement']));
+    return h('figure.tx-figure', [
+      svg('svg', { viewBox: '0 0 ' + L + ' ' + H, role: 'img', 'aria-label': 'Financement, garantie du manufacturier et protection selon les mois et le kilométrage', class: 'tx-g' }, el),
+      h('figcaption.tx-legende', [
+        h('span', [h('i', { style: { background: C_BLEU } }), 'Garantie du manufacturier']),
+        h('span', [h('i', { style: { background: C_ORANGE } }), 'Protection (garantie prolongée)']),
+        h('span', [h('i.tx-l-fin'), 'Financement : la route du véhicule'])
+      ])
+    ]);
+  };
+
+  /* =============================== Styles =============================== */
+  function injecterCss() {
+    if (typeof document === 'undefined' || document.getElementById('css-taux')) return;
+    var s = document.createElement('style');
+    s.id = 'css-taux';
+    s.textContent = [
+      '.tx-deux { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }',
+      '.tx-form { position: sticky; top: calc(var(--barre-h) + 12px); }',
+      '.tx-form .carte-corps { display: flex; flex-direction: column; gap: 11px; }',
+      '.tx-form .champ label { font-size: 12px; }',
+      '.tx-paiement { display: block; padding: 8px 10px; border-radius: 8px; background: var(--vert-clair); color: var(--vert-fonce); font-weight: 700; font-size: 13.5px; }',
+      '.tx-paiement[hidden] { display: none; }',
+      '.tx-reinit { align-self: flex-start; }',
+      '.tx-res { min-width: 0; display: flex; flex-direction: column; gap: 12px; }',
+      '.tx-res-tete { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }',
+      '.tx-res-tete strong { font-size: 15px; } .tx-res-tete span { color: var(--encre-3); font-size: 13px; }',
+      '.tx-defile { overflow-x: auto; }',
+      '.tx-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }',
+      '.tx-table th, .tx-table td { padding: 8px 10px; border-bottom: 1px solid var(--ligne); text-align: left; vertical-align: top; }',
+      '.tx-table thead th { font-size: 12px; font-weight: 700; color: var(--encre-3); background: var(--carte-2); white-space: nowrap; position: sticky; top: 0; }',
+      '.tx-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }',
+      '.tx-table tbody + tbody tr:first-child > * { border-top: 2px solid var(--ligne-forte); }',
+      '.tx-table th.tx-prog { font-weight: 400; min-width: 210px; max-width: 300px; background: var(--carte); }',
+      '.tx-inst { display: block; font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--encre-3); }',
+      '.tx-lien { border: 0; background: none; padding: 0; color: var(--bleu); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }',
+      '.tx-lien:hover { text-decoration: underline; }',
+      '.tx-prog-sous { display: block; font-size: 12px; color: var(--encre-3); line-height: 1.4; }',
+      '.tx-pdf { display: inline-block; margin-top: 3px; font-size: 12px; font-weight: 500; }',
+      '.tx-neg { color: var(--rouge); }',
+      '.tx-table td.tx-pot small, .tx-boni small { display: block; font-size: 12px; font-weight: 600; color: var(--vert-fonce); }',
+      '.tx-boni.non, .tx-texte.non { color: var(--encre-4); } .tx-boni.non span { text-decoration: line-through; } .tx-boni.non small { color: var(--ambre); }',
+      '.tx-table tr.tx-top td { background: var(--vert-clair); }',
+      '.tx-texte { font-size: 12.5px; color: var(--encre-2); max-width: 300px; }',
+      '.tx-exclus { font-size: 13px; color: var(--encre-2); } .tx-exclus summary { cursor: pointer; font-weight: 600; } .tx-exclus ul { margin: 8px 0 0; padding-left: 18px; } .tx-exclus li { margin: 3px 0; }',
+      '.tx-note { font-size: 12.5px; color: var(--encre-3); margin: 0; line-height: 1.5; }',
+      '.tx-attente p { margin: 0; color: var(--encre-3); }',
+      '.tx-depart { max-width: 720px; } .tx-depart h2 { font-size: 17px; margin: 0 0 8px; } .tx-depart p { margin: 0 0 12px; line-height: 1.55; color: var(--encre-2); }',
+      '.tx-depart-boutons { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }',
+      /* grilles */
+      '.tx-grilles { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }',
+      '.tx-inst-liste { display: flex; flex-direction: column; gap: 14px; min-width: 0; }',
+      '.tx-compte { font-size: 12px; color: var(--encre-3); }',
+      '.tx-progs { list-style: none; margin: 0; padding: 0; }',
+      '.tx-progs > li { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 11px 16px; border-bottom: 1px solid var(--ligne); }',
+      '.tx-progs > li:last-child { border-bottom: 0; }',
+      '.tx-progs > li.tx-hors { background: var(--carte-2); } .tx-progs > li.tx-hors .tx-prog-nom { color: var(--encre-3); }',
+      '.tx-prog-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; } .tx-prog-nom { font-size: 14px; }',
+      '.tx-prog-gestes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex: 0 0 auto; max-width: 46%; }',
+      '.tx-etat { font-size: 12px; font-weight: 700; color: var(--ambre); }',
+      '.tx-mises ul { list-style: none; margin: 0; padding: 4px 16px 12px; } .tx-mises li { padding: 8px 0; border-bottom: 1px solid var(--ligne); display: flex; flex-direction: column; gap: 1px; font-size: 13px; } .tx-mises li:last-child { border-bottom: 0; }',
+      '.tx-mises small { font-size: 12px; color: var(--encre-3); } .tx-mises .tx-note { padding: 12px 16px; }',
+      /* fiche et formulaire */
+      '.tx-fiche { display: flex; flex-direction: column; gap: 12px; } .tx-fiche-sous { margin: 0; color: var(--encre-3); font-size: 13px; }',
+      '.tx-dl { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 13.5px; } .tx-dl dt { color: var(--encre-3); font-weight: 600; } .tx-dl dd { margin: 0; } .tx-pre { white-space: pre-wrap; }',
+      '.voile.tx-voile .modale.large { width: min(980px, 96vw); }',
+      '.tx-formulaire { display: flex; flex-direction: column; gap: 12px; } .tx-formulaire h3 { font-size: 14px; margin: 8px 0 0; }',
+      '.tx-grille2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } .tx-grille4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }',
+      '.tx-paliers-form { display: flex; flex-direction: column; gap: 10px; }',
+      '.tx-palier { border: 1px solid var(--ligne-forte); border-radius: 9px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--carte-2); }',
+      '.tx-palier-rang { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }',
+      '.tx-palier-rang label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 600; color: var(--encre-3); } .tx-palier-rang input.saisie { width: 104px; }',
+      '.tx-tranches { display: flex; flex-direction: column; gap: 6px; }',
+      '.tx-tranche { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--encre-3); } .tx-tranche input.saisie { width: 96px; flex: 0 0 96px; }',
+      '.tx-cases { display: flex; gap: 6px 16px; flex-wrap: wrap; }',
+      '.tx-case { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; } .tx-case input { width: 16px; height: 16px; margin: 0; }',
+      '.tx-ia { display: flex; flex-direction: column; gap: 12px; } .tx-ia p { margin: 0; }',
+      '.tx-prop { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; border: 1px solid var(--ligne); border-radius: 9px; padding: 10px 12px; }',
+      /* amortissement, garantie */
+      '.tx-chiffres { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }',
+      '.tx-chiffre { background: var(--carte); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 11px 14px; display: flex; flex-direction: column; gap: 3px; }',
+      '.tx-chiffre span { font-size: 12px; color: var(--encre-3); font-weight: 600; } .tx-chiffre strong { font-size: 19px; font-variant-numeric: tabular-nums; }',
+      '.tx-am tr.tx-fin td { background: var(--carte-2); font-weight: 600; }',
+      '.tx-figure { margin: 0; } .tx-g { width: 100%; height: auto; display: block; }',
+      '.tx-g-grille { stroke: var(--ligne); stroke-width: 1; } .tx-g-axe { font-size: 12px; fill: var(--encre-3); } .tx-g-titre { font-size: 12px; font-weight: 600; fill: var(--encre-2); } .tx-g-nom { font-size: 12px; font-weight: 700; fill: var(--encre); }',
+      '.tx-g-fin { fill: none; stroke: var(--encre-2); stroke-width: 1.5; stroke-dasharray: 6 5; } .tx-g-route { stroke: var(--encre); stroke-width: 2.5; } .tx-g-point { fill: var(--encre); stroke: #fff; stroke-width: 2; }',
+      '.tx-legende { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--encre-2); margin-top: 8px; } .tx-legende span { display: inline-flex; align-items: center; gap: 7px; }',
+      '.tx-legende i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; } .tx-legende i.tx-l-fin { height: 0; border-top: 3px solid var(--encre); border-radius: 0; }',
+      '.tx-phrases { margin: 12px 0 0; padding-left: 18px; font-size: 13.5px; line-height: 1.6; color: var(--encre-2); }',
+      '#taux-impression { display: none; }',
+      '@media (max-width: 1100px) { .tx-grilles { grid-template-columns: minmax(0, 1fr); } }',
+      '@media (max-width: 900px) { .tx-deux { grid-template-columns: minmax(0, 1fr); } .tx-form { position: static; } .tx-table .opt { display: none; } .tx-grille4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tx-dl { grid-template-columns: minmax(0, 1fr); gap: 2px; } .tx-dl dd { margin-bottom: 8px; } }',
+      '@media (max-width: 640px) { .tx-progs > li { flex-direction: column; } .tx-prog-gestes { max-width: none; justify-content: flex-start; } .tx-grille2 { grid-template-columns: minmax(0, 1fr); } .tx-prop { flex-direction: column; } }',
+      '@page txam { size: letter; margin: 0.5in; }',
+      '@media print { body.impression-taux > *:not(#taux-impression) { display: none !important; } body.impression-taux { background: #fff !important; } body.impression-taux #taux-impression { display: block; page: txam; color: #111; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; } #taux-impression h1 { font-size: 16px; margin: 0 0 4px; } #taux-impression p { font-size: 11px; margin: 0 0 8px; } #taux-impression table { width: 100%; border-collapse: collapse; font-size: 10px; } #taux-impression th, #taux-impression td { border-bottom: 1px solid #ccc; padding: 2px 6px; text-align: left; } #taux-impression .num { text-align: right; } #taux-impression thead th { position: static; background: #eee; } }'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  /* =============================== Section =============================== */
+  AMX.section('taux', {
+    titre: 'Taux et financement', icone: 'resultat', ordre: 18,
+    visible: function () { return peutVoir(); },
+    monter: function (c, ctx) { return new VueTaux(c, ctx); }
+  });
+  AMX.taux = { calcul: Calcul, charger: charger, vider: vider, peutVoir: peutVoir };
+})();

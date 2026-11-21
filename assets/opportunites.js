@@ -37,7 +37,7 @@
   var FILTRES_CFX = [['', 'Tous les véhicules'], ['sans', 'Aucun accident déclaré'], ['verifier', 'Rapport à lire (sans mention « aucun accident »)'], ['inconnu', 'Pas de rapport CARFAX (ou pas encore lu)']];
   function cfx() { return AMX.cfxPastilles || null; }
   function etatCfx(o) { var c = cfx(), x = c && c.de(o.vin); return x ? x.a : ''; }
-  var TRIS = [['score', 'Meilleur profit'], ['gros', 'Profit au gros'], ['detail', 'Profit au détail'], ['cote', 'Meilleure cote CarGurus'], ['marche', 'Plus sous le marché'], ['prix', 'Prix le plus bas'], ['km', 'Km le plus bas'], ['nouveau', 'Plus récentes'], ['distance', 'Plus proches']];
+  var TRIS = [['score', 'Meilleur profit'], ['gros', 'Profit au gros'], ['detail', 'Profit au détail'], ['cote', 'Meilleure cote CarGurus'], ['marche', 'Plus sous le marché'], ['prix', 'Prix le plus bas'], ['km', 'Km le plus bas'], ['nouveau', 'Plus récentes'], ['baisse', 'Plus forte baisse de prix'], ['distance', 'Plus proches']];
   /* Cote CarGurus (sites d'annonces, Apify) : du meilleur au pire. */
   var COTES = { great: { t: 'Excellent prix', c: 'cg-great', r: 5 }, good: { t: 'Bon prix', c: 'cg-good', r: 4 }, fair: { t: 'Prix juste', c: 'cg-fair', r: 3 }, high: { t: 'Prix élevé', c: 'cg-high', r: 2 }, overpriced: { t: 'Trop cher', c: 'cg-over', r: 1 } };
   var FILTRES_COTE = [['', 'Toutes les cotes'], ['great', 'Excellent prix'], ['good', 'Bon prix ou mieux'], ['fair', 'Prix juste ou mieux'], ['sans', 'Sans cote']];
@@ -525,6 +525,7 @@
       self.rendre();
       self.ouvrirFicheDemandee();
       self.chargerUS();
+      self.chargerMh(!!manuel);
       if (manuel && !silencieux && !d.refuse) AMX.toast(d.occasions.length + ' annonce' + (d.occasions.length > 1 ? 's' : '') + ' suivie' + (d.occasions.length > 1 ? 's' : ''), 'ok');
     }, function (e) {
       if (gen !== self.generation) return;
@@ -534,6 +535,15 @@
     });
   };
 
+  /* 21 nov. : les fiches Manheim (BMW FS) — l'historique du prix demandé de chaque véhicule ; seulement s'il y a des annonces BMW FS. */
+  Opportunites.prototype.chargerMh = function (force) {
+    var self = this, d = this.donnees;
+    if (!AMX.manheim || !AMX.manheim.charger || !d || !Array.isArray(d.occasions)) return;
+    if (!d.occasions.some(function (o) { return o.source === 'manheim'; })) return;
+    if (this.mhCharge && !force) return;
+    this.mhCharge = true;
+    AMX.manheim.charger(!!force).then(function () { if (self.donnees) self.rafraichirListeSeule(); }, function () { self.mhCharge = false; });
+  };
   /* Taux du jour, paramètres d'exportation et gros É.-U. des évaluations (?evaluationsUs=1) : une fois par page. */
   Opportunites.prototype.chargerUS = function (force) {
     var self = this;
@@ -614,6 +624,7 @@
       if (t === 'prix') return -(num(o.prix) || 1e12);
       if (t === 'km') return -(num(o.km) || 1e12);
       if (t === 'nouveau') return new Date(o.premiereVue || 0).getTime();
+      if (t === 'baisse') { var ev = evolMh(o); if (ev && ev.ecartTotal !== null) return -ev.ecartTotal; var bp = num(o.baissePrix); if (nb(bp)) return Math.abs(bp); return nb(num(o.prixPrecedent)) && nb(num(o.prix)) ? num(o.prixPrecedent) - num(o.prix) : -1e12; }
       if (t === 'distance') return -(nb(k.distance) ? k.distance : 1e12);
       return scoreDe(k, (self.donnees.params || {}).marge || 0);
     };
@@ -1059,7 +1070,7 @@
       h('div.mini', { text: '→ ' + (COURTS[k.dest] || k.dest || '?') + (nb(k.distance) ? ' · ' + AMX.fmtNombre(k.distance) + ' km' : '') + ' · transport ' + (k.approx ? '≈ ' : '') + argent(k.transport) })]);
     var prix = h('div.occ-prix', [h('b', { text: argent(num(o.prix)) }),
       k.suspect ? h('div', [h('span.puce.suspect', { text: 'Prix à vérifier', title: 'Très bas devant la prévision OpenLane ou le marché : souvent un acompte, un paiement ou une erreur d\'annonce' })]) : null,
-      baisse ? h('div.mini.pos', { text: '↓ était ' + argent(num(o.prixPrecedent)) }) : (nb(num(o.baissePrix)) ? h('div.mini.pos', { text: '↓ baisse de ' + argent(num(o.baissePrix)) }) : null),
+      mhm && evolMh(o) ? ligneEvolMh(evolMh(o)) : (baisse ? h('div.mini.pos', { text: '↓ était ' + argent(num(o.prixPrecedent)) }) : (nb(num(o.baissePrix)) ? h('div.mini.pos', { text: '↓ baisse de ' + argent(num(o.baissePrix)) }) : null)),
       puceCote(o) ? h('div', [puceCote(o)]) : null,
       gmf && nb(num(o.mise)) ? h('div.mini', { text: 'mise ' + argent(num(o.mise)) }) : null]);
     var gros = h('div.occ-gros', nb(num(o.olPrix)) ? [
@@ -1231,6 +1242,83 @@
     var m = AMX.memo.lire(MEMO_MMR, {}) || {}; if (v) m[vin] = v; else delete m[vin]; AMX.memo.ecrire(MEMO_MMR, m);
   }
   function exportable(o) { return !!(o && o.vin && AMX.export && AMX.export.exportable && AMX.export.exportable(o.vin)); }
+  /* 21 nov. (Maxime) : « Dead cost » dans la comparaison É.-U. — taux du jour sans rien enlever, 3 000 $ retirés au lieu de
+     6 000 $. Un choix de la page (gardé sur l'appareil), qui vaut pour toutes les annonces. */
+  var MEMO_DEAD = 'occ_deadcost';
+  function deadCostActif() { return !!(AMX.export && AMX.export.deadCost) && AMX.memo.lire(MEMO_DEAD, '') === '1'; }
+
+  /* 21 nov. (Maxime : « le suivi des prix BMW FS devrait aussi être dans Opportunités d'achat ») — l'historique du prix demandé
+     que garde Manheim.gs (prixHisto : [[AAAA-MM-JJ, prix], …], un point à chaque changement), le même que Location BMW. */
+  var MOIS_C = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  function jourC(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); if (!m) return ''; var t = (Number(m[3]) === 1 ? '1er' : Number(m[3])) + ' ' + MOIS_C[Number(m[2]) - 1]; return m[1] === String(new Date().getFullYear()) ? t : t + ' ' + m[1]; }
+  function evolMh(o) {
+    if (!o || o.source !== 'manheim' || !AMX.manheim || !AMX.manheim.parVin) return null;
+    var f = AMX.manheim.parVin(o.vin);
+    if (!f) return null;
+    var hst = (Array.isArray(f.prixHisto) ? f.prixHisto : []).filter(function (x) { return Array.isArray(x) && /^\d{4}-\d{2}-\d{2}$/.test(String(x[0])) && Number(x[1]) > 0; })
+      .map(function (x) { return { le: String(x[0]), prix: Number(x[1]) }; });
+    var prix = nb(num(f.prix)) && num(f.prix) > 0 ? num(f.prix) : (nb(num(o.prix)) ? num(o.prix) : (hst.length ? hst[hst.length - 1].prix : null));
+    var r = { f: f, prix: prix, histo: hst, premier: hst.length ? hst[0] : null, avant: null, changeLe: '', ecart: null, ecartTotal: null, luLe: f.luLe || '' };
+    if (prix === null || !hst.length) return r;
+    for (var i = hst.length - 1; i >= 0; i--) { if (hst[i].prix !== prix) { r.avant = hst[i]; r.changeLe = hst[i + 1] ? hst[i + 1].le : ''; break; } }
+    if (r.avant) r.ecart = prix - r.avant.prix;
+    if (r.premier.prix !== prix) r.ecartTotal = prix - r.premier.prix;
+    return r;
+  }
+  /* La ligne de la liste : « ↓ 1 500 $ depuis le 9 nov. » (baisse, vert), « ↑ … » (hausse, ambre), sinon « prix stable depuis … ». */
+  function ligneEvolMh(ev) {
+    if (!ev || !ev.premier) return null;
+    var titre = 'BMW FS — premier prix vu ' + argent(ev.premier.prix) + ' le ' + jourC(ev.premier.le) + (ev.histo.length > 1 ? ' · ' + (ev.histo.length - 1) + ' changement' + (ev.histo.length > 2 ? 's' : '') : '') + ' · détail dans la fiche';
+    if (ev.ecartTotal === null) return h('div.mini.doux.occ-evol', { title: titre, text: 'prix stable depuis le ' + jourC(ev.premier.le) });
+    return h('div.mini.occ-evol.' + (ev.ecartTotal < 0 ? 'baisse' : 'hausse'), { title: titre, text: (ev.ecartTotal < 0 ? '↓ ' : '↑ ') + argent(Math.abs(ev.ecartTotal)) + ' depuis le ' + jourC(ev.premier.le) });
+  }
+  /* Le graphique de la fiche : le prix demandé dans le temps, en escalier (un point à chaque changement), puis les chiffres
+     et l'historique en texte (le même renseignement sans la souris). */
+  function grapheMh(ev) {
+    if (!ev || ev.prix === null) return null;
+    var p2 = function (n) { return String(n).padStart(2, '0'); }, d0 = new Date(), auj = d0.getFullYear() + '-' + p2(d0.getMonth() + 1) + '-' + p2(d0.getDate());
+    var jm = function (iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN; };
+    var pts = ev.histo.map(function (x) { return { le: x.le, prix: x.prix }; });
+    if (!pts.length) pts = [{ le: auj, prix: ev.prix }];
+    if (pts[pts.length - 1].prix !== ev.prix) pts.push({ le: auj, prix: ev.prix });
+    var lu = ev.luLe ? String(ev.luLe).slice(0, 10) : '';
+    var fin = [pts[pts.length - 1].le, lu].filter(function (x) { return /^\d{4}-\d{2}-\d{2}$/.test(x); }).sort().pop();
+    var t0 = jm(pts[0].le), t1 = Math.max(jm(fin), t0);
+    var vals = pts.map(function (x) { return x.prix; }), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    var marge = hi > lo ? (hi - lo) * 0.3 : Math.max(hi * 0.02, 500), dMin = lo - marge, dMax = hi + marge;
+    var X = function (le, i) { return t1 > t0 ? (jm(le) - t0) / (t1 - t0) * 100 : (i ? 100 : 0); }, Y = function (v) { return (dMax - v) / (dMax - dMin) * 100; };
+    var coords = pts.map(function (x, i) { return { le: x.le, prix: x.prix, x: X(x.le, i), y: Y(x.prix), ecart: i ? x.prix - pts[i - 1].prix : null }; });
+    var d = 'M ' + (coords[0].x * 10).toFixed(1) + ' ' + coords[0].y.toFixed(2);
+    for (var i = 1; i < coords.length; i++) d += ' H ' + (coords[i].x * 10).toFixed(1) + ' V ' + coords[i].y.toFixed(2);
+    d += ' H 1000';
+    var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 1000 100'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', 'occ-pg-svg');
+    [Y(hi), Y(lo)].forEach(function (y) { var g = document.createElementNS(NS, 'line'); g.setAttribute('x1', '0'); g.setAttribute('x2', '1000'); g.setAttribute('y1', y.toFixed(2)); g.setAttribute('y2', y.toFixed(2)); g.setAttribute('class', 'grille'); svg.appendChild(g); });
+    var tr = document.createElementNS(NS, 'path'); tr.setAttribute('d', d); tr.setAttribute('class', 'trace'); svg.appendChild(tr);
+    var zone = h('div.occ-pg-zone');
+    coords.forEach(function (c, i) {
+      var txt = argent(c.prix) + ' le ' + jourC(c.le) + (i === 0 ? ' (premier prix vu)' : (nb(c.ecart) ? ' (' + (c.ecart < 0 ? '−' : '+') + argent(Math.abs(c.ecart)) + ')' : ''));
+      zone.appendChild(h('span.occ-pg-pt' + (i === coords.length - 1 ? '.bout' : ''), { title: txt, 'aria-label': txt, tabindex: '0', style: { left: c.x + '%', top: c.y + '%' } }, [h('span')]));
+    });
+    var axeY = h('div.occ-pg-axe-y', [h('span', { text: argent(hi), style: { top: Y(hi) + '%' } })].concat(hi !== lo ? [h('span', { text: argent(lo), style: { top: Y(lo) + '%' } })] : []));
+    var axeX = h('div.occ-pg-axe-x', [h('span', { text: jourC(pts[0].le) }), h('span', { text: fin === auj ? 'aujourd\'hui' : jourC(fin) + ' (dernière lecture)' })]);
+    var nCh = Math.max(0, ev.histo.length - 1);
+    var stat = function (l, v, cls) { return h('div.occ-pg-stat' + (cls ? '.' + cls : ''), [h('span.l', { text: l }), h('span.v', { text: v })]); };
+    var stats = h('div.occ-pg-stats', [
+      stat('Premier prix vu', ev.premier ? argent(ev.premier.prix) + ' (' + jourC(ev.premier.le) + ')' : argent(ev.prix)),
+      stat('Prix actuel', argent(ev.prix)),
+      ev.ecartTotal !== null ? stat(ev.ecartTotal < 0 ? 'Baisse' : 'Hausse', argent(Math.abs(ev.ecartTotal)), ev.ecartTotal < 0 ? 'baisse' : 'hausse') : stat('Écart', 'aucun'),
+      stat('Changements', String(nCh)),
+      nb(num(ev.f.jours)) ? stat('Jours en vente', String(num(ev.f.jours))) : null
+    ]);
+    var hist = ev.histo.length > 1 ? h('div.mini.doux.occ-pg-hist', { text: 'Historique : ' + ev.histo.map(function (x, i) { var e = i ? x.prix - ev.histo[i - 1].prix : null; return jourC(x.le) + ' ' + argent(x.prix) + (nb(e) && e ? ' (' + (e < 0 ? '−' : '+') + argent(Math.abs(e)) + ')' : ''); }).join(' · ') }) : null;
+    var resume = 'Prix demandé de ' + argent(ev.premier ? ev.premier.prix : ev.prix) + ' à ' + argent(ev.prix) + ', ' + nCh + ' changement' + (nCh > 1 ? 's' : '');
+    return h('div.occ-pg', [
+      h('div.occ-pg-tete', [h('span.occ-pg-titre', { text: 'Évolution du prix demandé (BMW FS)' }), nCh ? null : h('span.mini.doux', { text: ev.premier ? 'Même prix depuis le ' + jourC(ev.premier.le) : 'Premier prix vu à la dernière lecture' })]),
+      h('div.occ-pg-graphe', { role: 'img', 'aria-label': resume }, [axeY, h('div.occ-pg-cadre', [h('div.occ-pg-plot', [svg, zone]), axeX])]),
+      stats, hist
+    ]);
+  }
   function dollarsUS(v) { return nb(v) ? AMX.fmtArgent(Math.round(v)).replace(/\s*\$$/, '') + ' $ US' : '—'; }
   /* La comparaison É.-U. d'une annonce : l'évaluation du NIV d'abord (boîte Canada / É.-U.), sinon le MMR tapé.
      null si le véhicule n'est pas fabriqué aux É.-U. */
@@ -1239,12 +1327,17 @@
     var vin = String(o.vin || '').toUpperCase(), ev = this.verdictsUs && this.verdictsUs[vin];
     var k = this.calc(o) || {}, P = AMX.export.params() || {}, T = AMX.export.taux();
     var ecart = num(P.ecartAchatPct) !== null ? num(P.ecartAchatPct) : num(P.ecartPct);
-    var r = { mmr: null, grosUS: null, source: '', taux: T && nb(num(T.taux)) ? num(T.taux) : null, tauxDate: T ? (T.date || '') : '', ecartPct: ecart, ajustement: num(P.ajustement) || 0, tauxAjuste: null, converti: null };
+    var dead = deadCostActif();
+    if (dead) { ecart = 0; }
+    var r = { mmr: null, grosUS: null, source: '', taux: T && nb(num(T.taux)) ? num(T.taux) : null, tauxDate: T ? (T.date || '') : '', ecartPct: ecart, ajustement: dead ? AMX.export.deadCostAjustement() : (num(P.ajustement) || 0), tauxAjuste: null, converti: null, deadCost: dead };
     var m = mmrDe(vin);
     if (nb(m)) {
       r.mmr = m; r.source = 'mmr';
       if (nb(r.taux)) { var c = AMX.export.calculer(m, r.taux, ecart, r.ajustement); r.grosUS = c.grosUS; r.tauxAjuste = c.tauxAjuste; r.converti = c.converti; }
-    } else if (ev && nb(num(ev.grosUS))) { r.grosUS = num(ev.grosUS); r.mmr = num(ev.mmr); r.source = 'evaluation'; }
+    } else if (ev && dead && nb(num(ev.mmr)) && nb(r.taux)) {
+      /* Dead cost : le MMR de l'évaluation, recalculé au taux du jour sans rien enlever. */
+      var cd = AMX.export.deadCost(num(ev.mmr), r.taux); r.mmr = num(ev.mmr); r.grosUS = cd.grosUS; r.tauxAjuste = cd.tauxAjuste; r.converti = cd.converti; r.source = 'evaluation';
+    } else if (ev && nb(num(ev.grosUS))) { r.grosUS = num(ev.grosUS); r.mmr = num(ev.mmr); r.source = 'evaluation'; r.deadCost = !!ev.deadCost; }
     r.profitUS = nb(r.grosUS) && nb(k.cout) ? Math.round(r.grosUS - k.cout) : null;
     r.profitCA = nb(k.profitGros) && !k.suspect ? k.profitGros : null;
     r.profitDetail = nb(k.profitDetail) && !k.suspect ? k.profitDetail : null;
@@ -1256,7 +1349,7 @@
     var u = this.us(o);
     if (!u || !nb(u.profitUS)) return null;
     var mieux = u.verdict && u.verdict.meilleur === 'us';
-    return h('div.mini.' + ton(u.profitUS) + (mieux ? '.occ-us-mieux' : ''), { text: 'É.-U. rendu ' + signe(u.profitUS) + (mieux ? ' ★' : ''), title: 'Gros É.-U. ' + argent(u.grosUS) + (u.source === 'evaluation' ? ' (évaluation du NIV)' : ' (MMR ' + dollarsUS(u.mmr) + ')') + ' − coût rendu' + (mieux ? ' — plus payant aux États-Unis' : '') });
+    return h('div.mini.' + ton(u.profitUS) + (mieux ? '.occ-us-mieux' : ''), { text: 'É.-U. rendu ' + signe(u.profitUS) + (u.deadCost ? ' (dead cost)' : '') + (mieux ? ' ★' : ''), title: 'Gros É.-U. ' + argent(u.grosUS) + (u.source === 'evaluation' ? ' (évaluation du NIV)' : ' (MMR ' + dollarsUS(u.mmr) + ')') + ' − coût rendu' + (mieux ? ' — plus payant aux États-Unis' : '') });
   };
   Opportunites.prototype.fiche = function (o) {
     var self = this, k = this.calc(o) || {}, p = (this.donnees && this.donnees.params) || {};
@@ -1276,6 +1369,14 @@
     // Le rapport CARFAX (pastilles, sans rien commander) : bien en vue, juste sous l'en-tête.
     var blocCfx = cfx() && cfx().bloc(o.vin);
     if (blocCfx) corps.appendChild(h('section.occ-fiche-bloc', [h('h4', 'Rapport CARFAX'), blocCfx]));
+    // 21 nov. : le suivi du prix demandé chez BMW FS (Manheim), comme dans Location BMW.
+    if (mhm && AMX.manheim) {
+      var blocEvol = h('section.occ-fiche-bloc.occ-fiche-evol');
+      var poserEvol = function () { AMX.vider(blocEvol); var g = grapheMh(evolMh(o)); blocEvol.appendChild(g || h('div.mini.doux', { text: 'Suivi du prix : ce véhicule n\'a pas encore de fiche BMW FS lue (cliquez le favori « Automax ← Manheim » sur l\'onglet Disponible).' })); };
+      corps.appendChild(blocEvol);
+      if (AMX.manheim.parVin(o.vin)) poserEvol();
+      else { blocEvol.appendChild(h('div.mini.doux', { text: 'Lecture du suivi des prix BMW FS…' })); AMX.manheim.charger().then(function () { if (blocEvol.isConnected) poserEvol(); }, function () { if (blocEvol.isConnected) poserEvol(); }); }
+    }
     // Le calcul retenu (la concession choisie en haut, sinon la plus avantageuse).
     var lignes = [
       ['Prix demandé', argent(num(o.prix)) + (gmf && nb(num(o.mise)) ? ' (mise ' + argent(num(o.mise)) + ')' : '')],
@@ -1335,7 +1436,8 @@
       var u = self.us(o) || {};
       AMX.vider(zoneCalc);
       if (u.source === 'evaluation' && !nb(mmrDe(o.vin))) zoneCalc.appendChild(h('div.mini', { text: 'Gros É.-U. tiré de l\'évaluation du NIV' + (nb(u.mmr) ? ' (MMR ' + dollarsUS(u.mmr) + ')' : '') + ' — tapez un MMR pour le remplacer.' }));
-      if (nb(u.mmr) && nb(u.tauxAjuste)) zoneCalc.appendChild(h('div.occ-us-chaine', { text: 'MMR ' + dollarsUS(u.mmr) + ' × ' + String(u.tauxAjuste).replace('.', ',') + ' (taux du jour ' + String(u.taux).replace('.', ',') + ' − ' + String(u.ecartPct).replace('.', ',') + ' %) = ' + argent(u.converti) + ' − ' + argent(u.ajustement) + ' = ' + argent(u.grosUS) + ' (gros É.-U.)' }));
+      if (nb(u.mmr) && nb(u.tauxAjuste) && u.deadCost) zoneCalc.appendChild(h('div.occ-us-chaine', { text: 'Dead cost : MMR ' + dollarsUS(u.mmr) + ' × ' + String(u.taux).replace('.', ',') + ' (taux du jour, rien d\'enlevé) = ' + argent(u.converti) + ' − ' + argent(u.ajustement) + ' = ' + argent(u.grosUS) + ' (gros É.-U.)' }));
+      else if (nb(u.mmr) && nb(u.tauxAjuste)) zoneCalc.appendChild(h('div.occ-us-chaine', { text: 'MMR ' + dollarsUS(u.mmr) + ' × ' + String(u.tauxAjuste).replace('.', ',') + ' (taux du jour ' + String(u.taux).replace('.', ',') + ' − ' + String(u.ecartPct).replace('.', ',') + ' %) = ' + argent(u.converti) + ' − ' + argent(u.ajustement) + ' = ' + argent(u.grosUS) + ' (gros É.-U.)' }));
       else if (nb(u.mmr) && !nb(u.taux)) zoneCalc.appendChild(h('div.mini', { text: 'Taux du jour pas encore lu…' }));
       else if (!nb(u.grosUS)) zoneCalc.appendChild(h('div.mini', { text: 'Tapez le MMR ($ US) de ce NIV : le gros É.-U. et le profit se calculent comme dans l\'évaluation (écart achat ' + String(u.ecartPct).replace('.', ',') + ' %, ajustement ' + argent(u.ajustement) + ').' }));
       var col = function (titre, v, sous, cle) {
@@ -1343,7 +1445,7 @@
         return h('div.occ-us-col' + (mieux ? '.mieux' : ''), [h('div.t', { text: titre }), h('div.v.' + ton(v), { text: nb(v) ? signe(v) : '—' }), h('div.mini', { text: sous })]);
       };
       zoneCalc.appendChild(h('div.occ-us-cols', [
-        col('Profit É.-U.', u.profitUS, nb(u.grosUS) ? 'gros É.-U. ' + argent(u.grosUS) + ' − coût rendu ' + argent(k.cout) : 'MMR à taper', 'us'),
+        col(u.deadCost ? 'Profit É.-U. (dead cost)' : 'Profit É.-U.', u.profitUS, nb(u.grosUS) ? 'gros É.-U. ' + argent(u.grosUS) + ' − coût rendu ' + argent(k.cout) : 'MMR à taper', 'us'),
         col('Profit gros Canada', u.profitCA, nb(num(o.olPrix)) ? 'OpenLane ' + argent(num(o.olPrix)) + ' − coût rendu' : 'prévision OpenLane à lire', 'ca'),
         col('Profit détail', u.profitDetail, nb(k.refAjuste) ? 'marché ' + argent(k.refAjuste) + ' − recon − coût' : 'marché inconnu', 'detail')
       ]));
@@ -1379,10 +1481,17 @@
         dessinerMarche();
       }, function (e) { b.classList.remove('occupe'); AMX.vider(zoneMarche); zoneMarche.appendChild(h('div.mini', { text: 'Marché américain : ' + AMX.erreurTexte(e) })); });
     };
+    /* 21 nov. : « Dead cost » à cliquer — taux du jour sans rien enlever, 3 000 $ retirés au lieu de 6 000 $ (toute la page). */
+    var btnDead = h('button.btn.petit', { type: 'button', 'aria-pressed': 'false', title: 'Dead cost : le même calcul au taux du jour sans rien enlever, et ' + argent(AMX.export.deadCostAjustement ? AMX.export.deadCostAjustement() : 3000) + ' retirés au lieu de ' + argent(num(P.ajustement) || 6000) + '. Vaut pour toutes les annonces de la page ; cliquez encore pour revenir.',
+      onclick: function () { AMX.memo.ecrire(MEMO_DEAD, deadCostActif() ? '' : '1'); majDead(); dessiner(); } });
+    var majDead = function () { var on = deadCostActif(); btnDead.textContent = on ? '✓ Dead cost' : 'Dead cost'; btnDead.setAttribute('aria-pressed', on ? 'true' : 'false'); btnDead.classList.toggle('primaire', on); btnDead.classList.toggle('fantome', !on); };
+    majDead();
+    if (!AMX.export.deadCost) btnDead = null;
     var btnMarche = h('button.btn.petit', { type: 'button', text: 'Marché américain (annonces)', title: 'Lit les annonces de concessionnaires aux États-Unis (MarketCheck) pour ce modèle', onclick: function (e) { lancerMarche(e.currentTarget); } });
     AMX.vider(bloc);
     bloc.appendChild(h('h4', 'Comparaison É.-U. (fabriqué aux États-Unis)'));
     bloc.appendChild(h('div.occ-us-saisie', [h('label', [h('span', { text: 'MMR ($ US)' }), champ]),
+      btnDead,
       h('a.btn.petit.fantome', { href: 'https://mmr.manheim.com/', target: '_blank', rel: 'noopener', text: 'Ouvrir MMR ↗', title: 'Manheim Market Report (compte Manheim É.-U.)' }),
       btnMarche,
       h('a.btn.petit.fantome', { href: AMX.lien('outils', 'evaluation', { vin: o.vin, km: num(o.km) || '' }), text: 'Évaluation complète' })]));
@@ -1461,7 +1570,7 @@
         'Prévision OpenLane': num(o.olPrix), 'Profit au gros': k.profitGros,
         'CARFAX': ({ v: 'Rapport à lire (sans mention « aucun accident »)', n: 'Aucun accident déclaré', x: 'Aucun rapport' })[etatCfx(o)] || '', 'Rapport CARFAX': (cfx() && cfx().de(o.vin) || {}).l || '',
         'Fabriqué aux É.-U.': exportable(o) ? 'oui' : '', 'MMR ($ US)': (self.us(o) || {}).mmr || '', 'Gros É.-U.': (self.us(o) || {}).grosUS || '', 'Profit É.-U.': (self.us(o) || {}).profitUS === undefined || (self.us(o) || {}).profitUS === null ? '' : self.us(o).profitUS, 'Prix médian ajusté': k.refAjuste, 'Annonces de référence': num(o.refN), 'Recon': k.recon, 'Profit au détail': k.profitDetail, 'Achat max.': k.achatMax,
-        'Cote CarGurus': COTES[o.coteCg] ? COTES[o.coteCg].t : '', 'Valeur du marché (CarGurus)': num(o.valeurMarche), 'Écart au marché': num(o.ecartMarche), 'Baisse de prix': num(o.baissePrix), 'Sites': num(o.nbSites),
+        'Cote CarGurus': COTES[o.coteCg] ? COTES[o.coteCg].t : '', 'Valeur du marché (CarGurus)': num(o.valeurMarche), 'Écart au marché': num(o.ecartMarche), 'Baisse de prix': num(o.baissePrix), 'Premier prix vu (BMW FS)': (evolMh(o) && evolMh(o).premier) ? evolMh(o).premier.prix : '', 'Écart depuis le premier prix (BMW FS)': (evolMh(o) && evolMh(o).ecartTotal !== null) ? evolMh(o).ecartTotal : '', 'Sites': num(o.nbSites),
         'Mise (DealerSource)': num(o.mise), 'Dommages estimés': num(o.dommages), 'Cote': o.cote, 'Fin de vente': o.finVente, 'Statut': STATUT_LIB[o.statut || ''], 'Note': o.note, 'Vue la première fois': o.premiereVue, 'Annonce': o.lien };
     });
     var wb = XLSX.utils.book_new();
@@ -1621,6 +1730,18 @@
       '.occ-us-marche-res { margin-top: 8px; padding: 8px 10px; border-radius: var(--rayon-s); background: var(--carte); border: 1px solid var(--trait); font-size: 13px; }',
       '.occ-us-marche-res.alerte { background: var(--rouge-bg); border-color: var(--rouge-bord); } .occ-us-marche-res.ok { border-color: var(--vert); }',
       '@media (max-width: 640px) { .occ-fiche-tete { flex-direction: column; } .occ-fiche-photo { width: 100%; height: 180px; } .occ-us-cols { grid-template-columns: 1fr; } }',
+      '.occ-evol.baisse { color: var(--vert-fonce); font-weight: 600; } .occ-evol.hausse { color: var(--ambre); font-weight: 600; }',
+      '.occ-pg { border: 1px solid var(--bleu-bord, #BFD4EE); border-radius: 10px; padding: 8px 10px 6px; display: flex; flex-direction: column; gap: 6px; background: var(--carte); }',
+      '.occ-pg-tete { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .occ-pg-titre { font-size: 14px; font-weight: 700; color: var(--encre); }',
+      '.occ-pg-graphe { display: flex; gap: 8px; } .occ-pg-axe-y { position: relative; width: 72px; flex: 0 0 72px; height: 64px; } .occ-pg-axe-y span { position: absolute; right: 0; transform: translateY(-50%); font-size: 12px; color: var(--encre-3); font-variant-numeric: tabular-nums; white-space: nowrap; }',
+      '.occ-pg-cadre { flex: 1 1 auto; min-width: 0; } .occ-pg-plot { position: relative; height: 64px; margin: 0 8px; }',
+      '.occ-pg-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; } .occ-pg-svg .grille { stroke: var(--trait, #E5E7EB); stroke-width: 1; vector-effect: non-scaling-stroke; } .occ-pg-svg .trace { fill: none; stroke: var(--bleu); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }',
+      '.occ-pg-zone { position: absolute; inset: 0; } .occ-pg-pt { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; display: flex; align-items: center; justify-content: center; cursor: default; outline-offset: 2px; }',
+      '.occ-pg-pt span { width: 8px; height: 8px; border-radius: 50%; background: var(--bleu); box-shadow: 0 0 0 2px var(--carte); } .occ-pg-pt.bout span { width: 10px; height: 10px; }',
+      '.occ-pg-axe-x { display: flex; justify-content: space-between; font-size: 12px; color: var(--encre-3); margin-top: 2px; }',
+      '.occ-pg-stats { display: flex; flex-wrap: wrap; gap: 2px 14px; border-top: 1px solid var(--trait, #E5E7EB); padding-top: 5px; } .occ-pg-stat { display: flex; align-items: baseline; gap: 5px; font-size: 13px; }',
+      '.occ-pg-stat .l { font-size: 12px; color: var(--encre-3); } .occ-pg-stat .v { font-weight: 700; font-variant-numeric: tabular-nums; } .occ-pg-stat.baisse .v { color: var(--vert-fonce); } .occ-pg-stat.hausse .v { color: var(--ambre); }',
+      '.occ-pg-hist { line-height: 1.5; }',
       '.occ-note { grid-column: 1 / -1; font-size: 12.5px; color: var(--encre-2); background: var(--fond); border-radius: 6px; padding: 4px 8px; }',
       '.occ-page .puce.nouv { background: var(--bleu-bg, #E6F0FB); color: var(--bleu); }',
       '.occ-page .puce.mh { background: #FFF4E5; color: #8A4B00; } .occ-page .puce.gmf { background: #EEF2FF; color: #3730A3; } .occ-page .puce.mc { background: var(--fond); color: var(--encre-2); }',

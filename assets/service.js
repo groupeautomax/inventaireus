@@ -124,6 +124,8 @@
     enCache: function () { return demCache.rep ? demCache.rep.demandes : null; },
     travaux: function () { return (demCache.rep && demCache.rep.travaux) || DEM_TRAVAUX; },
     resume: function () { return (demCache.rep && demCache.rep.resume) || null; },
+    /* 21 nov. (S3E57111A0E, Eric Morin) : à qui part une demande de la concession — { noms, repli, seuls } ou null (script d'avant) */
+    versQui: function (cie) { var v = demCache.rep && demCache.rep.versQui; return (v && cie && v[String(cie).toUpperCase()]) || null; },
     // La demande vivante du NIV (envoyée / retournée), sinon la plus récente.
     parVin: function (vin) {
       vin = String(vin || '').toUpperCase();
@@ -868,7 +870,7 @@
         h('dt', 'Travaux'), h('dd', { text: travauxTexte || '—' }),
         d.notes ? h('dt', 'Notes') : null, d.notes ? h('dd', { text: d.notes }) : null,
         d.budget !== null && d.budget !== undefined && d.budget !== '' ? h('dt', 'Budget') : null, d.budget !== null && d.budget !== undefined && d.budget !== '' ? h('dd', { text: AMX.fmtArgent(d.budget) }) : null,
-        h('dt', 'Demandée'), h('dd', { text: AMX.fmtDate(d.demandeLe, true) + (d.demandePar ? ' par ' + nomCourt(d.demandePar) : '') + (d.nDestinataires ? ' · ' + d.nDestinataires + ' destinataire' + (d.nDestinataires > 1 ? 's' : '') : '') + (d.urgence === 'client' ? ' · CLIENT EN ATTENTE' : '') }),
+        h('dt', 'Demandée'), h('dd', { text: AMX.fmtDate(d.demandeLe, true) + (d.demandePar ? ' par ' + nomCourt(d.demandePar) : '') + ((d.destinatairesNoms && d.destinatairesNoms.length) ? ' · envoyée à ' + d.destinatairesNoms.join(', ') : (d.nDestinataires ? ' · ' + d.nDestinataires + ' destinataire' + (d.nDestinataires > 1 ? 's' : '') : '')) + (d.urgence === 'client' ? ' · CLIENT EN ATTENTE' : '') }),
         d.etat === 'approuvee' ? h('dt', 'BT') : null, d.etat === 'approuvee' ? h('dd', [h('span.puce.ok.mono', { text: 'BT ' + d.btNo }), h('span.doux.petit', { text: ' approuvé le ' + AMX.fmtDate(d.approuveLe, true) + (d.approuvePar ? ' par ' + nomCourt(d.approuvePar) : '') })]) : null,
         d.etat === 'retournee' ? h('dt', 'Question') : null, d.etat === 'retournee' ? h('dd', { style: { color: 'var(--rouge)' }, text: (d.commentaire || '') + (d.approuvePar ? ' — ' + nomCourt(d.approuvePar) : '') }) : null,
         d.etat === 'envoyee' ? h('dt', 'Attente') : null, d.etat === 'envoyee' ? h('dd', { text: 'depuis ' + AMX.demandes.heures(d.heuresAttente) + (d.rappels ? ' · ' + d.rappels + ' rappel' + (d.rappels > 1 ? 's' : '') + ' envoyé' + (d.rappels > 1 ? 's' : '') : '') + ' — le service a reçu un courriel avec un lien pour approuver' }) : null
@@ -1100,11 +1102,24 @@
     var budget = h('input.saisie', { type: 'number', inputmode: 'numeric', placeholder: 'ex. 2000', min: '0', step: '50', value: existante && existante.budget !== null && existante.budget !== undefined ? existante.budget : '' });
     var urgence = h('select.saisie', [h('option', { value: 'normal', text: 'Normal' }), h('option', { value: 'client', text: 'Client en attente (urgent)' })]);
     urgence.value = existante && existante.urgence === 'client' ? 'client' : 'normal';
+    /* 21 nov. : à qui part le courriel, dit AVANT l'envoi — et en ambre quand la concession n'a aucun compte « Service » */
+    var vq = AMX.demandes.versQui(s.compagnie), elVersQui = null;
+    var phraseNoms = function (l) { return l.length < 2 ? (l[0] || '') : l.slice(0, -1).join(', ') + ' et ' + l[l.length - 1]; };
+    var nomCie = (AMX.COMPAGNIES_TOUTES || {})[String(s.compagnie || '').toUpperCase()] || 'cette concession';
+    if (vq && vq.noms && vq.noms.length) {
+      elVersQui = vq.repli
+        ? h('div.alerte-bloc.attention.svc-versqui', { style: { marginBottom: '10px' } }, [h('span', { html: I.alerte }), h('div', [h('b', { text: 'Aucun compte « Service » chez ' + nomCie + '.' }),
+            h('span', { text: ' La demande part aux directeurs : ' + phraseNoms(vq.noms) + '. Pour l\'envoyer à la bonne personne : Outils › Comptes et droits › Demandes de travaux au service.' })])])
+        : h('div.alerte-bloc.info.svc-versqui', { style: { marginBottom: '10px' } }, [h('span', { html: I.courriel || I.ok }), h('div', [h('b', 'Le courriel part à : '), h('span', { text: phraseNoms(vq.noms) + '.' })])]);
+    } else if (vq) {
+      elVersQui = h('div.alerte-bloc.erreur.svc-versqui', { style: { marginBottom: '10px' } }, [h('span', { html: I.alerte }), h('div', { text: 'Personne ne recevra cette demande : ' + nomCie + ' n\'a ni compte « Service » ni directeur. Réglez-le dans Outils › Comptes et droits › Demandes de travaux au service.' })]);
+    }
     var corps = h('div', [
       h('p', { style: { margin: '0 0 12px', color: 'var(--encre-2)', lineHeight: '1.5' }, text: (s.modele || '') + ' · ' + s.vin + (s.stock ? ' · # ' + s.stock : '') + (retouche
         ? ' — véhicule déjà prêt à vendre : le service reçoit un courriel et inscrit le numéro du bon de travail. Le suivi de mise en marché n\'est pas rouvert.'
         : ' — le service reçoit un courriel avec un lien : il inscrit le numéro du bon de travail, l\'étape « BT ouvert » se remplit et l\'icône passe au vert.' + (existante ? '' : ((s.autorisation && s.autorisation.decision === 'accepte') ? '' : ' Le véhicule est accepté au détail du même coup.'))) }),
       existante && existante.etat === 'retournee' ? h('div.alerte-bloc.erreur', { style: { marginBottom: '10px' } }, [h('span', { html: I.alerte }), h('div', { text: 'Question du service : ' + (existante.commentaire || '') })]) : null,
+      elVersQui,
       h('div.champ', [h('label', 'Travaux demandés'), cases, champAutre]),
       h('div.grille.c2', { style: { marginTop: '10px' } }, [h('div.champ', [h('label', 'Budget autorisé ($)'), budget]), h('div.champ', [h('label', 'Urgence'), urgence])]),
       h('div.champ', { style: { marginTop: '10px' } }, [h('label', 'Notes pour le service'), notes])
@@ -1124,7 +1139,7 @@
   }
   // Panneau Occasion (registre Detail) : retouche d'un véhicule déjà prêt à vendre.
   AMX.demandes.retouche = function (v) {
-    var s = { vin: String(v.vin || '').toUpperCase(), modele: v.modele || '', stock: v.stock || '', autorisation: {} };
+    var s = { vin: String(v.vin || '').toUpperCase(), modele: v.modele || '', stock: v.stock || '', compagnie: v.compagnie || '', autorisation: {} };
     return modaleDemandeTravaux(s, null, { retouche: true }, function (payload) {
       return AMX.post(payload).then(function (d) {
         if (!d || d.refuse || d.ok === false) { var m = (d && (d.erreur || d.message)) || 'action refusée'; AMX.toast('Non envoyé — ' + m, 'erreur', 7000); throw new Error(m); }

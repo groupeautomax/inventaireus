@@ -353,7 +353,8 @@
     var resumeChoix = function () {
       if (!elChoixRes) return;
       var v = picker ? picker.valeur() : ['disponible'], liste = d.evaluateurs[selCie.value] || [];
-      elChoixRes.textContent = v[0] === 'disponible' ? 'premier disponible' : liste.filter(function (e) { return v.indexOf(e.courriel) >= 0; }).map(function (e) { return e.nom; }).join(', ');
+      var nEq = liste.filter(function (e) { return e.equipe && e.presence !== 'absent'; }).length || liste.filter(function (e) { return e.equipe; }).length;
+      elChoixRes.textContent = v[0] === 'disponible' ? (nEq ? 'l\'équipe d\'évaluation (' + nEq + ')' : 'premier disponible') : liste.filter(function (e) { return v.indexOf(e.courriel) >= 0; }).map(function (e) { return e.nom; }).join(', ');
     };
     var dessinerEvaluateurs = function () {
       AMX.vider(elEval); elAvis.textContent = ''; picker = null;
@@ -579,6 +580,8 @@
     var choisis = (depart || []).filter(function (c) { return c === 'disponible' || liste.some(function (e) { return e.courriel === c; }); });
     if (!choisis.length || choisis.indexOf('disponible') >= 0) choisis = ['disponible'];
     var presents = liste.filter(function (e) { return !e.groupe && e.presence !== 'absent'; });
+    /* 20 nov. : la concession a une équipe d'évaluation → « l'équipe » remplace « premier disponible » : tous avisés en même temps. */
+    var equipe = liste.filter(function (e) { return e.equipe; }), equipePres = equipe.filter(function (e) { return e.presence !== 'absent'; });
     var grille = h('div.de-evaluateurs'), avis = h('div.mini.de-avis-eval'), el = h('div', [grille, avis]);
     var basculer = function (val) {
       if (val === 'disponible') choisis = ['disponible'];
@@ -598,8 +601,9 @@
       var bouton = function (val, titre, sous, ton, on, attenue) {
         return h('button.de-eval' + (on ? '.choisi' : '') + (attenue ? '.attenue' : ''), { type: 'button', 'aria-pressed': String(on), onclick: function () { basculer(val); } }, [h('b', [ton ? h('i.de-point.' + ton) : null, titre]), h('span', { text: sous })]);
       };
-      grille.appendChild(bouton('disponible', 'Premier disponible', presents.length ? 'saute les absents, le moins occupé' : 'personne n\'est disponible : le moins chargé', presents.length ? 'vert' : 'gris', dispo));
-      if (presents.length > 1) grille.appendChild(bouton('tous', 'Tous les présents (' + presents.length + ')', 'le premier qui la prend la fait', null, tous));
+      if (equipe.length) grille.appendChild(bouton('disponible', 'L\'équipe d\'évaluation (' + (equipePres.length || equipe.length) + ')', (equipePres.length ? equipePres : equipe).map(function (e) { return e.nom; }).join(', ') + ' — tous avisés en même temps', equipePres.length ? 'vert' : 'gris', dispo));
+      else grille.appendChild(bouton('disponible', 'Premier disponible', presents.length ? 'saute les absents, le moins occupé' : 'personne n\'est disponible : le moins chargé', presents.length ? 'vert' : 'gris', dispo));
+      if (!equipe.length && presents.length > 1) grille.appendChild(bouton('tous', 'Tous les présents (' + presents.length + ')', 'le premier qui la prend la fait', null, tous));
       liste.forEach(function (e) {
         var sous = [textePresence(e), e.ouvertes ? e.ouvertes + ' en cours' : 'libre', e.groupe ? 'groupe' : ''].filter(Boolean).join(' · ');
         grille.appendChild(bouton(e.courriel, e.nom, sous, TON_PRESENCE[e.presence || 'disponible'], !dispo && choisis.indexOf(e.courriel) >= 0, e.presence === 'absent'));
@@ -607,7 +611,8 @@
       var noms = liste.filter(function (e) { return choisis.indexOf(e.courriel) >= 0; });
       var absents = noms.filter(function (e) { return e.presence === 'absent'; }).map(function (e) { return e.nom; });
       var pleins = noms.filter(function (e) { return opts.maxOuvertes && e.ouvertes >= opts.maxOuvertes; }).map(function (e) { return e.nom; });
-      avis.textContent = noms.length > 1 ? noms.length + ' évaluateurs reçoivent le texto : le premier qui la prend la fait.' + (absents.length ? ' (' + absents.join(', ') + ' : absent)' : '')
+      avis.textContent = (dispo && equipe.length) ? (equipePres.length || equipe.length) + ' personne' + ((equipePres.length || equipe.length) > 1 ? 's reçoivent' : ' reçoit') + ' la demande en même temps : le premier qui la prend la fait.' + (equipe.length && !equipePres.length ? ' (toute l\'équipe est indiquée absente : elle part quand même)' : '')
+        : noms.length > 1 ? noms.length + ' évaluateurs reçoivent le texto : le premier qui la prend la fait.' + (absents.length ? ' (' + absents.join(', ') + ' : absent)' : '')
         : (absents.length ? absents[0] + ' est indiqué absent : la demande partira quand même, mais elle risque d\'attendre.' : (pleins.length ? pleins[0] + ' a déjà plusieurs demandes en cours.' : ''));
     };
     dessiner();
@@ -795,6 +800,10 @@
     /* 19 nov. (S29651453EC, François) : la feuille à remettre au client, une fois le montant donné (feuille-evaluation.js) */
     var feuille = AMX.feuilleEvaluation && AMX.feuilleEvaluation.possible(x) ? function (btn) { AMX.feuilleEvaluation.ouvrir(x, { portail: portail, bouton: btn || null }); } : null;
     if (feuille) autres.push({ texte: 'Feuille d\'évaluation (imprimer / PDF)', action: function () { feuille(); } });
+    /* 21 nov. (SDE46C0E402, George Prassinos) : la feuille de travail, à imprimer AVANT l'évaluation — description complète du
+       véhicule, cases à cocher, zones de dommages. Bâtie avec la demande et le décodeur seulement : jamais une valeur. */
+    var travail = AMX.feuilleEvaluation && AMX.feuilleEvaluation.travailPossible && AMX.feuilleEvaluation.travailPossible(x) ? function (btn) { AMX.feuilleEvaluation.ouvrirTravail(x, { bouton: btn || null }); } : null;
+    if (travail) autres.push({ texte: 'Feuille de travail (imprimer)', action: function () { travail(); } });
     autres.push({ texte: (x.messages || []).length ? 'Messages (' + x.messages.length + ')' : 'Écrire un message', action: function () { fermerFiche(); ouvrirFil(x.id); } });
     if (dr.transferer) autres.push({ texte: x.etat === 'approbation' ? 'Changer les évaluateurs proposés' : 'Transférer à un autre évaluateur', action: function () { fermerFiche(); transferer(x, d); } });
     if (dr.approuver) autres.push({ texte: 'Refuser la demande', action: function () { fermerFiche(); refuser(x); } });
@@ -843,6 +852,8 @@
       } else {
         elValeur.appendChild(h('div.fe-montant.sans', [h('span', { text: x.etat === 'approbation' ? 'À approuver' : (x.etat === 'refusee' ? 'Refusée' : (x.etat === 'annulee' ? 'Annulée' : 'Pas encore évaluée')) })]));
       }
+      /* 21 nov. : tant que la valeur n'est pas donnée, la feuille de travail (à remplir à la main en faisant le tour du véhicule) */
+      if (travail && !feuille) { var bTravail = h('button.btn.petit.fe-feuille-btn', { type: 'button', title: 'À imprimer avant l\'évaluation : description complète du véhicule (modèle et version), cases à cocher et zones de dommages à remplir à la main. Aucune valeur.', onclick: function () { travail(bTravail); } }, [h('span', { html: I.telecharger || '' }), h('span', { text: 'Feuille de travail' })]); elValeur.appendChild(h('div.fe-feuille', [bTravail, h('span.mini', { text: 'À imprimer avant l\'évaluation.' })])); }
       if (!ev) return;
       var m = ev.marche || {}, pctM = Number(m.marchePct);
       var repere = [
@@ -1010,6 +1021,9 @@
     AMX.vider(this.elMenu);
     var voitEval = !this.portail && AMX.voitEvaluations && AMX.voitEvaluations();
     if (this.btnSans) this.btnSans.hidden = !voitEval;   /* le bouton est dans l'en-tête, plus dans ce menu (20 nov.) */
+    /* 21 nov. (S695042FAA2, Frédéric Beauvais) : « envoyer un lien » est aussi ici — le client fait le tour de son véhicule
+       (NIV, km, photos) sur son téléphone ; le texto part du site. La même fenêtre que dans Relance › Leads. */
+    if (AMX.leads && AMX.leads.nouveauLien) items.push({ texte: 'Envoyer un lien d\'évaluation au client', action: function () { AMX.leads.nouveauLien(); } });
     if (voitEval) {
       items.push({ texte: 'Évaluer un véhicule (sans demande)', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation' }); } });
       items.push({ texte: 'Registre des évaluations', action: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluations' }); } });
@@ -1269,6 +1283,9 @@
     /* 19 nov. : la feuille d'évaluation à imprimer (page d'évaluation, menu de la demande) */
     feuille: function (id) { var x = AMX.evalDemandes.une(id); if (!x || !AMX.feuilleEvaluation) return false; AMX.feuilleEvaluation.ouvrir(x, { portail: !!(AMX.representantEval && AMX.representantEval()) }); return true; },
     feuillePossible: function (id) { var x = AMX.evalDemandes.une(id); return !!(x && AMX.feuilleEvaluation && AMX.feuilleEvaluation.possible(x)); },
+    /* 21 nov. : la feuille de travail, avant l'évaluation */
+    feuilleTravail: function (id) { var x = AMX.evalDemandes.une(id); if (!x || !AMX.feuilleEvaluation || !AMX.feuilleEvaluation.ouvrirTravail) return false; AMX.feuilleEvaluation.ouvrirTravail(x, {}); return true; },
+    feuilleTravailPossible: function (id) { var x = AMX.evalDemandes.une(id); return !!(x && AMX.feuilleEvaluation && AMX.feuilleEvaluation.travailPossible && AMX.feuilleEvaluation.travailPossible(x)); },
     une: function (id) { var d = cache.rep; return d ? d.demandes.filter(function (x) { return x.id === id; })[0] || null : null; },
     prendre: function (id) { return action(id, 'prendre'); },
     transferer: function (id) { var x = AMX.evalDemandes.une(id); if (x) { injecterCss(); transferer(x, cache.rep); } },

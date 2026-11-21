@@ -32,6 +32,10 @@
   var cacheLeads = null, cacheConcessions = [], cacheQuand = 0, promesseListe = null;
   var messagesOffre = {};    // id → texte d'offre renvoyé par le serveur dans cette session
   var courrielsEnvoyes = {}; // id → true si le serveur a envoyé le courriel au client
+  /* 21 nov. (S695042FAA2, Frédéric Beauvais) : le texto du lien part du serveur, au clic (LeadTexto.gs). `textosServeur` :
+     null = pas encore demandé, false = le script déployé ne connaît pas la route (rien ne change à l'écran), true = connu. */
+  var cacheTextos = {}, textosActif = false, textosServeur = null, promesseTextos = null, textosQuand = 0;
+  var SCRIPT_TEXTO = 'Le script n\'est pas à jour : le texto du lien d\'évaluation attend le déploiement du script (LeadTexto.gs).';
 
   /* ------------------------------ Helpers ------------------------------ */
   function moi() { return String(AMX.session.courriel || '').toLowerCase(); }
@@ -62,7 +66,29 @@
     return { libelle: 'CRM en attente', classe: '', detail: a };
   }
   function puceCrm(l) { var e = etatCrm(l); return e ? h('span.puce' + (e.classe ? '.' + e.classe : ''), { text: e.libelle, title: e.detail || e.libelle }) : null; }
-  function badgeStatut(l) { return estRecu(l) ? h('span.badge.vert', { text: 'Reçu' }) : h('span.badge.gris', { text: 'Envoyé' }); }
+  function textoDe(l) { return (l && cacheTextos[String(l.id)]) || null; }
+  function telValide(t) { var c = String(t || '').replace(/\D/g, ''); if (c.length === 11 && c.charAt(0) === '1') c = c.slice(1); return c.length === 10 ? c : ''; }
+  function texteTexto(t) { return 'Texto envoyé au ' + t.tel + ' le ' + AMX.fmtDate(t.le, true) + (t.parNom ? ' par ' + t.parNom : '') + (t.n > 1 ? ' (' + t.n + ' envois)' : ''); }
+  /* « Envoyé » ne se dit plus sans preuve : le texto parti du site, sinon « Lien créé » (il a pu partir de l'app ou être copié). */
+  function badgeStatut(l) {
+    if (estRecu(l)) return h('span.badge.vert', { text: 'Reçu' });
+    var t = textoDe(l);
+    if (t && t.statut === 'envoye') return h('span.badge.bleu', { text: 'Texto envoyé', title: texteTexto(t) });
+    if (t && t.statut === 'echec') return h('span.badge.rouge', { text: 'Texto pas parti', title: t.erreur || 'Le texto n\'est pas parti.' });
+    if (textosServeur) return h('span.badge.gris', { text: 'Lien créé', title: 'Aucun texto envoyé par le site pour ce lien : il a pu être envoyé de l\'app iPhone ou copié.' });
+    return h('span.badge.gris', { text: 'Envoyé' });
+  }
+  function dateStatut(l) {
+    if (estRecu(l)) return 'Reçu le ' + AMX.fmtDate(dateDe(l), true);
+    var t = textoDe(l);
+    if (t && t.statut === 'envoye') return 'Texto le ' + AMX.fmtDate(t.le, true);
+    return (textosServeur ? 'Créé le ' : 'Envoyé le ') + AMX.fmtDate(dateDe(l), true);
+  }
+  function directionLeads() {
+    var r = String((AMX.session.perms || {}).role || '');
+    return !!(AMX.perm('gererUtilisateurs') || { proprietaire: 1, admin: 1, gestionnaire: 1, direction_ventes: 1, directeur_commercial: 1 }[r]);
+  }
+  function peutTexter(l) { return estMoi(l) || directionLeads(); }
   function kv(paires) {
     var dl = h('dl.kv');
     paires.forEach(function (p) {
@@ -123,6 +149,30 @@
     return promesseListe;
   }
 
+  /* L'état du texto de chaque lien. Ne lève jamais : sans la route (script d'avant), la page reste comme avant. */
+  function chargerTextos(force) {
+    if (promesseTextos) return promesseTextos;
+    if (!force && textosServeur !== null && Date.now() - textosQuand < 60000) return Promise.resolve(textosServeur);
+    promesseTextos = AMX.get({ leadTextos: 1 }, { discret: true }).then(function (d) {
+      promesseTextos = null; textosQuand = Date.now();
+      if (d && d.leadTextos === true) { cacheTextos = d.textos || {}; textosActif = !!d.actif; textosServeur = true; }
+      else if (textosServeur === null) textosServeur = false;
+      return textosServeur;
+    }, function () { promesseTextos = null; if (textosServeur === null) textosServeur = false; return textosServeur; });
+    return promesseTextos;
+  }
+  /* Un envoi au clic, jamais rejoué (un texto ne part pas deux fois). corps = { id, telephone } ou { creer, concession, clientNom, clientTel }. */
+  function posterTexto(corps) {
+    var c = Object.assign({ action: 'leadTexto' }, corps);
+    return AMX.post(c, { secours: false, rejouer: false, delai: 60000 }).then(function (d) {
+      if (d && d.refuse) throw new Error(d.erreur || 'Envoi non autorisé pour ce compte.');
+      if (!d || d.leadTexto !== true) throw new Error(SCRIPT_TEXTO);
+      if (d.id && d.texto) cacheTextos[String(d.id)] = d.texto.ok === false ? { statut: 'echec', erreur: d.texto.erreur || '', le: new Date().toISOString(), tel: '', n: 0 } : d.texto;
+      if (!d.ok) throw new Error(d.erreur || 'Le texto n\'est pas parti.');
+      return d;
+    });
+  }
+
   /* ------------------------------- CSS --------------------------------- */
   function injecterCss() {
     if (document.getElementById('css-leads')) return;
@@ -160,6 +210,10 @@
       '.leads-lien { display: flex; gap: 6px; }',
       '.leads-lien input { flex: 1; }',
       '.leads-lien .btn { height: 34px; width: 34px; flex: none; }',
+      /* 21 nov. : l'état du texto du lien et le bouton pour l'envoyer */
+      '.leads-texto { display: grid; gap: 8px; }',
+      '.leads-texto-rang { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }',
+      '.leads-texto-rang input { flex: 1 1 160px; min-width: 0; max-width: 240px; }',
       '.leads-offre-actuelle { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }',
       '.leads-offre-actuelle b { font-size: 20px; font-weight: 700; color: var(--vert); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }',
       '.leads-offre-note { margin: 0 0 10px; font-size: 12.5px; color: var(--encre-2); background: var(--carte-2); border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 8px 10px; white-space: pre-wrap; }',
@@ -181,7 +235,15 @@
     compteur: function () {
       if (!cacheLeads) return '';
       return cacheLeads.filter(function (l) { return estRecu(l) && !aUneOffre(l); }).length;
-    }
+    },
+    /* 21 nov. : « Envoyer un lien au client » depuis Évaluations (ou ailleurs) — la même fenêtre que dans Leads. */
+    nouveauLien: function () {
+      injecterCss();
+      var v = Object.create(VueLeads.prototype);
+      v.leads = cacheLeads || []; v.detruit = true; v.autonome = true;
+      v.modaleCreer();
+    },
+    textos: function () { return { serveur: textosServeur, actif: textosActif }; }
   };
 
   function VueLeads(conteneur, ctx) {
@@ -200,6 +262,7 @@
     this.detruit = false;
     this.construire();
     this.charger();
+    chargerTextos().then(function () { if (!self.detruit) self.rendre(); });
     this.minuterie = setInterval(function () { self.rafraichir(); }, INTERVALLE);
     this.surVisible = function () { if (!document.hidden && Date.now() - cacheQuand > 30000) self.rafraichir(); };
     document.addEventListener('visibilitychange', this.surVisible);
@@ -250,6 +313,7 @@
     if (cacheConcessions.length) return cacheConcessions;
     var vus = {}, l = [];
     this.leads.forEach(function (x) { if (x.concession && !vus[x.concession]) { vus[x.concession] = true; l.push({ id: x.concession, nom: concessionDe(x) }); } });
+    if (!l.length) Object.keys(AMX.CONCESSIONS || {}).forEach(function (id) { l.push({ id: id, nom: AMX.CONCESSIONS[id] }); });
     return l.sort(function (a, b) { return String(a.nom).localeCompare(String(b.nom), 'fr'); });
   };
   VueLeads.prototype.nomConcessionId = function (id) {
@@ -288,6 +352,8 @@
     var self = this;
     this.enChargement = true;
     if (manuel) this.btnRafraichir.classList.add('occupe');
+    /* l'état des textos suit la liste (relu au plus une fois la minute, tout de suite sur « Rafraîchir ») */
+    chargerTextos(!!manuel).then(function () { if (!self.detruit && !self.enChargement) self.rendre(); });
     if (!cacheLeads) this.rendreListe([]);
     return chargerListe().then(function (liste) {
       if (self.detruit) return;
@@ -442,7 +508,7 @@
       ]),
       h('div.cell.leads-sec', [h('span.l', 'Concession'), h('span.v', { text: concessionDe(l) || '—', title: concessionDe(l) }), h('span.v.leads-vendeur' + (estMoi(l) ? '.moi' : ''), { text: vendeurDe(l) || '—', title: estMoi(l) ? 'Créé par vous' : vendeurDe(l) })]),
       h('div.cell.leads-sec', [h('span.l', 'Cellulaire'), h('span.v', { text: telDe(l) || '—' })]),
-      h('div.cell', [h('span.l', 'Statut'), h('span', [badgeStatut(l)]), h('span.jours', { text: (recu ? 'Reçu le ' : 'Envoyé le ') + AMX.fmtDate(dateDe(l), true) })]),
+      h('div.cell', [h('span.l', 'Statut'), h('span', [badgeStatut(l)]), h('span.jours', { text: dateStatut(l) })]),
       h('div.cell.indic.leads-sec', [h('span.l', 'CRM'), h('div.indicateurs', [puceCrm(l) || h('span.doux.petit', '—')])]),
       h('div.montant', [h('span.l', 'Offre'), h('span', { text: aUneOffre(l) ? montantLisible(l.offre) : '—' })]),
       h('button.plus', { 'aria-label': 'Ouvrir la fiche', type: 'button', title: 'Ouvrir', html: I.chevron })
@@ -511,9 +577,10 @@
       var champUrl = h('input.saisie.mono', { type: 'text', value: l.url, readonly: true, onclick: function () { this.select(); } });
       blocLien = h('div.bloc', [h('h3', 'Lien d\'évaluation'),
         h('div.leads-pile', [
+          this.zoneTexto(l),
           h('div.leads-lien', [champUrl, h('button.btn.icone', { type: 'button', title: 'Copier le lien', html: I.copier, onclick: function () { AMX.copier(l.url, 'Lien copié'); } })]),
           h('div.actions-ligne', [
-            h('button.btn.primaire', { type: 'button', html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(l.url, 'Lien copié'); } }),
+            h('button.btn' + (textosServeur && textosActif ? '' : '.primaire'), { type: 'button', html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(l.url, 'Lien copié'); } }),
             h('button.btn', { type: 'button', html: I.copier + '<span>Copier le texte</span>', onclick: function () { AMX.copier(texteLien, 'Message copié'); } }),
             h('a.btn', { href: l.url, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir</span>' }),
             h('a.btn', { href: mailtoLien(texteLien, conc), html: I.courriel + '<span>Envoyer par courriel</span>' })
@@ -622,6 +689,45 @@
   };
 
   /* ------------------------- Nouveau lien (modale) --------------------- */
+  /* L'état du texto d'un lien et le bouton pour l'envoyer. apres(d) est appelé après un envoi réussi. Rien si le script ne
+     connaît pas la route. */
+  VueLeads.prototype.zoneTexto = function (l, apres) {
+    if (!textosServeur) return null;
+    var self = this, t = textoDe(l), zone = h('div.leads-texto');
+    var dessiner = function () {
+      AMX.vider(zone);
+      t = textoDe(l);
+      if (t && t.statut === 'envoye') zone.appendChild(h('div.alerte-bloc.ok', [h('span', { html: I.ok }), h('div', [h('b', 'Texto envoyé'), h('span', { text: ' — au ' + t.tel + ', le ' + AMX.fmtDate(t.le, true) + (t.parNom ? ', par ' + t.parNom : '') + (t.n > 1 ? ' (' + t.n + ' envois)' : '') + '.' })])]));
+      else if (t && t.statut === 'echec') zone.appendChild(h('div.alerte-bloc.erreur', [h('span', { html: I.alerte }), h('div', [h('b', 'Le texto n\'est pas parti'), h('span', { text: t.erreur ? ' — ' + t.erreur : '.' })])]));
+      else zone.appendChild(h('div.alerte-bloc.attention', [h('span', { html: I.alerte }), h('div', [h('b', 'Pas encore envoyé par texto'), h('span', { text: ' — le lien est créé, mais le site n\'a envoyé aucun texto au client.' })])]));
+      if (!textosActif) { zone.appendChild(h('div.doux.petit', 'Les textos ne sont pas configurés sur le serveur : copiez le lien et envoyez-le vous-même.')); return; }
+      if (!peutTexter(l)) { zone.appendChild(h('div.doux.petit', 'Seul l\'employé qui a créé ce lien (ou la direction) peut l\'envoyer par texto.')); return; }
+      if (t && t.statut === 'envoye' && t.n >= 3) { zone.appendChild(h('div.doux.petit', 'Ce lien a déjà été envoyé trois fois par texto : appelez le client.')); return; }
+      var tel = h('input.saisie', { type: 'tel', placeholder: '514 555-1234', autocomplete: 'off', value: (t && t.tel) || telDe(l) || '', 'aria-label': 'Cellulaire du client' });
+      var btn = h('button.btn.primaire', { type: 'button', html: I.courriel + '<span>' + (t && t.statut === 'envoye' ? 'Renvoyer le texto' : 'Envoyer par texto') + '</span>' });
+      var envoyer = function () {
+        if (!telValide(tel.value)) { AMX.toast('Inscrivez le cellulaire du client (10 chiffres).', 'attention'); tel.focus(); return; }
+        btn.classList.add('occupe'); btn.disabled = true;
+        posterTexto({ id: l.id, telephone: tel.value.trim() }).then(function (d) {
+          AMX.toast(d.message || 'Texto envoyé.', 'ok');
+          dessiner();
+          if (apres) apres(d);
+          if (!self.detruit) self.rendre();
+        }, function (e) {
+          btn.classList.remove('occupe'); btn.disabled = false;
+          AMX.toast('Texto non envoyé : ' + AMX.erreurTexte(e), 'erreur', 8000);
+          dessiner();
+          if (!self.detruit) self.rendre();
+        });
+      };
+      btn.addEventListener('click', envoyer);
+      tel.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); envoyer(); } });
+      zone.appendChild(h('div.leads-texto-rang', [tel, btn]));
+    };
+    dessiner();
+    return zone;
+  };
+
   VueLeads.prototype.modaleCreer = function () {
     var self = this;
     var concs = this.concessions();
@@ -633,15 +739,47 @@
     var nom = h('input.saisie', { type: 'text', placeholder: 'Jean Tremblay', autocomplete: 'off' });
     var tel = h('input.saisie', { type: 'tel', placeholder: '514 555-1234', autocomplete: 'off' });
     var btn = h('button.btn.primaire', { type: 'button', html: I.lien + '<span>Créer le lien</span>' });
+    /* 21 nov. : avec un cellulaire, le lien est créé ET le texto part au client, d'un seul clic */
+    var btnTexto = h('button.btn.primaire', { type: 'button', hidden: true, html: I.courriel + '<span>Créer et envoyer par texto</span>' });
+    var aideTexto = h('p.doux.petit', { hidden: true, style: { margin: 0 } });
+    var majTexto = function () {
+      var possible = textosServeur === true && textosActif, valide = !!telValide(tel.value);
+      btnTexto.hidden = !possible; aideTexto.hidden = !possible;
+      btnTexto.disabled = !valide;
+      btn.className = 'btn' + (possible ? '' : ' primaire');
+      btn.querySelector('span').textContent = possible ? 'Créer le lien seulement' : 'Créer le lien';
+      aideTexto.textContent = valide ? 'Le texto part tout de suite au ' + tel.value.trim() + ', signé de votre nom et de la concession.' : 'Inscrivez le cellulaire du client : le lien lui part par texto dès la création.';
+    };
     var corps = h('div');
     var m;
     corps.appendChild(h('div.leads-pile-l', [
       h('p', { style: { margin: 0, color: 'var(--encre-2)', lineHeight: '1.5' }, text: 'Le lien est à usage unique et rattaché à votre compte : le lead arrivera au CRM de la concession avec votre nom.' }),
       concs.length ? null : h('div.alerte-bloc.attention', [h('span', { html: I.alerte }), h('div', 'Aucune concession reçue du serveur. Rafraîchissez la liste, puis réessayez.')]),
       h('div.champ', [h('label', 'Concession'), sel]),
-      h('div.grille.c2', [h('div.champ', [h('label', 'Nom du client (facultatif)'), nom]), h('div.champ', [h('label', 'Cellulaire (facultatif)'), tel])]),
-      h('div.leads-droite', [h('button.btn', { type: 'button', text: 'Annuler', onclick: function () { m.fermer(); } }), btn])
+      h('div.grille.c2', [h('div.champ', [h('label', 'Nom du client (facultatif)'), nom]), h('div.champ', [h('label', 'Cellulaire'), tel])]),
+      aideTexto,
+      h('div.leads-droite', [h('button.btn', { type: 'button', text: 'Annuler', onclick: function () { m.fermer(); } }), btn, btnTexto])
     ]));
+    tel.addEventListener('input', majTexto);
+    chargerTextos().then(majTexto);
+    majTexto();
+    var creerTexto = function () {
+      if (!sel.value) { AMX.toast('Choisissez une concession.', 'attention'); sel.focus(); return; }
+      if (!telValide(tel.value)) { AMX.toast('Inscrivez le cellulaire du client (10 chiffres).', 'attention'); tel.focus(); return; }
+      var conc = sel.value, nomClient = nom.value.trim(), telClient = tel.value.trim();
+      btnTexto.classList.add('occupe'); btnTexto.disabled = true; btn.disabled = true;
+      posterTexto({ creer: true, concession: conc, clientNom: nomClient, clientTel: telClient }).then(function (d) {
+        if (!d.url) throw new Error('Le serveur n\'a pas renvoyé de lien.');
+        AMX.memo.ecrire('leads_concession', conc);
+        self.afficherLienCree(corps, m, d.url, nomClient, self.nomConcessionId(conc), { id: d.id, tel: telClient });
+        AMX.toast(d.message || 'Lien créé.', d.texto && d.texto.ok === false ? 'attention' : 'ok', 7000);
+        if (!self.detruit) self.charger();
+      }, function (e) {
+        btnTexto.classList.remove('occupe'); btn.disabled = false; majTexto();
+        AMX.toast('Envoi impossible : ' + AMX.erreurTexte(e), 'erreur', 8000);
+      });
+    };
+    btnTexto.addEventListener('click', creerTexto);
     var creer = function () {
       if (!sel.value) { AMX.toast('Choisissez une concession.', 'attention'); sel.focus(); return; }
       var conc = sel.value, nomClient = nom.value.trim(), telClient = tel.value.trim();
@@ -651,8 +789,8 @@
         .then(function (d) {
           btn.classList.remove('occupe');
           AMX.memo.ecrire('leads_concession', conc);
-          self.afficherLienCree(corps, m, d.url, nomClient, self.nomConcessionId(conc));
-          AMX.toast('Lien créé — envoyez-le au client par texto ou par courriel.', 'ok');
+          self.afficherLienCree(corps, m, d.url, nomClient, self.nomConcessionId(conc), { id: d.id, tel: telClient });
+          AMX.toast(textosServeur && textosActif ? 'Lien créé — il n\'est pas encore envoyé au client.' : 'Lien créé — envoyez-le au client par texto ou par courriel.', 'ok');
           if (!self.detruit) self.charger();
         }, function (e) {
           btn.classList.remove('occupe');
@@ -660,13 +798,19 @@
         });
     };
     btn.addEventListener('click', creer);
-    [nom, tel].forEach(function (i) { i.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); creer(); } }); });
+    /* Entrée = le geste principal : avec un cellulaire valide et les textos actifs, créer et envoyer */
+    [nom, tel].forEach(function (i) { i.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!btnTexto.hidden && telValide(tel.value)) creerTexto(); else creer(); } }); });
     m = AMX.modale({ titre: 'Nouveau lien d\'évaluation', corps: corps, sansPied: true });
   };
 
   // Après création : le lien reste derrière des boutons (champ en lecture seule pour la copie).
-  VueLeads.prototype.afficherLienCree = function (corps, m, url, nomClient, nomConc) {
+  VueLeads.prototype.afficherLienCree = function (corps, m, url, nomClient, nomConc, extra) {
     var self = this;
+    extra = extra || {};
+    /* le numéro du lien : rendu par le serveur, sinon lu dans l'adresse (?t=) */
+    var idLien = String(extra.id || (/[?&]t=([^&#]+)/.exec(url) || [])[1] || '');
+    var lienCree = { id: idLien, url: url, creePar: moi(), clientNomPrevu: nomClient, clientTelPrevu: extra.tel || '', statut: 'envoye' };
+    var zoneT = idLien ? this.zoneTexto(lienCree) : null;
     var texte = messageClient(url, prenomDe(nomClient), nomConc, monNom());
     var champUrl = h('input.saisie.mono', { type: 'text', value: url, readonly: true, onclick: function () { this.select(); } });
     var ta = h('textarea.saisie', { rows: '4', spellcheck: 'false' });
@@ -675,11 +819,13 @@
     ta.addEventListener('input', function () { lienCourriel.href = mailtoLien(ta.value, nomConc); });
     AMX.vider(corps);
     corps.appendChild(h('div.leads-pile-l', [
-      h('div.alerte-bloc.ok', [h('span', { html: I.ok }), h('div', [h('b', 'Lien prêt à envoyer'), h('span', { text: ' — ' + (nomClient ? 'pour ' + nomClient + ', ' : '') + (nomConc || 'concession choisie') + '. Le lien est à usage unique.' })])]),
+      zoneT ? null : h('div.alerte-bloc.ok', [h('span', { html: I.ok }), h('div', [h('b', 'Lien prêt à envoyer'), h('span', { text: ' — ' + (nomClient ? 'pour ' + nomClient + ', ' : '') + (nomConc || 'concession choisie') + '. Le lien est à usage unique.' })])]),
+      zoneT,
+      zoneT ? h('div.doux.petit', { text: (nomClient ? 'Pour ' + nomClient + ', ' : '') + (nomConc || 'concession choisie') + '. Le lien est à usage unique.' }) : null,
       h('div.champ', [h('label', 'Lien d\'évaluation'), h('div.leads-lien', [champUrl, h('button.btn.icone', { type: 'button', title: 'Copier le lien', html: I.copier, onclick: function () { AMX.copier(url, 'Lien copié'); } })])]),
       h('div.champ', [h('label', 'Message au client (modifiable)'), ta]),
       h('div.actions-ligne', [
-        h('button.btn.primaire', { type: 'button', html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(url, 'Lien copié'); } }),
+        h('button.btn' + (zoneT && textosActif ? '' : '.primaire'), { type: 'button', html: I.copier + '<span>Copier le lien</span>', onclick: function () { AMX.copier(url, 'Lien copié'); } }),
         h('button.btn', { type: 'button', html: I.copier + '<span>Copier le texte</span>', onclick: function () { AMX.copier(ta.value, 'Message copié'); } }),
         h('a.btn', { href: url, target: '_blank', rel: 'noopener', html: I.externe + '<span>Ouvrir</span>' }),
         lienCourriel

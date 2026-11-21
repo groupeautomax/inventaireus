@@ -870,8 +870,8 @@
      concession (ou le propriétaire) le change. */
   VueAdmin.prototype.construireEvalReglages = function () {
     this.elEvalReglListe = h('div', { text: 'Chargement…' });
-    return h('div.carte.admin-parametres.admin-eval-regl', [h('div.carte-entete', [h('h2', 'Demandes d\'évaluation des représentants')]), h('div.carte-corps', [
-      h('p.doux.petit', { style: { margin: 0 }, text: 'Cochée : la demande d\'un représentant attend l\'approbation de la direction avant de partir à l\'évaluateur. Décochée : elle part tout de suite à l\'évaluateur ; la direction confirme seulement le montant avant qu\'il soit envoyé au représentant.' }),
+    return h('div.carte.admin-parametres.admin-eval-regl', [h('div.carte-entete', [h('h2', 'Demandes d\'évaluation')]), h('div.carte-corps', [
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Case cochée : la demande d\'un représentant attend l\'approbation de la direction avant de partir aux évaluateurs. Décochée : elle part tout de suite ; la direction confirme seulement le montant. L\'équipe d\'évaluation reçoit chaque demande en même temps (texto, sinon courriel) : le premier qui la prend la fait.' }),
       this.elEvalReglListe
     ])]);
   };
@@ -899,7 +899,48 @@
         }).catch(function (e) { cb.checked = !cb.checked; cb.disabled = !peut; AMX.toast('Réglage impossible — ' + AMX.erreurTexte(e), 'erreur'); });
       });
       self.elEvalReglListe.appendChild(h('label.case.admin-eval-ligne', { title: peut ? '' : 'Seul le directeur général de la concession (ou le propriétaire) change ce réglage.' }, [cb, h('span', [h('b', { text: AMX.COMPAGNIES_TOUTES[c] || c }), h('span.doux', { text: r.approbationAvant !== false ? ' — approbation de la direction avant l\'envoi' : ' — envoi direct à l\'évaluateur, montant confirmé par la direction' })])]));
+      /* 20 nov. (SE178EC8B7B) : l'équipe d'évaluation de la concession — toute l'équipe est avisée en même temps. */
+      if (d.equipes) {
+        var eq = r.equipe || [];
+        self.elEvalReglListe.appendChild(h('div.admin-eval-equipe', { style: { margin: '2px 0 12px 28px', display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' } }, [
+          h('span.petit', { text: eq.length ? 'Équipe d\'évaluation (' + eq.length + ') : ' + eq.map(function (x) { return x.nom; }).join(', ') : 'Pas d\'équipe : chaque demande part à un seul évaluateur, le premier disponible.' }),
+          peut ? h('button.btn.petit', { type: 'button', id: 'adm-eval-equipe-' + c, text: eq.length ? 'Modifier l\'équipe' : 'Choisir l\'équipe', onclick: function () { self.modaleEquipeEval(c, r); } }) : null
+        ]));
+      }
     });
+  };
+  /* Choisir qui reçoit les demandes d'évaluation d'une concession (cases à cocher). POST evalDemandeAction { op: 'reglages', compagnie, equipe: [courriels] }. */
+  VueAdmin.prototype.modaleEquipeEval = function (c, r) {
+    var self = this, cand = r.candidats || [], choisis = {};
+    (r.equipe || []).forEach(function (x) { choisis[x.courriel] = true; });
+    var liste = h('div', { style: { display: 'grid', gap: '6px', maxHeight: '52vh', overflow: 'auto' } });
+    var compte = h('p.petit', { style: { margin: '10px 0 0' } });
+    var maj = function () {
+      var n = Object.keys(choisis).filter(function (k) { return choisis[k]; }).length;
+      compte.textContent = n ? n + ' personne' + (n > 1 ? 's reçoivent' : ' reçoit') + ' chaque demande en même temps ; le premier qui la prend la fait.' : 'Personne de coché : chaque demande partira à un seul évaluateur, le premier disponible.';
+    };
+    cand.forEach(function (x) {
+      var cb = h('input', { type: 'checkbox', checked: choisis[x.courriel] ? 'checked' : undefined });
+      cb.addEventListener('change', function () { choisis[x.courriel] = cb.checked; maj(); });
+      liste.appendChild(h('label.case', [cb, h('span', [h('b', { text: x.nom }), h('span.doux', { text: ' — ' + (x.roleLibelle || x.role || '') + (x.groupe ? ' · tout le groupe' : '') + (x.texto ? '' : ' · sans cellulaire : courriel seulement') })])]));
+    });
+    if (!cand.length) liste.appendChild(h('p.doux.petit', { text: 'Aucun compte à proposer pour cette concession.' }));
+    maj();
+    var btn = h('button.btn.primaire', { type: 'button', text: 'Enregistrer l\'équipe' });
+    var m = AMX.modale({ titre: 'Équipe d\'évaluation — ' + (AMX.COMPAGNIES_TOUTES[c] || c),
+      corps: h('div', [h('p.doux.petit', { style: { marginTop: 0 }, text: 'Cochez les personnes qui reçoivent les demandes d\'évaluation de cette concession. Un membre absent (Ma disponibilité) n\'est pas avisé.' }), liste, compte]),
+      pied: [h('button.btn', { type: 'button', text: 'Annuler', onclick: function () { m.fermer(); } }), btn] });
+    btn.onclick = function () {
+      btn.disabled = true;
+      var equipe = cand.filter(function (x) { return choisis[x.courriel]; }).map(function (x) { return x.courriel; });
+      AMX.post({ action: 'evalDemandeAction', op: 'reglages', compagnie: c, equipe: equipe }).then(function (x) {
+        if (x && x.vehicules && !x.reglages) throw new Error('le script n\'est pas à jour (DemandesEval.gs)');
+        if (!x || x.ok === false || x.refuse) throw new Error((x && x.erreur) || 'refusé');
+        if (!x.equipes) throw new Error('le script n\'est pas à jour (DemandesEval.gs) : l\'équipe n\'a pas été enregistrée');
+        m.fermer(); self.rendreEvalReglages(x); AMX.toast(x.message || 'Équipe enregistrée.', 'ok');
+        if (AMX.evalDemandes && AMX.evalDemandes.vider) AMX.evalDemandes.vider();
+      }).catch(function (e) { btn.disabled = false; AMX.toast('Équipe pas enregistrée — ' + AMX.erreurTexte(e), 'erreur'); });
+    };
   };
 
   VueAdmin.prototype.chargerOpenlane = function () {

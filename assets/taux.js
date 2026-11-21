@@ -214,7 +214,48 @@
     if (!out.annee) out.avis.push('L\'année du véhicule n\'est pas au livre.');
     return out;
   }
-  var Calcul = { num: num, cents: cents, parAn: parAn, nbVersements: nbVersements, paiement: paiement, ristourne: ristourne, termeMaxDe: termeMaxDe, palierVaut: palierVaut,
+  /* 21 nov. (Maxime : « le système de taux doit être intelligent et suggérer les meilleures combinaisons de taux de différentes
+     banques avec ristourne »). Comme les meilleurs outils (Intellitaux de Torque, Desking Intelligence de Cox) : quelques
+     lignes, pas un tableau de plus.
+     - Sans taux vendu : la « frontière » — en partant du versement le plus bas, chaque ligne rapporte plus que la précédente
+       (ristourne + boni) ; aucune autre banque ne rapporte plus pour un versement aussi bas. Plus de 5 lignes : la première,
+       la plus payante et trois entre les deux.
+     - Avec le taux vendu : le versement du client ne change pas ; on montre les plus payantes (potentiel + boni), une par
+       institution, sans celles qui feraient perdre de l'argent.
+     Rien n'est appelé : c'est calculé dans la page à partir des grilles. */
+  function combinaisons(r, max) {
+    max = max || 5;
+    var opts = [];
+    (r.lignes || []).forEach(function (l) {
+      (l.paliers || []).forEach(function (o) {
+        var boni = l.boni && l.boni.applicable ? l.boni.montant || 0 : 0;
+        var rapporte = cents((o.ristourne || 0) + boni + (r.complet ? (o.gainTotal || 0) : 0));
+        opts.push({ l: l, o: o, inst: l.p.institution, rapporte: rapporte, boni: boni, paiement: o.paiement, taux: o.taux });
+      });
+    });
+    if (!opts.length) return { mode: r.complet ? 'vendu' : 'frontiere', lignes: [] };
+    var out = [], parInst = {};
+    if (r.complet) {
+      opts.sort(function (a, b) { return (b.rapporte - a.rapporte) || (a.taux - b.taux); });
+      opts.forEach(function (x) { if (out.length >= Math.min(max, 3) || parInst[x.inst] || x.rapporte <= 0) return; parInst[x.inst] = 1; out.push(x); });
+    } else {
+      opts.sort(function (a, b) { return (a.paiement - b.paiement) || (b.rapporte - a.rapporte); });
+      var meilleur = -Infinity, front = [];
+      opts.forEach(function (x) { if (x.rapporte > meilleur + 0.005) { meilleur = x.rapporte; front.push(x); } });
+      if (front.length <= max) out = front;
+      else { var pas = (front.length - 1) / (max - 1); for (var k = 0; k < max; k++) out.push(front[Math.round(k * pas)]); }
+    }
+    var base = out[0], top = out.reduce(function (m, x) { return !m || x.rapporte > m.rapporte ? x : m; }, null);
+    out.forEach(function (x, k) {
+      x.ecartPaiement = base ? cents(x.paiement - base.paiement) : 0;
+      x.ecartRapporte = base ? cents(x.rapporte - base.rapporte) : 0;
+      x.tags = [];
+      if (!r.complet && k === 0) x.tags.push('client');
+      if (x === top) x.tags.push('concession');
+    });
+    return { mode: r.complet ? 'vendu' : 'frontiere', lignes: out };
+  }
+  var Calcul = { num: num, cents: cents, combinaisons: combinaisons, parAn: parAn, nbVersements: nbVersements, paiement: paiement, ristourne: ristourne, termeMaxDe: termeMaxDe, palierVaut: palierVaut,
     boniDe: boniDe, admissible: admissible, comparer: comparer, ajouterPeriodes: ajouterPeriodes, amortissement: amortissement, garantie: garantie, deVente: deVente };
 
   /* =============================== Données =============================== */
@@ -284,6 +325,38 @@
         annoncerLecture(); suivant();
       }).catch(function (e) { LECTURE.en = false; LECTURE.erreurs.push(texteErreur(e)); annoncerLecture(); AMX.toast('Lecture arrêtée — ' + texteErreur(e), 'erreur'); });
     })();
+  }
+
+  /* 21 nov. (Maxime : « on se fie sur Einstein ») : tout accepter d'un coup. Le serveur traite quelques documents par requête
+     (4 minutes au plus) et écarte d'office ce qui ne s'applique plus ou est en double ; on recommence tant qu'il en reste. */
+  var ACCEPTER = { en: false, faits: 0, prevus: 0, ecartes: 0, erreurs: [] };
+  function accepterTout(n, m) {
+    if (ACCEPTER.en) return Promise.resolve(null);
+    return AMX.confirmer('Accepter les ' + n + ' programme' + (n > 1 ? 's' : '') + ' ?',
+      'Ils entrent dans vos grilles tels qu\'Einstein AI les a lus.' + (m ? ' Les ' + m + ' qui ne s\'appliquent plus ou sont en double sont écartés : vous les voyez à part.' : ''),
+      { ok: 'Tout accepter' }).then(function (oui) {
+      if (!oui) return null;
+      ACCEPTER.en = true; ACCEPTER.faits = 0; ACCEPTER.prevus = 0; ACCEPTER.ecartes = 0; ACCEPTER.erreurs = [];
+      annoncerLecture();
+      return new Promise(function (resoudre) {
+        (function suivant(tour) {
+          AMX.post({ action: 'grilleRecueAction', op: 'accepterTout' }, { secours: false, rejouer: false, delai: 330000 }).then(function (r) {
+            AMX.verifier(r, 'Refusé');
+            if (r.grillesRecues !== true || !r.accepterTout) throw new Error(SCRIPT_RECUES);
+            ACCEPTER.faits += r.faits || 0; ACCEPTER.prevus += r.prevus || 0; ACCEPTER.ecartes += r.ecartes || 0;
+            (r.erreurs || []).forEach(function (t) { ACCEPTER.erreurs.push(t); });
+            recues.quand = 0; vider();
+            if (r.reste && tour < 12) { annoncerLecture(); suivant(tour + 1); return; }
+            ACCEPTER.en = false; annoncerLecture();
+            var t = [ACCEPTER.faits + ' programme' + (ACCEPTER.faits > 1 ? 's' : '') + ' accepté' + (ACCEPTER.faits > 1 ? 's' : '')];
+            if (ACCEPTER.prevus) t.push(ACCEPTER.prevus + ' prévu' + (ACCEPTER.prevus > 1 ? 's' : '') + ' plus tard');
+            if (ACCEPTER.ecartes) t.push(ACCEPTER.ecartes + ' écarté' + (ACCEPTER.ecartes > 1 ? 's' : ''));
+            AMX.toast(t.join(' · ') + (ACCEPTER.erreurs.length ? ' · ' + ACCEPTER.erreurs.length + ' refusé(s)' : '') + '.', ACCEPTER.erreurs.length ? 'info' : 'ok', ACCEPTER.erreurs.length ? 9000 : 5000);
+            resoudre(r);
+          }).catch(function (e) { ACCEPTER.en = false; annoncerLecture(); AMX.toast('Arrêté — ' + texteErreur(e), 'erreur'); resoudre(null); });
+        })(1);
+      });
+    });
   }
 
   /* =============================== Aides d'écran =============================== */
@@ -629,6 +702,7 @@
         : 'Du taux le plus bas au plus haut. Inscrivez le taux vendu pour voir le gain et le potentiel.' })
     ]);
     z.appendChild(tete);
+    if (r.lignes.length) z.appendChild(this.carteCombinaisons(r, t));
     if (!r.lignes.length) z.appendChild(h('div.carte', [h('div.carte-corps.tx-attente', [h('p', 'Aucun programme inscrit ne s\'applique à cette transaction.')])]));
     else z.appendChild(r.complet ? this.tableComplete(r, t) : this.tableSimple(r, t));
     if (r.exclus.length) {
@@ -639,6 +713,30 @@
     }
     var dates = d.programmes.map(function (p) { return p.majLe || ''; }).sort();
     z.appendChild(h('p.tx-note', { text: 'Estimation à partir des grilles inscrites dans « Grilles de taux »' + (dates.length && dates[dates.length - 1] ? ' (dernière mise à jour le ' + jour(dates[dates.length - 1]) + ')' : '') + '. La ristourne, le boni et le taux restent ceux de l\'approbation de la banque.' }));
+  };
+  /* Les meilleures combinaisons, en haut des résultats. */
+  VueTaux.prototype.carteCombinaisons = function (r, t) {
+    var self = this, c = combinaisons(r, 5), mod = modaliteLib(t.modalite, true);
+    if (!c.lignes.length) return h('div');
+    var titre = c.mode === 'vendu' ? 'Les plus payantes au taux vendu de ' + pct(t.tauxVendu) : 'Meilleures combinaisons';
+    var sous = c.mode === 'vendu' ? 'Le versement du client ne change pas : la ristourne, le boni et l\'écart de taux font la différence.'
+      : 'Du versement le plus bas au plus payant. Aucune autre banque ne rapporte plus pour un versement aussi bas.';
+    var lignes = c.lignes.map(function (x, k) {
+      var tags = x.tags.map(function (tg) { return h('span.tx-comb-tag.' + tg, { text: tg === 'client' ? 'Meilleur versement' : 'Le plus payant' }); });
+      var ecart = c.mode === 'frontiere' && k > 0
+        ? '+ ' + argent(x.ecartRapporte, 0) + ' pour ' + argent(x.ecartPaiement) + ' de plus ' + mod
+        : (c.mode === 'vendu' ? 'potentiel ' + argent(cents(x.o.potentiel), 0) + (x.boni ? ' + boni ' + argent(x.boni, 0) : '') : '');
+      return h('li.tx-comb', [
+        h('div.tx-comb-qui', [h('strong', { text: x.inst }), h('button.tx-lien', { type: 'button', text: x.l.p.programme, onclick: function () { self.fiche(x.l.p); } }), h('span.tx-comb-tags', tags)]),
+        h('div.tx-comb-chiffres', [
+          h('span.tx-comb-taux', { text: pct(x.taux) }),
+          h('span', { text: argent(cents(x.paiement)) + ' ' + mod }),
+          h('span.tx-comb-rap', { title: c.mode === 'vendu' ? 'Ristourne + boni + écart de taux sur tout le terme' : 'Ristourne' + (x.boni ? ' + boni' : '') }, [h('small', 'Rapporte '), h('strong', { text: argent(x.rapporte, 0) })])
+        ]),
+        ecart ? h('div.tx-comb-ecart', { text: ecart }) : null
+      ]);
+    });
+    return h('section.carte.tx-combs', [h('div.carte-entete', [h('h2', { text: titre }), h('span.tx-note', { text: sous })]), h('ol.tx-comb-liste', lignes)]);
   };
   VueTaux.prototype.celluleProgramme = function (l, n) {
     var self = this, p = l.p;
@@ -970,7 +1068,8 @@
   /* ------------------------------ Grilles reçues (courriel, Torque) ------------------------------ */
   var ETATS_PROP = {
     nouveau: ['Nouveau programme', 'tx-p-nouveau'], change: ['Changé', 'tx-p-change'], pareil: ['Pareil à vos grilles', 'tx-p-pareil'],
-    confirme: ['Enregistré', 'tx-p-fait'], enregistre: ['Enregistré', 'tx-p-fait'], planifie: ['Prévu', 'tx-p-prevu'], ignore: ['Ignoré', 'tx-p-ignore']
+    confirme: ['Enregistré', 'tx-p-fait'], enregistre: ['Enregistré', 'tx-p-fait'], planifie: ['Prévu', 'tx-p-prevu'], ignore: ['Ignoré', 'tx-p-ignore'],
+    echu: ['Plus applicable', 'tx-p-ignore'], remplace: ['Remplacé', 'tx-p-ignore'], doublon: ['En double', 'tx-p-ignore'], ecarte: ['Écarté', 'tx-p-ignore']
   };
   /* Le bloc en haut de la page : l'adresse, ce qui attend, la lecture en cours. */
   VueTaux.prototype.rendreBandeRecues = function () {
@@ -987,9 +1086,11 @@
   VueTaux.prototype.remplirBande = function (el) {
     var self = this, r = (this.d && this.d.recues) || {}, d = this.d || {}, n = r.aConfirmer || 0, aLire = r.aLire || 0;
     AMX.vider(el);
-    var titre = n ? n + ' programme' + (n > 1 ? 's' : '') + ' reçu' + (n > 1 ? 's' : '') + ', à confirmer' : (aLire ? aLire + ' grille' + (aLire > 1 ? 's' : '') + ' reçue' + (aLire > 1 ? 's' : '') + ', à lire par Einstein AI' : 'Grilles reçues');
-    var etat = LECTURE.en ? 'Einstein AI lit les grilles… ' + LECTURE.lus + ' lue' + (LECTURE.lus > 1 ? 's' : '') + (LECTURE.reste ? ', ' + LECTURE.reste + ' à lire' : '') + '.' :
-      (n ? 'Einstein AI a lu les grilles des banques : vérifiez chaque programme, puis confirmez.' : (aLire ? 'Cliquez « Lire les grilles » : Einstein AI propose les programmes, vous confirmez.' : 'Envoyez les grilles des banques à cette adresse : Einstein AI les lit et vous propose les programmes à confirmer.'));
+    var m = r.ecartes || 0, peutTout = !!(r.accepterTout && d.peutModifier);
+    var titre = n ? n + ' programme' + (n > 1 ? 's' : '') + ' reçu' + (n > 1 ? 's' : '') + ', à accepter' : (aLire ? aLire + ' grille' + (aLire > 1 ? 's' : '') + ' reçue' + (aLire > 1 ? 's' : '') + ', à lire par Einstein AI' : 'Grilles reçues');
+    var etat = ACCEPTER.en ? 'Les programmes entrent dans vos grilles… ' + ACCEPTER.faits + ' accepté' + (ACCEPTER.faits > 1 ? 's' : '') + '.' :
+      (LECTURE.en ? 'Einstein AI lit les grilles… ' + LECTURE.lus + ' lue' + (LECTURE.lus > 1 ? 's' : '') + (LECTURE.reste ? ', ' + LECTURE.reste + ' à lire' : '') + '.' :
+      (n ? 'Lus par Einstein AI.' + (m ? ' ' + m + ' écarté' + (m > 1 ? 's' : '') + ' d\'office : plus applicables ou en double.' : '') : (aLire ? 'Cliquez « Lire les grilles » : Einstein AI lit chaque grille.' : 'Envoyez les grilles des banques à cette adresse : Einstein AI les lit.')));
     var adr = r.adresse || '';
     el.appendChild(h('div.tx-recues-txt', [
       h('strong', { text: titre }),
@@ -1000,7 +1101,8 @@
     var g = h('div.tx-recues-gestes');
     if (LECTURE.en) g.appendChild(h('button.btn.petit', { type: 'button', text: 'Arrêter la lecture', onclick: function () { LECTURE.arret = true; AMX.toast('La lecture s\'arrête après la grille en cours.', 'info'); } }));
     else if (aLire && d.peutModifier) g.appendChild(h('button.btn' + (n ? '' : '.primaire'), { type: 'button', text: 'Lire les grilles (' + aLire + ')', onclick: function () { lireTout(); } }));
-    g.appendChild(h('button.btn' + (n ? '.primaire' : ''), { type: 'button', text: n ? 'Voir et confirmer (' + n + ')' : 'Grilles reçues', onclick: function () { self.ouvrirRecues(); } }));
+    if (n && peutTout && !ACCEPTER.en) g.appendChild(h('button.btn.primaire', { type: 'button', text: 'Tout accepter (' + n + ')', onclick: function () { accepterTout(n, m).then(function (r) { if (r) self.charger(false); }); } }));
+    g.appendChild(h('button.btn', { type: 'button', text: n ? 'Voir les programmes' : 'Grilles reçues', onclick: function () { self.ouvrirRecues(); } }));
     el.appendChild(g);
   };
 
@@ -1076,6 +1178,9 @@
         h('div.tx-recues-gestes', [
           LECTURE.en ? h('button.btn.petit', { type: 'button', text: 'Arrêter la lecture', onclick: function () { LECTURE.arret = true; AMX.toast('La lecture s\'arrête après la grille en cours.', 'info'); } }) :
             (aLire && peut ? h('button.btn.primaire', { type: 'button', text: 'Lire les grilles (' + aLire + ')', onclick: function () { if (!d.ia) { AMX.toast('Einstein AI n\'a pas de clé : Admin › Einstein AI.', 'erreur'); return; } lireTout(); } }) : null),
+          peut && d.aConfirmer && !ACCEPTER.en ? h('button.btn.primaire', { type: 'button', text: 'Tout accepter (' + d.aConfirmer + ')', onclick: function () {
+            accepterTout(d.aConfirmer, d.ecartes || 0).then(function (r) { if (r) { self.charger(false); relire(true); } });
+          } }) : (ACCEPTER.en ? h('span.tx-note', { text: 'Acceptation en cours… ' + ACCEPTER.faits + ' accepté' + (ACCEPTER.faits > 1 ? 's' : '') }) : null),
           peut ? h('button.btn', { type: 'button', text: 'Relever les courriels', onclick: function (e) {
             var b = e.currentTarget; b.disabled = true; b.classList.add('occupe');
             posterRecues({ action: 'grillesRecuesCourriels' }).then(function (r) { b.disabled = false; b.classList.remove('occupe'); return apres(r); })
@@ -1089,7 +1194,7 @@
         h('ol', [
           h('li', 'Demandez à chaque représentant de banque d\'ajouter cette adresse à l\'envoi de ses grilles (ou de vous mettre en copie).'),
           h('li', 'Ou, dans votre boîte courriel, une règle qui fait suivre à cette adresse les courriels des banques qui contiennent une grille.'),
-          h('li', 'Le PDF, une photo de la grille ou le texte du courriel : tout se lit. Einstein AI propose ; une personne confirme chaque programme.')
+          h('li', 'Le PDF, une photo de la grille ou le texte du courriel : tout se lit. Einstein AI propose ; « Tout accepter » les met dans vos grilles.')
         ]),
         adr ? h('p.tx-note', [h('span', 'Texte à envoyer aux banques : '),
           h('button.tx-lien', { type: 'button', text: 'Copier le texte', onclick: function () {
@@ -1113,9 +1218,9 @@
       var ton = x.statut === 'a_confirmer' ? 'attention' : (x.statut === 'erreur' ? 'erreur' : (x.statut === 'a_lire' ? 'info' : ''));
       var gestes = h('div.tx-recues-gestes', [
         x.aDocument ? h('button.btn.petit', { type: 'button', text: 'Voir la grille', onclick: function () { self.ouvrirDocRecu(x); } }) : null,
-        peut && x.aConfirmer > 1 ? h('button.btn.petit.primaire', { type: 'button', text: 'Confirmer les ' + x.aConfirmer, onclick: function (e) {
+        peut && x.aConfirmer > 1 ? h('button.btn.petit', { type: 'button', text: 'Accepter les ' + x.aConfirmer, onclick: function (e) {
           var b = e.currentTarget;
-          AMX.confirmer('Confirmer les ' + x.aConfirmer + ' programmes ?', 'Ils sont enregistrés dans vos grilles tels qu\'Einstein AI les a lus. Vérifiez-les d\'abord avec la grille de la banque.', { ok: 'Confirmer' })
+          AMX.confirmer('Accepter les ' + x.aConfirmer + ' programmes de cette grille ?', 'Ils entrent dans vos grilles tels qu\'Einstein AI les a lus.', { ok: 'Accepter' })
             .then(function (oui) { if (oui) agir({ action: 'grilleRecueAction', id: x.id, op: 'confirmerTout' }, b); });
         } }) : null,
         peut && (x.statut === 'erreur' || x.statut === 'pas_grille' || (x.statut === 'a_confirmer' && !x.propositions.some(function (p) { return p.etat === 'confirme' || p.etat === 'enregistre'; }))) ?
@@ -1141,7 +1246,14 @@
         ]),
         l.resume ? h('p.tx-note', { text: l.resume }) : null,
         (l.aVerifier || []).length ? h('div.alerte-bloc.attention', [h('strong', 'À vérifier : '), h('ul', l.aVerifier.map(function (t) { return h('li', { text: t }); }))]) : null,
-        x.propositions.length ? h('ul.tx-recu-props', x.propositions.map(function (p) { return ligneProp(x, p, peut); })) : null
+        (function () {
+          var garde = x.propositions.filter(function (p) { return !p.exclu; }), exclus = x.propositions.filter(function (p) { return p.exclu; });
+          return h('div', [
+            garde.length ? h('ul.tx-recu-props', garde.map(function (p) { return ligneProp(x, p, peut); })) : null,
+            exclus.length ? h('details.tx-recu-ecartes', [h('summary', { text: exclus.length + ' écarté' + (exclus.length > 1 ? 's' : '') + ' d\'office (plus applicable' + (exclus.length > 1 ? 's' : '') + ' ou en double)' }),
+              h('ul.tx-recu-props', exclus.map(function (p) { return ligneProp(x, p, peut); }))]) : null
+          ]);
+        })()
       ]);
       return el;
     }
@@ -1150,9 +1262,13 @@
       var prog = p.prog || {};
       var paliers = (prog.paliers || []).map(function (q) { return pct(q.taux) + (nb(q.termeMin) || nb(q.termeMax) ? ' (' + (nb(q.termeMin) ? q.termeMin : '…') + '-' + (nb(q.termeMax) ? q.termeMax : '…') + ' m.)' : '') + ' → ' + resumeRistourne(q); }).join('  |  ');
       var gestes = null;
-      if (peut && (p.etat === 'nouveau' || p.etat === 'change')) {
+      if (peut && p.exclu) {
+        gestes = h('div.tx-recues-gestes', [h('button.btn.petit.fantome', { type: 'button', text: 'Accepter quand même', onclick: function (ev) {
+          agir({ action: 'grilleRecueAction', id: x.id, i: p.i, op: 'confirmer' }, ev.currentTarget);
+        } })]);
+      } else if (peut && (p.etat === 'nouveau' || p.etat === 'change')) {
         gestes = h('div.tx-recues-gestes', [
-          h('button.btn.petit.primaire', { type: 'button', text: 'Confirmer', onclick: function (ev) {
+          h('button.btn.petit', { type: 'button', text: 'Accepter', onclick: function (ev) {
             agir({ action: 'grilleRecueAction', id: x.id, i: p.i, op: 'confirmer' }, ev.currentTarget);
           } }),
           h('button.btn.petit', { type: 'button', text: 'Vérifier et modifier', onclick: function () { verifier(x, p); } }),
@@ -1167,6 +1283,7 @@
           prog.boni && nb(prog.boni.montant) ? h('span.tx-prog-sous', { text: boniDe(prog, {}).texte }) : null,
           p.cible && p.etat === 'change' ? h('span.tx-prog-sous', { text: 'Remplace « ' + p.cible.programme + ' » (mis à jour le ' + (jour(p.cible.majLe) || '—') + ').' }) : null,
           p.changements && p.changements.length && p.etat === 'change' ? h('ul.tx-recu-ch', p.changements.map(function (t) { return h('li', { text: t }); })) : null,
+          p.exclu && p.raison ? h('span.tx-prog-sous', { text: p.raison }) : null,
           p.etat === 'planifie' ? h('span.tx-prog-sous.tx-prevu', { text: 'Confirmé le ' + jour(p.faitLe) + (p.faitPar ? ' par ' + p.faitPar : '') + ' : remplacera « ' + ((p.cible && p.cible.programme) || prog.programme) + ' » le ' + jour(p.appliquerLe) + '. La grille actuelle reste en vigueur d\'ici là.' }) : null,
           (p.etat === 'confirme' || p.etat === 'enregistre' || p.etat === 'ignore') && p.faitLe ? h('span.tx-prog-sous', { text: e[0] + ' le ' + jour(p.faitLe) + (p.faitPar ? ' par ' + p.faitPar : '') + (p.modifie ? ', chiffres corrigés avant l\'enregistrement' : '') + '.' }) : null
         ]),
@@ -1348,6 +1465,13 @@
       '.tx-reinit { align-self: flex-start; }',
       '.tx-res { min-width: 0; display: flex; flex-direction: column; gap: 12px; }',
       '.tx-res-tete { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }',
+      '.tx-combs .carte-entete { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; } .tx-combs .carte-entete h2 { margin: 0; }',
+      '.tx-comb-liste { list-style: none; margin: 0; padding: 0 16px 8px; } .tx-comb { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 16px; padding: 10px 0; border-top: 1px solid var(--ligne); } .tx-comb:first-child { border-top: 0; }',
+      '.tx-comb-qui { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; min-width: 0; } .tx-comb-chiffres { display: flex; gap: 14px; align-items: baseline; justify-content: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }',
+      '.tx-comb-taux { font-weight: 700; font-size: 16px; } .tx-comb-rap strong { color: var(--vert-fonce); font-size: 15px; } .tx-comb-rap small { color: var(--encre-3); font-size: 12px; }',
+      '.tx-comb-ecart { grid-column: 1 / -1; font-size: 13px; color: var(--encre-3); }',
+      '.tx-comb-tag { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--carte-2); color: var(--encre-2); } .tx-comb-tag.client { background: #E8F0FE; color: #1A64BF; } .tx-comb-tag.concession { background: var(--vert-clair); color: var(--vert-fonce); }',
+      '@media (max-width: 640px) { .tx-comb { grid-template-columns: 1fr; } .tx-comb-chiffres { justify-content: flex-start; flex-wrap: wrap; } }',
       '.tx-res-tete strong { font-size: 15px; } .tx-res-tete span { color: var(--encre-3); font-size: 13px; }',
       '.tx-defile { overflow-x: auto; }',
       '.tx-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }',
@@ -1414,6 +1538,7 @@
       '.tx-recu.attention { border-left: 4px solid var(--ambre); } .tx-recu.erreur { border-left: 4px solid var(--rouge); } .tx-recu.info { border-left: 4px solid var(--bleu); }',
       '.tx-recu-tete { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }',
       '.tx-recu-props { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }',
+      '.tx-recu-ecartes { margin-top: 6px; } .tx-recu-ecartes > summary { cursor: pointer; font-size: 13px; color: var(--encre-3); padding: 4px 0; } .tx-recu-ecartes .tx-recu-props { opacity: .78; }',
       '.tx-recu-props > li { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; padding: 9px 0; border-top: 1px solid var(--ligne); }',
       '.tx-recu-nom { display: inline-flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 14px; }',
       '.tx-p-etat { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 5px; }',

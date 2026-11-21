@@ -690,6 +690,10 @@
     '.lbm-ofl-etapes { margin: 0; padding-left: 20px; line-height: 1.55; } .lbm-ofl-etapes li { margin-bottom: 10px; } .lbm-ofl-url { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; } .lbm-ofl-url input { max-width: 340px; }',
     '.lbm-ofl-boutons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; } .lbm-ofl-copie { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--trait, #eee); font-size: 13.5px; }',
     '.lbm-ofl-copie .l { color: var(--encre-3); } .lbm-ofl-copie .v { overflow-wrap: anywhere; }',
+    '.lbm-ofl-sync { display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; justify-content: space-between; margin-top: 10px; } .lbm-ofl-sync .lbm-ofl-boutons { margin-top: 0; }',
+    '.lbm-ofl-chg { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--encre-3); line-height: 1.5; }',
+    '.lbm-ofl .lbm-avis .btn { margin-left: 6px; vertical-align: middle; }',
+    '.lbm-ofl-repli { margin-top: 10px; } .lbm-ofl-repli > summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 6px 0; } .lbm-ofl-section.lbm-ofl-repli > summary { font-size: 16px; }',
     '@media (max-width: 640px) { .lbm-ofl-ligne { grid-template-columns: 80px minmax(0, 1fr); } .lbm-ofl-photo { width: 80px; height: 60px; } .lbm-ofl-actions { grid-column: 1 / -1; justify-content: flex-start; } .lbm-ofl-gros .v { font-size: 20px; } .lbm-ofl-copie { grid-template-columns: 1fr auto; } .lbm-ofl-copie .l { grid-column: 1 / -1; } }',
     '@media (max-width: 640px) { .lbm-page .lbm-comp td, .lbm-page .lbm-comp th { padding: 8px 6px; } .lbm-page .lbm-comp .gros { font-size: 15px; } .lbm-page .lbm-comp .col-ecart { display: none; } .lbm-page .lbm-comp .ecart-tel { display: block; } .lbm-page .lbm-neuf-veh .lbm-mini { width: 80px; height: 60px; } }',
     '@media (max-width: 640px) { .lbm-page .lbm-veh-tete { grid-template-columns: 1fr; } .lbm-page .lbm-photo { max-width: 380px; } .lbm-stock .lbm-stock-liste button.avec-photo { grid-template-columns: 60px minmax(0, 1fr); gap: 10px; } .lbm-stock .lbm-stock-liste .lbm-mini { width: 60px; height: 45px; } }',
@@ -704,7 +708,7 @@
     return A.codesPour ? A.codesPour('inventaire').indexOf('BMW') >= 0 : false;
   }
   function argent(n, d) { if (n === null || n === undefined || isNaN(n)) return '—'; if (Math.abs(n) < 0.005) n = 0; return A.fmtArgent(n, d === undefined ? 0 : d); }
-  function pct(n, d) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-CA', { minimumFractionDigits: d === undefined ? 2 : d, maximumFractionDigits: d === undefined ? 2 : d }) + ' %'; }
+  function pct(n, d) { return (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('fr-CA', { minimumFractionDigits: d === undefined ? 2 : d, maximumFractionDigits: d === undefined ? 2 : d }) + '\u00a0%'; }
   function kmTxt(n) { return (n === null || n === undefined || isNaN(n)) ? '—' : A.fmtNombre(Math.round(n)) + ' km'; }
   function ajd() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
@@ -1859,7 +1863,9 @@
     if (!s) return;
     var n = o && o.offres ? o.offres.length : 0, pb = o && o.offres ? o.offres.filter(function (x) { return !x.ok; }).length : 0;
     s.textContent = 'Offres du site' + (n ? ' (' + n + ')' : '');
-    this.btnOffres.classList.toggle('attention', !!(pb || (o && o.publie && o.page && o.page.n && !o.publie.aJour)));
+    /* 21 nov. : la page qui se met à jour toute seule (publie.auto) n'a plus besoin du favori — orange seulement s'il y a une offre à revoir. */
+    var aFaire = o && o.offres ? o.offres.some(aRecalculerOffre) : false;
+    this.btnOffres.classList.toggle('attention', !!(pb || aFaire || (o && o.publie && o.page && o.page.n && !o.publie.aJour && !o.publie.auto)));
   };
   /** Pourquoi ce véhicule ne peut pas aller sur la page ('' = il peut). */
   VueLocation.prototype.raisonPasOffre = function () {
@@ -1894,48 +1900,136 @@
     box.appendChild(h('div.lbm-offre-ligne', [btn, h('span.doux', { text: txt })]));
     return box;
   };
-  /** L'offre pour le site : 0 $ comptant, la durée de la plus grosse économie (avant taxes). { offre, best } ou { erreur }. */
-  VueLocation.prototype.offreCalculee = function () {
-    var self = this, prog = this.prog(), d = this.neufData, n = this.neufChoisi().n, l = this.ligne;
-    if (!prog || !l || !d) return { erreur: 'Choisissez la version et le neuf à comparer.' };
+  /** 21 nov. : l'offre du site à partir de ses ingrédients — fonction pure : le calculateur (offreCalculee) et l'ajout en un clic
+      (offrePour) passent par elle. c = { prog, progs, l, n, n2, o0 (km, kmAn, prix, frais, cpo, ixNbv ; comptant à 0), oN, tx, ajd0,
+      vin, stock }. Chaque durée garde son détail (ut, ur, ug = taux, résiduel et règle de l'occasion ; nd = le neuf comparé à cette
+      durée) : c'est ce qui permet au serveur de refaire l'offre tout seul quand le prix de vente change sur le site
+      (OFL_recalculer_, OffresLocation.gs). → { offre, best } ou { erreur }. */
+  function construireOffre(c) {
+    var prog = c.prog, l = c.l, n = c.n, n2 = c.n2, o0 = c.o0, oN = c.oN, tx = c.tx, ajd0 = c.ajd0;
     var nivU = niveauBmw(l[2]);
-    if (!n) {
-      var liste0 = this.neufChoisi().liste || [];
-      return { erreur: liste0.some(function (x) { return x.meme; }) ? 'Choisissez le neuf à comparer.'
-        : 'Aucun BMW neuf comparable (' + nomSerie(l[1]) + ', ' + NOM_NIVEAU[nivU] + ') dans nos neufs ni au programme du mois de BMW : pas d\'offre pour ce véhicule.' };
-    }
     if (niveauBmw(n.txt) !== nivU || (n.serie && n.serie !== l[1])) return { erreur: 'Le neuf comparé doit être comparable : même série et même niveau (' + NOM_NIVEAU[nivU] + '). Une M ou une M Performance ne se compare pas à une BMW ordinaire.' };
     if (!memeCorps(l[2], n.txt)) return { erreur: 'Le neuf comparé doit avoir la même carrosserie (' + corpsDe(l[2]).replace('gran', 'Gran Coupé') + ' ici, ' + corpsDe(n.txt).replace('gran', 'Gran Coupé') + ' pour le neuf).' };
-    var n2 = this.neufCalcul(n); if (!n2) return { erreur: 'Entrez le PDSF du neuf du manufacturier.' };
-    if (nombre(this.o.prix) === null) return { erreur: 'Entrez le prix de vente.' };
-    var o0 = Object.assign({}, this.o, { comptant: 0 }), oN = this.neufSaisie(n, 0), tx = taxePct(prog), ajd0 = (this.rep && this.rep.aujourdhui) || ajd();
-    var lignes = prog.termes.map(function (t) { var u = calculerTerme(prog, l, t, o0); return { u: u, n: u.offert ? locationNeuf(d.progs, n2, t, self.o.kmAn, oN, tx, ajd0) : { offert: false } }; });
+    if (!n2) return { erreur: 'Entrez le PDSF du neuf du manufacturier.' };
+    if (nombre(o0.prix) === null) return { erreur: 'Entrez le prix de vente.' };
+    var frais = nombre(o0.frais) || 0;
+    var lignes = prog.termes.map(function (t) { var u = calculerTerme(prog, l, t, o0); return { u: u, n: u.offert ? locationNeuf(c.progs, n2, t, o0.kmAn, oN, tx, ajd0) : { offert: false } }; });
     var best = meilleurTerme(lignes);
     if (!lignes.some(function (x) { return x.n && x.n.offert; })) return { erreur: 'Le programme de location du mois de BMW ne couvre pas le neuf comparable (' + [n2.annee, n2.modele, n2.version].filter(Boolean).join(' ') + ') : pas d\'offre pour ce véhicule tant que BMW n\'a pas de programme pour ce modèle.' };
     if (!best || best.ec < 1) return { erreur: 'Le neuf n\'est pas plus cher que l\'occasion : rien à mettre en valeur sur le site.' };
     var u = best.x.u, nn = best.x.n, prg = nn.prog || {};
+    var regleDe = function (x) { return (x.regle && (x.regle.libelle || x.regle.code)) || ''; };
+    /* Le neuf comparé à une durée, tel que le serveur le garde (prix null = au PDSF). */
+    var neufDe = function (q) { return { prix: oN.prix === null ? null : q.prix, rabais: q.rabais || 0, luxe: r2(q.luxe || 0), taux: q.taux, residuelPct: q.residuelPct, residuel: r2(q.residuel), kmAn: q.kmAn,
+      avantTaxes: r2(q.avantTaxes), taxes: r2(q.taxes), mensualite: r2(q.mensualite), interpole: !!q.interpole }; };
     var ver = joli(l[2]); if (ver.toUpperCase().indexOf(String(l[1]).toUpperCase() + ' ') === 0) ver = ver.slice(String(l[1]).length + 1);
     var progFin = /^\d{4}-\d{2}-\d{2}$/.test(String(prg.fin || '')) ? prg.fin : finMoisIso(prg.mois || ajd0);
+    var nf = neufDe(nn);
+    nf.source = n.manuf ? 'manufacturier' : 'stock'; nf.vin = n.vin || ''; nf.stock = n.stock || ''; nf.titre = [n2.annee, 'BMW', n2.modele, n2.version].filter(Boolean).join(' ');
+    nf.annee = n2.annee; nf.modele = n2.modele; nf.version = n2.version; nf.pdsf = n2.prix; nf.frais = frais;
+    nf.programme = [prg.modele, prg.version].filter(Boolean).join(' ') + (prg.par ? ' (' + String(prg.par).replace(/\s*\(automatique\)\s*$/, '') + ')' : ''); nf.progFin = progFin;
     var offre = {
-      vin: this.vinCourant, stock: (this.inv && this.inv.stock) || '', annee: l[0], titre: libelleLigne(l), modele: nomSerie(l[1]), version: ver, ligne: l[2],
-      km: nombre(this.o.km), cpo: !!this.o.cpo, prix: nombre(this.o.prix), frais: nombre(this.o.frais) || 0, comptant: 0,
-      terme: u.terme, kmAn: this.o.kmAn, taux: u.taux, regle: (u.regle && (u.regle.libelle || u.regle.code)) || '', residuel: r2(u.residuel), tx: tx,
+      vin: c.vin, stock: c.stock || '', annee: l[0], titre: libelleLigne(l), modele: nomSerie(l[1]), version: ver, ligne: l[2],
+      km: nombre(o0.km), cpo: !!o0.cpo, prix: nombre(o0.prix), frais: frais, comptant: 0,
+      terme: u.terme, kmAn: o0.kmAn, taux: u.taux, regle: regleDe(u), residuel: r2(u.residuel), tx: tx,
       avantTaxes: r2(u.avantTaxes), taxes: r2(u.taxes), mensualite: r2(u.mensualite), valideAuProg: (prog.valideAu || ''),
-      neuf: { source: n.manuf ? 'manufacturier' : 'stock', vin: n.vin || '', stock: n.stock || '', titre: [n2.annee, 'BMW', n2.modele, n2.version].filter(Boolean).join(' '), annee: n2.annee, modele: n2.modele, version: n2.version,
-        pdsf: n2.prix, prix: oN.prix === null ? null : nn.prix, frais: nombre(this.o.frais) || 0, rabais: nn.rabais || 0, luxe: r2(nn.luxe || 0), taux: nn.taux, residuelPct: nn.residuelPct, residuel: r2(nn.residuel), kmAn: nn.kmAn,
-        avantTaxes: r2(nn.avantTaxes), taxes: r2(nn.taxes), mensualite: r2(nn.mensualite), programme: [prg.modele, prg.version].filter(Boolean).join(' ') + (prg.par ? ' (' + String(prg.par).replace(/\s*\(automatique\)\s*$/, '') + ')' : ''), progFin: progFin, interpole: !!nn.interpole },
-      termes: lignes.filter(function (x) { return x.u.offert && x.u.avantTaxes !== undefined && x.n.offert; }).map(function (x) { return { terme: x.u.terme, u: r2(x.u.avantTaxes), n: r2(x.n.avantTaxes) }; })
+      neuf: nf,
+      termes: lignes.filter(function (x) { return x.u.offert && x.u.avantTaxes !== undefined && x.n.offert; }).map(function (x) {
+        return { terme: x.u.terme, u: r2(x.u.avantTaxes), n: r2(x.n.avantTaxes), ut: x.u.taux, ur: r2(x.u.residuel), ug: regleDe(x.u), nd: neufDe(x.n) };
+      })
     };
     /* Le plus petit paiement (une autre durée), avec tout ce qu'il faut pour ses mentions. */
     var bas = plusBasTerme(lignes, u.terme);
     if (bas) {
-      var bu = bas.u, bn = bas.n;
-      offre.plusBas = { terme: bu.terme, taux: bu.taux, regle: (bu.regle && (bu.regle.libelle || bu.regle.code)) || '', residuel: r2(bu.residuel),
-        avantTaxes: r2(bu.avantTaxes), taxes: r2(bu.taxes), mensualite: r2(bu.mensualite),
-        neuf: { prix: oN.prix === null ? null : bn.prix, rabais: bn.rabais || 0, taux: bn.taux, residuelPct: bn.residuelPct, residuel: r2(bn.residuel), kmAn: bn.kmAn,
-          avantTaxes: r2(bn.avantTaxes), taxes: r2(bn.taxes), mensualite: r2(bn.mensualite), interpole: !!bn.interpole } };
+      var bu = bas.u, bn = neufDe(bas.n); delete bn.luxe;
+      offre.plusBas = { terme: bu.terme, taux: bu.taux, regle: regleDe(bu), residuel: r2(bu.residuel), avantTaxes: r2(bu.avantTaxes), taxes: r2(bu.taxes), mensualite: r2(bu.mensualite), neuf: bn };
     }
     return { offre: offre, best: best };
+  }
+  /** L'offre pour le site : 0 $ comptant, la durée de la plus grosse économie (avant taxes). { offre, best } ou { erreur }. */
+  VueLocation.prototype.offreCalculee = function () {
+    var prog = this.prog(), d = this.neufData, n = this.neufChoisi().n, l = this.ligne;
+    if (!prog || !l || !d) return { erreur: 'Choisissez la version et le neuf à comparer.' };
+    if (!n) {
+      var nivU = niveauBmw(l[2]), liste0 = this.neufChoisi().liste || [];
+      return { erreur: liste0.some(function (x) { return x.meme; }) ? 'Choisissez le neuf à comparer.'
+        : 'Aucun BMW neuf comparable (' + nomSerie(l[1]) + ', ' + NOM_NIVEAU[nivU] + ') dans nos neufs ni au programme du mois de BMW : pas d\'offre pour ce véhicule.' };
+    }
+    return construireOffre({ prog: prog, progs: d.progs, l: l, n: n, n2: this.neufCalcul(n), o0: Object.assign({}, this.o, { comptant: 0 }), oN: this.neufSaisie(n, 0), tx: taxePct(prog),
+      ajd0: (this.rep && this.rep.aujourdhui) || ajd(), vin: this.vinCourant, stock: (this.inv && this.inv.stock) || '' });
+  };
+  /** 21 nov. (Maxime : « ça doit être plus simple pour la publication des véhicules en location ») : l'offre d'un véhicule SANS
+      l'ouvrir dans le calculateur. src = { vin, stock, annee, modele, version, nom, km, prix } (un véhicule de notre stock sur le
+      site) — et, pour une offre déjà faite : { ligne, cpo, kmAn, frais, regle, neuf } (les mêmes choix qu'à l'origine).
+      La version doit être sûre (sinon aPreparer : on passe par le calculateur, où une personne la confirme) ; le neuf est le
+      comparable le plus proche qui a un PDSF. → { offre, best } ou { erreur, aPreparer, attente }. */
+  VueLocation.prototype.offrePour = function (src) {
+    var prog = this.prog(), d = this.neufData;
+    if (!prog || !d) return { erreur: 'Le programme et nos neufs ne sont pas encore lus.', attente: true };
+    var annee = parseInt(src.annee, 10) || anneeDe(src.nom), l = null;
+    if (src.ligne) l = prog.grille.filter(function (g) { return g[0] === annee && g[2] === src.ligne; })[0] || null;
+    if (!l) {
+      var nomNu = String(src.nom || '').replace(/\b(19|20)\d{2}\b/g, ' ').replace(/\bbmw\b/ig, ' ').replace(/\s+/g, ' ').trim();
+      var t = trouver(prog, { annee: annee, marque: 'BMW', modele: src.modele || nomNu, version: src.version || (src.modele ? nomNu : '') });
+      if (!t.choix || !t.sur) return { erreur: t.horsProgramme ? t.raison : (t.raison || 'Version à confirmer.'), aPreparer: !t.horsProgramme, horsProgramme: !!t.horsProgramme };
+      l = t.choix;
+    }
+    if (!(nombre(src.prix) > 0)) return { erreur: 'Pas de prix sur le site.' };
+    if (nombre(src.km) === null) return { erreur: 'Kilométrage inconnu : passez par le calculateur.', aPreparer: true };
+    var cpo = src.cpo !== undefined ? !!src.cpo : !!this.o.cpo, kmAn = nombre(src.kmAn) || nombre(this.o.kmAn) || prog.kmAn.std;
+    var frais = src.frais !== undefined && src.frais !== null ? src.frais : this.o.frais;
+    /* iX rachetée de BMW FS à la valeur comptable nette : seulement si l'offre d'origine avait pris cette règle. */
+    var ixNbv = !!(src.regle && (prog.taux || []).some(function (r) { return r.ixNbv && (r.libelle === src.regle || r.code === src.regle); }));
+    var o0 = { km: src.km, kmAn: kmAn, prix: src.prix, frais: frais, comptant: 0, cpo: cpo, ixNbv: ixNbv };
+    /* Le neuf : celui de l'offre d'origine s'il est encore comparable, sinon le comparable le plus proche qui a un PDSF. */
+    var liste = procheNeuf(d.cands.concat(d.manuf || []), l).filter(function (x) { return x.meme; }), sn = src.neuf, n = null, n2 = null, prixNeuf = null;
+    var pareil = function (a, b) { return String(a || '').toLowerCase().trim() === String(b || '').toLowerCase().trim(); };
+    if (sn) liste.forEach(function (x) {
+      if (n) return; var m = x.n;
+      if (sn.vin ? m.vin === sn.vin : (m.manuf && pareil(m.modele, sn.modele) && pareil(m.version, sn.version) && (Number(m.annee) || 0) === (Number(sn.annee) || 0))) {
+        n = m; n2 = m.prix ? m : (sn.pdsf > 5000 ? Object.assign({}, m, { prix: Math.round(sn.pdsf), pdsfTape: true }) : null);
+        if (sn.prix > 0 && m.prix) prixNeuf = sn.prix;   /* le prix de vente du neuf entré à l'origine */
+        if (!n2) n = null;
+      }
+    });
+    if (!n) { var c0 = liste.filter(function (x) { return x.n.prix > 0; })[0]; if (c0) { n = c0.n; n2 = c0.n; prixNeuf = null; } }
+    if (!n) return { erreur: liste.length ? 'Le neuf comparable n\'a pas de PDSF connu : passez par le calculateur pour l\'entrer.' : 'Aucun BMW neuf comparable (' + nomSerie(l[1]) + ', ' + NOM_NIVEAU[niveauBmw(l[2])] + ') dans nos neufs ni au programme du mois.', aPreparer: liste.length > 0 };
+    return construireOffre({ prog: prog, progs: d.progs, l: l, n: n, n2: n2, o0: o0, oN: { prix: prixNeuf, frais: frais, comptant: 0 }, tx: taxePct(prog),
+      ajd0: (this.rep && this.rep.aujourdhui) || ajd(), vin: String(src.vin || '').toUpperCase(), stock: src.stock || '' });
+  };
+  /** Ce qu'il faut pour refaire une offre de la liste : ses choix d'origine, le prix et le km du site d'aujourd'hui. */
+  VueLocation.prototype.srcOffre = function (o) {
+    var x = o.d || {}, c = ((this.offres && this.offres.candidats) || []).filter(function (z) { return z.vin === o.vin; })[0];
+    return { vin: o.vin, stock: x.stock || o.stock || '', annee: x.annee, modele: x.modele, version: x.version, nom: x.titre, ligne: x.ligne,
+      km: c && c.km > 0 ? c.km : x.km, prix: o.prixSite > 0 ? o.prixSite : (c && c.prix > 0 ? c.prix : x.prix), cpo: !!x.cpo, kmAn: x.kmAn, frais: x.frais, regle: x.regle, neuf: x.neuf };
+  };
+  /** L'envoi d'une offre au serveur (ajout ou mise à jour). */
+  VueLocation.prototype.envoyerOffre = function (x) {
+    return A.post({ action: 'offresLocationAjouter', compagnie: 'BMW', offre: x }, { delai: 90000 }).then(function (r) {
+      if (r && r.vehicules && !r.id) throw new Error('Le script n\'est pas à jour : déployez la version qui contient OffresLocation.gs.');
+      A.verifier(r);
+      return r;
+    });
+  };
+  /** La page du site se met-elle à jour toute seule ? (gabarit du 21 nov., publié une fois avec le favori) */
+  VueLocation.prototype.pageAuto = function () { var o = this.offres; return !!(o && o.publie && o.publie.auto); };
+  VueLocation.prototype.messageAjout = function (r) {
+    var px = r && r.offre && r.offre.d && r.offre.d.prix;
+    return (r && r.nouveau ? 'Offre ajoutée' : 'Offre mise à jour') + (r && r.ajustee && px ? ' au prix du site (' + argent(px, 0) + ')' : '')
+      + (this.pageAuto() ? ' : elle paraît sur bmwsherbrooke.com d\'ici 10 minutes.' : '. La page du site changera à sa prochaine publication avec le favori.');
+  };
+  /** Refait plusieurs offres l'une après l'autre (nouveau mois, offres d'avant le 21 nov.) : { refaites, echecs: [{ o, raison }] }. */
+  VueLocation.prototype.recalculerOffres = function (offres, surEtape) {
+    var self = this, bilan = { refaites: 0, echecs: [] }, i = 0;
+    self.recalcEchecs = self.recalcEchecs || {};
+    var suivant = function () {
+      if (i >= offres.length) return Promise.resolve(bilan);
+      var o = offres[i++], c = self.offrePour(self.srcOffre(o));
+      if (surEtape) surEtape(i, offres.length);
+      if (c.erreur) { bilan.echecs.push({ o: o, raison: c.erreur }); self.recalcEchecs[o.vin] = c.erreur; return suivant(); }
+      return self.envoyerOffre(c.offre).then(function () { bilan.refaites++; delete self.recalcEchecs[o.vin]; }, function (e) { var t = A.erreurTexte(e); bilan.echecs.push({ o: o, raison: t }); self.recalcEchecs[o.vin] = t; }).then(suivant);
+    };
+    return suivant();
   };
   VueLocation.prototype.ajouterOffre = function () {
     var self = this, c = this.offreCalculee();
@@ -1953,13 +2047,12 @@
       (nombre(this.o.comptant) || 0) ? h('div.lbm-avis.ambre', { text: 'La page du site est toujours à 0 $ comptant : l\'offre est calculée sans le comptant de la section 2.' }) : null,
       nf.kmAn && nf.kmAn !== x.kmAn ? h('div.lbm-avis.ambre', { text: 'Le programme du neuf n\'offre pas ' + A.fmtNombre(x.kmAn) + ' km par année : le neuf est comparé à ' + A.fmtNombre(nf.kmAn) + ' km (dit dans les mentions de la page).' }) : null,
       c.offre.termes.length > 1 ? h('p.doux', { text: 'Durée choisie : la plus grosse économie (' + c.offre.termes.map(function (t) { return t.terme + ' mois : ' + argent(Math.max(0, Math.floor(t.n - t.u)), 0); }).join(' · ') + ').' }) : null,
-      h('p.doux', { text: 'L\'offre va dans la liste « Offres du site ». La page de bmwsherbrooke.com change quand quelqu\'un la publie avec le favori « Automax → D2C (offres) ».' })
+      h('p.doux', { text: this.pageAuto() ? 'L\'offre paraît sur bmwsherbrooke.com d\'ici 10 minutes. Son paiement suivra ensuite le prix affiché sur le site, tout seul.'
+        : 'L\'offre va dans la liste « Offres du site ». Son paiement suivra ensuite le prix affiché sur le site, tout seul.' })
     ]);
     A.modale({ titre: 'Offre pour bmwsherbrooke.com', corps: corps, proteger: false, boutons: [{ texte: 'Annuler' }, { texte: 'Ajouter aux offres du site', classe: 'primaire', action: function () {
-      return A.post({ action: 'offresLocationAjouter', compagnie: 'BMW', offre: x }, { delai: 90000 }).then(function (r) {
-        if (r && r.vehicules && !r.id) throw new Error('Le script n\'est pas à jour : déployez la version qui contient OffresLocation.gs.');
-        A.verifier(r);
-        A.toast(r.nouveau ? 'Offre ajoutée à la page du site.' : 'Offre du site mise à jour.', 'ok');
+      return self.envoyerOffre(x).then(function (r) {
+        A.toast(self.messageAjout(r), 'ok');
         self.chargerOffres(true);
         return true;
       }).catch(function (e) { A.toast(A.erreurTexte(e), 'erreur'); return false; });
@@ -1976,32 +2069,62 @@
     if (!w) A.toast('La fenêtre d\'aperçu a été bloquée par le navigateur.', 'attention');
     setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) {} }, 60000);
   }
-  VueLocation.prototype.sectionCandidats = function (d, m) {
-    var self = this, sec = h('div.lbm-ofl-section', [h('h3', 'Choisir les véhicules à offrir')]), cands = d.candidats;
+  /** Une offre de la liste doit-elle être refaite par la page ? (nouveau mois, offre d'avant le suivi automatique des prix, taxe de luxe) */
+  function aRecalculerOffre(o) {
+    if (!o) return false;
+    if (o.complet === false) return true;
+    return (o.problemes || []).some(function (t) { return /recalculez|échue/i.test(t); });
+  }
+  /** 21 nov. : chaque véhicule de notre stock arrive avec son offre déjà calculée — « Ajouter » la met sur la page, en un clic. */
+  VueLocation.prototype.sectionCandidats = function (d, m, redessiner) {
+    var self = this, sec = h('div.lbm-ofl-section', [h('h3', 'Ajouter un véhicule')]), cands = d.candidats;
     if (!Array.isArray(cands)) {
       sec.appendChild(h('div.lbm-avis.ambre', { text: 'La liste de nos BMW sur le site demande la nouvelle version du script : redéployez-le. En attendant, choisissez un véhicule avec « Nos BMW », entrez son km et son prix, puis « Ajouter aux offres du site » sous la comparaison avec le neuf.' }));
       sec.appendChild(h('button.btn.petit', { type: 'button', text: 'Nos BMW', onclick: function () { m.fermer(); self.ouvrirListe('stock'); } }));
       return sec;
     }
-    if (!cands.length) { sec.appendChild(h('p.lbm-vide', { text: 'Aucune BMW d\'occasion de notre stock n\'est sur bmwsherbrooke.com avec un prix et une photo (le site est relu chaque matin).' })); return sec; }
-    sec.appendChild(h('p.doux', { text: 'Nos BMW d\'occasion en stock et sur bmwsherbrooke.com, les plus vieilles en stock d\'abord. « Préparer l\'offre » calcule la location à 0 $ comptant avec le km et le prix du site, la compare au neuf le plus proche, prend la durée de la plus grosse économie et ouvre l\'aperçu : vous confirmez.' }));
-    var rech = h('input.saisie', { type: 'search', placeholder: 'Modèle, année, # stock ou fin du NIV', 'aria-label': 'Chercher un véhicule' });
+    var libres = cands.filter(function (c) { return !c.offre; });
+    if (!libres.length) { sec.appendChild(h('p.lbm-vide', { text: cands.length ? 'Toutes nos BMW d\'occasion qui sont sur bmwsherbrooke.com avec un prix et une photo sont déjà offertes.' : 'Aucune BMW d\'occasion de notre stock n\'est sur bmwsherbrooke.com avec un prix et une photo (le site est relu chaque matin).' })); return sec; }
+    if (!this.prog() || !this.neufData) { sec.appendChild(A.chargeur('Calcul des offres possibles', { compact: true })); return sec; }
+    var plein = (d.offres || []).length >= (d.max || 12);
+    sec.appendChild(h('p.doux', { text: 'Nos BMW d\'occasion en stock et sur bmwsherbrooke.com. Chaque offre est déjà calculée : 0 $ comptant, km et prix du site, durée de la plus grosse économie face au neuf comparable — '
+      + (this.o.cpo ? 'certifié' : 'non certifié') + ', ' + A.fmtNombre(nombre(this.o.kmAn) || 24000) + ' km par année' + (nombre(this.o.frais) ? ', frais de ' + argent(nombre(this.o.frais), 0) : '') + ' (les réglages du calculateur). « Ajouter » la met sur la page.'
+      + (plein ? ' La page a déjà ses ' + (d.max || 12) + ' offres : retirez-en une pour en ajouter.' : '') }));
+    /* Les offres possibles d'abord, puis celles à préparer dans le calculateur, puis celles sans offre. */
+    var lignes = libres.map(function (c, i) {
+      var r = self.offrePour({ vin: c.vin, stock: c.stock, annee: c.annee, modele: c.modele, version: c.version, nom: c.nom, km: c.km, prix: c.prix });
+      return { c: c, r: r, rang: r.offre ? 0 : r.aPreparer ? 1 : 2, i: i };
+    }).sort(function (a, b) { return (a.rang - b.rang) || (a.i - b.i); });
+    var rech = h('input.saisie', { type: 'search', placeholder: 'Modèle, année, # stock ou fin du NIV', 'aria-label': 'Chercher un véhicule', value: this.candsQ || '' });
     var lst = h('div.lbm-ofl-liste.lbm-ofl-cands');
     var dessiner = function () {
       A.vider(lst);
       var q = rech.value.trim(), n = 0;
-      cands.forEach(function (c) {
+      self.candsQ = q;
+      lignes.forEach(function (li) {
+        var c = li.c, r = li.r;
         if (q && !(A.correspond ? A.correspond([String(c.nom || ''), String(c.stock || ''), String(c.vin || ''), String(c.annee || ''), String(c.modele || ''), String(c.version || '')], q) : (c.nom + ' ' + c.stock + ' ' + c.vin).toLowerCase().indexOf(q.toLowerCase()) >= 0)) return;
         n++;
         var ph = h('div.lbm-ofl-photo'); if (c.photo) ph.appendChild(h('img', { src: c.photo, alt: '', loading: 'lazy' })); else ph.innerHTML = ICONE_AUTO();
-        lst.appendChild(h('div.lbm-ofl-ligne', [ph, h('div.lbm-ofl-txt', [
-          h('div.lbm-veh-titre', { text: c.nom || c.vin }),
-          h('div.lbm-veh-sous', { text: [c.stock ? '# stock ' + c.stock : '', kmTxt(c.km), argent(c.prix, 0) + ' sur le site', (c.jours !== null && c.jours !== undefined) ? c.jours + ' j en stock' : ''].filter(Boolean).join(' · ') }),
-          c.offre ? h('div.lbm-veh-sous', [h('b', { text: 'Déjà sur la page des offres' })]) : null
-        ]), h('div.lbm-ofl-actions', [
-          h('button.btn.petit' + (c.offre ? '' : '.primaire'), { type: 'button', text: c.offre ? 'Recalculer l\'offre' : 'Préparer l\'offre', onclick: function () { m.fermer(); self.preparerOffre(c); } }),
-          c.lien ? h('a.btn.petit.fantome', { href: c.lien, target: '_blank', rel: 'noopener', text: 'Fiche du site' }) : null
-        ])]));
+        var txt = [h('div.lbm-veh-titre', { text: c.nom || c.vin }),
+          h('div.lbm-veh-sous', { text: [c.stock ? '# stock ' + c.stock : '', kmTxt(c.km), argent(c.prix, 0) + ' sur le site', (c.jours !== null && c.jours !== undefined) ? c.jours + ' j en stock' : ''].filter(Boolean).join(' · ') })];
+        var actions = [];
+        if (r.offre) {
+          var x = r.offre, eco = Math.floor(x.neuf.avantTaxes - x.avantTaxes);
+          txt.push(h('div.lbm-ofl-chiffres', [h('b', { text: argent(x.avantTaxes, 2) + ' par mois avant taxes' }), h('b.eco', { text: argent(eco, 0) + ' de moins par mois que le neuf' }), h('span', { text: x.terme + ' mois, 0 $ comptant' })]));
+          txt.push(h('div.lbm-veh-sous', { text: 'Version : ' + String(x.titre || '').replace(/^\d{4} BMW /, '') + ' · neuf comparé : ' + x.neuf.titre + (x.neuf.source === 'manufacturier' ? ' (manufacturier)' : '') }));
+          actions.push(h('button.btn.petit.primaire', { type: 'button', text: 'Ajouter', disabled: plein, title: plein ? (d.max || 12) + ' offres au plus sur la page' : 'Mettre cette offre sur la page du site', onclick: function (e) {
+            var b = e.currentTarget; b.disabled = true; b.textContent = 'Ajout…';
+            self.envoyerOffre(x).then(function (rr) { A.toast(self.messageAjout(rr), 'ok'); return self.chargerOffres(true); }).then(redessiner)
+              .catch(function (er) { b.disabled = false; b.textContent = 'Ajouter'; A.toast(A.erreurTexte(er), 'erreur'); });
+          } }));
+          actions.push(h('button.btn.petit.fantome', { type: 'button', text: 'Ajuster', title: 'Ouvrir ce véhicule dans le calculateur (autre version, autre neuf, km par année…)', onclick: function () { m.fermer(); self.preparerOffre(c); } }));
+        } else {
+          txt.push(h('div.lbm-veh-sous', { text: (r.aPreparer ? 'À préparer dans le calculateur : ' : 'Pas d\'offre : ') + r.erreur }));
+          if (r.aPreparer) actions.push(h('button.btn.petit', { type: 'button', text: 'Préparer l\'offre', onclick: function () { m.fermer(); self.preparerOffre(c); } }));
+        }
+        if (c.lien) actions.push(h('a.btn.petit.fantome', { href: c.lien, target: '_blank', rel: 'noopener', text: 'Fiche du site' }));
+        lst.appendChild(h('div.lbm-ofl-ligne', [ph, h('div.lbm-ofl-txt', txt), h('div.lbm-ofl-actions', actions)]));
       });
       if (!n) lst.appendChild(h('p.lbm-vide', { text: 'Aucun véhicule ne répond à « ' + q + ' ».' }));
     };
@@ -2012,25 +2135,63 @@
   VueLocation.prototype.ouvrirOffres = function () {
     var self = this, corps = h('div.lbm-ofl');
     var m = A.modale({ titre: 'Offres de location sur bmwsherbrooke.com', corps: corps, large: true, classe: 'lbm-ofl-voile', proteger: false, boutons: [{ texte: 'Fermer' }] });
+    var occupe = '';
     var dessiner = function () {
+      if (!document.body.contains(corps)) return;
       A.vider(corps);
       var d = self.offres;
       if (!d) { corps.appendChild(A.chargeur('Lecture des offres du site', { compact: true })); return; }
       if (d.erreur) { corps.appendChild(h('div.lbm-avis.rouge', { text: d.erreur })); return; }
-      var site = d.site || {}, pub = d.publie || {}, page = d.page || {}, ecrit = !!d.peutEcrire;
-      /* L'état de la page en ligne */
-      var url = (site.base || '') + (site.page || '');
-      var etat = !page.n ? { c: 'bleu', t: 'Aucune offre prête : la page n\'a rien à montrer.' }
-        : pub.aJour ? { c: 'vert', t: 'La page en ligne est à jour (' + page.n + ' offre' + (page.n > 1 ? 's' : '') + ').' }
-        : pub.code === 404 ? { c: 'ambre', t: 'La page ' + url + ' n\'existe pas encore sur le site : créez-la dans D2C (étape 1), ou corrigez son adresse.' }
-        : pub.trouve ? { c: 'ambre', t: 'La page en ligne n\'a pas les offres d\'aujourd\'hui : publiez-la de nouveau avec le favori (étape 3).' }
-        : pub.code === 200 ? { c: 'ambre', t: 'La page existe mais n\'a pas encore les offres de ScanAutomax : publiez-la avec le favori (étape 3).' }
+      var site = d.site || {}, pub = d.publie || {}, page = d.page || {}, ecrit = !!d.peutEcrire, sync = d.sync || null, auto = !!pub.auto;
+      var url = (site.base || '') + (site.page || ''), offres = d.offres || [], pl = function (n, mot) { return n + ' ' + mot + (n > 1 ? 's' : ''); };
+      /* 1. Où en est la page, en une phrase */
+      var etat = !offres.length ? { c: 'bleu', t: 'Aucune offre pour l\'instant.' }
+        : auto ? { c: 'vert', t: 'La page de bmwsherbrooke.com se met à jour toute seule : ' + pl(page.n || 0, 'offre') + ' en ligne' + (offres.length > (page.n || 0) ? ', ' + (offres.length - (page.n || 0)) + ' à revoir plus bas' : '') + '. Un changement paraît en 10 minutes au plus.' }
+        : pub.code === 404 ? { c: 'ambre', t: 'La page ' + url + ' n\'existe pas encore sur le site : créez-la dans D2C, ou corrigez son adresse (« La page du site », plus bas).' }
+        : sync ? { c: 'ambre', t: 'Une dernière étape, une seule fois : publiez la page avec le favori (« La page du site », plus bas). Ensuite elle se met à jour toute seule — plus besoin du favori.' }
+        : !page.n ? { c: 'bleu', t: 'Aucune offre prête : la page n\'a rien à montrer.' }
+        : pub.aJour ? { c: 'vert', t: 'La page en ligne est à jour (' + pl(page.n, 'offre') + ').' }
+        : pub.trouve ? { c: 'ambre', t: 'La page en ligne n\'a pas les offres d\'aujourd\'hui : publiez-la de nouveau avec le favori.' }
+        : pub.code === 200 ? { c: 'ambre', t: 'La page existe mais n\'a pas encore les offres de ScanAutomax : publiez-la avec le favori.' }
         : { c: 'ambre', t: 'Page en ligne pas encore vérifiée.' };
-      corps.appendChild(h('div.lbm-avis.' + etat.c, { style: { marginTop: 0 } }, [h('span', { text: etat.t + (pub.le ? ' Vérifiée ' + quandFr(pub.le) + '.' : '') }), ' ',
-        h('button.btn.petit', { type: 'button', text: 'Vérifier la page en ligne', onclick: function (e) { var b = e.currentTarget; b.disabled = true; A.post({ action: 'offresLocationVerifier', compagnie: 'BMW' }, { delai: 60000 }).then(function (r) { A.verifier(r); self.offres = r; self.majBoutonOffres(); dessiner(); }).catch(function (er) { b.disabled = false; A.toast(A.erreurTexte(er), 'erreur'); }); } })]));
-      /* Les offres */
-      var offres = d.offres || [];
-      if (!offres.length) corps.appendChild(h('p.lbm-vide', { text: ecrit ? 'Aucune offre pour l\'instant : choisissez les véhicules plus bas (« Préparer l\'offre »).' : 'Aucune offre pour l\'instant.' }));
+      corps.appendChild(h('div.lbm-avis.' + etat.c, { style: { marginTop: 0 } }, [h('span', { text: etat.t })]));
+      /* 2. Les prix du site, suivis tout seuls */
+      var verifier = function (e, synchroniser) {
+        var b = e.currentTarget; b.disabled = true;
+        A.post({ action: 'offresLocationVerifier', compagnie: 'BMW', synchroniser: !!synchroniser }, { delai: 90000 }).then(function (r) {
+          A.verifier(r); self.offres = r; self.offresPret = Promise.resolve(r); self.majBoutonOffres();
+          if (synchroniser) { var sy = r.synchro || {}; A.toast(sy.erreur ? sy.erreur : sy.ajustees ? pl(sy.ajustees, 'offre') + ' ajustée' + (sy.ajustees > 1 ? 's' : '') + ' au prix du site.' : 'Prix vérifiés : rien à changer.', sy.erreur ? 'attention' : 'ok'); }
+          dessiner();
+        }).catch(function (er) { b.disabled = false; A.toast(A.erreurTexte(er), 'erreur'); });
+      };
+      var aRefaire = offres.filter(aRecalculerOffre);
+      var toutRecalculer = function (e, liste) {
+        var b = e.currentTarget, lib = b.textContent; b.disabled = true; occupe = 'recalcul';
+        self.recalculerOffres(liste, function (i, n) { b.textContent = 'Recalcul ' + i + ' / ' + n + '…'; }).then(function (bilan) {
+          occupe = '';
+          A.toast(bilan.refaites ? pl(bilan.refaites, 'offre') + ' recalculée' + (bilan.refaites > 1 ? 's' : '') + (bilan.echecs.length ? ' ; ' + bilan.echecs.length + ' à revoir (voir la liste).' : '.') : 'Aucune offre recalculée : ' + (bilan.echecs[0] ? bilan.echecs[0].raison : 'rien à faire.'), bilan.echecs.length ? 'attention' : 'ok');
+          return self.chargerOffres(true);
+        }).then(dessiner).catch(function (er) { occupe = ''; b.disabled = false; b.textContent = lib; A.toast(A.erreurTexte(er), 'erreur'); });
+      };
+      if (offres.length && (sync || ecrit)) {
+        var ligneSync = h('div.lbm-ofl-sync');
+        if (sync) ligneSync.appendChild(h('span.doux', { text: (sync.le ? 'Prix du site vérifiés ' + quandFr(sync.le) : 'Prix du site pas encore vérifiés') + ' (aux ' + (sync.minutes || 30) + ' minutes, de 6 h à 23 h) : le paiement d\'une offre suit le prix affiché sur le site.' }));
+        var bts = h('div.lbm-ofl-boutons');
+        if (sync && ecrit) bts.appendChild(h('button.btn.petit', { type: 'button', text: 'Vérifier les prix maintenant', onclick: function (e) { verifier(e, true); } }));
+        if (ecrit && !aRefaire.length) bts.appendChild(h('button.btn.petit.fantome', { type: 'button', text: 'Tout recalculer', title: 'Refaire chaque offre avec le prix du site et les programmes d\'aujourd\'hui', disabled: !self.prog() || !self.neufData, onclick: function (e) { toutRecalculer(e, offres); } }));
+        ligneSync.appendChild(bts);
+        corps.appendChild(ligneSync);
+        var chg = (sync && sync.changements) || [];
+        if (chg.length) corps.appendChild(h('ul.lbm-ofl-chg', chg.slice(0, 3).map(function (c) {
+          return h('li', { text: [c.stock ? '# ' + c.stock : '', c.titre].filter(Boolean).join(' ') + ' : ' + argent(c.de, 0) + ' → ' + argent(c.a, 0) + ', paiement ' + argent(c.paieDe, 2) + ' → ' + argent(c.paieA, 2) + ' par mois'
+            + (c.termeDe !== c.termeA ? ' (' + c.termeDe + ' → ' + c.termeA + ' mois)' : '') + ' · ' + quandFr(c.le) });
+        })));
+      }
+      if (ecrit && aRefaire.length) corps.appendChild(h('div.lbm-avis.ambre', [
+        h('span', { text: pl(aRefaire.length, 'offre') + ' à recalculer (nouveau mois, ou offre faite avant le suivi automatique des prix) : un clic refait tout avec le prix du site et les programmes d\'aujourd\'hui. ' }),
+        h('button.btn.petit.primaire', { type: 'button', text: 'Tout recalculer', disabled: !self.prog() || !self.neufData, onclick: function (e) { toutRecalculer(e, aRefaire); } })]));
+      /* 3. Les offres */
+      if (!offres.length) corps.appendChild(h('p.lbm-vide', { text: ecrit ? 'Choisissez les véhicules plus bas : « Ajouter » met l\'offre sur la page.' : 'Aucune offre pour l\'instant.' }));
       var liste = h('div.lbm-ofl-liste');
       offres.forEach(function (o, i) {
         var x = o.d || {}, nf = x.neuf || {}, eco = Math.floor((nf.avantTaxes || 0) - (x.avantTaxes || 0));
@@ -2038,44 +2199,56 @@
         var actions = h('div.lbm-ofl-actions', [
           ecrit ? h('button.btn.petit.fantome', { type: 'button', title: 'Monter', text: '↑', disabled: i === 0, onclick: function () { self.ordreOffres(i, -1, dessiner); } }) : null,
           ecrit ? h('button.btn.petit.fantome', { type: 'button', title: 'Descendre', text: '↓', disabled: i === offres.length - 1, onclick: function () { self.ordreOffres(i, 1, dessiner); } }) : null,
-          h('button.btn.petit', { type: 'button', text: 'Recalculer', title: 'Ouvrir ce véhicule dans le calculateur', onclick: function () { m.fermer(); var pa = { vin: o.vin }; if (x.prix) pa.prix = x.prix; if (x.km !== null && x.km !== undefined) pa.km = x.km; A.aller('inventaire', 'locbmw', pa); } }),
+          ecrit ? h('button.btn.petit', { type: 'button', text: 'Recalculer', title: 'Refaire cette offre avec le prix du site et les programmes d\'aujourd\'hui', disabled: !self.prog() || !self.neufData, onclick: function (e) { toutRecalculer(e, [o]); } }) : null,
+          h('button.btn.petit.fantome', { type: 'button', text: 'Ajuster', title: 'Ouvrir ce véhicule dans le calculateur', onclick: function () { m.fermer(); var pa = { vin: o.vin }; if (o.prixSite || x.prix) pa.prix = o.prixSite || x.prix; if (x.km !== null && x.km !== undefined) pa.km = x.km; A.aller('inventaire', 'locbmw', pa); } }),
           o.lien ? h('a.btn.petit.fantome', { href: o.lien, target: '_blank', rel: 'noopener', text: 'Fiche du site' }) : null,
           ecrit ? h('button.btn.petit.danger', { type: 'button', text: 'Retirer', onclick: function () { self.retirerOffre(o, dessiner); } }) : null
         ]);
+        var aj = x.ajuste, echec = self.recalcEchecs && self.recalcEchecs[o.vin];
         liste.appendChild(h('div.lbm-ofl-ligne' + (o.ok ? '' : '.pb'), [ph, h('div.lbm-ofl-txt', [
           h('div.lbm-veh-titre', { text: (i + 1) + '. ' + (x.titre || o.vin) }),
           h('div.lbm-ofl-chiffres', [h('b', { text: '0 $ comptant' }), h('b', { text: argent(x.avantTaxes, 2) + ' par mois avant taxes' }), h('b.eco', { text: argent(eco, 0) + ' de moins par mois que le neuf' })]),
-          h('div.lbm-veh-sous', { text: [x.terme + ' mois', A.fmtNombre(x.kmAn) + ' km/an', 'taux ' + pct(x.taux), 'neuf : ' + (nf.titre || '') + (nf.source === 'manufacturier' ? ' (manufacturier)' : '') + ' ' + argent(nf.avantTaxes, 2), 'valide au ' + dateFr(x.valideAu), x.stock ? '# stock ' + x.stock : ''].filter(Boolean).join(' · ') }),
-          x.plusBas ? h('div.lbm-veh-sous', { text: 'Plus petit paiement : ' + argent(x.plusBas.avantTaxes, 2) + ' par mois sur ' + x.plusBas.terme + ' mois' })
-            : ((x.termes || []).some(function (t) { return t.terme !== x.terme && t.u < (x.avantTaxes || 0) - 0.5; }) ? h('div.lbm-ofl-pb', { text: 'Le plus petit paiement (une autre durée) n\'est pas encore sur la page : « Recalculer » puis « Mettre à jour l\'offre du site ».' }) : null),
-          o.ok ? null : h('div.lbm-ofl-pb', { text: 'Pas sur la page : ' + o.problemes.join(' ; ') + '.' })
+          h('div.lbm-veh-sous', { text: [argent(x.prix, 0), x.terme + ' mois', A.fmtNombre(x.kmAn) + ' km/an', 'taux ' + pct(x.taux), 'neuf : ' + (nf.titre || '') + (nf.source === 'manufacturier' ? ' (manufacturier)' : '') + ' ' + argent(nf.avantTaxes, 2), 'valide au ' + dateFr(x.valideAu), x.stock ? '# stock ' + x.stock : ''].filter(Boolean).join(' · ') }),
+          x.plusBas ? h('div.lbm-veh-sous', { text: 'Plus petit paiement : ' + argent(x.plusBas.avantTaxes, 2) + ' par mois sur ' + x.plusBas.terme + ' mois' }) : null,
+          aj && aj.le ? h('div.lbm-veh-sous', { text: 'Prix du site passé de ' + argent(aj.de, 0) + ' à ' + argent(aj.a, 0) + ' ' + quandFr(aj.le) + ' : paiement recalculé tout seul (' + argent(aj.paieDe, 2) + ' → ' + argent(aj.paieA, 2) + ' par mois).' }) : null,
+          o.ok ? null : h('div.lbm-ofl-pb', { text: 'Pas sur la page : ' + o.problemes.join(' ; ') + '.' }),
+          echec ? h('div.lbm-ofl-pb', { text: 'Recalcul impossible : ' + echec + ' « Ajuster » l\'ouvre dans le calculateur.' }) : null
         ]), actions]));
       });
       corps.appendChild(liste);
-      /* 13 nov. : choisir les véhicules — nos BMW d'occasion en stock et sur le site (OFL_candidats_). */
-      if (ecrit) corps.appendChild(self.sectionCandidats(d, m));
-      /* Publier */
-      var etapes = h('div.lbm-ofl-section', [h('h3', 'Publier sur bmwsherbrooke.com')]);
-      var inUrl = h('input.saisie', { type: 'text', value: site.page || '', placeholder: '/location-bmw-occasion.html', 'aria-label': 'Adresse de la page sur le site' });
-      etapes.appendChild(h('ol.lbm-ofl-etapes', [
-        h('li', [h('b', { text: 'Une fois : ' }), 'dans D2C (admin.d2cmedia.ca › My Sites › bmwsherbrooke.com › Configurator › Custom Pages), créez la page avec « Available Pages » — adresse française conseillée location-bmw-occasion.html, anglaise bmw-pre-owned-lease.html. Inscrivez son adresse ici :',
-          h('div.lbm-ofl-url', [inUrl, ecrit ? h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function (e) { var b = e.currentTarget; b.disabled = true; A.post({ action: 'offresLocationReglages', compagnie: 'BMW', url: inUrl.value }).then(function (r) { A.verifier(r); A.toast('Adresse de la page enregistrée.', 'ok'); return self.chargerOffres(true); }).then(dessiner).catch(function (er) { b.disabled = false; A.toast(A.erreurTexte(er), 'erreur'); }); } }) : null,
-            url ? h('a.btn.petit.fantome', { href: url, target: '_blank', rel: 'noopener', text: 'Ouvrir la page' }) : null])]),
-        h('li', [h('b', { text: 'Une fois : ' }), 'glissez ce bouton dans votre barre de favoris : ', h('a.btn.petit.primaire', { href: CODE_SIGNET_D2C_OFFRES || '#', draggable: 'true', title: 'Glissez ce bouton dans votre barre de favoris', text: 'Automax → D2C (offres)', onclick: function (e) { e.preventDefault(); A.toast('Glissez ce bouton dans la barre de favoris, puis cliquez-le dans D2C.', 'info'); } })]),
-        h('li', [h('b', { text: 'À chaque changement : ' }), 'dans D2C, ouvrez le crayon de la page des offres (fenêtre « Page content »), cliquez le favori, puis « Remplacer et enregistrer ». Le français et l\'anglais sont remplacés ; rien d\'autre n\'est touché.'])
-      ]));
+      /* 4. Ajouter un véhicule : nos BMW d'occasion en stock et sur le site, chacune avec son offre déjà calculée */
+      if (ecrit) corps.appendChild(self.sectionCandidats(d, m, dessiner));
+      /* 5. La page du site */
+      var etapes = h('div.lbm-ofl-section', [h('h3', 'La page du site')]);
+      etapes.appendChild(h('p.doux', { text: auto ? 'Rien à publier : la page lit ses offres dans ScanAutomax à chaque visite. Une offre ajoutée, retirée ou dont le prix change paraît en 10 minutes au plus.'
+        : sync ? 'Publiez la page une dernière fois avec le favori (ci-dessous) : elle lira ensuite ses offres dans ScanAutomax à chaque visite, sans favori.'
+        : 'La page change quand quelqu\'un la publie avec le favori.' }));
       etapes.appendChild(h('div.lbm-ofl-boutons', [
+        url ? h('a.btn', { href: url, target: '_blank', rel: 'noopener', text: 'Ouvrir la page' }) : null,
         h('button.btn', { type: 'button', disabled: !page.n, text: 'Aperçu de la page', onclick: function () { apercuPage(page.html); } }),
         h('button.btn', { type: 'button', disabled: !page.n, text: 'Aperçu en anglais', onclick: function () { apercuPage(page.htmlEn); } }),
-        h('button.btn.fantome', { type: 'button', disabled: !page.n, text: 'Copier le HTML (français)', onclick: function () { A.copier(page.html, 'HTML copié : dans D2C, collez-le dans « Page content » (français).'); } }),
-        h('button.btn.fantome', { type: 'button', disabled: !page.n, text: 'Copier le HTML (anglais)', onclick: function () { A.copier(page.htmlEn, 'HTML copié : collez-le dans « Page content » (anglais).'); } })
+        h('button.btn.fantome', { type: 'button', text: 'Vérifier la page en ligne', onclick: function (e) { verifier(e, false); } })
       ]));
+      var inUrl = h('input.saisie', { type: 'text', value: site.page || '', placeholder: '/location-bmw-occasion.html', 'aria-label': 'Adresse de la page sur le site' });
+      var repli = h('details.lbm-ofl-repli', { open: !auto && (!!sync || !pub.aJour) }, [h('summary', { text: auto ? 'Publier avec le favori (facultatif)' : 'Publier avec le favori' })]);
+      if (auto) repli.appendChild(h('p.doux', { text: 'La copie de base de la page — ce qui s\'affiche pendant les premières secondes d\'une visite, et ce que Google lit — est celle de la dernière publication avec le favori' + (pub.aJour ? ' : elle est à jour.' : ' : elle n\'a pas les offres d\'aujourd\'hui. La republier de temps en temps (au début du mois, par exemple) la garde fraîche.') }));
+      repli.appendChild(h('ol.lbm-ofl-etapes', [
+        h('li', [h('b', { text: 'Une fois : ' }), 'dans D2C (admin.d2cmedia.ca › My Sites › bmwsherbrooke.com › Configurator › Custom Pages), la page des offres — adresse française conseillée location-bmw-occasion.html, anglaise bmw-pre-owned-lease.html. Son adresse ici :',
+          h('div.lbm-ofl-url', [inUrl, ecrit ? h('button.btn.petit', { type: 'button', text: 'Enregistrer', onclick: function (e) { var b = e.currentTarget; b.disabled = true; A.post({ action: 'offresLocationReglages', compagnie: 'BMW', url: inUrl.value }).then(function (r) { A.verifier(r); A.toast('Adresse de la page enregistrée.', 'ok'); return self.chargerOffres(true); }).then(dessiner).catch(function (er) { b.disabled = false; A.toast(A.erreurTexte(er), 'erreur'); }); } }) : null])]),
+        h('li', [h('b', { text: 'Une fois : ' }), 'glissez ce bouton dans votre barre de favoris : ', h('a.btn.petit.primaire', { href: CODE_SIGNET_D2C_OFFRES || '#', draggable: 'true', title: 'Glissez ce bouton dans votre barre de favoris', text: 'Automax → D2C (offres)', onclick: function (e) { e.preventDefault(); A.toast('Glissez ce bouton dans la barre de favoris, puis cliquez-le dans D2C.', 'info'); } })]),
+        h('li', [h('b', { text: 'Publier : ' }), 'dans D2C, ouvrez le crayon de la page des offres (fenêtre « Page content »), cliquez le favori, puis « Remplacer et enregistrer ». Le français et l\'anglais sont remplacés ; rien d\'autre n\'est touché.'])
+      ]));
+      repli.appendChild(h('div.lbm-ofl-boutons', [
+        h('button.btn.petit.fantome', { type: 'button', disabled: !page.n, text: 'Copier le HTML (français)', onclick: function () { A.copier(page.html, 'HTML copié : dans D2C, collez-le dans « Page content » (français).'); } }),
+        h('button.btn.petit.fantome', { type: 'button', disabled: !page.n, text: 'Copier le HTML (anglais)', onclick: function () { A.copier(page.htmlEn, 'HTML copié : collez-le dans « Page content » (anglais).'); } })
+      ]));
+      etapes.appendChild(repli);
       corps.appendChild(etapes);
       /* Google et Facebook */
       if (page.n && page.seo) {
         var lienUtm = function (src, med) { return url + '?utm_source=' + src + '&utm_medium=' + med + '&utm_campaign=location-occasion'; };
         var ligneCopie = function (lib, val) { return h('div.lbm-ofl-copie', [h('span.l', { text: lib }), h('span.v', { text: val }), h('button.btn.petit.fantome', { type: 'button', text: 'Copier', onclick: function () { A.copier(val, lib + ' copié.'); } })]); };
-        corps.appendChild(h('div.lbm-ofl-section', [h('h3', 'Pour Google et Facebook'),
+        corps.appendChild(h('details.lbm-ofl-section.lbm-ofl-repli', [h('summary', { text: 'Pour Google et Facebook' }),
           h('p.doux', { text: 'Titre et description de la page (champs de la page dans D2C), et le lien à mettre dans les annonces.' }),
           ligneCopie('Titre', page.seo.titre), ligneCopie('Description', page.seo.description), ligneCopie('Title (EN)', page.seoEn.titre), ligneCopie('Description (EN)', page.seoEn.description),
           url ? ligneCopie('Lien Facebook', lienUtm('facebook', 'paid')) : null, url ? ligneCopie('Lien Google', lienUtm('google', 'cpc')) : null
@@ -2083,7 +2256,11 @@
       }
     };
     dessiner();
-    this.chargerOffres(true).then(function () { if (document.body.contains(corps)) dessiner(); });
+    /* Les offres, le programme de BMW FS et nos neufs : il faut les trois pour calculer une offre sans ouvrir le calculateur. */
+    var redessiner = function () { if (!occupe) dessiner(); };
+    this.chargerOffres(true).then(redessiner);
+    charger(false).then(function (rep) { if (!self.rep) self.rep = rep; redessiner(); }, function () {});
+    if (this.peutNeufs()) this.chargerNeufs().then(redessiner, function () {});
   };
   VueLocation.prototype.ordreOffres = function (i, sens, apres) {
     var self = this, l = (this.offres && this.offres.offres || []).slice(), j = i + sens;
@@ -2094,7 +2271,7 @@
   };
   VueLocation.prototype.retirerOffre = function (o, apres) {
     var self = this, x = o.d || {};
-    A.confirmer('Retirer cette offre ?', (x.titre || o.vin) + ' ne sera plus sur la page des offres (après la prochaine publication avec le favori).', { ok: 'Retirer', danger: true }).then(function (oui) {
+    A.confirmer('Retirer cette offre ?', (x.titre || o.vin) + ' ne sera plus sur la page des offres (' + (this.pageAuto() ? 'd\'ici 10 minutes' : 'après la prochaine publication avec le favori') + ').', { ok: 'Retirer', danger: true }).then(function (oui) {
       if (!oui) return;
       return A.post({ action: 'offresLocationRetirer', compagnie: 'BMW', vin: o.vin }).then(function (r) { A.verifier(r); A.toast('Offre retirée.', 'ok'); return self.chargerOffres(true); }).then(apres);
     }).catch(function (e) { A.toast(A.erreurTexte(e), 'erreur'); });

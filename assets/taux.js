@@ -189,8 +189,33 @@
       gagne: Math.max(0, Math.min(finFin, finP) - Math.max(age, finM))
     };
   }
+  /* 21 nov. (Maxime : « aller chercher une vente du Livre des ventes pour travailler avec le comparateur »). Ce que le livre
+     donne d'une vente : l'année, neuf ou occasion, le client, le prix et l'échange. Il n'a ni le terme, ni le taux, ni le montant
+     financé du contrat : le montant est ESTIMÉ (prix + accessoires + pneus − échange(s), taxes en sus) et dit comme tel.
+     v = une vente de ?ventes=1 ; taxe = 0.14975 ou 0.13. */
+  var RE_ENTREPRISE = /(^|[\s.,(])(inc|ltee|ltée|ltd|limitee|limitée|enr|senc|s\.e\.n\.c|corp|corporation|cie|llc)(\.|[\s,)]|$)/i;
+  function deVente(v, taxe) {
+    v = v || {}; taxe = nb(taxe) ? taxe : 0.14975;
+    var out = { annee: '', etat: v.type === 'neuf' ? 'neuf' : 'occasion', client: RE_ENTREPRISE.test(String(v.client || '')) ? 'entreprise' : 'particulier',
+      montant: '', montantEstime: false, calcul: null, avis: [] };
+    var an = num(v.annee); if (nb(an) && an >= 1980 && an <= 2100) out.annee = String(an);
+    var prix = num(v.prixVente);
+    if (nb(prix) && prix > 0) {
+      var acc = num(v.accessoires) || 0, pn = num(v.pneusMontant) || 0, e1 = num(v.echangeValeur) || 0, e2 = num(v.echange2Valeur) || 0;
+      var base = cents(prix + acc + pn - e1 - e2);
+      if (base > 0) {
+        out.montant = String(cents(base * (1 + taxe))); out.montantEstime = true;
+        out.calcul = { prix: prix, accessoires: acc, pneus: pn, echange: cents(e1 + e2), base: base, taxe: taxe, montant: cents(base * (1 + taxe)) };
+      } else out.avis.push('L\'échange dépasse le prix : inscrivez le montant financé du contrat.');
+    } else out.avis.push(v.montantsMasques ? 'Les montants de cette vente ne vous sont pas montrés : inscrivez le montant financé.' : 'Le prix de vente n\'est pas inscrit au livre : inscrivez le montant financé.');
+    var pay = String(v.paiement || '');
+    if (pay === 'comptant') out.avis.push('Le livre dit « Comptant » : vérifiez qu\'il y a bien un financement.');
+    else if (pay === 'location') out.avis.push('Le livre dit « Location » : le comparateur compare des prêts des banques.');
+    if (!out.annee) out.avis.push('L\'année du véhicule n\'est pas au livre.');
+    return out;
+  }
   var Calcul = { num: num, cents: cents, parAn: parAn, nbVersements: nbVersements, paiement: paiement, ristourne: ristourne, termeMaxDe: termeMaxDe, palierVaut: palierVaut,
-    boniDe: boniDe, admissible: admissible, comparer: comparer, ajouterPeriodes: ajouterPeriodes, amortissement: amortissement, garantie: garantie };
+    boniDe: boniDe, admissible: admissible, comparer: comparer, ajouterPeriodes: ajouterPeriodes, amortissement: amortissement, garantie: garantie, deVente: deVente };
 
   /* =============================== Données =============================== */
   var cache = { rep: null, quand: 0, promesse: null };
@@ -318,7 +343,9 @@
 
   /* =============================== La page =============================== */
   var MEMO_T = 'taux_transaction';
-  function transactionDefaut() { return { annee: new Date().getFullYear() - 2, montant: '', terme: 72, tauxVendu: '', modalite: 'mois', etat: 'occasion', client: 'particulier', typeTaux: '', province: '' }; }
+  /* venteId / venteTexte / venteCie : la vente du Livre des ventes d'où vient la transaction (21 nov.) — jamais le nom du client
+     (la transaction est gardée dans le navigateur). */
+  function transactionDefaut() { return { annee: new Date().getFullYear() - 2, montant: '', terme: 72, tauxVendu: '', modalite: 'mois', etat: 'occasion', client: 'particulier', typeTaux: '', province: '', venteId: '', venteTexte: '', venteCie: '' }; }
   function VueTaux(conteneur, ctx) {
     injecterCss();
     var self = this;
@@ -339,10 +366,13 @@
     this.recuesDemandees = !!(ctx && ctx.params && ctx.params.recues);
     this.surLecture = function () { if (!self.detruit) { if (self.majRecues) self.majRecues(); if (!LECTURE.en && self.d) { vider(); self.charger(false); } } };
     document.addEventListener('amx:grillesRecues', this.surLecture);
+    this.venteDemandee = ctx && ctx.params && ctx.params.vente ? String(ctx.params.vente) : '';   /* #/vente/taux?vente=V-123 (fiche d'une vente) */
+    this.vente = null; this.venteInfo = null;
   }
   VueTaux.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:grillesRecues', this.surLecture); };
   VueTaux.prototype.naviguer = function (ctx) {
     if (ctx && ctx.params && ctx.params.recues && this.d) this.ouvrirRecues();
+    if (ctx && ctx.params && ctx.params.vente && String(ctx.params.vente) !== this.t.venteId) { this.venteDemandee = String(ctx.params.vente); if (this.d) this.chargerVenteDemandee(); }
     var v = ctx && ctx.onglet; if (VUES.indexOf(v) < 0 || v === this.vue) return;
     this.vue = v; this.rendre();
   };
@@ -366,6 +396,7 @@
       self.d = d; self.erreur = ''; self.rendre();
       if (force) AMX.toast('Programmes à jour.', 'ok', 2500);
       if (self.recuesDemandees) { self.recuesDemandees = false; self.ouvrirRecues(); }
+      if (self.venteDemandee) self.chargerVenteDemandee();
     }).catch(function (e) {
       if (self.detruit) return;
       self.erreur = texteErreur(e); self.rendre();
@@ -396,7 +427,7 @@
 
   /* ------------------------------ Comparateur ------------------------------ */
   VueTaux.prototype.transaction = function () {
-    var t = this.t, cie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
+    var t = this.t, cie = t.venteId && t.venteCie ? t.venteCie : (AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '');   /* une vente : les programmes de SA concession */
     return { annee: num(t.annee), montant: num(t.montant), terme: num(t.terme), tauxVendu: num(t.tauxVendu), modalite: t.modalite || 'mois', etat: t.etat || 'occasion',
       client: t.client || 'particulier', typeTaux: t.typeTaux || '', cie: cie || '' };
   };
@@ -418,11 +449,16 @@
     var lent = AMX.debounce(maj, 220);
     function lie(el, cle, tout) { el.addEventListener(tout ? 'change' : 'input', function () { self.t[cle] = el.value; (tout ? maj : lent)(); }); return el; }
     this.elPaiement = h('output.tx-paiement');
+    var inMontant = lie(saisie('text', t.montant, { inputmode: 'decimal', id: 'tx-montant', placeholder: '35 000' }), 'montant');
+    this.elVente = h('div.tx-vente-zone');
+    inMontant.addEventListener('input', function () { self.majNoteVente(); });
     var form = h('form.carte.tx-form', { onsubmit: function (e) { e.preventDefault(); maj(); }, 'aria-label': 'Votre transaction' }, [
-      h('div.carte-entete', [h('h2', 'Votre transaction')]),
+      h('div.carte-entete.tx-form-tete', [h('h2', 'Votre transaction'),
+        h('button.btn.petit.tx-btn-vente', { type: 'button', text: t.venteId ? 'Autre vente…' : 'Partir d\'une vente…', title: 'Remplir la transaction avec une vente du Livre des ventes', onclick: function () { self.choisirVente(); } })]),
       h('div.carte-corps', [
+        this.elVente,
         champ('Année du véhicule', lie(saisie('text', t.annee, { inputmode: 'numeric', id: 'tx-annee', maxlength: '4' }), 'annee')),
-        champ('Montant financé (taxes incluses)', lie(saisie('text', t.montant, { inputmode: 'decimal', id: 'tx-montant', placeholder: '35 000' }), 'montant')),
+        champ('Montant financé (taxes incluses)', inMontant),
         champ('Terme (mois)', lie(saisie('text', t.terme, { inputmode: 'numeric', id: 'tx-terme', list: 'tx-termes', maxlength: '3' }), 'terme')),
         h('datalist#tx-termes', [24, 36, 48, 60, 72, 84, 96].map(function (x) { return h('option', { value: String(x) }); })),
         champ('Taux vendu au client (%)', lie(saisie('text', t.tauxVendu, { inputmode: 'decimal', id: 'tx-vendu', placeholder: 'facultatif — ex. 8,49' }), 'tauxVendu'), 'Avec un taux vendu : le gain du client et le potentiel de chaque programme.'),
@@ -437,7 +473,138 @@
     ]);
     this.elRes = h('div.tx-res');
     this.corps.appendChild(h('div.tx-deux', [form, this.elRes]));
+    this.rendreVente();
     this.rendreResultats();
+  };
+
+  /* -------- 21 nov. : partir d'une vente du Livre des ventes (« aller chercher une vente pour travailler avec le comparateur ») -------- */
+  var PAIEMENTS = { financement: 'Financement', financementBmw: 'Financement BMW', financementAutre: 'Financement autre', location: 'Location', comptant: 'Comptant' };
+  var VENTES_MOIS = {};   /* 'CIE|AAAA-MM' → { quand, liste } — en mémoire seulement */
+  function moisIso(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }
+  function moisRecents(n) { var out = [], d = new Date(); d.setDate(1); for (var k = 0; k < n; k++) { out.push(moisIso(d)); d.setMonth(d.getMonth() - 1); } return out; }
+  function moisLib(m) { var s = new Date(m + '-15T12:00:00').toLocaleDateString('fr-CA', { month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function moisVente(v) { return String(v.dateVente || v.declareLe || '').slice(0, 7); }
+  /* Les ventes neuves et d'occasion VENDUES dans le mois (pas le wholesale, ni une annulée, ni une ligne hors vente). */
+  function ventesDuMois(cie, m, force) {
+    var cle = (cie || '') + '|' + m, g = VENTES_MOIS[cle];
+    if (!force && g && Date.now() - g.quand < AMX.dureeCopie(120000)) return Promise.resolve(g.liste);
+    var params = { ventes: 1, mois: m }; if (cie) params.compagnie = cie;
+    return AMX.get(params, { gz: true, secours: false, delai: 60000 }).then(function (d) {
+      AMX.verifier(d, 'Ventes illisibles');
+      if (!Array.isArray(d.ventes)) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (Vente.gs).');
+      var vus = {}, liste = [];
+      d.ventes.concat(Array.isArray(d.venduesAutres) ? d.venduesAutres : []).forEach(function (v) {
+        if (!v || !v.id || vus[v.id]) return; vus[v.id] = 1;
+        if (v.type === 'wholesale' || v.statut === 'annulee' || v.horsVente) return;
+        if (moisVente(v) !== m) return;
+        liste.push(v);
+      });
+      liste.sort(function (a, b) { return String(b.dateVente || b.declareLe || '').localeCompare(String(a.dateVente || a.declareLe || '')) || String(b.id).localeCompare(String(a.id)); });
+      VENTES_MOIS[cle] = { quand: Date.now(), liste: liste };
+      return liste;
+    });
+  }
+  function texteVente(v) { return [v.vehicule || [v.annee, v.marque, v.modele].filter(Boolean).join(' '), v.stock ? '# ' + v.stock : ''].filter(Boolean).join(' · '); }
+  VueTaux.prototype.provinceDe = function (cie) {
+    var x = this.d && this.d.taxes && cie ? this.d.taxes[cie] : null;
+    if (nb(x)) return Math.abs(x - 0.13) < 1e-6 ? 'ON' : 'QC';
+    return cie === 'HAWKS' ? 'ON' : 'QC';
+  };
+  VueTaux.prototype.appliquerVente = function (v) {
+    var t = this.t, cie = String(v.compagnie || ''), prov = this.provinceDe(cie), x = deVente(v, taxeDe(prov));
+    t.annee = x.annee; t.etat = x.etat; t.client = x.client; t.province = prov; t.montant = x.montant;
+    t.tauxVendu = '';   /* le taux vendu est celui du contrat : le livre ne l'a pas */
+    t.venteId = String(v.id || ''); t.venteTexte = texteVente(v); t.venteCie = cie;
+    this.vente = v; this.venteInfo = x; this.venteDemandee = '';
+    AMX.memo.ecrire(MEMO_T, t);
+    if (this.vue !== 'comparateur') { this.vers('comparateur'); AMX.toast('Vente ' + t.venteId + ' reprise. Inscrivez le terme et le taux du contrat.', 'ok', 4000); return; }
+    this.rendre();
+    AMX.toast('Vente ' + t.venteId + ' reprise. Inscrivez le terme et le taux du contrat.', 'ok', 4000);
+    var el = document.getElementById(x.montant ? 'tx-terme' : 'tx-montant'); if (el) { try { el.focus(); el.select(); } catch (e) {} }
+  };
+  VueTaux.prototype.chargerVenteDemandee = function () {
+    var self = this, id = this.venteDemandee; if (!id || !AMX.ventes || !AMX.ventes.une) return;
+    this.venteDemandee = '';
+    AMX.ventes.une(id).then(function (v) { if (!self.detruit && v) self.appliquerVente(v); })
+      .catch(function (e) { if (!self.detruit) AMX.toast('Vente ' + id + ' introuvable — ' + texteErreur(e), 'erreur'); });
+  };
+  VueTaux.prototype.oublierVente = function () {
+    var t = this.t; t.venteId = ''; t.venteTexte = ''; t.venteCie = '';
+    this.vente = null; this.venteInfo = null; AMX.memo.ecrire(MEMO_T, t); this.rendre();
+  };
+  /* Le bloc de la vente au haut du formulaire : laquelle, son client (en mémoire seulement), le montant estimé. */
+  VueTaux.prototype.rendreVente = function () {
+    var self = this, z = this.elVente, t = this.t; if (!z) return;
+    AMX.vider(z);
+    if (!t.venteId) return;
+    var v = this.vente && String(this.vente.id) === t.venteId ? this.vente : null;
+    var nomCie = t.venteCie ? ((AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[t.venteCie]) || t.venteCie) : '';
+    var sous = [v && v.client ? v.client : '', v && v.dateVente ? 'vendue le ' + jour(v.dateVente) : '', v && PAIEMENTS[v.paiement] ? PAIEMENTS[v.paiement] : '', nomCie].filter(Boolean).join(' · ');
+    z.appendChild(h('div.tx-vente', [
+      h('div.tx-vente-l1', [h('strong', { text: 'Vente ' + t.venteId }), h('span', { text: t.venteTexte || '' })]),
+      sous ? h('div.tx-vente-l2', { text: sous }) : null,
+      h('div.tx-vente-actions', [
+        h('button.tx-lien', { type: 'button', text: 'Voir la vente', onclick: function () { AMX.aller('vente', 'ventes', { id: t.venteId }); } }),
+        h('button.tx-lien', { type: 'button', text: 'Retirer la vente', title: 'La transaction reste, sans lien avec la vente', onclick: function () { self.oublierVente(); } })
+      ]),
+      this.elVenteNote = h('div.tx-vente-note')
+    ]));
+    this.majNoteVente();
+  };
+  VueTaux.prototype.majNoteVente = function () {
+    var z = this.elVenteNote, x = this.venteInfo; if (!z) return;
+    AMX.vider(z);
+    if (!x || !this.t.venteId || !this.vente || String(this.vente.id) !== this.t.venteId) return;
+    var c = x.calcul, lignes = [];
+    if (c && num(this.t.montant) === c.montant) {
+      var plus = (c.accessoires ? ' + accessoires ' + argent(c.accessoires, 0) : '') + (c.pneus ? ' + pneus ' + argent(c.pneus, 0) : '') + (c.echange ? ' − échange ' + argent(c.echange, 0) : '');
+      lignes.push('Montant ESTIMÉ à partir du livre : prix ' + argent(c.prix, 0) + plus + (plus ? ' = ' + argent(c.base, 0) : '') + ', plus les taxes (' + pct(Math.round(c.taxe * 100000) / 1000) + ') = ' + argent(c.montant)
+        + '. Corrigez-le avec le montant du contrat (comptant, solde de l\'échange, produits F&I).');
+    }
+    x.avis.forEach(function (a) { lignes.push(a); });
+    lignes.push('Le terme et le taux vendu viennent du contrat : le livre ne les a pas.');
+    lignes.forEach(function (l) { z.appendChild(h('p', { text: l })); });
+  };
+  VueTaux.prototype.choisirVente = function () {
+    var self = this, cie = AMX.compagnieChoisie ? AMX.compagnieChoisie('inventaire') : '';
+    var mois = moisRecents(6), etat = { mois: mois[0], q: '', liste: null, erreur: '', charge: false };
+    var selMois = choix(mois.map(function (m) { return [m, moisLib(m)]; }), etat.mois, { 'aria-label': 'Mois de la vente' });
+    var rech = saisie('search', '', { placeholder: 'Client, # stock, NIV, modèle, V-…', 'aria-label': 'Chercher une vente', enterkeyhint: 'search' });
+    var zone = h('div.tx-ventes', { 'aria-live': 'polite' });
+    var nomCie = cie ? ((AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[cie]) || cie) : 'toutes vos concessions';
+    var corps = h('div.tx-choix-vente', [
+      h('p.tx-note', { text: 'Les ventes neuves et d\'occasion vendues dans le mois — ' + nomCie + '. Le comparateur reprend l\'année, neuf ou occasion, le client et un montant estimé ; vous inscrivez le terme et le taux du contrat.' }),
+      h('div.tx-ventes-barre', [selMois, rech]), zone]);
+    var m = AMX.modale({ titre: 'Partir d\'une vente du Livre des ventes', corps: corps, large: true, proteger: false, classe: 'tx-modale-ventes', boutons: [{ texte: 'Fermer' }] });
+    function dessiner() {
+      AMX.vider(zone);
+      if (etat.erreur) { zone.appendChild(h('div.alerte-bloc.erreur', { text: 'Les ventes n\'ont pas pu être lues. ' + etat.erreur })); return; }
+      if (!etat.liste) { zone.appendChild(AMX.chargeur('Lecture du Livre des ventes', { compact: true })); return; }
+      var q = String(rech.value || '').trim();
+      var liste = etat.liste.filter(function (v) { return !q || AMX.correspond([v.id, v.stock, v.vin, v.vehicule, v.client, v.conseiller, v.directeur, PAIEMENTS[v.paiement] || ''], q); });
+      zone.appendChild(h('p.tx-ventes-compte', { text: liste.length + ' vente' + (liste.length > 1 ? 's' : '') + (q ? ' trouvée' + (liste.length > 1 ? 's' : '') : '') + ' · ' + moisLib(etat.mois) }));
+      if (!liste.length) { zone.appendChild(h('p.tx-note', { text: q ? 'Aucune vente ne correspond. Essayez un autre mois.' : 'Aucune vente neuve ou d\'occasion ce mois-ci.' })); return; }
+      zone.appendChild(h('ul.tx-ventes-liste', liste.slice(0, 200).map(function (v) {
+        var droite = [v.dateVente ? jour(v.dateVente) : '', nb(v.prixVente) ? argent(v.prixVente, 0) : '', PAIEMENTS[v.paiement] || ''].filter(Boolean).join(' · ');
+        var gauche = [v.id, v.stock ? '# ' + v.stock : '', v.client || '', v.conseiller || '', !cie && v.compagnie ? ((AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[v.compagnie]) || v.compagnie) : ''].filter(Boolean).join(' · ');
+        return h('li', [h('button.tx-vente-ligne', { type: 'button', onclick: function () { m.fermer(); self.appliquerVente(v); } }, [
+          h('span.tx-vl-1', [h('strong', { text: v.vehicule || [v.annee, v.marque, v.modele].filter(Boolean).join(' ') || '(véhicule ?)' }), h('span.tx-vl-type', { text: v.type === 'neuf' ? 'Neuf' : 'Occasion' })]),
+          h('span.tx-vl-2', { text: gauche }),
+          h('span.tx-vl-3', { text: droite })
+        ])]);
+      })));
+      if (liste.length > 200) zone.appendChild(h('p.tx-note', { text: 'Les 200 plus récentes : précisez la recherche.' }));
+    }
+    function charger() {
+      etat.liste = null; etat.erreur = ''; dessiner();
+      var m0 = etat.mois;
+      ventesDuMois(cie, m0, false).then(function (l) { if (etat.mois !== m0) return; etat.liste = l; dessiner(); })
+        .catch(function (e) { if (etat.mois !== m0) return; etat.erreur = texteErreur(e); dessiner(); });
+    }
+    selMois.addEventListener('change', function () { etat.mois = selMois.value; charger(); });
+    rech.addEventListener('input', AMX.debounce(dessiner, 150));
+    charger();
+    setTimeout(function () { try { rech.focus(); } catch (e) {} }, 50);
   };
   VueTaux.prototype.rendreResultats = function () {
     var self = this, d = this.d, z = this.elRes; if (!z) return;
@@ -1254,6 +1421,24 @@
       '.tx-p-pareil, .tx-p-ignore { color: var(--encre-3); background: var(--carte-2); } .tx-p-fait { color: var(--vert-fonce); background: var(--vert-clair); }',
       '.tx-p-prevu { color: var(--bleu); background: var(--bleu-bg); } .tx-prevu { color: var(--encre-2); }',
       '.tx-recues-barre strong { white-space: nowrap; } .tx-recues-barre select.saisie { width: auto; max-width: 260px; }',
+      /* 21 nov. : partir d'une vente du Livre des ventes */
+      '.tx-form-tete { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }',
+      '.tx-vente-zone:empty { display: none; }',
+      '.tx-vente { background: var(--bleu-bg); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }',
+      '.tx-vente-l1 { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; } .tx-vente-l1 span { color: var(--encre-2); }',
+      '.tx-vente-l2 { color: var(--encre-3); font-size: 12px; }',
+      '.tx-vente-actions { display: flex; gap: 14px; flex-wrap: wrap; }',
+      '.tx-vente-note:empty { display: none; } .tx-vente-note { border-top: 1px solid var(--ligne); margin-top: 4px; padding-top: 6px; font-size: 12px; color: var(--encre-2); } .tx-vente-note p { margin: 0 0 4px; }',
+      '.tx-ventes-barre { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; } .tx-ventes-barre select.saisie { width: auto; } .tx-ventes-barre input.saisie { flex: 1 1 240px; min-width: 0; }',
+      '.tx-ventes-compte { margin: 4px 0 6px; font-size: 13px; color: var(--encre-3); }',
+      '.tx-ventes-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 60vh; overflow-y: auto; }',
+      '.tx-vente-ligne { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; width: 100%; text-align: left; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte, #fff); padding: 8px 12px; cursor: pointer; font: inherit; color: inherit; }',
+      '.tx-vente-ligne:hover, .tx-vente-ligne:focus-visible { border-color: var(--vert); background: var(--vert-clair); }',
+      '.tx-vl-1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; } .tx-vl-1 strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
+      '.tx-vl-type { font-size: 12px; color: var(--encre-3); white-space: nowrap; }',
+      '.tx-vl-2 { grid-column: 1; font-size: 12px; color: var(--encre-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
+      '.tx-vl-3 { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 13px; text-align: right; white-space: nowrap; }',
+      '@media (max-width: 640px) { .tx-vente-ligne { grid-template-columns: minmax(0, 1fr); } .tx-vl-3 { grid-column: 1; grid-row: auto; text-align: left; } }',
       '.tx-recu-ch { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--encre-2); } .tx-recu-ch li { margin: 2px 0; }',
       '@media (max-width: 640px) { .tx-recu-tete, .tx-recu-props > li { flex-direction: column; } }',
       /* amortissement, garantie */

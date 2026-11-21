@@ -2031,6 +2031,8 @@
     }
     if (ouverte && v.type !== 'wholesale' && (AMX.ventes.peutCompta() || AMX.ventes.peutCompleter())) boutons.push({ texte: 'F&I après-vente…', title: 'Produits F&I vendus après la livraison : profit F&I sans unité, imputé au mois courant', action: function (f) { f(); ouvrirHorsVente('fiApres', v); return false; } });
     if (ouverte && v.livre === 'ecrit' && AMX.ventes.peutCompta()) boutons.push({ texte: 'Comptabilité', classe: v.statut !== 'comptabilisee' && !fiManque ? 'primaire' : '', action: function (f) { f(); AMX.ventes.compta(v); return false; } });
+    /* 21 nov. (Maxime) : la vente dans Taux Einstein › Comparateur — l'année, neuf ou occasion, le client et un montant estimé. */
+    if (ouverte && v.type !== 'wholesale' && AMX.taux && AMX.taux.peutVoir && AMX.taux.peutVoir() && (!AMX.voitOnglet || AMX.voitOnglet('vente', 'taux'))) boutons.push({ texte: 'Comparer les taux', title: 'Ouvrir Taux Einstein › Comparateur avec cette vente', action: function (f) { f(); AMX.aller('vente', 'taux', { vue: 'comparateur', vente: v.id }); return false; } });
     if (ouverte && v.statut !== 'comptabilisee') {
       if (AMX.ventes.peutDeclarer() || AMX.ventes.peutCompleter()) boutons.push({ texte: 'Modifier la vente', action: function (f) { f(); AMX.ventes.modifier(v); return false; } });
       if (v.livre === 'erreur') boutons.push({ texte: 'Renvoyer au livre', action: function (f) { f(); renvoyer(v); return false; } });

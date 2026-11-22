@@ -320,6 +320,7 @@
       '.neufs-options { display: flex; flex-wrap: wrap; gap: 4px; } .neufs-options span { background: var(--gris-bg); border-radius: 999px; padding: 2px 8px; font-size: 12px; }',
       '.neufs-vide { padding: 28px 12px; text-align: center; color: var(--encre-3); }',
       '.neufs-ecarts tr.ecart { cursor: pointer; } .neufs-ecarts tr.ecart:hover td { background: var(--gris-bg); }',
+      '.neufs-ecarts td.diff { color: #C62828; font-weight: 700; }',   /* 22 nov. : code modèle / couleur différents */
       '.neufs-origine { margin: 0; } .neufs-origine button, .neufs-flotte button { display: inline-flex; gap: 6px; align-items: center; padding: 5px 12px; font-size: 12.5px; } .neufs-origine button b, .neufs-flotte button b { font-weight: 600; font-size: 12px; color: var(--encre-3); background: var(--gris-bg); border-radius: 999px; padding: 0 7px; } .neufs-origine button.actif b, .neufs-flotte button.actif b { color: var(--vert); background: var(--vert-clair); } .neufs-origine button.vide:not(.actif) { color: var(--encre-3); opacity: .75; }',
       /* 21 oct. : l'entonnoir sous les concessions — Inventaire (DMS | Manufacturier) puis Type (Détail | Flotte | Tout) */
       '.neufs-etapes2 { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; margin: 2px 0 12px; } .neufs-palier { display: inline-flex; align-items: center; gap: 8px; } .neufs-palier .etiquette { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-3); font-weight: 600; } .neufs-palier.cache { display: none; }',
@@ -822,6 +823,76 @@
     if (this.origine) return this.origine;   /* choix explicite (mémorisé) : respecté même si cette origine est vide pour la concession */
     return o.dms || !o.constructeur ? 'dms' : 'constructeur';
   };
+  /* 22 nov. 2026 — suggestions SDE5C9BDFD4 et SC2199154C8 (Louis Prassinos, Hyundai Longueuil) : à l'audit d'inventaire, ne pas
+     comparer seulement le nombre d'unités entre le manufacturier et le DMS (Merlin), mais aussi, pour le même NIV, le CODE MODÈLE
+     et la COULEUR extérieure — un véhicule mal stocké au DMS se voit tout de suite. Et compter par code modèle et couleur des deux
+     côtés. Les codes viennent de `modelNum` et `couleurCode` (export du DMS, portail du constructeur) ; sans code d'un côté, les
+     couleurs se comparent par leur nom. Garde-fou : quand les deux systèmes ne parlent pas le même langage (plus de la moitié des
+     NIV communs « différents », sur 10 et plus), la comparaison de ce champ est mise de côté pour la concession, avec une note. */
+  function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function normTexte(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\([^)]*\)/g, ' ').replace(/[^A-Z0-9]+/g, ' ').trim(); }
+  function codeModeleDe(v) { return normCode(v && v.modelNum); }
+  /* Code de la couleur extérieure : `couleurCode` (« T2G-NNB » → T2G, « GXD »), sinon le code entre parenthèses du nom. */
+  function codeCouleurDe(v) {
+    var c = String((v && v.couleurCode) || '').toUpperCase().trim();
+    if (!c) { var m = String((v && v.couleur) || '').match(/\(([A-Z0-9]{2,5})(?:[-\/][A-Z0-9]{2,5})?\)/i); c = m ? m[1].toUpperCase() : ''; }
+    return normCode(c.split(/[-\/ ]/)[0]);
+  }
+  function nomCouleurDe(v) { return normTexte(v && v.couleur); }
+  /* Même couleur ? Codes égaux quand les deux en ont ; sinon un nom contient l'autre, ou le premier mot est le même
+     (« GRIS NOCTURNE(T2G-NNB)-NOIR » et « Gris nocturne »). Rien d'un côté = rien à comparer. */
+  function couleurConcorde(a, b) {
+    var ca = codeCouleurDe(a), cb = codeCouleurDe(b);
+    if (ca && cb) return ca === cb;
+    var na = nomCouleurDe(a), nb = nomCouleurDe(b);
+    if (!na || !nb) return true;
+    if (na === nb || na.indexOf(nb) >= 0 || nb.indexOf(na) >= 0) return true;
+    var ma = na.split(' ')[0], mb = nb.split(' ')[0];
+    return ma.length >= 3 && ma === mb;
+  }
+  /* Compare code modèle et couleur des NIV communs d'une concession : { lignes, modeleComparable, couleurComparable, codesCouleur }. */
+  function comparerCodes(paires) {
+    var out = { lignes: [], modeleComparable: true, couleurComparable: true, codesModele: false, codesCouleur: false, couleursDesDeux: false }, nM = 0, dM = 0, nC = 0, dC = 0, avecCodeC = 0;
+    var brut = paires.map(function (p) {
+      var a = p[0], b = p[1], cmA = codeModeleDe(a), cmB = codeModeleDe(b), modele = null, couleur = null;
+      if (cmA && cmB) { nM++; modele = cmA !== cmB; if (modele) dM++; }
+      if (codeCouleurDe(a) && codeCouleurDe(b)) avecCodeC++;
+      if ((codeCouleurDe(a) && codeCouleurDe(b)) || (nomCouleurDe(a) && nomCouleurDe(b))) { nC++; couleur = !couleurConcorde(a, b); if (couleur) dC++; }
+      return { dms: a, constructeur: b, modele: !!modele, couleur: !!couleur };
+    });
+    if (nM >= 10 && dM / nM > 0.5) out.modeleComparable = false;
+    if (nC >= 10 && dC / nC > 0.5) out.couleurComparable = false;
+    out.codesModele = out.modeleComparable && paires.length > 0 && nM / paires.length >= 0.8;      /* les deux côtés ont un code modèle */
+    out.couleursDesDeux = out.couleurComparable && paires.length > 0 && nC / paires.length >= 0.8;   /* … et une couleur */
+    out.codesCouleur = out.couleursDesDeux && avecCodeC / paires.length >= 0.8;
+    brut.forEach(function (x) {
+      if (!out.modeleComparable) x.modele = false;
+      if (!out.couleurComparable) x.couleur = false;
+      if (x.modele || x.couleur) out.lignes.push(x);
+    });
+    return out;
+  }
+  /* Compte par code modèle et couleur, DMS contre manufacturier, pour une concession (unités en stock des deux origines).
+     Sans code modèle des deux côtés : par modèle (deux premiers mots, sans la marque) ; sans couleur comparable : par modèle seul. */
+  function modeleCle(v) {
+    var m = normTexte(v.modele), q = normTexte(v.marque);
+    if (q && m.indexOf(q + ' ') === 0) m = m.slice(q.length + 1);
+    return m.split(' ').slice(0, 2).join(' ');
+  }
+  function resumeParCode(cie, k, cmp) {
+    var parCle = {};
+    var cle = function (v) { var m = cmp.codesModele ? codeModeleDe(v) : modeleCle(v); var c = !cmp.couleursDesDeux ? '' : (cmp.codesCouleur ? codeCouleurDe(v) : (nomCouleurDe(v).split(' ')[0] || '')); return m + '|' + c; };
+    var poser = function (v, origine) {
+      var id = cle(v), r = parCle[id] || (parCle[id] = { compagnie: cie, code: '', modele: '', couleur: '', dms: 0, constructeur: 0, ecart: 0 });
+      r[origine]++;
+      if (!r.modele || origine === 'dms') r.modele = [v.marque && !new RegExp('^' + String(v.marque).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(String(v.modele || '')) ? v.marque : '', v.modele].filter(Boolean).join(' ');
+      if (cmp.couleursDesDeux && (!r.couleur || origine === 'dms')) r.couleur = String(v.couleur || '').replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+      if (cmp.codesModele && (!r.code || origine === 'dms') && v.modelNum) r.code = v.modelNum;
+    };
+    Object.keys(k.dms).forEach(function (vin) { poser(k.dms[vin], 'dms'); });
+    Object.keys(k.constructeur).forEach(function (vin) { poser(k.constructeur[vin], 'constructeur'); });
+    return Object.keys(parCle).map(function (id) { var r = parCle[id]; r.ecart = r.constructeur - r.dms; return r; });
+  }
   /* Écarts entre les deux origines pour la concession choisie (véhicules en stock, par NIV). */
   VueNeufs.prototype.ecarts = function () {
     var d = this.donnees, c = this.compagnie, parCie = {}, demos = {};
@@ -832,21 +903,30 @@
       if (!v.enStock) return;
       var k = parCie[v.compagnie] || (parCie[v.compagnie] = { dms: {}, constructeur: {} }); k[origineDe(v)][v.vin] = v;
     });
-    var out = { dmsSeul: [], constructeurSeul: [], statut: [], demosManuf: [], communs: 0, total: 0, cies: [] };
+    var out = { dmsSeul: [], constructeurSeul: [], statut: [], demosManuf: [], codes: [], codesNotes: [], resume: [], communs: 0, total: 0, cies: [] };
     Object.keys(parCie).sort().forEach(function (cie) {
       var k = parCie[cie]; if (!Object.keys(k.dms).length || !Object.keys(k.constructeur).length) return;
       out.cies.push(cie);
+      var paires = [];
       Object.keys(k.dms).forEach(function (vin) {
         var a = k.dms[vin], b = k.constructeur[vin];
         if (!b) {
           var dm = demos[cie + '|' + vin], rd = dm ? null : rdrDemoDe(cie, vin);
           if (dm || rd) { out.communs++; out.demosManuf.push({ dms: a, constructeur: dm || null, rdr: rd || null }); }   /* vu comme démo chez le manufacturier */
           else out.dmsSeul.push(a);
-        } else { out.communs++; if (statutNorme(a) !== statutNorme(b)) out.statut.push({ dms: a, constructeur: b }); }
+        } else { out.communs++; paires.push([a, b]); if (statutNorme(a) !== statutNorme(b)) out.statut.push({ dms: a, constructeur: b }); }
       });
       Object.keys(k.constructeur).forEach(function (vin) { if (!k.dms[vin]) out.constructeurSeul.push(k.constructeur[vin]); });
+      /* 22 nov. : code modèle et couleur du même NIV, puis le compte par code modèle et couleur. */
+      var cmp = comparerCodes(paires);
+      out.codes = out.codes.concat(cmp.lignes);
+      if (!cmp.modeleComparable) out.codesNotes.push(nomCie(cie) + ' : codes modèle non comparables (le DMS et le portail n\'utilisent pas le même code)');
+      else if (!cmp.codesModele && paires.length) out.codesNotes.push(nomCie(cie) + ' : pas de code modèle d\'un des deux côtés — compte par modèle');
+      if (!cmp.couleurComparable) out.codesNotes.push(nomCie(cie) + ' : couleurs non comparables (le DMS et le portail ne les nomment pas pareil) — compte par modèle seulement');
+      else if (!cmp.couleursDesDeux && paires.length) out.codesNotes.push(nomCie(cie) + ' : pas de couleur d\'un des deux côtés — compte par modèle seulement');
+      out.resume = out.resume.concat(resumeParCode(cie, k, cmp));
     });
-    out.total = out.dmsSeul.length + out.constructeurSeul.length + out.statut.length;
+    out.total = out.dmsSeul.length + out.constructeurSeul.length + out.statut.length + out.codes.length;
     return out;
   };
   /* Maxime (12 oct.) : « affiche les unités présentes en stock dans manufacturier mais pas dans DMS en rouge ». Pour chaque
@@ -976,7 +1056,8 @@
     var tuiles = h('div.neufs-cartes', { style: { marginBottom: '0' } }, [
       carte(lignes.length ? 'rouge' : 'vert', 'Absents du DMS', lignes.length, 'au portail du manufacturier, pas au DMS / sur la feuille'),
       e ? carte('vert', 'Dans les deux', e.communs, 'même NIV au DMS et chez le manufacturier' + (e.demosManuf.length ? ' (dont ' + e.demosManuf.length + ' démo' + (e.demosManuf.length > 1 ? 's' : '') + ' chez le manufacturier)' : '')) : null,
-      e ? carte(e.statut.length ? 'rouge' : 'vert', 'Statut différent', e.statut.length, 'en stock d\'un côté, transit ou démo de l\'autre') : null
+      e ? carte(e.statut.length ? 'rouge' : 'vert', 'Statut différent', e.statut.length, 'en stock d\'un côté, transit ou démo de l\'autre') : null,
+      e ? carte(e.codes.length ? 'rouge' : 'vert', 'Code modèle / couleur', e.codes.length, 'même NIV, code modèle ou couleur différents') : null   /* 22 nov. */
     ]);
     var rangee = function (v) {
       var tr = h('tr.ecart.absent-manufacturier', (c ? [] : [h('td', { text: nomCie(v.compagnie) })]).concat([
@@ -999,6 +1080,45 @@
     if (e && e.statut.length) {
       var ligneV = function (v, cols) { var tr = h('tr.ecart', [h('td.vehicule', [h('div.nom', { text: nomVehicule(v) }), h('div.vin', { text: v.vin + (v.stock ? ' · #' + v.stock : '') })]), h('td', { text: v.couleur || '—' })].concat(cols)); tr.addEventListener('click', function () { self.ouvrir(v); }); return tr; };
       corps.push(h('div', { style: { marginTop: '18px' } }, [h('h3', { text: 'Statut différent (' + e.statut.length + ')' }), h('div.neufs-table.neufs-ecarts', [h('table.tableau', [h('thead', [h('tr', ['Véhicule', 'Couleur', 'Au DMS', 'Chez le manufacturier'].map(function (x) { return h('th', x); }))]), h('tbody', e.statut.slice(0, 200).map(function (x) { return ligneV(x.dms, [h('td', { text: statutNorme(x.dms) + (x.dms.emplacement ? ' · ' + x.dms.emplacement : '') }), h('td', { text: statutNorme(x.constructeur) + ((x.constructeur.extra || {}).etape ? ' · ' + x.constructeur.extra.etape : '') })]); }))])])]));
+    }
+    /* 22 nov. (suggestions de Louis Prassinos) : même NIV des deux côtés, mais code modèle ou couleur différents — un véhicule
+       mal stocké au DMS ; puis le compte par code modèle et couleur, DMS contre manufacturier. */
+    if (e && e.cies.length) {
+      var cell = function (texte, diff) { return h('td' + (diff ? '.diff' : ''), { text: texte || '—' }); };
+      var couleurTexte = function (v) { var n = String(v.couleur || '').replace(/\s*\([^)]*\)\s*/g, ' ').trim(), k = codeCouleurDe(v); return n ? n + (k && n.toUpperCase().indexOf(k) < 0 ? ' (' + k + ')' : '') : (k || ''); };
+      var ligneC = function (x) {
+        var a = x.dms, b = x.constructeur;
+        var tr = h('tr.ecart', (c ? [] : [h('td', { text: nomCie(a.compagnie) })]).concat([
+          h('td.vehicule', [h('div.nom', { text: nomVehicule(a) }), h('div.vin', { text: a.vin + (a.stock ? ' · #' + a.stock : '') })]),
+          cell(a.modelNum, x.modele), cell(b.modelNum, x.modele),
+          cell(couleurTexte(a), x.couleur), cell(couleurTexte(b), x.couleur)
+        ]));
+        tr.addEventListener('click', function () { self.ouvrir(a); });
+        return tr;
+      };
+      var entetesC = (c ? [] : ['Concession']).concat(['Véhicule', 'Code modèle DMS', 'Code modèle manufacturier', 'Couleur DMS', 'Couleur manufacturier']);
+      corps.push(h('div', { style: { marginTop: '18px' } }, [
+        h('h3', { text: 'Code modèle ou couleur différents (' + e.codes.length + ')' }),
+        e.codes.length ? h('div.neufs-table.neufs-ecarts', [h('table.tableau', [h('thead', [h('tr', entetesC.map(function (x) { return h('th', x); }))]), h('tbody', e.codes.slice(0, 200).map(ligneC))])]) : h('div.neufs-vide', { text: 'Code modèle et couleur identiques pour tous les NIV communs.' }),
+        e.codes.length > 200 ? h('p.doux.petit', { text: '… et ' + (e.codes.length - 200) + ' autres (export Excel pour le tout).' }) : null
+      ]));
+      var resume = e.resume.slice().sort(function (a, b) { return String(a.compagnie).localeCompare(String(b.compagnie)) || Math.abs(b.ecart) - Math.abs(a.ecart) || String(a.modele).localeCompare(String(b.modele)) || String(a.couleur).localeCompare(String(b.couleur)); });
+      var diffs = resume.filter(function (r) { return r.ecart !== 0; }), pareils = resume.length - diffs.length;
+      var ligneR = function (r) {
+        return h('tr' + (r.ecart ? '.ecart' : ''), (c ? [] : [h('td', { text: nomCie(r.compagnie) })]).concat([
+          h('td', { text: r.code || '—' }), h('td', { text: r.modele || '—' }), h('td', { text: r.couleur || '—' }),
+          h('td.num', { text: AMX.fmtNombre(r.dms) }), h('td.num', { text: AMX.fmtNombre(r.constructeur) }),
+          h('td.num' + (r.ecart ? '.diff' : ''), { text: r.ecart ? (r.ecart > 0 ? '+' : '') + AMX.fmtNombre(r.ecart) : '0' })
+        ]));
+      };
+      var entetesR = (c ? [] : ['Concession']).concat(['Code modèle', 'Modèle', 'Couleur', 'DMS', 'Manufacturier', 'Écart']);
+      var tableR = function (lignes) { return h('div.neufs-table.neufs-ecarts', [h('table.tableau', [h('thead', [h('tr', entetesR.map(function (x, i) { return h('th' + (i >= entetesR.length - 3 ? '.num' : ''), x); }))]), h('tbody', lignes.slice(0, 300).map(ligneR))])]); };
+      corps.push(h('div', { style: { marginTop: '18px' } }, [
+        h('h3', { text: 'Par code modèle et couleur (' + diffs.length + ' écart' + (diffs.length > 1 ? 's' : '') + ')' }),
+        diffs.length ? tableR(diffs) : h('div.neufs-vide', { text: 'Le même nombre d\'unités par code modèle et couleur des deux côtés.' }),
+        pareils ? h('details', { style: { marginTop: '8px' } }, [h('summary.doux.petit', { style: { cursor: 'pointer' }, text: pareils + ' code' + (pareils > 1 ? 's' : '') + ' modèle / couleur avec le même compte des deux côtés' }), tableR(resume.filter(function (r) { return r.ecart === 0; }))]) : null,
+        e.codesNotes.length ? h('p.doux.petit', { style: { margin: '8px 0 0' }, text: e.codesNotes.join(' · ') }) : null
+      ]));
     }
     this.elAbsentsDms.appendChild(h('div.carte', [
       h('div.carte-entete', [h('h2', ['Au portail du manufacturier, absents du DMS', h('span.sous', { text: lignes.length ? lignes.length + ' NIV à vérifier au DMS' : 'rien à signaler' })]), h('div.actions', [h('button.btn.petit', { type: 'button', html: I.telecharger + '<span>Exporter</span>', onclick: function () { self.exporterAbsentsDms(); } }), e && e.total ? h('button.btn.petit.fantome', { type: 'button', html: I.telecharger + '<span>Exporter les écarts</span>', onclick: function () { self.exporterEcarts(); } }) : null])]),
@@ -1056,10 +1176,12 @@
     var e = this.ecarts();
     if (!e || !e.total) { AMX.toast('Aucun écart à exporter.', 'attention'); return; }
     if (typeof XLSX === 'undefined') { AMX.toast('La bibliothèque Excel n\'est pas encore chargée. Réessayez.', 'erreur'); return; }
-    var ligne = function (v, quoi, autre) { return { 'Écart': quoi, 'Concession': nomCie(v.compagnie), 'NIV': v.vin, '# Stock': v.stock || '', 'Année': v.annee, 'Marque': v.marque, 'Modèle': v.modele, 'Version': v.version, 'Couleur': v.couleur, 'Statut DMS': origineDe(v) === 'dms' ? statutNorme(v) : (autre ? statutNorme(autre) : ''), 'Statut constructeur': origineDe(v) === 'constructeur' ? statutNorme(v) : (autre ? statutNorme(autre) : ''), 'Jours': v.jours, 'Emplacement': v.emplacement || (v.extra || {}).etape || '' }; };
-    var rows = e.dmsSeul.map(function (v) { return ligne(v, 'DMS seulement'); }).concat(e.constructeurSeul.map(function (v) { return ligne(v, 'Manufacturier seulement'); })).concat(e.statut.map(function (x) { return ligne(x.dms, 'Statut différent', x.constructeur); }));
+    var ligne = function (v, quoi, autre) { return { 'Écart': quoi, 'Concession': nomCie(v.compagnie), 'NIV': v.vin, '# Stock': v.stock || '', 'Année': v.annee, 'Marque': v.marque, 'Modèle': v.modele, 'Version': v.version, 'Code modèle': v.modelNum || '', 'Code modèle constructeur': autre && origineDe(v) === 'dms' ? (autre.modelNum || '') : '', 'Couleur': v.couleur, 'Couleur constructeur': autre && origineDe(v) === 'dms' ? (autre.couleur || '') : '', 'Statut DMS': origineDe(v) === 'dms' ? statutNorme(v) : (autre ? statutNorme(autre) : ''), 'Statut constructeur': origineDe(v) === 'constructeur' ? statutNorme(v) : (autre ? statutNorme(autre) : ''), 'Jours': v.jours, 'Emplacement': v.emplacement || (v.extra || {}).etape || '' }; };
+    var rows = e.dmsSeul.map(function (v) { return ligne(v, 'DMS seulement'); }).concat(e.constructeurSeul.map(function (v) { return ligne(v, 'Manufacturier seulement'); })).concat(e.statut.map(function (x) { return ligne(x.dms, 'Statut différent', x.constructeur); }))
+      .concat((e.codes || []).map(function (x) { return ligne(x.dms, x.modele && x.couleur ? 'Code modèle et couleur différents' : (x.modele ? 'Code modèle différent' : 'Couleur différente'), x.constructeur); }));   /* 22 nov. */
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Écarts');
+    if (e.resume && e.resume.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(e.resume.slice().sort(function (a, b) { return Math.abs(b.ecart) - Math.abs(a.ecart); }).map(function (r) { return { 'Concession': nomCie(r.compagnie), 'Code modèle': r.code || '', 'Modèle': r.modele, 'Couleur': r.couleur, 'DMS': r.dms, 'Manufacturier': r.constructeur, 'Écart': r.ecart }; })), 'Par code modèle et couleur');
     if (e.demosManuf.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(e.demosManuf.map(function (x) { return { 'Concession': nomCie(x.dms.compagnie), 'NIV': x.dms.vin, '# Stock': x.dms.stock || '', 'Année': x.dms.annee, 'Marque': x.dms.marque, 'Modèle': x.dms.modele, 'Statut DMS': statutNorme(x.dms), 'Chez le manufacturier': texteDemoManuf(x) }; })), 'Démos manufacturier');
     XLSX.writeFile(wb, 'neufs-ecarts-' + (this.compagnie || 'groupe').toLowerCase() + '-' + new Date().toISOString().slice(0, 10) + '.xlsx');
     AMX.toast('Export des écarts — ' + rows.length + ' NIV', 'ok');

@@ -209,7 +209,7 @@
     lignes.sort(complet
       ? function (a, b) { return (b.meilleur - a.meilleur) || String(a.p.institution).localeCompare(String(b.p.institution)); }
       : function (a, b) { return (a.tauxMin - b.tauxMin) || String(a.p.institution).localeCompare(String(b.p.institution)); });
-    return { complet: complet, versements: n, paiementVendu: vendu, lignes: lignes, exclus: exclus };
+    return { complet: complet, versements: n, paiementVendu: vendu, tauxVendu: complet ? t.tauxVendu : null, lignes: lignes, exclus: exclus };
   }
   function ajouterPeriodes(iso, k, modalite) {
     var d = new Date(String(iso || '').slice(0, 10) + 'T12:00:00');
@@ -347,10 +347,8 @@
     });
     if (!opts.length) return { mode: r.complet ? 'vendu' : 'frontiere', lignes: [] };
     var out = [], parInst = {};
-    if (r.complet) {
-      opts.sort(function (a, b) { return (b.rapporte - a.rapporte) || (a.taux - b.taux); });
-      opts.forEach(function (x) { if (out.length >= Math.min(max, 3) || parInst[x.inst] || x.rapporte <= 0) return; parInst[x.inst] = 1; out.push(x); });
-    } else {
+    if (r.complet) return combinaisonsVendu(r, max);
+    else {
       opts.sort(function (a, b) { return (a.paiement - b.paiement) || (b.rapporte - a.rapporte); });
       var meilleur = -Infinity, front = [];
       opts.forEach(function (x) { if (x.rapporte > meilleur + 0.005) { meilleur = x.rapporte; front.push(x); } });
@@ -367,7 +365,89 @@
     });
     return { mode: r.complet ? 'vendu' : 'frontiere', lignes: out };
   }
-  var Calcul = { num: num, cents: cents, combinaisons: combinaisons, parAn: parAn, nbVersements: nbVersements, paiement: paiement, ristourne: ristourne, termeMaxDe: termeMaxDe, palierVaut: palierVaut, montantVaut: montantVaut, bornesMontant: bornesMontant,
+  /* 21 nov. (Maxime : « quand je propose un taux vendu au client, montre les meilleures options de ristourne À CE TAUX ou très
+     près du taux choisi, pas juste la meilleure ristourne tout court ; n'oublie pas le taux vendu ; si le taux augmente de 0,1 et
+     que ça double la ristourne, tu dois le dire »).
+     - « À votre taux » : pour chaque programme, le palier du taux vendu, sinon le plus haut palier sous lui (la différence est un
+       écart de taux, seulement si la banque permet la majoration — « non majorables » = palier exact seulement). Rapporte =
+       ristourne + boni : ce que la grille paie. L'écart de taux (ce que le client paierait de plus que le palier sur tout le
+       terme) est montré à côté, jamais dans le classement — sur les vraies grilles, il faisait passer des paliers à plus d'un
+       point sous le taux vendu devant la vraie ristourne. Une ligne par banque, les plus payantes d'abord.
+     - « Tout près » : les paliers à 0,5 pt ou moins du taux vendu. Au-dessus : seulement s'ils rapportent nettement plus
+       (100 $ et 10 % de plus) que le même programme à votre taux, sinon que la meilleure option à votre taux ; classés par ce que
+       chaque dixième de point rapporte. En dessous : seulement si le client paie moins ET que ça rapporte au moins autant. */
+  var PRES_PT = 0.5;
+  function majorable(p) {
+    var s = jetons(p && p.majoration).join(' ');
+    return !/\bnon majorables?\b|\bne peuvent etre majores\b|\bnon majores\b|^sans majoration\b/.test(s);
+  }
+  function combinaisonsVendu(r, max) {
+    var V = r.tauxVendu, E = 0.005, ici = [], progs = [], pv = cents(r.paiementVendu || 0);
+    (r.lignes || []).forEach(function (l) {
+      var boni = l.boni && l.boni.applicable ? l.boni.montant || 0 : 0, maj = majorable(l.p), tier = null;
+      (l.paliers || []).forEach(function (o) { if (o.taux <= V + E && (maj || o.taux >= V - E) && (!tier || o.taux > tier.taux)) tier = o; });
+      var au = null;
+      if (tier) {
+        var majore = tier.taux < V - E, ecart = majore ? Math.max(0, cents(tier.gainTotal || 0)) : 0;
+        au = { l: l, o: tier, inst: l.p.institution, taux: tier.taux, ristourne: tier.ristourne || 0, boni: boni, ecart: ecart, majore: majore ? cents(V - tier.taux) : 0,
+          paiement: r.paiementVendu, rapporte: cents((tier.ristourne || 0) + boni), tags: [] };
+        ici.push(au);
+      }
+      progs.push({ l: l, au: au, boni: boni, maj: maj });
+    });
+    ici.sort(function (a, b) { return (b.rapporte - a.rapporte) || (b.taux - a.taux) || (b.ecart - a.ecart) || String(a.inst).localeCompare(String(b.inst)); });
+    var lignes = [], vu = {};
+    ici.forEach(function (x) { if (lignes.length >= max || vu[x.inst] || x.rapporte + x.ecart <= 0) return; vu[x.inst] = 1; lignes.push(x); });
+    var top = lignes[0] || null; if (top) top.tags.push('concession');
+    var cand = [];
+    progs.forEach(function (pp) {
+      (pp.l.paliers || []).forEach(function (o) {
+        var d = cents(o.taux - V);
+        if (Math.abs(d) < E || Math.abs(d) > PRES_PT + E) return;
+        if (d < 0 && pp.au) return;   /* déjà offert à votre taux (avec l'écart de taux) */
+        var rap = cents((o.ristourne || 0) + pp.boni), meme = !!pp.au, ref = meme ? pp.au.rapporte : (top ? top.rapporte : 0), extra = cents(rap - ref);
+        if (d > 0 && !(extra >= Math.max(100, ref * 0.1))) return;
+        if (d < 0 && !(top ? rap >= top.rapporte - E : rap > 0)) return;
+        var dPay = cents(cents(o.paiement) - pv);
+        cand.push({ l: pp.l, o: o, inst: pp.l.p.institution, taux: o.taux, delta: d, rapporte: rap, ristourne: o.ristourne || 0, boni: pp.boni,
+          ref: ref, refRistourne: meme ? pp.au.ristourne : null, refQui: meme ? 'meme' : (top ? 'top' : 'rien'), refInst: meme ? pp.au.inst : (top ? top.inst : ''), refTaux: meme ? pp.au.taux : V,
+          extra: extra, dPaiement: dPay, dTotal: cents(dPay * (r.versements || 0)), depasseTop: !!(top && rap > top.rapporte + E), score: d > 0 ? extra / d : Infinity });
+      });
+    });
+    cand.sort(function (a, b) { return (b.score - a.score) || (a.delta - b.delta) || (b.rapporte - a.rapporte); });
+    var pres = [], vp = {};
+    cand.forEach(function (x) { if (pres.length >= 4 || vp[x.inst]) return; vp[x.inst] = 1; pres.push(x); });
+    return { mode: 'vendu', lignes: lignes, pres: pres, tauxVendu: V, paiementVendu: r.paiementVendu, versements: r.versements, aucun: !lignes.length };
+  }
+  /* « le double », « le triple », « ×1,6 » ou « +35 % ». */
+  function texteRatio(a, b) {
+    if (!(b > 0) || !(a > 0)) return '';
+    var q = a / b;
+    if (q >= 2.9 && q <= 3.1) return 'le triple';
+    if (q >= 1.9 && q <= 2.1) return 'le double';
+    if (q >= 1.5) return '×' + String(Math.round(q * 10) / 10).replace('.', ',');
+    return '+' + Math.round((q - 1) * 100) + ' %';
+  }
+  function ptTexte(d) { return (d > 0 ? '+' : '−') + Math.abs(d).toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + ' pt'; }
+  /* La phrase d'une option « tout près » : { titre, phrase }. mod = « par mois », « aux 2 semaines »… */
+  function textePres(x, V, mod) {
+    var titre = (x.delta > 0 ? 'Monter à ' : 'Baisser à ') + pct(x.taux) + ' (' + ptTexte(x.delta) + ')', phrase;
+    var client = x.delta > 0 ? 'le client paie ' + argent(x.dPaiement) + ' de plus ' + mod + ' (' + argent(x.dTotal, 0) + ' sur le terme)'
+      : 'le client paie ' + argent(-x.dPaiement) + ' de moins ' + mod + ' (' + argent(-x.dTotal, 0) + ' sur le terme)';
+    if (x.delta < 0) phrase = x.inst + ' rapporte ' + argent(x.rapporte, 0) + ', autant ou plus qu\'à ' + pct(V) + ', et ' + client + '.';
+    else if (x.refQui === 'meme' && x.refRistourne !== null && x.ristourne > x.refRistourne) {
+      var rr = texteRatio(x.ristourne, x.refRistourne);
+      phrase = x.inst + ' : la ristourne passe de ' + argent(x.refRistourne, 0) + ' à ' + argent(x.ristourne, 0) + (rr ? ' (' + rr + ')' : '') + ', '
+        + (Math.abs(x.extra - (x.ristourne - x.refRistourne)) > 1 ? 'soit ' + argent(x.extra, 0) + ' de plus en tout, ' : '') + 'et ' + client + '.';
+    } else {
+      var rq = texteRatio(x.rapporte, x.ref);
+      phrase = x.inst + ' rapporte ' + argent(x.rapporte, 0) + ' au lieu de ' + argent(x.ref, 0) + (rq ? ' (' + rq + ')' : '')
+        + (x.refQui === 'top' ? ' avec ' + x.refInst + ' à ' + pct(V) : '') + ', et ' + client + '.';
+    }
+    if (x.delta > 0 && x.depasseTop && x.refQui === 'meme') phrase += ' C\'est plus que toutes les options à ' + pct(V) + '.';
+    return { titre: titre, phrase: phrase };
+  }
+  var Calcul = { num: num, cents: cents, combinaisons: combinaisons, majorable: majorable, texteRatio: texteRatio, textePres: textePres, parAn: parAn, nbVersements: nbVersements, paiement: paiement, ristourne: ristourne, termeMaxDe: termeMaxDe, palierVaut: palierVaut, montantVaut: montantVaut, bornesMontant: bornesMontant,
     boniDe: boniDe, admissible: admissible, comparer: comparer, ajouterPeriodes: ajouterPeriodes, amortissement: amortissement, garantie: garantie, deVente: deVente, prixNeufDe: prixNeufDe, prixOccasionDe: prixOccasionDe, motorisationProg: motorisationProg, motorisationVehicule: motorisationVehicule, chanceProg: chanceProg };
 
   /* =============================== Données =============================== */
@@ -863,6 +943,7 @@
   /* Les meilleures combinaisons, en haut des résultats. */
   VueTaux.prototype.carteCombinaisons = function (r, t) {
     var self = this, c = combinaisons(r, 5), mod = modaliteLib(t.modalite, true);
+    if (c.mode === 'vendu') return this.carteVendu(c, t);
     if (!c.lignes.length) return h('div');
     var titre = c.mode === 'vendu' ? 'Les plus payantes au taux vendu de ' + pct(t.tauxVendu) : 'Meilleures combinaisons';
     var sous = c.mode === 'vendu' ? 'Le versement du client ne change pas : la ristourne, le boni et l\'écart de taux font la différence.'
@@ -883,6 +964,42 @@
       ]);
     });
     return h('section.carte.tx-combs', [h('div.carte-entete', [h('h2', { text: titre }), h('span.tx-note', { text: sous })]), h('ol.tx-comb-liste', lignes)]);
+  };
+  /* Au taux vendu : les meilleures ristournes à ce taux, puis les options tout près (« Prendre ce taux » les essaie). */
+  VueTaux.prototype.carteVendu = function (c, t) {
+    var self = this, mod = modaliteLib(t.modalite, true), V = c.tauxVendu;
+    function prendre(taux) {
+      self.t.tauxVendu = String(taux).replace('.', ','); AMX.memo.ecrire(MEMO_T, self.t); self.rendre();
+      AMX.toast('Taux vendu : ' + pct(taux) + '. Les options sont recalculées.', 'ok');
+    }
+    var lignes = (c.lignes || []).map(function (x) {
+      var detail = ['ristourne ' + argent(x.ristourne, 0)];
+      if (x.boni) detail.push('boni ' + argent(x.boni, 0));
+      if (x.majore) detail.push('palier de ' + pct(x.taux) + ' : vendre à ' + pct(V) + ' demande de majorer de ' + ptTexte(x.majore).replace('+', '') + (x.ecart ? ' (écart de taux possible ' + argent(x.ecart, 0) + ' sur le terme, si la banque le permet)' : ''));
+      return h('li.tx-comb', [
+        h('div.tx-comb-qui', [h('strong', { text: x.inst }), h('button.tx-lien', { type: 'button', text: x.l.p.programme, onclick: function () { self.fiche(x.l.p); } }), puceChance(x.l.p),
+          h('span.tx-comb-tags', x.tags.map(function () { return h('span.tx-comb-tag.concession', { text: 'Le plus payant' }); }))]),
+        h('div.tx-comb-chiffres', [h('span.tx-comb-rap', [h('small', 'Rapporte '), h('strong', { text: argent(x.rapporte, 0) })])]),
+        h('div.tx-comb-ecart', { text: detail.join(' · ') })
+      ]);
+    });
+    var pres = (c.pres || []).map(function (x) {
+      var tx = textePres(x, V, mod);
+      return h('li.tx-pres-l' + (x.delta < 0 ? '.bas' : ''), [
+        h('div.tx-pres-txt', [h('strong', { text: tx.titre }), h('span', { text: tx.phrase }),
+          h('button.tx-lien', { type: 'button', text: x.l.p.programme, onclick: function () { self.fiche(x.l.p); } })]),
+        h('button.btn.petit', { type: 'button', text: 'Prendre ce taux', title: 'Met ' + pct(x.taux) + ' comme taux vendu', onclick: function () { prendre(x.taux); } })
+      ]);
+    });
+    var corps = [];
+    if (lignes.length) corps.push(h('ol.tx-comb-liste', lignes));
+    else corps.push(h('p.tx-pres-vide', { text: 'Aucun programme n\'offre ' + pct(V) + ' pour cette transaction' + (pres.length ? ' : voici les taux les plus proches.' : '.') }));
+    if (pres.length) corps.push(h('div.tx-pres', [h('h3', { text: 'Tout près de ' + pct(V) }), h('ul.tx-pres-liste', pres)]));
+    else if (lignes.length) corps.push(h('p.tx-pres-vide', { text: 'Aucun taux à 0,5 pt ou moins ne rapporte nettement plus.' }));
+    return h('section.carte.tx-combs', [
+      h('div.carte-entete', [h('h2', { text: 'Au taux vendu de ' + pct(V) }),
+        h('span.tx-note', { text: 'Versement du client : ' + argent(cents(c.paiementVendu || 0)) + ' ' + mod + '. Les meilleures ristournes à ce taux, une par banque.' })]),
+    ].concat(corps));
   };
   VueTaux.prototype.celluleProgramme = function (l, n) {
     var self = this, p = l.p;
@@ -1630,6 +1747,13 @@
       '.tx-comb-qui { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; min-width: 0; } .tx-comb-chiffres { display: flex; gap: 14px; align-items: baseline; justify-content: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }',
       '.tx-comb-taux { font-weight: 700; font-size: 16px; } .tx-comb-rap strong { color: var(--vert-fonce); font-size: 15px; } .tx-comb-rap small { color: var(--encre-3); font-size: 12px; }',
       '.tx-comb-ecart { grid-column: 1 / -1; font-size: 13px; color: var(--encre-3); }',
+      '.tx-pres { border-top: 1px solid var(--ligne); padding: 10px 16px 12px; } .tx-pres h3 { margin: 0 0 6px; font-size: 14px; }',
+      '.tx-pres-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }',
+      '.tx-pres-l { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; background: #FFF8E6; border: 1px solid #F3D9A4; }',
+      '.tx-pres-l.bas { background: var(--vert-clair, #E6F4EC); border-color: #B9DEC8; }',
+      '.tx-pres-txt { display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; min-width: 0; } .tx-pres-txt strong { font-size: 14px; } .tx-pres-txt .tx-lien { align-self: flex-start; font-size: 12.5px; }',
+      '.tx-pres-vide { margin: 8px 16px 12px; font-size: 13.5px; color: var(--encre-2); }',
+      '@media (max-width: 640px) { .tx-pres-l { flex-direction: column; align-items: stretch; } }',
       '.tx-comb-tag { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--carte-2); color: var(--encre-2); } .tx-comb-tag.client { background: #E8F0FE; color: #1A64BF; } .tx-comb-tag.concession { background: var(--vert-clair); color: var(--vert-fonce); }',
       '@media (max-width: 640px) { .tx-comb { grid-template-columns: 1fr; } .tx-comb-chiffres { justify-content: flex-start; flex-wrap: wrap; } }',
       '.tx-res-tete strong { font-size: 15px; } .tx-res-tete span { color: var(--encre-3); font-size: 13px; }',

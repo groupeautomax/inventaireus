@@ -20,7 +20,7 @@
   window.AMX = window.AMX || {};
 
   AMX.AIDE_CONTENU = {
-    version: '22 novembre 2026',
+    version: '23 novembre 2026',
 
     frequentes: ['inv-statut', 'inv-stock-km', 'achat-quand', 'svc-autoriser', 'svc-rdv-prendre', 'avis-repondre', 'eval-lancer', 'dem-connexion', 'app-installer', 'app-android', 'inv-recherche', 'svc-refus', 'offre-publier', 'offre-signer', 'dep-deconnecte', 'dep-lent'],
 
@@ -840,6 +840,7 @@
     ],
 
     nouveautes: [
+      { date: '23 novembre 2026', titre: 'Plus rapide : livre des ventes et inventaire neuf', texte: 'Le Livre des ventes s\'ouvre sans attendre la relecture du livre de la comptabilité : elle se fait maintenant en arrière-plan (au plus toutes les 10 minutes) et la liste se rafraîchit toute seule quand elle est terminée ; « livre relu à » sous le titre dit l\'heure de la dernière relecture. L\'inventaire des neufs se redessine beaucoup plus vite (concession, origine, détail / flotte, marque) et l\'inventaire usagé se recalcule moins souvent côté serveur.' },
       { date: '22 novembre 2026', titre: 'Audit des neufs : le code modèle et la couleur comparés entre le manufacturier et le DMS', texte: 'Inventaire › Neufs › Absents du DMS compare maintenant, pour chaque NIV présent au portail du manufacturier et au DMS, le code modèle et la couleur extérieure : un véhicule mal stocké au DMS (mauvais code modèle, mauvaise couleur) apparaît dans « Code modèle ou couleur différents », la case fautive en rouge, et une tuile en haut en donne le compte. En dessous, « Par code modèle et couleur » compte les unités de chaque code modèle et couleur des deux côtés, les écarts en premier. L\'export Excel des écarts a ces lignes et une feuille par code modèle et couleur. Suggestions de Louis Prassinos (Hyundai Longueuil).',
         liens: [{ t: 'Neufs', s: 'inventaire', o: 'neufs' }] },
       { date: '21 novembre 2026', titre: 'Taux Einstein : les ristournes au taux vendu, et ce qui rapporte plus tout près', texte: 'Quand un taux vendu est inscrit, le Comparateur montre d\'abord les meilleures ristournes à ce taux (une ligne par banque), puis les taux à 0,5 point ou moins qui rapportent nettement plus, avec ce que le client paie de plus : « Monter à 7,95 % (+0,05 pt) : la ristourne passe de 300 $ à 630 $ (le double), le client paie 0,74 $ de plus par mois ». « Prendre ce taux » le met comme taux vendu.', liens: [{ t: 'Taux Einstein', s: 'vente', o: 'taux' }] },

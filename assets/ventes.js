@@ -223,7 +223,7 @@
   /* ------------------------------ Cache et appels ------------------------------ */
   /* 1er nov. : `vue` = la clé (concession|période) que la page montre. Une réponse qui arrive pour une autre clé (mois quitté,
      lecture plus lente, recherche du haut) ne remplace plus la liste affichée : elle est gardée à part (`autres`, 45 s). */
-  var cache = { rep: null, quand: 0, cle: '', copieLe: 0, vue: '', enVol: {}, autres: {} };
+  var cache = { rep: null, quand: 0, cle: '', copieLe: 0, vue: '', enVol: {}, autres: {}, fond: {} };   /* fond : dernière relecture de fond demandée, par concession (23 nov.) */
   var cacheRecap = { rep: null, quand: 0, cle: '', copieLe: 0, vue: '', enVol: {} };
   /* 13 nov. (S098CD4249C, Mustafa : « prendre les options des colonnes ») : les choix de la colonne « Pneus » du livre de chaque
      concession (Hyundai : PNEUS, PNEUS ET JANTES, PNEUS ET MAGS, AUCUN), envoyés par ?ventes=1 (`listes`). Sans liste au livre :
@@ -301,6 +301,22 @@
     if (!r.vente && r.vehicules) throw new Error(SCRIPT_PAS_A_JOUR);
     return r;
   }
+  /* 23 nov. (vitesse) : la lecture du livre (?ventes=1) ne relit plus le livre externe de la comptabilité en bloquant la réponse
+     (30-60 s toutes les 10 min). Quand le serveur dit relu.perime, on lui demande ?ventesRelire=1 en arrière-plan (au plus une
+     fois par 3 min par concession), puis on recharge le mois affiché si la relecture a bien eu lieu. */
+  var FOND_MIN_MS = 3 * 60000;
+  function relireFond(cie, mois) {
+    var quand = cache.fond[cie] || 0;
+    if (Date.now() - quand < FOND_MIN_MS) return;
+    cache.fond[cie] = Date.now();
+    AMX.get({ ventesRelire: 1, compagnie: cie }, { discret: true, secours: false, lot: false, essais: 1, delai: 180000 }).then(function (r) {
+      if (!r || !r.relu) return;   /* rien relu (pas périmé, déjà en cours, refus) */
+      cache.quand = 0; cache.autres = {}; cacheRecap.quand = 0;
+      var vue = cache.vue, vc = vue ? vue.split('|') : [cie, mois];
+      if (vc[0] !== cie) return;   /* l'utilisateur a changé de concession entre-temps */
+      AMX.ventes.charger(vc[0], vc[1], true).catch(function () {});
+    }, function () {});
+  }
   AMX.ventes = {
     charger: function (cie, mois, force) {
       var cle = cleDe(cie, mois), libre = !cache.vue || cache.vue === cle;   /* libre : cette réponse peut devenir la liste affichée */
@@ -316,6 +332,7 @@
         verifier(d);
         if (!cache.vue || cache.vue === cle) { poserCache(cle, d, Date.now()); document.dispatchEvent(new CustomEvent('amx:ventes')); }
         else garderAutre(cle, d, Date.now());
+        if (cie && d.relu && d.relu.perime) relireFond(cie, mois);   /* 23 nov. (vitesse) : le livre externe se relit en arrière-plan, plus dans la lecture */
         return d;
       }, function (e) { if (cache.enVol[cle] === p) delete cache.enVol[cle]; throw e; });
       return p;
@@ -831,7 +848,7 @@
       this.elSous.textContent = copie + (cmd.length ? cmd.length + (cmd.length > 1 ? ' commandes vendues, pas encore livrées' : ' commande vendue, pas encore livrée') + (vieilles ? ' · ' + vieilles + ' de plus de ' + COMMANDES_JOURS + ' jours à vérifier' : '') + (attenteFI ? ' · ' + attenteFI + ' en attente du F&I' : '') : 'Aucune commande vendue en attente de livraison.');
       this.rendreFiltres(); this.rafraichir(); return;
     }
-    this.elSous.textContent = copie + (total ? pluriel(total, 'vente') + (n.declaree ? ' · ' + n.declaree + ' en attente du F&I' : '') + (n.comptabilisee ? ' · ' + n.comptabilisee + ' comptabilisée' + (n.comptabilisee > 1 ? 's' : '') : '') + (importees ? ' · ' + importees + ' importée' + (importees > 1 ? 's' : '') + ' du livre' : '') + (n.erreurLivre ? ' · ' + n.erreurLivre + ' pas au livre' : '') : 'Aucune vente inscrite pour cette période.') + (d.relu && d.relu.le && !d.relu.duCache ? ' · livre relu à ' + AMX.fmtDate(d.relu.le, true).replace(/^\S+\s/, '') : '');
+    this.elSous.textContent = copie + (total ? pluriel(total, 'vente') + (n.declaree ? ' · ' + n.declaree + ' en attente du F&I' : '') + (n.comptabilisee ? ' · ' + n.comptabilisee + ' comptabilisée' + (n.comptabilisee > 1 ? 's' : '') : '') + (importees ? ' · ' + importees + ' importée' + (importees > 1 ? 's' : '') + ' du livre' : '') + (n.erreurLivre ? ' · ' + n.erreurLivre + ' pas au livre' : '') : 'Aucune vente inscrite pour cette période.') + (d.relu && d.relu.le ? ' · livre relu ' + (AMX.fmtDate(d.relu.le) === AMX.fmtDate(new Date()) ? 'à ' + AMX.fmtDate(d.relu.le, true).replace(/^\S+\s/, '') : 'le ' + AMX.fmtDate(d.relu.le, true)) : '');
     this.rendreFiltres();
     this.rafraichir();
   };

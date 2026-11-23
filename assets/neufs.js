@@ -802,19 +802,37 @@
     });
   };
 
+  /* 23 nov. (vitesse) : les balayages de la liste (visiblesTous, originesDispo, aFlotte, visibles, mouvements, calculerAbsentsDms)
+     étaient refaits à chaque appel — et garde() en faisait un par véhicule (modeFlotte → aFlotte → visiblesTous) : un rendu
+     repassait des millions de fois sur ~3 000 unités (0,6 s dans rendreSelects seul). Chaque résultat est gardé tant que les
+     données, le portail, la concession, l'origine, le mode et la marque ne changent pas ; rendre() repart à neuf. Les tableaux
+     rendus sont partagés : on les filtre, on ne les trie pas sur place. */
+  VueNeufs.prototype.memo = function (nom, cle, calc) {
+    var m = this.memos || (this.memos = {}), e = m[nom];
+    if (e && e.cle === cle && e.donnees === this.donnees && e.portail === this.portail) return e.val;
+    var val = calc();
+    m[nom] = { cle: cle, donnees: this.donnees, portail: this.portail, val: val };
+    return val;
+  };
   /** Véhicules de la concession choisie (toutes si « Toutes »). */
   /** Véhicules de la concession choisie, tous types (détail et flotte). */
   VueNeufs.prototype.visiblesTous = function () {
-    var d = this.donnees, c = this.compagnie, o = this.origineCourante();
-    if (!d) return [];
-    return d.vehicules.filter(function (v) { return (!c || v.compagnie === c) && origineDe(v) === o; });
+    var self = this;
+    return this.memo('visiblesTous', this.compagnie + '|' + this.origineCourante(), function () {
+      var d = self.donnees, c = self.compagnie, o = self.origineCourante();
+      if (!d) return [];
+      return d.vehicules.filter(function (v) { return (!c || v.compagnie === c) && origineDe(v) === o; });
+    });
   };
   /* Origines présentes dans la portée (véhicules en stock de la concession choisie) : { dms: n, constructeur: n }. */
   VueNeufs.prototype.originesDispo = function () {
-    var d = this.donnees, c = this.compagnie, out = {};
-    if (!d) return out;
-    d.vehicules.forEach(function (v) { if (!v.enStock || (c && v.compagnie !== c)) return; var o = origineDe(v); out[o] = (out[o] || 0) + 1; });
-    return out;
+    var self = this;
+    return this.memo('originesDispo', this.compagnie, function () {
+      var d = self.donnees, c = self.compagnie, out = {};
+      if (!d) return out;
+      d.vehicules.forEach(function (v) { if (!v.enStock || (c && v.compagnie !== c)) return; var o = origineDe(v); out[o] = (out[o] || 0) + 1; });
+      return out;
+    });
   };
   VueNeufs.prototype.deuxOrigines = function () { var o = this.originesDispo(); return !!(o.dms && o.constructeur); };
   /* Origine affichée : celle choisie si elle existe dans la portée, sinon le DMS / fichier s'il y en a un, sinon le constructeur. */
@@ -934,6 +952,10 @@
      pas dans l'export du DMS → { 'CIE|NIV': true }. Recalculé à chaque rendu (quelques centaines de lignes). */
   function enStockPortail(v) { return v.enStock && statutNorme(v) !== 'En transit' && !/livr[ée]e? au client|retailed/i.test(String((v.extra || {}).etape || '')); }
   VueNeufs.prototype.calculerAbsentsDms = function () {
+    var self = this;
+    return this.memo('absentsDms', '', function () { return self.calculerAbsentsDms_(); });
+  };
+  VueNeufs.prototype.calculerAbsentsDms_ = function () {
     var d = this.donnees, parCie = {}, out = {};
     if (!d) return out;
     d.vehicules.forEach(function (v) { if (!v.enStock) return; var k = parCie[v.compagnie] || (parCie[v.compagnie] = { dms: {}, constructeur: [] }); if (origineDe(v) === 'dms') k.dms[v.vin] = true; else k.constructeur.push(v); });
@@ -968,8 +990,11 @@
   /** Y a-t-il des unités de flotte dans la portée (stock ou commandes GM) ? Sinon le sélecteur détail / flotte reste caché
       et tout s'affiche (Hyundai : ses RDR « Fleet » restent dans les ventes). */
   VueNeufs.prototype.aFlotte = function () {
-    var c = this.compagnie, p = this.portail || {};
-    return this.visiblesTous().some(estFlotte) || (p.commandes || []).some(function (x) { return (!c || x.compagnie === c) && commandeFlotte(x); });
+    var self = this;
+    return this.memo('aFlotte', this.compagnie + '|' + this.origineCourante(), function () {
+      var c = self.compagnie, p = self.portail || {};
+      return self.visiblesTous().some(estFlotte) || (p.commandes || []).some(function (x) { return (!c || x.compagnie === c) && commandeFlotte(x); });
+    });
   };
   VueNeufs.prototype.modeFlotte = function () { return this.aFlotte() ? this.flotte : 'tout'; };
   VueNeufs.prototype.garde = function (flotte) { var m = this.modeFlotte(); return m === 'tout' || (m === 'flotte') === !!flotte; };
@@ -982,9 +1007,15 @@
   VueNeufs.prototype.gardeMarque = function (marque) { return !this.marque || nomMarque(marque) === this.marque; };
   VueNeufs.prototype.visibles = function () {
     var self = this;
-    return this.visiblesTous().filter(function (v) { return self.garde(estFlotte(v)) && self.gardeMarque(v.marque); });
+    return this.memo('visibles', this.compagnie + '|' + this.origineCourante() + '|' + this.modeFlotte() + '|' + this.marque, function () {
+      return self.visiblesTous().filter(function (v) { return self.garde(estFlotte(v)) && self.gardeMarque(v.marque); });
+    });
   };
   VueNeufs.prototype.mouvements = function () {
+    var self = this;
+    return this.memo('mouvements', this.compagnie + '|' + this.origineCourante() + '|' + this.modeFlotte() + '|' + this.marque, function () { return self.mouvements_(); });
+  };
+  VueNeufs.prototype.mouvements_ = function () {
     var d = this.donnees, c = this.compagnie, self = this;
     if (!d) return [];
     if (!this.typeParVin) { this.typeParVin = {}; this.marqueParVin = {}; (d.vehicules || []).forEach(function (v) { if (v.vin) { self.typeParVin[v.vin] = estFlotte(v); self.marqueParVin[v.vin] = nomMarque(v.marque); } }); }
@@ -994,6 +1025,7 @@
 
   VueNeufs.prototype.rendre = function () {
     var self = this;
+    this.memos = {};   /* 23 nov. (vitesse) : un rendu = chaque balayage une seule fois */
     if (this.donnees && this.vinDemande) {   /* NIV demandé (recherche globale) : on bascule concession, origine, mode et marque pour le montrer */
       this.vinDemande = false;
       if (!this.filtrees().length) {

@@ -18,6 +18,19 @@
   'use strict';
 
   var URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec';
+  // 23 nov. (vitesse) : le petit script « Scan Automax lectures » (Lectures.gs côté principal). Mesuré : une demande au script
+  // principal revient en 6-7 s même vide (Google charge ses 143 fichiers / 5 Mo avant la première ligne) ; ce petit projet
+  // répond en 1-1,5 s. Il sert, sans logique métier, ce que le principal a publié (registres de l'usagé, jeu des neufs) ;
+  // s'il répond { repli: true } (lecture périmée par une écriture, jeton pas encore vérifié…) ou s'il ne répond pas, la
+  // même demande repart vers le script principal. Jamais pour ?frais=1 / force, ni pour une écriture.
+  var URL_LECTURES = 'https://script.google.com/macros/s/AKfycbyP2dRwsCBHBmn_YeF1lOj7a9LZtDZ2QUXzwNF_VMCW7uZhqqEKT0Qy8ht5Sc_Prb027Q/exec';
+  var ROUTES_LECTURES = /^(registres|neufs)$/;
+  function parLectures(params, opts) {
+    if (!URL_LECTURES || opts.lectures === false || !params || typeof params !== 'object') return false;
+    if (params.frais || params.force || params.app) return false;
+    var cles = Object.keys(params).filter(function (k) { return k !== 'gz' && k !== '_'; });
+    return cles.length > 0 && ROUTES_LECTURES.test(cles[0]) && cles.every(function (k) { return /^(registres|neufs|compagnie)$/.test(k); });
+  }
   var SITE_PUBLIC = 'https://groupeautomax.github.io/inventaireus/';
 
   // Mêmes clés que l'ancien site : une session ouverte reste ouverte.
@@ -815,7 +828,8 @@
     opts = opts || {};
     if (opts.gz && GZ_POSSIBLE && params && typeof params === 'object' && !params.gz) params = Object.assign({}, params, { gz: 1 });
     var q = typeof params === 'string' ? params : Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
-    var base = URL_BACKEND + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton));
+    var lectures = parLectures(params, opts);   /* 23 nov. : par le petit script « lectures » quand c'est une de ses routes */
+    var base = (lectures ? URL_LECTURES : URL_BACKEND) + '?' + q + '&utilisateur=' + encodeURIComponent(AMX.session.courriel) + '&jeton=' + encodeURIComponent(lire(CLE.jeton));
     enCours++; majEtat(false);
     var montrer = !opts.discret && (opts.attente || AMX.gesteMenuRecent());
     var lent = AMX.reseau.estLent(), courrielReq = AMX.session.courriel;
@@ -876,10 +890,15 @@
     });
     var promesse = course.then(function (d) {
       enCours--; majEtat(false);
+      if (lectures && d && d.ok === false && d.repli) return AMX.get(params, Object.assign({}, opts, { lectures: false }));   /* 23 nov. : le petit script n'a pas (ou plus) la lecture : le principal */
       if (refusJeton(d)) return surRefusJeton(function () { return AMX.get(params, Object.assign({}, opts, { rejoue: true })); }, opts.rejoue);
       if (opts.copie && d && !d.refuse && d.ok !== false && courrielReq && AMX.session.courriel === courrielReq && lire(CLE.jeton)) AMX.cacheLocal.ecrireGz(opts.copie, d);   // dernière bonne réponse, pour s'afficher d'un coup la prochaine fois — jamais après une déconnexion
       return d;
-    }, function (err) { enCours--; majEtat(true); throw err; });
+    }, function (err) {
+      enCours--; majEtat(true);
+      if (lectures) return AMX.get(params, Object.assign({}, opts, { lectures: false }));   /* 23 nov. : petit script muet ou en panne : le principal, comme avant */
+      throw err;
+    });
     return montrer ? AMX.patienter(promesse) : promesse;
   };
   // POST : jamais rejoué par défaut (une écriture dédoublée coûte plus cher

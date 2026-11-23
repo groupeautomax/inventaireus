@@ -326,7 +326,7 @@
         return Promise.resolve(garde.rep);
       }
       if (cache.enVol[cle]) return cache.enVol[cle];
-      var params = { ventes: 1 }; if (cie) params.compagnie = cie; if (mois) params.mois = mois; if (force === 'relire') params.relire = 1;
+      var params = { ventes: 1, sansRelire: 1 }; if (cie) params.compagnie = cie; if (mois) params.mois = mois; if (force === 'relire') params.relire = 1;   /* sansRelire (23 nov.) : jamais de relecture bloquante côté serveur — le site la demande en fond */
       var p = cache.enVol[cle] = AMX.get(params, { gz: true, copie: cleCopie('ventes_', cle), secours: false, delai: 60000 }).then(function (d) {
         if (cache.enVol[cle] === p) delete cache.enVol[cle];
         verifier(d);
@@ -700,7 +700,7 @@
     var self = this, cie = this.compagnie || '', cle = 'av_' + cie;
     if (this[cle] && Date.now() - this[cle] < 60000) return;
     this[cle] = Date.now();
-    var q = { ventes: 1, mois: 'avenir' }; if (cie) q.compagnie = cie;
+    var q = { ventes: 1, mois: 'avenir', sansRelire: 1 }; if (cie) q.compagnie = cie;
     AMX.get(q, { secours: false, gz: true, discret: true }).then(function (d) {   // compteur « À livrer plus tard » : lecture de fond
       if (!d || !Array.isArray(d.ventes)) return;
       var n = d.ventes.filter(function (v) { return v.statut !== 'annulee'; }).length;

@@ -24,12 +24,12 @@
   // s'il répond { repli: true } (lecture périmée par une écriture, jeton pas encore vérifié…) ou s'il ne répond pas, la
   // même demande repart vers le script principal. Jamais pour ?frais=1 / force, ni pour une écriture.
   var URL_LECTURES = 'https://script.google.com/macros/s/AKfycbyP2dRwsCBHBmn_YeF1lOj7a9LZtDZ2QUXzwNF_VMCW7uZhqqEKT0Qy8ht5Sc_Prb027Q/exec';
-  var ROUTES_LECTURES = /^(registres|neufs)$/;
+  var ROUTES_LECTURES = /^(registres|neufs|ventes)$/;   /* 23 nov. (soir) : + le Livre des ventes (comptes qui voient les montants ; les autres reviennent au principal) */
   function parLectures(params, opts) {
     if (!URL_LECTURES || opts.lectures === false || !params || typeof params !== 'object') return false;
-    if (params.frais || params.force || params.app) return false;
+    if (params.frais || params.force || params.app || params.leger || params.relire) return false;
     var cles = Object.keys(params).filter(function (k) { return k !== 'gz' && k !== '_'; });
-    return cles.length > 0 && ROUTES_LECTURES.test(cles[0]) && cles.every(function (k) { return /^(registres|neufs|compagnie)$/.test(k); });
+    return cles.length > 0 && ROUTES_LECTURES.test(cles[0]) && cles.every(function (k) { return /^(registres|neufs|ventes|compagnie|mois|sansRelire)$/.test(k); });
   }
   var SITE_PUBLIC = 'https://groupeautomax.github.io/inventaireus/';
 

@@ -1138,6 +1138,25 @@
       } }] });
   }
   // Panneau Occasion (registre Detail) : retouche d'un véhicule déjà prêt à vendre.
+  /* 26 nov. (SD7763DE93C, Louis Prassinos, Hyundai : « un bouton clair dans la fiche d'achat pour envoyer la demande de travaux au
+  service ») : la même fenêtre que le suivi service, depuis la fiche d'achat (destination Detail) ; une demande déjà vivante
+  (envoyée, retournée) est corrigée et renvoyée plutôt que doublée. */
+  AMX.demandes.demander = function (v) {
+  var vin = String((v && v.vin) || '').toUpperCase();
+  var s = { vin: vin, modele: (v && v.modele) || '', stock: (v && v.stock) || '', compagnie: (v && v.compagnie) || '', autorisation: {} };
+  var existante = null;
+  try { var d0 = AMX.demandes.parVin(vin); if (d0 && (d0.etat === 'envoyee' || d0.etat === 'retournee')) existante = d0; } catch (e0) {}
+  return modaleDemandeTravaux(s, existante, {}, function (payload) {
+  return AMX.post(payload).then(function (d) {
+  if (!d || d.refuse || d.ok === false) { var m = (d && (d.erreur || d.message)) || 'action refusée'; AMX.toast('Non envoyé — ' + m, d && d.bloque ? 'attention' : 'erreur', 7000); throw new Error(m); }
+  if (d.demande) AMX.demandes.poser(d.demande);
+  if (d.suivi && AMX.service && AMX.service.remplacer) AMX.service.remplacer(d.suivi);
+  AMX.toast(d.message || 'Demande envoyée au service', d.avertissement ? 'attention' : 'ok', d.avertissement ? 8000 : 4000);
+  AMX.inventaire.lire('DETAIL', true).catch(function () {});
+  return d;
+  });
+  });
+  };
   AMX.demandes.retouche = function (v) {
     var s = { vin: String(v.vin || '').toUpperCase(), modele: v.modele || '', stock: v.stock || '', compagnie: v.compagnie || '', autorisation: {} };
     return modaleDemandeTravaux(s, null, { retouche: true }, function (payload) {

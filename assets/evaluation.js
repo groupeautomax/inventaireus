@@ -886,7 +886,7 @@
     var d = x.detail || {}, s = d.suivi || {}, e = d.etatVehicule || {};
     texte(this.elClientCourriel, s.courriel); choix(this.elTypeClient, s.typeClient); choix(this.elLangue, s.langue);
     choix(this.elOrigine, s.origine); choix(this.elTransaction, s.transaction); texte(this.elCherche, s.cherche);
-    choix(this.elEtatGeneral, e.general); choix(this.elCles, e.cles); texte(this.elCouleurExt, e.couleurExt); texte(this.elCouleurInt, e.couleurInt);
+    choix(this.elEtatGeneral, e.general); choix(this.elCles, e.cles); texte(this.elCouleurExt, e.couleurExt); texte(this.elCouleurInt, e.couleurInt); choix(this.elTransmission, e.transmission);
     choix(this.elPneusEte, e.pneusEte); choix(this.elPneusHiver, e.pneusHiver); texte(this.elPneusDim, e.pneusDim); choix(this.elPareBrise, e.pareBrise);
     choix(this.elAccident, e.accident); texte(this.elAccidentMontant, e.accidentMontant); choix(this.elFinancement, e.financement); texte(this.elSoldePret, e.soldePret);
     texte(this.elCarrosserie, e.carrosserie); texte(this.elVoyants, e.voyants);
@@ -1872,6 +1872,7 @@
   var SUIVI_LANGUES = [['fr', 'Français'], ['en', 'Anglais']];
   var ETAT_CLES = [['0', 'Aucune'], ['1', '1'], ['2', '2'], ['3', '3 et plus']];
   var ETAT_FINANCEMENT = [['paye', 'Payé (aucun solde)'], ['finance', 'Financé'], ['loue', 'Location']];
+  var ETAT_TRANSMISSION = [['automatique', 'Automatique'], ['manuelle', 'Manuelle']]; /* 26 nov. (S8AE9E8F145, George Prassinos, Hyundai : « le type de transmission ne semble pas être dans les options ») */
   var ETAT_CONSTATS = [['vu', 'Véhicule vu'], ['moteur', 'Témoin moteur'], ['abs', 'Témoin ABS'], ['coussins', 'Témoin coussins'], ['clim', 'Clim défectueuse'], ['fumeur', 'Fumeur'], ['modifie', 'Modifié'], ['americain', 'Véhicule américain']];
   var ETAT_GARANTIES = [['origine', 'Garantie d\'origine'], ['prolongee', 'Garantie prolongée'], ['motopropulseur', 'Motopropulseur'], ['assurance', 'Produits d\'assurance']];
   var ETAT_OPTIONS = [['climatisation', 'Air climatisé'], ['toit', 'Toit ouvrant'], ['cuir', 'Cuir'], ['siegesChauffants', 'Sièges chauffants'], ['volantChauffant', 'Volant chauffant'], ['siegesVentiles', 'Sièges ventilés'],
@@ -1986,7 +1987,8 @@
     this.elGarantieFin = cGarFin.input; this.elGarantieKm = cGarKm.input; this.elGarantiePar = cGarPar.input; this.elChampsGarantie = [cGarFin.el, cGarKm.el, cGarPar.el];
     var cAccMontant = champ('e-accident-montant', 'Montant de l\'accident ($)', { type: 'number', inputmode: 'numeric' });
     var cFinancement = listeChoix('e-financement', 'Financement', ETAT_FINANCEMENT);
-    this.elCles = cCles.input; this.elCouleurExt = cCoulExt.input; this.elCouleurInt = cCoulInt.input; this.elPneusDim = cPneusDim.input;
+    var cTransmission = listeChoix('e-transmission', 'Transmission', ETAT_TRANSMISSION); /* 26 nov. : évite une erreur de prix (manuelle vs automatique) */
+    this.elCles = cCles.input; this.elCouleurExt = cCoulExt.input; this.elCouleurInt = cCoulInt.input; this.elPneusDim = cPneusDim.input; this.elTransmission = cTransmission.input;
     this.elAccidentMontant = cAccMontant.input; this.elChampAccMontant = cAccMontant.el; this.elFinancement = cFinancement.input;
     var modif = function () { self.majChampsEtat(); self.suiviModifie(); };
     this.chipsConstats = pastilles('eval-constats', 'Constats', ETAT_CONSTATS, 'rouge', modif);
@@ -2007,7 +2009,7 @@
     });
     this.btnPhotos = h('button.btn.petit#eval-photos-btn', { type: 'button', html: I.plus + '<span>Ajouter des photos</span>', onclick: function () { self.elPhotoInput.click(); } });
     this.elEtatCarte = carte(h('div.titre', [h('h2', 'État du véhicule et photos'), h('p', 'Ce que le client déclare et ce que vous voyez. Les photos restent avec le NIV et suivent le véhicule s\'il est acheté.')]), [
-      h('div.grille.eval-grille-etat', [cGeneral.el, cCles.el, cCoulExt.el, cCoulInt.el, cPneusEte.el, cPneusEteP.el, cPneusEteT.el, cPneusHiver.el, cPneusHivP.el, cPneusHivT.el, cPneusDim.el, cPareBrise.el,
+      h('div.grille.eval-grille-etat', [cGeneral.el, cCles.el, cCoulExt.el, cCoulInt.el, cTransmission.el, cPneusEte.el, cPneusEteP.el, cPneusEteT.el, cPneusHiver.el, cPneusHivP.el, cPneusHivT.el, cPneusDim.el, cPareBrise.el,
         cAccident.el, cAccMontant.el, cCarrosserie.el, cVoyants.el, cSolde.el, cFinancement.el, cGarFin.el, cGarKm.el, cGarPar.el]),
       h('div.eval-chips-bloc', [this.chipsConstats.el, this.chipsGaranties.el, this.chipsAssurances.el, this.chipsOptions.el]),
       this.dommages.el,
@@ -2026,7 +2028,7 @@
     [this.elClient, this.elClientTel, this.elClientCourriel, this.elConseiller, this.elCherche, this.elValeurClient, this.elRelance,
       this.elCarrosserie, this.elVoyants, this.elSoldePret, this.elEtatNotes, this.elCouleurExt, this.elCouleurInt, this.elPneusDim, this.elAccidentMontant, this.elGarantieFin, this.elGarantieKm, this.elGarantiePar].forEach(function (el) { el.addEventListener('input', function () { self.suiviModifie(); }); });
     [this.elOrigine, this.elTransaction, this.elEtatGeneral, this.elPneusEte, this.elPneusHiver, this.elPareBrise, this.elAccident, this.elRelance,
-      this.elTypeClient, this.elLangue, this.elCles, this.elFinancement, this.elPneusEtePouces, this.elPneusEteType, this.elPneusHiverPouces, this.elPneusHiverType, this.elGarantieFin].forEach(function (el) { el.addEventListener('change', function () { self.suiviModifie(); }); });
+      this.elTypeClient, this.elLangue, this.elCles, this.elFinancement, this.elTransmission, this.elPneusEtePouces, this.elPneusEteType, this.elPneusHiverPouces, this.elPneusHiverType, this.elGarantieFin].forEach(function (el) { el.addEventListener('change', function () { self.suiviModifie(); }); });
     this.elAccident.addEventListener('change', function () { self.majChampsEtat(); });
     [this.elAchat, this.elFrais].forEach(function (el) { el.addEventListener('input', function () { self.rendreEcartClient(); }); });
     this.rendreSuiviStatut();
@@ -2117,7 +2119,7 @@
     var etat = {
       general: t(this.elEtatGeneral), pneusEte: t(this.elPneusEte), pneusHiver: t(this.elPneusHiver), pareBrise: t(this.elPareBrise),
       accident: t(this.elAccident), carrosserie: t(this.elCarrosserie), voyants: t(this.elVoyants), soldePret: t(this.elSoldePret), notes: t(this.elEtatNotes),
-      cles: t(this.elCles), couleurExt: t(this.elCouleurExt), couleurInt: t(this.elCouleurInt), pneusDim: t(this.elPneusDim),
+      cles: t(this.elCles), couleurExt: t(this.elCouleurExt), couleurInt: t(this.elCouleurInt), pneusDim: t(this.elPneusDim), transmission: t(this.elTransmission),
       accidentMontant: t(this.elAccidentMontant), financement: t(this.elFinancement),
       constats: this.chipsConstats.get(), garanties: this.chipsGaranties.get(), options: this.chipsOptions.get(),
       /* 24 nov. (étape 2) */
@@ -2155,7 +2157,7 @@
     poserChoix(this.elEtatGeneral, e.general); poserChoix(this.elPneusEte, e.pneusEte); poserChoix(this.elPneusHiver, e.pneusHiver);
     poserChoix(this.elPareBrise, e.pareBrise); poserChoix(this.elAccident, e.accident);
     this.elCarrosserie.value = v(e.carrosserie); this.elVoyants.value = v(e.voyants); this.elSoldePret.value = v(e.soldePret); this.elEtatNotes.value = v(e.notes);
-    poserChoix(this.elCles, e.cles); poserChoix(this.elFinancement, e.financement);
+    poserChoix(this.elCles, e.cles); poserChoix(this.elFinancement, e.financement); poserChoix(this.elTransmission, e.transmission);
     this.elCouleurExt.value = v(e.couleurExt); this.elCouleurInt.value = v(e.couleurInt); this.elPneusDim.value = v(e.pneusDim); this.elAccidentMontant.value = v(e.accidentMontant);
     this.chipsConstats.set(e.constats); this.chipsGaranties.set(e.garanties); this.chipsOptions.set(e.options);
     /* 24 nov. (étape 2) */
@@ -3866,6 +3868,10 @@
     var cValidite = h('input.saisie#offre-validite', { type: 'number', inputmode: 'numeric', value: String(AMX.memo.lire('offre_validite', '7')), min: '1', max: '60', style: { width: '80px' } });
     var cClient = h('input.saisie#offre-client', { type: 'text', placeholder: 'Nom du client (facultatif)', autocomplete: 'off' });
     var cNotes = h('textarea.saisie#offre-notes', { rows: '3', placeholder: 'Conditions particulières, équipement, remarques (facultatif)' });
+    /* 26 nov. (S07F9F97D4F, Emeric, BMW : « imprimer le CARFAX en même temps que la feuille d'évaluation ») : le rapport CARFAX s'ouvre dans
+    un deuxième onglet au moment d'imprimer — un clic, les deux documents ; le CARFAX s'imprime depuis son onglet (Ctrl/Cmd + P). */
+    var lienCarfax = (this.vinCourant && AMX.carfax && AMX.carfax.lien) ? AMX.carfax.lien(this.vinCourant) : '';
+    var cCarfax = lienCarfax ? h('input#offre-carfax', { type: 'checkbox', checked: AMX.memo.lire('offre_carfax', '1') === '1' ? 'checked' : undefined }) : null;
     var corps = h('div.offre-formulaire', [
       h('p.doux.petit', { text: veh + (this.vinCourant ? ' · ' + this.vinCourant : '') + (this.elKm.value ? ' · ' + fmtKm(nombre(this.elKm.value)) : '') }),
       h('div.grille', [
@@ -3873,12 +3879,14 @@
         h('div.champ', [h('label', { 'for': 'offre-validite', text: 'Valide (jours)' }), cValidite])
       ]),
       h('div.champ', [h('label', { 'for': 'offre-client', text: 'Client' }), cClient]),
-      h('div.champ', [h('label', { 'for': 'offre-notes', text: 'Notes' }), cNotes])
-    ]);
-    AMX.confirmer('Feuille d\'offre — ' + veh, corps, { ok: 'Imprimer / PDF' }).then(function (oui) {
+      h('div.champ', [h('label', { 'for': 'offre-notes', text: 'Notes' }), cNotes]),
+      cCarfax ? h('div.champ.offre-carfax', [h('label', { 'for': 'offre-carfax' }, [cCarfax, h('span', { text: ' Ouvrir aussi le rapport CARFAX (dans un autre onglet, à imprimer avec la feuille)' })])]) : h('p.doux.petit', { text: this.vinCourant ? 'Pas de rapport CARFAX pour ce NIV : la feuille s\'imprime seule.' : '' })
+      ]);
+      AMX.confirmer('Feuille d\'offre — ' + veh, corps, { ok: 'Imprimer / PDF' }).then(function (oui) {
       if (!oui) return;
       var montant = nombre(cMontant.value);
       if (!montant) { AMX.toast('Entrez le montant offert.', 'attention'); return; }
+      if (cCarfax) { AMX.memo.ecrire('offre_carfax', cCarfax.checked ? '1' : '0'); if (cCarfax.checked) { try { window.open(lienCarfax, '_blank', 'noopener'); } catch (eC) {} } }
       AMX.memo.ecrire('offre_validite', String(parseInt(cValidite.value, 10) || 7));
       var cle = self.elConcession.value;
       AMX.get({ concessionInfo: cle }).catch(function () { return null; }).then(function (info) {
@@ -3902,6 +3910,9 @@
         h('tr', [h('th', 'Véhicule'), h('td', { text: veh })]),
         h('tr', [h('th', 'NIV'), h('td.mono', { text: this.vinCourant || this.elNiv.value.trim().toUpperCase() || '—' })]),
         h('tr', [h('th', 'Kilométrage'), h('td', { text: km !== null ? fmtKm(km) : '—' })]),
+        /* 26 nov. (SCB22B1F56D, Eric Morin, VW : « quand on imprime l'évaluation, avoir la couleur extérieure » ; S8AE9E8F145 : la transmission) */
+        this.elCouleurExt.value.trim() ? h('tr', [h('th', 'Couleur'), h('td', { text: this.elCouleurExt.value.trim() + (this.elCouleurInt.value.trim() ? ' · intérieur ' + this.elCouleurInt.value.trim() : '') })]) : null,
+        this.elTransmission.value ? h('tr', [h('th', 'Transmission'), h('td', { text: this.elTransmission.value === 'manuelle' ? 'Manuelle' : 'Automatique' })]) : null,
         h('tr', [h('th', 'Concession'), h('td', { text: c.nomOfficiel || c.nom || AMX.CONCESSIONS_TOUTES[this.elConcession.value] || '' })])
       ])]),
       h('div.offre-montant', [h('div.l', 'Offre d\'achat / valeur d\'échange'), h('div.v', { text: fmt(o.montant) }), h('div.m', 'Taxes en sus s\'il y a lieu. Montant payable à la livraison du véhicule et des documents.')]),

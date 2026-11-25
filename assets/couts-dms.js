@@ -125,12 +125,20 @@
     return h('div.cdms-l' + (cls ? '.' + cls : ''), [h('span.cdms-n', [libelle, note ? h('span.cdms-note', { text: note }) : null]), h('span.cdms-v', { text: valeur })]);
   }
 
-  /** Le bloc « Coût réel » du panneau d'une occasion ; null quand le DMS ne donne rien pour ce véhicule. */
+  /** Le bloc « Coût » du panneau d'une occasion : le coût inscrit au registre, puis le détail du DMS (payé, service, PAD, réel) quand il existe.
+  26 nov. (S104AEA2EE8, Marc-André Mongeon : « nous ne voyons plus les coûts » — 3GCPKBEK3SG120291 et 1G1YA2D45S5102515, Hawkesbury,
+  concession sans fichier du DMS) : depuis le 20 nov. le panneau ne montrait un coût que si le DMS en donnait un ; le coût du registre
+  (fiche d'achat) se voit maintenant toujours, pour qui voit les coûts. */
   function bloc(v, opts) {
-    opts = opts || {};
-    var r = de(v);
-    if (!r) return null;
-    var corps = h('div.cdms-table');
+  opts = opts || {};
+  if (!voit()) return null;
+  var r = de(v), coutFiche = montant(v && v.cout);
+  if (!r) {
+  var corpsSeul = h('div.cdms-table', [coutFiche !== null ? ligne('Coût', argent(coutFiche), 'fort', 'registre') : ligne('Coût', '—', '', 'pas inscrit')]);
+  return h('div.bloc.cdms-bloc', [h('h3', 'Coût'), corpsSeul, h('p.cdms-pied', [h('span', { text: coutFiche !== null ? 'Coût inscrit au registre (fiche d\'achat). Pas de fichier du DMS pour ce véhicule.' : 'Aucun coût inscrit : Gestion › Modifier (stock, km, coût).' })])]);
+  }
+  var corps = h('div.cdms-table');
+  if (coutFiche !== null && (r.reel === null || Math.abs(coutFiche - r.reel) > 0.5)) corps.appendChild(ligne('Coût', argent(coutFiche), '', 'registre'));
     if (r.paye !== null) corps.appendChild(ligne('Payé', argent(r.paye)));
     if (r.service !== null && (r.service !== 0 || r.pad)) {
       corps.appendChild(ligne(r.service >= 0 ? (r.padRegle ? 'Ajouté par le service' : 'Ajouté depuis l\'achat') : 'Écart (crédit ou dévaluation)', (r.service < 0 ? '−' : '') + argent(Math.abs(r.service))));
@@ -145,7 +153,7 @@
     }
     var pied = [h('span', { text: dateFichier(r.le).replace(/^f/, 'F') + (r.paye === null ? ' · payé pas inscrit au DMS' : '') + (!r.padRegle ? ' · aucun PAD réglé pour ' + nomCie(r.cie) : '') })];
     if (etat.peutRegler) pied.push(h('button.cdms-lien', { type: 'button', text: 'PAD par concession…', onclick: function () { regler().then(function (fait) { if (fait && opts.apres) opts.apres(); }); } }));
-    return h('div.bloc.cdms-bloc', [h('h3', 'Coût réel'), corps, h('p.cdms-pied', pied)]);
+    return h('div.bloc.cdms-bloc', [h('h3', 'Coût'), corps, h('p.cdms-pied', pied)]);
   }
 
   /** La fenêtre du PAD par concession (propriétaire). Rend une promesse : true si quelque chose a changé. */

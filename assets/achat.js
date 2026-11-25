@@ -264,6 +264,23 @@
   };
 
   Fiche.prototype.etat = function (texte) { this.elEtat.textContent = texte; };
+  /* 26 nov. (SD7763DE93C, Louis Prassinos, Hyundai : « dans Inventaire › Fiche d'achat, je ne trouve pas comment envoyer au service une
+  demande de travaux pour mettre en préparation un véhicule destiné au Detail ») : dès que la fiche est enregistrée avec la destination
+  Detail, un bouton « Envoyer au service (demande de travaux) » sous l'état — la même fenêtre que le suivi service (lavage, inspection,
+  mécanique…, budget, urgence) ; la puce BT du registre Detail suit. Le directeur doit avoir accepté le véhicule au détail (règle du
+  suivi) : sinon le serveur le dit. */
+  Fiche.prototype.proposerService = function (vin) {
+  var self = this, el = this.elService; if (!el) return;
+  AMX.vider(el);
+  if (!(AMX.demandes && AMX.demandes.demander) || valeur('f-destination') !== 'DETAIL') return;
+  var dem = null; try { dem = AMX.demandes.parVin(vin); } catch (e) { dem = null; }
+  var libEtat = dem ? AMX.demandes.libelle(dem.etat) + (dem.btNo ? ' · BT ' + dem.btNo : '') : '';
+  var v = { vin: vin, modele: [valeur('f-annee').trim(), valeur('f-marque').trim(), valeur('f-modele').trim()].filter(Boolean).join(' '), stock: valeur('f-stock').trim(), compagnie: valeur('f-compagnie') };
+  el.appendChild(h('span.doux.petit', { text: dem ? 'Demande de travaux : ' + libEtat + '. ' : 'Véhicule destiné au Detail : ' }));
+  if (!dem || dem.etat === 'envoyee' || dem.etat === 'retournee' || dem.etat === 'annulee') {
+  el.appendChild(h('button.btn.petit.primaire', { type: 'button', html: (I.outils || '') + '<span>' + (dem && dem.etat !== 'annulee' ? 'Corriger la demande au service' : 'Envoyer au service (demande de travaux)') + '</span>', title: 'Demande de travaux au service : lavage, inspection, mécanique, carrosserie, esthétique, photos — le service répond avec un no de BT', onclick: function () { var p = AMX.demandes.demander(v); if (p && p.then) p.then(function (ok) { if (ok) self.proposerService(vin); }, function () {}); } }));
+  }
+  };
 
   /* --------------------------- Construction ---------------------------- */
   Fiche.prototype.construire = function () {
@@ -272,14 +289,13 @@
 
     // En-tête
     this.elEtat = h('p', { text: 'Entrez un NIV pour charger une fiche existante ou en créer une nouvelle.' });
+    this.elService = h('div.achat-service.noprint', { style: { marginTop: '6px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } }); /* 26 nov. (SD7763DE93C) : « Envoyer au service » après l'enregistrement d'une fiche Detail */
     this.elDateImpression = h('div.achat-print-only.doux.petit');
     this.btnEnregistrer = h('button.btn.primaire', { type: 'button', html: I.ok + '<span>Enregistrer</span>', onclick: function () { self.enregistrer(); } });
     var entete = h('div.entete-page', [
       h('div', { style: { minWidth: 0 } }, [
         h('img.achat-print-only', { src: 'assets/logo.png', alt: 'Groupe Automax' }),
-        h('h1', 'Fiche d\'achat'),
-        this.elEtat,
-        this.elDateImpression
+        h('h1', 'Fiche d\'achat'), this.elEtat, this.elService, this.elDateImpression
       ]),
       h('div.actions.noprint', (AMX.ui2 && AMX.ui2())
         /* v134 (nouvelle interface) : « Enregistrer » seul ; Imprimer et Réinitialiser dans « … ». */
@@ -1154,6 +1170,7 @@
         self.vinCourant = vin; self.vinCharge = vin; self.nouvelle = false;
         self.etat('Fiche enregistrée le ' + quand + ' — Stock # et coûtant synchronisés avec le registre.');
         AMX.toast('Fiche enregistrée (NIV …' + fin6(vin) + ')', 'ok');
+        self.proposerService(vin); /* 26 nov. (SD7763DE93C) */
         history.replaceState(null, '', AMX.lien('achat', '', { vin: vin }));
         // Le registre a changé (stock, coûtant, fiche existante) : on rafraîchit la feuille concernée.
         var v = AMX.inventaire.parVin(vin);

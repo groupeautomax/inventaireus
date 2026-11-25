@@ -2960,7 +2960,7 @@
       tuile('gros', 'Wholesale', gros !== null ? fmt(gros) : '—',
         w.encan !== null ? 'encan à ce km (' + w.encanTexte + ')' + (w.openlane !== null ? ' · OpenLane ' + fmt(w.openlane) : '') : (w.openlane !== null ? w.openlaneTexte : (AMX.marcheRegion && !AMX.marcheRegion.enCache() ? 'Lecture du marché par région…' : 'Pas de vente d\'encan de ce modèle dans nos données')),
         c.standard && gros !== null ? 'écart détail − wholesale ' + fmt(c.standard - gros) : ''),
-      tuile('score ' + (s ? s.ton : ''), 'Score de reprise', s ? s.score + ' / 100' : '—', s ? s.niveau : '', d ? 'délai de vente estimé ≈ ' + d.jours + ' jours' : '')
+      tuile('score.' + (s ? s.ton : 'gris'), 'Score de reprise', s ? s.score + ' / 100' : '—', s ? s.niveau : '', d ? 'délai de vente estimé ≈ ' + d.jours + ' jours' : '')
     ]));
 
     // La jauge : agressif → conservateur, le prix visé placé dessus

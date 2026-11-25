@@ -575,6 +575,27 @@
       '.registre-table td.registre-relancer { color: var(--ambre); font-weight: 700; }',
       '.registre-table tr.registre-a-relancer td:first-child { box-shadow: inset 3px 0 0 var(--ambre); }',
       '.registre-suivi-puces { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }',
+      /* 24 nov. : Analyse IA */
+      '.eval-ia-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; } .eval-ia-tete .droite { margin-left: auto; display: flex; gap: 8px; align-items: center; }',
+      '.eval-ia-tuiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }',
+      '.eval-ia-tuile { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }',
+      '.eval-ia-tuile .l { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; }',
+      '.eval-ia-tuile .v { font-size: 22px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; line-height: 1.15; }',
+      '.eval-ia-tuile .s { font-size: 12px; color: var(--encre-3); line-height: 1.35; }',
+      '.eval-ia-tuile.detail { box-shadow: inset 4px 0 0 var(--vert); background: var(--vert-clair); } .eval-ia-tuile.nous { box-shadow: inset 4px 0 0 var(--bleu); } .eval-ia-tuile.gros { box-shadow: inset 4px 0 0 var(--ambre); }',
+      '.eval-ia-tuile.score.vert .v { color: var(--vert); } .eval-ia-tuile.score.ambre .v { color: var(--ambre); } .eval-ia-tuile.score.rouge .v { color: var(--rouge); }',
+      '.eval-ia-jauge { margin: 4px 0 14px; } .eval-ia-jauge .barre { position: relative; height: 14px; border-radius: 7px; background: var(--gris-bg); }',
+      '.eval-ia-jauge .zone { position: absolute; top: 0; height: 100%; } .eval-ia-jauge .zone.a { background: #BFD9FF; border-radius: 7px 0 0 7px; } .eval-ia-jauge .zone.b { background: #9FE0B8; } .eval-ia-jauge .zone.c { background: #FFD58A; } .eval-ia-jauge .zone.d { background: #F6B5B5; border-radius: 0 7px 7px 0; }',
+      '.eval-ia-jauge .moi { position: absolute; top: -5px; width: 4px; height: 24px; margin-left: -2px; border-radius: 2px; background: var(--encre); box-shadow: 0 0 0 2px #fff; } .eval-ia-jauge .moi.vert { background: var(--vert); } .eval-ia-jauge .moi.ambre { background: var(--ambre); } .eval-ia-jauge .moi.rouge { background: var(--rouge); } .eval-ia-jauge .moi.bleu { background: var(--bleu); }',
+      '.eval-ia-jauge .reperes { display: flex; justify-content: space-between; font-size: 12px; color: var(--encre-3); margin-top: 6px; font-variant-numeric: tabular-nums; }',
+      '.eval-ia-jauge .verdict { margin-top: 6px; font-size: 13px; font-weight: 600; } .eval-ia-jauge .verdict.vert { color: var(--vert); } .eval-ia-jauge .verdict.ambre { color: var(--ambre); } .eval-ia-jauge .verdict.rouge { color: var(--rouge); } .eval-ia-jauge .verdict.bleu { color: var(--bleu); } .eval-ia-jauge .verdict.gris { color: var(--encre-3); font-weight: 500; }',
+      '.eval-ia-signaux { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }',
+      '.eval-ia-signaux .sig { display: grid; grid-template-columns: 150px 120px 44px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 12.5px; }',
+      '.eval-ia-signaux .nom { font-weight: 600; } .eval-ia-signaux .jauge { height: 8px; border-radius: 4px; background: var(--gris-bg); overflow: hidden; display: block; } .eval-ia-signaux .rempli { display: block; height: 100%; border-radius: 4px; background: var(--vert); } .eval-ia-signaux .rempli.ambre { background: var(--ambre); } .eval-ia-signaux .rempli.rouge { background: var(--rouge); }',
+      '.eval-ia-signaux .pts { font-variant-numeric: tabular-nums; color: var(--encre-2); text-align: right; } .eval-ia-signaux .txt { color: var(--encre-3); }',
+      '.eval-ia-adn { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; margin-bottom: 4px; } .eval-ia-adn .eval-ia-grille { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; } .eval-ia-adn .eval-ia-grille .l { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--encre-3); font-weight: 600; } .eval-ia-adn .eval-ia-grille .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; } .eval-ia-adn .eval-ia-grille .m { font-size: 12px; color: var(--encre-4); } .eval-ia-adn .eval-table .tableau { min-width: 640px; } .eval-ia-adn .eval-note { margin: 4px 0 8px; }',
+      '.eval-table .puce.vendu { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--rouge); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; vertical-align: 1px; } .eval-table tr.eval-vendu td { color: var(--encre-2); background: var(--carte-2); } .eval-table .baisse { color: var(--vert); font-size: 11px; margin-left: 4px; white-space: nowrap; }',
+      '@media (max-width: 900px) { .eval-ia-tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .eval-ia-blocs { grid-template-columns: 1fr; } .eval-ia-signaux .sig { grid-template-columns: 120px minmax(0, 1fr) 44px; } .eval-ia-signaux .txt { grid-column: 1 / -1; } .eval-ia-adn .eval-ia-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
       '@media (max-width: 900px) {',
       '  .eval-stats { grid-template-columns: 1fr; }',
       '  .eval-page .carte-entete { flex-wrap: wrap; }',
@@ -616,7 +637,9 @@
     this.rappels = null;                     // rappels NHTSA pour année / marque / modèle (gratuit, chargé après le décodage)
     this.rappelsCle = '';
     this.minuterieAuto = null;
-    this.filtres = { memeVersion: false, kmProche: false, tri: 'prix', sens: 'asc', traction: '', carburant: '', cabine: '', moteur: '' };
+    this.filtres = { memeVersion: false, kmProche: false, tri: 'prix', sens: 'asc', traction: '', carburant: '', cabine: '', moteur: '', ventesRecentes: false, sansNeufs: false, sansExtremes: false };   /* 24 nov. : + ventes récentes (annonces disparues), sans < 1 000 km, sans les 3 extrêmes */
+    this.rayonIa = String(AMX.memo.lire('eval_rayon_ia', '') || '');   // 24 nov. (Analyse IA) : rayon choisi en km ('' = 160 km, le rayon de toujours)
+    this.adn = null; this.adnCle = ''; this.adnEnCours = false;         // 24 nov. : nos données pour ce modèle (EvalIa.gs : évaluations, Torque, achats, ventes)
     this.modeleMarcheChoisi = '';   // 21 nov. : nom de modèle du marché choisi à la main (« Civic Hatchback ») ; '' = automatique
     this.sigAnalyse = { ca: '', us: '' };     // 20 nov. : année|marque|modèle|version de l'analyse affichée (recherche sans NIV)
     this.listes = null; this.listesCle = '';  // modèles et versions du marché pour l'année et la marque tapées
@@ -1078,7 +1101,9 @@
      panneaux sont les éléments déjà construits (montrés / cachés, jamais reconstruits) : toute la logique reste. */
   var ICO_ECHANGE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-4-4"/><path d="M17 17H4l4 4"/></svg>';
   var ICO_HORLOGE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  var ICO_IA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/><path d="M5 2l.6 1.6L7 4l-1.4.6L5 6l-.6-1.4L3 4l1.4-.4z"/></svg>';
   var TUILES = [
+    { id: 'ia', titre: 'Analyse IA', ico: ICO_IA, panneau: 'ia' },   /* 24 nov. (Maxime : l'Analyse AI de Torque, incorporée) : la synthèse */
     { id: 'ca', titre: 'Marché Canada', ico: '<b>CA</b>', panneau: 'marche' },
     { id: 'us', titre: 'Marché É.-U.', ico: '<b>US</b>', panneau: 'marche' },
     { id: 'export', titre: 'Canada ou É.-U. ?', ico: ICO_ECHANGE, panneau: 'export' },
@@ -1125,11 +1150,17 @@
        par région du véhicule évalué est ici — encan, projection, par concession, prix dans le temps, saison. */
     var pRegion = carte(h('div.titre', [h('h2', 'Marché par région'), h('p', 'Ce véhicule, à son km : la valeur à l\'encan aujourd\'hui et dans 30, 60 et 90 jours, le prix attendu dans chaque concession, le prix dans le temps et la saison.')]), [this.elRegion]);
     pRegion.id = 'sec-region';
-    var contenus = { marche: o.marche, export: this.elExport, region: pRegion, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, rappels: pRappels, liens: pLiens, historique: pHist };
+    /* 24 nov. (Maxime : « regarde l'évaluation AI de Torque et incorpore-la ») : une synthèse, pas une autre analyse — elle lit l'analyse
+       de marché déjà faite (+ les annonces disparues et le MDS de MarketCheck), le « Marché par région » (encan, nos concessions) et nos
+       propres données (EvalIa.gs). Prix suggéré, évalué chez nous, wholesale, score de reprise, délai, ventes récentes, tendance des prix. */
+    this.elIa = h('div#eval-ia');
+    var pIa = carte(h('div.titre', [h('h2', 'Analyse IA'), h('p', 'La synthèse pour ce véhicule : prix de détail suggéré, ce que nous avons payé pour les mêmes, la valeur wholesale, un score de reprise, le délai de vente estimé, les ventes récentes, l\'approvisionnement et la tendance des prix.')]), [this.elIa]);
+    pIa.id = 'sec-ia';
+    var contenus = { ia: pIa, marche: o.marche, export: this.elExport, region: pRegion, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, rappels: pRappels, liens: pLiens, historique: pHist };
     this.panneaux = {};
     this.elPanneaux = h('div.eval-panneaux#eval-panneaux');
     // Ordre des panneaux dans la page : Canada / É.-U. avant le marché (comme avant), le reste ensuite.
-    ['suivi', 'etat', 'export', 'region', 'marche', 'openlane', 'rappels', 'liens', 'historique'].forEach(function (k) {
+    ['ia', 'suivi', 'etat', 'export', 'region', 'marche', 'openlane', 'rappels', 'liens', 'historique'].forEach(function (k) {
       if (!contenus[k] || (k === 'region' && !self.tuiles.region)) return;
       var p = h('div.eval-panneau#eval-p-' + k, { role: 'tabpanel', hidden: 'hidden' }, [contenus[k]]);
       self.panneaux[k] = p;
@@ -1161,6 +1192,10 @@
     if (this.exportOuvert !== exOuvert) { this.exportOuvert = exOuvert; this.rendreExport(); }
     if (panneau === 'marche' && !this.analyses[this.pays] && !this.enCours[this.pays] && this.parametresPrets()) this.analyser(this.pays, false);
     if (panneau === 'region') this.rendreRegion(true);
+    if (panneau === 'ia') {   /* 24 nov. : l'Analyse IA part de l'analyse de marché ; nos données se lisent à l'ouverture */
+      if (!this.analyses[this.pays] && !this.enCours[this.pays] && this.parametresPrets()) this.analyser(this.pays, false);
+      this.rendreIa();
+    }
     this.majTuiles();
     var b = this.tuiles[id] && this.tuiles[id].el;
     if (!fermer && b && b.scrollIntoView) { try { b.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); } catch (e) {} }
@@ -1237,6 +1272,14 @@
       if (sv && sv.standard && ((sv.pays === 'us') === (p === 'us'))) { poser(p, (p === 'us' ? AMX.fmtNombre(sv.standard) + ' $ US' : fmt(sv.standard)), 'gris', 'Analyse conservée' + (sv.genereLe ? ' du ' + AMX.fmtDateCourte(sv.genereLe) : '') + ' — cliquez pour la relancer'); return; }
       poser(p, self.parametresPrets() ? 'À analyser' : '—', 'gris');
     });
+    // 24 nov. : Analyse IA — le score de reprise
+    (function () {
+      var a = self.analyses[self.pays];
+      if (self.enCours[self.pays]) { poser('ia', 'Analyse…', ''); return; }
+      if (a && a.ok) { var s = null; try { s = self.scoreIa(a); } catch (eS) { s = null; } if (s) { poser('ia', s.score + ' · ' + s.niveau, s.ton, 'Score de reprise ' + s.score + ' / 100 — ' + s.niveau + ' (rotation, demande, tendance des prix, kilométrage, nos ventes, jours affichés)'); return; } }
+      if (a && !a.ok) { poser('ia', 'Indisponible', 'gris', a.erreur || ''); return; }
+      poser('ia', self.parametresPrets() ? 'À analyser' : '—', 'gris');
+    })();
     // Canada ou É.-U.
     if (!vinOk) poser('export', '—', 'gris');
     else {
@@ -2315,6 +2358,8 @@
     if (this.modeleMarcheChoisi) p.modeleMarche = this.modeleMarcheChoisi;
     if (this.portee[pays] === 'etat') p.etat = this.etats[pays];
     if (/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) p.vin = vin;
+    p.ia = 1;   /* 24 nov. : + les annonces disparues des 90 derniers jours et le MDS (Marche.gs) */
+    if (this.rayonIa && this.portee[pays] === 'local') p.rayonKm = this.rayonIa;
     return p;
   };
   Evaluation.prototype.analyser = function (pays, manuel) {
@@ -2469,7 +2514,10 @@
     var self = this;
     var kmV = nombre(this.elKm.value), taux = nombre(this.elTaux.value) || 0;
     var version = this.elVersion.value.trim().toLowerCase();
-    var liste = ((a && a.actifs && a.actifs.annonces) || []).map(function (x) {
+    var source = (a && a.actifs && a.actifs.annonces) || [];
+    /* 24 nov. (Analyse IA) : les annonces disparues des 90 derniers jours (vendues ou retirées), marquées VENDU, au dernier prix affiché */
+    if (this.filtres.ventesRecentes && a && a.recents && a.recents.annonces) source = source.concat(a.recents.annonces.map(function (x) { return Object.assign({}, x, { vendu: true }); }));
+    var liste = source.map(function (x) {
       var ajuste = (kmV !== null && x.km !== null && x.km !== undefined) ? x.prix - (kmV - x.km) * taux : x.prix;
       return Object.assign({}, x, { ajuste: Math.round(ajuste) });
     });
@@ -2486,6 +2534,9 @@
     /* 21 nov. : la cylindrée — une annonce qui ne dit pas son moteur reste, une autre cylindrée sort */
     var motF = this.filtres.moteur;
     if (motF) liste = liste.filter(function (x) { var c = cylindreeDe(x.moteur) || cylindreeDe(x.version); return !c || c === motF; });
+    /* 24 nov. : quasi neufs écartés ; les 3 moins chères et les 3 plus chères écartées (10 annonces et plus) */
+    if (this.filtres.sansNeufs) liste = liste.filter(function (x) { return x.km === null || x.km === undefined || x.km >= 1000; });
+    if (this.filtres.sansExtremes && liste.length >= 10) { var ordre = liste.slice().sort(function (p, q) { return p.ajuste - q.ajuste; }); var bas = ordre.slice(0, 3), haut = ordre.slice(-3); liste = liste.filter(function (x) { return bas.indexOf(x) < 0 && haut.indexOf(x) < 0; }); }
     /* rang de chaque annonce par prix ramené au km du véhicule (1 = la moins chère), quel que soit le tri */
     var parAjuste = liste.map(function (x) { return x.ajuste; }).sort(asc);
     liste.forEach(function (x) { var r = 1; parAjuste.forEach(function (p) { if (p < x.ajuste) r++; }); x.rangAjuste = r; });
@@ -2542,6 +2593,7 @@
     var pays = this.pays, a = this.analyses[pays];
     AMX.vider(this.elMarche);
     this.rendrePrixDetail();
+    try { this.rendreIa(); } catch (eIa) { if (window.console) console.error('Analyse IA :', eIa); }   /* 24 nov. : la synthèse suit l'analyse et les filtres — jamais bloquante */
 
     if (this.enCours[pays]) {
       this.elMarche.appendChild(h('div.chargement', [h('span', { html: I.rafraichir }), 'Recherche des annonces ' + (pays === 'us' ? 'américaines' : 'canadiennes') + ' et des ventes récentes…']));
@@ -2612,6 +2664,14 @@
     caseVersion.addEventListener('change', function () { self.filtres.memeVersion = caseVersion.checked; self.rendreMarche(); });
     var caseKm = h('input', { type: 'checkbox', checked: this.filtres.kmProche ? true : undefined, disabled: nombre(this.elKm.value) === null ? true : undefined });
     caseKm.addEventListener('change', function () { self.filtres.kmProche = caseKm.checked; self.rendreMarche(); });
+    /* 24 nov. (Analyse IA) : ventes récentes, sans < 1 000 km, sans les 3 extrêmes */
+    var nRec = (a && a.recents && a.recents.annonces) ? a.recents.annonces.length : 0;
+    var caseRec = h('input', { type: 'checkbox', checked: this.filtres.ventesRecentes ? true : undefined, disabled: nRec ? undefined : true });
+    caseRec.addEventListener('change', function () { self.filtres.ventesRecentes = caseRec.checked; self.rendreMarche(); });
+    var caseNeufs = h('input', { type: 'checkbox', checked: this.filtres.sansNeufs ? true : undefined });
+    caseNeufs.addEventListener('change', function () { self.filtres.sansNeufs = caseNeufs.checked; self.rendreMarche(); });
+    var caseExt = h('input', { type: 'checkbox', checked: this.filtres.sansExtremes ? true : undefined });
+    caseExt.addEventListener('change', function () { self.filtres.sansExtremes = caseExt.checked; self.rendreMarche(); });
     var TRIS = [['prix', 'Prix ajusté'], ['brut', 'Prix affiché'], ['km', 'Odomètre'], ['annee', 'Année'], ['jours', 'Jours affichés'], ['dist', 'Distance']];
     var tri = h('select.saisie', { style: { height: '28px', width: 'auto' } }, TRIS.map(function (o) { return h('option', { value: o[0], selected: self.filtres.tri === o[0] ? true : undefined, text: 'Trier : ' + o[1] }); }));
     tri.addEventListener('change', function () { self.filtres.tri = tri.value; self.filtres.sens = 'asc'; self.rendreMarche(); });
@@ -2652,6 +2712,9 @@
     this.elMarche.appendChild(h('div.eval-filtres', [
       h('label.case', [caseVersion, h('span', { text: 'Même version seulement' })]),
       h('label.case', [caseKm, h('span', { text: '± ' + AMX.fmtNombre(TOLERANCE_KM) + ' km du véhicule' })]),
+      h('label.case', { title: nRec ? 'Les ' + nRec + ' annonces disparues des 90 derniers jours (vendues ou retirées), au dernier prix affiché — comptées dans les cibles' : 'Relancez l\'analyse pour lire les ventes récentes' }, [caseRec, h('span', { text: 'Ventes récentes' + (nRec ? ' (' + nRec + ')' : '') })]),
+      h('label.case', { title: 'Écarter les annonces de moins de 1 000 km (quasi neufs)' }, [caseNeufs, h('span', { text: 'Sans < 1 000 km' })]),
+      h('label.case', { title: 'Écarter les 3 annonces les moins chères et les 3 plus chères (à partir de 10 annonces)' }, [caseExt, h('span', { text: 'Sans les 3 extrêmes' })]),
       selTraction, selCarb, selMot, selCab,
       h('span.espace'),
       h('span.doux', { text: liste.length + ' annonce' + (liste.length > 1 ? 's' : '') + ' retenue' + (liste.length > 1 ? 's' : '') }),
@@ -2689,15 +2752,15 @@
       if (!moiInsere && !placerFin && xv !== null && xv !== undefined && (desc ? xv <= moiVal : xv >= moiVal)) { lignes.push(ligneMoi()); moiInsere = true; }
       var m = (c.marcheBase === 'km' || c.marcheBase === 'annonces') && c.marcheMoy ? x.ajuste / c.marcheMoy : (moy ? x.prix / moy : null);
       var tr = tractionDe(x.motricite);
-      lignes.push(h('tr', [
+      lignes.push(h('tr' + (x.vendu ? '.eval-vendu' : ''), [
         h('td.num', { text: String(x.rangAjuste || ''), title: 'Rang du prix ramené à votre kilométrage (1 = le moins cher)' }),
-        h('td.sous', [h('div', { text: x.concession || '—' }), h('span.mini', { text: [x.ville, x.province].filter(Boolean).join(', ') + (x.certifie ? ' · certifié' : '') })]),
+        h('td.sous', [h('div', [h('span', { text: x.concession || '—' }), x.vendu ? h('span.puce.vendu', { text: 'VENDU', title: 'Annonce disparue' + (x.derniereVue ? ' le ' + AMX.fmtDateCourte(x.derniereVue) : '') + ' (vendue ou retirée)' }) : null]), h('span.mini', { text: [x.ville, x.province].filter(Boolean).join(', ') + (x.certifie ? ' · certifié' : '') })]),
         h('td', [h('div', { text: x.version || '—' }), (x.style || tr || x.carburant || x.titre || x.moteur) ? h('span.mini', { text: [x.style ? (STYLES.filter(function (y) { return y[0] === styleDe(x.style, x.portes, x.version, x.modele || self.elModele.value); })[0] || [, x.style])[1] : '', tr ? NOM_TRACTION[tr] : '', nomDe(CARBURANTS, carburantDe(x.carburant)), nomCylindree(cylindreeDe(x.moteur)), nomDe(CABINES, cabineDe((x.titre || '') + ' ' + (x.version || '')))].filter(Boolean).join(' · ') }) : null]),
         h('td.num', { text: x.annee || '—' }),
         h('td.num', { text: fmtKm(x.km) }),
-        h('td.num', { text: fmt(x.prix) }),
+        h('td.num', [h('span', { text: fmt(x.prix) }), (x.baissePct && x.baissePct < 0 && x.prixInitial) ? h('span.baisse', { text: '↓ ' + Math.abs(Math.round(x.baissePct)) + ' %', title: 'Prix baissé : il était de ' + fmt(x.prixInitial) }) : null]),   /* 24 nov. : la baisse depuis le prix initial */
         h('td.num', { text: fmt(x.ajuste), title: kmV !== null ? 'Ramené à ' + fmtKm(kmV) : 'Entrez le km du véhicule pour ajuster' }),
-        h('td.num', { text: fmtJ(x.jours) }),
+        h('td.num', { text: fmtJ(x.jours) + (x.vendu && joursDepuis(x.derniereVue) !== null ? ' · il y a ' + joursDepuis(x.derniereVue) + ' j' : '') }),
         h('td.num', { text: x.distKm !== null && x.distKm !== undefined ? AMX.fmtNombre(x.distKm) + ' km' : '—' }),
         h('td.num' + (m ? (m > 1.03 ? '.sup' : (m < 0.97 ? '.inf' : '')) : ''), { text: pct(m) }),
         h('td', x.lien ? [h('a.petit', { href: x.lien, target: '_blank', rel: 'noopener', text: 'Voir' })] : '')
@@ -2724,6 +2787,284 @@
     if (this.derniereSauvegarde) pied.push(h('span.puce', { text: 'Dernière analyse conservée : standard ' + fmt(this.derniereSauvegarde.standard) + ' (' + AMX.fmtDateCourte(this.derniereSauvegarde.genereLe) + ')' }));
     this.elMarche.appendChild(h('div.eval-pied', pied));
   };
+
+  /* ======================= 24 nov. 2026 : Analyse IA =======================
+     Maxime : « regarde à fond l'évaluation AI de Torque et incorpore-la dans notre site… on a déjà fait une analyse de marché,
+     il faut les jumeler ». Donc une SYNTHÈSE, pas une autre analyse : elle lit l'analyse de marché déjà faite (annonces, ventes
+     déduites ; depuis le 24 nov. aussi les annonces disparues des 90 derniers jours et le MDS de MarketCheck — Marche.gs, ?ia=1),
+     le « Marché par région » (encan, nos concessions — marche-region.js) et nos propres données (EvalIa.gs : évaluations,
+     archive Torque, fiches d'achat, Livre des ventes). Tout ce qu'elle montre se recalcule avec les filtres du panneau Marché. */
+  var IA_RAYONS = [[100, '100 km'], [160, '160 km (défaut)'], [200, '200 km'], [320, '320 km']];
+  var IA_NIVEAUX = [[80, 'Très favorable', 'vert'], [65, 'Favorable', 'vert'], [50, 'Acceptable', 'ambre'], [35, 'Peu favorable', 'rouge'], [0, 'Très peu favorable', 'rouge']];
+  function niveauIa(score) { for (var i = 0; i < IA_NIVEAUX.length; i++) { if (score >= IA_NIVEAUX[i][0]) return IA_NIVEAUX[i]; } return IA_NIVEAUX[IA_NIVEAUX.length - 1]; }
+  function joursDepuis(iso) { if (!iso) return null; var d = new Date(iso); if (isNaN(d.getTime())) return null; return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000)); }
+  function pctSigne(x, dec) { if (x === null || x === undefined || !isFinite(x)) return '—'; var v = Math.round(x * (dec ? 10 : 1)) / (dec ? 10 : 1); if (v === 0) return '0 %'; return (v > 0 ? '+' : '−') + Math.abs(v).toLocaleString('fr-CA') + ' %'; }
+  function nomCie(c) { return (AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[c]) || c || '—'; }
+  /* Les ventes récentes (/recents) n'ont que la statistique des prix : km et jours se calculent sur les annonces reçues. */
+  function completerRecents(rec) {
+    if (!rec || !rec.annonces || rec._complete) return rec;
+    var L = rec.annonces;
+    var st = function (vals) { vals = vals.filter(function (v) { return v !== null && v !== undefined && !isNaN(v); }).sort(asc); return vals.length ? { moyenne: moyenne(vals), mediane: mediane(vals), min: vals[0], max: vals[vals.length - 1], n: vals.length } : null; };
+    if (!rec.km) rec.km = st(L.map(function (x) { return x.km; }));
+    if (!rec.jours) rec.jours = st(L.map(function (x) { return x.jours; }));
+    if (!rec.prix) rec.prix = st(L.map(function (x) { return x.prix; }));
+    rec._complete = true;
+    return rec;
+  }
+
+  /* Nos données pour ce modèle (EvalIa.gs : GET ?adn=1), lues une fois par marque | modèle | année | concession. */
+  Evaluation.prototype.cleAdn = function () {
+    return [this.elMarque.value.trim(), this.elModele.value.trim(), this.elAnnee.value.trim(), this.elConcession.value].map(function (x) { return String(x || '').toLowerCase(); }).join('|');
+  };
+  Evaluation.prototype.chargerAdn = function () {
+    var self = this, cle = this.cleAdn();
+    if (!this.parametresPrets()) return;
+    if (this.adnCle === cle && (this.adn || this.adnEnCours)) return;
+    this.adnCle = cle; this.adn = null; this.adnEnCours = true;
+    AMX.get({ adn: 1, marque: this.elMarque.value.trim(), modele: this.elModele.value.trim(), annee: this.elAnnee.value.trim(), concession: this.elConcession.value }, { discret: true }).then(function (d) {
+      if (self.adnCle !== cle) return;
+      self.adnEnCours = false; self.adn = (d && d.refuse) ? { ok: false, erreur: d.erreur || 'Accès refusé' } : (d || { ok: false, erreur: 'Réponse vide' });
+      self.rendreIa(); self.majTuiles();
+    }, function (e) { if (self.adnCle !== cle) return; self.adnEnCours = false; self.adn = { ok: false, erreur: AMX.erreurTexte(e) }; self.rendreIa(); });
+  };
+
+  /* La valeur wholesale : l'encan de nos données (marche-region.js, ramené au km) et la prévision OpenLane. */
+  Evaluation.prototype.encanIa = function () {
+    var out = { encan: null, encanTexte: '', openlane: null, openlaneTexte: '', region: null };
+    var v = this.valeursRegion();
+    if (AMX.marcheRegion && AMX.marcheRegion.enCache()) {
+      var r = AMX.marcheRegion.pourVehicule(v);
+      if (r && r.lignes && r.lignes.length) {
+        out.region = r;
+        var te = r.tendanceEncan;
+        if (te) {
+          var val = (te.valeur !== undefined && te.valeur !== null) ? te.valeur : te.mediane, km = nombre(v.km);
+          if (val && km && te.kmRef) val += (te.kmRef - km) * 0.10;
+          if (val) { out.encan = Math.round(val / 100) * 100; out.encanTexte = (te.n ? te.n + ' ventes d\'encan' : 'encan') + (te.pente30 ? ', ' + pctSigne(te.pente30, true) + ' par 30 j' : ''); }
+        }
+      }
+    }
+    var vin = (this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    var ol = /^[A-HJ-NPR-Z0-9]{17}$/.test(vin) && AMX.openlane && AMX.openlane.valeur ? AMX.openlane.valeur(vin) : null;
+    if ((!ol || !ol.luLe) && this.olValeur && this.olValeur.vin === vin) ol = this.olValeur;
+    if (ol && ol.luLe) {
+      var prev = nombre(ol.prevision), moy = nombre(ol.prixMoy);
+      if (prev !== null) { out.openlane = prev; out.openlaneTexte = 'prévision OpenLane'; }
+      else if (moy !== null) { out.openlane = moy; out.openlaneTexte = 'moyenne des ventes OpenLane'; }
+    }
+    return out;
+  };
+
+  /* Les annonces qui ont baissé (ou monté) leur prix depuis leur prix initial (MarketCheck : ref_price, price_change_percent). */
+  Evaluation.prototype.tendanceIa = function (a) {
+    var L = ((a && a.actifs && a.actifs.annonces) || []).filter(function (x) { return x.prix; });
+    var connus = L.filter(function (x) { return x.baissePct !== null && x.baissePct !== undefined; });
+    var baisses = connus.filter(function (x) { return x.baissePct < 0; }), hausses = connus.filter(function (x) { return x.baissePct > 0; });
+    return { n: connus.length, total: L.length, nBaisse: baisses.length, nHausse: hausses.length, partBaisse: L.length ? baisses.length / L.length : 0, baisseMoy: baisses.length ? moyenne(baisses.map(function (x) { return x.baissePct; })) : null };
+  };
+
+  /* Le score de reprise (0-100) : rotation 30, demande 20, tendance des prix 15, kilométrage 15, nos ventes 10, jours affichés 10. */
+  Evaluation.prototype.scoreIa = function (a, c) {
+    if (!a || !a.ok) return null;
+    c = c || this.calculs(a);
+    var act = a.actifs || {}, ven = a.vendus || {}, adn = (this.adn && this.adn.ok) ? this.adn : null;
+    var signaux = [], total = 0;
+    var pousser = function (nom, pts, max, texte) { signaux.push({ nom: nom, pts: pts, max: max, texte: texte }); total += pts; };
+    // 1. rotation : le MDS de MarketCheck, sinon annonces actives ÷ ventes par mois
+    var mds = (a.mds && a.mds.mds) ? Math.round(a.mds.mds) : null, mdsSrc = mds !== null ? 'MDS MarketCheck' : '';
+    if (mds === null && act.n && ven.parMois) { mds = Math.round(act.n / ven.parMois * 30); mdsSrc = 'annonces ÷ ventes par mois'; }
+    var p1 = mds === null ? 15 : (mds <= 30 ? 30 : (mds <= 60 ? 22 : (mds <= 90 ? 14 : (mds <= 120 ? 7 : 2))));
+    pousser('Rotation du marché', p1, 30, mds === null ? 'Approvisionnement inconnu' : mds + ' jours d\'approvisionnement (' + mdsSrc + ')' + (mds <= 45 ? ' — rapide' : (mds <= 90 ? ' — normale' : ' — lente')));
+    // 2. demande : ventes déduites en 90 jours
+    var n90 = (ven.n90 === undefined || ven.n90 === null) ? null : ven.n90;
+    var p2 = n90 === null ? 8 : (n90 >= 30 ? 20 : (n90 >= 15 ? 15 : (n90 >= 6 ? 10 : (n90 >= 1 ? 5 : 0))));
+    pousser('Demande', p2, 20, n90 === null ? 'Ventes inconnues' : n90 + ' ventes déduites en 90 jours' + (a.recents && a.recents.n ? ' · ' + a.recents.n + ' annonces disparues' + (a.portee === 'local' ? ' dans le rayon' : '') : ''));
+    // 3. tendance des prix
+    var td = this.tendanceIa(a);
+    var p3 = td.n ? (td.partBaisse <= 0.10 ? 15 : (td.partBaisse <= 0.25 ? 11 : (td.partBaisse <= 0.40 ? 7 : 3))) : 8;
+    pousser('Tendance des prix', p3, 15, td.n ? Math.round(td.partBaisse * 100) + ' % des annonces ont baissé leur prix' + (td.baisseMoy ? ' (' + pctSigne(td.baisseMoy, true) + ' en moyenne)' : '') : 'Pas de variation de prix connue');
+    // 4. kilométrage contre le marché
+    var kmV = nombre(this.elKm.value), kmM = act.km && act.km.moyenne, ratio = (kmV && kmM) ? kmV / kmM : null;
+    var p4 = ratio === null ? 8 : (ratio <= 0.8 ? 15 : (ratio <= 1 ? 12 : (ratio <= 1.2 ? 8 : (ratio <= 1.5 ? 4 : 1))));
+    pousser('Kilométrage', p4, 15, ratio === null ? 'Entrez le km du véhicule' : fmtKm(kmV) + ' contre ' + fmtKm(kmM) + ' en moyenne sur le marché (' + Math.round(ratio * 100) + ' %)');
+    // 5. nos ventes du modèle (usagé, 180 jours)
+    var nv = adn ? adn.ventes.n : null;
+    var p5 = nv === null ? 5 : (nv >= 5 ? 10 : (nv >= 2 ? 7 : (nv >= 1 ? 4 : 1)));
+    pousser('Nos ventes', p5, 10, nv === null ? (this.adnEnCours ? 'Lecture de nos données…' : 'Nos données indisponibles') : nv + ' vente' + (nv > 1 ? 's' : '') + ' d\'usagé de ce modèle chez nous en 180 jours' + (adn.ventes.neufs ? ' (+ ' + adn.ventes.neufs + ' neufs)' : '') + (adn.ventes.delaiMed !== null && adn.ventes.delaiMed !== undefined ? ', livrées en ' + adn.ventes.delaiMed + ' j (médiane)' : ''));
+    // 6. jours affichés
+    var jm = (act.jours && act.jours.moyenne !== null && act.jours.moyenne !== undefined) ? act.jours.moyenne : null;
+    var p6 = jm === null ? 5 : (jm <= 30 ? 10 : (jm <= 45 ? 8 : (jm <= 60 ? 6 : (jm <= 90 ? 3 : 1))));
+    pousser('Jours affichés', p6, 10, jm === null ? 'Inconnus' : Math.round(jm) + ' jours en moyenne sur le marché');
+    var niveau = niveauIa(total);
+    return { score: total, niveau: niveau[1], ton: niveau[2], signaux: signaux, mds: mds, mdsSrc: mdsSrc };
+  };
+
+  /* Le délai de vente estimé : les jours avant vente du marché, étirés selon le rang du prix visé (le moins cher ×0,6, le plus cher ×1,6). */
+  Evaluation.prototype.delaiIa = function (a, c) {
+    var ven = a.vendus || {}, act = a.actifs || {}, rec = completerRecents(a.recents) || null;
+    var base = null, src = '';
+    if (ven.jours && (ven.jours.mediane || ven.jours.moyenne)) { base = ven.jours.mediane || ven.jours.moyenne; src = 'ventes déduites (90 j)'; }
+    else if (rec && rec.jours && (rec.jours.mediane || rec.jours.moyenne)) { base = rec.jours.mediane || rec.jours.moyenne; src = 'annonces disparues'; }
+    else if (act.jours && act.jours.moyenne) { base = act.jours.moyenne; src = 'jours affichés'; }
+    else { base = 45; src = 'valeur par défaut'; }
+    var f = 1;
+    if (c && c.rang && c.rangSur > 1) f = 0.6 + 1.0 * (c.rang - 1) / (c.rangSur - 1);
+    var j = Math.max(5, Math.round(base * f));
+    return { jours: j, base: Math.round(base), facteur: f, src: src, min: Math.max(3, Math.round(j * 0.7)), max: Math.round(j * 1.4) };
+  };
+
+  Evaluation.prototype.rendreIa = function () {
+    var self = this;
+    if (!this.elIa) return;
+    AMX.vider(this.elIa);
+    var pays = this.pays, a = this.analyses[pays];
+    if (this.enCours[pays]) { this.elIa.appendChild(h('div.chargement', [h('span', { html: I.rafraichir }), 'Analyse en cours — annonces, ventes récentes, approvisionnement…'])); return; }
+    if (!a) {
+      var prets = this.parametresPrets();
+      this.elIa.appendChild(h('div.eval-attente', [
+        h('div', { text: prets ? 'Prêt à analyser ' + [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ') + ' : l\'Analyse IA part de l\'analyse de marché.' : 'Entrez un NIV, ou l\'année, la marque et le modèle : l\'Analyse IA part de l\'analyse de marché.' }),
+        prets ? h('button.btn.primaire', { type: 'button', html: I.recherche + '<span>Lancer l\'analyse</span>', onclick: function () { self.analyser(pays, true); } }) : null
+      ]));
+      return;
+    }
+    if (!a.ok) { this.elIa.appendChild(h('p.eval-note', { text: 'Analyse impossible : ' + (a.erreur || 'erreur inconnue') + ' — voir le panneau Marché.' })); return; }
+    if (!this.adnEnCours && (!this.adn || this.adnCle !== this.cleAdn())) this.chargerAdn();   /* nos données : une lecture par modèle (cache 6 h au serveur) */
+    if (this.tuileOuverte === 'ia' && AMX.marcheRegion && !AMX.marcheRegion.enCache() && !this.regionDemande) {
+      this.regionDemande = true;
+      AMX.marcheRegion.copie().then(function () { return AMX.marcheRegion.charger(false); }).then(function () { self.regionSig = ''; self.rendreIa(); self.majTuiles(); }, function () {});
+    }
+    var c = this.calculs(a), s = this.scoreIa(a, c), d = this.delaiIa(a, c), w = this.encanIa();
+    var act = a.actifs || {}, ven = a.vendus || {}, rec = completerRecents(a.recents) || null, adn = (this.adn && this.adn.ok) ? this.adn : null;
+    var devise = a.devise || (pays === 'us' ? 'USD' : 'CAD');
+    var kmV = nombre(this.elKm.value);
+
+    // En-tête : véhicule, portée, rayon (relance l'analyse), relancer
+    var selRayon = h('select.saisie', { style: { height: '28px', width: 'auto' }, title: 'Rayon de recherche autour de la concession — relance l\'analyse' }, IA_RAYONS.map(function (r) {
+      return h('option', { value: String(r[0]), selected: String(self.rayonIa || 160) === String(r[0]) ? true : undefined, text: 'Rayon ' + r[1] });
+    }));
+    selRayon.addEventListener('change', function () { self.rayonIa = selRayon.value === '160' ? '' : selRayon.value; AMX.memo.ecrire('eval_rayon_ia', self.rayonIa); self.oublierAnalyses(); self.analyser(pays, true); });
+    this.elIa.appendChild(h('div.eval-ia-tete', [
+      h('div', [h('b', { text: [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ') }), h('span.mini.doux', { text: ' · ' + (kmV !== null ? fmtKm(kmV) + ' · ' : '') + (a.portee === 'local' ? 'rayon ' + (a.rayonKm || '—') + ' km autour de ' + (a.lieu || '—') : (a.lieu || '')) + (a.modeleMarche ? ' · modèle du marché « ' + a.modeleMarche + ' »' : '') + ' · reçu ' + AMX.fmtDate(a.genereLe || new Date().toISOString(), true) })]),
+      h('div.droite', [a.portee === 'local' && !this.lectureSeule ? selRayon : null, this.lectureSeule ? null : h('button.btn.petit.fantome', { type: 'button', text: 'Relancer', title: 'Relancer l\'analyse (chiffres du jour)', onclick: function () { self.oublierAnalyses(); self.analyser(pays, true); } })])
+    ]));
+
+    // Les 4 tuiles : détail, évalué chez nous, wholesale, score
+    var tuile = function (cls, l, v, s1, s2) { return h('div.eval-ia-tuile.' + cls, [h('div.l', { text: l }), h('div.v', { text: v }), s1 ? h('div.s', { text: s1 }) : null, s2 ? h('div.s', { text: s2 }) : null]); };
+    var nos = adn ? adn.internes : null;
+    var gros = w.encan !== null ? w.encan : w.openlane;
+    this.elIa.appendChild(h('div.eval-ia-tuiles', [
+      tuile('detail', 'Prix de détail suggéré', c.standard ? fmt(c.standard) : '—', c.standard ? 'agressif ' + fmt(c.agressif) + ' · conservateur ' + fmt(c.conservateur) : (c.base || 'Pas assez d\'annonces'), (act.n || 0) + ' annonces · ' + (ven.n90 || 0) + ' ventes en 90 j' + (devise === 'USD' ? ' · en $ US' : '')),
+      tuile('nous', 'Évalué chez nous', nos && nos.coutMed ? fmt(nos.coutMed) : (this.adnEnCours ? '…' : (adn ? 'Jamais' : '—')),
+        nos && nos.n ? nos.n + ' véhicule' + (nos.n > 1 ? 's' : '') + ' du même modèle (évaluations, Torque, achats), ' + (adn.fenetreMois || 24) + ' derniers mois' : (adn ? 'Aucune évaluation ni achat de ce modèle (année ± 1) chez nous' : (this.adn && !this.adn.ok ? this.adn.erreur : (this.adnEnCours ? 'Lecture de nos données…' : 'Nos données'))),
+        nos && nos.coutMed ? 'coût médian payé (achat + frais)' + (nos.kmMoy ? ' · km moyen ' + fmtKm(nos.kmMoy) : '') : ''),
+      tuile('gros', 'Wholesale', gros !== null ? fmt(gros) : '—',
+        w.encan !== null ? 'encan à ce km (' + w.encanTexte + ')' + (w.openlane !== null ? ' · OpenLane ' + fmt(w.openlane) : '') : (w.openlane !== null ? w.openlaneTexte : (AMX.marcheRegion && !AMX.marcheRegion.enCache() ? 'Lecture du marché par région…' : 'Pas de vente d\'encan de ce modèle dans nos données')),
+        c.standard && gros !== null ? 'écart détail − wholesale ' + fmt(c.standard - gros) : ''),
+      tuile('score ' + (s ? s.ton : ''), 'Score de reprise', s ? s.score + ' / 100' : '—', s ? s.niveau : '', d ? 'délai de vente estimé ≈ ' + d.jours + ' jours' : '')
+    ]));
+
+    // La jauge : agressif → conservateur, le prix visé placé dessus
+    if (c.agressif && c.conservateur && c.conservateur > c.agressif) {
+      var lo = c.agressif * 0.9, hi = c.conservateur * 1.1, pos = function (x) { return Math.max(0, Math.min(100, (x - lo) / (hi - lo) * 100)); };
+      var verdict = '', tonV = 'gris';
+      if (!c.prixVise) verdict = 'Entrez le prix de détail visé pour le situer sur le marché.';
+      else if (c.prixVise < c.agressif) { verdict = 'Prix agressif : sous le quart le moins cher du marché — vente rapide, marge réduite.'; tonV = 'bleu'; }
+      else if (c.prixVise <= c.standard * 1.02) { verdict = 'Prix idéal : dans la moitié basse du marché, autour de la médiane.'; tonV = 'vert'; }
+      else if (c.prixVise <= c.conservateur) { verdict = 'Prix élevé : dans la moitié chère du marché — délai plus long.'; tonV = 'ambre'; }
+      else { verdict = 'Hors marché : au-dessus des trois quarts des annonces comparables.'; tonV = 'rouge'; }
+      this.elIa.appendChild(h('div.eval-ia-jauge', [
+        h('div.barre', [
+          h('span.zone.a', { style: { left: '0%', width: pos(c.agressif) + '%' } }),
+          h('span.zone.b', { style: { left: pos(c.agressif) + '%', width: (pos(c.standard) - pos(c.agressif)) + '%' } }),
+          h('span.zone.c', { style: { left: pos(c.standard) + '%', width: (pos(c.conservateur) - pos(c.standard)) + '%' } }),
+          h('span.zone.d', { style: { left: pos(c.conservateur) + '%', width: (100 - pos(c.conservateur)) + '%' } }),
+          c.prixVise ? h('span.moi.' + tonV, { style: { left: pos(c.prixVise) + '%' }, title: 'Votre prix ' + fmt(c.prixVise) }) : null
+        ]),
+        h('div.reperes', [h('span', { text: 'Agressif ' + fmt(c.agressif) }), h('span', { text: 'Idéal ' + fmt(c.standard) }), h('span', { text: 'Conservateur ' + fmt(c.conservateur) })]),
+        h('div.verdict.' + tonV, { text: verdict + (c.rang ? ' Rang ' + c.rang + ' sur ' + c.rangSur + ' (prix ramenés à votre km).' : '') })
+      ]));
+    }
+
+    // Quatre blocs : délai, vendus récemment, approvisionnement, tendance des prix
+    function mini(l, v, m) { return h('div', [h('div.l', { text: l }), h('div.v', { text: v }), m ? h('div.m', { text: m }) : null]); }
+    var blocDelai = h('div.eval-stat', [
+      h('h3', [h('span.n', { text: '≈ ' + d.jours + ' j' }), 'délai de vente estimé', h('span.mini.doux', { text: ' · entre ' + d.min + ' et ' + d.max + ' jours' })]),
+      h('div.grille-mini', [
+        mini('Base', d.base + ' j', d.src),
+        mini('Votre prix', c.rang ? 'rang ' + c.rang + '/' + c.rangSur : '—', c.rang ? '× ' + d.facteur.toLocaleString('fr-CA', { maximumFractionDigits: 2 }) + ' (moins cher = plus vite)' : 'entrez le prix visé'),
+        mini('Nos livraisons', adn && adn.ventes.delaiMed !== null && adn.ventes.delaiMed !== undefined ? adn.ventes.delaiMed + ' j' : '—', adn && adn.ventes.n ? 'vente → livraison, ' + adn.ventes.n + ' ventes d\'usagé' : '')
+      ])
+    ]);
+    var blocVendus = h('div.eval-stat', [
+      h('h3', [h('span.n', { text: rec ? String(rec.n || 0) : '—' }), 'vendus récemment', h('span.mini.doux', { text: rec ? ' · annonces disparues en ' + (rec.fenetreJours || 90) + ' jours' + (a.portee === 'local' ? ', même rayon' : '') : ' · relancez l\'analyse pour les lire' })]),
+      rec ? h('div.grille-mini', [
+        mini('Prix médian', fmt(rec.prix && rec.prix.mediane), rec.prix ? fmt(rec.prix.min) + ' – ' + fmt(rec.prix.max) : ''),
+        mini('KM moyen', fmtKm(rec.km && rec.km.moyenne), rec.km ? fmtKm(rec.km.min) + ' – ' + fmtKm(rec.km.max) : ''),
+        mini('Jours avant disparition', fmtJ(rec.jours && rec.jours.moyenne), rec.jours ? 'médiane ' + fmtJ(rec.jours.mediane) : '')
+      ]) : null,
+      rec && (rec.annonces || []).length ? h('p.eval-note', { text: 'Cochez « Ventes récentes » dans les filtres du panneau Marché pour les voir parmi les comparables (ligne VENDU) et les compter dans les cibles.' }) : null
+    ]);
+    var mdsN = s && s.mds !== null && s.mds !== undefined ? s.mds : null;
+    var blocAppro = h('div.eval-stat', [
+      h('h3', [h('span.n', { text: mdsN !== null ? mdsN + ' j' : '—' }), 'd\'approvisionnement', h('span.mini.doux', { text: mdsN !== null ? ' · ' + (mdsN <= 45 ? 'rotation rapide' : (mdsN <= 90 ? 'rotation normale' : 'rotation lente')) + ' (' + s.mdsSrc + ')' : ' · inconnu' })]),
+      h('div.grille-mini', [
+        mini('Annonces actives', String(act.n || 0), a.mds && a.mds.actifs ? 'MDS : ' + a.mds.actifs + ' (' + (a.mds.portee || 'modèle') + ')' : ''),
+        mini('Vendus / mois', ven.parMois !== undefined && ven.parMois !== null ? String(ven.parMois) : '—', a.mds && a.mds.vendus45 ? a.mds.vendus45 + ' en 45 j (MDS)' : 'ventes déduites, 90 j'),
+        mini('Nos ventes 180 j', adn ? String(adn.ventes.n) : '—', adn && adn.ventes.n ? Object.keys(adn.ventes.parCie).map(function (k) { return k + ' ' + adn.ventes.parCie[k]; }).join(' · ') : (adn && adn.ventes.neufs ? adn.ventes.neufs + ' neufs seulement' : ''))
+      ])
+    ]);
+    var td = this.tendanceIa(a), te = w.region && w.region.tendanceEncan;
+    var blocTend = h('div.eval-stat', [
+      h('h3', [h('span.n', { text: td.n ? Math.round(td.partBaisse * 100) + ' %' : '—' }), 'des annonces ont baissé de prix', h('span.mini.doux', { text: td.n ? ' · ' + td.nBaisse + ' baisse' + (td.nBaisse > 1 ? 's' : '') + (td.nHausse ? ', ' + td.nHausse + ' hausse' + (td.nHausse > 1 ? 's' : '') : '') + ' sur ' + td.total + ' annonces listées' : ' · relancez l\'analyse' })]),
+      h('div.grille-mini', [
+        mini('Baisse moyenne', td.baisseMoy ? pctSigne(td.baisseMoy, true) : '—', 'depuis le prix initial'),
+        mini('Jours affichés', fmtJ(act.jours && act.jours.moyenne), act.jours ? fmtJ(act.jours.min) + ' – ' + fmtJ(act.jours.max) : ''),
+        mini('Encan (30 j)', te && te.pente30 !== undefined && te.pente30 !== null ? pctSigne(te.pente30, true) : '—', te && te.prevision30 ? 'dans 30 j ≈ ' + fmt(te.prevision30) : (te ? '' : 'pas de tendance d\'encan'))
+      ])
+    ]);
+    this.elIa.appendChild(h('div.eval-stats.eval-ia-blocs', [blocDelai, blocVendus, blocAppro, blocTend]));
+
+    // Le détail du score
+    if (s) {
+      this.elIa.appendChild(h('div.eval-ia-signaux', [h('div.eval-cibles-titre', { text: 'Score de reprise ' + s.score + ' / 100 — ' + s.niveau })].concat(s.signaux.map(function (x) {
+        var part = x.max ? x.pts / x.max : 0;
+        return h('div.sig', [h('span.nom', { text: x.nom }), h('span.jauge', [h('span.rempli.' + (part >= 0.66 ? 'vert' : (part >= 0.4 ? 'ambre' : 'rouge')), { style: { width: Math.round(part * 100) + '%' } })]), h('span.pts', { text: x.pts + '/' + x.max }), h('span.txt', { text: x.texte })]);
+      }))));
+    }
+
+    // Nos données (ADN du groupe)
+    var blocAdn = h('div.eval-ia-adn', [h('div.eval-cibles-titre', { text: 'Nos données — ce modèle chez nous' })]);
+    if (this.adnEnCours && !adn) blocAdn.appendChild(h('div.chargement.mini', [h('span', { html: I.rafraichir }), 'Lecture de nos évaluations, de l\'archive Torque, des fiches d\'achat et du Livre des ventes…']));
+    else if (!adn) blocAdn.appendChild(h('p.eval-note', { text: 'Nos données indisponibles' + (this.adn && this.adn.erreur ? ' : ' + this.adn.erreur : '') + '.' }));
+    else {
+      var ev = adn.evaluations;
+      blocAdn.appendChild(h('div.grille-mini.eval-ia-grille', [
+        mini('Évaluations 180 j', String(ev.n), ev.n ? ev.repris + ' reprise' + (ev.repris > 1 ? 's' : '') + ' · ' + ev.perdus + ' perdue' + (ev.perdus > 1 ? 's' : '') : 'aucune de ce modèle'),
+        mini('Look-to-book', ev.lookToBook !== null && ev.lookToBook !== undefined ? ev.lookToBook + ' %' : '—', 'reprises ÷ évaluations'),
+        mini('Ventes d\'usagé 180 j', String(adn.ventes.n), (adn.ventes.prixMoy ? 'prix moyen ' + fmt(adn.ventes.prixMoy) : '') + (adn.ventes.gros ? (adn.ventes.prixMoy ? ' · ' : '') + adn.ventes.gros + ' wholesale' : '') + (adn.ventes.neufs ? (adn.ventes.prixMoy || adn.ventes.gros ? ' · ' : '') + adn.ventes.neufs + ' neufs' : '')),
+        mini('Délai de livraison', adn.ventes.delaiMed !== null && adn.ventes.delaiMed !== undefined ? adn.ventes.delaiMed + ' j' : '—', 'médiane vente → livraison')
+      ]));
+      if (w.region && w.region.lignes) {
+        var ici = w.region.lignes.filter(function (l) { return l.ici; })[0] || w.region.meilleur;
+        if (ici) blocAdn.appendChild(h('p.eval-note', { text: 'Marché par région — ' + nomCie(ici.cie) + ' : prix attendu ' + fmt(ici.attendu) + (ici.achatMax ? ', achat max ' + fmt(ici.achatMax) : '') + (ici.ventes ? ' · ' + ici.ventes + ' ventes de ce genre en 12 mois' : '') + (ici.joursMed !== null && ici.joursMed !== undefined ? ', ' + Math.round(ici.joursMed) + ' j en stock (médiane)' : '') + (w.region.meilleur && w.region.meilleur.cie !== ici.cie ? ' · se vend le mieux chez ' + nomCie(w.region.meilleur.cie) + ' (' + fmt(w.region.meilleur.attendu) + ')' : '') + ' — le détail est dans « Marché par région ».' }));
+      }
+      var items = (adn.internes && adn.internes.items) || [];
+      if (items.length) {
+        var SRC = { evaluation: 'Évaluation', torque: 'Torque', achat: 'Achat' };
+        blocAdn.appendChild(h('div.eval-table', [h('table.tableau', [
+          h('thead', [h('tr', [h('th', 'Date'), h('th', 'Source'), h('th', 'Concession'), h('th.num', 'Année'), h('th.num', 'Odomètre'), h('th.num', 'Coût payé'), h('th', 'Statut'), h('th', 'NIV')])]),
+          h('tbody', items.slice(0, 12).map(function (x) {
+            var st = statutSuivi(x.statut);
+            return h('tr', [h('td', { text: AMX.fmtDateCourte(x.le) }), h('td', { text: SRC[x.source] || x.source }), h('td', { text: nomCie(x.cie) }), h('td.num', { text: x.annee || '—' }), h('td.num', { text: fmtKm(x.km) }), h('td.num', { text: fmt(x.cout) }), h('td', { text: st ? st[1] : (x.statut === 'achete' ? 'Acheté' : (x.statut || '—')) }), h('td.mono', { text: x.vin || '' })]);
+          }))
+        ])]));
+        if (items.length > 12) blocAdn.appendChild(h('p.eval-note', { text: 'Les 12 plus récents sur ' + items.length + '.' }));
+      }
+    }
+    this.elIa.appendChild(blocAdn);
+    this.elIa.appendChild(h('div.eval-pied', [h('span', { text: 'Sources : MarketCheck (annonces, ventes déduites, annonces disparues, MDS) · Marché par région (encan, nos concessions) · nos évaluations, l\'archive Torque, les fiches d\'achat et le Livre des ventes. Les filtres du panneau Marché s\'appliquent aux prix.' })]));
+  };
+
 
   // Rappel d'une évaluation enregistrée (sans les annonces, qui ne sont pas conservées).
   Evaluation.prototype.blocSauvegarde = function (m) {
@@ -2762,7 +3103,8 @@
         agressif: c.agressif, standard: c.standard, conservateur: c.conservateur, marchePct: c.marchePct, rang: c.rang || null, rangSur: c.rangSur || null,
         actifs: a.actifs ? { n: a.actifs.n, prixMoy: a.actifs.prix && a.actifs.prix.moyenne, prixMed: a.actifs.prix && a.actifs.prix.mediane, kmMoy: a.actifs.km && a.actifs.km.moyenne, joursMoy: a.actifs.jours && a.actifs.jours.moyenne } : null,
         vendus: a.vendus ? { n90: a.vendus.n90, parMois: a.vendus.parMois, prixMoy: a.vendus.prix && a.vendus.prix.moyenne, kmMoy: a.vendus.km && a.vendus.km.moyenne } : null,
-        filtres: Object.assign({}, this.filtres)
+        filtres: Object.assign({}, this.filtres),
+        ia: (function (ev) { try { var s = ev.scoreIa(a, c), d = ev.delaiIa(a, c); return s ? { score: s.score, niveau: s.niveau, delai: d.jours, mds: s.mds } : null; } catch (e) { return null; } })(this)   /* 24 nov. : score de reprise et délai estimé */
       };
     } else if (this.derniereSauvegarde) marche = this.derniereSauvegarde;
     if (marche && marche.valeurs) { marche = Object.assign({}, marche); delete marche.valeurs; }   // 1er nov. : plus de valeurs de guide (VinAudit)

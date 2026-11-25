@@ -309,7 +309,9 @@
     s.id = 'css-evaluation';
     s.textContent = [
       /* 17 nov. (S04C4776488) : analyse rapide d'un NIV — rien n'est enregistré, pas de client ni d'état à remplir. */
-      '.eval-page.eval-rapide [data-tuile="suivi"], .eval-page.eval-rapide [data-tuile="etat"], .eval-page.eval-rapide [data-tuile="declaration"], .eval-page.eval-rapide #eval-sauvegarde { display: none !important; }',
+      '.eval-page.eval-rapide [data-tuile="suivi"], .eval-page.eval-rapide [data-tuile="etat"], .eval-page.eval-rapide [data-tuile="declaration"], .eval-page.eval-rapide [data-tuile="partage"], .eval-page.eval-rapide #eval-sauvegarde { display: none !important; }',
+      /* 24 nov. (étape 3) : partage aux wholesalers */
+      '.eval-partages-resume { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; } .eval-table tr.eval-partage-offre td { background: var(--vert-clair); } .eval-partage-liste { max-height: 260px; overflow: auto; } .eval-partage-libres { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; } .eval-partage-libre { display: grid; grid-template-columns: 1.3fr 1fr 1.3fr auto; gap: 6px; align-items: center; } @media (max-width: 600px) { .eval-partage-libre { grid-template-columns: 1fr 1fr; } }',
       '.eval-rapide-bandeau { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--bleu); border-radius: 8px; background: var(--bleu-bg); color: var(--encre); font-size: 14px; }',
       '.eval-rapide-bandeau b { color: var(--bleu); }',
       '.eval-km-alerte:empty { display: none; } .eval-km-alerte { margin: 0 0 10px; }',
@@ -924,7 +926,7 @@
       h('div.actions', (AMX.ui2 && AMX.ui2())
         /* v134 (nouvelle interface) ; 12 nov. (« plein d'écrits partout ») : un seul bouton, Enregistrer — l'analyse part
            toute seule ; la relancer, la feuille d'offre et Effacer vont dans « Actions » (les boutons gardent leur code). */
-        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { texte: 'Déclaration du propriétaire (imprimer / PDF)', icone: I.telecharger, action: function () { self.imprimerDeclaration(); } }, { texte: 'Mes valeurs par défaut (recon, marge)', action: function () { self.mesDefauts(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer, this.btnFaire]
+        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { texte: 'Déclaration du propriétaire (imprimer / PDF)', icone: I.telecharger, action: function () { self.imprimerDeclaration(); } }, { texte: 'Partager aux wholesalers (texto / courriel)', action: function () { self.partagerWholesalers(); } }, { texte: 'Mes valeurs par défaut (recon, marge)', action: function () { self.mesDefauts(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer, this.btnFaire]
         : [this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer, this.btnFaire])
     ]);
     this.rendreSauvegarde();
@@ -1127,6 +1129,7 @@
     { id: 'suivi', titre: 'Client et suivi', ico: I.relance, panneau: 'suivi' },
     { id: 'etat', titre: 'État et photos', ico: I.photo, panneau: 'etat' },
     { id: 'declaration', titre: 'Déclaration', ico: ICO_DECL, panneau: 'declaration' },   /* 24 nov. (étape 2) : la déclaration du propriétaire, imprimable */
+    { id: 'partage', titre: 'Wholesalers', ico: ICO_PARTAGE, panneau: 'partage' },   /* 24 nov. (étape 3) : partage aux wholesalers, lectures et offres */
     { id: 'rappels', titre: 'Rappels', ico: I.alerte, panneau: 'rappels' },
     { id: 'liens', titre: 'CARFAX et liens', ico: I.lien, panneau: 'liens' },
     { id: 'historique', titre: 'Historique', ico: ICO_HORLOGE, panneau: 'historique' }
@@ -1173,11 +1176,12 @@
     var pIa = carte(h('div.titre', [h('h2', 'Analyse IA'), h('p', 'La synthèse pour ce véhicule : prix de détail suggéré, ce que nous avons payé pour les mêmes, la valeur wholesale, un score de reprise, le délai de vente estimé, les ventes récentes, l\'approvisionnement et la tendance des prix.')]), [this.elIa]);
     pIa.id = 'sec-ia';
     if (!this.elDeclCarte) this.construireDeclaration();
-    var contenus = { ia: pIa, marche: o.marche, export: this.elExport, region: pRegion, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, declaration: this.elDeclCarte, rappels: pRappels, liens: pLiens, historique: pHist };
+    if (!this.elPartageCarte) this.construirePartage();
+    var contenus = { ia: pIa, marche: o.marche, export: this.elExport, region: pRegion, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, declaration: this.elDeclCarte, partage: this.elPartageCarte, rappels: pRappels, liens: pLiens, historique: pHist };
     this.panneaux = {};
     this.elPanneaux = h('div.eval-panneaux#eval-panneaux');
     // Ordre des panneaux dans la page : Canada / É.-U. avant le marché (comme avant), le reste ensuite.
-    ['ia', 'suivi', 'etat', 'declaration', 'export', 'region', 'marche', 'openlane', 'rappels', 'liens', 'historique'].forEach(function (k) {
+    ['ia', 'suivi', 'etat', 'declaration', 'partage', 'export', 'region', 'marche', 'openlane', 'rappels', 'liens', 'historique'].forEach(function (k) {
       if (!contenus[k] || (k === 'region' && !self.tuiles.region)) return;
       var p = h('div.eval-panneau#eval-p-' + k, { role: 'tabpanel', hidden: 'hidden' }, [contenus[k]]);
       self.panneaux[k] = p;
@@ -1209,6 +1213,7 @@
     if (this.exportOuvert !== exOuvert) { this.exportOuvert = exOuvert; this.rendreExport(); }
     if (panneau === 'marche' && !this.analyses[this.pays] && !this.enCours[this.pays] && this.parametresPrets()) this.analyser(this.pays, false);
     if (panneau === 'region') this.rendreRegion(true);
+    if (panneau === 'partage') this.chargerPartages(false);   /* 24 nov. (étape 3) : les partages se lisent à l'ouverture */
     if (panneau === 'ia') {   /* 24 nov. : l'Analyse IA part de l'analyse de marché ; nos données se lisent à l'ouverture */
       if (!this.analyses[this.pays] && !this.enCours[this.pays] && this.parametresPrets()) this.analyser(this.pays, false);
       this.rendreIa();
@@ -1336,6 +1341,7 @@
     poser('etat', etatTxt || 'À remplir', this.elAccident && this.elAccident.value === 'oui' ? 'rouge' : (etatTxt ? '' : 'gris'), this.elAccident && this.elAccident.value === 'oui' ? 'Accident déclaré' : '');
     // 24 nov. : la déclaration du propriétaire
     if (this.tuiles.declaration) { var rd = this.resumeDeclaration(); poser('declaration', rd.texte, rd.ton, rd.titre); }
+    if (this.tuiles.partage) { if (!vinOk) poser('partage', '—', 'gris'); else { var rp = this.resumePartages(); poser('partage', rp.texte, rp.ton, rp.titre); } }
     // Rappels
     var r = this.rappels;
     if (!r) poser('rappels', '—', 'gris');
@@ -3381,6 +3387,138 @@
     window.addEventListener('afterprint', nettoyer);
     setTimeout(function () { window.print(); }, 60);
     setTimeout(function () { if (document.body.classList.contains('impression-offre')) nettoyer(); }, 60000);
+  };
+
+
+  /* ======================= 24 nov. 2026 : partage aux wholesalers (étape 3, Torque « Partager › Par SMS ») =======================
+     L'évaluateur choisit des acheteurs inscrits (Vente › Acheteurs) ou tape un nom + cellulaire / courriel ; un texto et / ou un
+     courriel partent au nom de la concession avec un lien sécurisé vers vitrine/evaluation.html (photos, état, prix demandé) où
+     l'acheteur inscrit son prix. Le panneau montre chaque envoi : envoyé le, lu, offre. Serveur : EvalPartage.gs. */
+  var ICO_PARTAGE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>';
+  Evaluation.prototype.construirePartage = function () {
+    var self = this;
+    this.partages = null; this.partagesVin = ''; this.partagesEnCours = false;
+    this.elPartageCorps = h('div#eval-partages');
+    this.btnPartager = h('button.btn.primaire.petit', { type: 'button', html: ICO_PARTAGE + '<span>Partager (texto / courriel)</span>', onclick: function () { self.partagerWholesalers(); } });
+    this.btnPartagesRafraichir = h('button.btn.petit.fantome', { type: 'button', text: 'Rafraîchir', title: 'Relire les lectures et les offres', onclick: function () { self.chargerPartages(true); } });
+    this.elPartageCarte = carte(h('div.titre', [h('h2', 'Wholesalers'), h('p', 'Partagez l\'évaluation à des acheteurs par texto ou courriel : ils reçoivent un lien sécurisé (photos, état, prix demandé s\'il y en a un) et y inscrivent leur prix. Vous voyez ici qui a reçu, qui a lu et les offres.')]), [this.elPartageCorps], h('div.droite', [this.btnPartagesRafraichir, this.btnPartager]));
+    this.elPartageCarte.id = 'sec-partage';
+    this.rendrePartages();
+  };
+  Evaluation.prototype.chargerPartages = function (force) {
+    var self = this, vin = (this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { this.partages = null; this.partagesVin = ''; this.rendrePartages(); return Promise.resolve(); }
+    if (this.partagesVin === vin && this.partages && !force) return Promise.resolve();
+    this.partagesVin = vin; this.partagesEnCours = true; this.rendrePartages();
+    return AMX.get({ evalPartages: 1, vin: vin }, { discret: true }).then(function (d) {
+      if (self.partagesVin !== vin) return;
+      self.partagesEnCours = false;
+      self.partages = (d && d.ok) ? d : { ok: false, erreur: (d && (d.erreur || (d.refuse ? 'Accès refusé' : ''))) || 'Réponse vide' };
+      self.rendrePartages(); self.majTuiles();
+    }, function (e) { if (self.partagesVin !== vin) return; self.partagesEnCours = false; self.partages = { ok: false, erreur: AMX.erreurTexte(e) }; self.rendrePartages(); });
+  };
+  Evaluation.prototype.resumePartages = function () {
+    var vin = (this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    var p = (this.partagesVin === vin) ? this.partages : null;
+    if (!p || !p.ok) return { texte: this.partagesEnCours ? '…' : 'Partager', ton: 'gris', titre: 'Partager l\'évaluation à des wholesalers (texto / courriel)' };
+    if (!p.n) return { texte: 'Partager', ton: 'gris', titre: 'Aucun partage encore' };
+    if (p.meilleureOffre) return { texte: fmt(p.meilleureOffre) + ' · ' + p.nOffres, ton: 'vert', titre: p.nOffres + ' offre' + (p.nOffres > 1 ? 's' : '') + ' reçue' + (p.nOffres > 1 ? 's' : '') + ', la meilleure ' + fmt(p.meilleureOffre) };
+    return { texte: p.n + ' envoyé' + (p.n > 1 ? 's' : '') + ' · ' + p.nLus + ' lu' + (p.nLus > 1 ? 's' : ''), ton: p.nLus ? 'bleu' : '', titre: p.n + ' partage' + (p.n > 1 ? 's' : '') + ', ' + p.nLus + ' lu' + (p.nLus > 1 ? 's' : '') + ', aucune offre encore' };
+  };
+  Evaluation.prototype.rendrePartages = function () {
+    var self = this, el = this.elPartageCorps; if (!el) return;
+    AMX.vider(el);
+    var vin = (this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { el.appendChild(h('p.eval-note', { text: 'Entrez un NIV complet et enregistrez l\'évaluation pour la partager.' })); this.btnPartager.disabled = true; return; }
+    this.btnPartager.disabled = !!this.lectureSeule;
+    if (this.partagesEnCours && !this.partages) { el.appendChild(h('div.chargement.mini', [h('span', { html: I.rafraichir }), 'Lecture des partages…'])); return; }
+    var p = (this.partagesVin === vin) ? this.partages : null;
+    if (!p) { el.appendChild(h('p.eval-note', { text: 'Les partages se lisent à l\'ouverture du panneau.' })); if (this.tuileOuverte === 'partage' && !this.partagesEnCours) this.chargerPartages(false); return; }
+    if (!p.ok) { el.appendChild(h('p.eval-note', { text: 'Partages indisponibles : ' + (p.erreur || '') + (/EvalPartage|redéployez/.test(p.erreur || '') ? '' : '') })); return; }
+    if (!p.n) { el.appendChild(h('div.eval-attente.mini', { text: 'Aucun partage pour ce véhicule. « Partager » envoie un lien sécurisé aux acheteurs choisis ; chaque lecture et chaque offre s\'inscrit ici.' })); return; }
+    el.appendChild(h('div.eval-partages-resume', [
+      h('span.puce', { text: p.n + ' envoi' + (p.n > 1 ? 's' : '') }), h('span.puce' + (p.nLus ? '.info' : ''), { text: p.nLus + ' lu' + (p.nLus > 1 ? 's' : '') }),
+      h('span.puce' + (p.nOffres ? '.ok' : ''), { text: p.nOffres + ' offre' + (p.nOffres > 1 ? 's' : '') + (p.meilleureOffre ? ' · meilleure ' + fmt(p.meilleureOffre) : '') })
+    ]));
+    el.appendChild(h('div.eval-table', [h('table.tableau', [
+      h('thead', [h('tr', [h('th', 'Acheteur'), h('th', 'Canal'), h('th', 'Envoyé'), h('th', 'Lu'), h('th.num', 'Offre'), h('th', 'Message de l\'acheteur'), h('th', 'Par'), h('th', '')])]),
+      h('tbody', (p.partages || []).map(function (x) {
+        var lu = x.luLe ? AMX.fmtDate(x.luLe, true) + (x.luN > 1 ? ' (' + x.luN + '×)' : '') : (x.statut === 'echec' ? 'Non envoyé' : 'Non lu');
+        return h('tr' + (x.offre ? '.eval-partage-offre' : ''), [
+          h('td', [h('div', { text: x.nom || x.telephone || x.courriel || '—' }), h('div.mini', { text: [x.telephone, x.courriel].filter(Boolean).join(' · ') })]),
+          h('td', { text: x.canal ? x.canal.replace('+', ' + ') : '—' }),
+          h('td', [h('div', { text: x.envoyeLe ? AMX.fmtDate(x.envoyeLe, true) : '—' }), x.erreur ? h('div.mini', { style: { color: 'var(--rouge)' }, text: x.erreur }) : null, x.prixDemande ? h('div.mini', { text: 'prix demandé ' + fmt(x.prixDemande) }) : null]),
+          h('td' + (x.luLe ? '' : '.doux'), { text: lu }),
+          h('td.num' + (x.offre ? '.inf' : ''), [h('div', { text: x.offre ? fmt(x.offre) : '—' }), x.offreLe ? h('div.mini', { text: AMX.fmtDate(x.offreLe, true) + (x.offreNom ? ' · ' + x.offreNom : '') }) : null]),
+          h('td', { text: x.offreMessage || '' }),
+          h('td', { text: (x.creePar || '').split('@')[0] }),
+          h('td', x.lien ? [h('a.petit', { href: x.lien, target: '_blank', rel: 'noopener', text: 'Lien', title: 'Ouvrir la page que l\'acheteur voit' })] : '')
+        ]);
+      }))
+    ])]));
+  };
+  /* La modale : acheteurs inscrits (cochés), acheteurs tapés (nom, cellulaire, courriel), prix demandé, message, photos. */
+  Evaluation.prototype.partagerWholesalers = function () {
+    var self = this, vin = (this.vinCourant || this.elNiv.value || '').trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) { AMX.toast('Entrez un NIV complet.', 'attention'); return; }
+    if (!this.parametresPrets()) { AMX.toast('Décodez d\'abord le véhicule (année, marque, modèle).', 'attention'); return; }
+    var veh = [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ');
+    var choisis = {}, recherche = '', inscrits = [];
+    var elListe = h('div.liste.compacte.eval-partage-liste');
+    var compte = h('span.doux.petit');
+    var majCompte = function () { var n = Object.keys(choisis).length + lignesLibres().length; compte.textContent = n ? n + ' destinataire' + (n > 1 ? 's' : '') : 'Aucun destinataire'; };
+    var rendreListe = function () {
+      AMX.vider(elListe);
+      var t = recherche.toLowerCase();
+      var l = inscrits.filter(function (a) { return !t || [a.nomLegal, a.nomCommercial, a.signataire, a.courriel, a.ville, a.pays].join(' ').toLowerCase().indexOf(t) >= 0; });
+      if (!inscrits.length) elListe.appendChild(h('div.doux.petit', { style: { padding: '8px' }, text: 'Aucun acheteur inscrit (Vente › Acheteurs) — tapez un acheteur ci-dessous.' }));
+      else if (!l.length) elListe.appendChild(h('div.doux.petit', { style: { padding: '8px' }, text: 'Aucun acheteur ne correspond.' }));
+      l.forEach(function (a) {
+        var tel = String(a.telephone || '').trim();
+        var case_ = h('input', { type: 'checkbox', checked: !!choisis[a.id], onchange: function (e) { if (e.target.checked) choisis[a.id] = a; else delete choisis[a.id]; majCompte(); } });
+        elListe.appendChild(h('label.ligne', { style: { cursor: 'pointer', gap: '10px', alignItems: 'center' } }, [case_,
+          h('div', { style: { minWidth: 0, flex: '1' } }, [h('div.titre', { text: a.nomLegal || a.signataire || a.courriel }), h('div.sous', { text: [a.signataire, a.courriel, tel ? 'texto ' + tel : 'pas de cellulaire', a.pays].filter(Boolean).join(' · ') })])]));
+      });
+    };
+    var libres = h('div.eval-partage-libres');
+    var ajouterLibre = function (v) {
+      v = v || {};
+      var nom = h('input.saisie', { type: 'text', placeholder: 'Nom (acheteur, entreprise)', value: v.nom || '' }), tel = h('input.saisie', { type: 'tel', placeholder: 'Cellulaire (texto)', value: v.telephone || '' }), courriel = h('input.saisie', { type: 'email', placeholder: 'Courriel', value: v.courriel || '' });
+      var ligne = h('div.eval-partage-libre', [nom, tel, courriel, h('button.btn.petit.fantome', { type: 'button', text: '×', title: 'Retirer', onclick: function () { ligne.remove(); majCompte(); } })]);
+      [nom, tel, courriel].forEach(function (i) { i.addEventListener('input', majCompte); });
+      ligne._champs = { nom: nom, tel: tel, courriel: courriel };
+      libres.appendChild(ligne);
+    };
+    var lignesLibres = function () { return Array.prototype.slice.call(libres.children).map(function (l) { var c = l._champs; return c ? { nom: c.nom.value.trim(), telephone: c.tel.value.trim(), courriel: c.courriel.value.trim() } : null; }).filter(function (x) { return x && (x.telephone || x.courriel); }); };
+    var prix = h('input.saisie', { type: 'number', step: '100', inputmode: 'numeric', placeholder: 'Facultatif — vide : l\'acheteur propose' });
+    var message = h('textarea.saisie', { rows: '2', placeholder: 'Message ajouté au texto et au courriel (facultatif)' });
+    var photos = h('input', { type: 'checkbox', checked: true });
+    var rech = h('div.recherche', [h('span', { html: I.recherche }), h('input.saisie', { type: 'search', placeholder: 'Nom, entreprise, courriel, ville', oninput: AMX.debounce(function (e) { recherche = e.target.value; rendreListe(); }, 120) })]);
+    var corps = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } }, [
+      h('div.alerte-bloc.info', [h('span', { html: I.voiture || I.info }), h('div', [h('b', { text: veh }), h('div.doux.petit', { text: vin + (this.elKm.value ? ' · ' + fmtKm(nombre(this.elKm.value)) : '') + ' · ' + (AMX.CONCESSIONS_TOUTES[this.elConcession.value] || '') })])]),
+      h('div', [h('div.outils-liste', [rech, compte]), elListe]),
+      h('div', [h('div.doux.petit', { style: { marginBottom: '4px' }, text: 'Ou un acheteur qui n\'est pas inscrit :' }), libres, h('button.btn.petit', { type: 'button', text: '+ Ajouter un acheteur', onclick: function () { ajouterLibre(); } })]),
+      h('div.grille.c2', [h('div.champ', [h('label', 'Prix demandé ($)'), prix]), h('label.case', { style: { alignSelf: 'end' } }, [photos, h('span', 'Inclure les photos du NIV (ouvertes par lien)')])]),
+      h('div.champ', [h('label', 'Message'), message]),
+      h('p.doux.petit', { style: { margin: 0 }, text: 'Chaque acheteur reçoit un lien personnel valide 30 jours (texto si un cellulaire est inscrit, courriel sinon ou en plus) ; jamais le prix d\'achat, la recon ni le client. Ses lectures et son offre s\'inscrivent dans le panneau Wholesalers ; vous êtes prévenu par courriel (et texto) à chaque offre.' })
+    ]);
+    ajouterLibre();
+    majCompte();
+    AMX.modale({ titre: 'Partager aux wholesalers — ' + veh, corps: corps, boutons: [{ texte: 'Annuler' }, { texte: 'Envoyer', classe: 'primaire', action: function () {
+      var cibles = Object.keys(choisis).map(function (id) { var a = choisis[id]; return { id: id, nom: a.nomLegal || a.signataire || '', telephone: a.telephone || '', courriel: a.courriel || '' }; }).concat(lignesLibres());
+      if (!cibles.length) { AMX.toast('Choisissez au moins un acheteur (ou tapez un cellulaire / courriel).', 'attention'); return false; }
+      /* le brouillon part d'abord : le serveur lit la fiche conservée (jamais une fiche vide) */
+      return Promise.resolve(self.sauvegarderAuto()).catch(function () {}).then(function () {
+        return AMX.post({ action: 'evalPartager', vin: vin, cibles: cibles, message: message.value.trim(), prixDemande: prix.value.trim(), photos: !!photos.checked, concession: self.elConcession.value });
+      }).then(function (d) {
+        if (!d || d.refuse || d.ok === false) { AMX.toast('Partage impossible — ' + ((d && d.erreur) || 'erreur'), 'erreur'); return false; }
+        AMX.toast('Partagé : ' + d.textos + ' texto' + (d.textos > 1 ? 's' : '') + ', ' + d.courriels + ' courriel' + (d.courriels > 1 ? 's' : '') + ((d.erreurs || []).length ? ' · ' + d.erreurs.join(' ; ') : ''), (d.erreurs || []).length ? 'attention' : 'ok', 7000);
+        self.chargerPartages(true);
+        return true;
+      }).catch(function (e) { AMX.toast('Partage impossible — ' + AMX.erreurTexte(e), 'erreur'); return false; });
+    } }] });
+    AMX.post({ action: 'acheteursExternes' }).then(function (d) { inscrits = ((d && d.acheteurs) || []).filter(function (a) { return a.statut === 'inscrit'; }); rendreListe(); }, function () { rendreListe(); });
+    rendreListe();
   };
 
 

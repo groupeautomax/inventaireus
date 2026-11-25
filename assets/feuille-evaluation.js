@@ -168,7 +168,7 @@
       vehicule: {
         titre: titre, vin: txt(x.vin), km: nombre(x.km),
         carrosserie: txt(ev && ev.carrosserie) || txt(dec.carrosserie), moteur: txt(ev && ev.moteur) || txt(dec.moteur),
-        carburant: txt(ev && ev.carburant) || txt(dec.carburant), transmission: txt(dec.transmission),
+        carburant: txt(ev && ev.carburant) || txt(dec.carburant), transmission: txt(eEval.transmission) || txt(eDemande.transmission) || txt(dec.transmission), /* 26 nov. (S8AE9E8F145) : la transmission inscrite à l'évaluation l'emporte sur le décodeur */
         motricite: txt(ev && ev.motricite) || txt(dec.motricite),
         cles: e.cles || '', couleurExt: e.couleurExt || '', couleurInt: e.couleurInt || ''
       },
@@ -194,6 +194,7 @@
       '@media print { body.impression-feuille-eval > *:not(#feuille-eval-impression) { display: none !important; } body.impression-feuille-eval { background: #fff !important; } body.impression-feuille-eval #feuille-eval-impression { display: block; page: fev; } }',
       '.fev-page { box-sizing: border-box; width: 100%; max-width: 7.5in; margin: 0 auto; background: #fff; color: #111; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11.5px; line-height: 1.38; -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
       '.fev-page * { box-sizing: border-box; }',
+      '.fev-table td.fev-a-remplir { min-width: 180px; border-bottom: 1px solid #999; }', /* 26 nov. : couleur à écrire à la main */
       '.fev-entete { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 8px; }',
       '.fev-cie-nom { font-size: 16px; font-weight: 800; } .fev-doux { color: #444; font-size: 10.5px; }',
       '.fev-titre { text-align: right; } .fev-titre h1 { margin: 0 0 3px; font-size: 21px; line-height: 1.1; letter-spacing: .01em; }',
@@ -252,7 +253,9 @@
       rangee(L.carburant, libelle('carburant', lg, v.carburant)),
       rangee(L.transmission, transmissionTexte(lg, v.transmission)),
       rangee(L.motricite, libelle('motricite', lg, v.motricite)),
-      rangee(L.couleur, couleur),
+      /* 26 nov. (SCB22B1F56D, Eric Morin, VW : « quand on imprime l'évaluation, avoir la couleur extérieure ») : la rangée Couleur s'imprime
+      toujours — la couleur inscrite à l'évaluation (ou à la demande), sinon une ligne à remplir à la main. */
+      couleur ? rangee(L.couleur, couleur) : h('tr', [h('th', { text: L.couleur }), h('td.fev-a-remplir', { text: '' })]),
       rangee(L.cles, libelle('cles', lg, v.cles))
     ].filter(Boolean))]);
     var echelle = e.general && ORDRE_ETAT.indexOf(e.general) >= 0 ? h('div', [h('span.fev-l', { text: L.etat }), h('div.fev-echelle', ORDRE_ETAT.map(function (k) {
@@ -354,6 +357,13 @@
     enCours = true;
     injecterCss();
     var portail = !!opts.portail;
+    /* 26 nov. (S07F9F97D4F, Emeric, BMW : « que les vendeurs puissent imprimer le CARFAX en même temps que la feuille d'évaluation »)
+    : le rapport CARFAX du véhicule s'ouvre dans un deuxième onglet au moment où la feuille part à l'impression — ouvert ici, au clic
+    (un onglet ouvert plus tard, après les lectures, serait bloqué par le navigateur) ; il s'imprime depuis son onglet. */
+    if (opts.carfax !== false && AMX.carfax && AMX.carfax.lien) {
+    var lienCfx = ''; try { lienCfx = AMX.carfax.lien(x.vin) || ''; } catch (eC) { lienCfx = ''; }
+    if (lienCfx) { try { window.open(lienCfx, '_blank', 'noopener'); AMX.toast('Rapport CARFAX ouvert dans un autre onglet : imprimez-le de là (Ctrl / Cmd + P).', 'ok', 6000); } catch (eO) {} }
+    }
     if (opts.bouton) opts.bouton.classList.add('occupe');
     return Promise.all([auPlus(lireInfo(x), 7000), auPlus(lireDecodage(x.vin), 7000), auPlus(lireEvaluation(x, portail), 7000)]).then(function (r) {
       var f = donnees(x, { info: r[0], dec: r[1], ev: r[2], maintenant: new Date() });

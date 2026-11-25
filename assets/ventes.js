@@ -456,7 +456,8 @@
       '.ventes-fi-ligne .puce { font-size: 12px; }',
       '.ventes-table td.vehicule .nom { font-weight: 600; } .ventes-table td.vehicule .vin { font-family: var(--mono); font-size: 12px; color: var(--encre-3); }',
       '.ventes-table td .sous { font-size: 12px; color: var(--encre-3); }',
-      '.ventes-table td .sous.a-venir { color: var(--ambre); } .ventes-mois #ventes-selon { margin-right: 8px; }',   /* 6 nov. : rangement par date de vente */
+      '.ventes-table td .sous.a-venir { color: var(--ambre); } .ventes-mois #ventes-selon { margin-right: 8px; }',
+      '.ventes-a-livrer .ventes-a-livrer-lien { color: inherit; text-decoration: none; padding: 2px 8px; border-radius: 999px; background: var(--blanc, #fff); border: 1px solid var(--bordure, #E5E7EB); } .ventes-a-livrer .ventes-a-livrer-lien:hover { border-color: var(--encre-2); }', /* 26 nov. : ventes à livrer nommées sous la liste rangée par livraison */   /* 6 nov. : rangement par date de vente */
       '.ventes-table tr.annulee td { color: var(--encre-4); text-decoration: line-through; } .ventes-table tr.annulee td .puce, .ventes-table tr.annulee td .btn { text-decoration: none; }',
       '.ventes-table tr.groupe td { background: var(--carte-2); font-weight: 700; font-size: 12.5px; padding: 8px 10px; border-top: 2px solid var(--ligne); }',
       '.ventes-table tr.groupe td .sous { font-weight: 400; margin-left: 8px; }',
@@ -891,7 +892,11 @@
   VueVentes.prototype.periodeLivraison = function () {
     var p = this.periode; return !this.parVente() && this.vue !== 'commandes' && (/^\d{4}-\d{2}$/.test(p) || /^\d{4}$/.test(p)) ? p : '';
   };
-  function livreeDansPeriode(v, p) { var dl = String((v && v.dateLivraison) || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(dl)) return false; return p.length === 4 ? dl.slice(0, 4) === p : dl.slice(0, 7) === p; }
+  /* 26 nov. (S0F27DBBC5F, Pierre Sérino, Hawkesbury : « quand on met une date de livraison, la comptabilité le voit en livré même si la date
+  prévue n'est pas encore passée ») : une date de livraison À VENIR est une livraison prévue, pas une livraison — rangée par livraison,
+  la vente n'entre dans le mois qu'une fois la date passée ; avant, elle est nommée « à livrer » sous la liste. */
+  function livraisonPrevue(v) { var dl = String((v && v.dateLivraison) || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(dl) && dl > isoLocal(new Date()); }
+  function livreeDansPeriode(v, p) { var dl = String((v && v.dateLivraison) || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(dl) || dl > isoLocal(new Date())) return false; return p.length === 4 ? dl.slice(0, 4) === p : dl.slice(0, 7) === p; }
   VueVentes.prototype.horsLivraison = function () {
     var d = cache.rep, p = this.periodeLivraison(); if (!d || !p) return [];
     return d.ventes.filter(function (v) { return !livreeDansPeriode(v, p); });
@@ -1106,19 +1111,25 @@
     if (pl) {
       var hors = this.horsLivraison().filter(duType);
       var annulees = hors.filter(function (v) { return v.statut === 'annulee'; }), pasLivrees = hors.filter(function (v) { return v.statut !== 'annulee'; });
-      var autreMois = pasLivrees.filter(function (v) { return dateLivraisonOk(v); });
+      var autreMois = pasLivrees.filter(function (v) { return dateLivraisonOk(v) && !livraisonPrevue(v); });
+      var prevues = pasLivrees.filter(livraisonPrevue), sansDate = pasLivrees.filter(function (v) { return !dateLivraisonOk(v); }); /* 26 nov. : à livrer (date prévue à venir) / sans date */
       if (hors.length) {
-        var lib = pl.length === 4 ? 'l\'année ' + pl : moisLibelle(pl);
-        var morceaux = [pasLivrees.length - autreMois.length ? pluriel(pasLivrees.length - autreMois.length, 'vente') + ' pas encore livrée' + (pasLivrees.length - autreMois.length > 1 ? 's' : '') : '',
-          autreMois.length ? pluriel(autreMois.length, 'vente') + ' livrée' + (autreMois.length > 1 ? 's' : '') + ' un autre mois' : '',
-          annulees.length ? pluriel(annulees.length, 'annulée') : ''].filter(Boolean).join(' · ');
+      var lib = pl.length === 4 ? 'l\'année ' + pl : moisLibelle(pl);
+      var morceaux = [sansDate.length ? pluriel(sansDate.length, 'vente') + ' sans date de livraison' : '',
+      prevues.length ? pluriel(prevues.length, 'vente') + ' à livrer (date prévue à venir)' : '',
+      autreMois.length ? pluriel(autreMois.length, 'vente') + ' livrée' + (autreMois.length > 1 ? 's' : '') + ' un autre mois' : '',
+      annulees.length ? pluriel(annulees.length, 'annulée') : ''].filter(Boolean).join(' · ');
+      var aVoir = sansDate.concat(prevues); /* nommées une à une, cliquables : la comptabilité les retrouve sans changer de rangement */
         lignes.push(h('div.ventes-hors-livraison', [
-          h('span', { text: 'Pas comptées dans les livraisons ' + (/^[aeiouyéèh]/i.test(lib) ? 'd\'' : 'de ') + lib + ' : ' + morceaux + ' (vendues dans la période, sans livraison dans la période).', title: hors.map(function (v) { return v.id + (v.stock ? ' # ' + v.stock : '') + ' · ' + (v.client || v.venduA || '') + ' · vendue le ' + (v.dateVente || '?') + (v.statut === 'annulee' ? ' · annulée' : (dateLivraisonOk(v) ? ' · livrée le ' + v.dateLivraison : ' · pas livrée')); }).join('\n') }),
+          h('span', { text: 'Pas comptées dans les livraisons ' + (/^[aeiouyéèh]/i.test(lib) ? 'd\'' : 'de ') + lib + ' : ' + morceaux + ' (vendues dans la période, sans livraison dans la période).', title: hors.map(function (v) { return v.id + (v.stock ? ' # ' + v.stock : '') + ' · ' + (v.client || v.venduA || '') + ' · vendue le ' + (v.dateVente || '?') + (v.statut === 'annulee' ? ' · annulée' : (dateLivraisonOk(v) ? (livraisonPrevue(v) ? ' · livraison prévue le ' : ' · livrée le ') + v.dateLivraison : ' · pas de date de livraison')); }).join('\n') }),
           h('button.btn.petit.fantome', { type: 'button', text: 'Voir par date de vente', onclick: function () { self.selon = 'vente'; AMX.memo.ecrire('ventes_selon', 'vente'); self.rendreCies(); self.rendre(); } }),
-          pasLivrees.length - autreMois.length ? h('button.btn.petit.fantome', { type: 'button', text: 'Commandes vendues', onclick: function () { AMX.aller('ventes', 'commandes', { type: f.type || 'neuf' }); } }) : null
-        ]));
-      }
-    }
+          sansDate.length + prevues.length ? h('button.btn.petit.fantome', { type: 'button', text: 'Commandes vendues', onclick: function () { AMX.aller('ventes', 'commandes', { type: f.type || 'neuf' }); } }) : null
+          ]));
+          if (aVoir.length) lignes.push(h('div.ventes-hors-livraison.ventes-a-livrer', [h('span.doux', { text: 'À livrer : ' })].concat(aVoir.slice(0, 40).map(function (v) {
+          return h('a.ventes-a-livrer-lien', { href: '#', title: 'Ouvrir la vente ' + v.id, onclick: function (e) { e.preventDefault(); ouvrirFiche(v); } }, [h('b', { text: v.stock ? '# ' + v.stock : v.id }), h('span', { text: ' ' + (v.client || v.venduA || '') + ' · vendue ' + AMX.fmtDateCourte(v.dateVente) + (livraisonPrevue(v) ? ' · prévue ' + AMX.fmtDateCourte(v.dateLivraison) : ' · sans date') })]);
+          }), aVoir.length > 40 ? [h('span.doux', { text: ' … et ' + (aVoir.length - 40) + ' de plus' })] : [])));
+          }
+          }
     var dbl = doublonsDe(liste);
     if (dbl.length) {
       lignes.push(h('div.ventes-hors-livraison.attention', [
@@ -1607,7 +1618,7 @@
       g.ventes.forEach(function (v) {
         var prd = produitsListe(v);
         var tr = h('tr.cliquable' + (v.statut === 'annulee' || estRefusee(v) ? '.annulee' : ''), { dataset: { id: v.id } }, [
-          h('td', (parV ? celluleDateVente(v) : dateLivraisonOk(v) ? [h('div', { text: AMX.fmtDateCourte(v.dateLivraison), title: 'Livrée le ' + AMX.fmtDate(v.dateLivraison) + (v.dateVente ? ' · vendue le ' + AMX.fmtDate(v.dateVente) : '') + (v.dateRdr ? ' · RDR au livre ' + AMX.fmtDate(v.dateRdr) : '') })] : [h('div.date-vente', { text: AMX.fmtDateCourte(v.dateVente), title: 'Date de vente (pas de date de livraison inscrite : la vente compte dans le mois de sa date de vente)' })])
+          h('td', (parV ? celluleDateVente(v) : dateLivraisonOk(v) ? [h('div', { text: AMX.fmtDateCourte(v.dateLivraison), title: (livraisonPrevue(v) ? 'Livraison prévue le ' : 'Livrée le ') + AMX.fmtDate(v.dateLivraison) + (v.dateVente ? ' · vendue le ' + AMX.fmtDate(v.dateVente) : '') + (v.dateRdr ? ' · RDR au livre ' + AMX.fmtDate(v.dateRdr) : '') }), livraisonPrevue(v) ? h('div.sous.a-venir', { text: 'livraison prévue', title: 'La date de livraison n\'est pas encore passée : la vente n\'est pas livrée' }) : null] : [h('div.date-vente', { text: AMX.fmtDateCourte(v.dateVente), title: 'Date de vente (pas de date de livraison inscrite : la vente compte dans le mois de sa date de vente)' })])
             .concat([self.vue === 'commandes' && joursDepuisVente(v) !== null ? h('div.sous' + (ageCommande(v) === 'vieilles' ? '.retard' : ''), { text: 'depuis ' + joursDepuisVente(v) + ' j', title: (dateLivraisonOk(v) ? 'Livraison prévue' : 'Pas livrée') + ' — jours depuis la date de vente' }) : null])
             .concat([self.filtres.drapeau === 'sansRdr' && self.sansRdr(v) ? h('div.sous.rdr.manque', { text: 'sans RDR', title: 'Neuf livré sans Date RDR au livre' }) : null])),
           h('td.vehicule', { title: v.vin || '' }, [h('div.nom', { text: vehiculeTexte(v) || '(véhicule à préciser)' }), v.stock ? h('div.vin', [h('span', { text: '# ' + v.stock }), puceDoublon(v)]) : null]),

@@ -309,7 +309,7 @@
     s.id = 'css-evaluation';
     s.textContent = [
       /* 17 nov. (S04C4776488) : analyse rapide d'un NIV — rien n'est enregistré, pas de client ni d'état à remplir. */
-      '.eval-page.eval-rapide [data-tuile="suivi"], .eval-page.eval-rapide [data-tuile="etat"], .eval-page.eval-rapide #eval-sauvegarde { display: none !important; }',
+      '.eval-page.eval-rapide [data-tuile="suivi"], .eval-page.eval-rapide [data-tuile="etat"], .eval-page.eval-rapide [data-tuile="declaration"], .eval-page.eval-rapide #eval-sauvegarde { display: none !important; }',
       '.eval-rapide-bandeau { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--bleu); border-radius: 8px; background: var(--bleu-bg); color: var(--encre); font-size: 14px; }',
       '.eval-rapide-bandeau b { color: var(--bleu); }',
       '.eval-km-alerte:empty { display: none; } .eval-km-alerte { margin: 0 0 10px; }',
@@ -519,7 +519,8 @@
       '.eval-etat-notes { margin-top: 10px; } .eval-etat-notes textarea { width: 100%; min-height: 54px; resize: vertical; }',
       '.eval-photos-entete { display: flex; align-items: center; gap: 10px; margin: 14px 0 8px; } .eval-photos-entete h3 { margin: 0; font-size: 13px; }',
       '.eval-photos { display: flex; flex-wrap: wrap; gap: 8px; } .eval-photo img { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid var(--ligne); display: block; background: var(--gris-bg); }',
-      '#eval-suivi-statut button.actif.s-ambre { color: var(--ambre); } #eval-suivi-statut button.actif.s-vert { color: var(--vert); } #eval-suivi-statut button.actif.s-rouge { color: var(--rouge); } #eval-suivi-statut button.actif.s-bleu { color: var(--bleu); } #eval-suivi-statut button.actif.s-violet { color: var(--violet); }',
+      '#eval-suivi-statut button.actif.s-ambre { color: var(--ambre); } #eval-suivi-statut button.actif.s-vert { color: var(--vert); } #eval-suivi-statut button.actif.s-rouge { color: var(--rouge); } #eval-suivi-statut button.actif.s-bleu { color: var(--bleu); } #eval-suivi-statut button.actif.s-violet { color: var(--violet); } #eval-suivi-statut button.actif.s-gris { color: var(--encre-2); }',
+      '#eval-suivi-statut .eval-statut-autre { border: none; background: transparent; font: inherit; font-size: 12px; color: var(--encre-2); height: 26px; padding: 0 4px; cursor: pointer; }',
       '.eval-sommaire .item.suivi.s-ambre .v { color: var(--ambre); } .eval-sommaire .item.suivi.s-vert .v { color: var(--vert); } .eval-sommaire .item.suivi.s-rouge .v { color: var(--rouge); } .eval-sommaire .item.suivi.s-bleu .v { color: var(--bleu); } .eval-sommaire .item.suivi.s-violet .v { color: var(--violet); }',
       '@media (max-width: 600px) { .eval-grille-suivi, .eval-grille-etat { grid-template-columns: repeat(2, minmax(0, 1fr)); } .eval-recon-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); } .eval-chips .l { min-width: 0; width: 100%; } }',
       '@media (max-width: 900px) and (min-width: 601px) { .eval-recon-detail { grid-template-columns: repeat(3, minmax(0, 1fr)); } }',
@@ -573,6 +574,8 @@
       '.registre-chiffres .kpi { flex: 1 1 0; } @media (max-width: 860px) { .registre-chiffres .kpi { flex: 1 0 140px; } }',
       '.registre-par-cie { margin-bottom: 12px; } .registre-par-cie .tableau { min-width: 0 !important; } .registre-par-cie tr.cliquable { cursor: pointer; } .registre-par-cie tr.cliquable:hover td { background: var(--carte-2); }',
       '.registre-table td.registre-relancer { color: var(--ambre); font-weight: 700; }',
+      /* 24 nov. : vue Statistiques du registre */
+      '.registre-stats-kpis { margin: 12px 14px 4px; } .registre-stats-grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 10px 14px 14px; } .registre-stats-carte { margin: 0; } .registre-stats-carte .carte-entete { padding: 8px 12px; } .registre-stats-carte .tableau { min-width: 0 !important; } .registre-table .eval-note { margin: 0 14px 12px; } @media (max-width: 1100px) { .registre-stats-grille { grid-template-columns: 1fr; } }',
       '.registre-table tr.registre-a-relancer td:first-child { box-shadow: inset 3px 0 0 var(--ambre); }',
       '.registre-suivi-puces { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }',
       /* 24 nov. : Analyse IA */
@@ -596,6 +599,18 @@
       '.eval-ia-adn { border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; margin-bottom: 4px; } .eval-ia-adn .eval-ia-grille { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; } .eval-ia-adn .eval-ia-grille .l { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--encre-3); font-weight: 600; } .eval-ia-adn .eval-ia-grille .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; } .eval-ia-adn .eval-ia-grille .m { font-size: 12px; color: var(--encre-4); } .eval-ia-adn .eval-table .tableau { min-width: 640px; } .eval-ia-adn .eval-note { margin: 4px 0 8px; }',
       '.eval-table .puce.vendu { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--rouge); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; vertical-align: 1px; } .eval-table tr.eval-vendu td { color: var(--encre-2); background: var(--carte-2); } .eval-table .baisse { color: var(--vert); font-size: 11px; margin-left: 4px; white-space: nowrap; }',
       '@media (max-width: 900px) { .eval-ia-tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .eval-ia-blocs { grid-template-columns: 1fr; } .eval-ia-signaux .sig { grid-template-columns: 120px minmax(0, 1fr) 44px; } .eval-ia-signaux .txt { grid-column: 1 / -1; } .eval-ia-adn .eval-ia-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); } }',
+      /* 24 nov. (étape 2) : dessin des dommages, déclaration du propriétaire */
+      '.eval-dommages { margin-top: 12px; border: 1px solid var(--ligne); border-radius: var(--rayon-s); padding: 10px 12px; }',
+      '.eval-dommages-outils { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; } .eval-dommages-outils .l { font-size: 12px; font-weight: 700; color: var(--encre-3); text-transform: uppercase; letter-spacing: .06em; margin-right: 4px; } .eval-dommages-outils .btn.actif { border-color: var(--vert); color: var(--vert); background: var(--vert-clair); }',
+      '.eval-dommages-svg { display: block; width: 100%; max-width: 760px; height: auto; background: var(--fond); border: 1px dashed var(--ligne-forte); border-radius: var(--rayon-s); touch-action: none; cursor: crosshair; user-select: none; } .eval-dommages-svg.gomme { cursor: pointer; } .eval-dommages-svg.gomme polyline { stroke-width: 10; pointer-events: stroke; }',
+      '.eval-dommages .saisie { margin-top: 8px; width: 100%; }',
+      '.eval-decl-table { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }',
+      '.eval-decl-titre { font-size: 12px; font-weight: 700; color: var(--encre-3); text-transform: uppercase; letter-spacing: .06em; margin: 8px 0 2px; }',
+      '.eval-decl-ligne { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 4px 8px; border-radius: var(--rayon-s); font-size: 13px; } .eval-decl-ligne:nth-child(even) { background: var(--fond); } .eval-decl-ligne.alerte { background: var(--rouge-bg, #FDECEC); } .eval-decl-ligne .eval-chips { gap: 0; }',
+      '.eval-decl-pied { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }',
+      '.eval-decl-autres { grid-column: span 2; }',
+      '@media (max-width: 600px) { .eval-decl-ligne { grid-template-columns: 1fr auto auto; font-size: 12.5px; } .eval-decl-autres { grid-column: span 2; } }',
+      '@media print { body.impression-offre #offre-impression.decl-impression { max-width: 820px; font-size: 12px; } .decl-table { width: 100%; border-collapse: collapse; margin: 0 0 12px; } .decl-table td, .decl-table th { border: 1px solid #ddd; padding: 4px 8px; } .decl-table th { text-align: left; background: #f3f4f6; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; } .decl-table .decl-case { width: 64px; white-space: nowrap; text-align: center; font-size: 13px; } .decl-champs { margin: 0 0 12px; } .decl-champs .l { font-weight: 700; } .decl-dommages { margin: 0 0 12px; break-inside: avoid; } .decl-dommages .l { font-weight: 700; margin-bottom: 4px; } .decl-dommages svg { width: 420px; height: auto; display: block; } .decl-texte { font-size: 11.5px; color: #333; margin: 0 0 8px; } #offre-impression.decl-impression .offre-signatures { margin-top: 30px; } }',
       '@media (max-width: 900px) {',
       '  .eval-stats { grid-template-columns: 1fr; }',
       '  .eval-page .carte-entete { flex-wrap: wrap; }',
@@ -909,7 +924,7 @@
       h('div.actions', (AMX.ui2 && AMX.ui2())
         /* v134 (nouvelle interface) ; 12 nov. (« plein d'écrits partout ») : un seul bouton, Enregistrer — l'analyse part
            toute seule ; la relancer, la feuille d'offre et Effacer vont dans « Actions » (les boutons gardent leur code). */
-        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { texte: 'Mes valeurs par défaut (recon, marge)', action: function () { self.mesDefauts(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer, this.btnFaire]
+        ? [AMX.menuActions([{ bouton: this.btnAnalyser, texte: 'Relancer l\'analyse du marché' }, { texte: 'Feuille d\'offre (imprimer / PDF)', icone: I.telecharger, action: function () { self.feuilleOffre(); } }, { texte: 'Déclaration du propriétaire (imprimer / PDF)', icone: I.telecharger, action: function () { self.imprimerDeclaration(); } }, { texte: 'Mes valeurs par défaut (recon, marge)', action: function () { self.mesDefauts(); } }, { bouton: this.btnEffacer, texte: 'Effacer l\'évaluation' }]), this.btnEnregistrer, this.btnFaire]
         : [this.btnAnalyser, this.btnOffre, this.btnEnregistrer, this.btnEffacer, this.btnFaire])
     ]);
     this.rendreSauvegarde();
@@ -1030,7 +1045,7 @@
     this.elMotricite.addEventListener('change', function () { self.vehManuel.motricite = true; self.tractionVehicule = self.elMotricite.value; if (!self.tractionManuelle) self.filtres.traction = self.elMotricite.value; self.planifierAuto(); self.rendreMarche(); });
     this.elCabine.addEventListener('change', function () { self.vehManuel.cabine = true; if (!self.filtresManuels.cabine) self.filtres.cabine = self.elCabine.value; self.planifierAuto(); self.rendreMarche(); });
     this.elMoteur.addEventListener('change', function () { self.vehManuel.moteur = true; if (!self.filtresManuels.moteur) self.filtres.moteur = cylindreeDe(self.elMoteur.value); self.planifierAuto(); self.rendreMarche(); });
-    this.elStyle.addEventListener('change', function () { self.majCabine(); });
+    this.elStyle.addEventListener('change', function () { self.majCabine(); if (self.dommages) self.dommages.style(self.elStyle.value); });
     var depart = this.concessionDepart();
     if (depart) this.elConcession.value = depart;
     this.rendreCie();
@@ -1111,6 +1126,7 @@
     { id: 'openlane', titre: 'OpenLane', ico: I.resultat, panneau: 'openlane' },
     { id: 'suivi', titre: 'Client et suivi', ico: I.relance, panneau: 'suivi' },
     { id: 'etat', titre: 'État et photos', ico: I.photo, panneau: 'etat' },
+    { id: 'declaration', titre: 'Déclaration', ico: ICO_DECL, panneau: 'declaration' },   /* 24 nov. (étape 2) : la déclaration du propriétaire, imprimable */
     { id: 'rappels', titre: 'Rappels', ico: I.alerte, panneau: 'rappels' },
     { id: 'liens', titre: 'CARFAX et liens', ico: I.lien, panneau: 'liens' },
     { id: 'historique', titre: 'Historique', ico: ICO_HORLOGE, panneau: 'historique' }
@@ -1156,11 +1172,12 @@
     this.elIa = h('div#eval-ia');
     var pIa = carte(h('div.titre', [h('h2', 'Analyse IA'), h('p', 'La synthèse pour ce véhicule : prix de détail suggéré, ce que nous avons payé pour les mêmes, la valeur wholesale, un score de reprise, le délai de vente estimé, les ventes récentes, l\'approvisionnement et la tendance des prix.')]), [this.elIa]);
     pIa.id = 'sec-ia';
-    var contenus = { ia: pIa, marche: o.marche, export: this.elExport, region: pRegion, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, rappels: pRappels, liens: pLiens, historique: pHist };
+    if (!this.elDeclCarte) this.construireDeclaration();
+    var contenus = { ia: pIa, marche: o.marche, export: this.elExport, region: pRegion, openlane: pOpenlane, suivi: this.elSuiviCarte, etat: this.elEtatCarte, declaration: this.elDeclCarte, rappels: pRappels, liens: pLiens, historique: pHist };
     this.panneaux = {};
     this.elPanneaux = h('div.eval-panneaux#eval-panneaux');
     // Ordre des panneaux dans la page : Canada / É.-U. avant le marché (comme avant), le reste ensuite.
-    ['ia', 'suivi', 'etat', 'export', 'region', 'marche', 'openlane', 'rappels', 'liens', 'historique'].forEach(function (k) {
+    ['ia', 'suivi', 'etat', 'declaration', 'export', 'region', 'marche', 'openlane', 'rappels', 'liens', 'historique'].forEach(function (k) {
       if (!contenus[k] || (k === 'region' && !self.tuiles.region)) return;
       var p = h('div.eval-panneau#eval-p-' + k, { role: 'tabpanel', hidden: 'hidden' }, [contenus[k]]);
       self.panneaux[k] = p;
@@ -1317,6 +1334,8 @@
     var etatRempli = this.chipsOptions ? !!this.collecterSuivi().etatVehicule : false;
     var etatTxt = [gen, accidentOui && !gen ? 'Accident' : '', nPh ? nPh + ' photo' + (nPh > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || (etatRempli ? 'Rempli' : '');
     poser('etat', etatTxt || 'À remplir', this.elAccident && this.elAccident.value === 'oui' ? 'rouge' : (etatTxt ? '' : 'gris'), this.elAccident && this.elAccident.value === 'oui' ? 'Accident déclaré' : '');
+    // 24 nov. : la déclaration du propriétaire
+    if (this.tuiles.declaration) { var rd = this.resumeDeclaration(); poser('declaration', rd.texte, rd.ton, rd.titre); }
     // Rappels
     var r = this.rappels;
     if (!r) poser('rappels', '—', 'gris');
@@ -1827,12 +1846,19 @@
      Tout vit dans le JSON de l'évaluation (`suivi`, `etatVehicule`, plus etat / pneus / pareBrise /
      accident à plat pour le panneau d'inventaire) ; les photos passent par uploadPhoto (par NIV) et
      suivent le véhicule s'il est acheté. */
-  var SUIVI_STATUTS = [['attente', 'En attente', 'ambre'], ['complete', 'Complété / relance', 'vert'], ['perdu', 'Perdu', 'rouge'], ['repris', 'Repris', 'bleu'], ['reprisWholesale', 'Repris wholesale', 'violet']];
+  /* 24 nov. (étape 2, Torque) : les 12 statuts ; les 5 d'avant restent en boutons, les 7 autres dans une liste « Autre… ». */
+  var SUIVI_STATUTS = [['client', 'Client (lien client)', 'bleu'], ['attente', 'En attente', 'ambre'], ['complete', 'Complété / relance', 'vert'], ['perdu', 'Perdu', 'rouge'], ['repris', 'Repris', 'bleu'],
+    ['wholesale', 'Wholesale', 'violet'], ['reprisWholesale', 'Repris wholesale', 'violet'], ['depot', 'Dépôt / commande', 'ambre'], ['inventaire', 'En inventaire', 'vert'], ['incomplete', 'Fiche incomplète', 'gris'], ['sommaire', 'Évaluation sommaire', 'gris'], ['marketplace', 'Marketplace', 'bleu']];
+  var SUIVI_PRINCIPAUX = ['attente', 'complete', 'perdu', 'repris', 'reprisWholesale'];
+  var SUIVI_REPRIS = { repris: 1, reprisWholesale: 1, wholesale: 1, depot: 1, inventaire: 1 };   // les statuts qui comptent comme une reprise (registre, KPI, ADN)
   var SUIVI_ORIGINES = ['Sans rendez-vous', 'Téléphone', 'Internet', 'Référence', 'Service', 'Client existant', 'Autre'];
   var SUIVI_TRANSACTIONS = [['echange', 'Échange (achète chez nous)'], ['achat', 'Achat seulement']];
   var ETAT_GENERAL = [['excellent', 'Excellent'], ['bon', 'Bon'], ['normal', 'Normal'], ['mauvais', 'Mauvais']];
   var ETAT_PNEUS = ['Neufs', 'Bons', 'Moyens', 'À changer', 'Aucun'];
-  var ETAT_PARE_BRISE = ['Bon', 'Éclat', 'Fissuré', 'À changer'];
+  var ETAT_PARE_BRISE = ['Bon', 'Éclat', 'Éclat réparé', 'Fissuré', 'À changer'];   /* 24 nov. : + Éclat réparé (Torque) */
+  var ETAT_PNEUS_POUCES = ['14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24'];
+  var ETAT_PNEUS_TYPES = [['acier', 'Jantes en acier'], ['mags', 'Mags'], ['magsOem', 'Mags OEM'], ['pneus', 'Pneus seulement']];
+  var ETAT_ASSURANCES = [['vie', 'Assurance vie'], ['invalidite', 'Invalidité'], ['maladieGrave', 'Maladie grave'], ['remplacement', 'Remplacement'], ['antirouille', 'Antirouille'], ['burinage', 'Burinage'], ['entretien', 'Contrat d\'entretien'], ['parePierre', 'Pare-pierre'], ['autres', 'Autres']];
   var ETAT_ACCIDENT = [['non', 'Non'], ['oui', 'Oui'], ['inconnu', 'Inconnu']];
   /* 1er nov. : les champs que Torque avait et pas nous (rapport « Torque face à ScanAutomax », points 1 à 7). Mêmes
      codes que l'app (EvaluationSuivi.swift). Les cases oui / non sont des pastilles à cocher (tableaux de codes). */
@@ -1850,7 +1876,7 @@
   /* 2 nov. : les mêmes listes servent au détail que le représentant inscrit dans sa demande (demandes-eval.js). */
   AMX.evalListes = { origines: SUIVI_ORIGINES, transactions: SUIVI_TRANSACTIONS, typesClient: SUIVI_TYPES_CLIENT, langues: SUIVI_LANGUES,
     etatGeneral: ETAT_GENERAL, pneus: ETAT_PNEUS, pareBrise: ETAT_PARE_BRISE, accident: ETAT_ACCIDENT, cles: ETAT_CLES, financement: ETAT_FINANCEMENT,
-    constats: ETAT_CONSTATS, garanties: ETAT_GARANTIES, options: ETAT_OPTIONS };
+    constats: ETAT_CONSTATS, garanties: ETAT_GARANTIES, options: ETAT_OPTIONS, pneusPouces: ETAT_PNEUS_POUCES, pneusTypes: ETAT_PNEUS_TYPES, assurances: ETAT_ASSURANCES, statuts: SUIVI_STATUTS };
   function statutSuivi(cle) { return SUIVI_STATUTS.filter(function (s) { return s[0] === cle; })[0] || null; }
   // Une rangée de pastilles à cocher : { el, get() → [codes], set([codes]) } ; un code inconnu (ancienne fiche) est gardé.
   function pastilles(id, libelle, liste, ton, surChange) {
@@ -1946,12 +1972,20 @@
     var cCoulExt = champ('e-couleur-ext', 'Couleur ext.', { placeholder: 'Blanc' });
     var cCoulInt = champ('e-couleur-int', 'Couleur int.', { placeholder: 'Noir' });
     var cPneusDim = champ('e-pneus-dim', 'Dimension pneus', { placeholder: '235/55R19' });
+    /* 24 nov. (étape 2, Torque) : grandeur et type de roues par saison, garantie prolongée (fin, km, par), protections achetées */
+    var cPneusEteP = listeChoix('e-pneus-ete-pouces', 'Été : pouces', ETAT_PNEUS_POUCES), cPneusEteT = listeChoix('e-pneus-ete-type', 'Été : roues', ETAT_PNEUS_TYPES);
+    var cPneusHivP = listeChoix('e-pneus-hiver-pouces', 'Hiver : pouces', ETAT_PNEUS_POUCES), cPneusHivT = listeChoix('e-pneus-hiver-type', 'Hiver : roues', ETAT_PNEUS_TYPES);
+    var cGarFin = champ('e-garantie-fin', 'Garantie prolongée : fin', { type: 'date' }), cGarKm = champ('e-garantie-km', 'Garantie prolongée : km max', { type: 'number', inputmode: 'numeric', placeholder: '160 000' }), cGarPar = champ('e-garantie-par', 'Garantie prolongée : par', { placeholder: 'Manufacturier, Lubrico…' });
+    this.elPneusEtePouces = cPneusEteP.input; this.elPneusEteType = cPneusEteT.input; this.elPneusHiverPouces = cPneusHivP.input; this.elPneusHiverType = cPneusHivT.input;
+    this.elGarantieFin = cGarFin.input; this.elGarantieKm = cGarKm.input; this.elGarantiePar = cGarPar.input; this.elChampsGarantie = [cGarFin.el, cGarKm.el, cGarPar.el];
     var cAccMontant = champ('e-accident-montant', 'Montant de l\'accident ($)', { type: 'number', inputmode: 'numeric' });
     var cFinancement = listeChoix('e-financement', 'Financement', ETAT_FINANCEMENT);
     this.elCles = cCles.input; this.elCouleurExt = cCoulExt.input; this.elCouleurInt = cCoulInt.input; this.elPneusDim = cPneusDim.input;
     this.elAccidentMontant = cAccMontant.input; this.elChampAccMontant = cAccMontant.el; this.elFinancement = cFinancement.input;
-    var modif = function () { self.suiviModifie(); };
+    var modif = function () { self.majChampsEtat(); self.suiviModifie(); };
     this.chipsConstats = pastilles('eval-constats', 'Constats', ETAT_CONSTATS, 'rouge', modif);
+    this.chipsAssurances = pastilles('eval-assurances', 'Protections', ETAT_ASSURANCES, 'bleu', modif);
+    this.dommages = dessinDommages(function () { self.suiviModifie(); });   /* 24 nov. : le dessin des dommages sur la silhouette */
     this.chipsGaranties = pastilles('eval-garanties', 'Garanties', ETAT_GARANTIES, 'bleu', modif);
     this.chipsOptions = pastilles('eval-options', 'Options', ETAT_OPTIONS, 'vert', modif);
     this.elEtatGeneral = cGeneral.input; this.elPneusEte = cPneusEte.input; this.elPneusHiver = cPneusHiver.input;
@@ -1967,9 +2001,10 @@
     });
     this.btnPhotos = h('button.btn.petit#eval-photos-btn', { type: 'button', html: I.plus + '<span>Ajouter des photos</span>', onclick: function () { self.elPhotoInput.click(); } });
     this.elEtatCarte = carte(h('div.titre', [h('h2', 'État du véhicule et photos'), h('p', 'Ce que le client déclare et ce que vous voyez. Les photos restent avec le NIV et suivent le véhicule s\'il est acheté.')]), [
-      h('div.grille.eval-grille-etat', [cGeneral.el, cCles.el, cCoulExt.el, cCoulInt.el, cPneusEte.el, cPneusHiver.el, cPneusDim.el, cPareBrise.el,
-        cAccident.el, cAccMontant.el, cCarrosserie.el, cVoyants.el, cSolde.el, cFinancement.el]),
-      h('div.eval-chips-bloc', [this.chipsConstats.el, this.chipsGaranties.el, this.chipsOptions.el]),
+      h('div.grille.eval-grille-etat', [cGeneral.el, cCles.el, cCoulExt.el, cCoulInt.el, cPneusEte.el, cPneusEteP.el, cPneusEteT.el, cPneusHiver.el, cPneusHivP.el, cPneusHivT.el, cPneusDim.el, cPareBrise.el,
+        cAccident.el, cAccMontant.el, cCarrosserie.el, cVoyants.el, cSolde.el, cFinancement.el, cGarFin.el, cGarKm.el, cGarPar.el]),
+      h('div.eval-chips-bloc', [this.chipsConstats.el, this.chipsGaranties.el, this.chipsAssurances.el, this.chipsOptions.el]),
+      this.dommages.el,
       h('div.champ.eval-etat-notes', [h('label', { 'for': 'e-etat-notes', text: 'Notes' }), this.elEtatNotes]),
       h('div.eval-photos-entete', [h('h3', 'Photos'), this.btnPhotos, this.elPhotoInput]),
       this.elPhotos
@@ -1983,9 +2018,9 @@
       });
     });
     [this.elClient, this.elClientTel, this.elClientCourriel, this.elConseiller, this.elCherche, this.elValeurClient, this.elRelance,
-      this.elCarrosserie, this.elVoyants, this.elSoldePret, this.elEtatNotes, this.elCouleurExt, this.elCouleurInt, this.elPneusDim, this.elAccidentMontant].forEach(function (el) { el.addEventListener('input', function () { self.suiviModifie(); }); });
+      this.elCarrosserie, this.elVoyants, this.elSoldePret, this.elEtatNotes, this.elCouleurExt, this.elCouleurInt, this.elPneusDim, this.elAccidentMontant, this.elGarantieFin, this.elGarantieKm, this.elGarantiePar].forEach(function (el) { el.addEventListener('input', function () { self.suiviModifie(); }); });
     [this.elOrigine, this.elTransaction, this.elEtatGeneral, this.elPneusEte, this.elPneusHiver, this.elPareBrise, this.elAccident, this.elRelance,
-      this.elTypeClient, this.elLangue, this.elCles, this.elFinancement].forEach(function (el) { el.addEventListener('change', function () { self.suiviModifie(); }); });
+      this.elTypeClient, this.elLangue, this.elCles, this.elFinancement, this.elPneusEtePouces, this.elPneusEteType, this.elPneusHiverPouces, this.elPneusHiverType, this.elGarantieFin].forEach(function (el) { el.addEventListener('change', function () { self.suiviModifie(); }); });
     this.elAccident.addEventListener('change', function () { self.majChampsEtat(); });
     [this.elAchat, this.elFrais].forEach(function (el) { el.addEventListener('input', function () { self.rendreEcartClient(); }); });
     this.rendreSuiviStatut();
@@ -1998,14 +2033,26 @@
   Evaluation.prototype.majChampsEtat = function () {
     if (!this.elChampAccMontant) return;
     this.elChampAccMontant.classList.toggle('cache', this.elAccident.value !== 'oui' && !this.elAccidentMontant.value);
+    /* 24 nov. : la garantie prolongée (fin, km, par) ne se demande que si elle est cochée (ou déjà inscrite) */
+    var self = this, prolongee = this.chipsGaranties && this.chipsGaranties.get().indexOf('prolongee') >= 0;
+    (this.elChampsGarantie || []).forEach(function (el) { el.classList.toggle('cache', !prolongee && !self.elGarantieFin.value && !self.elGarantieKm.value && !self.elGarantiePar.value.trim()); });
+    if (this.dommages && this.elStyle) this.dommages.style(this.elStyle.value);
   };
 
   Evaluation.prototype.rendreSuiviStatut = function () {
     var self = this;
     AMX.vider(this.elSuiviSegment);
-    SUIVI_STATUTS.forEach(function (s) {
+    var montres = SUIVI_PRINCIPAUX.slice();
+    if (this.suiviStatut && montres.indexOf(this.suiviStatut) < 0 && statutSuivi(this.suiviStatut)) montres.push(this.suiviStatut);
+    montres.forEach(function (k) {
+      var s = statutSuivi(k); if (!s) return;
       self.elSuiviSegment.appendChild(h('button' + (self.suiviStatut === s[0] ? '.actif.s-' + s[2] : ''), { type: 'button', text: s[1], 'data-statut': s[0], onclick: function () { self.choisirStatutSuivi(self.suiviStatut === s[0] ? '' : s[0]); } }));
     });
+    /* 24 nov. : les autres statuts (Torque) dans une liste */
+    var autres = SUIVI_STATUTS.filter(function (s) { return montres.indexOf(s[0]) < 0; });
+    var selAutre = h('select.eval-statut-autre', { title: 'Autres statuts : client (lien client), wholesale, dépôt / commande, en inventaire, fiche incomplète, évaluation sommaire, marketplace' }, [h('option', { value: '', text: 'Autre…' })].concat(autres.map(function (s) { return h('option', { value: s[0], text: s[1] }); })));
+    selAutre.addEventListener('change', function () { if (selAutre.value) self.choisirStatutSuivi(selAutre.value); });
+    this.elSuiviSegment.appendChild(selAutre);
     var s = statutSuivi(this.suiviStatut);
     this.elSuiviInfo.textContent = s ? s[1] + (this.suiviStatutLe ? ' depuis le ' + AMX.fmtDate(this.suiviStatutLe) : '') + (this.suiviStatutPar ? ' · ' + this.suiviStatutPar.split('@')[0] : '') : 'Statut à choisir à droite';
   };
@@ -2017,7 +2064,7 @@
     this.rendreSuiviStatut();
     this.rendreSommaire();
     this.suiviModifie();
-    if (cle === 'repris' || cle === 'reprisWholesale') AMX.toast('Véhicule repris : « Créer la fiche d\'achat » sous le véhicule le fait entrer à l\'inventaire.', 'info', 6000);
+    if (SUIVI_REPRIS[cle]) AMX.toast('Véhicule repris : « Créer la fiche d\'achat » sous le véhicule le fait entrer à l\'inventaire ; la tuile « Déclaration » prépare la déclaration du propriétaire à signer.', 'info', 7000);
   };
 
   // Les noms déjà utilisés sur ce navigateur, plus la personne connectée.
@@ -2066,7 +2113,11 @@
       accident: t(this.elAccident), carrosserie: t(this.elCarrosserie), voyants: t(this.elVoyants), soldePret: t(this.elSoldePret), notes: t(this.elEtatNotes),
       cles: t(this.elCles), couleurExt: t(this.elCouleurExt), couleurInt: t(this.elCouleurInt), pneusDim: t(this.elPneusDim),
       accidentMontant: t(this.elAccidentMontant), financement: t(this.elFinancement),
-      constats: this.chipsConstats.get(), garanties: this.chipsGaranties.get(), options: this.chipsOptions.get()
+      constats: this.chipsConstats.get(), garanties: this.chipsGaranties.get(), options: this.chipsOptions.get(),
+      /* 24 nov. (étape 2) */
+      pneusEtePouces: t(this.elPneusEtePouces), pneusEteType: t(this.elPneusEteType), pneusHiverPouces: t(this.elPneusHiverPouces), pneusHiverType: t(this.elPneusHiverType),
+      garantieFin: t(this.elGarantieFin), garantieKm: t(this.elGarantieKm), garantiePar: t(this.elGarantiePar), assurances: this.chipsAssurances.get(),
+      dommages: this.dommages ? this.dommages.get() : null
     };
     if (suivi.conseiller) {
       var noms = AMX.memo.lire('eval_conseillers', []);
@@ -2075,7 +2126,7 @@
     }
     // À plat pour le bloc « Évaluation » du panneau d'inventaire (inventaire.js : état, pneus, pare-brise, accident).
     var general = (ETAT_GENERAL.filter(function (x) { return x[0] === etat.general; })[0] || [])[1] || '';
-    var pneus = [etat.pneusEte ? 'été ' + etat.pneusEte.toLowerCase() : '', etat.pneusHiver ? 'hiver ' + etat.pneusHiver.toLowerCase() : ''].filter(Boolean).join(' · ');
+    var pneus = [etat.pneusEte ? 'été ' + etat.pneusEte.toLowerCase() + (etat.pneusEtePouces ? ' ' + etat.pneusEtePouces + ' po' : '') : '', etat.pneusHiver ? 'hiver ' + etat.pneusHiver.toLowerCase() + (etat.pneusHiverPouces ? ' ' + etat.pneusHiverPouces + ' po' : '') : ''].filter(Boolean).join(' · ');
     return {
       suivi: vide(suivi) ? null : suivi,
       etatVehicule: vide(etat) ? null : etat,
@@ -2101,6 +2152,11 @@
     poserChoix(this.elCles, e.cles); poserChoix(this.elFinancement, e.financement);
     this.elCouleurExt.value = v(e.couleurExt); this.elCouleurInt.value = v(e.couleurInt); this.elPneusDim.value = v(e.pneusDim); this.elAccidentMontant.value = v(e.accidentMontant);
     this.chipsConstats.set(e.constats); this.chipsGaranties.set(e.garanties); this.chipsOptions.set(e.options);
+    /* 24 nov. (étape 2) */
+    poserChoix(this.elPneusEtePouces, e.pneusEtePouces); poserChoix(this.elPneusEteType, e.pneusEteType); poserChoix(this.elPneusHiverPouces, e.pneusHiverPouces); poserChoix(this.elPneusHiverType, e.pneusHiverType);
+    this.elGarantieFin.value = v(e.garantieFin).slice(0, 10); this.elGarantieKm.value = v(e.garantieKm); this.elGarantiePar.value = v(e.garantiePar);
+    this.chipsAssurances.set(e.assurances); if (this.dommages) this.dommages.set(e.dommages);
+    this.remplirDeclaration(data.declaration);
     this.majChampsEtat();
     this.appliquerDemande();   /* 2 nov. : le détail inscrit par le représentant remplit les cases restées vides */
     this.rendreSuiviStatut();
@@ -3066,6 +3122,268 @@
   };
 
 
+  /* ======================= 24 nov. 2026 : fiche à la hauteur de Torque (étape 2) =======================
+     Dessin des dommages sur la silhouette, déclaration du propriétaire (véhicule de reprise) imprimable, 12 statuts,
+     pneus (pouces, type de roues), pare-brise « Éclat réparé », protections achetées, garantie prolongée (fin, km). */
+
+  /* ---- Dessin des dommages : une silhouette (vue de dessus + profil) selon la carrosserie, des traits au crayon.
+     { el, get() → { traits: [[x, y, x, y…]…], texte } | null, set(d), style(code) }. Coordonnées = unités du viewBox (640 × 300). */
+  var NS_SVG = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, attrs, enfants) { var e = document.createElementNS(NS_SVG, tag); Object.keys(attrs || {}).forEach(function (k) { if (attrs[k] !== null && attrs[k] !== undefined) e.setAttribute(k, attrs[k]); }); (enfants || []).forEach(function (c) { if (c) e.appendChild(c); }); return e; }
+  function silhouetteDe(code) {
+    var g = svgEl('g', { fill: '#fff', stroke: '#444', 'stroke-width': '2', 'stroke-linejoin': 'round' });
+    var genre = /camionnette/.test(code) ? 'camion' : (/vus|fourgonnette/.test(code) ? 'vus' : 'auto');
+    // Vue de dessus (gauche) : carrosserie, vitres, roues, rétroviseurs
+    if (genre === 'camion') {
+      g.appendChild(svgEl('rect', { x: 70, y: 28, width: 160, height: 112, rx: 28 }));
+      g.appendChild(svgEl('rect', { x: 72, y: 140, width: 156, height: 132, rx: 8 }));
+      g.appendChild(svgEl('polygon', { points: '90,78 210,78 198,102 102,102', fill: '#e6eef7' }));
+      g.appendChild(svgEl('polygon', { points: '100,118 200,118 206,134 94,134', fill: '#e6eef7' }));
+    } else {
+      g.appendChild(svgEl('rect', { x: 70, y: 28, width: 160, height: 244, rx: genre === 'vus' ? 34 : 48 }));
+      g.appendChild(svgEl('polygon', { points: '92,90 208,90 196,118 104,118', fill: '#e6eef7' }));
+      g.appendChild(svgEl('polygon', { points: '104,' + (genre === 'vus' ? 212 : 196) + ' 196,' + (genre === 'vus' ? 212 : 196) + ' 208,' + (genre === 'vus' ? 236 : 226) + ' 92,' + (genre === 'vus' ? 236 : 226), fill: '#e6eef7' }));
+      g.appendChild(svgEl('line', { x1: 150, y1: 118, x2: 150, y2: genre === 'vus' ? 212 : 196, stroke: '#bbb' }));
+    }
+    [[60, 62], [226, 62], [60, 206], [226, 206]].forEach(function (p) { g.appendChild(svgEl('rect', { x: p[0], y: p[1], width: 14, height: 38, rx: 4, fill: '#333' })); });
+    g.appendChild(svgEl('rect', { x: 54, y: 104, width: 16, height: 9, rx: 3 })); g.appendChild(svgEl('rect', { x: 230, y: 104, width: 16, height: 9, rx: 3 }));
+    g.appendChild(svgEl('text', { x: 150, y: 292, 'text-anchor': 'middle', 'font-size': '11', fill: '#777', stroke: 'none' }, [document.createTextNode('Dessus — avant en haut')]));
+    // Profil (droite)
+    var profil = genre === 'camion' ? '330,196 340,160 392,156 406,108 468,104 480,156 604,156 612,196' : (genre === 'vus' ? '330,196 338,150 368,108 560,104 592,150 612,196' : '330,196 346,160 392,152 424,110 506,106 548,152 602,162 612,196');
+    g.appendChild(svgEl('polygon', { points: profil }));
+    if (genre === 'camion') { g.appendChild(svgEl('polygon', { points: '412,116 462,112 470,150 404,150', fill: '#e6eef7' })); }
+    else if (genre === 'vus') { g.appendChild(svgEl('polygon', { points: '376,116 454,112 454,148 356,148', fill: '#e6eef7' })); g.appendChild(svgEl('polygon', { points: '462,112 556,112 580,148 462,148', fill: '#e6eef7' })); }
+    else { g.appendChild(svgEl('polygon', { points: '430,118 462,114 462,150 404,150', fill: '#e6eef7' })); g.appendChild(svgEl('polygon', { points: '470,114 500,112 536,150 470,150', fill: '#e6eef7' })); }
+    g.appendChild(svgEl('circle', { cx: 386, cy: 198, r: 22, fill: '#333' })); g.appendChild(svgEl('circle', { cx: 556, cy: 198, r: 22, fill: '#333' }));
+    g.appendChild(svgEl('circle', { cx: 386, cy: 198, r: 9, fill: '#ddd' })); g.appendChild(svgEl('circle', { cx: 556, cy: 198, r: 9, fill: '#ddd' }));
+    g.appendChild(svgEl('text', { x: 470, y: 292, 'text-anchor': 'middle', 'font-size': '11', fill: '#777', stroke: 'none' }, [document.createTextNode('Profil — avant à droite')]));
+    return g;
+  }
+  function dessinDommages(surChange) {
+    var traits = [], outil = 'crayon', enCours = null, polyEnCours = null, style = '';
+    var svg = svgEl('svg', { viewBox: '0 0 640 300', class: 'eval-dommages-svg', role: 'img', 'aria-label': 'Silhouette du véhicule pour marquer les dommages' });
+    var fond = svgEl('g'), gTraits = svgEl('g', { fill: 'none', stroke: '#D92D20', 'stroke-width': '4', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+    svg.appendChild(fond); svg.appendChild(gTraits);
+    var texte = h('input.saisie#e-dommages-texte', { type: 'text', placeholder: 'Dommages en mots : aile avant droite bosselée, pare-chocs égratigné…' });
+    texte.addEventListener('input', function () { if (surChange) surChange(); });
+    function point(ev) { var r = svg.getBoundingClientRect(); return [Math.round((ev.clientX - r.left) / r.width * 640), Math.round((ev.clientY - r.top) / r.height * 300)]; }
+    function dessiner() {
+      AMX.vider(gTraits);
+      traits.forEach(function (t, i) {
+        var pts = []; for (var k = 0; k + 1 < t.length; k += 2) pts.push(t[k] + ',' + t[k + 1]);
+        var p = svgEl('polyline', { points: pts.join(' '), 'data-i': String(i) });
+        if (t.length === 2) p.setAttribute('points', t[0] + ',' + t[1] + ' ' + (t[0] + 1) + ',' + t[1]);
+        gTraits.appendChild(p);
+      });
+    }
+    svg.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== undefined && ev.button !== 0) return;
+      ev.preventDefault();
+      if (outil === 'gomme') {
+        var cible = ev.target.closest ? ev.target.closest('polyline') : null;
+        if (cible && cible.getAttribute('data-i') !== null) { traits.splice(parseInt(cible.getAttribute('data-i'), 10), 1); dessiner(); if (surChange) surChange(); }
+        return;
+      }
+      try { svg.setPointerCapture(ev.pointerId); } catch (e) {}
+      var p = point(ev); enCours = [p[0], p[1]];
+      polyEnCours = svgEl('polyline', { points: p[0] + ',' + p[1] }); gTraits.appendChild(polyEnCours);
+    });
+    svg.addEventListener('pointermove', function (ev) {
+      if (!enCours) return;
+      var p = point(ev), n = enCours.length;
+      if (Math.abs(p[0] - enCours[n - 2]) + Math.abs(p[1] - enCours[n - 1]) < 3) return;
+      enCours.push(p[0], p[1]); polyEnCours.setAttribute('points', polyEnCours.getAttribute('points') + ' ' + p[0] + ',' + p[1]);
+    });
+    function finir(ev) {
+      if (!enCours) return;
+      traits.push(enCours); enCours = null; polyEnCours = null; dessiner();
+      if (surChange) surChange();
+    }
+    svg.addEventListener('pointerup', finir); svg.addEventListener('pointercancel', finir); svg.addEventListener('pointerleave', finir);
+    var bCrayon = h('button.btn.petit.actif', { type: 'button', text: 'Crayon', title: 'Tracer les dommages' }), bGomme = h('button.btn.petit', { type: 'button', text: 'Gomme', title: 'Cliquer un trait pour l\'effacer' });
+    var bAnnuler = h('button.btn.petit.fantome', { type: 'button', text: 'Annuler', title: 'Retirer le dernier trait', onclick: function () { if (traits.length) { traits.pop(); dessiner(); if (surChange) surChange(); } } });
+    var bEffacer = h('button.btn.petit.fantome', { type: 'button', text: 'Tout effacer', onclick: function () { if (!traits.length) return; traits = []; dessiner(); if (surChange) surChange(); } });
+    function choisirOutil(o) { outil = o; bCrayon.classList.toggle('actif', o === 'crayon'); bGomme.classList.toggle('actif', o === 'gomme'); svg.classList.toggle('gomme', o === 'gomme'); }
+    bCrayon.addEventListener('click', function () { choisirOutil('crayon'); }); bGomme.addEventListener('click', function () { choisirOutil('gomme'); });
+    var el = h('div.eval-dommages', [
+      h('div.eval-dommages-outils', [h('span.l', 'Dommages'), bCrayon, bGomme, bAnnuler, bEffacer, h('span.mini.doux', { text: 'Tracez sur la silhouette (doigt, stylet ou souris).' })]),
+      svg, texte
+    ]);
+    function poserStyle(code) { style = String(code || ''); AMX.vider(fond); fond.appendChild(silhouetteDe(style)); }
+    poserStyle('');
+    return {
+      el: el,
+      style: poserStyle,
+      get: function () { var t = texte.value.trim(); if (!traits.length && !t) return null; return { traits: traits.map(function (x) { return x.slice(); }), texte: t, style: style }; },
+      set: function (d) { traits = (d && Array.isArray(d.traits)) ? d.traits.filter(function (x) { return Array.isArray(x) && x.length >= 2; }).map(function (x) { return x.map(Number); }) : []; texte.value = (d && d.texte) ? String(d.texte) : ''; dessiner(); },
+      svgPour: function () { var c = svg.cloneNode(true); c.removeAttribute('class'); return c; }
+    };
+  }
+
+  /* ---- Déclaration du propriétaire (véhicule de reprise) : les questions de Torque, oui / non, imprimable et signable. */
+  var DECL_QUESTIONS = [
+    ['h', 'historique', 'Historique du véhicule', 'Vehicle history'],
+    ['h1', 'Le véhicule a-t-il déjà été accidenté ?', 'Has the vehicle ever been in an accident?'],
+    ['h2', 'Des panneaux de carrosserie ont-ils été réparés ou remplacés ?', 'Have body panels been repaired or replaced?'],
+    ['h3', 'Êtes-vous le premier propriétaire ?', 'Are you the first owner?'],
+    ['h4', 'Le véhicule vient-il des États-Unis ou d\'une autre province ?', 'Does the vehicle come from the U.S. or another province?'],
+    ['h5', 'L\'odomètre a-t-il été modifié, remplacé ou reculé ?', 'Has the odometer been altered, replaced or rolled back?'],
+    ['h6', 'Les sacs gonflables se sont-ils déjà déployés ?', 'Have the airbags ever deployed?'],
+    ['h7', 'La garantie du manufacturier est-elle encore en vigueur ?', 'Is the manufacturer\'s warranty still in effect?'],
+    ['h8', 'Le véhicule a-t-il une garantie prolongée ?', 'Does the vehicle have an extended warranty?'],
+    ['h9', 'Le véhicule a-t-il des problèmes mécaniques connus ?', 'Does the vehicle have known mechanical problems?'],
+    ['d', 'divulgation', 'Déclaration de divulgation', 'Disclosure statement'],
+    ['d1', 'Utilisé comme taxi, véhicule de police, de location à court terme ou d\'auto-école', 'Used as a taxi, police vehicle, short-term rental or driving-school vehicle'],
+    ['d2', 'Endommagé par une inondation ou un incendie', 'Damaged by flood or fire'],
+    ['d3', 'Modifié (moteur, suspension, échappement, châssis)', 'Modified (engine, suspension, exhaust, chassis)'],
+    ['d4', 'Déclaré perte totale par un assureur', 'Declared a total loss by an insurer'],
+    ['d5', 'Volé puis récupéré', 'Stolen and recovered'],
+    ['d6', 'Garantie du manufacturier annulée', 'Manufacturer\'s warranty voided'],
+    ['d7', 'Dommages de plus de 3 000 $ (réparés ou non)', 'Damage of more than $3,000 (repaired or not)'],
+    ['d8', 'Dommages à la structure (châssis, longerons, cadre)', 'Structural damage (frame, rails)'],
+    ['d9', 'Réparations nécessaires : moteur ou transmission', 'Repairs needed: engine or transmission'],
+    ['d10', 'Réparations nécessaires : électronique ou électrique', 'Repairs needed: electronics or electrical'],
+    ['d11', 'Réparations nécessaires : climatisation ou injection', 'Repairs needed: air conditioning or fuel injection'],
+    ['d12', 'Réparations nécessaires : freins, suspension ou direction', 'Repairs needed: brakes, suspension or steering']
+  ];
+  var DECL_T = {
+    fr: { titre: 'Déclaration du propriétaire', sous: 'Véhicule de reprise', vehicule: 'Véhicule', niv: 'NIV', km: 'Odomètre', couleur: 'Couleur', cles: 'Clés', client: 'Propriétaire', tel: 'Téléphone', courriel: 'Courriel', options: 'Équipement déclaré', etat: 'État', oui: 'Oui', non: 'Non', reparations: 'Réparations des 6 derniers mois ($)', autres: 'Autres faits à déclarer', texte: 'Je déclare que les renseignements ci-dessus sont exacts et complets, que je suis le propriétaire du véhicule (ou autorisé à le vendre) et qu\'il est libre de tout lien, dette ou saisie sauf ceux déclarés ici. Je comprends que l\'évaluation repose sur cette déclaration et que toute omission peut la modifier.', signClient: 'Propriétaire — signature et date', signEval: 'Évaluateur', pied: 'Document généré par ScanAutomax', dommages: 'Dommages relevés' },
+    en: { titre: 'Owner\'s declaration', sous: 'Trade-in vehicle', vehicule: 'Vehicle', niv: 'VIN', km: 'Odometer', couleur: 'Colour', cles: 'Keys', client: 'Owner', tel: 'Phone', courriel: 'Email', options: 'Declared equipment', etat: 'Condition', oui: 'Yes', non: 'No', reparations: 'Repairs in the last 6 months ($)', autres: 'Other facts to disclose', texte: 'I declare that the information above is accurate and complete, that I am the owner of the vehicle (or authorized to sell it) and that it is free of any lien, debt or seizure except as disclosed here. I understand that the appraisal relies on this declaration and that any omission may change it.', signClient: 'Owner — signature and date', signEval: 'Appraiser', pied: 'Document generated by ScanAutomax', dommages: 'Damage noted' }
+  };
+  var ICO_DECL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 15l2 2 4-4"/></svg>';
+
+  Evaluation.prototype.construireDeclaration = function () {
+    var self = this;
+    this.declReponses = {};
+    this.elDeclTable = h('div.eval-decl-table');
+    this.elDeclReparations = h('input.saisie#e-decl-reparations', { type: 'number', inputmode: 'numeric', placeholder: '0' });
+    this.elDeclAutres = h('textarea.saisie#e-decl-autres', { rows: '2', placeholder: 'Bruit, fuite, voyant, pièce manquante…' });
+    [this.elDeclReparations, this.elDeclAutres].forEach(function (el) { el.addEventListener('input', function () { self.suiviModifie(); self.majTuiles(); }); });
+    this.elDeclInfo = h('span.mini.doux#eval-decl-info');
+    this.btnDeclImprimer = h('button.btn.petit', { type: 'button', html: I.telecharger + '<span>Imprimer la déclaration (PDF)</span>', title: 'La déclaration à faire signer par le propriétaire', onclick: function () { self.imprimerDeclaration(); } });
+    this.elDeclCarte = carte(h('div.titre', [h('h2', 'Déclaration du propriétaire'), h('p', 'Les questions à poser au client sur l\'historique du véhicule et la divulgation (accident, inondation, perte totale, réparations…). À imprimer et à faire signer quand le véhicule est repris.')]), [
+      this.elDeclTable,
+      h('div.grille.eval-grille-suivi', [
+        h('div.champ', [h('label', { 'for': 'e-decl-reparations', text: 'Réparations des 6 derniers mois ($)' }), this.elDeclReparations]),
+        h('div.champ.eval-decl-autres', [h('label', { 'for': 'e-decl-autres', text: 'Autres faits à déclarer' }), this.elDeclAutres])
+      ]),
+      h('div.eval-decl-pied', [this.btnDeclImprimer, this.elDeclInfo])
+    ]);
+    this.elDeclCarte.id = 'sec-declaration';
+    this.rendreDeclaration();
+  };
+  Evaluation.prototype.rendreDeclaration = function () {
+    var self = this, el = this.elDeclTable; if (!el) return;
+    AMX.vider(el);
+    DECL_QUESTIONS.forEach(function (q) {
+      if (q[0].length === 1) { el.appendChild(h('div.eval-decl-titre', { text: q[2] })); return; }
+      var rep = self.declReponses[q[0]] || '';
+      var bOui = h('button.eval-chip' + (rep === 'oui' ? '.actif' : ''), { type: 'button', text: 'Oui', 'aria-pressed': rep === 'oui' ? 'true' : 'false', onclick: function () { self.repondreDeclaration(q[0], rep === 'oui' ? '' : 'oui'); } });
+      var bNon = h('button.eval-chip' + (rep === 'non' ? '.actif' : ''), { type: 'button', text: 'Non', 'aria-pressed': rep === 'non' ? 'true' : 'false', onclick: function () { self.repondreDeclaration(q[0], rep === 'non' ? '' : 'non'); } });
+      var alerte = rep === 'oui' && (q[0][0] === 'd' || /^h(1|2|4|5|6|9)$/.test(q[0]));
+      el.appendChild(h('div.eval-decl-ligne' + (alerte ? '.alerte' : ''), [h('span.q', { text: q[1] }), h('span.eval-chips.rouge', [bOui]), h('span.eval-chips.vert', [bNon])]));
+    });
+    var n = DECL_QUESTIONS.filter(function (q) { return q[0].length > 1; }).length, r = Object.keys(this.declReponses).filter(function (k) { return self.declReponses[k]; }).length;
+    if (this.elDeclInfo) this.elDeclInfo.textContent = r ? r + ' réponse' + (r > 1 ? 's' : '') + ' sur ' + n : 'Aucune réponse encore';
+  };
+  Evaluation.prototype.repondreDeclaration = function (code, valeur) {
+    if (valeur) this.declReponses[code] = valeur; else delete this.declReponses[code];
+    this.rendreDeclaration();
+    this.majTuiles();
+    this.suiviModifie();
+  };
+  Evaluation.prototype.collecterDeclaration = function () {
+    var rep = {}, n = 0; var self = this;
+    Object.keys(this.declReponses || {}).forEach(function (k) { if (self.declReponses[k]) { rep[k] = self.declReponses[k]; n++; } });
+    var r6 = String(this.elDeclReparations ? this.elDeclReparations.value : '').trim(), autres = String(this.elDeclAutres ? this.elDeclAutres.value : '').trim();
+    if (!n && !r6 && !autres) return null;
+    return { reponses: rep, reparations6: r6, autres: autres };
+  };
+  Evaluation.prototype.remplirDeclaration = function (d) {
+    d = (d && typeof d === 'object') ? d : {};
+    this.declReponses = {};
+    var self = this, rep = (d.reponses && typeof d.reponses === 'object') ? d.reponses : {};
+    Object.keys(rep).forEach(function (k) { if (rep[k] === 'oui' || rep[k] === 'non') self.declReponses[k] = rep[k]; });
+    if (this.elDeclReparations) this.elDeclReparations.value = d.reparations6 === undefined || d.reparations6 === null ? '' : String(d.reparations6);
+    if (this.elDeclAutres) this.elDeclAutres.value = d.autres ? String(d.autres) : '';
+    this.rendreDeclaration();
+  };
+  /* Le résumé de la déclaration pour la tuile : remplie / x sur n / à vérifier (un « oui » qui compte). */
+  Evaluation.prototype.resumeDeclaration = function () {
+    var self = this, n = DECL_QUESTIONS.filter(function (q) { return q[0].length > 1; }).length;
+    var cles = Object.keys(this.declReponses || {}).filter(function (k) { return self.declReponses[k]; });
+    var alertes = cles.filter(function (k) { return self.declReponses[k] === 'oui' && (k[0] === 'd' || /^h(1|2|4|5|6|9)$/.test(k)); }).length;
+    if (!cles.length) return { texte: 'À remplir', ton: 'gris', titre: 'Les questions au propriétaire (historique, divulgation)' };
+    if (alertes) return { texte: alertes + ' à vérifier', ton: 'rouge', titre: alertes + ' réponse' + (alertes > 1 ? 's' : '') + ' « oui » qui pèse' + (alertes > 1 ? 'nt' : '') + ' sur la valeur' };
+    if (cles.length >= n) return { texte: 'Remplie', ton: 'vert', titre: 'Toutes les questions ont une réponse — imprimez-la pour la signature' };
+    return { texte: cles.length + ' / ' + n, ton: 'ambre', titre: 'Déclaration en cours' };
+  };
+  Evaluation.prototype.imprimerDeclaration = function () {
+    var self = this;
+    var veh = [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ');
+    if (!veh) { AMX.toast('Décodez d\'abord le véhicule (année, marque, modèle).', 'attention'); return; }
+    var cle = this.elConcession.value;
+    AMX.get({ concessionInfo: cle }).catch(function () { return null; }).then(function (info) {
+      self.imprimerDeclarationPage((info && info.ok) ? info : { nom: AMX.CONCESSIONS_TOUTES[cle] || cle });
+    });
+  };
+  Evaluation.prototype.imprimerDeclarationPage = function (c) {
+    var self = this, sv = this.collecterSuivi(), su = sv.suivi || {}, et = sv.etatVehicule || {};
+    var L = (su.langue === 'en') ? 'en' : 'fr', T = DECL_T[L];
+    var veh = [this.elAnnee.value, this.elMarque.value, this.elModele.value, this.elVersion.value].filter(Boolean).join(' ');
+    var km = nombre(this.elKm.value), auj = new Date();
+    var ancienne = document.getElementById('offre-impression'); if (ancienne) ancienne.remove();
+    var adresse = [c.adressePhys || c.adresse, [c.villePhys || c.ville, c.province].filter(Boolean).join(', '), c.codePostalPhys || c.codePostal].filter(Boolean).join(' · ');
+    var options = (et.options || []).map(function (o) { return (ETAT_OPTIONS.filter(function (x) { return x[0] === o; })[0] || [o, o])[1]; });
+    var etatTxt = [];
+    var gen = (ETAT_GENERAL.filter(function (x) { return x[0] === et.general; })[0] || [])[1]; if (gen) etatTxt.push((L === 'en' ? 'Overall: ' : 'Général : ') + gen);
+    if (et.pneusEte) etatTxt.push((L === 'en' ? 'Summer tires: ' : 'Pneus été : ') + et.pneusEte + (et.pneusEtePouces ? ' ' + et.pneusEtePouces + ' po' : ''));
+    if (et.pneusHiver) etatTxt.push((L === 'en' ? 'Winter tires: ' : 'Pneus hiver : ') + et.pneusHiver + (et.pneusHiverPouces ? ' ' + et.pneusHiverPouces + ' po' : ''));
+    if (et.pareBrise) etatTxt.push((L === 'en' ? 'Windshield: ' : 'Pare-brise : ') + et.pareBrise);
+    if (et.accident) etatTxt.push((L === 'en' ? 'Accident declared: ' : 'Accident déclaré : ') + ((ETAT_ACCIDENT.filter(function (x) { return x[0] === et.accident; })[0] || [])[1] || et.accident) + (et.accidentMontant ? ' (' + fmt(nombre(et.accidentMontant)) + ')' : ''));
+    var lignes = [];
+    DECL_QUESTIONS.forEach(function (q) {
+      if (q[0].length === 1) { lignes.push(h('tr.decl-section', [h('th', { colspan: 3, text: L === 'en' ? q[3] : q[2] })])); return; }
+      var r = self.declReponses[q[0]] || '';
+      lignes.push(h('tr', [h('td', { text: L === 'en' ? q[2] : q[1] }), h('td.decl-case', { text: (r === 'oui' ? '☑' : '☐') + ' ' + T.oui }), h('td.decl-case', { text: (r === 'non' ? '☑' : '☐') + ' ' + T.non })]));
+    });
+    var dom = this.dommages ? this.dommages.get() : null;
+    var page = h('div#offre-impression.offre-impression.decl-impression', [
+      h('div.offre-entete', [
+        h('div', [h('div.offre-concession', { text: c.nomOfficiel || c.nom || AMX.CONCESSIONS_TOUTES[this.elConcession.value] || '' }), adresse ? h('div.doux', { text: adresse }) : null, h('div.doux', { text: [c.telephone, c.courriel].filter(Boolean).join(' · ') }), c.noConcessionnaire ? h('div.doux', { text: (c.province === 'ON' ? 'Permis de commerçant (OMVIC) ' : 'Permis de commerçant (SAAQ) ') + c.noConcessionnaire }) : null]),
+        h('div.offre-titre', [h('h1', T.titre), h('div.doux', { text: T.sous + ' · ' + AMX.fmtDate(auj.toISOString()) })])
+      ]),
+      h('table.offre-vehicule', [h('tbody', [
+        h('tr', [h('th', T.vehicule), h('td', { text: veh })]),
+        h('tr', [h('th', T.niv), h('td.mono', { text: this.vinCourant || this.elNiv.value.trim().toUpperCase() || '—' })]),
+        h('tr', [h('th', T.km), h('td', { text: km !== null ? fmtKm(km) : '—' })]),
+        (et.couleurExt || et.cles) ? h('tr', [h('th', T.couleur + ' / ' + T.cles), h('td', { text: [et.couleurExt, et.cles ? (ETAT_CLES.filter(function (x) { return x[0] === et.cles; })[0] || [, et.cles])[1] + ' ' + T.cles.toLowerCase() : ''].filter(Boolean).join(' · ') })]) : null,
+        h('tr', [h('th', T.client), h('td', { text: [su.client, su.telephone, su.courriel].filter(Boolean).join(' · ') || '—' })]),
+        options.length ? h('tr', [h('th', T.options), h('td', { text: options.join(', ') })]) : null,
+        etatTxt.length ? h('tr', [h('th', T.etat), h('td', { text: etatTxt.join(' · ') })]) : null
+      ])]),
+      h('table.decl-table', [h('tbody', lignes)]),
+      h('div.decl-champs', [
+        h('div', [h('span.l', { text: T.reparations + ' : ' }), h('span', { text: this.elDeclReparations.value.trim() ? fmt(nombre(this.elDeclReparations.value)) : '______________' })]),
+        h('div', [h('span.l', { text: T.autres + ' : ' }), h('span', { text: this.elDeclAutres.value.trim() || '______________________________________________' })])
+      ]),
+      dom && (dom.traits.length || dom.texte) ? h('div.decl-dommages', [h('div.l', { text: T.dommages + (dom.texte ? ' : ' + dom.texte : '') }), dom.traits.length ? this.dommages.svgPour() : null]) : null,
+      h('p.decl-texte', { text: T.texte }),
+      h('div.offre-signatures', [
+        h('div', [h('div.trait'), h('div.doux', { text: T.signClient })]),
+        h('div', [h('div.trait'), h('div.doux', { text: T.signEval + ' — ' + (AMX.session.nom || AMX.session.courriel || '') })])
+      ]),
+      h('div.offre-pied', { text: T.pied + ' · ' + AMX.fmtDate(auj.toISOString(), true) })
+    ]);
+    document.body.appendChild(page);
+    document.body.classList.add('impression-offre');
+    var nettoyer = function () { document.body.classList.remove('impression-offre'); window.removeEventListener('afterprint', nettoyer); setTimeout(function () { if (page.parentNode) page.remove(); }, 500); };
+    window.addEventListener('afterprint', nettoyer);
+    setTimeout(function () { window.print(); }, 60);
+    setTimeout(function () { if (document.body.classList.contains('impression-offre')) nettoyer(); }, 60000);
+  };
+
+
   // Rappel d'une évaluation enregistrée (sans les annonces, qui ne sont pas conservées).
   Evaluation.prototype.blocSauvegarde = function (m) {
     return h('div.alerte-bloc.ok', { style: { marginTop: '12px' } }, [
@@ -3124,7 +3442,8 @@
       tauxUs: us && us.tauxAjuste !== null ? String(us.tauxAjuste) : '',
       depenseUs: us ? String(us.ajustement) : '',
       suivi: sv.suivi, etatVehicule: sv.etatVehicule,
-      etat: sv.etat, pneus: sv.pneus, pareBrise: sv.pareBrise, accident: sv.accident
+      etat: sv.etat, pneus: sv.pneus, pareBrise: sv.pareBrise, accident: sv.accident,
+      declaration: this.collecterDeclaration()   /* 24 nov. (étape 2) : les réponses du propriétaire */
     };
   };
 
@@ -3352,6 +3671,7 @@
         if (r.year) self.elAnnee.value = r.year;
         if (r.trim) self.elVersion.value = r.trim;
         if (!self.styleManuel) self.elStyle.value = styleDe(r.carrosserie, r.portes, r.trim, r.model);
+        if (self.dommages) self.dommages.style(self.elStyle.value);
         self.tractionVehicule = self.vehManuel.motricite ? self.elMotricite.value : (tractionDe(r.motricite) || tractionDe(vp.motricite));
         if (!self.tractionManuelle) self.filtres.traction = self.tractionVehicule === 'avant' || self.tractionVehicule === 'arriere' ? self.tractionVehicule : (self.tractionVehicule || '');
       }
@@ -3684,7 +4004,7 @@
 
   var PERIODES_REGISTRE = [['tout', 'Tout'], ['j30', '30 jours'], ['trimestre', 'Trimestre'], ['annee', 'Année']];
   var STATUTS_REGISTRE = [['tous', 'Toutes'], ['enregistree', 'Enregistrées'], ['auto', 'Analyses auto']];
-  var SUIVIS_FINAUX = { perdu: 1, repris: 1, reprisWholesale: 1 };
+  var SUIVIS_FINAUX = { perdu: 1, repris: 1, reprisWholesale: 1, wholesale: 1, depot: 1, inventaire: 1 };   /* 24 nov. : + les statuts de reprise de Torque */
   function debutPeriode(cle) {
     var now = new Date(), y = now.getFullYear(), m = now.getMonth();
     if (cle === 'j30') { var d = new Date(now); d.setDate(d.getDate() - 30); return d.getTime(); }
@@ -3713,7 +4033,7 @@
     var self = this;
     this.periode = AMX.memo.lire('registre_eval_periode', 'tout');
     if (!PERIODES_REGISTRE.some(function (p) { return p[0] === self.periode; })) this.periode = 'tout';
-    this.colonnes = AMX.memo.lire('registre_eval_colonnes', 'simple') === 'detail' ? 'detail' : 'simple';
+    this.colonnes = { detail: 'detail', stats: 'stats' }[AMX.memo.lire('registre_eval_colonnes', 'simple')] || 'simple';   /* 24 nov. : + la vue Statistiques */
     this.acheteur = '';
     this.suivi = AMX.memo.lire('registre_eval_suivi', '');
     if (this.suivi !== 'aucun' && !statutSuivi(this.suivi)) this.suivi = '';
@@ -3809,7 +4129,7 @@
       var p = nombre(r.prixPaye), d = nombre(r.prixVente), m = nombre(r.marge), st = (r.suivi && r.suivi.statut) || '';
       if (p !== null) paye += p; if (d !== null) detail += d; if (m !== null) { marge += m; nMarge++; } if (r.marchePct) { pctS += r.marchePct; nPct++; } if (r.statut !== 'auto') nEnr++;
       if (r.suivi && r.suivi.client) nClient++;
-      if (st === 'attente') nAttente++; if (st === 'repris' || st === 'reprisWholesale') nRepris++; if (st === 'perdu') nPerdu++; if (aRelancer(r)) nRelancer++;
+      if (st === 'attente') nAttente++; if (SUIVI_REPRIS[st]) nRepris++; if (st === 'perdu') nPerdu++; if (aRelancer(r)) nRelancer++;
     });
     var conclues = nRepris + nPerdu;
     return { n: n, paye: paye, detail: detail, marge: marge, nMarge: nMarge, margeMoy: nMarge ? marge / nMarge : null, pctMoy: nPct ? pctS / nPct : null, nEnr: nEnr, nAuto: n - nEnr,
@@ -3841,8 +4161,8 @@
       self.elSegmentStatut.appendChild(h('button' + (p[0] === self.statut ? '.actif' : ''), { type: 'button', text: p[1], onclick: function () { self.statut = p[0]; AMX.memo.ecrire('registre_eval_statut', p[0]); self.rendreFiltres(); self.rafraichir(); } }));
     });
     AMX.vider(this.elColonnes);
-    [['simple', 'Simple'], ['detail', 'Détaillé']].forEach(function (p) {
-      self.elColonnes.appendChild(h('button' + (p[0] === self.colonnes ? '.actif' : ''), { type: 'button', text: p[1], title: p[0] === 'simple' ? 'Les colonnes essentielles' : 'Toutes les colonnes (NIV, recon, marché standard, Canada / É.-U., veille)', onclick: function () { self.colonnes = p[0]; AMX.memo.ecrire('registre_eval_colonnes', p[0]); self.rendreFiltres(); self.rendreTable(); } }));
+    [['simple', 'Simple'], ['detail', 'Détaillé'], ['stats', 'Statistiques']].forEach(function (p) {
+      self.elColonnes.appendChild(h('button' + (p[0] === self.colonnes ? '.actif' : ''), { type: 'button', text: p[1], title: p[0] === 'simple' ? 'Les colonnes essentielles' : (p[0] === 'stats' ? 'Look-to-book par évaluateur, conseiller, marque, tranche de prix ; top modèles repris et perdus (24 nov.)' : 'Toutes les colonnes (NIV, recon, marché standard, Canada / É.-U., veille)'), onclick: function () { self.colonnes = p[0]; AMX.memo.ecrire('registre_eval_colonnes', p[0]); self.rendreFiltres(); self.rendreTable(); } }));
     });
   };
 
@@ -3949,6 +4269,7 @@
     AMX.vider(this.elTable);
     if (!this.liste) return;
     lignes = lignes || this.filtrees();
+    if (this.colonnes === 'stats') { this.rendreStats(lignes); return; }   /* 24 nov. : la vue Statistiques (look-to-book) */
     var cols = this.colonnesVisibles(), simple = this.colonnes !== 'detail';
     this.elTable.classList.toggle('simple', simple);
     if (!lignes.length) { this.elTable.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune évaluation'), h('div', { text: (this.recherche || this.suivi || this.acheteur || this.periode !== 'tout' || this.statut !== 'tous') ? 'Rien ne correspond aux filtres.' : 'Aucune évaluation pour cette concession : chaque NIV analysé dans « Nouvelle » est conservé ici.' })])); return; }
@@ -3999,6 +4320,78 @@
     };
     var tfoot = h('tfoot', [h('tr', cols.map(function (col) { return h('td' + (col.num ? '.num' : ''), { text: pied[col.cle] || '' }); }))]);
     this.elTable.appendChild(h('table.tableau#registre-table', [thead, tbody, tfoot]));
+  };
+
+  /* ======================= 24 nov. 2026 : Statistiques des évaluations (étape 3, Torque « Statistiques ») =======================
+     Sur la liste filtrée du registre (mêmes filtres, même concession) : look-to-book (reprises ÷ évaluations), taux de reprise
+     (reprises ÷ suivis conclus), par évaluateur, par conseiller, par marque, par tranche de prix payé, top 5 des modèles
+     repris et perdus. Vue « Statistiques » du segment Simple / Détaillé / Statistiques. */
+  var TRANCHES_PRIX = [[0, 10000, 'Moins de 10 000 $'], [10000, 20000, '10 000 – 20 000 $'], [20000, 30000, '20 000 – 30 000 $'], [30000, 50000, '30 000 – 50 000 $'], [50000, Infinity, '50 000 $ et plus']];
+  function trancheDe(r) {
+    var p = nombre(r.prixPaye); if (p === null) p = nombre(r.prixVente);
+    if (p === null) return '';
+    for (var i = 0; i < TRANCHES_PRIX.length; i++) { if (p >= TRANCHES_PRIX[i][0] && p < TRANCHES_PRIX[i][1]) return TRANCHES_PRIX[i][2]; }
+    return '';
+  }
+  /** Groupe des lignes par clé ; chaque groupe : n, repris, perdus, attente, lookToBook, taux, margeMoy, payeMoy, valeurMoy. */
+  function statsPar(lignes, cle) {
+    var g = {};
+    lignes.forEach(function (r) {
+      var k = cle(r); if (k === null || k === undefined) return; k = String(k); if (!k) k = '(non inscrit)';
+      var s = g[k] || (g[k] = { nom: k, n: 0, repris: 0, perdus: 0, attente: 0, marges: [], payes: [], valeurs: [] });
+      var st = (r.suivi && r.suivi.statut) || '';
+      s.n++;
+      if (SUIVI_REPRIS[st]) s.repris++; else if (st === 'perdu') s.perdus++; else if (st === 'attente') s.attente++;
+      var m = nombre(r.marge); if (m !== null) s.marges.push(m);
+      var p = nombre(r.prixPaye); if (p !== null) s.payes.push(p);
+      var v = r.suivi ? nombre(r.suivi.valeurClient) : null; if (v !== null) s.valeurs.push(v);
+    });
+    return Object.keys(g).map(function (k) {
+      var s = g[k], conclus = s.repris + s.perdus;
+      s.lookToBook = s.n ? s.repris / s.n : null; s.taux = conclus ? s.repris / conclus : null;
+      s.margeMoy = s.marges.length ? moyenne(s.marges) : null; s.payeMoy = s.payes.length ? moyenne(s.payes) : null; s.valeurMoy = s.valeurs.length ? moyenne(s.valeurs) : null;
+      return s;
+    }).sort(function (a, b) { return b.n - a.n || String(a.nom).localeCompare(String(b.nom), 'fr'); });
+  }
+  Registre.prototype.rendreStats = function (lignes) {
+    var self = this, el = this.elTable;
+    AMX.vider(el);
+    el.classList.add('simple');
+    if (!lignes.length) { el.appendChild(h('div.vide', [h('div', { html: I.filtre }), h('h3', 'Aucune évaluation'), h('div', { text: 'Rien ne correspond aux filtres.' })])); return; }
+    var ag = agregerRegistre(lignes), nSuivi = lignes.filter(function (r) { return r.suivi && r.suivi.statut; }).length;
+    var ltb = ag.n ? ag.nRepris / ag.n : null;
+    var kpi = function (v, l, s) { return h('div.kpi.inv2-fixe', [h('div.valeur', { text: v }), h('div.libelle', { text: l }), s ? h('div.sous', { text: s }) : null]); };
+    el.appendChild(h('div.kpis.registre-stats-kpis', [
+      kpi(String(ag.n), 'Évaluations', nSuivi + ' avec un statut de suivi'),
+      kpi(String(ag.nAttente), 'En attente', ag.nRelancer ? ag.nRelancer + ' à relancer' : ''),
+      kpi(String(ag.nRepris), 'Reprises', 'repris, repris wholesale, wholesale, dépôt, en inventaire'),
+      kpi(String(ag.nPerdu), 'Perdues', ''),
+      kpi(ltb !== null ? Math.round(ltb * 1000) / 10 + ' %' : '—', 'Look-to-book', 'reprises ÷ évaluations (comme Torque)'),
+      kpi(ag.taux !== null ? Math.round(ag.taux * 100) + ' %' : '—', 'Taux de reprise', 'reprises ÷ suivis conclus (repris + perdus)')
+    ]));
+    var table = function (titre, sous, groupes, premiere, max) {
+      var rows = (max ? groupes.slice(0, max) : groupes);
+      return h('div.carte.registre-stats-carte', [h('div.carte-entete', [h('h2', { text: titre }), sous ? h('span.doux.petit', { text: sous }) : null]),
+        h('div.carte-corps.registre-corps', [h('div.eval-table.registre-table.simple', [h('table.tableau', [
+          h('thead', [h('tr', [premiere, 'Évaluations', 'Reprises', 'Perdues', 'En attente', 'Look-to-book', 'Taux de reprise', 'Payé moy.', 'Marge moy.'].map(function (t, i) { return h('th' + (i ? '.num' : ''), { text: t }); }))]),
+          h('tbody', rows.map(function (s) {
+            return h('tr', [h('td', { text: s.nom }), h('td.num', { text: String(s.n) }), h('td.num', { text: String(s.repris) }), h('td.num', { text: String(s.perdus) }), h('td.num', { text: String(s.attente) }),
+              h('td.num' + (s.lookToBook !== null ? (s.lookToBook >= 0.3 ? '.inf' : (s.lookToBook < 0.15 ? '.sup' : '')) : ''), { text: s.lookToBook !== null ? Math.round(s.lookToBook * 1000) / 10 + ' %' : '—' }),
+              h('td.num', { text: s.taux !== null ? Math.round(s.taux * 100) + ' %' : '—' }), h('td.num', { text: s.payeMoy !== null ? fmt(s.payeMoy) : '—' }), h('td.num', { text: s.margeMoy !== null ? fmt(s.margeMoy) : '—' })]);
+          }).concat(groupes.length > rows.length ? [h('tr', [h('td.doux', { colspan: 9, text: '… et ' + (groupes.length - rows.length) + ' autre' + (groupes.length - rows.length > 1 ? 's' : '') })])] : []))
+        ])])])]);
+    };
+    var grille = h('div.registre-stats-grille');
+    grille.appendChild(table('Par évaluateur', 'qui a fait l\'évaluation', statsPar(lignes, function (r) { return (r.par || '').split('@')[0]; }), 'Évaluateur'));
+    grille.appendChild(table('Par conseiller', 'le conseiller inscrit dans Client et suivi', statsPar(lignes, function (r) { return (r.suivi && r.suivi.conseiller) || ''; }), 'Conseiller'));
+    grille.appendChild(table('Par marque', '', statsPar(lignes, function (r) { return (r.marque || '').toUpperCase() || ''; }), 'Marque', 12));
+    var tranches = statsPar(lignes, trancheDe).sort(function (a, b) { return TRANCHES_PRIX.map(function (t) { return t[2]; }).indexOf(a.nom) - TRANCHES_PRIX.map(function (t) { return t[2]; }).indexOf(b.nom); });
+    grille.appendChild(table('Par tranche de prix', 'prix payé (sinon prix de détail)', tranches, 'Tranche'));
+    var parModele = statsPar(lignes, function (r) { return [(r.marque || '').toUpperCase(), r.modele].filter(Boolean).join(' '); });
+    grille.appendChild(table('Top 5 — modèles repris', 'les modèles qu\'on reprend le plus', parModele.filter(function (s) { return s.repris; }).sort(function (a, b) { return b.repris - a.repris || b.n - a.n; }), 'Modèle', 5));
+    grille.appendChild(table('Top 5 — modèles perdus', 'les modèles qu\'on perd le plus', parModele.filter(function (s) { return s.perdus; }).sort(function (a, b) { return b.perdus - a.perdus || b.n - a.n; }), 'Modèle', 5));
+    el.appendChild(grille);
+    el.appendChild(h('p.eval-note', { text: 'Look-to-book = reprises ÷ évaluations de la liste filtrée (repris, repris wholesale, wholesale, dépôt / commande, en inventaire comptent comme reprises). Taux de reprise = reprises ÷ (reprises + perdues). Une évaluation sans statut de suivi compte dans les évaluations, pas dans les reprises.' }));
   };
 
   Registre.prototype.exporter = function () {

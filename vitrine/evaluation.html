@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Véhicule à évaluer</title>
+<style>
+  :root { --vert: #008a44; --texte: #16181c; --doux: #6b7280; --trait: #e6e8ec; --fond: #f6f7f9; --carte: #ffffff; --rayon: 14px; --rouge: #d92d20; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fond); color: var(--texte); line-height: 1.45; }
+  header { background: var(--carte); border-bottom: 1px solid var(--trait); padding: 12px 16px; position: sticky; top: 0; z-index: 10; }
+  .rangee { display: flex; align-items: center; gap: 12px; max-width: 900px; margin: 0 auto; }
+  .marque { font-weight: 700; font-size: 15px; }
+  .marque small { display: block; font-weight: 400; color: var(--doux); font-size: 12px; }
+  .pousse { margin-left: auto; }
+  .langues { display: flex; border: 1px solid var(--trait); border-radius: 999px; overflow: hidden; }
+  .langues button { border: 0; background: transparent; padding: 6px 12px; font: inherit; font-size: 13px; color: var(--doux); cursor: pointer; }
+  .langues button[aria-pressed="true"] { background: var(--vert); color: #fff; font-weight: 600; }
+  main { max-width: 900px; margin: 0 auto; padding: 16px; }
+  .bloc { background: var(--carte); border: 1px solid var(--trait); border-radius: var(--rayon); padding: 18px; margin-bottom: 14px; }
+  .bloc h2 { margin: 0 0 10px; font-size: 15px; }
+  .hero { position: relative; aspect-ratio: 16 / 10; border-radius: var(--rayon); overflow: hidden; background: #1f2328; color: #fff; margin-bottom: 10px; }
+  .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hero.sansPhoto { aspect-ratio: auto; min-height: 120px; background: linear-gradient(135deg, #1f2328, #008a44); }
+  .hero .voile { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,.65) 100%); }
+  .hero .bas { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  .hero h1 { margin: 0; font-size: 22px; }
+  .hero .sous { font-size: 14px; opacity: .95; }
+  .bande { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .bande img { width: 84px; height: 62px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; cursor: pointer; flex: none; }
+  .bande img.actif { border-color: var(--vert); }
+  .faits { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 14px; }
+  .faits .l { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--doux); font-weight: 700; }
+  .faits .v { font-size: 14px; font-weight: 600; }
+  .puces { display: flex; flex-wrap: wrap; gap: 6px; }
+  .puce { border: 1px solid var(--trait); border-radius: 999px; padding: 4px 10px; font-size: 13px; background: var(--fond); }
+  .puce.rouge { border-color: var(--rouge); color: var(--rouge); background: #fdecec; }
+  .prix { font-size: 26px; font-weight: 800; color: var(--vert); }
+  .prix small { font-size: 13px; color: var(--doux); font-weight: 400; display: block; }
+  .champ { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .champ label { font-size: 12px; font-weight: 700; color: var(--doux); text-transform: uppercase; letter-spacing: .05em; }
+  .champ input, .champ textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--trait); border-radius: 10px; width: 100%; }
+  .grille2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  @media (max-width: 560px) { .grille2 { grid-template-columns: 1fr; } }
+  button.envoyer { width: 100%; border: 0; background: var(--vert); color: #fff; font: inherit; font-weight: 700; font-size: 16px; padding: 13px; border-radius: 12px; cursor: pointer; }
+  button.envoyer:disabled { opacity: .6; cursor: default; }
+  .alerte { border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-bottom: 10px; }
+  .alerte.bon { background: #e8f5ee; color: #0b6b3a; }
+  .alerte.mal { background: #fdecec; color: var(--rouge); }
+  .doux { color: var(--doux); font-size: 13px; }
+  #message { text-align: center; padding: 40px 10px; color: var(--doux); }
+  svg.dommages { width: 100%; max-width: 640px; height: auto; display: block; border: 1px dashed var(--trait); border-radius: 10px; background: var(--fond); }
+  footer { text-align: center; color: var(--doux); font-size: 12px; padding: 10px 16px 30px; }
+</style>
+</head>
+<body>
+<header><div class="rangee"><div class="marque" id="cie">Groupe Automax<small id="cieSous"></small></div><div class="pousse langues"><button type="button" data-langue="fr" aria-pressed="true">FR</button><button type="button" data-langue="en" aria-pressed="false">EN</button></div></div></header>
+<main>
+  <div id="message">Chargement…</div>
+  <div id="contenu" hidden>
+    <div class="hero" id="hero"><div class="voile"></div><div class="bas"><h1 id="titre"></h1><div class="sous" id="sousTitre"></div></div></div>
+    <div class="bande" id="bande"></div>
+    <div class="bloc" id="blocPrix" hidden><div class="prix" id="prix"></div><p class="doux" id="messageVendeur"></p></div>
+    <div class="bloc"><h2 id="tVehicule">Véhicule</h2><div class="faits" id="faits"></div></div>
+    <div class="bloc" id="blocEtat"><h2 id="tEtat">État déclaré</h2><div class="puces" id="etat"></div><p class="doux" id="etatTexte"></p><div id="dommages"></div></div>
+    <div class="bloc" id="blocOptions" hidden><h2 id="tOptions">Équipement</h2><div class="puces" id="options"></div></div>
+    <div class="bloc" id="blocOffre">
+      <h2 id="tOffre">Votre offre</h2>
+      <div class="alerte bon" id="dejaOffert" hidden></div>
+      <form id="formulaire">
+        <div class="grille2">
+          <div class="champ"><label for="nom" id="lNom">Votre nom</label><input id="nom" required autocomplete="name"></div>
+          <div class="champ"><label for="entreprise" id="lEntreprise">Entreprise</label><input id="entreprise" autocomplete="organization"></div>
+          <div class="champ"><label for="telephone" id="lTel">Cellulaire</label><input id="telephone" type="tel" autocomplete="tel"></div>
+          <div class="champ"><label for="montant" id="lMontant">Montant offert ($ CA)</label><input id="montant" type="number" inputmode="numeric" min="100" step="50" required></div>
+        </div>
+        <div class="champ"><label for="msg" id="lMsg">Message (facultatif)</label><textarea id="msg" rows="2"></textarea></div>
+        <div class="alerte mal" id="erreur" hidden></div>
+        <button class="envoyer" type="submit" id="envoyer">Envoyer mon offre</button>
+        <p class="doux" id="noteOffre" style="margin:8px 0 0"></p>
+      </form>
+    </div>
+  </div>
+</main>
+<footer id="pied">ScanAutomax — Groupe Automax</footer>
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZsbAEELfW5Ce80l3v39unBI6L3js8IQ3iYilrGDNK2zUzlv16XxkoZYZuf4t3tgfX/exec";
+const T = {
+  fr: { chargement: "Chargement…", LIEN_INVALIDE: "Ce lien n'est pas valide.", LIEN_EXPIRE: "Ce lien a expiré : demandez-en un nouveau à la concession.", RESEAU: "Impossible de joindre le serveur. Réessayez dans un instant.", MONTANT_INVALIDE: "Entrez un montant valide.",
+    vehicule: "Véhicule", etat: "État déclaré", options: "Équipement", offre: "Votre offre", nom: "Votre nom", entreprise: "Entreprise", tel: "Cellulaire", montant: "Montant offert ($ CA)", msg: "Message (facultatif)", envoyer: "Envoyer mon offre", envoi: "Envoi…", merci: "Merci, votre offre est transmise.", merciDetail: "L'évaluateur vous rappellera. Vous pouvez la modifier en renvoyant un montant.", deja: "Offre déjà transmise : ", prixDemande: "Prix demandé", noteOffre: "Offre d'achat sans engagement, sous réserve d'inspection. Le lien est personnel et valide 30 jours.",
+    km: "Kilométrage", carrosserie: "Carrosserie", carburant: "Carburant", motricite: "Motricité", moteur: "Moteur", couleur: "Couleur", interieur: "Intérieur", cles: "Clés", niv: "NIV", general: "État général", pneusEte: "Pneus été", pneusHiver: "Pneus hiver", pareBrise: "Pare-brise", accident: "Accident déclaré", accidentNon: "Aucun accident déclaré", dommages: "Dommages", sansEtat: "Aucun détail d'état inscrit.", photos: "photos", valide: "Lien valide jusqu'au" },
+  en: { chargement: "Loading…", LIEN_INVALIDE: "This link is not valid.", LIEN_EXPIRE: "This link has expired: ask the dealership for a new one.", RESEAU: "Cannot reach the server. Please try again shortly.", MONTANT_INVALIDE: "Enter a valid amount.",
+    vehicule: "Vehicle", etat: "Declared condition", options: "Equipment", offre: "Your offer", nom: "Your name", entreprise: "Company", tel: "Mobile", montant: "Offered amount ($ CAD)", msg: "Message (optional)", envoyer: "Send my offer", envoi: "Sending…", merci: "Thank you, your offer has been sent.", merciDetail: "The appraiser will call you back. You can change it by sending a new amount.", deja: "Offer already sent: ", prixDemande: "Asking price", noteOffre: "Non-binding purchase offer, subject to inspection. This link is personal and valid for 30 days.",
+    km: "Mileage", carrosserie: "Body", carburant: "Fuel", motricite: "Drivetrain", moteur: "Engine", couleur: "Colour", interieur: "Interior", cles: "Keys", niv: "VIN", general: "Overall condition", pneusEte: "Summer tires", pneusHiver: "Winter tires", pareBrise: "Windshield", accident: "Accident declared", accidentNon: "No accident declared", dommages: "Damage", sansEtat: "No condition details.", photos: "photos", valide: "Link valid until" }
+};
+let langue = (navigator.language || "fr").toLowerCase().indexOf("en") === 0 ? "en" : "fr";
+try { langue = localStorage.getItem("automaxLangue") || langue; } catch (e) {}
+const jeton = new URLSearchParams(location.search).get("t") || "";
+let donnees = null;
+function t() { return T[langue]; }
+function echappe(s) { return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function argent(n) { return Math.round(n).toLocaleString(langue === "en" ? "en-CA" : "fr-CA") + " $"; }
+function vignette(u, l) { const m = /[-\w]{25,}/.exec(String(u || "")); return m && /drive\.google|googleusercontent/.test(u) ? "https://drive.google.com/thumbnail?id=" + m[0] + "&sz=w" + (l || 1200) : u; }
+function afficherMessage(txt) { const m = document.getElementById("message"); m.hidden = false; m.textContent = txt; document.getElementById("contenu").hidden = true; }
+const NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs, enfants) { const e = document.createElementNS(NS, tag); Object.keys(attrs || {}).forEach(k => e.setAttribute(k, attrs[k])); (enfants || []).forEach(c => e.appendChild(c)); return e; }
+function silhouette(code) {
+  const g = svgEl("g", { fill: "#fff", stroke: "#444", "stroke-width": "2", "stroke-linejoin": "round" });
+  const genre = /camionnette/.test(code) ? "camion" : (/vus|fourgonnette/.test(code) ? "vus" : "auto");
+  if (genre === "camion") { g.appendChild(svgEl("rect", { x: 70, y: 28, width: 160, height: 112, rx: 28 })); g.appendChild(svgEl("rect", { x: 72, y: 140, width: 156, height: 132, rx: 8 })); g.appendChild(svgEl("polygon", { points: "90,78 210,78 198,102 102,102", fill: "#e6eef7" })); g.appendChild(svgEl("polygon", { points: "100,118 200,118 206,134 94,134", fill: "#e6eef7" })); }
+  else { g.appendChild(svgEl("rect", { x: 70, y: 28, width: 160, height: 244, rx: genre === "vus" ? 34 : 48 })); g.appendChild(svgEl("polygon", { points: "92,90 208,90 196,118 104,118", fill: "#e6eef7" })); const y1 = genre === "vus" ? 212 : 196, y2 = genre === "vus" ? 236 : 226; g.appendChild(svgEl("polygon", { points: "104," + y1 + " 196," + y1 + " 208," + y2 + " 92," + y2, fill: "#e6eef7" })); g.appendChild(svgEl("line", { x1: 150, y1: 118, x2: 150, y2: y1, stroke: "#bbb" })); }
+  [[60, 62], [226, 62], [60, 206], [226, 206]].forEach(p => g.appendChild(svgEl("rect", { x: p[0], y: p[1], width: 14, height: 38, rx: 4, fill: "#333" })));
+  g.appendChild(svgEl("rect", { x: 54, y: 104, width: 16, height: 9, rx: 3 })); g.appendChild(svgEl("rect", { x: 230, y: 104, width: 16, height: 9, rx: 3 }));
+  const profil = genre === "camion" ? "330,196 340,160 392,156 406,108 468,104 480,156 604,156 612,196" : (genre === "vus" ? "330,196 338,150 368,108 560,104 592,150 612,196" : "330,196 346,160 392,152 424,110 506,106 548,152 602,162 612,196");
+  g.appendChild(svgEl("polygon", { points: profil }));
+  if (genre === "camion") g.appendChild(svgEl("polygon", { points: "412,116 462,112 470,150 404,150", fill: "#e6eef7" }));
+  else if (genre === "vus") { g.appendChild(svgEl("polygon", { points: "376,116 454,112 454,148 356,148", fill: "#e6eef7" })); g.appendChild(svgEl("polygon", { points: "462,112 556,112 580,148 462,148", fill: "#e6eef7" })); }
+  else { g.appendChild(svgEl("polygon", { points: "430,118 462,114 462,150 404,150", fill: "#e6eef7" })); g.appendChild(svgEl("polygon", { points: "470,114 500,112 536,150 470,150", fill: "#e6eef7" })); }
+  [386, 556].forEach(cx => { g.appendChild(svgEl("circle", { cx, cy: 198, r: 22, fill: "#333" })); g.appendChild(svgEl("circle", { cx, cy: 198, r: 9, fill: "#ddd" })); });
+  return g;
+}
+function dessiner() {
+  const v = donnees.vehicule, c = donnees.concession || {};
+  document.getElementById("cie").firstChild.textContent = c.nom || "Groupe Automax";
+  document.getElementById("cieSous").textContent = [c.ville, c.province].filter(Boolean).join(", ") + (c.telephone ? " · " + c.telephone : "");
+  const titre = [v.annee, v.marque, v.modele, v.version].filter(Boolean).join(" ");
+  document.title = titre + " — " + (c.nom || "Groupe Automax");
+  document.getElementById("titre").textContent = titre;
+  document.getElementById("sousTitre").textContent = (v.km ? Math.round(v.km).toLocaleString("fr-CA") + " km · " : "") + (donnees.photos.length ? donnees.photos.length + " " + t().photos : "");
+  const hero = document.getElementById("hero"), bande = document.getElementById("bande");
+  hero.querySelectorAll("img").forEach(i => i.remove()); bande.innerHTML = "";
+  hero.classList.toggle("sansPhoto", !donnees.photos.length);
+  if (donnees.photos.length) {
+    const img = document.createElement("img"); img.src = vignette(donnees.photos[0].url, 1200); img.alt = titre; hero.insertBefore(img, hero.firstChild);
+    donnees.photos.forEach((p, i) => { const m = document.createElement("img"); m.src = p.vignette || vignette(p.url, 300); m.alt = ""; m.loading = "lazy"; if (!i) m.classList.add("actif"); m.addEventListener("click", () => { img.src = vignette(p.url, 1200); bande.querySelectorAll("img").forEach(x => x.classList.remove("actif")); m.classList.add("actif"); }); bande.appendChild(m); });
+  }
+  const blocPrix = document.getElementById("blocPrix");
+  blocPrix.hidden = !(donnees.prixDemande || donnees.message);
+  document.getElementById("prix").innerHTML = donnees.prixDemande ? echappe(argent(donnees.prixDemande)) + "<small>" + echappe(t().prixDemande) + "</small>" : "";
+  document.getElementById("messageVendeur").textContent = donnees.message || "";
+  const faits = [[t().km, v.km ? Math.round(v.km).toLocaleString("fr-CA") + " km" : ""], [t().carrosserie, v.carrosserie], [t().carburant, v.carburant], [t().motricite, v.motricite], [t().moteur, v.moteur], [t().couleur, v.couleurExt], [t().interieur, v.couleurInt], [t().cles, v.cles], [t().niv, v.vin]].filter(x => x[1]);
+  document.getElementById("faits").innerHTML = faits.map(x => '<div><div class="l">' + echappe(x[0]) + '</div><div class="v">' + echappe(x[1]) + "</div></div>").join("");
+  const puces = [];
+  if (v.etatGeneral) puces.push([t().general + " : " + v.etatGeneral, ""]);
+  if (v.pneusEte) puces.push([t().pneusEte + " : " + v.pneusEte, ""]);
+  if (v.pneusHiver) puces.push([t().pneusHiver + " : " + v.pneusHiver, ""]);
+  if (v.pneusDim) puces.push([v.pneusDim, ""]);
+  if (v.pareBrise) puces.push([t().pareBrise + " : " + v.pareBrise, ""]);
+  if (v.accident === "oui") puces.push([t().accident, "rouge"]); else if (v.accident === "non") puces.push([t().accidentNon, ""]);
+  document.getElementById("etat").innerHTML = puces.map(p => '<span class="puce ' + p[1] + '">' + echappe(p[0]) + "</span>").join("") || '<span class="doux">' + echappe(t().sansEtat) + "</span>";
+  document.getElementById("etatTexte").textContent = [v.carrosserieNotes, v.voyants, v.dommages && v.dommages.texte ? t().dommages + " : " + v.dommages.texte : ""].filter(Boolean).join(" · ");
+  const dom = document.getElementById("dommages"); dom.innerHTML = "";
+  if (v.dommages && v.dommages.traits && v.dommages.traits.length) {
+    const svg = svgEl("svg", { viewBox: "0 0 640 300", class: "dommages" });
+    svg.appendChild(silhouette(v.dommages.style || v.carrosserie || ""));
+    const g = svgEl("g", { fill: "none", stroke: "#D92D20", "stroke-width": "4", "stroke-linecap": "round", "stroke-linejoin": "round" });
+    v.dommages.traits.forEach(tr => { const pts = []; for (let k = 0; k + 1 < tr.length; k += 2) pts.push(tr[k] + "," + tr[k + 1]); if (pts.length === 1) pts.push((tr[0] + 1) + "," + tr[1]); g.appendChild(svgEl("polyline", { points: pts.join(" ") })); });
+    svg.appendChild(g); dom.appendChild(svg);
+  }
+  document.getElementById("blocOptions").hidden = !(v.options && v.options.length);
+  document.getElementById("options").innerHTML = (v.options || []).map(o => '<span class="puce">' + echappe(o) + "</span>").join("");
+  const deja = document.getElementById("dejaOffert");
+  deja.hidden = !donnees.offre; if (donnees.offre) deja.textContent = t().deja + argent(donnees.offre);
+  if (donnees.nom && !document.getElementById("nom").value) document.getElementById("nom").value = donnees.nom;
+  ["tVehicule:vehicule", "tEtat:etat", "tOptions:options", "tOffre:offre", "lNom:nom", "lEntreprise:entreprise", "lTel:tel", "lMontant:montant", "lMsg:msg", "envoyer:envoyer"].forEach(x => { const p = x.split(":"); document.getElementById(p[0]).textContent = t()[p[1]]; });
+  document.getElementById("noteOffre").textContent = t().noteOffre + (donnees.expireLe ? " " + t().valide + " " + donnees.expireLe.slice(0, 10) + "." : "");
+}
+async function charger() {
+  if (!jeton) { afficherMessage(t().LIEN_INVALIDE); return; }
+  afficherMessage(t().chargement);
+  try {
+    const r = await fetch(SCRIPT_URL + "?evalPartage=" + encodeURIComponent(jeton));
+    const j = await r.json();
+    if (!j.ok) { afficherMessage(t()[j.code] || t().RESEAU); return; }
+    donnees = j;
+    document.getElementById("message").hidden = true;
+    document.getElementById("contenu").hidden = false;
+    dessiner();
+  } catch (e) { afficherMessage(t().RESEAU); }
+}
+document.getElementById("formulaire").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const bouton = document.getElementById("envoyer"), erreur = document.getElementById("erreur");
+  erreur.hidden = true; bouton.disabled = true; bouton.textContent = t().envoi;
+  const corps = { action: "evalOffrir", t: jeton, nom: document.getElementById("nom").value, entreprise: document.getElementById("entreprise").value, telephone: document.getElementById("telephone").value, montant: document.getElementById("montant").value, message: document.getElementById("msg").value, langue: langue };
+  try {
+    const r = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(corps) });
+    const j = await r.json();
+    if (j.ok) {
+      const deja = document.getElementById("dejaOffert");
+      deja.hidden = false; deja.innerHTML = "<strong>" + echappe(t().merci) + "</strong><br>" + echappe(t().merciDetail) + "<br>" + echappe(t().deja + argent(j.montant));
+      donnees.offre = j.montant;
+      bouton.disabled = false; bouton.textContent = t().envoyer;
+      window.scrollTo({ top: deja.offsetTop - 80, behavior: "smooth" });
+      return;
+    }
+    erreur.textContent = t()[j.code] || t().RESEAU; erreur.hidden = false;
+  } catch (e) { erreur.textContent = t().RESEAU; erreur.hidden = false; }
+  bouton.disabled = false; bouton.textContent = t().envoyer;
+});
+document.querySelectorAll(".langues button").forEach(b => { b.addEventListener("click", () => { langue = b.dataset.langue; try { localStorage.setItem("automaxLangue", langue); } catch (e) {} document.querySelectorAll(".langues button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false")); document.documentElement.lang = langue; if (donnees) dessiner(); else afficherMessage(t().chargement); }); });
+document.querySelectorAll(".langues button").forEach(x => x.setAttribute("aria-pressed", x.dataset.langue === langue ? "true" : "false"));
+document.documentElement.lang = langue;
+charger();
+</script>
+</body>
+</html>

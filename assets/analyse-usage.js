@@ -630,6 +630,49 @@
       partiel ? h('div.mini.doux', { text: 'Calculé sur les ' + a.comps.length + ' annonces listées (redéployez le script pour toutes les ' + a.n + ').' }) : null
     ]);
   }
+  /* 26 nov. (Eric Morin, S5807FA30B1) : comme dans l'Évaluation — trier les annonces (à notre km, prix affiché, km, jours en
+  ligne) et voir notre véhicule à sa place parmi elles (ligne verte « Notre véhicule »). Le tri est gardé d'une occasion à l'autre. */
+  var TRIS_COMPS = [['aj', 'À notre km'], ['prix', 'Prix affiché'], ['km', 'Km'], ['jours', 'Jours en ligne']];
+  function tableComps(a) {
+  var tri = AMX.memo.lire('anu_comps_tri', 'aj'), sens = AMX.memo.lire('anu_comps_sens', 'asc');
+  if (!TRIS_COMPS.some(function (t) { return t[0] === tri; })) tri = 'aj';
+  var bloc = h('div.anu-comps');
+  var val = function (x) { return tri === 'prix' ? x.p : (tri === 'km' ? x.k : (tri === 'jours' ? x.j : x.aj)); };
+  var dessiner = function () {
+  AMX.vider(bloc);
+  var desc = sens === 'desc', sg = desc ? -1 : 1;
+  var liste = a.comps.slice().sort(function (p, q) {
+  var vp = nb(val(p)) ? val(p) : (desc ? -Infinity : Infinity), vq = nb(val(q)) ? val(q) : (desc ? -Infinity : Infinity);
+  return (vp - vq) * sg;
+  });
+  var moiVal = tri === 'km' ? a.km : (tri === 'jours' ? null : a.prix), placerFin = !nb(moiVal);
+  var ligneMoi = function () {
+  return h('tr.anu-moi', { title: nb(a.rang) ? 'Notre rang : ' + rangTexte(a.rang, a.n + 1) + ', prix ramenés à notre kilométrage (1 = le moins cher)' : '' }, [
+  h('td', [h('div', { text: [a.annee, a.marque, a.modele, a.version].filter(Boolean).join(' ') }), h('div.mini.doux', { text: 'Notre véhicule' + (a.stock ? ' · # ' + a.stock : '') })]),
+  h('td.num', { text: nb(a.km) ? AMX.fmtNombre(Math.round(a.km)) : '—' }),
+  h('td.num', { text: argent(a.prix) }),
+  h('td.num', [h('b', { text: argent(a.prix) })]),
+  h('td', { text: (AMX.CONCESSIONS_TOUTES && AMX.CONCESSIONS_TOUTES[a.compagnie]) || a.compagnie || '' }),
+  h('td', { text: nb(a.jours) ? a.jours + ' j' : '—' }),
+  h('td', '')]);
+  };
+  var lignes = [], moiInsere = false;
+  liste.forEach(function (x) {
+  var xv = val(x);
+  if (!moiInsere && !placerFin && nb(xv) && (desc ? xv <= moiVal : xv >= moiVal)) { lignes.push(ligneMoi()); moiInsere = true; }
+  lignes.push(h('tr', [h('td', { text: [x.a, x.mo, x.ve || x.vl].filter(Boolean).join(' ') }), h('td.num', { text: nb(x.k) ? AMX.fmtNombre(x.k) : '—' }), h('td.num', { text: argent(x.p) }), h('td.num', [h('b', { text: argent(x.aj) })]),
+  h('td', { text: [x.s, x.vi].filter(Boolean).join(', ') }), h('td', { text: nb(x.j) ? x.j + ' j' : '—' }), h('td', [/^https:\/\//.test(x.l || '') ? h('a', { href: x.l, target: '_blank', rel: 'noopener', text: 'Voir ↗' }) : null])]));
+  });
+  if (!moiInsere) lignes.push(ligneMoi());
+  var sel = h('select.saisie', { style: { height: '28px', width: 'auto' }, 'aria-label': 'Trier les annonces', onchange: function () { tri = sel.value; sens = 'asc'; AMX.memo.ecrire('anu_comps_tri', tri); AMX.memo.ecrire('anu_comps_sens', sens); dessiner(); } },
+  TRIS_COMPS.map(function (o) { return h('option', { value: o[0], selected: tri === o[0] ? true : undefined, text: 'Trier : ' + o[1] }); }));
+  var btn = h('button.btn.petit.fantome', { type: 'button', text: desc ? '↓ décroissant' : '↑ croissant', title: 'Inverser l\'ordre', onclick: function () { sens = desc ? 'asc' : 'desc'; AMX.memo.ecrire('anu_comps_sens', sens); dessiner(); } });
+  bloc.appendChild(h('div.anu-comps-barre', [h('span.doux', { text: liste.length + ' annonce' + (liste.length > 1 ? 's' : '') + ' de la même version, et la nôtre à sa place' }), h('span', { style: { flex: '1' } }), sel, btn]));
+  bloc.appendChild(h('div.anu-defile', [h('table.anu-table', [h('thead', [h('tr', ['Annonce (même version)', 'Km', 'Prix', 'À notre km', 'Vendeur', 'En ligne', ''].map(function (t, i) { return h('th' + (i && i < 4 ? '.num' : ''), { text: t }); }))]), h('tbody', lignes)])]));
+  };
+  dessiner();
+  return bloc;
+  }
   function details(a, p, info) {
     var couts = voitCouts(), cases = [];
     var c = function (lib, val, cls, titre) { cases.push(h('div.anu-det', { title: titre || '' }, [h('span', { text: lib }), h('b' + (cls ? '.' + cls : ''), { text: val })])); };
@@ -646,11 +689,7 @@
     c('Nos ventes (90 j)', a.ventes90 + ' ici · ' + a.ventes90Groupe + ' au groupe', '', nb(a.delaiVente) ? 'Délai médian de vente ici : ' + a.delaiVente + ' j' : '');
     if (nb(a.joursPrix)) c('Prix inchangé', a.joursPrix + ' j' + (a.joursPrixDepuisVu ? '+' : ''));
     var autres = a.alertes.slice(1);
-    var comps = a.comps.length ? h('div.anu-defile', [h('table.anu-table', [h('thead', [h('tr', ['Annonce (même version)', 'Km', 'Prix', 'À notre km', 'Vendeur', 'En ligne', ''].map(function (t, i) { return h('th' + (i && i < 4 ? '.num' : ''), { text: t }); }))]),
-      h('tbody', a.comps.map(function (x) {
-        return h('tr', [h('td', { text: [x.a, x.mo, x.ve || x.vl].filter(Boolean).join(' ') }), h('td.num', { text: nb(x.k) ? AMX.fmtNombre(x.k) : '—' }), h('td.num', { text: argent(x.p) }), h('td.num', [h('b', { text: argent(x.aj) })]),
-          h('td', { text: [x.s, x.vi].filter(Boolean).join(', ') }), h('td', { text: nb(x.j) ? x.j + ' j' : '—' }), h('td', [/^https:\/\//.test(x.l || '') ? h('a', { href: x.l, target: '_blank', rel: 'noopener', text: 'Voir ↗' }) : null])]);
-      }))])]) : h('div.mini.doux', { text: a.version ? 'Aucune annonce de la version ' + a.version + ' autour de nous.' : 'Version inconnue : précisez-la pour voir les annonces de la même version.' });
+    var comps = a.comps.length ? tableComps(a) : h('div.mini.doux', { text: a.version ? 'Aucune annonce de la version ' + a.version + ' autour de nous.' : 'Version inconnue : précisez-la pour voir les annonces de la même version.' });
     return h('div.anu-details', [h('div.anu-dets', cases), autres.length ? h('div.anu-alertes', autres.map(function (x) { return h('span.puce.' + x.c, { text: x.t, title: x.title || '' }); })) : null, blocMarche(a, info), comps]);
   }
   /* Préciser la version d'une occasion : un choix parmi les versions vues au marché pour ce modèle, ou du texte libre. */
@@ -812,6 +851,8 @@
       '.anu-cies { margin-bottom: 14px; }',
       '.anu-titre { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 8px; } .anu-titre h3 { margin: 0; font-size: 15px; }',
       '.anu-defile { overflow-x: auto; }',
+      '.anu-comps-barre { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0 6px; font-size: 12px; }',
+      '.anu-table tr.anu-moi td { background: var(--vert-clair); font-weight: 600; } .anu-table tr.anu-moi td:first-child { box-shadow: inset 3px 0 0 var(--vert); } .anu-table tr.anu-moi .mini { display: block; font-weight: 500; }',
       '.anu-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }',
       '.anu-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--encre-3); padding: 6px 8px; border-bottom: 1px solid var(--trait); white-space: nowrap; }',
       '.anu-table td { padding: 7px 8px; border-bottom: 1px solid var(--trait); vertical-align: middle; }',

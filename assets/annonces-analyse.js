@@ -95,6 +95,18 @@
     '.ana-ein { border: 2px solid var(--violet-bord); background: linear-gradient(180deg, var(--violet-bg), var(--carte) 120px); border-radius: 16px; padding: 18px 20px; margin: 0 0 26px; }',
     '.ana-ein .tete { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; } .ana-ein .tete .t { flex: 1 1 260px; } .ana-ein .tete h2 { font-size: 22px; margin: 0; }',
     '.ana-ein .tete .quand { font-size: 15px; color: var(--encre-2); margin-top: 2px; }',
+    /* 26 nov. : Einstein pilote (AnnoncesPilote.gs) */
+    '.ana-pilote { border: 1px solid var(--ligne); background: var(--carte); border-radius: 14px; padding: 16px 18px; margin: 0 0 26px; }',
+    '.ana-pilote .tete { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; } .ana-pilote .tete h2 { font-size: 20px; margin: 0; flex: 1 1 240px; }',
+    '.ana-pilote .mode { display: flex; gap: 6px; flex-wrap: wrap; } .ana-pilote .mode button { font-size: 15px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--ligne); background: var(--fond); cursor: pointer; }',
+    '.ana-pilote .mode button.actif { background: var(--encre); color: #fff; border-color: var(--encre); } .ana-pilote .mode button.actif.appliquer { background: var(--vert); border-color: var(--vert); }',
+    '.ana-pilote .expl { font-size: 15px; color: var(--encre-2); margin: 8px 0 0; line-height: 1.5; }',
+    '.ana-pilote .prop { border: 1px solid var(--ambre-bord); background: var(--ambre-bg); border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; font-size: 16px; }',
+    '.ana-pilote .prop.fait { border-color: var(--vert-bord); background: var(--vert-bg); } .ana-pilote .prop.gris { border-color: var(--ligne); background: var(--fond); color: var(--encre-2); }',
+    '.ana-pilote .prop b { display: block; margin-bottom: 2px; } .ana-pilote .prop .refs { margin: 4px 0 0; } .ana-pilote .prop .refs button { font-size: 14px; margin: 2px 4px 2px 0; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--ligne); background: var(--carte); cursor: pointer; }',
+    '.ana-pilote .prop .quand { font-size: 14px; color: var(--encre-2); margin-top: 4px; } .ana-pilote .prop .boutons { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }',
+    '.ana-pilote .prop .refus { font-size: 14px; color: var(--encre-2); margin-top: 4px; }',
+    '.ana-pilote details { margin-top: 12px; } .ana-pilote summary { font-size: 16px; cursor: pointer; }',
     '.ana-ein .resume { font-size: 18px; line-height: 1.55; margin: 14px 0 6px; color: var(--encre); }',
     '.ana-ein .actions { display: grid; gap: 10px; margin-top: 12px; }',
     '.ana-ein .act { display: grid; grid-template-columns: 40px 1fr; gap: 12px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 12px; padding: 14px 16px; }',
@@ -727,6 +739,7 @@
   Vue.prototype.ongletResume = function () {
     var c = this.elCorps;
     c.appendChild(this.carteEinstein());
+    c.appendChild(this.cartePilote());
     c.appendChild(this.zoneParcours());
     c.appendChild(this.zonePresence());
     c.appendChild(this.zoneReperes());
@@ -896,6 +909,56 @@
     }).catch(function (e) { AMX.toast('Einstein : ' + AMX.erreurTexte(e), 'erreur', 10000); }).then(function () {
       self.einsteinEnCours = false; if (!self.detruit) self.rendre();
     });
+  };
+
+  /* ---- 26 nov. (Maxime : « ton intelligence artificielle doit gérer les Google Ads ») : Einstein pilote (AnnoncesPilote.gs).
+     Chaque jour, Einstein relit 14 jours et choisit les véhicules mis de l'avant / retirés du flux Google ; en mode « proposer »
+     il attend un clic ici, en mode « appliquer » il le fait tout seul (garde-fous côté serveur). Le reste (prix, photos, fiches)
+     reste à l'équipe. L'état `pilote` voyage avec l'analyse (GET annoncesAnalyse). ---- */
+  var GESTES_PILOTE = { mettre_avant: 'Mettre de l\'avant', retirer_avant: 'Retirer de l\'avant', photos: 'Photos', prix: 'Prix', budget: 'Budget', fiche: 'Fiche sur le site', ficheGoogle: 'Fiche Google', corrigerGoogle: 'Corriger dans Google', attendre: 'Attendre', autre: 'Autre' };
+  var ETATS_PILOTE = { fait: 'fait', propose: 'à approuver', ignore: 'ignoré', refuse: 'retenu par les garde-fous', a_faire: 'à faire par l\'équipe', erreur: 'erreur' };
+  Vue.prototype.cartePilote = function () {
+    var self = this, d = this.rep || {}, P = d.pilote, a = d.ads || {}, el = h('section.ana-pilote');
+    if (!a.branche) { el.hidden = true; return el; }
+    if (!P) { el.appendChild(h('p.expl', { text: 'Einstein pilote arrive avec la prochaine version du script.' })); return el; }
+    var occupe = !!this.piloteEnCours, mode = P.mode || 'proposer';
+    var modes = [['off', 'Éteint'], ['proposer', 'Propose, j\'approuve'], ['appliquer', 'Applique tout seul']];
+    el.appendChild(h('div.tete', [h('h2', 'Einstein pilote — les véhicules mis de l\'avant'),
+      h('div.mode', modes.map(function (m) { return h('button' + (mode === m[0] ? '.actif.' + m[0] : ''), { type: 'button', text: m[1], disabled: occupe, onclick: function () { if (m[0] !== mode) self.pilote({ quoi: 'regler', mode: m[0] }, m[0] === 'appliquer' ? 'Einstein appliquera tout seul ses choix dans le flux Google (au plus ' + (P.maxParJour || 6) + ' véhicules par jour, jamais un choix fait à la main récemment). Continuer ?' : null); } }); })),
+      h('button.btn', { type: 'button', text: occupe ? 'Einstein travaille…' : 'Lancer maintenant', disabled: occupe, title: 'Einstein relit 14 jours et décide (30 à 60 s)', onclick: function () { self.pilote({ quoi: 'lancer' }); } })]));
+    el.appendChild(h('p.expl', { text: (mode === 'off' ? 'Éteint : Einstein ne touche à rien. ' : mode === 'appliquer' ? 'Chaque matin, Einstein met de l\'avant ou retire des véhicules du flux Google tout seul, puis la feuille Merchant Center est récrite. ' : 'Chaque matin, Einstein propose les véhicules à mettre de l\'avant ou à retirer du flux Google ; vous approuvez d\'un clic. ') +
+      'Garde-fous : au plus ' + (P.maxParJour || 6) + ' véhicules par jour, seulement des véhicules prêts et bien photographiés, jamais un choix fait à la main dans les 14 derniers jours, jamais deux fois le même véhicule en 7 jours. Le prix, les photos et les fiches restent à l\'équipe.' + (P.dernierePasse ? ' Dernière passe : ' + quand(P.dernierePasse) + '.' : '') }));
+    if (occupe) { el.appendChild(AMX.chargeur('Einstein relit les résultats et décide', { compact: true })); return el; }
+    var J = P.journal || [], props = J.filter(function (e) { return e.etat === 'propose'; }), autres = J.filter(function (e) { return e.etat !== 'propose'; });
+    var refs = this.indexRefs();
+    var ligne = function (e, avecBoutons) {
+      var cls = e.etat === 'fait' ? '.fait' : (e.etat === 'propose' ? '' : '.gris');
+      return h('div.prop' + cls, [h('b', { text: (GESTES_PILOTE[e.geste] || e.geste) + (e.refs && e.refs.length ? ' · ' + e.refs.length + ' véhicule' + (e.refs.length > 1 ? 's' : '') : '') + ' — ' + (e.titre || '') }),
+        h('div', { text: e.pourquoi || '' }),
+        e.refs && e.refs.length ? h('div.refs', e.refs.slice(0, 12).map(function (r) { var x = refs[r] || refs[String(r).toUpperCase()]; return h('button', { type: 'button', title: 'Voir ce véhicule', text: (x && x.vehicule ? x.vehicule.replace(/^\d{4}\s+/, '').slice(0, 30) + ' · ' : '') + r, onclick: function () { self.aller('vehicules', { filtre: '', q: String(r) }); } }); })) : null,
+        e.refus && e.refus.length ? h('div.refus', { text: 'Retenu : ' + e.refus.slice(0, 4).join(' ; ') }) : null,
+        h('div.quand', { text: quand(e.le) + ' · ' + (ETATS_PILOTE[e.etat] || e.etat) + (e.par && e.par !== 'einstein' ? ' par ' + e.par : '') + (e.erreur ? ' · ' + e.erreur : '') }),
+        avecBoutons ? h('div.boutons', [h('button.btn.primaire', { type: 'button', text: 'Appliquer dans le flux', onclick: function () { self.pilote({ quoi: 'appliquer', id: e.id }); } }), h('button.btn', { type: 'button', text: 'Ignorer', onclick: function () { self.pilote({ quoi: 'ignorer', id: e.id }); } })]) : null]);
+    };
+    if (props.length) { el.appendChild(h('h3', { text: props.length + ' proposition' + (props.length > 1 ? 's' : '') + ' à approuver', style: { fontSize: '18px', margin: '14px 0 0' } })); props.forEach(function (e) { el.appendChild(ligne(e, true)); }); }
+    else if (mode !== 'off') el.appendChild(h('p.expl', { text: 'Aucune proposition en attente.' }));
+    if (autres.length) el.appendChild(h('details', [h('summary', { text: 'Journal d\'Einstein (' + autres.length + ')' })].concat(autres.slice(0, 20).map(function (e) { return ligne(e, false); }))));
+    return el;
+  };
+  Vue.prototype.pilote = function (corps, confirmation) {
+    var self = this, cie = this.cie || 'BMW';
+    var go = function () {
+      self.piloteEnCours = true; self.rendre();
+      corps.action = 'annoncesResultats'; corps.op = 'pilote'; corps.compagnie = cie;
+      return AMX.post(corps, { secours: false, delai: 150000 }).then(function (r) {
+        if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Refusé');
+        if (r.pilote && self.rep && cie === (self.cie || 'BMW')) { self.rep.pilote = r.pilote; Object.keys(cache).forEach(function (k) { if (k.indexOf(cie + '|') === 0) cache[k].rep.pilote = r.pilote; }); }
+        if (r.message) AMX.toast(r.message, 'ok', 7000);
+        if (corps.quoi === 'appliquer' || corps.quoi === 'lancer') { if (AMX.fluxGoogle && AMX.fluxGoogle.charger) AMX.fluxGoogle.charger(cie, true).then(function (f) { if (!self.detruit) { self.flux = f; self.rendre(); } }).catch(function () {}); }
+      }).catch(function (e) { AMX.toast('Einstein pilote : ' + AMX.erreurTexte(e), 'erreur', 10000); }).then(function () { self.piloteEnCours = false; if (!self.detruit) self.rendre(); });
+    };
+    if (confirmation) AMX.confirmer('Einstein pilote', confirmation, { ok: 'Oui, appliquer tout seul' }).then(function (oui) { if (oui) go(); });
+    else go();
   };
 
   /* ---- 13 semaines, en barres (une seule mesure à la fois) ---- */

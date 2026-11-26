@@ -467,11 +467,12 @@
     this.btnBranchement = h('button.btn', { type: 'button', text: 'Branchement Google Ads', onclick: function () { self.ouvrirBranchement(); } });
     this.btnAds = h('button.btn', { type: 'button', text: 'Ouvrir Google Ads', onclick: function () { window.open(URL_ADS, '_blank', 'noopener'); } });
     this.btnFeuille = h('button.btn', { type: 'button', text: 'Ouvrir la feuille des résultats', onclick: function () { var fe = ((self.rep || {}).ads || {}).feuille; if (fe && fe.url) window.open(fe.url, '_blank', 'noopener'); } });
+    this.btnRapport = h('button.btn', { type: 'button', text: 'Rapport mensuel', title: 'Recevoir par courriel le rapport Google Ads du mois', onclick: function () { self.envoyerRapport(); } });
     this.btnBranchement.hidden = true; this.btnFeuille.hidden = true;
     this.elSous = h('p');
     conteneur.appendChild(h('div.entete-page', [
       h('div', [h('h1', 'Analyse des annonces'), this.elSous]),
-      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnExporter, this.btnAds, this.btnFeuille, this.btnBranchement], [this.btnRafraichir]))
+      h('div.actions', AMX.actionsEntete([this.btnRafraichir, this.btnRapport, this.btnExporter, this.btnAds, this.btnFeuille, this.btnBranchement], [this.btnRafraichir]))
     ]));
     this.elCies = h('div.barre-cies'); conteneur.appendChild(this.elCies);
     this.elCorps = h('div.ana-page'); conteneur.appendChild(this.elCorps);
@@ -484,7 +485,14 @@
     var self = this, cie = this.cie || 'BMW', p = periodeDates(this.periode);
     if (!this.rep) { AMX.vider(this.elCorps); this.elCorps.appendChild(AMX.chargeur('Analyse des annonces')); }
     var fl = AMX.fluxGoogle ? AMX.fluxGoogle.charger(cie, force).catch(function (e) { return { erreurFlux: AMX.erreurTexte(e) }; }) : Promise.resolve({ erreurFlux: 'Module Annonces Google absent.' });
-    return Promise.all([charger(cie, p.du, p.au, force), fl, chargerGa(cie, p.du, p.au, force)]).then(function (r) {
+    /* 26 nov. (vitesse) : Google Ads (cache serveur, ~2 s) s'affiche dès qu'il arrive ; le flux et Google Analytics (6 à 8 s)
+       complètent la page ensuite, sans attendre l'un l'autre. */
+    var pA = charger(cie, p.du, p.au, force);
+    if (!this.rep) pA.then(function (d0) {
+      if (self.detruit || cie !== (self.cie || 'BMW') || self.rep) return;
+      self.rep = d0; self.flux = { erreurFlux: 'Lecture du flux…' }; self.ga = { erreur: 'Lecture de Google Analytics…' }; self.rendre();
+    }).catch(function () {});
+    return Promise.all([pA, fl, chargerGa(cie, p.du, p.au, force)]).then(function (r) {
       if (self.detruit || cie !== (self.cie || 'BMW')) return;
       self.rep = r[0]; self.flux = r[1]; self.ga = r[2]; self.rendre();
     }).catch(function (e) {
@@ -627,6 +635,13 @@
         kpi(r.cpa === null ? '—' : argentFin(r.cpa), 'Coût par conversion', { zero: r.cpa === null, v: vr('cpa', -1), note: 'dépense ÷ conversions', marche: ligneMarche(REP.cpl, r.cpa, this.genre) }),
         kpi(t.valeur ? argentFin(t.valeur) : '—', 'Valeur des conversions', { zero: !t.valeur, v: t.valeur ? v('valeur', 1) : null, note: 'valeur inscrite dans Google Ads' })
       ])]));
+    /* 26 nov. : le rythme du mois en cours (jusqu'à hier) et la projection de fin de mois, tous genres confondus. */
+    var M = d.mois;
+    if (!this.genre && M && M.joursEcoules > 0 && M.cout > 0) {
+      var parJour = M.cout / M.joursEcoules, proj = parJour * M.joursMois;
+      z.appendChild(h('p.ana-note', [h('b', { text: 'Mois en cours : ' }), document.createTextNode(argentFin(M.cout) + ' dépensés du ' + fmtJour(M.du) + ' au ' + fmtJour(M.au) + ' (' + argent(parJour, 2) + ' par jour) → environ '),
+        h('b', { text: argentFin(proj) }), document.createTextNode(' sur le mois complet (' + M.joursMois + ' jours) · ' + nb(M.clics) + ' clics · ' + dec1(M.conversions) + ' conversions.')]));
+    }
     if (this.genre && this.donneesAds()) z.appendChild(h('p.ana-note', { text: 'Somme des véhicules ' + (NOM_GENRE[this.genre] || '').toLowerCase() + 's seulement : la dépense rattachée à aucun véhicule n\'est pas comptée.' }));
     else if (!this.genre && d.sourceTotaux === 'campagnes' && d.totauxVehicules && t.cout > 0) {
       /* Dépense qui ne va à aucun véhicule = annonces texte de Performance Max. Jusqu'à hier seulement :
@@ -641,19 +656,8 @@
         if (partHf > 0.25) z.appendChild(h('div.ana-carte.ambre', { text: pct(hf.cout, hf.total) + ' de la dépense va aux annonces texte plutôt qu\'aux véhicules : la campagne s\'éloigne du flux. Revoir les titres et descriptions du groupe de composants dans Google Ads.' }));
       }
     }
-    /* 18 nov. : le site (Google Analytics) et la fiche Google — toujours visibles, « — » tant que ce n'est pas lu */
-    var G = this.gaRep(), gaOk = this.gaDonnees(), Fi = G ? G.fiche : null, sfi = sommeFiche(Fi), fOk = !!(Fi && Fi.fiches.length), gt = gaOk ? G.ga.totaux : null, gp = gaOk && this.periode !== 'tout' ? G.ga.precedent : null;
-    var pasLu = (this.ga || {}).pasAJour ? 'script à déployer' : 'à brancher', pf = this.merchantPerf(), pfOk = !!pf;
-    z.appendChild(h('div.ana-kgroupe', [h('h2', [document.createTextNode('Le site et la fiche Google'), h('small', { text: 'Google Analytics et le profil d\'entreprise Google' + (this.genre ? ' · tous les genres' : '') })]),
-      h('div.ana-kpis.k5', [
-        kpi(gaOk ? nb(gt.sessions) : '—', 'Visites du site', { zero: !gaOk || !gt.sessions, v: gp ? variation(gt.sessions, gp.sessions, 1) : null, note: gaOk ? pct(gt.payant, gt.sessions) + ' payées · ' + pct(gt.naturel, gt.sessions) + ' recherche gratuite' : pasLu, onclick: function () { self.aller('site'); } }),
-        kpi(gaOk ? nb(gt.demandes) : '—', 'Demandes envoyées', { zero: !gaOk || !gt.demandes, classe: gaOk && gt.demandes ? 'vert' : '', v: gp ? variation(gt.demandes, gp.demandes, 1) : null, note: gaOk ? 'formulaires du site · ' + (gt.sessions ? pct(gt.demandes, gt.sessions, 2) + ' des visites' : '') : pasLu, onclick: function () { self.aller('site'); } }),
-        kpi(fOk ? nb(sfi.t.vues) : '—', 'Vues de la fiche Google', { zero: !fOk || !sfi.t.vues, v: fOk && this.periode !== 'tout' ? variation(sfi.t.vues, sfi.pr.vues, 1) : null, note: fOk ? 'recherche et Maps (3 à 5 jours de retard)' : (Fi && Fi.erreur ? 'pas encore lisible' : pasLu), onclick: function () { self.aller('ficheGoogle'); } }),
-        kpi(fOk ? nb(sfi.t.appels) : '—', 'Appels de la fiche Google', { zero: !fOk || !sfi.t.appels, classe: fOk && sfi.t.appels ? 'vert' : '', v: fOk && this.periode !== 'tout' ? variation(sfi.t.appels, sfi.pr.appels, 1) : null, note: fOk ? nb(sfi.t.siteWeb) + ' clics vers le site · ' + nb(sfi.t.itineraires) + ' itinéraires' : pasLu, onclick: function () { self.aller('ficheGoogle'); } }),
-        kpi(pfOk ? nb(pf.totaux.clicsGratuit) : '—', 'Clics gratuits dans Google', { zero: !pfOk || !pf.totaux.clicsGratuit, classe: pfOk && pf.totaux.clicsGratuit ? 'vert' : '', v: pfOk && pf.precedent && this.periode !== 'tout' ? variation(pf.totaux.clicsGratuit, pf.precedent.clicsGratuit, 1) : null,
-          note: pfOk ? nb(pf.totaux.imprGratuit) + ' fois vus sans payer · ' + nb(pf.totaux.clicsAds) + ' clics d\'annonces' : (G && G.merchant && G.merchant.perf && G.merchant.perf.erreur ? 'pas encore lisible' : ((this.ga || {}).pasAJour ? 'script à déployer' : 'Merchant Center, lu chaque matin')),
-          onclick: function () { self.aller('vehicules', { filtre: pfOk && pf.totaux.clicsGratuit ? 'gratuits' : '', q: '' }); } })
-      ])]));
+/* 26 nov. (Maxime : « ce ne sont pas des bonnes statistiques » en tête de page) : le site et la fiche Google ne sont plus en haut ;
+   ils sont au bas du Résumé (zoneSiteFiche) et dans leurs onglets. Le haut de page, c'est Google Ads et les ventes. */
     /* ventes et publicité */
     var s = this.statsVentes(), ads = this.donneesAds(), allerV = function () { self.aller('ventes'); };
     var tiles = [
@@ -667,6 +671,39 @@
       marche: ligneMarche(REP.jours, s.jA !== null ? s.jA : s.jT, this.genre) }));
     z.appendChild(h('div.ana-kgroupe', [h('h2', [document.createTextNode('Ventes et publicité'), h('small', { text: ads ? 'les ventes du Livre des ventes et la publicité reçue avant la vente' : 'les ventes du Livre des ventes ; la publicité s\'ajoutera avec les premiers clics' })]), h('div.ana-kpis', tiles)]));
     return z;
+  };
+
+  /* ---- 26 nov. : le site (Google Analytics) et la fiche Google, au bas du Résumé — « — » tant que ce n'est pas lu ---- */
+  Vue.prototype.zoneSiteFiche = function () {
+    var self = this, G = this.gaRep(), gaOk = this.gaDonnees(), Fi = G ? G.fiche : null, sfi = sommeFiche(Fi), fOk = !!(Fi && Fi.fiches.length), gt = gaOk ? G.ga.totaux : null, gp = gaOk && this.periode !== 'tout' ? G.ga.precedent : null;
+    var pasLu = (this.ga || {}).pasAJour ? 'script à déployer' : ((this.ga || {}).erreur ? 'lecture en cours' : 'à brancher'), pf = this.merchantPerf(), pfOk = !!pf;
+    return h('section.ana-zone', h('div.ana-kgroupe', [h('h2', [document.createTextNode('Le site et la fiche Google'), h('small', { text: 'Google Analytics et le profil d\'entreprise Google' + (this.genre ? ' · tous les genres' : '') })]),
+      h('div.ana-kpis.k5', [
+        kpi(gaOk ? nb(gt.sessions) : '—', 'Visites du site', { zero: !gaOk || !gt.sessions, v: gp ? variation(gt.sessions, gp.sessions, 1) : null, note: gaOk ? pct(gt.payant, gt.sessions) + ' payées · ' + pct(gt.naturel, gt.sessions) + ' recherche gratuite' : pasLu, onclick: function () { self.aller('site'); } }),
+        kpi(gaOk ? nb(gt.demandes) : '—', 'Demandes envoyées', { zero: !gaOk || !gt.demandes, classe: gaOk && gt.demandes ? 'vert' : '', v: gp ? variation(gt.demandes, gp.demandes, 1) : null, note: gaOk ? 'formulaires du site · ' + (gt.sessions ? pct(gt.demandes, gt.sessions, 2) + ' des visites' : '') : pasLu, onclick: function () { self.aller('site'); } }),
+        kpi(fOk ? nb(sfi.t.vues) : '—', 'Vues de la fiche Google', { zero: !fOk || !sfi.t.vues, v: fOk && this.periode !== 'tout' ? variation(sfi.t.vues, sfi.pr.vues, 1) : null, note: fOk ? 'recherche et Maps (3 à 5 jours de retard)' : (Fi && Fi.erreur ? 'pas encore lisible' : pasLu), onclick: function () { self.aller('ficheGoogle'); } }),
+        kpi(fOk ? nb(sfi.t.appels) : '—', 'Appels de la fiche Google', { zero: !fOk || !sfi.t.appels, classe: fOk && sfi.t.appels ? 'vert' : '', v: fOk && this.periode !== 'tout' ? variation(sfi.t.appels, sfi.pr.appels, 1) : null, note: fOk ? nb(sfi.t.siteWeb) + ' clics vers le site · ' + nb(sfi.t.itineraires) + ' itinéraires' : pasLu, onclick: function () { self.aller('ficheGoogle'); } }),
+        kpi(pfOk ? nb(pf.totaux.clicsGratuit) : '—', 'Clics gratuits dans Google', { zero: !pfOk || !pf.totaux.clicsGratuit, classe: pfOk && pf.totaux.clicsGratuit ? 'vert' : '', v: pfOk && pf.precedent && this.periode !== 'tout' ? variation(pf.totaux.clicsGratuit, pf.precedent.clicsGratuit, 1) : null,
+          note: pfOk ? nb(pf.totaux.imprGratuit) + ' fois vus sans payer · ' + nb(pf.totaux.clicsAds) + ' clics d\'annonces' : (G && G.merchant && G.merchant.perf && G.merchant.perf.erreur ? 'pas encore lisible' : ((this.ga || {}).pasAJour ? 'script à déployer' : 'Merchant Center, lu chaque matin')),
+          onclick: function () { self.aller('vehicules', { filtre: pfOk && pf.totaux.clicsGratuit ? 'gratuits' : '', q: '' }); } })
+      ])]));
+  };
+
+  /* 26 nov. (Maxime : « un rapport mensuel de performance de Google Ads ») : le rapport du mois, envoyé par courriel à la personne
+     connectée (AnnoncesRapport.gs). Le 1er du mois, il part de lui-même à la propriétaire et aux DG de chaque concession branchée. */
+  Vue.prototype.envoyerRapport = function () {
+    var self = this, a = ((this.rep || {}).ads) || {}, d = new Date(), prec = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    if (!a.branche) { AMX.toast('Google Ads n\'est pas branché pour cette concession.', 'erreur', 6000); return; }
+    var nomMois = function (x) { return x.toLocaleDateString('fr-CA', { month: 'long', year: 'numeric' }); };
+    var envoyer = function (mois) {
+      return AMX.post({ action: 'annoncesResultats', op: 'rapport', compagnie: self.cie || 'BMW', mois: mois }, { secours: false, delai: 120000 }).then(function (r) {
+        if (!r || r.refuse || r.ok === false) throw new Error((r && r.erreur) || 'Refusé');
+        AMX.toast(r.message || 'Rapport envoyé.', 'ok', 7000);
+      }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 9000); return false; });
+    };
+    AMX.modale({ titre: 'Rapport mensuel Google Ads',
+      corps: h('p', { style: { margin: 0, lineHeight: '1.5' }, text: 'Envoyé par courriel à votre adresse, pour ' + ((this.rep || {}).nom || this.cie) + ' : les chiffres du mois comparés au mois d\'avant, les ventes, les conversions, les véhicules les plus cliqués et les points à surveiller.' }),
+      boutons: [{ texte: 'Annuler' }, { texte: nomMois(prec), action: function () { return envoyer(prec.getFullYear() + '-' + ('0' + (prec.getMonth() + 1)).slice(-2)); } }, { texte: nomMois(d) + ' (à date)', classe: 'primaire', action: function () { return envoyer('courant'); } }] });
   };
 
   /* ---- les ventes de la période, pour les chiffres et l'onglet Ventes ---- */
@@ -696,6 +733,7 @@
     c.appendChild(this.zoneFlux());
     c.appendChild(this.zoneAge());
     c.appendChild(this.zoneSurveiller());
+    c.appendChild(this.zoneSiteFiche());
     var t = this.genre ? null : this.tablesCampagnes();
     if (t) c.appendChild(h('section.ana-zone', [h('details', [h('summary', { text: 'Par campagne et par réseau' }), t])]));
   };
@@ -865,17 +903,19 @@
     var seg = h('div.segment.seg', GRAPHES.map(function (g) {
       return h('button' + (self.graphe === g[0] ? '.actif' : ''), { type: 'button', 'aria-pressed': self.graphe === g[0] ? 'true' : 'false', text: g[1], onclick: function () { self.graphe = g[0]; AMX.memo.ecrire('ann_graphe', g[0]); self.rendre(); } });
     }));
-    z.appendChild(h('h2', [document.createTextNode('Semaine par semaine'), seg]));
-    var S = d.semaines || [], cle = this.graphe, max = 0;
+    /* 26 nov. : jour par jour quand la période fait 45 jours ou moins (d.jours du serveur), sinon semaine par semaine. */
+    var J = (d.jours || []).length && d.jours.length <= 45 ? d.jours : null;
+    z.appendChild(h('h2', [document.createTextNode(J ? 'Jour par jour' : 'Semaine par semaine'), seg]));
+    var S = J ? J.map(function (j) { return { du: j.j, impressions: j.impressions, clics: j.clics, cout: j.cout, conversions: j.conversions }; }) : (d.semaines || []), cle = this.graphe, max = 0;
     S.forEach(function (s) { max = Math.max(max, s[cle] || 0); });
     if (!max) { z.appendChild(h('div.ana-vide', { text: 'Les barres paraîtront avec les premiers résultats de Google Ads.' })); return z; }
-    var fmt = cle === 'cout' ? argentCourt : (cle === 'conversions' ? dec1 : nbCourt);
+    var fmt = cle === 'cout' ? argentCourt : (cle === 'conversions' ? dec1 : nbCourt), pas = S.length > 16 ? Math.ceil(S.length / 8) : (S.length > 8 ? 2 : 1);
     z.appendChild(h('div.ana-carte', [
-      h('div.ana-cols', S.map(function (s, i) {
+      h('div.ana-cols' + (S.length > 20 ? '.serre' : ''), S.map(function (s, i) {
         var v = s[cle] || 0, haut = Math.max(v ? 2 : 0, Math.round(100 * v / max));
-        return h('div.c' + (i === S.length - 1 ? '.der' : ''), { title: 'Semaine du ' + fmtJour(s.du) + ' : ' + fmt(v) }, [h('div.v', { text: v ? fmt(v) : '' }), h('div.b', { style: { height: haut + '%' } })]);
+        return h('div.c' + (i === S.length - 1 ? '.der' : ''), { title: (J ? '' : 'Semaine du ') + fmtJour(s.du) + ' : ' + fmt(v) }, [h('div.v', { text: v && S.length <= 20 ? fmt(v) : '' }), h('div.b', { style: { height: haut + '%' } })]);
       })),
-      h('div.ana-dates', S.map(function (s, i) { return h('span', { text: i % 2 === 0 || i === S.length - 1 ? fmtJour(s.du) : '' }); }))
+      h('div.ana-dates', S.map(function (s, i) { return h('span', { text: i % pas === 0 || i === S.length - 1 ? fmtJour(s.du) : '' }); }))
     ]));
     return z;
   };

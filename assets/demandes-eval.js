@@ -994,6 +994,62 @@
     if (p.id) { this.cible = p.id; if (p.fiche !== '0') this.ficheDemandee = p.id; }
     if (cache.rep && (p.id || voir)) this.rendre();
   };
+  /* 26 nov. (Eric Morin, VW, S43BBA826DC) : « Auto évaluée ? » — pour tout le monde, les représentants compris. Un client veut
+  une auto que l'inventaire n'a pas : on la cherche parmi les évaluations faites par la concession (180 derniers jours) — une
+  reprise à venir, un client qui pourrait vendre. GET ?evalCherche=1&q= (DemandesEval.gs › DEV_chercher) : sans les montants. */
+  var CH_SUIVI_LIB = { client: 'Lien client', attente: 'En attente', complete: 'Complété / relance', perdu: 'Perdu', repris: 'Repris', wholesale: 'Wholesale', reprisWholesale: 'Repris wholesale', depot: 'Dépôt / commande', inventaire: 'En inventaire', incomplete: 'Fiche incomplète', sommaire: 'Évaluation sommaire', marketplace: 'Marketplace' };
+  var CH_SUIVI_COUL = { client: 'bleu', attente: 'ambre', complete: 'vert', perdu: 'rouge', repris: 'bleu', wholesale: 'violet', reprisWholesale: 'violet', depot: 'ambre', inventaire: 'vert', marketplace: 'bleu' };
+  function chercherEvaluee(compagnie) {
+  if (!document.getElementById('de-cherche-css')) {
+  var st = document.createElement('style'); st.id = 'de-cherche-css';
+  st.textContent = [
+  '.de-ch-barre { display: flex; gap: 8px; align-items: center; } .de-ch-barre input { flex: 1; min-width: 0; }',
+  '.de-ch-liste { margin-top: 12px; display: grid; gap: 6px; max-height: 60vh; overflow: auto; }',
+  '.de-ch-ligne { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 8px 10px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--carte); font-size: 13px; }',
+  '.de-ch-ligne.cliquable { cursor: pointer; } .de-ch-ligne.cliquable:hover { border-color: var(--vert); }',
+  '.de-ch-ligne b { font-size: 14px; } .de-ch-ligne .mini { color: var(--encre-3); font-size: 12px; } .de-ch-ligne .droite { text-align: right; white-space: nowrap; display: grid; gap: 4px; justify-items: end; }',
+  '.de-ch-ligne .cherchait { grid-column: 1 / -1; font-size: 12px; color: var(--encre-2); }'
+  ].join('\n');
+  document.head.appendChild(st);
+  }
+  var voitEval = !!(AMX.voitEvaluations && AMX.voitEvaluations()) && !(AMX.representantEval && AMX.representantEval());
+  var cie = compagnie ? String(compagnie).toUpperCase() : '';
+  var nomCie = cie ? ((AMX.COMPAGNIES_TOUTES && AMX.COMPAGNIES_TOUTES[cie]) || cie) : '';
+  var input = h('input.saisie', { type: 'search', placeholder: 'ex. Tiguan 2022, Civic, Sierra, NIV…' });
+  var btn = h('button.btn.primaire', { type: 'button', text: 'Chercher' });
+  var liste = h('div.de-ch-liste');
+  var aide = h('p.mini', { style: { color: 'var(--encre-3)', margin: '8px 0 0' }, text: 'Les évaluations faites ' + (nomCie ? 'par ' + nomCie : 'par vos concessions') + ' dans les 180 derniers jours : une reprise à venir, un client qui pourrait vendre. Sans les montants.' });
+  var enCours = false;
+  var lancer = function () {
+  var q = input.value.trim(); if (q.length < 2 || enCours) return;
+  enCours = true; btn.classList.add('occupe'); AMX.vider(liste); liste.appendChild(h('p.mini', { text: 'Recherche…' }));
+  AMX.get({ evalCherche: 1, q: q }, { secours: false, delai: 60000 }).then(function (r) {
+  enCours = false; btn.classList.remove('occupe'); AMX.vider(liste);
+  if (r && r.vehicules && !r.evaluations) throw new Error('Le script n\'est pas à jour : déployez une nouvelle version (DemandesEval.gs, RoutesAjout.gs).');
+  if (!r || r.ok === false || r.refuse) throw new Error((r && r.erreur) || 'Refusé');
+  var deCie = function (e) { return (AMX.CONCESSION_COMPAGNIE && AMX.CONCESSION_COMPAGNIE[String(e.concession || '').toLowerCase()]) || ''; };
+  var l = (r.evaluations || []).filter(function (e) { return !cie || !deCie(e) || deCie(e) === cie; });
+  if (!l.length) { liste.appendChild(h('p.mini', { text: 'Aucune évaluation ne correspond à « ' + q + ' »' + (nomCie ? ' chez ' + nomCie : '') + ' dans les 180 derniers jours.' })); return; }
+  liste.appendChild(h('p.mini', { style: { color: 'var(--encre-3)' }, text: l.length + ' évaluation' + (l.length > 1 ? 's' : '') + (r.total > l.length && !cie ? ' (sur ' + r.total + ')' : '') + ', la plus récente d\'abord.' }));
+  l.forEach(function (e) {
+  var nom = [e.annee, e.marque, e.modele, e.version].filter(Boolean).join(' ');
+  var etat = e.statut ? h('span.puce.' + (CH_SUIVI_COUL[e.statut] || 'gris'), { text: CH_SUIVI_LIB[e.statut] || e.statut }) : h('span.puce.gris', { text: 'Sans suivi' });
+  var qui = [e.conseiller ? 'demandée par ' + e.conseiller : '', e.par ? 'évaluée par ' + e.par : ''].filter(Boolean).join(' · ');
+  var conc = (AMX.CONCESSIONS_TOUTES && AMX.CONCESSIONS_TOUTES[e.concession]) || '';
+  var ligne = h('div.de-ch-ligne' + (voitEval ? '.cliquable' : ''), { title: voitEval ? 'Ouvrir l\'évaluation' : '' }, [
+  h('div', [h('b', { text: nom || e.vin }), h('div.mini', { text: [e.km ? AMX.fmtNombre(Math.round(Number(e.km))) + ' km' : '', e.couleur, e.transmission, 'NIV …' + String(e.vin).slice(-8)].filter(Boolean).join(' · ') }), qui ? h('div.mini', { text: qui }) : null]),
+  h('div.droite', [h('div', { text: AMX.fmtDateCourte ? AMX.fmtDateCourte(e.le) : String(e.le).slice(0, 10) }), etat, conc && !cie ? h('div.mini', { text: conc }) : null]),
+  e.cherche ? h('div.cherchait', { text: 'Le client cherchait : ' + e.cherche }) : null]);
+  if (voitEval) ligne.onclick = function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation', vin: e.vin }); };
+  liste.appendChild(ligne);
+  });
+  }).catch(function (e) { enCours = false; btn.classList.remove('occupe'); AMX.vider(liste); liste.appendChild(h('p', { style: { color: 'var(--rouge)' }, text: AMX.erreurTexte(e) })); });
+  };
+  btn.onclick = lancer;
+  input.onkeydown = function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); lancer(); } };
+  AMX.modale({ titre: 'Auto évaluée ?', large: true, corps: h('div', [h('div.de-ch-barre', [input, btn]), aide, liste]), boutons: [{ texte: 'Fermer' }] });
+  setTimeout(function () { try { input.focus(); } catch (e) {} }, 60);
+  }
   Vue.prototype.construire = function () {
     var self = this;
     this.btnDemander = h('button.btn.primaire.de-nouvelle', { type: 'button', html: I.plus + '<span>Nouvelle évaluation</span>', onclick: function () { demander({ compagnie: AMX.compagnieChoisie('evaluations') }); } });
@@ -1002,11 +1058,13 @@
     this.btnSans = h('button.btn.de-sans', { type: 'button', hidden: true, title: 'Marché, OpenLane, CARFAX : par NIV, ou par année, marque, modèle et version. Rien n\'est enregistré.',
       html: I.recherche + '<span>Évaluation sans enregistrer</span>', onclick: function () { AMX.aller('inventaire', 'evaluations', { vue: 'evaluation', rapide: 1 }); } });
     if (!this.portail && AMX.voitEvaluations && AMX.voitEvaluations()) this.btnSans.hidden = false;
+    this.btnCherche = h('button.btn.de-cherche', { type: 'button', title: 'Un client veut une auto que l\'inventaire n\'a pas ? Cherchez-la parmi les évaluations faites par la concession (180 derniers jours).',
+    html: I.recherche + '<span>Auto évaluée ?</span>', onclick: function () { chercherEvaluee(AMX.compagnieChoisie('evaluations')); } }); /* 26 nov. (S43BBA826DC) */
     this.elMenu = h('span');
     this.elDispo = h('span');
     /* 19 nov. : `.page` = les marges de toutes les pages (le titre collait au bord gauche de l'écran). */
     this.el.appendChild(h('div.page.de-page' + (this.portail ? '.de-portail' : ''), [
-      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('div.de-titre', [h('h1', 'Évaluations'), this.elDispo])]), h('div.actions', [this.elMenu, this.btnSans, this.btnDemander])]),
+      h('div.entete-page', [h('div', { style: { minWidth: 0 } }, [h('div.de-titre', [h('h1', 'Évaluations'), this.elDispo])]), h('div.actions', [this.elMenu, this.btnCherche, this.btnSans, this.btnDemander])]),
       this.elRetour = h('div'),
       this.elCies = h('div'),
       this.elFiltres = h('div.de-filtres', [

@@ -540,11 +540,12 @@
     this.elDemandes = this.construireDemandes();
     this.elEvalRegl = this.construireEvalReglages();   /* 13 nov. : approbation avant l'envoi des demandes d'évaluation */
     this.elIa = this.construireIa();
+    this.elVid = (AMX.videos && AMX.videos.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : false)) ? AMX.videos.carteAdmin() : null;   /* 26 nov. : Marketing › Vidéos — clé Creatomate, voix, musiques (videos.js) */
     this.elCf = (AMX.transport && AMX.transport.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : AMX.estAdmin())) ? AMX.transport.carteAdmin() : null;   /* 23 oct. : jetons Central Fleet (transport.js) */
     this.elRevue = (AMX.estProprietaire ? AMX.estProprietaire() : false) ? this.construireRevue() : null;
     this.elCfx2 = (AMX.carfaxApi && AMX.carfaxApi.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : false)) ? AMX.carfaxApi.carteAdmin() : null;
     this.elTrx = (AMX.traction && AMX.traction.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : false)) ? AMX.traction.carteAdmin() : null;   /* 1er nov. : CRM Traction — évaluations (traction.js, Traction.gs) */   /* 27 oct. : clés de l'API CARFAX (carfax-api.js) */   /* 26 oct. : compte de révision pour l'App Store (RevueApple.gs) */
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elEvalRegl, this.elCf, this.elCfx2, this.elTrx, this.elRevue, this.elIa, this.elParametres]), this.elPanneau]);
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elEvalRegl, this.elCf, this.elCfx2, this.elTrx, this.elRevue, this.elIa, this.elVid, this.elParametres]), this.elPanneau]);
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);

@@ -160,7 +160,7 @@
     "  var camp = it.next(), b = camp.getBudget(), actuel = b.getAmount(), voulu = n(d.montant);",
     "  if (!(voulu > 0)) throw new Error('Montant manquant.');",
     "  var bas = actuel * (1 - VARIATION_BUDGET_MAX), haut = Math.min(actuel * (1 + VARIATION_BUDGET_MAX), PLAFOND_BUDGET_JOUR);",
-    "  var final = Math.max(bas, Math.min(haut, voulu));",
+    "  var final = d.direct ? Math.min(voulu, PLAFOND_BUDGET_JOUR) : Math.max(bas, Math.min(haut, voulu));   // direct : réglage de Maxime, sans la borne ±20 %",
     "  final = Math.round(final * 100) / 100;",
     "  if (!apercu) b.setAmount(final);",
     "  return { ok: true, texte: (apercu ? 'Aperçu — ' : '') + camp.getName() + ' : budget ' + actuel + ' → ' + final + ' $/jour' + (final !== voulu ? ' (demandé ' + voulu + ', borné ±' + Math.round(VARIATION_BUDGET_MAX * 100) + ' % et plafond ' + PLAFOND_BUDGET_JOUR + ')' : '') };",

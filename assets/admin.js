@@ -322,6 +322,7 @@
       '.admin-page .admin-outils .compte b { color: var(--encre); }',
       '.admin-page .admin-note { margin: 12px 2px 0; line-height: 1.5; }',
       '.admin-page .admin-parametres { margin-top: 18px; }',
+      '.admin-page .admin-tableau { margin-top: 6px; } .admin-page .admin-retour { display: flex; flex-direction: column; gap: 6px; } .admin-page .admin-retour:empty { display: none; } .admin-page h2.admin-sujet { margin: 4px 0 0; font-size: 22px; }',
       '.admin-page .admin-parametres .carte-corps { display: flex; flex-direction: column; gap: 10px; }',
       '.admin-page .admin-parametres .ligne-cle { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }',
       '.admin-page .admin-parametres .ligne-cle .champ { flex: 1 1 260px; }',
@@ -545,7 +546,24 @@
     this.elRevue = (AMX.estProprietaire ? AMX.estProprietaire() : false) ? this.construireRevue() : null;
     this.elCfx2 = (AMX.carfaxApi && AMX.carfaxApi.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : false)) ? AMX.carfaxApi.carteAdmin() : null;
     this.elTrx = (AMX.traction && AMX.traction.carteAdmin && (AMX.estProprietaire ? AMX.estProprietaire() : false)) ? AMX.traction.carteAdmin() : null;   /* 1er nov. : CRM Traction — évaluations (traction.js, Traction.gs) */   /* 27 oct. : clés de l'API CARFAX (carfax-api.js) */   /* 26 oct. : compte de révision pour l'App Store (RevueApple.gs) */
-    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elEvalRegl, this.elCf, this.elCfx2, this.elTrx, this.elRevue, this.elIa, this.elVid, this.elParametres]), this.elPanneau]);
+    /* 26 nov. — Maxime : « un tableau de bord beaucoup plus simple qui regroupe les mêmes éléments ; ça n'a pas de sens d'aller
+       jusqu'en bas ». La page s'ouvre sur de grosses tuiles, une par sujet ; un clic montre ce sujet seulement, « ‹ Tableau de
+       bord » revient. Rien n'est retiré : ce sont les mêmes cartes qu'avant, regroupées. */
+    this.sections = [
+      { id: 'comptes', titre: 'Comptes', icone: 'admin', couleur: 'vert', desc: 'Ajouter, modifier, désactiver un compte ; ses droits et ses accès.', els: [filtre, this.elListe, this.elNote] },
+      { id: 'roles', titre: 'Rôles et journal', icone: 'filtre', couleur: 'bleu', desc: 'Ce que chaque rôle donne, et qui a fait quoi.', els: [this.elRoles, this.elJournal] },
+      { id: 'evaluations', titre: 'Évaluations', icone: 'voiture', couleur: 'prune', desc: 'Montant et questions, Canada ou É.-U., Traction.', els: [this.elEvalRegl, this.elExport, this.elTrx] },
+      { id: 'service', titre: 'Service et transport', icone: 'service', couleur: 'sarcelle', desc: 'Demandes de travaux, Central Fleet.', els: [this.elDemandes, this.elCf] },
+      { id: 'avis', titre: 'Avis et textos', icone: 'texto', couleur: 'ambre', desc: 'Avis Google, sondages, alertes par texto, réponses des échanges.', els: [this.elReglagesAvis, this.elAlertes, this.elEchanges] },
+      { id: 'marche', titre: 'Données du marché', icone: 'resultat', couleur: 'bleu', desc: 'OpenLane, MarketCheck, CARFAX.', els: [this.elOpenlane, this.elParametres, this.elCfx2] },
+      { id: 'ia', titre: 'Einstein AI et vidéos', icone: 'marketing', couleur: 'prune', desc: 'Intelligence artificielle, Creatomate.', els: [this.elIa, this.elVid] },
+      { id: 'apple', titre: 'Révision Apple', icone: 'cadenas', couleur: 'gris', desc: 'Compte de révision de l\'App Store.', els: [this.elRevue] }
+    ].filter(function (x) { x.els = x.els.filter(Boolean); return x.els.length; });
+    this.elTableau = h('div.admin-tableau');
+    this.elRetour = h('div.admin-retour');
+    this.voir = '';
+    this.elAgencement = h('div.agencement.sans-rail', [h('div.admin-principal', [this.elTableau, this.elRetour, filtre, this.elListe, this.elNote, this.elRoles, this.elReglagesAvis, this.elJournal, this.elAlertes, this.elEchanges, this.elOpenlane, this.elExport, this.elDemandes, this.elEvalRegl, this.elCf, this.elCfx2, this.elTrx, this.elRevue, this.elIa, this.elVid, this.elParametres]), this.elPanneau]);
+    this.montrer(this.selection ? 'comptes' : '');
 
     this.elPage = h('div.page.etroite.admin-page', [entete, this.elVide, this.elAgencement]);
     this.conteneur.appendChild(this.elPage);
@@ -1498,8 +1516,34 @@
   };
 
   /* -------------------------------- Rendu ------------------------------ */
+  /* Le tableau de bord : une tuile par sujet. id = '' montre les tuiles ; sinon seulement les cartes de ce sujet. */
+  VueAdmin.prototype.montrer = function (id) {
+    var self = this;
+    if (!this.sections) return;
+    if (id && !this.sections.some(function (x) { return x.id === id; })) id = '';
+    this.voir = id;
+    this.sections.forEach(function (x) { x.els.forEach(function (el) { el.style.display = x.id === id ? '' : 'none'; }); });
+    this.elTableau.style.display = id ? 'none' : '';
+    AMX.vider(this.elRetour);
+    if (id) {
+      var x = this.sections.filter(function (y) { return y.id === id; })[0];
+      this.elRetour.appendChild(AMX.retourSujets ? AMX.retourSujets('Tableau de bord', function () { self.selectionner(''); self.montrer(''); }) : h('button.btn.fantome', { type: 'button', text: '‹ Tableau de bord', onclick: function () { self.selectionner(''); self.montrer(''); } }));
+      this.elRetour.appendChild(h('h2.admin-sujet', { text: x.titre }));
+    } else this.rendreTableau();
+    try { window.scrollTo(0, 0); } catch (e) {}
+  };
+  VueAdmin.prototype.rendreTableau = function () {
+    var self = this;
+    if (!this.elTableau || this.voir) return;
+    AMX.vider(this.elTableau);
+    var n = this.utilisateurs ? this.utilisateurs.filter(function (u) { return u.actif !== false; }).length : '';
+    this.elTableau.appendChild(AMX.tuilesSujets(this.sections.map(function (x) {
+      return { titre: x.titre, desc: x.desc, icone: x.icone, couleur: x.couleur, n: x.id === 'comptes' ? n : '', onclick: function () { self.montrer(x.id); } };
+    })));
+  };
   VueAdmin.prototype.rendre = function () {
     this.rendreEntete();
+    this.rendreTableau();
     this.rendreVide();
     this.rendreSegment();
     this.rendreListe();
@@ -1748,6 +1792,7 @@
       if (this.selection && this.utilisateurs) { this.selection = ''; history.replaceState(null, '', AMX.lien('admin', '')); }
       return;
     }
+    if (this.voir !== 'comptes') this.montrer('comptes');   /* 26 nov. : un compte ouvert = le sujet Comptes */
     this.elPanneau.style.display = '';
     var b = this.brouillonDe(u), ref = this.reference, moi = memeCourriel(u.nom, this.moi), cle = nomCle(u.nom);
     var fermer = function () { self.selectionner(''); };

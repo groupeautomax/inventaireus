@@ -376,6 +376,8 @@
   /* Le script Google Ads à coller dans Google Ads › Outils › Actions groupées › Scripts (il ne change rien dans le compte).
      12 nov. au soir : il lit les 30 derniers jours AUJOURD'HUI COMPRIS et se programme « Toutes les heures ». */
   function scriptAds(url, nom) {
+    /* 26 nov. : le script v3 (annonces-script-ads.js) lit aussi les composants et applique les consignes d'Einstein (onglet Consignes). */
+    if (window.AMX_SCRIPT_ADS_V3) return window.AMX_SCRIPT_ADS_V3.replace('__FEUILLE__', url).replace('__NOM__', nom || 'la concession');
     return [
       '/* ScanAutomax — résultats des annonces de véhicules, par véhicule (NIV), pour ' + (nom || 'la concession') + '.',
       '   Ce script ne change RIEN dans Google Ads : il lit les statistiques des 30 derniers jours (aujourd\'hui compris)',
@@ -654,6 +656,13 @@
       z.appendChild(h('p.ana-note', [h('b', { text: 'Mois en cours : ' }), document.createTextNode(argentFin(M.cout) + ' dépensés du ' + fmtJour(M.du) + ' au ' + fmtJour(M.au) + ' (' + argent(parJour, 2) + ' par jour) → environ '),
         h('b', { text: argentFin(proj) }), document.createTextNode(' sur le mois complet (' + M.joursMois + ' jours) · ' + nb(M.clics) + ' clics · ' + dec1(M.conversions) + ' conversions.')]));
     }
+    /* 26 nov. (Maxime : « on ne met pas assez d'emphase sur le neuf », budget du neuf 3 000 $ par mois) : la part du neuf dans la dépense. */
+    var GN = d.genres || null;
+    if (!this.genre && GN && GN.partNeuf !== null && GN.partNeuf !== undefined) {
+      var pn = Math.round(GN.partNeuf * 100), cibleN = Math.round((GN.cible || 0.5) * 100);
+      z.appendChild(h('p.ana-note', [h('b', { text: 'Part du neuf : ' + pn + ' %' }), document.createTextNode(' de la dépense rattachée aux véhicules va aux neufs et démos (cible ' + cibleN + ' %, budget du neuf 3 000 $ par mois) · neufs ' + argent((GN.neuf || {}).cout || 0) + ' · démos ' + argent((GN.demo || {}).cout || 0) + ' · occasions ' + argent((GN.occasion || {}).cout || 0) + '.')]));
+      if (GN.partNeuf < (GN.cible || 0.5)) z.appendChild(h('div.ana-carte.ambre', { text: 'Le neuf d\'abord : ' + pn + ' % seulement. Einstein met les neufs de l\'avant en premier dans le flux ; la campagne « Neuf » séparée dans Google Ads (3 000 $ par mois) règle le reste.' }));
+    }
     if (this.genre && this.donneesAds()) z.appendChild(h('p.ana-note', { text: 'Somme des véhicules ' + (NOM_GENRE[this.genre] || '').toLowerCase() + 's seulement : la dépense rattachée à aucun véhicule n\'est pas comptée.' }));
     else if (!this.genre && d.sourceTotaux === 'campagnes' && d.totauxVehicules && t.cout > 0) {
       /* Dépense qui ne va à aucun véhicule = annonces texte de Performance Max. Jusqu'à hier seulement :
@@ -747,9 +756,30 @@
     c.appendChild(this.zoneFlux());
     c.appendChild(this.zoneAge());
     c.appendChild(this.zoneSurveiller());
+    c.appendChild(this.zoneLocation());
     c.appendChild(this.zoneSiteFiche());
     var t = this.genre ? null : this.tablesCampagnes();
     if (t) c.appendChild(h('section.ana-zone', [h('details', [h('summary', { text: 'Par campagne et par réseau' }), t])]));
+  };
+
+  /* ---- 26 nov. (Maxime : « la location BMW doit être liée à notre analyse Google ») : les offres de location du site et leurs chiffres Google Ads ---- */
+  Vue.prototype.zoneLocation = function () {
+    var self = this, d = this.rep || {}, L = d.location || null;
+    if (!L || !L.offres || !L.offres.length) return document.createDocumentFragment();
+    var T = L.totaux || {}, refs = this.indexRefs();
+    var z = h('section.ana-zone', h('div.ana-kgroupe', [h('h2', [document.createTextNode('Offres de location du site'), h('small', { text: L.offres.length + ' véhicule' + (L.offres.length > 1 ? 's' : '') + ' à 0 $ comptant · ' + (nomPeriode(this.periode) || '').toLowerCase() })]),
+      h('div.ana-kpis', [
+        kpi(nb(T.clics || 0), 'Clics sur les offres', { zero: !T.clics, note: nb(T.impressions || 0) + ' impressions' }),
+        kpi(argent(T.cout || 0), 'Dépense', { zero: !T.cout, note: T.clics ? argent(T.cout / T.clics, 2) + ' par clic' : '' }),
+        kpi(dec1(T.conversions || 0), 'Conversions', { zero: !T.conversions, classe: T.conversions ? 'vert' : '', note: T.conversions ? argent(T.cout / T.conversions) + ' par conversion' : '' }),
+        kpi(String(L.offres.length), 'Offres publiées', { note: 'mises de l\'avant d\'office par Einstein' })]),
+      h('p.ana-note', [document.createTextNode('La description Google de ces véhicules dit « Location 0 $ comptant dès X $/mois ». '), L.page ? h('a', { href: L.page, target: '_blank', rel: 'noopener', text: 'Voir la page des offres' }) : null, document.createTextNode(' · '), h('a', { href: '#/occasion/locbmw', text: 'Location BMW › Offres du site' })]),
+      h('div.ana-defile', h('table.ana-table', [h('thead', h('tr', [h('th', { text: 'Véhicule' }), h('th', { text: 'Mensualité' }), h('th', { text: 'Terme' }), h('th', { text: 'Économie / mois' }), h('th', { text: 'Impr.' }), h('th', { text: 'Clics' }), h('th', { text: 'Dépense' }), h('th', { text: 'Conv.' })])),
+        h('tbody', L.offres.slice(0, 20).map(function (o) { var x = refs[o.vin.slice(-8)]; var nom = x && x.vehicule ? x.vehicule : '…' + o.vin.slice(-8); var st = x ? refDe(x) : '';
+          return h('tr', [h('td', h('button', { type: 'button', title: 'Voir ce véhicule', text: (st ? st + ' · ' : '') + nom, style: { font: 'inherit', background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'var(--vert-fonce)', fontWeight: '600', textAlign: 'left' }, onclick: function () { self.aller('vehicules', { filtre: '', q: st || o.vin.slice(-8) }); } })),
+            h('td.n', { text: o.mensualite ? argent(Math.round(o.mensualite)) + ' avant taxes' : '—' }), h('td.n', { text: o.terme ? o.terme + ' mois' : '—' }), h('td.n', { text: o.economie ? argent(o.economie) : '—' }),
+            h('td.n' + (o.impressions ? '' : '.zero'), { text: nb(o.impressions) }), h('td.n' + (o.clics ? '' : '.zero'), { text: nb(o.clics) }), h('td.n' + (o.cout ? '' : '.zero'), { text: argent(o.cout) }), h('td.n' + (o.conversions ? '' : '.zero'), { text: dec1(o.conversions) })]); }))]))]));
+    return z;
   };
 
   /* ---- Repères du marché (15 nov.) : les repères externes, puis nous-mêmes (quatre dernières semaines, par genre) ---- */
@@ -915,7 +945,7 @@
      Chaque jour, Einstein relit 14 jours et choisit les véhicules mis de l'avant / retirés du flux Google ; en mode « proposer »
      il attend un clic ici, en mode « appliquer » il le fait tout seul (garde-fous côté serveur). Le reste (prix, photos, fiches)
      reste à l'équipe. L'état `pilote` voyage avec l'analyse (GET annoncesAnalyse). ---- */
-  var GESTES_PILOTE = { mettre_avant: 'Mettre de l\'avant', retirer_avant: 'Retirer de l\'avant', photos: 'Photos', prix: 'Prix', budget: 'Budget', fiche: 'Fiche sur le site', ficheGoogle: 'Fiche Google', corrigerGoogle: 'Corriger dans Google', attendre: 'Attendre', autre: 'Autre' };
+  var GESTES_PILOTE = { mettre_avant: 'Mettre de l\'avant', retirer_avant: 'Retirer de l\'avant', photos: 'Photos', prix: 'Prix', budget: 'Budget', fiche: 'Fiche sur le site', ficheGoogle: 'Fiche Google', corrigerGoogle: 'Corriger dans Google', attendre: 'Attendre', autre: 'Autre', textesAds: 'Textes Google Ads', campagneAds: 'Campagne Google Ads', budgetAds: 'Budget Google Ads', partNeuf: 'Part du neuf' };
   var ETATS_PILOTE = { fait: 'fait', propose: 'à approuver', ignore: 'ignoré', refuse: 'retenu par les garde-fous', a_faire: 'à faire par l\'équipe', erreur: 'erreur' };
   Vue.prototype.cartePilote = function () {
     var self = this, d = this.rep || {}, P = d.pilote, a = d.ads || {}, el = h('section.ana-pilote');
@@ -937,8 +967,10 @@
         h('div', { text: e.pourquoi || '' }),
         e.refs && e.refs.length ? h('div.refs', e.refs.slice(0, 12).map(function (r) { var x = refs[r] || refs[String(r).toUpperCase()]; return h('button', { type: 'button', title: 'Voir ce véhicule', text: (x && x.vehicule ? x.vehicule.replace(/^\d{4}\s+/, '').slice(0, 30) + ' · ' : '') + r, onclick: function () { self.aller('vehicules', { filtre: '', q: String(r) }); } }); })) : null,
         e.refus && e.refus.length ? h('div.refus', { text: 'Retenu : ' + e.refus.slice(0, 4).join(' ; ') }) : null,
+        e.textes && e.textes.titres ? h('details', [h('summary', { text: 'Les textes' }), h('div', { text: 'Titres : ' + e.textes.titres.join(' · ') }), h('div', { text: 'Titres longs : ' + (e.textes.longsTitres || []).join(' · ') }), h('div', { text: 'Descriptions : ' + (e.textes.descriptions || []).join(' · ') })]) : null,
+        e.consigne ? h('div.refus', { text: 'Consigne au script Google Ads v3 : ' + ({ a_appliquer: 'à appliquer au prochain passage du script', apercu: 'aperçu (le script simule, à approuver ici)', fait: 'appliquée dans Google Ads', apercu_fait: 'aperçu fait par le script', erreur: 'erreur du script', ignore: 'ignorée' }[e.consigneEtat] || e.consigneEtat || 'écrite') + (e.consigneResultat ? ' — ' + String(e.consigneResultat).slice(0, 200) : '') }) : null,
         h('div.quand', { text: quand(e.le) + ' · ' + (ETATS_PILOTE[e.etat] || e.etat) + (e.par && e.par !== 'einstein' ? ' par ' + e.par : '') + (e.erreur ? ' · ' + e.erreur : '') }),
-        avecBoutons ? h('div.boutons', [h('button.btn.primaire', { type: 'button', text: 'Appliquer dans le flux', onclick: function () { self.pilote({ quoi: 'appliquer', id: e.id }); } }), h('button.btn', { type: 'button', text: 'Ignorer', onclick: function () { self.pilote({ quoi: 'ignorer', id: e.id }); } })]) : null]);
+        avecBoutons ? h('div.boutons', [h('button.btn.primaire', { type: 'button', text: e.consigne ? 'Appliquer dans Google Ads' : 'Appliquer dans le flux', onclick: function () { self.pilote({ quoi: 'appliquer', id: e.id }); } }), h('button.btn', { type: 'button', text: 'Ignorer', onclick: function () { self.pilote({ quoi: 'ignorer', id: e.id }); } })]) : null]);
     };
     if (props.length) { el.appendChild(h('h3', { text: props.length + ' proposition' + (props.length > 1 ? 's' : '') + ' à approuver', style: { fontSize: '18px', margin: '14px 0 0' } })); props.forEach(function (e) { el.appendChild(ligne(e, true)); }); }
     else if (mode !== 'off') el.appendChild(h('p.expl', { text: 'Aucune proposition en attente.' }));

@@ -648,7 +648,7 @@
   var moiVal = tri === 'km' ? a.km : (tri === 'jours' ? null : a.prix), placerFin = !nb(moiVal);
   var ligneMoi = function () {
   return h('tr.anu-moi', { title: nb(a.rang) ? 'Notre rang : ' + rangTexte(a.rang, a.n + 1) + ', prix ramenés à notre kilométrage (1 = le moins cher)' : '' }, [
-  h('td', [h('div', { text: [a.annee, a.marque, a.modele, a.version].filter(Boolean).join(' ') }), h('div.mini.doux', { text: 'Notre véhicule' + (a.stock ? ' · # ' + a.stock : '') })]),
+  h('td', [h('div', { text: [a.nom || [a.annee, a.marque, a.modele].filter(Boolean).join(' '), a.version].filter(Boolean).join(' ') }), h('div.mini.doux', { text: 'Notre véhicule' + (a.stock ? ' · # ' + a.stock : '') })]),
   h('td.num', { text: nb(a.km) ? AMX.fmtNombre(Math.round(a.km)) : '—' }),
   h('td.num', { text: argent(a.prix) }),
   h('td.num', [h('b', { text: argent(a.prix) })]),

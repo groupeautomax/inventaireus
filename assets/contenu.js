@@ -68,6 +68,12 @@
     '.ctn-deux { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } @media (max-width: 640px) { .ctn-deux { grid-template-columns: 1fr; } }',
     '.ctn-ein { display: flex; flex-direction: column; gap: 12px; } .ctn-ein textarea { min-height: 84px; }',
     '.ctn-puces { display: flex; flex-wrap: wrap; gap: 6px; } .ctn-puces button { border: 1px solid var(--ligne); background: var(--carte); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; } .ctn-puces button:hover { border-color: var(--encre-3); }',
+    '.ctn-ei { border: 1px solid #b9dcc8; background: #f3faf6; border-radius: 12px; padding: 14px 16px; margin: 12px 0; display: flex; flex-direction: column; gap: 10px; }',
+    '.ctn-ei-t { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; } .ctn-ei-t b { font-size: 17px; } .ctn-ei-t .s { font-size: 13px; color: var(--encre-3); flex: 1 1 260px; }',
+    '.ctn-ei-l { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }',
+    '.ctn-ei-i { background: var(--carte); border: 1px solid var(--ligne); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }',
+    '.ctn-ei-i .ty { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--vert-fonce); } .ctn-ei-i b { font-size: 15px; line-height: 1.3; } .ctn-ei-i .p { font-size: 13px; color: var(--encre-3); }',
+    '.ctn-ei-i .g { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 4px; } .ctn-ei-i .e { font-size: 13px; color: var(--encre-2); } .ctn-ei-i .e.err { color: var(--rouge); }',
     '.ctn-idees { display: flex; flex-direction: column; gap: 8px; } .ctn-idee { border: 1px solid var(--ligne); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--carte); }',
     '.ctn-idee b { font-size: 15px; } .ctn-idee .p { font-size: 13px; color: var(--encre-3); } .ctn-idee .bas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .ctn-idee .bas input { flex: 1 1 240px; }',
     '.ctn-ein h3 { font-size: 15px; margin: 6px 0 0; }',
@@ -158,17 +164,55 @@
     return d.getFullYear() !== new Date().getFullYear() ? t + ' ' + d.getFullYear() : t;
   }
 
+  /* ---- Idées d'Einstein (26 nov.) : il propose, on confirme, il cherche sur le Web et il écrit ----
+     L'état des travaux est gardé ici (pas dans la vue) : changer de site ou de page ne les arrête pas. */
+  var EI = { proposer: {}, auto: {}, travail: {} };   // proposer[site] = message ; travail[idee] = { msg, err }
+  function eiAnnoncer() { try { document.dispatchEvent(new CustomEvent('amx:contenuIdees')); } catch (e) {} }
+  var TYPES_IDEE = { modele: 'Un modèle en stock', comparaison: 'Comparaison', service: 'Guide du service', libre: 'Sujet libre' };
+  function proposerIdees(site) {
+    if (EI.proposer[site]) return;
+    EI.proposer[site] = 'Einstein regarde le stock du site et les pages déjà faites… (30 à 60 secondes)'; eiAnnoncer();
+    poster({ action: 'contenuEinstein', mode: 'proposer', site: site }, 150000).then(function (r) {
+      delete EI.proposer[site];
+      var x = cache.rep && cache.rep.sites.filter(function (y) { return y.cle === site; })[0]; if (x) x.idees = r.idees;
+      eiAnnoncer();
+    }).catch(function (e) { EI.proposer[site] = '!' + A.erreurTexte(e); eiAnnoncer(); });
+  }
+  function ecarterIdee(site, id) {
+    poster({ action: 'contenuEinstein', mode: 'ecarter', site: site, idee: id }, 60000).then(function (r) {
+      var x = cache.rep && cache.rep.sites.filter(function (y) { return y.cle === site; })[0]; if (x) x.idees = r.idees; eiAnnoncer();
+    }).catch(function (e) { A.toast(A.erreurTexte(e), 'erreur'); });
+  }
+  /** Confirmer une idée : Einstein cherche les faits sur le Web, écrit la page française, puis l'anglaise. */
+  function confirmerIdee(site, idee, apres) {
+    if (EI.travail[idee.id] && !EI.travail[idee.id].err) return;
+    function etape(t) { EI.travail[idee.id] = { msg: t }; eiAnnoncer(); }
+    etape('1 de 3 — Einstein cherche les faits sur le Web… (30 à 90 secondes)');
+    poster({ action: 'contenuEinstein', mode: 'rechercher', site: site, idee: idee.id }, 170000).then(function (r) {
+      etape('2 de 3 — Einstein écrit la page… (30 à 60 secondes)');
+      var b = { action: 'contenuGenerer', idee: idee.id }; for (var k in r.params) b[k] = r.params[k];
+      return poster(b, 150000);
+    }).then(function (r) {
+      etape('3 de 3 — Version anglaise… (30 à 60 secondes)');
+      return poster({ action: 'contenuTraduire', id: r.id }, 150000).then(function () { return r.id; }, function () { return r.id; });
+    }).then(function (id) {
+      delete EI.travail[idee.id];
+      A.toast('Page ' + id + ' écrite par Einstein : relisez-la et approuvez-la.', 'ok', 8000);
+      eiAnnoncer(); if (apres) apres(id);
+    }).catch(function (e) { EI.travail[idee.id] = { msg: A.erreurTexte(e), err: true }; eiAnnoncer(); });
+  }
+
   /* =============================== La page =============================== */
   function VueContenu(conteneur) {
     css();
     var self = this;
     this.conteneur = conteneur; this.detruit = false;
     A.vider(conteneur);
-    this.btnNouvelle = h('button.btn.primaire', { type: 'button', text: 'Nouvelle page', onclick: function () { self.nouvelle(self.vue === 'comparaisons' ? 'comparaison' : ''); } });
+    this.btnNouvelle = h('button.btn', { type: 'button', text: 'Nouvelle page', onclick: function () { self.nouvelle(self.vue === 'comparaisons' ? 'comparaison' : ''); } });
     this.btnRafraichir = h('button.btn', { type: 'button', text: 'Rafraîchir', onclick: function () { self.charger(true); } });
     this.btnFavori = h('button.btn', { type: 'button', text: 'Le favori D2C', onclick: function () { self.aideFavori(); } });
     conteneur.appendChild(h('div.entete-page', [
-      h('div', [h('h1', 'Générateur de contenu'), h('p', { text: 'Une page utile par site et par semaine : Einstein écrit à partir de nos données, la concession relit et approuve, le favori la publie dans D2C.' })]),
+      h('div', [h('h1', 'Générateur de contenu'), h('p', { text: 'Einstein propose les idées, cherche les faits et écrit les pages ; vous confirmez une idée, relisez, approuvez, et le favori la publie dans D2C.' })]),
       h('div.actions', A.actionsEntete([this.btnRafraichir, this.btnFavori, this.btnNouvelle], [this.btnNouvelle]))
     ]));
     this.elSites = h('div.ctn-sites'); conteneur.appendChild(this.elSites);
@@ -177,9 +221,11 @@
     this.vue = (A.memo && A.memo.lire('ctn_vue', '')) === 'comparaisons' ? 'comparaisons' : 'pages';
     this.surCie = function (e) { var c = e.detail && e.detail.compagnie; if (c && self.rep) { var s = self.rep.sites.filter(function (x) { return x.cie === c; })[0]; if (s) { self.choisirSite(s.cle); } } };
     document.addEventListener('amx:compagnie', this.surCie);
+    this.surIdees = function () { if (!self.detruit && self.rep) self.rendre(); };
+    document.addEventListener('amx:contenuIdees', this.surIdees);
     this.charger(false);
   }
-  VueContenu.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); };
+  VueContenu.prototype.demonter = function () { this.detruit = true; document.removeEventListener('amx:compagnie', this.surCie); document.removeEventListener('amx:contenuIdees', this.surIdees); };
   VueContenu.prototype.charger = function (force) {
     var self = this;
     if (!cache.rep) { A.vider(this.elCorps); this.elCorps.appendChild(A.chargeur('Générateur de contenu')); }
@@ -214,8 +260,10 @@
       h('div.rythme' + (r > 1 ? '.att' : '.ok'), { text: !r ? 'Aucune page cette semaine : c\'est le moment' : r === 1 ? '1 page cette semaine : le bon rythme' : r + ' pages cette semaine : une par semaine suffit' + (r >= 3 ? ' (la prochaine ne pourra être approuvée que la semaine prochaine)' : '') }),
       this.btnLire
     ]));
+    this.elCorps.appendChild(this.carteIdees(s));
     this.elCorps.appendChild(h('details.ctn-aide', [h('summary', { text: 'Comment ça marche' }), h('ol', [
-      h('li', { text: '« Nouvelle page » : choisissez le sujet et donnez les faits. Einstein écrit la page française à partir du stock réel du site, puis la version anglaise. Il n\'invente ni chiffre, ni prix, ni promotion.' }),
+      h('li', { text: 'Einstein propose des idées de pages pour le site (modèles en stock, comparaisons avec les concurrents, conseils du service). « Confirmer » : il cherche les faits sur le Web (sites des constructeurs, sources officielles), écrit la page française, puis l\'anglaise. Une comparaison met en avant les vrais avantages de notre modèle. Il n\'invente ni chiffre, ni prix, ni promotion.' }),
+      h('li', { text: '« Nouvelle page » (Actions) reste pour un sujet à vous, avec vos faits.' }),
       h('li', { text: 'Relisez. Corrigez au besoin dans « Texte français » et « Texte anglais ». Chaque affirmation de la liste « à confirmer » doit être vraie.' }),
       h('li', { text: 'La direction approuve (« J\'ai relu la page et vérifié chaque fait »). Une page par semaine par site suffit ; jamais le même texte sur deux sites.' }),
       h('li', { text: 'Publier : dans D2C, ouvrez Custom Pages du site et cliquez le favori « Automax → D2C (pages) ». C\'est tout : il crée la page, met le texte et le titre pour Google, et vérifie qu\'elle est en ligne.' }),
@@ -247,6 +295,33 @@
     });
     var ret = pages.filter(function (p) { return p.etat === 'retiree'; });
     if (ret.length) this.elCorps.appendChild(h('details', { style: { marginTop: '14px' } }, [h('summary', { text: 'Retirées (' + ret.length + ')', style: { cursor: 'pointer', fontWeight: '700', color: 'var(--encre-3)' } }), h('div.ctn-liste', { style: { marginTop: '8px' } }, ret.map(function (p) { return self.ligne(p); }))]));
+  };
+  VueContenu.prototype.carteIdees = function (s) {
+    var self = this, I = s.idees, prop = EI.proposer[s.cle];
+    if (I === undefined && !prop && !EI.auto[s.cle]) { /* script d'avant : pas d'idées */ }
+    else if (!I && !prop && !EI.auto[s.cle] && s.lu && s.lu.n) { EI.auto[s.cle] = 1; setTimeout(function () { proposerIdees(s.cle); }, 0); prop = EI.proposer[s.cle] || 'Einstein prépare des idées…'; }
+    var liste = (I && I.liste) || [];
+    var err = prop && prop.charAt(0) === '!';
+    var tete = h('div.ctn-ei-t', [
+      h('b', { text: 'Idées d\'Einstein' }),
+      h('span.s', { text: prop ? (err ? prop.slice(1) : prop) : liste.length ? 'Confirmez une idée : Einstein cherche les faits sur le Web et écrit la page. Vous relisez ensuite.' + (I.le ? ' Proposées le ' + dateCourte(I.le) + '.' : '') : (I === undefined ? 'Redéployez le script (Contenu.gs) pour les idées d\'Einstein.' : s.lu && s.lu.n ? 'Aucune idée pour l\'instant.' : 'Lisez le site d\'abord : Einstein part du stock réel.') }),
+      I === undefined ? null : h('button.btn' + (liste.length ? '' : '.primaire'), { type: 'button', disabled: !!(prop && !err), text: liste.length ? 'Proposer d\'autres idées' : 'Proposer des idées', onclick: function () { delete EI.proposer[s.cle]; proposerIdees(s.cle); } })
+    ]);
+    var vue = this.vue === 'comparaisons';
+    var vues = liste.filter(function (x) { return vue ? x.type === 'comparaison' : true; });
+    var grille = vues.length ? h('div.ctn-ei-l', vues.map(function (x) {
+      var w = EI.travail[x.id];
+      var sous = x.type === 'comparaison' ? x.marque + ' ' + x.modele + ' contre ' + x.concurrentMarque + ' ' + x.concurrentModele + (x.annee ? ' (' + x.annee + ')' : '')
+        : x.type === 'modele' ? x.marque + ' ' + x.modele + (x.n ? ' · ' + x.n + ' en vente' : '') : x.sujet || '';
+      return h('div.ctn-ei-i', [
+        h('div.ty', { text: TYPES_IDEE[x.type] || x.type }), h('b', { text: x.titre }), sous ? h('div.p', { text: sous }) : null, x.pourquoi ? h('div.p', { text: x.pourquoi }) : null,
+        w ? h('div.e' + (w.err ? '.err' : ''), { text: w.msg }) : null,
+        h('div.g', (w && !w.err) ? [] : [
+          h('button.btn.primaire.petit', { type: 'button', text: w ? 'Réessayer' : 'Confirmer — Einstein écrit', onclick: function () { confirmerIdee(s.cle, x, function (id) { self.charger(true).then(function () { if (!self.detruit) self.fiche(id); }); }); } }),
+          h('button.btn.fantome.petit', { type: 'button', text: 'Écarter', onclick: function () { ecarterIdee(s.cle, x.id); } })])
+      ]);
+    })) : (liste.length && vue ? h('div.p', { text: 'Pas d\'idée de comparaison dans cette série : « Proposer d\'autres idées ».', style: { fontSize: '13px', color: 'var(--encre-3)' } }) : null);
+    return h('div.ctn-ei', [tete, grille]);
   };
   VueContenu.prototype.ligne = function (p) {
     var self = this, puces = [pastille(p.etat)];

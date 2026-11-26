@@ -127,11 +127,13 @@
     /* 21 nov. (S3E57111A0E, Eric Morin) : à qui part une demande de la concession — { noms, repli, seuls } ou null (script d'avant) */
     versQui: function (cie) { var v = demCache.rep && demCache.rep.versQui; return (v && cie && v[String(cie).toUpperCase()]) || null; },
     // La demande vivante du NIV (envoyée / retournée), sinon la plus récente.
-    parVin: function (vin) {
-      vin = String(vin || '').toUpperCase();
-      var l = demCache.rep ? demCache.rep.demandes : [], meilleure = null;
-      l.forEach(function (d) {
-        if (String(d.vin).toUpperCase() !== vin) return;
+    parVin: function (vin, compagnie) {
+    vin = String(vin || '').toUpperCase();
+    var cie = String(compagnie || '').toUpperCase(); /* 26 nov. (S0ADCCFA59C) : un NIV passé de BMW à STM ne traîne plus les demandes de BMW */
+    var l = demCache.rep ? demCache.rep.demandes : [], meilleure = null;
+    l.forEach(function (d) {
+    if (String(d.vin).toUpperCase() !== vin) return;
+    if (cie && d.compagnie && String(d.compagnie).toUpperCase() !== cie) return;
         var vivante = d.etat === 'envoyee' || d.etat === 'retournee', mv = meilleure && (meilleure.etat === 'envoyee' || meilleure.etat === 'retournee');
         if (!meilleure || (vivante && !mv) || (vivante === mv && String(d.maj) > String(meilleure.maj))) meilleure = d;
       });
@@ -834,7 +836,7 @@
 
     // Décision : Détail / Wholesale — la porte (8 oct. : « une action doit être prise
     // dans le système lorsque dans le suivi on choisit wholesale ou détail »).
-    var dem = AMX.demandes.parVin(s.vin);
+    var dem = AMX.demandes.parVin(s.vin, s.compagnie); /* 26 nov. : les demandes de la concession du suivi seulement */
     var demVivante = dem && (dem.etat === 'envoyee' || dem.etat === 'retournee') ? dem : null;
     var blocAuto = h('div.bloc', [h('h3', ['Décision : Détail ou Wholesale', accepte ? h('span.puce.ok', { text: 'Détail' }) : (refuse ? h('span.puce.alerte', { text: 'Wholesale' }) : h('span.puce.attention', { text: 'À décider' }))])]);
     // Le verdict de l'évaluation (boîte « Canada ou États-Unis ? »), quand il existe.
@@ -895,7 +897,9 @@
       }
     } else if (s.statut === 'pret') {
       // Véhicule prêt à vendre : une retouche (lavage après des essais routiers, retouche…) — la mise en marché n'est pas rouverte.
-      var dr = dem && dem.type === 'retouche' && dem.etat !== 'annulee' ? dem : null;
+      /* 26 nov. (S0ADCCFA59C, François) : une demande ordinaire encore « envoyée » ou « retournée » sur un véhicule prêt à vendre paraît
+      aussi ici, avec ses boutons (approuver, annuler) — avant, seule une retouche s'affichait et la demande restait invisible. */
+      var dr = dem && dem.etat !== 'annulee' && (dem.type === 'retouche' || dem.etat === 'envoyee' || dem.etat === 'retournee') ? dem : null;
       var e1 = dr ? (DEM_ETATS[dr.etat] || DEM_ETATS.envoyee) : null;
       blocDemande = h('div.bloc.svc-demande.svc-retouche', [h('h3', ['Retouche au service', dr ? h('span.puce' + (e1.puce ? '.' + e1.puce : ''), { text: e1.libelle }) : null])]);
       if (dr) detailDemande(blocDemande, dr);

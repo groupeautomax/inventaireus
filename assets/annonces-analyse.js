@@ -467,7 +467,7 @@
     this.btnBranchement = h('button.btn', { type: 'button', text: 'Branchement Google Ads', onclick: function () { self.ouvrirBranchement(); } });
     this.btnAds = h('button.btn', { type: 'button', text: 'Ouvrir Google Ads', onclick: function () { window.open(URL_ADS, '_blank', 'noopener'); } });
     this.btnFeuille = h('button.btn', { type: 'button', text: 'Ouvrir la feuille des résultats', onclick: function () { var fe = ((self.rep || {}).ads || {}).feuille; if (fe && fe.url) window.open(fe.url, '_blank', 'noopener'); } });
-    this.btnRapport = h('button.btn', { type: 'button', text: 'Rapport mensuel', title: 'Recevoir par courriel le rapport Google Ads du mois', onclick: function () { self.envoyerRapport(); } });
+    this.btnRapport = h('button.btn', { type: 'button', text: 'Rapport', title: 'Recevoir par courriel le rapport Google Ads de la semaine ou du mois', onclick: function () { self.envoyerRapport(); } });
     this.btnBranchement.hidden = true; this.btnFeuille.hidden = true;
     this.elSous = h('p');
     conteneur.appendChild(h('div.entete-page', [
@@ -689,8 +689,9 @@
       ])]));
   };
 
-  /* 26 nov. (Maxime : « un rapport mensuel de performance de Google Ads ») : le rapport du mois, envoyé par courriel à la personne
-     connectée (AnnoncesRapport.gs). Le 1er du mois, il part de lui-même à la propriétaire et aux DG de chaque concession branchée. */
+  /* 26 nov. (Maxime : « un rapport de performance de Google Ads », puis « 1 x par semaine ») : le rapport de la semaine dernière ou
+     d'un mois, envoyé par courriel à la personne connectée (AnnoncesRapport.gs). Le lundi matin, le rapport de la semaine part de
+     lui-même à la propriétaire et aux DG de chaque concession branchée, avec une lecture fraîche d'Einstein et le marché des occasions. */
   Vue.prototype.envoyerRapport = function () {
     var self = this, a = ((this.rep || {}).ads) || {}, d = new Date(), prec = new Date(d.getFullYear(), d.getMonth() - 1, 1);
     if (!a.branche) { AMX.toast('Google Ads n\'est pas branché pour cette concession.', 'erreur', 6000); return; }
@@ -702,8 +703,8 @@
       }).catch(function (e) { AMX.toast(AMX.erreurTexte(e), 'erreur', 9000); return false; });
     };
     AMX.modale({ titre: 'Rapport mensuel Google Ads',
-      corps: h('p', { style: { margin: 0, lineHeight: '1.5' }, text: 'Envoyé par courriel à votre adresse, pour ' + ((this.rep || {}).nom || this.cie) + ' : les chiffres du mois comparés au mois d\'avant, les ventes, les conversions, les véhicules les plus cliqués et les points à surveiller.' }),
-      boutons: [{ texte: 'Annuler' }, { texte: nomMois(prec), action: function () { return envoyer(prec.getFullYear() + '-' + ('0' + (prec.getMonth() + 1)).slice(-2)); } }, { texte: nomMois(d) + ' (à date)', classe: 'primaire', action: function () { return envoyer('courant'); } }] });
+      corps: h('p', { style: { margin: 0, lineHeight: '1.5' }, text: 'Envoyé par courriel à votre adresse, pour ' + ((this.rep || {}).nom || this.cie) + ' : les chiffres comparés à la période d\'avant, les ventes, les conversions, les véhicules les plus cliqués, les recommandations d\'Einstein et ce qui a suivi, le prix face au marché et les points à surveiller. Le rapport de la semaine part de lui-même chaque lundi matin.' }),
+      boutons: [{ texte: 'Annuler' }, { texte: nomMois(prec), action: function () { return envoyer(prec.getFullYear() + '-' + ('0' + (prec.getMonth() + 1)).slice(-2)); } }, { texte: nomMois(d) + ' (à date)', action: function () { return envoyer('courant'); } }, { texte: 'Semaine dernière', classe: 'primaire', action: function () { return envoyer('semaine'); } }] });
   };
 
   /* ---- les ventes de la période, pour les chiffres et l'onglet Ventes ---- */
